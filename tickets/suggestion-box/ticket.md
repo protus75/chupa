@@ -16,9 +16,6 @@ agent_effort: medium
 - chupa/config.py
 - tests/test_git.py
 
-## On-demand
-- bootstrap/suggestions.md
-
 ## Plan contract
 - 19.L
 - 19.P2
