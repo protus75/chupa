@@ -1,18 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "9b9152dec886748ec7afaec0408508ad1976f621",
+  "produced_at_sha": "19b015b037a9fec9bfe4b01b7875e9dbd21e4983",
   "stem": "box-triage",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "The implementation passed every gate. Review failed only because tests/test_triage.py has one test. Keep the code. Add the tests that AC2-AC5 require, unless a new test exposes a bug. If one does, fix that bug in fence-scoped code.",
-    "AC2: assert that git log adds exactly two subjects, `chupa(decisions): tombstone-<first>` and `chupa(decisions): decision-<second>`. Parse each committed record file with parse_record and assert its kind, its link, and reopen_after_days. Use parse_record and drop the unused import.",
-    "AC3: in a separate test, call box.record_verdict on the third message with an author verdict whose produced_by_spec_version is stale (e.g. '0.9'). Run main(['triage']) and assert three things: no new FakeLLM request, a committed `decision-<id>` record, and the message status is resolved.",
-    "AC4: write three tests. (a) A tombstone reply whose link matches nothing writes a decision record that names the bad link. (b) A record committed before the pass resolves its message with no request. (c) Invalid replies on every re-prompt leave the message pending, with no new decisions commit.",
-    "AC5: put a unique marker in a message's raw summary and assert that no committed record contains it. Hold a Lockfile on the state dir the same way the existing run/drain contention tests do, then assert main(['triage']) == 2, no requests, and no triage_pass journaled."
+    "When run_seq is given, carry it into the spool path as well as the effect key: pass a spool stem like f\"{surface}/{run_seq}\" to every self.spool.write call in Driver.run. Leave the ticket and existing ticketless paths byte-identical so tests/test_driver.py passes unedited.",
+    "In tests/test_triage.py, assert that each triage pass writes to a separate spool dir per message: two messages in one pass must not share a prompt.md or output.txt path.",
+    "Criterion 2: assert r.tier == config.routing_default_tier for every llm.requests entry. Then read the journal's LLM effect events and assert the key set equals {f\"llm/triage/{m.seq}/triage/0/1\"} for the three messages. Distinct rendered text alone does not prove this.",
+    "Before finishing, check each acceptance criterion against a specific assertion in the tests. Every criterion clause, such as tier, keys, or spool dir, needs an explicit check. Passing tests are not enough."
   ],
   "mechanical": null,
   "spec_version": "1.0",
