@@ -79,7 +79,7 @@ class Provider(_Strict):
 
 class Candidate(_Strict):
     provider: str
-    model: str
+    model: str | None = None  # absent: the provider's models_by_tier[tier] serves (section 6)
 
 
 class Route(_Strict):
@@ -265,6 +265,17 @@ def _from_validation(path: Path, e: ValidationError) -> ConfigError:
 
 
 def _check_references(path: Path, cfg: Config) -> None:
+    kinds = {p.name: p.kind for p in cfg.providers}
+    # Before the api refusal: routing Implement to api stays wrong after the api client ships.
+    for i, route in enumerate(cfg.routing):
+        for j, cand in enumerate(route.candidates):
+            if route.surface == "implement" and kinds.get(cand.provider, "cli") != "cli":
+                raise ConfigError(
+                    path,
+                    f"routing.{i}.candidates.{j}.provider",
+                    f"implement must be served by a kind: cli provider ({cand.provider!r} is"
+                    f" {kinds[cand.provider]}); an api provider returns text and cannot edit the worktree",
+                )
     for i, provider in enumerate(cfg.providers):
         if provider.kind == "api":
             raise ConfigError(

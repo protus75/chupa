@@ -3,6 +3,7 @@
 Writer-site checklist (extend in the same change that adds a writer of a captured stream):
 - attempt-spool writer: chupa/driver.py `Spool`
 - engine-log writer: chupa/enginelog.py `EngineLog`
+- attempt-spool writer: chupa/providers.py `CliAdapter.invoke` (prompt, cli event stream, stderr)
 - journal writer: chupa/journal.py -- NOT YET WIRED (no secret-bearing producer before Phase 1)
 - harvest serialization: not built (Phase 2)
 """

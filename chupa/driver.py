@@ -19,11 +19,9 @@ from chupa.config import Config, Severity
 from chupa.enginelog import EngineLog
 from chupa.gates import Gate, merge_severity, run_gates
 from chupa.llm import LLM, AgentEffort, AgentTier, LLMRequest, LLMResult
+from chupa.providers import WRITING_SURFACES
 from chupa.redact import Redactor
 from chupa.seams import Clock, FileSystem, LocalFileSystem, Sleep
-
-# Closed allowlist of tree-writing surfaces (section 6): every other surface is called read-only.
-WRITING_SURFACES = frozenset({"implement"})
 
 _FENCE = re.compile(r"\A\s*(`{3,})[\w+-]*[ \t]*\n(.*)\n\1[ \t]*\s*\Z", re.DOTALL)
 

@@ -7,6 +7,8 @@ Engine wins on process, host wins on content. In this repo chupa is both engine 
 
 **Read first:** `CHUPA_PLAN.md` is canonical for all design detail; this file carries only conduct, never a copy of the plan.
 
+**AGENTS.md** is the curated subset loaded by non-Claude agent CLIs (codex is routed to Implement). This file is canonical on conflict; a rule add/change/remove touches both files in the same change. (section 17)
+
 Every rule below is behavioral (no gate checks it yet): the prose is the only enforcement. When a rule gains its gate, compress it to one line in the same change.
 
 ## A. Engine conduct

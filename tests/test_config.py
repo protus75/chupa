@@ -179,7 +179,9 @@ def test_non_integer_or_negative_schema_version_is_refused(tmp_path, value):
 
 
 def test_api_provider_is_refused_until_its_client_ships(tmp_path):
-    err = refusal(tmp_path, edit(VALID, "kind: cli", "kind: api\n    auth: ANTHROPIC_API_KEY"))
+    # Route a read-only surface: routing implement to api is refused earlier, by its own rule.
+    text = edit(VALID, "surface: implement", "surface: review")
+    err = refusal(tmp_path, edit(text, "kind: cli", "kind: api\n    auth: ANTHROPIC_API_KEY"))
     assert err.key == "providers.0.kind"
     assert "kind: cli" in str(err)
 

@@ -28,6 +28,26 @@ class ProcessExec(Protocol):
     ) -> tuple[int, str, str]: ...
 
 
+@runtime_checkable
+class GroupExec(ProcessExec, Protocol):
+    """Process exec that publishes each child's process group, for a synchronous kill (`abort_current`)."""
+
+    async def run(
+        self,
+        argv: Sequence[str],
+        *,
+        cwd: Path,
+        env: Mapping[str, str],
+        timeout: float | None,
+        stdin_path: Path | None = None,
+        on_spawn: Callable[[int], None] | None = None,
+    ) -> tuple[int, str, str]: ...
+
+    def kill_group(self, pgid: int) -> None:
+        """Signal-not-reap: returns once the group is SIGKILLed; the spawner's `run` still reaps."""
+        ...
+
+
 class ExecutableNotFound(Exception):
     """argv[0] does not resolve: a config/setup refusal, never a raw FileNotFoundError."""
 
@@ -47,6 +67,7 @@ class SubprocessExec:
         env: Mapping[str, str],
         timeout: float | None,
         stdin_path: Path | None = None,
+        on_spawn: Callable[[int], None] | None = None,
     ) -> tuple[int, str, str]:
         if shutil.which(argv[0], path=env.get("PATH", "")) is None:
             raise ExecutableNotFound(argv[0])
@@ -60,6 +81,8 @@ class SubprocessExec:
                 stderr=subprocess.PIPE,
                 start_new_session=True,
             )
+            if on_spawn is not None:
+                on_spawn(proc.pid)  # start_new_session: the child's pid IS its pgid
             try:
                 async with asyncio.timeout(timeout):
                     out, err = await proc.communicate()
@@ -69,12 +92,15 @@ class SubprocessExec:
                 raise
         return proc.returncode or 0, out.decode(errors="replace"), err.decode(errors="replace")
 
+    def kill_group(self, pgid: int) -> None:
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
 
 async def _kill_and_wait(proc: asyncio.subprocess.Process) -> None:
-    try:
-        os.killpg(proc.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
+    SubprocessExec().kill_group(proc.pid)
     await proc.wait()
 
 
@@ -85,7 +111,6 @@ class FileSystem(Protocol):
         ...
 
     def replace(self, src: Path, dst: Path) -> None: ...
-
 
 
 class LocalFileSystem:

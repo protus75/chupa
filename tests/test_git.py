@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from chupa.git import Git, GitError, RebaseRefused
-from chupa.seams import ExecutableNotFound, ProcessExec, SubprocessExec
+from chupa.seams import ExecutableNotFound, GroupExec, ProcessExec, SubprocessExec
 
 ENV = {"PATH": "/usr/bin"}
 REPO = Path("/repo")
@@ -198,6 +198,30 @@ def test_subprocess_exec_outer_cancellation_kills_the_process_group(tmp_path):
     call = SubprocessExec().run(_spawns_grandchild(marker), cwd=tmp_path, env=dict(os.environ), timeout=None)
     with pytest.raises(TimeoutError):
         run(asyncio.wait_for(call, 0.3))
+    time.sleep(1.5)
+    assert not marker.exists()
+
+
+def test_subprocess_exec_publishes_pgid_for_a_synchronous_group_kill(tmp_path):
+    marker = tmp_path / "grandchild-alive"
+    seam = SubprocessExec()
+    assert isinstance(seam, GroupExec)
+
+    async def scenario():
+        spawned = asyncio.Event()
+        pgids = []
+        task = asyncio.ensure_future(
+            seam.run(
+                _spawns_grandchild(marker), cwd=tmp_path, env=dict(os.environ), timeout=30,
+                on_spawn=lambda pgid: (pgids.append(pgid), spawned.set()),
+            )
+        )
+        await spawned.wait()
+        seam.kill_group(pgids[0])
+        return await asyncio.wait_for(task, 5)
+
+    rc, _, _ = run(scenario())
+    assert rc != 0
     time.sleep(1.5)
     assert not marker.exists()
 
