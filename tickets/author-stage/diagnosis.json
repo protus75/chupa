@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "069507224e5ed8b5973192f90169158f8cb435b2",
+  "stem": "author-stage",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Add tests/test_author.py cases for criterion 3 via main([\"triage\"]) with FakeLLM: an author reply naming an existing tickets/<stem>/, and one failing validate_ticket; assert the next author request's retry_findings carries those findings.",
+    "Add an allowance-exhaustion test: feed invalid author replies until caps.retry runs out; assert no `chupa(<stem>): ticket` commit, one `chupa(decisions): decision-<id>` commit, and resolution {kind: decision, link: decision-<id>}.",
+    "Add criterion 4 tests: a bug_report with no has_repro gets a decision-<id> record and only the triage request (zero author requests); a recorded author verdict plus a journaled author_invoked signal gets the record with zero requests.",
+    "In tests/test_triage.py, change only the author-verdict expectations. Restore the stale-version block: record an author verdict at 0.9 on a fresh pending message, then assert no new request, a decision-<id> commit, and a body naming both 0.9 and 1.0.",
+    "Before finishing, map each acceptance criterion to a named test, and diff test_triage.py against base to confirm no other assertion was deleted. Passing tests alone do not prove the criteria are covered."
+  ],
+  "mechanical": null,
+  "spec_version": "1.0",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
