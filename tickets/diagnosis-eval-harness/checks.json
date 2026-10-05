@@ -1,0 +1,51 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "8220537e442dc465f1023c4eba478b701b533fe2",
+  "stem": "diagnosis-eval-harness",
+  "passed": true,
+  "changed_files": [
+    "eval/diagnose.py",
+    "eval/diagnose_fixtures/escalate_algorithm.json",
+    "eval/diagnose_fixtures/escalate_parser.json",
+    "eval/diagnose_fixtures/escalate_race.json",
+    "eval/diagnose_fixtures/human_credentials.json",
+    "eval/diagnose_fixtures/human_service.json",
+    "eval/diagnose_fixtures/reject_absent_file.json",
+    "eval/diagnose_fixtures/reject_conflict.json",
+    "eval/diagnose_fixtures/retry_missing_case.json",
+    "eval/diagnose_fixtures/retry_schema.json",
+    "eval/diagnose_fixtures/retry_typo.json",
+    "eval/diagnose_fixtures/split_export.json",
+    "eval/diagnose_fixtures/split_migration.json",
+    "tests/test_diagnose_eval.py"
+  ],
+  "inserted_lines": 671,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ]
+}
