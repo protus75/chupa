@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The first verification command ingested 193 suggestions into the main checkout; the targeted tests passed.
+Bootstrap ingest reported 0 new messages because the main checkout already contained the ingested messages.
 
 ## Dead ends
 
-The scoped implementation passed the first three verification commands, but the full suite failed on an existing test outside the scope fence.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped well before the expected 75m after the scope conflict became clear.
+75m expected; approximately 5m actual.
 
