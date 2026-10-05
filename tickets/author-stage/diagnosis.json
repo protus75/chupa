@@ -1,21 +1,15 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "a19903f1c9db33fb6e876c786bc7f07e85fceedf",
+  "produced_at_sha": "dfc12aaaf2f06794cdc131d3f6a28638e583fd94",
   "stem": "author-stage",
-  "attempt": 3,
-  "terminal": "gate_failed",
-  "stage": "review",
-  "verdict": "retry",
-  "lessons": [
-    "Build `open_tickets` the way `triage_pass` does: skip stems whose folded journal state is `merged`, and list only `tickets/<stem>/ticket.md` paths that are committed on main (reuse `_committed`-style check or `git.ls_files`). Never glob the working tree.",
-    "Add a test in tests/test_author.py whose first author reply names an already-committed stem. Assert the second author request's rendered prompt carries the stem-reuse finding, and that a valid second reply commits `chupa(<stem>): ticket`.",
-    "Add two criterion-4 tests that drive `main([\"triage\"])`: (a) a `bug_report` with no `has_repro`, (b) a pending message whose journal already has `author_invoked`. In each, assert a committed `decision-<id>` record, the message resolved as decision, and zero `author` requests.",
-    "Before declaring done, map every acceptance criterion (1-8) to a named test that asserts it. Criterion 3 needs both the stem-reuse and the validate_ticket re-prompt cases plus the exhaustion case. A 41-line test file cannot cover criteria 2-4.",
-    "Don't write `Outcome: ok` in run.md until every criterion has a test. The last run reported ok after about 15m of a 90m budget while three acceptance items were missing."
-  ],
-  "mechanical": null,
+  "attempt": 4,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "abandon-human",
+  "lessons": [],
+  "mechanical": "premise_bounce cap spent",
   "spec_version": "1.0",
-  "provider": "claude",
-  "model": "claude-opus-5-5"
+  "provider": null,
+  "model": null
 }
