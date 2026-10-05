@@ -8,10 +8,11 @@ from pydantic import BaseModel, ConfigDict
 
 from chupa.artifacts import Artifact, Finding
 from chupa.config import load_config
-from chupa.driver import Driver, LlmStage, llm_key
+from chupa.driver import Driver, LlmStage
 from chupa.effects import Effects, effect
 from chupa.journal import EventType, Journal, run_seq
 from chupa.llm import FakeLLM, LLMResult
+from chupa.llmeffect import llm_key
 
 SECRET = "sk-live-0123456789abcdef"
 

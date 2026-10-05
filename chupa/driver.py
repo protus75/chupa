@@ -4,15 +4,13 @@ render -> spool prompt -> LLM effect (raced against the stuck budget) -> spool o
 fence -> validate -> gates -> on hard failure re-prompt the SAME workspace with the findings,
 bounded by the retry cap. Stages differ only in spec (render), artifact type, and gate list.
 
-Every model call crosses the LLM effect, keyed `llm/<stem>/<run_seq>/<surface>/<attempt>/<call_seq>`:
-one cost-bearing completion per call, and a same-key re-entry (no intervening terminal) replays the
-recorded result instead of calling.
+Every model call crosses the LLM effect (chupa/llmeffect.py); the driver never calls the seam directly.
 """
 
 import asyncio
 import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -20,11 +18,12 @@ from pydantic import BaseModel, ValidationError
 
 from chupa.artifacts import Cost, Finding, Outcome, StageResult
 from chupa.config import Config, Severity
-from chupa.effects import Effects, effect
+from chupa.effects import Effects
 from chupa.enginelog import EngineLog
 from chupa.gates import Gate, merge_severity, run_gates
 from chupa.journal import Journal, run_seq
 from chupa.llm import LLM, AgentEffort, AgentTier, LLMRequest, LLMResult
+from chupa.llmeffect import llm_call
 from chupa.providers import WRITING_SURFACES
 from chupa.redact import Redactor
 from chupa.seams import Clock, FileSystem, LocalFileSystem, Sleep
@@ -56,28 +55,6 @@ class Spool:
 
     def write(self, stem: str, attempt: int, name: str, text: str) -> None:
         self._fs.write(self.root / stem / str(attempt) / name, self._redactor.scrub(text).encode())
-
-
-def llm_key(stem: str, run_seq: int, surface: str, attempt: int, call_seq: int) -> str:
-    return "/".join(("llm", stem, str(run_seq), surface, str(attempt), str(call_seq)))
-
-
-def _cost(result: dict[str, Any]) -> dict[str, Any]:
-    return {k: result[k] for k in ("usd", "input_tokens", "output_tokens", "provider", "model")}
-
-
-@effect(
-    key=lambda llm, req, redactor, *, stem, run_seq, attempt, call_seq: llm_key(
-        stem, run_seq, req.surface, attempt, call_seq
-    ),
-    cost=_cost,
-)
-async def llm_call(
-    llm: LLM, req: LLMRequest, redactor: Redactor, *, stem: str, run_seq: int, attempt: int, call_seq: int
-) -> dict[str, Any]:
-    result = await llm.call(req)
-    # Scrubbed once, before it becomes the completion record: execute and replay return the same bytes.
-    return asdict(replace(result, text=redactor.scrub(result.text)))
 
 
 class _StuckBudget(Exception):
