@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "complete": true,
+  "spec_version": "1.0",
+  "tier": "high",
+  "effort": "medium",
+  "usd_cap": 5.0,
+  "usd_spent": 1.4426858,
+  "fixtures_sha": "65ebce1b4ac2c951c6a10afafb57dfc926766479a3d5e53dd747b65ab0ac62e7",
+  "cases": [
+    {
+      "name": "escalate_algorithm",
+      "expected": "escalate",
+      "got": "escalate",
+      "outcome": "agree",
+      "usd": 0.1214474,
+      "seconds": 5.58195,
+      "provider": "claude",
+      "model": "claude-opus-5-5"
+    },
+    {
+      "name": "escalate_parser",
+      "expected": "escalate",
+      "got": "escalate",
+      "outcome": "agree",
+      "usd": 0.1259034,
+      "seconds": 8.010446,
+      "provider": "claude",
+      "model": "claude-opus-5-5"
+    },
+    {
+      "name": "escalate_race",
+      "expected": "escalate",
+      "got": "escalate",
+      "outcome": "agree",
+      "usd": 0.12153040000000001,
+      "seconds": 5.931664,
+      "provider": "claude",
+      "model": "claude-opus-5-5"
+    },
+    {
+      "name": "human_credentials",
+      "expected": "abandon-human",
+      "got": "abandon-human",
+      "outcome": "agree",
+      "usd": 0.1178164,
+      "seconds": 4.099737,
+      "provider": "claude",
+      "model": "claude-opus-5-5"
+    },
+    {
+      "name": "human_service",
+      "expected": "abandon-human",
+      "got": "abandon-human",
+      "outcome": "agree",
+      "usd": 0.1182504,
+      "seconds": 6.826252,
+      "provider": "claude",
+      "model": "claude-opus-5-5"
+    },
+    {
+      "name": "reject_absent_file",
+      "expected": "reject",
+      "got": "reject",
+      "outcome": "agree",
+      "usd": 0.11865940000000001,
+      "seconds": 4.567567,
+      "provider": "claude",
+      "model": "claude-opus-5-5"
+    },
+    {
+      "name": "reject_conflict",
+      "expected": "reject",
+      "got": "reject",
+      "outcome": "agree",
+      "usd": 0.11975240000000001,
+      "seconds": 4.821814,
+      "provider": "claude",
+      "model": "claude-opus-5-5"
+    },
+    {
+      "name": "retry_missing_case",
+      "expected": "retry",
+      "got": "retry",
+      "outcome": "agree",
+      "usd": 0.11997440000000001,
+      "seconds": 4.939903,
+      "provider": "claude",
+      "model": "claude-opus-5-5"
+    },
+    {
+      "name": "retry_schema",
+      "expected": "retry",
+      "got": "retry",
+      "outcome": "agree",
+      "usd": 0.11830239999999999,
+      "seconds": 4.423606,
+      "provider": "claude",
+      "model": "claude-opus-5-5"
+    },
+    {
+      "name": "retry_typo",
+      "expected": "retry",
+      "got": "retry",
+      "outcome": "agree",
+      "usd": 0.1204834,
+      "seconds": 5.171093,
+      "provider": "claude",
+      "model": "claude-opus-5-5"
+    },
+    {
+      "name": "split_export",
+      "expected": "split",
+      "got": "split",
+      "outcome": "agree",
+      "usd": 0.1235594,
+      "seconds": 13.086595,
+      "provider": "claude",
+      "model": "claude-opus-5-5"
+    },
+    {
+      "name": "split_migration",
+      "expected": "split",
+      "got": "split",
+      "outcome": "agree",
+      "usd": 0.11700640000000001,
+      "seconds": 3.882841,
+      "provider": "claude",
+      "model": "claude-opus-5-5"
+    }
+  ],
+  "agreement": {
+    "agree": 12,
+    "scored": 12,
+    "rate": 1.0
+  }
+}
