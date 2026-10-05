@@ -1,0 +1,45 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "069507224e5ed8b5973192f90169158f8cb435b2",
+  "stem": "author-stage",
+  "passed": true,
+  "changed_files": [
+    "chupa/author.py",
+    "chupa/git.py",
+    "chupa/triage.py",
+    "specs/author.md",
+    "tests/test_author.py",
+    "tests/test_eval_harness.py",
+    "tests/test_git.py",
+    "tests/test_triage.py"
+  ],
+  "inserted_lines": 321,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ]
+}
