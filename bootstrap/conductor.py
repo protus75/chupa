@@ -98,6 +98,10 @@ fails them -- never rebuild green work. An out-of-scope problem is
 appended to bootstrap/suggestions.md and left alone; never stop to ask.
 Never run git commit, git add, or any other git write: the conductor
 reviews your UNCOMMITTED diff and commits it only after review passes.
+You run headless: your process ends the moment you stop replying, killing
+anything still running. Run every command -- model calls, evals, authoring
+-- in the FOREGROUND to completion; never background work or end your turn
+waiting for it. Stop only when the stop-condition is actually met.
 
 """
 
