@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "0bac804b0302f0172b018848ce3f59d014e7555e",
+  "produced_at_sha": "a19903f1c9db33fb6e876c786bc7f07e85fceedf",
   "stem": "author-stage",
-  "attempt": 2,
-  "terminal": "premise_failed",
-  "stage": "implement",
+  "attempt": 3,
+  "terminal": "gate_failed",
+  "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "The ticket never requires deleting tickets/<stem>/ticket.md after a commit failure. Steps 4-5 only say: write the file, commit it, and on failure write the decision-<id> record and resolve the message. Do not invent a cleanup step that needs a FileSystem delete method.",
-    "If you think a leftover file matters: the message resolves as `decision` and is never re-authored, and AuthorGate already refuses a stem whose dir exists. A stray draft file is harmless, so do not add any seams.py change. That file stays outside the fence.",
-    "Before declaring premise_failed, quote the exact ticket sentence that forces the out-of-fence change. If no such sentence exists, the gap is self-imposed. Implement within the fence instead.",
-    "Spend the budget on the real work: specs/author.md (lint_spec-clean, blocks request/files/open_tickets/retry_findings), chupa/author.py, the triage.py wiring, git.ls_files, and the eval-harness spec_major==1 change. Then run all three Verification commands."
+    "Build `open_tickets` the way `triage_pass` does: skip stems whose folded journal state is `merged`, and list only `tickets/<stem>/ticket.md` paths that are committed on main (reuse `_committed`-style check or `git.ls_files`). Never glob the working tree.",
+    "Add a test in tests/test_author.py whose first author reply names an already-committed stem. Assert the second author request's rendered prompt carries the stem-reuse finding, and that a valid second reply commits `chupa(<stem>): ticket`.",
+    "Add two criterion-4 tests that drive `main([\"triage\"])`: (a) a `bug_report` with no `has_repro`, (b) a pending message whose journal already has `author_invoked`. In each, assert a committed `decision-<id>` record, the message resolved as decision, and zero `author` requests.",
+    "Before declaring done, map every acceptance criterion (1-8) to a named test that asserts it. Criterion 3 needs both the stem-reuse and the validate_ticket re-prompt cases plus the exhaustion case. A 41-line test file cannot cover criteria 2-4.",
+    "Don't write `Outcome: ok` in run.md until every criterion has a test. The last run reported ok after about 15m of a 90m budget while three acceptance items were missing."
   ],
   "mechanical": null,
   "spec_version": "1.0",
