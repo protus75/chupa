@@ -353,7 +353,10 @@ def run_deliverable(phase, items, i, auto):
     print("=== phase %d deliverable %d/%d (%s): %s ===" % (
         phase, n, len(items), gate, title))
     started_at = datetime.now(timezone.utc).isoformat()
-    claude(prompt)
+    # the expects: files are the gate; a prompt that never names one would
+    # otherwise fail the existence check on a correct but differently-placed build
+    claude(prompt if expects == ["-"] else prompt + "\n\nRequired outputs -- "
+           "the gate checks each exists on disk: " + " ".join(expects))
     missing = [] if expects == ["-"] else [p for p in expects
                                            if not (ROOT / p).exists()]
     if missing:
