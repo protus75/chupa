@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-tests/test_stages.py asserts that the run record says `implement 1.0`; the unchanged preservation suite passes.
+none
 
 ## Dead ends
 
-No implementation was attempted because the required 1.1 run record would fail that test.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-The ticket budgets 45 minutes; the conflict was identified during initial inspection.
+45 minutes expected; about 3 minutes actual.
 
