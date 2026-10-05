@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Annotated, Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
 ARTIFACT_SCHEMA_VERSION = 1
 
@@ -72,3 +72,27 @@ class StageResult:
     def __post_init__(self) -> None:
         if self.outcome not in OUTCOMES:
             raise ValueError(f"outcome {self.outcome!r} is not one of {sorted(OUTCOMES)}")
+
+
+ReviewVerdictName = Literal["approve", "snag", "rma"]
+# specs/review.md's closed finding codes: `ticket` is the rma code, the rest are snag codes.
+REVIEW_SNAG_CODES = frozenset({"logic", "acceptance", "scope", "leak"})
+
+
+class ReviewVerdict(_Strict):
+    """The review surface's model-facing reply (specs/review.md); the stage stamps provenance around it."""
+
+    verdict: ReviewVerdictName
+    summary: NonBlank
+    findings: list[Finding]
+
+    @model_validator(mode="after")
+    def _findings_match_verdict(self) -> "ReviewVerdict":
+        codes = {f.code for f in self.findings}
+        if self.verdict == "approve" and self.findings:
+            raise ValueError("approve carries an empty findings list; reply snag to block on a finding")
+        if self.verdict == "snag" and not (codes and codes <= REVIEW_SNAG_CODES):
+            raise ValueError(f"snag needs at least one finding, every code one of {sorted(REVIEW_SNAG_CODES)}")
+        if self.verdict == "rma" and not (codes and codes <= {"ticket"}):
+            raise ValueError("rma needs at least one finding, every code `ticket`")
+        return self

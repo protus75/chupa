@@ -1,0 +1,108 @@
+diff --git a/listing/pagination.py b/listing/pagination.py
+new file mode 100644
+index 0000000..f2b73a1
+--- /dev/null
++++ b/listing/pagination.py
+@@ -0,0 +1,27 @@
++"""Pagination for listing endpoints."""
++
++from collections.abc import Sequence
++from typing import TypeVar
++
++T = TypeVar("T")
++
++
++def paginate(items: Sequence[T], page: int, per_page: int) -> dict[str, object]:
++    """Return one-based page data and metadata for an in-memory sequence."""
++    if type(page) is not int or page < 1:
++        raise ValueError("page must be a positive integer")
++    if type(per_page) is not int or per_page < 1:
++        raise ValueError("per_page must be a positive integer")
++
++    total = len(items)
++    total_pages = (total + per_page) // per_page if total else 0
++    start = (page - 1) * per_page
++    page_items = list(items[start : start + per_page])
++
++    return {
++        "items": page_items,
++        "page": page,
++        "per_page": per_page,
++        "total": total,
++        "total_pages": total_pages,
++    }
+diff --git a/tests/test_pagination.py b/tests/test_pagination.py
+new file mode 100644
+index 0000000..8a1d6e4
+--- /dev/null
++++ b/tests/test_pagination.py
+@@ -0,0 +1,67 @@
++import pytest
++
++from listing.pagination import paginate
++
++
++def test_returns_requested_page_and_metadata():
++    result = paginate(["a", "b", "c", "d", "e"], page=2, per_page=2)
++
++    assert result == {
++        "items": ["c", "d"],
++        "page": 2,
++        "per_page": 2,
++        "total": 5,
++        "total_pages": 3,
++    }
++
++
++def test_returns_partial_last_page():
++    result = paginate(["a", "b", "c", "d", "e"], page=3, per_page=2)
++
++    assert result == {
++        "items": ["e"],
++        "page": 3,
++        "per_page": 2,
++        "total": 5,
++        "total_pages": 3,
++    }
++
++
++def test_returns_empty_page_beyond_end():
++    result = paginate(["a", "b", "c", "d", "e"], page=4, per_page=2)
++
++    assert result == {
++        "items": [],
++        "page": 4,
++        "per_page": 2,
++        "total": 5,
++        "total_pages": 3,
++    }
++
++
++def test_empty_sequence_has_zero_pages():
++    result = paginate([], page=1, per_page=2)
++
++    assert result == {
++        "items": [],
++        "page": 1,
++        "per_page": 2,
++        "total": 0,
++        "total_pages": 0,
++    }
++
++
++@pytest.mark.parametrize(
++    ("page", "per_page"),
++    [
++        (0, 2),
++        (-1, 2),
++        (1, 0),
++        (1, -2),
++        (True, 2),
++        (1, True),
++        (1.5, 2),
++        (1, 2.5),
++    ],
++)
++def test_rejects_invalid_arguments(page, per_page):
++    with pytest.raises(ValueError):
++        paginate(["a", "b"], page=page, per_page=per_page)

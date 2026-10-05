@@ -1,0 +1,10 @@
+{
+  "expected_verdict": "snag",
+  "defect_class": "logic",
+  "defect": "In listing/pagination.py, line 17, adding `per_page` before integer division overcounts `total_pages` by one whenever a nonempty item count is exactly divisible by `per_page`.",
+  "author": {
+    "provider": "codex",
+    "model": "gpt-6-sol",
+    "tier": "high"
+  }
+}
