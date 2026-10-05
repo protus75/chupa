@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-90m expected; about 15m actual
+Completed within the ticket’s 90-minute expected budget.
 
