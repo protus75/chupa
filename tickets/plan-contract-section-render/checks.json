@@ -1,0 +1,41 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "92310b6a79d9658986695cf5954df52c6998f58b",
+  "stem": "plan-contract-section-render",
+  "passed": true,
+  "changed_files": [
+    "chupa/specs.py",
+    "chupa/tickets.py",
+    "tests/test_specs.py",
+    "tests/test_stages.py"
+  ],
+  "inserted_lines": 40,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ]
+}
