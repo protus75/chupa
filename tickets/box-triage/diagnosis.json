@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "9b9152dec886748ec7afaec0408508ad1976f621",
+  "stem": "box-triage",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "The implementation passed every gate. Review failed only because tests/test_triage.py has one test. Keep the code. Add the tests that AC2-AC5 require, unless a new test exposes a bug. If one does, fix that bug in fence-scoped code.",
+    "AC2: assert that git log adds exactly two subjects, `chupa(decisions): tombstone-<first>` and `chupa(decisions): decision-<second>`. Parse each committed record file with parse_record and assert its kind, its link, and reopen_after_days. Use parse_record and drop the unused import.",
+    "AC3: in a separate test, call box.record_verdict on the third message with an author verdict whose produced_by_spec_version is stale (e.g. '0.9'). Run main(['triage']) and assert three things: no new FakeLLM request, a committed `decision-<id>` record, and the message status is resolved.",
+    "AC4: write three tests. (a) A tombstone reply whose link matches nothing writes a decision record that names the bad link. (b) A record committed before the pass resolves its message with no request. (c) Invalid replies on every re-prompt leave the message pending, with no new decisions commit.",
+    "AC5: put a unique marker in a message's raw summary and assert that no committed record contains it. Hold a Lockfile on the state dir the same way the existing run/drain contention tests do, then assert main(['triage']) == 2, no requests, and no triage_pass journaled."
+  ],
+  "mechanical": null,
+  "spec_version": "1.0",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
