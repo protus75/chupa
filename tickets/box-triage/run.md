@@ -17,10 +17,10 @@ none
 ## Resolved engine/model
 
 - provider: codex
-- model: gpt-5.6-terra
+- model: gpt-6-sol
 - spec: implement 1.1
 
 ## Predicted vs actual
 
-Expected 90m; completed in about 20m.
+Ticket expected 90 minutes; implementation took about 10 minutes.
 
