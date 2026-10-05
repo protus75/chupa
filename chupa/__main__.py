@@ -37,6 +37,8 @@ def _parser() -> argparse.ArgumentParser:
     new.add_argument("stem")
     run = sub.add_parser("run", help="drive one ticket through intake and the stage pipeline under the lock")
     run.add_argument("stem")
+    for verb in ("confirm", "reject"):
+        sub.add_parser(verb, help=f"{verb} a draft or Reject item under the lock").add_argument("stem")
     dr = sub.add_parser("drain", help="run every eligible ticket to quiescence under the lock")
     dr.add_argument("--parked", action="append", default=[], metavar="STEM",
                     help="a stem the handing-off parent drain parked (set by the self-upgrade re-exec)")
@@ -68,6 +70,8 @@ def main(
             git=Git(exec_, env=child_env(env, config), timeout=GIT_TIMEOUT_S),
             journal=Journal(config.state_dir, clock), fs=LocalFileSystem(), clock=clock,
         )
+        if args.verb in {"confirm", "reject"}:
+            return asyncio.run(runner.verdict(args.stem, checkout, kill=args.verb == "reject"))
         dispatch = pipeline(checkout)
         if args.verb == "drain":
             # The handoff's own seam instance, never shared with active work (section 15).

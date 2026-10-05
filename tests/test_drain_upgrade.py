@@ -234,6 +234,7 @@ def test_a_premise_park_holds_across_invocations_until_a_ticket_edit_lands(root,
     assert drain(root, script, order)[0] == 0
     assert git_out(root, "rev-parse", "HEAD:tickets/false-premise/ticket.md") != before
     assert script.calls == [("parent", "false-premise"), ("parent", "false-premise")]
+    assert retry_draws(root, "false-premise") == 0
     assert tos(root, "false-premise")[-1] == "merged"
 
 

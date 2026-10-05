@@ -507,7 +507,7 @@ def _is_ticket_path(path: str) -> bool:
     return len(parts) == 3 and parts[0] == TICKETS_DIR and parts[2] == TICKET_FILE
 
 
-def _stamp(text: str, key: str, value: str) -> str:
+def stamp(text: str, key: str, value: str) -> str:
     """Set one frontmatter key in place, leaving every other line byte-identical."""
     raw, body = split_frontmatter(text)  # type: ignore[misc]
     lines = raw.splitlines()
@@ -541,7 +541,7 @@ def _intake_claims(stem: str, text: str, new: bool) -> tuple[str, list[Finding]]
     if state not in ("draft", "confirmed"):
         return text, [_f(f"new stem is authored `state: {state}`",
                          "author new work as `state: draft` or `confirmed` (human intake auto-confirms)", path)]
-    return _stamp(_stamp(text, "source", "human"), "state", "confirmed"), []
+    return stamp(stamp(text, "source", "human"), "state", "confirmed"), []
 
 
 async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem) -> IntakeResult:

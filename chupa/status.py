@@ -3,7 +3,7 @@
 A projection, never an authority: no gate or dispatch decision reads its rendering.
 """
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 from chupa.journal import EventType, Event
@@ -17,6 +17,27 @@ class Status:
     blocked: tuple[tuple[str, str], ...]  # (stem, the non-merged terminal its last run ended in)
     intake: tuple[tuple[str, str, str, str], ...]  # (stem, source, state, commit) per intake commit
     spend_usd: float
+    reject: tuple[tuple[str, Mapping], ...] = ()
+
+
+def reject_queue(events: Iterable[Event]) -> dict[str, Mapping]:
+    """Latest routed terminal or legacy arrival still awaiting an operator verdict."""
+    terminals: dict[str, Mapping] = {}
+    waiting: dict[str, Mapping] = {}
+    for e in events:
+        if e.ticket is None:
+            continue
+        if e.type == EventType.STATE_TRANSITION and e.body.get("to") != "running":
+            terminals[e.ticket] = e.body
+            waiting.pop(e.ticket, None)
+            if e.body.get("routed") == "reject_queue":
+                waiting[e.ticket] = e.body
+        elif e.type == EventType.SIGNAL and e.body.get("signal") == "reject_arrival":
+            if e.ticket in terminals:
+                waiting[e.ticket] = terminals[e.ticket]
+        elif e.type == EventType.SIGNAL and e.body.get("signal") == "reject_verdict":
+            waiting.pop(e.ticket, None)
+    return waiting
 
 
 def last_states(events: Iterable[Event]) -> dict[str, str]:
@@ -40,6 +61,7 @@ def project(events: Iterable[Event]) -> Status:
         blocked=tuple(sorted((s, to) for s, to in last.items() if to not in ("merged", "running"))),
         intake=intake,
         spend_usd=spend,
+        reject=tuple(sorted(reject_queue(events).items())),
     )
 
 
@@ -54,4 +76,7 @@ def render(status: Status) -> str:
         block("intake", (f"{stem}: source: {source}, state: {state}, commit {commit[:12]}"
                          for stem, source, state, commit in status.intake)),
         f"spend:\n${status.spend_usd:.2f}",
+        block("Reject queue", (f"{stem}: {body['to']} at {body.get('stage', 'unknown')} -- "
+                               f"confirm {stem} after editing, or reject {stem}"
+                               for stem, body in status.reject)),
     )) + "\n"

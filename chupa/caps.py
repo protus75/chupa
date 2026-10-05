@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from chupa.config import Caps
 from chupa.journal import Event, EventType, Journal
 
-CAPS = ("diagnosis", "retry", "infra")
+CAPS = ("diagnosis", "retry", "infra", "premise_bounce")
 
 
 def _check(cap: str) -> None:
@@ -16,7 +16,13 @@ def _check(cap: str) -> None:
 def draws(events: Iterable[Event], stem: str, cap: str) -> int:
     """Count this stem's draws for one cap across all ticket content revisions."""
     _check(cap)
-    return sum(e.type == EventType.CAP_CONSUMED and e.ticket == stem and e.body.get("cap") == cap for e in events)
+    history = tuple(events)
+    keep = next((i for i, e in reversed(list(enumerate(history)))
+                 if e.type == EventType.SIGNAL and e.ticket == stem
+                 and e.body.get("signal") == "reject_verdict" and e.body.get("verdict") == "keep"
+                 and e.body.get("actor") == "operator"), -1)
+    return sum(e.type == EventType.CAP_CONSUMED and e.ticket == stem and e.body.get("cap") == cap
+               for e in history[keep + 1:])
 
 
 def remaining(caps_config: Caps, events: Iterable[Event], stem: str, cap: str) -> int:

@@ -10,7 +10,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
+import yaml
+
 from chupa.artifacts import Finding, Harvest, StageResult
+from chupa.box import BOX_DIR, Box
 from chupa.caps import consume, spent, spent_reason
 from chupa.config import Config
 from chupa.driver import Driver
@@ -23,8 +26,9 @@ from chupa.providers import ProviderLLM
 from chupa.reconcile import reconcile
 from chupa.seams import Clock, FileSystem, GroupExec
 from chupa.stages import DiagnosisMaterial, StageContext, diagnose, lift_outbox, run_stages, write_diagnosis
-from chupa.status import last_states
-from chupa.tickets import Ticket, TicketInvalid, intake, stem_findings, ticket_path, validate_ticket
+from chupa.status import last_states, reject_queue
+from chupa.tickets import (Ticket, TicketInvalid, intake, parse_ticket, split_frontmatter, stamp,
+                           stem_findings, ticket_path, validate_ticket)
 
 EXIT_MERGED = 0
 EXIT_TICKET = 1
@@ -99,9 +103,13 @@ async def drive(ctx: StageContext, ticket: Ticket) -> str:
     if result.outcome in {"infra_error", "timeout"}:
         ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
         consume(ctx.driver.journal, ticket.stem, "infra", ticket_sha)
+    over_bound = result.outcome == "premise_failed" and any(
+        f.code == "render_over_bound" for f in result.findings)
+    if result.outcome == "premise_failed" and not over_bound:
+        ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
+        consume(ctx.driver.journal, ticket.stem, "premise_bounce", ticket_sha)
     if (result.outcome != "budget_exceeded"
-            and not (result.outcome == "premise_failed"
-                     and any(f.code == "render_over_bound" for f in result.findings))):
+            and not over_bound):
         worktree = ctx.worktree(ticket.stem)
         mechanical = None if worktree.exists() else "workspace gone"
         if mechanical is None and (cap := spent(ctx.config.caps, ctx.driver.journal.read(), ticket.stem)):
@@ -133,7 +141,10 @@ async def drive(ctx: StageContext, ticket: Ticket) -> str:
                                   {"signal": "diagnosis", "attempt": run.attempt, "verdict": verdict,
                                    "lessons": lessons, "mechanical": mechanical if diagnosis is None else diagnosis.mechanical},
                                   ticket=ticket.stem)
-    ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": result.outcome, "stage": stage}, ticket=ticket.stem)
+    terminal = {"to": result.outcome, "stage": stage}
+    if not over_bound and spent(ctx.config.caps, ctx.driver.journal.read(), ticket.stem):
+        terminal["routed"] = "reject_queue"
+    ctx.driver.journal.append(EventType.STATE_TRANSITION, terminal, ticket=ticket.stem)
     if ctx.worktree(ticket.stem).exists():
         await ctx.git.worktree_remove(ctx.repo, ctx.worktree(ticket.stem))
     return result.outcome
@@ -196,6 +207,95 @@ async def run_ticket(stem: str, checkout: Checkout, dispatch: Dispatch) -> int:
         return EXIT_MERGED if terminal == "merged" else EXIT_TICKET
     finally:
         lock.release()
+
+
+async def verdict(stem: str, checkout: Checkout, *, kill: bool) -> int:
+    """Resolve a draft or Reject item while holding the same writer lock as run and drain."""
+    if findings := stem_findings(stem):
+        raise Refusal(findings[0].message, findings[0].paved_road)
+    lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo),
+                    clock=checkout.clock)
+    lock.acquire()
+    try:
+        intake_result = await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
+        if refused := intake_result.refused.get(stem):
+            raise Refusal(f"{ticket_path(stem)} failed intake: " + "; ".join(f.message for f in refused),
+                          "fix the ticket and retry the verdict")
+        history = checkout.journal.read()
+        rel = ticket_path(stem)
+        path = checkout.repo / rel
+        if not path.is_file() and not any(e.ticket == stem for e in history):
+            raise Refusal(f"unknown stem {stem}", "name a journaled stem or an existing ticket.md")
+        last = last_states(history).get(stem)
+        if last == "running":
+            raise Refusal(f"{stem} is running", "wait for its terminal, then retry")
+        if kill:
+            if last in {"merged", "already_satisfied"}:
+                raise Refusal(f"{stem} is settled", "leave settled work in place")
+            if path.is_file() and _ticket_state(path) != "rejected":
+                checkout.fs.write(path, stamp(path.read_text(), "state", "rejected").encode())
+                await checkout.git.add(checkout.repo, [rel])
+                await checkout.git.commit(checkout.repo, f"chupa({stem}): rejected", only=[rel])
+            await _dead_dependents(stem, checkout)
+            if last != "rejected":
+                checkout.journal.append(EventType.SIGNAL,
+                                        {"signal": "reject_verdict", "verdict": "kill", "actor": "operator"},
+                                        ticket=stem)
+                checkout.journal.append(EventType.STATE_TRANSITION, {"to": "rejected"}, ticket=stem)
+                print(f"rejected {stem}")
+            else:
+                print(f"already rejected {stem}")
+            return EXIT_MERGED
+        if path.is_file() and _ticket_state(path) == "draft":
+            checkout.fs.write(path, stamp(path.read_text(), "state", "confirmed").encode())
+            await checkout.git.add(checkout.repo, [rel])
+            await checkout.git.commit(checkout.repo, f"chupa({stem}): confirmed", only=[rel])
+            sha = await checkout.git.rev_parse(checkout.repo, "HEAD")
+            checkout.journal.append(EventType.SIGNAL, {"signal": "draft_confirmed", "commit": sha}, ticket=stem)
+            print(f"confirmed draft {stem}")
+            return EXIT_MERGED
+        ticket_sha = await checkout.git.rev_parse(checkout.repo, f"HEAD:{rel}") if path.is_file() else None
+        prior_keep = next((e for e in reversed(history) if e.type == EventType.SIGNAL and e.ticket == stem
+                           and e.body.get("signal") == "reject_verdict" and e.body.get("verdict") == "keep"
+                           and e.body.get("actor") == "operator"), None)
+        if prior_keep is not None and prior_keep.body.get("ticket_sha") == ticket_sha:
+            raise Refusal(f"{stem} was already kept at this ticket content",
+                          "edit the ticket (or fix the plan and regenerate it) before re-enqueueing")
+        if stem not in reject_queue(history):
+            raise Refusal(f"{stem} is neither a draft nor in the Reject queue",
+                          "run `status` to list the Reject queue")
+        checkout.journal.append(EventType.SIGNAL,
+                                {"signal": "reject_verdict", "verdict": "keep", "actor": "operator",
+                                 "ticket_sha": ticket_sha}, ticket=stem)
+        print(f"kept {stem}")
+        return EXIT_MERGED
+    finally:
+        lock.release()
+
+
+def _ticket_state(path: Path) -> str | None:
+    split = split_frontmatter(path.read_text())
+    return yaml.safe_load(split[0]).get("state") if split else None
+
+
+async def _dead_dependents(dead: str, checkout: Checkout) -> None:
+    history = checkout.journal.read()
+    last = last_states(history)
+    box = Box(checkout.config.state_dir / BOX_DIR, checkout.fs)
+    for path in sorted((checkout.repo / "tickets").glob("*/ticket.md")):
+        stem = path.parent.name
+        if stem == dead or _ticket_state(path) != "confirmed" or last.get(stem) in {"merged", "already_satisfied", "rejected"}:
+            continue
+        ticket = parse_ticket(stem, path.read_text(), checkout.repo,
+                              plan=(checkout.repo / "CHUPA_PLAN.md").read_text())
+        if dead not in ticket.depends:
+            continue
+        if not any(e.type == EventType.SIGNAL and e.ticket == stem
+                   and e.body.get("signal") == "dead_dependency" and e.body.get("dead") == dead
+                   for e in history):
+            checkout.journal.append(EventType.SIGNAL, {"signal": "dead_dependency", "dead": dead}, ticket=stem)
+        box.enqueue(message_class="failure_report", origin=stem, stage="depends", outcome="rejected",
+                    summary=f"{stem} depends on {dead}, which was rejected; re-wire, re-scope, or reject it")
 
 
 async def _admit(stem: str, checkout: Checkout) -> Ticket:

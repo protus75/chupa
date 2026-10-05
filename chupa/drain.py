@@ -22,7 +22,7 @@ from chupa.lockfile import Lockfile
 from chupa.reconcile import reconcile
 from chupa.runner import EXIT_MERGED, EXIT_TICKET, Checkout, Dispatch, Refusal, harvest_orphan
 from chupa.seams import ProcessExec
-from chupa.status import last_states
+from chupa.status import last_states, reject_queue
 from chupa.tickets import (
     INTAKE_SIGNAL, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, TicketInvalid, _porcelain, depends_cycle, intake,
     parse_ticket, ticket_path,
@@ -232,8 +232,11 @@ class _Drain:
         authored = authored_at(events)
         ready = sorted((t for t in open_.values() if all(last.get(d) in SETTLED for d in t.depends)),
                        key=lambda t: sort_key(t, authored))
+        awaiting = reject_queue(events)
         fresh, reoffers = [], []
         for t in ready:
+            if t.stem in awaiting:
+                continue
             if t.stem in self.over_budget:
                 continue
             if t.stuck_minutes > self.c.config.drain.max_ticket_minutes:
@@ -255,7 +258,7 @@ class _Drain:
 
     async def _run_one(self, ticket: Ticket, reoffer: bool, sha: str) -> None:
         stem = ticket.stem
-        if reoffer:
+        if reoffer and last_states(self.c.journal.read()).get(stem) != PREMISE:
             # The draw precedes the dispatch: a crash mid-run never hands the stem a free attempt.
             caps.consume(self.c.journal, stem, "retry", sha)
         # The `ticket.md` the run answers: a `premise_failed` verdict parks the stem until this changes.
@@ -284,6 +287,16 @@ class _Drain:
         return tuple(sorted(red | carried | set(self.over_budget)))
 
     def _settle(self, scan: _Scan, events: list[Event], last: Mapping[str, str], held: set[str]) -> None:
+        awaiting = reject_queue(events)
+        for stem in sorted(scan.tickets):
+            if (last.get(stem) not in SETTLED | RETIRED | {None, "running"}
+                    and caps.spent(self.c.config.caps, events, stem) is not None
+                    and stem not in awaiting):
+                body = next(e.body for e in reversed(events)
+                            if e.type == EventType.STATE_TRANSITION and e.ticket == stem)
+                if body.get("routed") != "reject_queue":
+                    self.c.journal.append(EventType.SIGNAL, {"signal": "reject_arrival"}, ticket=stem)
+                    awaiting[stem] = body
         for stem, t in sorted(scan.tickets.items()):
             if t.frontmatter.state != "confirmed" or last.get(stem) in SETTLED | RETIRED:
                 continue
@@ -310,6 +323,10 @@ class _Drain:
                                  "read the findings below and the engine log; fix the cause in the plan (or the"
                                  " ticket if provably not the plan's) and author a successor stem -- a"
                                  " `ticket.md` edit never re-arms the cap")
+                if stem in awaiting:
+                    road = (f"edit {ticket_path(stem)} (or fix the plan and regenerate it), then "
+                            f"uv run python -m chupa confirm {stem}; or retire it with "
+                            f"uv run python -m chupa reject {stem}")
                 self.report.parked.append(Parked(stem, why, road, self._findings(stem)))
         self.report.invalid = sorted(scan.invalid.items())
         self.report.drafts = list(scan.drafts)

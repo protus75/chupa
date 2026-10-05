@@ -28,7 +28,7 @@ def test_fold_counts_only_named_cap_and_stem_across_ticket_revisions(tmp_path):
     j.append(EventType.STATE_TRANSITION, {"to": "infra_error"}, ticket="red")
     events = j.read()
     config = Caps(infra=4, retry=2)
-    assert CAPS == ("diagnosis", "retry", "infra")
+    assert CAPS == ("diagnosis", "retry", "infra", "premise_bounce")
     assert draws(events, "red", "infra") == 3
     assert draws(events, "red", "retry") == 1
     assert draws(events, "other", "infra") == 1
@@ -42,9 +42,9 @@ def test_fold_counts_only_named_cap_and_stem_across_ticket_revisions(tmp_path):
 def test_invalid_cap_refuses_all_accounting_and_writer(tmp_path):
     j = Journal(tmp_path, clock)
     for operation in (
-        lambda: draws(j.read(), "red", "premise_bounce"),
-        lambda: remaining(Caps(), j.read(), "red", "premise_bounce"),
-        lambda: consume(j, "red", "premise_bounce", "sha"),
+        lambda: draws(j.read(), "red", "unknown"),
+        lambda: remaining(Caps(), j.read(), "red", "unknown"),
+        lambda: consume(j, "red", "unknown", "sha"),
     ):
         with pytest.raises(ValueError, match="CAPS"):
             operation()
