@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "c4a7b2e03a349c98d6839718ecd0427ff03647e3",
+  "produced_at_sha": "0bac804b0302f0172b018848ce3f59d014e7555e",
   "stem": "author-stage",
-  "attempt": 1,
-  "terminal": "gate_failed",
-  "stage": "review",
+  "attempt": 2,
+  "terminal": "premise_failed",
+  "stage": "implement",
   "verdict": "retry",
   "lessons": [
-    "Write ticket.md only after every pre-commit step succeeds. If anything raises after the write, delete tickets/<stem>/ through the fs seam before writing the decision record.",
-    "Add a git.py argv op that unstages one path (e.g. `restore --staged -- <path>` or `rm --cached`). Call it on the failure path so the index holds nothing from the failed ticket, and test it in tests/test_git.py.",
-    "Add a test_author.py case where the commit effect raises. Assert that no tickets/<stem>/ dir remains, the index is clean, there is no ticket_intake signal, and the message resolves as decision-<id>.",
-    "Keep the rest of the diff unchanged. It passed every acceptance criterion and the full suite (604 passed). Touch only author.py's failure path, git.py, and their tests, all inside the fence."
+    "The ticket never requires deleting tickets/<stem>/ticket.md after a commit failure. Steps 4-5 only say: write the file, commit it, and on failure write the decision-<id> record and resolve the message. Do not invent a cleanup step that needs a FileSystem delete method.",
+    "If you think a leftover file matters: the message resolves as `decision` and is never re-authored, and AuthorGate already refuses a stem whose dir exists. A stray draft file is harmless, so do not add any seams.py change. That file stays outside the fence.",
+    "Before declaring premise_failed, quote the exact ticket sentence that forces the out-of-fence change. If no such sentence exists, the gap is self-imposed. Implement within the fence instead.",
+    "Spend the budget on the real work: specs/author.md (lint_spec-clean, blocks request/files/open_tickets/retry_findings), chupa/author.py, the triage.py wiring, git.ls_files, and the eval-harness spec_major==1 change. Then run all three Verification commands."
   ],
   "mechanical": null,
   "spec_version": "1.0",
