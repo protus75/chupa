@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "a8f5f3c5cd5cceafd6a2a08e63413b6a4b11b7e7",
+  "produced_at_sha": "5459546bc0acede0a7ddba043561559d716b08ea",
   "stem": "suggestion-box",
-  "attempt": 0,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "reject",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
   "lessons": [
-    "The ticket contradicts itself. It requires deleting bootstrap/suggestions.md, but its own `## On-demand` lists that path. tests/test_seeded_phase2.py checks that path, sits outside the fence, and fails 3 tests. Fix the ticket before retrying.",
-    "Amend the ticket: drop bootstrap/suggestions.md from `## On-demand` (Goal/Scope can still name it). Or add tests/test_seeded_phase2.py to the scope fence, and change the seed checks so they skip On-demand paths that a delivered ticket deletes.",
-    "After the amendment, keep the implementation that passed the first three Verification commands: box.py, git_common_dir and the ingest. The only blocker was the full suite. Do not rewrite working code.",
-    "The first attempt already ingested 193 messages into the main checkout's <state_dir>/box/. Signature dedup makes a re-run return 0. Do not clear the box or treat 0 as a failure; Verification only needs exit 0."
+    "Fix normalize to remove '/' tokens, remove digit runs from the joined string, then collapse whitespace with ' '.join(s.split()), so that digit-only tokens leave no empty slots or double spaces.",
+    "Add a test in tests/test_box.py asserting normalize('a 42 b') == normalize('a b') == 'a b', and that signature() of 'line 42 failed' equals that of 'line failed'.",
+    "Add a test for reasons whose number or path token sits in different positions, and check the result has no leading, trailing, or doubled spaces.",
+    "Keep the rest of the diff unchanged: review found only this defect. Stay inside the scope fence and keep bootstrap/suggestions.md deleted."
   ],
   "mechanical": null,
   "spec_version": "1.0",
