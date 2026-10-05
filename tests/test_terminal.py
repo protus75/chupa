@@ -14,7 +14,7 @@ from chupa.__main__ import main
 from chupa.config import load_config
 from chupa.journal import EventType, Journal
 from chupa.llm import FakeLLM
-from tests.test_stages import ENV, SNAG, STEM, TICKET, agent, git, implement_reply, verdict
+from tests.test_stages import CONFIG, ENV, SNAG, STEM, TICKET, agent, git, implement_reply, verdict
 
 
 def clock() -> datetime:
@@ -27,8 +27,7 @@ def repo(tmp_path: Path) -> Path:
     (root / "chupa").mkdir(parents=True)
     (root / "chupa" / "thing.py").write_text("")
     (root / "CHUPA_PLAN.md").write_text("# Plan\n")
-    (root / "config.yaml").write_text((Path(__file__).parent / "test_stages.py").read_text()
-                                      .split('CONFIG = """')[1].split('"""')[0])
+    (root / "config.yaml").write_text(CONFIG)
     (root / ".gitignore").write_text(".chupa/\n")
     git(root, "init", "-b", "main")
     git(root, "add", ".")
