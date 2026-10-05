@@ -1,0 +1,2 @@
+- [scaffold] pyproject.toml has no [build-system], so chupa is a uv virtual project; the import test passes only through pytest `pythonpath = ["."]`, not an installed package. Decide before the first CLI entry point (`chupa` console script needs a build backend).
+- [scaffold] tests/test_scaffold.py checks only dependency names, not lower bounds. Fine for a harness proof; note it in case a later gate assumes version floors are tested.

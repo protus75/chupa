@@ -1,2 +1,5 @@
 bootstrap/state.json
 bootstrap/review.json
+.venv/
+__pycache__/
+.chupa/
