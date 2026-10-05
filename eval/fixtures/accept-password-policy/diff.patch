@@ -1,0 +1,72 @@
+diff --git a/signup/__init__.py b/signup/__init__.py
+new file mode 100644
+index 0000000..b0282aa
+--- /dev/null
++++ b/signup/__init__.py
+@@ -0,0 +1 @@
++"""Signup helpers."""
+diff --git a/signup/passwords.py b/signup/passwords.py
+new file mode 100644
+index 0000000..ef8d7a1
+--- /dev/null
++++ b/signup/passwords.py
+@@ -0,0 +1,20 @@
++"""Password rules for signup forms."""
++
++MIN_LENGTH = 12
++SYMBOLS = frozenset("!@#$%^&*")
++
++
++def password_errors(password: str) -> list[str]:
++    """Return unmet rules in display order."""
++    errors = []
++    if len(password) < MIN_LENGTH:
++        errors.append("length")
++    if not any("A" <= char <= "Z" for char in password):
++        errors.append("uppercase")
++    if not any("a" <= char <= "z" for char in password):
++        errors.append("lowercase")
++    if not any(char.isdigit() for char in password):
++        errors.append("digit")
++    if not any(char in SYMBOLS for char in password):
++        errors.append("symbol")
++    return errors
+diff --git a/tests/test_passwords.py b/tests/test_passwords.py
+new file mode 100644
+index 0000000..5ef368e
+--- /dev/null
++++ b/tests/test_passwords.py
+@@ -0,0 +1,31 @@
++import pytest
++
++from signup.passwords import password_errors
++
++
++@pytest.mark.parametrize(
++    ("password", "expected"),
++    [
++        ("", ["length", "uppercase", "lowercase", "digit", "symbol"]),
++        ("Abcdefghi1!", ["length"]),
++        ("Abcdefghij1!", []),
++        ("abcdefghij1!", ["uppercase"]),
++        ("ABCDEFGHIJ1!", ["lowercase"]),
++        ("Abcdefghijk!", ["digit"]),
++        ("Abcdefghij12", ["symbol"]),
++        ("Abcdefghij1?", ["symbol"]),
++    ],
++)
++def test_password_errors(password: str, expected: list[str]) -> None:
++    assert password_errors(password) == expected
++
++
++def test_multiple_errors_keep_display_order() -> None:
++    assert password_errors("abcdefghijk?") == ["uppercase", "digit", "symbol"]
++
++
++def test_each_allowed_symbol_satisfies_symbol_rule() -> None:
++    for symbol in "!@#$%^&*":
++        assert password_errors(f"Abcdefghij1{symbol}") == []
++
++
++def test_length_counts_characters() -> None:
++    assert password_errors("Abcdefghij1!" * 2) == []

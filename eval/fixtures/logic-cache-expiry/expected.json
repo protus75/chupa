@@ -1,0 +1,10 @@
+{
+  "expected_verdict": "snag",
+  "defect_class": "logic",
+  "defect": "config_loader.py:27 treats the exact expiry instant as a cache hit because the comparison uses `<=` instead of `<`.",
+  "author": {
+    "provider": "codex",
+    "model": "gpt-6-sol",
+    "tier": "high"
+  }
+}

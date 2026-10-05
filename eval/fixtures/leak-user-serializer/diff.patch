@@ -1,0 +1,99 @@
+diff --git a/profiles/serializers.py b/profiles/serializers.py
+new file mode 100644
+index 0000000..bb7f231
+--- /dev/null
++++ b/profiles/serializers.py
+@@ -0,0 +1,19 @@
++from collections.abc import Mapping
++from typing import Any
++
++
++def serialize_public_profile(profile: Mapping[str, Any]) -> dict[str, Any]:
++    """Build the payload returned by GET /users/{handle}."""
++    links = [
++        {key: value for key, value in link.items() if key != "visibility"}
++        for link in profile.get("links", ())
++        if link["visibility"] == "public"
++    ]
++    return {
++        "id": profile["id"],
++        "handle": profile["handle"],
++        "display_name": profile["display_name"],
++        "avatar_url": profile.get("avatar_url"),
++        "links": links,
++    }
++
++
+diff --git a/tests/test_public_profile_serializer.py b/tests/test_public_profile_serializer.py
+new file mode 100644
+index 0000000..8a4c61f
+--- /dev/null
++++ b/tests/test_public_profile_serializer.py
+@@ -0,0 +1,63 @@
++from profiles.serializers import serialize_public_profile
++
++
++def test_serializes_profile_with_public_links():
++    profile = {
++        "id": 42,
++        "handle": "mira",
++        "display_name": "Mira Chen",
++        "avatar_url": "https://example.test/mira.png",
++        "links": [
++            {
++                "rel": "website",
++                "url": "https://mira.example",
++                "visibility": "public",
++            },
++            {
++                "rel": "portfolio",
++                "url": "https://work.example/mira",
++                "visibility": "public",
++            },
++        ],
++    }
++
++    assert serialize_public_profile(profile) == {
++        "id": 42,
++        "handle": "mira",
++        "display_name": "Mira Chen",
++        "avatar_url": "https://example.test/mira.png",
++        "links": [
++            {"rel": "website", "url": "https://mira.example"},
++            {"rel": "portfolio", "url": "https://work.example/mira"},
++        ],
++    }
++
++
++def test_omits_nonpublic_links():
++    profile = {
++        "id": 7,
++        "handle": "sol",
++        "display_name": "Sol Rivera",
++        "links": [
++            {
++                "rel": "notes",
++                "url": "https://notes.example/sol",
++                "visibility": "private",
++            },
++            {
++                "rel": "website",
++                "url": "https://sol.example",
++                "visibility": "public",
++            },
++        ],
++    }
++
++    assert serialize_public_profile(profile)["links"] == [
++        {"rel": "website", "url": "https://sol.example"}
++    ]
++
++
++def test_uses_null_for_missing_avatar():
++    profile = {
++        "id": 9,
++        "handle": "ren",
++        "display_name": "Ren Park",
++    }
++
++    assert serialize_public_profile(profile)["avatar_url"] is None

@@ -1,0 +1,62 @@
+diff --git a/email_tools.py b/email_tools.py
+new file mode 100644
+index 0000000..a7c13e2
+--- /dev/null
++++ b/email_tools.py
+@@ -0,0 +1,15 @@
++"""Utilities for lists of email addresses."""
++
++
++def dedupe_emails(emails: list[str]) -> list[str]:
++    """Return unique normalized addresses in their first-seen order."""
++    seen: set[str] = set()
++    result: list[str] = []
++
++    for email in emails:
++        normalized = email.strip().casefold()
++        if normalized and normalized not in seen:
++            seen.add(normalized)
++            result.append(normalized)
++
++    return result
+diff --git a/tests/test_email_tools.py b/tests/test_email_tools.py
+new file mode 100644
+index 0000000..b5d46a1
+--- /dev/null
++++ b/tests/test_email_tools.py
+@@ -0,0 +1,35 @@
++from email_tools import dedupe_emails
++
++
++def test_strips_outer_whitespace_and_casefolds() -> None:
++    assert dedupe_emails(["  Alice@Example.COM\t", "\u2003BOB@Example.COM\u2003"]) == [
++        "alice@example.com",
++        "bob@example.com",
++    ]
++
++
++def test_deduplicates_in_first_seen_order() -> None:
++    assert dedupe_emails(
++        ["B@Example.com", "a@example.com", " b@example.COM ", "A@EXAMPLE.COM"]
++    ) == ["b@example.com", "a@example.com"]
++
++
++def test_ignores_blank_entries_after_normalization() -> None:
++    assert dedupe_emails(["", " \t ", "a@example.com", "\u2003"]) == [
++        "a@example.com"
++    ]
++
++
++def test_does_not_mutate_input_and_returns_new_list() -> None:
++    emails = [" A@Example.com ", "a@example.com"]
++    original = emails.copy()
++
++    result = dedupe_emails(emails)
++
++    assert result == ["a@example.com"]
++    assert emails == original
++    assert result is not emails
++
++
++def test_preserves_internal_whitespace_without_validation() -> None:
++    assert dedupe_emails([" A B@Example.COM "]) == ["a b@example.com"]

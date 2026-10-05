@@ -1,0 +1,93 @@
+diff --git a/grader/report.py b/grader/report.py
+new file mode 100644
+index 0000000..7d9b112
+--- /dev/null
++++ b/grader/report.py
+@@ -0,0 +1,35 @@
++from __future__ import annotations
++
++from dataclasses import dataclass
++from typing import Iterable
++
++
++@dataclass(frozen=True)
++class CaseResult:
++    name: str
++    passed: bool
++    visible: bool
++    feedback: str = ""
++
++
++def build_report(cases: Iterable[CaseResult]) -> dict[str, object]:
++    """Build the result returned to a learner after grading."""
++    results = tuple(cases)
++    total = len(results)
++    passed = sum(case.passed for case in results)
++    public_cases = [
++        {
++            "name": case.name,
++            "passed": case.passed,
++            "feedback": case.feedback,
++        }
++        for case in results
++        if case.visible or not case.passed
++    ]
++    return {
++        "passed": passed,
++        "total": total,
++        "score": round(passed / total, 3) if total else 0.0,
++        "summary": f"{passed}/{total} checks passed",
++        "cases": public_cases,
++    }
+diff --git a/tests/test_report.py b/tests/test_report.py
+new file mode 100644
+index 0000000..8c1e340
+--- /dev/null
++++ b/tests/test_report.py
+@@ -0,0 +1,43 @@
++from grader.report import CaseResult, build_report
++
++
++def test_report_preserves_visible_case_order():
++    report = build_report(
++        [
++            CaseResult("example-a", True, True, "ok"),
++            CaseResult("internal-a", True, False, "ok"),
++            CaseResult("example-b", False, True, "expected 4"),
++        ]
++    )
++
++    assert report == {
++        "passed": 2,
++        "total": 3,
++        "score": 0.667,
++        "summary": "2/3 checks passed",
++        "cases": [
++            {"name": "example-a", "passed": True, "feedback": "ok"},
++            {"name": "example-b", "passed": False, "feedback": "expected 4"},
++        ],
++    }
++
++
++def test_failed_internal_case_affects_aggregate():
++    report = build_report(
++        [
++            CaseResult("example-a", True, True),
++            CaseResult("internal-b", False, False, "expected 7"),
++        ]
++    )
++
++    assert report["passed"] == 1
++    assert report["total"] == 2
++    assert report["score"] == 0.5
++    assert report["summary"] == "1/2 checks passed"
++
++
++def test_empty_report():
++    assert build_report([]) == {
++        "passed": 0,
++        "total": 0,
++        "score": 0.0,
++        "summary": "0/0 checks passed",
++        "cases": [],
++    }

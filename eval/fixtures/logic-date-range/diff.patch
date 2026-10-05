@@ -1,0 +1,90 @@
+diff --git a/room_booking/availability.py b/room_booking/availability.py
+new file mode 100644
+index 0000000..a7b9201
+--- /dev/null
++++ b/room_booking/availability.py
+@@ -0,0 +1,28 @@
++from dataclasses import dataclass
++from datetime import date
++from typing import Iterable
++
++
++@dataclass(frozen=True)
++class Booking:
++    room_id: str
++    start: date
++    end: date
++
++
++def conflicts(
++    bookings: Iterable[Booking],
++    room_id: str,
++    start: date,
++    end: date,
++) -> bool:
++    """Return whether an inclusive stay overlaps a booking for the room."""
++    if start > end:
++        raise ValueError("start must be on or before end")
++
++    return any(
++        booking.room_id == room_id
++        and start <= booking.end
++        and booking.start < end
++        for booking in bookings
++    )
+diff --git a/tests/test_availability.py b/tests/test_availability.py
+new file mode 100644
+index 0000000..2b630af
+--- /dev/null
++++ b/tests/test_availability.py
+@@ -0,0 +1,50 @@
++from datetime import date
++
++import pytest
++
++from room_booking.availability import Booking, conflicts
++
++
++def day(value: int) -> date:
++    return date(2026, 7, value)
++
++
++def test_overlap_within_same_room():
++    bookings = [Booking("atlas", day(10), day(14))]
++
++    assert conflicts(bookings, "atlas", day(12), day(16))
++    assert conflicts(bookings, "atlas", day(12), day(12))
++
++
++def test_candidate_starts_on_existing_last_day():
++    bookings = [Booking("atlas", day(10), day(14))]
++
++    assert conflicts(bookings, "atlas", day(14), day(18))
++
++
++@pytest.mark.parametrize(
++    ("start", "end"),
++    [
++        (day(1), day(9)),
++        (day(15), day(20)),
++    ],
++)
++def test_separated_ranges_do_not_conflict(start: date, end: date):
++    bookings = [Booking("atlas", day(10), day(14))]
++
++    assert not conflicts(bookings, "atlas", start, end)
++
++
++def test_other_room_does_not_conflict():
++    bookings = [Booking("atlas", day(10), day(14))]
++
++    assert not conflicts(bookings, "birch", day(12), day(13))
++
++
++def test_invalid_candidate_range_is_rejected():
++    with pytest.raises(ValueError, match="start must be on or before end"):
++        conflicts([], "atlas", day(15), day(14))
++
++
++def test_empty_bookings_do_not_conflict():
++    assert not conflicts([], "atlas", day(10), day(11))

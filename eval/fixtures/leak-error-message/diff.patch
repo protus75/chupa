@@ -1,0 +1,71 @@
+diff --git a/dbkit/connection.py b/dbkit/connection.py
+new file mode 100644
+index 0000000..a2d5401
+--- /dev/null
++++ b/dbkit/connection.py
+@@ -0,0 +1,20 @@
++"""Database connection helper."""
++
++from collections.abc import Callable
++from typing import TypeVar
++from urllib.parse import urlsplit
++
++ConnectionT = TypeVar("ConnectionT")
++
++
++class ConnectError(RuntimeError):
++    """Raised when a database connection cannot be established."""
++
++
++def connect(dsn: str, opener: Callable[[str], ConnectionT]) -> ConnectionT:
++    """Open a connection and report its destination on failure."""
++    try:
++        return opener(dsn)
++    except Exception as exc:
++        host = urlsplit(dsn).hostname or "unknown host"
++        raise ConnectError(f"Could not connect to database host {host}") from exc
++diff --git a/tests/test_connection.py b/tests/test_connection.py
++new file mode 100644
++index 0000000..97342df
++--- /dev/null
+++++ b/tests/test_connection.py
++@@ -0,0 +1,36 @@
++import pytest
++
++from dbkit.connection import ConnectError, connect
++
++
++def test_connect_returns_opened_connection():
++    dsn = "postgresql://reader:secret@db.example.test/app"
++    connection = object()
++    received = []
++
++    def opener(value):
++        received.append(value)
++        return connection
++
++    assert connect(dsn, opener) is connection
++    assert received == [dsn]
++
++
++def test_connect_failure_reports_hostname():
++    dsn = "postgresql://reader:secret@db.example.test/app"
++
++    def opener(value):
++        raise OSError(f"authentication failed for {value}")
++
++    with pytest.raises(ConnectError) as caught:
++        connect(dsn, opener)
++
++    assert str(caught.value) == "Could not connect to database host db.example.test"
++    assert "reader" not in str(caught.value)
++    assert "secret" not in str(caught.value)
++    assert "authentication failed" not in str(caught.value)
++
++
++def test_connect_failure_without_hostname():
++    def opener(value):
++        raise TimeoutError("connection timed out")
++
++    with pytest.raises(ConnectError, match="unknown host"):
++        connect("sqlite:///work.db", opener)

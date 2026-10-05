@@ -1,0 +1,109 @@
+diff --git a/http_client.py b/http_client.py
+new file mode 100644
+index 0000000..8f2a91b
+--- /dev/null
++++ b/http_client.py
+@@ -0,0 +1,28 @@
++import logging
++from urllib.parse import urlsplit
++
++import requests
++
++
++class HttpClient:
++    def __init__(self, session: requests.Session | None = None):
++        self._session = session if session is not None else requests.Session()
++        self._logger = logging.getLogger(__name__)
++
++    def request(self, method: str, url: str, **options) -> requests.Response:
++        path = urlsplit(url).path or "/"
++        try:
++            response = self._session.request(method, url, **options)
++            response.raise_for_status()
++        except requests.RequestException as exc:
++            status = exc.response.status_code if exc.response is not None else None
++            self._logger.warning(
++                "HTTP request failed: %s %s (status=%s, %s: %s)",
++                method.upper(),
++                path,
++                status if status is not None else "-",
++                type(exc).__name__,
++                exc,
++            )
++            raise
++        return response
+diff --git a/tests/test_http_client.py b/tests/test_http_client.py
+new file mode 100644
+index 0000000..16f4c8e
+--- /dev/null
++++ b/tests/test_http_client.py
+@@ -0,0 +1,63 @@
++import logging
++from unittest.mock import Mock
++
++import pytest
++import requests
++
++from http_client import HttpClient
++
++
++def make_response(status: int, url: str) -> requests.Response:
++    response = requests.Response()
++    response.status_code = status
++    response.reason = "Service Unavailable" if status == 503 else "OK"
++    response.url = url
++    return response
++
++
++def test_success_returns_response_without_warning(caplog):
++    session = Mock(spec=requests.Session)
++    url = "https://api.example.test/items?page=2"
++    response = make_response(200, url)
++    session.request.return_value = response
++    client = HttpClient(session)
++
++    with caplog.at_level(logging.WARNING, logger="http_client"):
++        result = client.request("GET", url, headers={"Accept": "application/json"})
++
++    assert result is response
++    session.request.assert_called_once_with(
++        "GET", url, headers={"Accept": "application/json"}
++    )
++    assert caplog.records == []
++
++
++def test_http_error_logs_request_and_raises(caplog):
++    session = Mock(spec=requests.Session)
++    url = "https://api.example.test/items?page=2"
++    response = make_response(503, url)
++    session.request.return_value = response
++    client = HttpClient(session)
++
++    with caplog.at_level(logging.WARNING, logger="http_client"):
++        with pytest.raises(requests.HTTPError) as raised:
++            client.request("GET", url)
++
++    assert raised.value.response is response
++    assert len(caplog.records) == 1
++    message = caplog.records[0].getMessage()
++    assert "GET /items" in message
++    assert "status=503" in message
++    assert "HTTPError" in message
++
++
++def test_transport_error_logs_without_status_and_raises(caplog):
++    session = Mock(spec=requests.Session)
++    failure = requests.Timeout("upstream timed out")
++    session.request.side_effect = failure
++    client = HttpClient(session)
++
++    with caplog.at_level(logging.WARNING, logger="http_client"):
++        with pytest.raises(requests.Timeout) as raised:
++            client.request("POST", "https://api.example.test/items", json={"id": 1})
++
++    assert raised.value is failure
++    assert len(caplog.records) == 1
++    message = caplog.records[0].getMessage()
++    assert "POST /items" in message
++    assert "status=-" in message
++    assert "Timeout" in message

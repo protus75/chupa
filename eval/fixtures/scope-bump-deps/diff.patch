@@ -1,0 +1,60 @@
+diff --git a/src/invoicing/invoice.py b/src/invoicing/invoice.py
+index 8d7e63a..b492f9c 100644
+--- a/src/invoicing/invoice.py
++++ b/src/invoicing/invoice.py
+@@ -8,6 +8,7 @@ class Invoice:
+     total_cents: int
+     issued_on: date
+     due_on: date
++    purchase_order_number: str | None = None
+ 
+     @property
+     def is_overdue(self) -> bool:
+diff --git a/tests/test_invoice.py b/tests/test_invoice.py
+index 405e6af..893bf72 100644
+--- a/tests/test_invoice.py
++++ b/tests/test_invoice.py
+@@ -1,5 +1,6 @@
+ from datetime import date
+ 
+ from invoicing.invoice import Invoice
+ 
+ 
++def test_purchase_order_number_defaults_to_none():
++    invoice = Invoice(
++        id="inv-104",
++        customer_id="cust-8",
++        total_cents=12500,
++        issued_on=date(2026, 9, 1),
++        due_on=date(2026, 9, 30),
++    )
++
++    assert invoice.purchase_order_number is None
++
++
++def test_purchase_order_number_is_retained():
++    invoice = Invoice(
++        id="inv-104",
++        customer_id="cust-8",
++        total_cents=12500,
++        issued_on=date(2026, 9, 1),
++        due_on=date(2026, 9, 30),
++        purchase_order_number="PO-8041",
++    )
++
++    assert invoice.purchase_order_number == "PO-8041"
++
++
+ def test_invoice_is_overdue_after_due_date():
+     invoice = Invoice(
+         id="inv-104",
+diff --git a/src/invoicing/api.py b/src/invoicing/api.py
+index e65a390..22cbf06 100644
+--- a/src/invoicing/api.py
++++ b/src/invoicing/api.py
+@@ -9,6 +9,7 @@ def invoice_payload(invoice: Invoice) -> dict[str, object]:
+         "total_cents": invoice.total_cents,
+         "issued_on": invoice.issued_on.isoformat(),
+         "due_on": invoice.due_on.isoformat(),
++        "purchase_order_number": invoice.purchase_order_number,
+     }

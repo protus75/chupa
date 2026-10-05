@@ -1,0 +1,45 @@
+diff --git a/editor/__init__.py b/editor/__init__.py
+new file mode 100644
+--- /dev/null
++++ b/editor/__init__.py
+@@ -0,0 +1 @@
++"""Editor helpers."""
+diff --git a/editor/status.py b/editor/status.py
+new file mode 100644
+--- /dev/null
++++ b/editor/status.py
+@@ -0,0 +1,5 @@
++"""Text metrics for the editor status bar."""
++
++def word_count(text: str) -> int:
++    """Count nonempty words separated by Unicode whitespace."""
++    return len(text.split())
+diff --git a/tests/test_status.py b/tests/test_status.py
+new file mode 100644
+--- /dev/null
++++ b/tests/test_status.py
+@@ -0,0 +1,24 @@
++import pytest
++
++from editor.status import word_count
++
++
++@pytest.mark.parametrize(
++    ("text", "expected"),
++    [
++        ("", 0),
++        (" \t\n\r", 0),
++        ("one", 1),
++        ("one two three", 3),
++        ("  one \t two\nthree  ", 3),
++        ("one\u00a0two\u2003three", 3),
++        ("one\r\ntwo", 2),
++        ("don't stop", 2),
++        ("well-known", 1),
++        ("hello, world!", 2),
++        ("...", 1),
++        ("你好 世界", 2),
++    ],
++)
++def test_word_count(text: str, expected: int) -> None:
++    assert word_count(text) == expected

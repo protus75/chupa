@@ -1,0 +1,10 @@
+{
+  "expected_verdict": "snag",
+  "defect_class": "scope_escape",
+  "defect": "src/invoicing/api.py:12 adds the purchase order number to the API payload, although that file is outside the scope fence and API payload changes are explicitly out of scope.",
+  "author": {
+    "provider": "codex",
+    "model": "gpt-6-sol",
+    "tier": "high"
+  }
+}

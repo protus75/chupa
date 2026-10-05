@@ -1,0 +1,113 @@
+diff --git a/src/gateway/rate_limit.py b/src/gateway/rate_limit.py
+new file mode 100644
+index 0000000..4b19e35
+--- /dev/null
++++ b/src/gateway/rate_limit.py
+@@ -0,0 +1,39 @@
++import time
++from collections.abc import Callable
++
++
++class TokenBucket:
++    """Track request tokens against a clock supplied by the caller."""
++
++    def __init__(
++        self,
++        capacity: float,
++        refill_per_second: float,
++        clock: Callable[[], float] = time.monotonic,
++    ) -> None:
++        if capacity <= 0:
++            raise ValueError("capacity must be positive")
++        if refill_per_second <= 0:
++            raise ValueError("refill_per_second must be positive")
++
++        self.capacity = capacity
++        self.refill_per_second = refill_per_second
++        self._clock = clock
++        self._tokens = capacity
++        self._last_checked = clock()
++
++    def allow(self, tokens: float = 1.0) -> bool:
++        if tokens <= 0:
++            raise ValueError("tokens must be positive")
++
++        now = self._clock()
++        elapsed = max(0.0, now - self._last_checked)
++        self._tokens = min(
++            self.capacity, self._tokens + elapsed * self.refill_per_second
++        )
++        self._last_checked = now
++
++        if self._tokens < tokens:
++            return False
++        self._tokens -= tokens
++        return True
+diff --git a/tests/test_rate_limit.py b/tests/test_rate_limit.py
+new file mode 100644
+index 0000000..ed739a1
+--- /dev/null
++++ b/tests/test_rate_limit.py
+@@ -0,0 +1,53 @@
++import pytest
++
++from gateway.rate_limit import TokenBucket
++
++
++class ManualClock:
++    def __init__(self) -> None:
++        self.now = 0.0
++
++    def __call__(self) -> float:
++        return self.now
++
++
++def test_spends_available_tokens_and_rejects_when_empty() -> None:
++    clock = ManualClock()
++    bucket = TokenBucket(capacity=2, refill_per_second=1, clock=clock)
++
++    assert bucket.allow()
++    assert bucket.allow()
++    assert not bucket.allow()
++    clock.now = 0.5
++    assert not bucket.allow()
++    clock.now = 1.0
++    assert bucket.allow()
++
++
++def test_refill_stops_at_capacity() -> None:
++    clock = ManualClock()
++    bucket = TokenBucket(capacity=2, refill_per_second=1, clock=clock)
++
++    assert bucket.allow(2)
++    clock.now = 10.0
++    assert bucket.allow(2)
++    assert not bucket.allow()
++
++
++def test_fractional_refill_can_pay_exact_cost() -> None:
++    clock = ManualClock()
++    bucket = TokenBucket(capacity=2, refill_per_second=0.5, clock=clock)
++
++    assert bucket.allow(2)
++    clock.now = 1.0
++    assert bucket.allow(0.5)
++    assert not bucket.allow(0.5)
++
++
++@pytest.mark.parametrize(
++    ("capacity", "refill_per_second"),
++    [(0, 1), (-1, 1), (1, 0), (1, -1)],
++)
++def test_requires_positive_configuration(
++    capacity: float, refill_per_second: float
++) -> None:
++    with pytest.raises(ValueError):
++        TokenBucket(capacity, refill_per_second)
++
++
++@pytest.mark.parametrize("tokens", [0, -0.5])
++def test_requires_positive_request_cost(tokens: float) -> None:
++    bucket = TokenBucket(capacity=2, refill_per_second=1)
++    with pytest.raises(ValueError):
++        bucket.allow(tokens)

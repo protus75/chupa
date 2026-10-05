@@ -1,0 +1,10 @@
+{
+  "expected_verdict": "approve",
+  "defect_class": "none",
+  "defect": "",
+  "author": {
+    "provider": "codex",
+    "model": "gpt-6-sol",
+    "tier": "high"
+  }
+}

@@ -1,0 +1,59 @@
+diff --git a/slug.py b/slug.py
+new file mode 100644
+index 0000000..e9d4521
+--- /dev/null
++++ b/slug.py
+@@ -0,0 +1,17 @@
++"""Helpers for blog post URL paths."""
++
++import re
++import unicodedata
++
++
++_SEPARATORS = re.compile(r"[^a-z0-9]+")
++
++
++def slugify(title: str) -> str:
++    """Return an ASCII URL slug for a blog post title."""
++    normalized = unicodedata.normalize("NFKD", title.strip().lower())
++    ascii_title = normalized.encode("ascii", "ignore").decode("ascii")
++    slug = _SEPARATORS.sub("-", ascii_title).strip("-")
++    if not slug:
++        raise ValueError("title has no slug characters")
++    return slug
+diff --git a/tests/test_slug.py b/tests/test_slug.py
+new file mode 100644
+index 0000000..a1378d2
+--- /dev/null
++++ b/tests/test_slug.py
+@@ -0,0 +1,28 @@
++import pytest
++
++from slug import slugify
++
++
++@pytest.mark.parametrize(
++    ("title", "expected"),
++    [
++        ("  Hello, Python 3!  ", "hello-python-3"),
++        ("Crème brûlée", "creme-brulee"),
++        ("A/B__C", "a-b-c"),
++        ("One---Two", "one-two"),
++        ("Post 42", "post-42"),
++    ],
++)
++def test_slugify(title: str, expected: str) -> None:
++    assert slugify(title) == expected
++
++
++@pytest.mark.parametrize(
++    "title",
++    [
++        "",
++        "   ",
++        "!!!",
++    ],
++)
++def test_slugify_rejects_titles_without_slug_characters(title: str) -> None:
++    with pytest.raises(ValueError, match="^title has no slug characters$"):
++        slugify(title)

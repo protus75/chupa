@@ -1,0 +1,10 @@
+{
+  "expected_verdict": "snag",
+  "defect_class": "hidden_info_leak",
+  "defect": "In dbkit/connection.py line 20, `from exc` chains the driver exception into the formatted traceback, exposing its credential-bearing error message.",
+  "author": {
+    "provider": "codex",
+    "model": "gpt-6-sol",
+    "tier": "high"
+  }
+}

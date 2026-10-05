@@ -1,0 +1,87 @@
+diff --git a/tinyservice/app.py b/tinyservice/app.py
+index 7c7a111..d82f4b2 100644
+--- a/tinyservice/app.py
++++ b/tinyservice/app.py
+@@ -1,8 +1,19 @@
++from time import monotonic
++
+ from flask import Flask
++from tinyservice import __version__
++
+ 
+ def create_app():
+     app = Flask(__name__)
++    started_at = monotonic()
++
++    @app.get("/healthz")
++    def healthz():
++        return {
++            "version": __version__,
++            "uptime_seconds": monotonic() - started_at,
++        }
+ 
+     @app.get("/")
+     def index():
+         return {"service": "tinyservice"}
+ 
+     return app
+diff --git a/tests/test_healthz.py b/tests/test_healthz.py
+new file mode 100644
+index 0000000..e0e18c3
+--- /dev/null
++++ b/tests/test_healthz.py
+@@ -0,0 +1,64 @@
++import tinyservice.app as app_module
++from tinyservice import __version__
++
++
++def test_healthz_returns_json_version_and_elapsed_uptime(monkeypatch):
++    ticks = iter((10.0, 12.75))
++    monkeypatch.setattr(app_module, "monotonic", lambda: next(ticks))
++    app = app_module.create_app()
++
++    response = app.test_client().get("/healthz")
++
++    assert response.status_code == 200
++    assert response.is_json
++    assert response.get_json() == {
++        "version": __version__,
++        "uptime_seconds": 2.75,
++    }
++
++
++def test_uptime_starts_at_zero_and_increases(monkeypatch):
++    ticks = iter((100.0, 100.0, 103.5))
++    monkeypatch.setattr(app_module, "monotonic", lambda: next(ticks))
++    client = app_module.create_app().test_client()
++
++    first = client.get("/healthz").get_json()["uptime_seconds"]
++    second = client.get("/healthz").get_json()["uptime_seconds"]
++
++    assert first == 0.0
++    assert second == 3.5
++    assert second >= first
++
++
++def test_each_app_has_its_own_start_time(monkeypatch):
++    ticks = iter((10.0, 20.0, 21.0, 22.0))
++    monkeypatch.setattr(app_module, "monotonic", lambda: next(ticks))
++    first_app = app_module.create_app()
++    second_app = app_module.create_app()
++
++    first_uptime = first_app.test_client().get("/healthz").get_json()[
++        "uptime_seconds"
++    ]
++    second_uptime = second_app.test_client().get("/healthz").get_json()[
++        "uptime_seconds"
++    ]
++
++    assert first_uptime == 11.0
++    assert second_uptime == 2.0
++
++
++def test_root_response_is_unchanged():
++    response = app_module.create_app().test_client().get("/")
++
++    assert response.status_code == 200
++    assert response.get_json() == {"service": "tinyservice"}

@@ -1,0 +1,52 @@
+diff --git a/docs/error_messages.md b/docs/error_messages.md
+index 4c8e611..7a1d29f 100644
+--- a/docs/error_messages.md
++++ b/docs/error_messages.md
+@@ -3,8 +3,8 @@
+ These messages are raised by `tinyforms.validation`.
+ 
+ | Condition | Message |
+ | --- | --- |
+-| Missing email | `Email adress is required.` |
++| Missing email | `Email address is required.` |
+ | Missing @ | `Email must contain @.` |
+ 
+ Messages are stable for callers that display them.
+diff --git a/src/tinyforms/validation.py b/src/tinyforms/validation.py
+index 28ae137..41fc80b 100644
+--- a/src/tinyforms/validation.py
++++ b/src/tinyforms/validation.py
+@@ -4,12 +4,12 @@ def validate_email(value: str) -> str:
+ def validate_email(value: str) -> str:
+     """Return a normalized email address or raise ValueError."""
+     if not isinstance(value, str):
+         raise TypeError("Email must be a string.")
+ 
+     normalized = value.strip()
+     if not normalized:
+-        raise ValueError("Email adress is required.")
++        raise ValueError("Email address is required.")
+     if "@" not in normalized:
+         raise ValueError("Email must contain @.")
+ 
+     return normalized
+diff --git a/tests/test_validation.py b/tests/test_validation.py
+index 86e092a..b27d3e0 100644
+--- a/tests/test_validation.py
++++ b/tests/test_validation.py
+@@ -6,12 +6,13 @@
+ def test_validate_email_normalizes_whitespace():
+     assert validate_email("  user@example.com  ") == "user@example.com"
+ 
+ 
++@pytest.mark.parametrize("value", ["", " ", "  "])
+ def test_validate_email_requires_a_value():
+-    with pytest.raises(ValueError, match=r"^Email adress is required[.]$"):
+-        validate_email("")
++    with pytest.raises(ValueError, match=r"^Email address is required[.]$"):
++        validate_email(value)
+ 
+ 
+ def test_validate_email_requires_at_sign():
+     with pytest.raises(ValueError, match=r"^Email must contain @[.]$"):
+         validate_email("example.com")

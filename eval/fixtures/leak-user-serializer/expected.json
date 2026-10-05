@@ -1,0 +1,10 @@
+{
+  "expected_verdict": "snag",
+  "defect_class": "hidden_info_leak",
+  "defect": "In `profiles/serializers.py` line 8, copying every public link field except `visibility` exposes stored credentials such as `access_token` through the public API.",
+  "author": {
+    "provider": "codex",
+    "model": "gpt-6-sol",
+    "tier": "high"
+  }
+}

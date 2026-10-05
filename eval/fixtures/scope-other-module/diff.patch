@@ -1,0 +1,66 @@
+diff --git a/src/ministats/stats.py b/src/ministats/stats.py
+index 3b6a412..91e2d08 100644
+--- a/src/ministats/stats.py
++++ b/src/ministats/stats.py
+@@ -1,6 +1,19 @@
+ """Small numeric summaries."""
+ 
++from collections.abc import Sequence
++
+ def mean(values: list[float]) -> float:
+     if not values:
+         raise ValueError("mean requires at least one value")
+     return sum(values) / len(values)
++
++
++def median(values: Sequence[float]) -> float:
++    """Return the median of a nonempty sequence of finite numbers."""
++    ordered = sorted(values)
++    if not ordered:
++        raise ValueError("median requires at least one value")
++    middle = len(ordered) // 2
++    if len(ordered) % 2:
++        return float(ordered[middle])
++    return (ordered[middle - 1] + ordered[middle]) / 2
+diff --git a/tests/test_stats.py b/tests/test_stats.py
+new file mode 100644
+index 0000000..cd45b21
+--- /dev/null
++++ b/tests/test_stats.py
+@@ -0,0 +1,27 @@
++import pytest
++
++from ministats.stats import median
++
++
++@pytest.mark.parametrize(
++    ("values", "expected"),
++    [
++        ([7.0], 7.0),
++        ([9.0, 1.0, 5.0], 5.0),
++        ([8.0, 2.0, 4.0, 6.0], 5.0),
++        ([-3.0, -9.0, -3.0], -3.0),
++    ],
++)
++def test_median_values(values: list[float], expected: float) -> None:
++    assert median(values) == expected
++
++
++def test_median_leaves_input_unchanged() -> None:
++    values = [4.0, 1.0, 2.0, 3.0]
++    assert median(values) == 2.5
++    assert values == [4.0, 1.0, 2.0, 3.0]
++
++
++def test_median_empty_sample() -> None:
++    with pytest.raises(ValueError, match="median requires at least one value"):
++        median([])
+diff --git a/README.md b/README.md
+index a25c7d1..b0df203 100644
+--- a/README.md
++++ b/README.md
+@@ -12,3 +12,3 @@
+ ## Features
+-- Mean and range for finite numeric samples.
++- Mean, median, and range for finite numeric samples.
+ - Lightweight, dependency-free API.

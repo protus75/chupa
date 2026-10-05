@@ -1,0 +1,10 @@
+{
+  "expected_verdict": "snag",
+  "defect_class": "acceptance_mismatch",
+  "defect": "In config.py line 33, `.strip()` removes leading and trailing spaces from environment values, violating the requirement to copy them verbatim.",
+  "author": {
+    "provider": "codex",
+    "model": "gpt-6-sol",
+    "tier": "high"
+  }
+}

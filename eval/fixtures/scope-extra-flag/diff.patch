@@ -1,0 +1,106 @@
+diff --git a/src/cleankit/cleanup.py b/src/cleankit/cleanup.py
+index 682dcd1..a31b477 100644
+--- a/src/cleankit/cleanup.py
++++ b/src/cleankit/cleanup.py
+@@ -4,13 +4,19 @@ import time
+ from pathlib import Path
+ 
+ 
+-def cleanup(root: Path, older_than_days: int) -> list[Path]:
++def cleanup(
++    root: Path,
++    older_than_days: int,
++    *,
++    dry_run: bool = False,
++) -> list[Path]:
+     cutoff = time.time() - older_than_days * 24 * 60 * 60
+-    deleted = []
++    selected = []
+     for path in sorted(root.iterdir()):
+         if path.is_file() and path.stat().st_mtime < cutoff:
+-            path.unlink()
+-            deleted.append(path)
+-    return deleted
++            if not dry_run:
++                path.unlink()
++            selected.append(path)
++    return selected
+ 
+ 
+ def main(argv: list[str] | None = None) -> int:
+@@ -18,8 +24,9 @@ def main(argv: list[str] | None = None) -> int:
+     parser = argparse.ArgumentParser(description="Remove old files")
+     parser.add_argument("root", type=Path)
+     parser.add_argument("--older-than", type=int, default=7)
++    parser.add_argument("--dry-run", action="store_true")
+     args = parser.parse_args(argv)
+-    for path in cleanup(args.root, args.older_than):
++    for path in cleanup(args.root, args.older_than, dry_run=args.dry_run):
+         print(path)
+     return 0
+diff --git a/tests/test_cleanup.py b/tests/test_cleanup.py
+index 173d8c2..e8d4a13 100644
+--- a/tests/test_cleanup.py
++++ b/tests/test_cleanup.py
+@@ -1,5 +1,61 @@
+ import os
+ import time
+ 
+ from cleankit.cleanup import cleanup, main
+ 
++
++def test_dry_run_lists_old_files_without_deleting(tmp_path, capsys):
++    old = tmp_path / "old.log"
++    recent = tmp_path / "recent.log"
++    old.write_text("old")
++    recent.write_text("recent")
++    old_time = time.time() - 10 * 24 * 60 * 60
++    os.utime(old, (old_time, old_time))
++
++    result = main([str(tmp_path), "--dry-run"])
++
++    assert result == 0
++    assert capsys.readouterr().out.splitlines() == [str(old)]
++    assert old.exists()
++    assert recent.exists()
++
++
++def test_regular_run_deletes_only_old_files(tmp_path, capsys):
++    old = tmp_path / "old.log"
++    recent = tmp_path / "recent.log"
++    old.write_text("old")
++    recent.write_text("recent")
++    old_time = time.time() - 10 * 24 * 60 * 60
++    os.utime(old, (old_time, old_time))
++
++    result = main([str(tmp_path)])
++
++    assert result == 0
++    assert capsys.readouterr().out.splitlines() == [str(old)]
++    assert not old.exists()
++    assert recent.exists()
++
++
++def test_dry_run_returns_selected_paths(tmp_path):
++    old = tmp_path / "old.log"
++    recent = tmp_path / "recent.log"
++    old.write_text("old")
++    recent.write_text("recent")
++    old_time = time.time() - 10 * 24 * 60 * 60
++    os.utime(old, (old_time, old_time))
++
++    selected = cleanup(tmp_path, 7, dry_run=True)
++
++    assert selected == [old]
++    assert old.read_text() == "old"
++    assert recent.read_text() == "recent"
+diff --git a/pyproject.toml b/pyproject.toml
+index 9243aab..acd5881 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -18,4 +18,4 @@ dependencies = []
+ 
+ [tool.pytest.ini_options]
+ testpaths = ["tests"]
+-addopts = ""
++addopts = "-ra"

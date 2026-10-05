@@ -1,0 +1,10 @@
+{
+  "expected_verdict": "snag",
+  "defect_class": "scope_escape",
+  "defect": "README.md:13 adds median to the feature list, although README.md is outside the scope fence and documentation changes are expressly out of scope.",
+  "author": {
+    "provider": "codex",
+    "model": "gpt-6-sol",
+    "tier": "high"
+  }
+}

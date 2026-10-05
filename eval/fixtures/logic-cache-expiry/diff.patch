@@ -1,0 +1,90 @@
+diff --git a/config_loader.py b/config_loader.py
+new file mode 100644
+index 0000000..a482d91
+--- /dev/null
++++ b/config_loader.py
+@@ -0,0 +1,33 @@
++import json
++import time
++from pathlib import Path
++from typing import Any, Callable
++
++
++class TTLConfigLoader:
++    """Load JSON configs with per-path lazy expiration."""
++
++    def __init__(
++        self,
++        ttl_seconds: float,
++        clock: Callable[[], float] = time.monotonic,
++    ) -> None:
++        if ttl_seconds <= 0:
++            raise ValueError("ttl_seconds must be positive")
++        self._ttl_seconds = ttl_seconds
++        self._clock = clock
++        self._entries: dict[Path, tuple[float, Any]] = {}
++
++    def load(self, path: str | Path) -> Any:
++        key = Path(path).resolve()
++        now = self._clock()
++        cached = self._entries.get(key)
++        if cached is not None:
++            expires_at, value = cached
++            if now <= expires_at:
++                return value
++
++        with key.open(encoding="utf-8") as stream:
++            value = json.load(stream)
++        self._entries[key] = (now + self._ttl_seconds, value)
++        return value
+diff --git a/tests/test_config_loader.py b/tests/test_config_loader.py
+new file mode 100644
+index 0000000..bc52e07
+--- /dev/null
++++ b/tests/test_config_loader.py
+@@ -0,0 +1,45 @@
++import json
++
++import pytest
++
++from config_loader import TTLConfigLoader
++
++
++def write_config(path, value):
++    path.write_text(json.dumps(value), encoding="utf-8")
++
++
++def test_reuses_value_until_ttl_elapses(tmp_path):
++    config = tmp_path / "settings.json"
++    write_config(config, {"mode": "old"})
++    now = [100.0]
++    loader = TTLConfigLoader(5.0, clock=lambda: now[0])
++
++    first = loader.load(config)
++    assert first == {"mode": "old"}
++    write_config(config, {"mode": "new"})
++    now[0] = 104.9
++    assert loader.load(config) is first
++
++    now[0] = 105.1
++    second = loader.load(config)
++    assert second == {"mode": "new"}
++    assert second is not first
++
++
++def test_entries_are_scoped_to_paths(tmp_path):
++    left = tmp_path / "left.json"
++    right = tmp_path / "right.json"
++    write_config(left, {"side": "left"})
++    write_config(right, {"side": "right"})
++    loader = TTLConfigLoader(10.0, clock=lambda: 0.0)
++
++    assert loader.load(left) == {"side": "left"}
++    assert loader.load(right) == {"side": "right"}
++
++
++def test_requires_positive_ttl():
++    with pytest.raises(ValueError, match="ttl_seconds must be positive"):
++        TTLConfigLoader(0)
++    with pytest.raises(ValueError, match="ttl_seconds must be positive"):
++        TTLConfigLoader(-1)

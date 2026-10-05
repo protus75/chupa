@@ -1,0 +1,10 @@
+{
+  "expected_verdict": "snag",
+  "defect_class": "hidden_info_leak",
+  "defect": "In `grader/report.py:27`, the visibility condition includes failed hidden cases in the learner-facing `cases` list, exposing their names and feedback.",
+  "author": {
+    "provider": "codex",
+    "model": "gpt-6-sol",
+    "tier": "high"
+  }
+}

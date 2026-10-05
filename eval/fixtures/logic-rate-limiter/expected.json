@@ -1,0 +1,10 @@
+{
+  "expected_verdict": "snag",
+  "defect_class": "logic",
+  "defect": "In src/gateway/rate_limit.py line 34, assigning a backward clock sample to `_last_checked` moves the refill baseline backward, so returning to the previous time grants tokens twice.",
+  "author": {
+    "provider": "codex",
+    "model": "gpt-6-sol",
+    "tier": "high"
+  }
+}

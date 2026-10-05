@@ -1,0 +1,10 @@
+{
+  "expected_verdict": "snag",
+  "defect_class": "acceptance_mismatch",
+  "defect": "signup/passwords.py:16 uses `str.isdigit()`, so a non-ASCII digit satisfies the digit rule even though acceptance criterion 2 requires an ASCII digit.",
+  "author": {
+    "provider": "codex",
+    "model": "gpt-6-sol",
+    "tier": "high"
+  }
+}

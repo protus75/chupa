@@ -1,0 +1,10 @@
+{
+  "expected_verdict": "snag",
+  "defect_class": "acceptance_mismatch",
+  "defect": "In slug.py line 12, `lower()` is used instead of the required `casefold()`, so `slugify(\"Stra\u00dfe\")` returns `\"strae\"` instead of `\"strasse\"`.",
+  "author": {
+    "provider": "codex",
+    "model": "gpt-6-sol",
+    "tier": "high"
+  }
+}

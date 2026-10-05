@@ -1,0 +1,10 @@
+{
+  "expected_verdict": "snag",
+  "defect_class": "scope_escape",
+  "defect": "docs/error_messages.md:7 changes documentation even though the ticket excludes documentation and does not list that file in its scope fence.",
+  "author": {
+    "provider": "codex",
+    "model": "gpt-6-sol",
+    "tier": "high"
+  }
+}

@@ -1,0 +1,93 @@
+diff --git a/jobrunner/lint.py b/jobrunner/lint.py
+new file mode 100644
+index 0000000..b38d14a
+--- /dev/null
++++ b/jobrunner/lint.py
+@@ -0,0 +1,36 @@
++from __future__ import annotations
++
++import os
++import subprocess
++from dataclasses import dataclass
++from pathlib import Path
++
++
++@dataclass(frozen=True)
++class LintResult:
++    returncode: int
++    stdout: str
++    stderr: str
++
++
++def run_lint(repo: Path, *, executable: str = "ruff") -> LintResult:
++    """Run Ruff in a repository and return its result."""
++    environment = {
++        name: value
++        for name, value in os.environ.items()
++        if name in {"PATH", "LANG", "LC_ALL"} or name.startswith("CI_")
++    }
++    process = subprocess.run(
++        [executable, "check", "."],
++        cwd=repo,
++        env=environment,
++        text=True,
++        stdout=subprocess.PIPE,
++        stderr=subprocess.PIPE,
++        check=False,
++    )
++    return LintResult(
++        returncode=process.returncode,
++        stdout=process.stdout,
++        stderr=process.stderr,
++    )
+diff --git a/tests/test_lint.py b/tests/test_lint.py
+new file mode 100644
+index 0000000..0d91d5e
+--- /dev/null
++++ b/tests/test_lint.py
+@@ -0,0 +1,43 @@
++import os
++import subprocess
++from unittest.mock import patch
++
++from jobrunner import lint
++
++
++def test_run_lint_uses_repo_and_environment(tmp_path, monkeypatch):
++    call = {}
++
++    def fake_run(argv, **kwargs):
++        call["argv"] = argv
++        call["kwargs"] = kwargs
++        return subprocess.CompletedProcess(argv, 0, "ok\n", "")
++
++    monkeypatch.setattr(lint.subprocess, "run", fake_run)
++    with patch.dict(
++        os.environ,
++        {"PATH": "/tools", "LANG": "C", "LC_ALL": "C", "HOME": "/users/alice"},
++        clear=True,
++    ):
++        result = lint.run_lint(tmp_path, executable="/tools/ruff")
++
++    assert call["argv"] == ["/tools/ruff", "check", "."]
++    assert call["kwargs"]["cwd"] == tmp_path
++    assert call["kwargs"]["env"] == {
++        "PATH": "/tools",
++        "LANG": "C",
++        "LC_ALL": "C",
++    }
++    assert call["kwargs"]["text"] is True
++    assert call["kwargs"]["stdout"] is subprocess.PIPE
++    assert call["kwargs"]["stderr"] is subprocess.PIPE
++    assert call["kwargs"]["check"] is False
++    assert result == lint.LintResult(0, "ok\n", "")
++
++
++def test_run_lint_returns_nonzero_result(tmp_path, monkeypatch):
++    def fake_run(argv, **kwargs):
++        return subprocess.CompletedProcess(argv, 1, "src/a.py:1:1 E501\n", "details\n")
++
++    monkeypatch.setattr(lint.subprocess, "run", fake_run)
++    result = lint.run_lint(tmp_path)
++
++    assert result == lint.LintResult(1, "src/a.py:1:1 E501\n", "details\n")

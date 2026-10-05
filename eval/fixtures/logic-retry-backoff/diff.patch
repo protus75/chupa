@@ -1,0 +1,123 @@
+diff --git a/retry.py b/retry.py
+new file mode 100644
+index 0000000..a1b2c3d
+--- /dev/null
++++ b/retry.py
+@@ -0,0 +1,32 @@
++from collections.abc import Callable
++import time
++from typing import TypeVar
++
++T = TypeVar("T")
++
++
++def retry_call(
++    operation: Callable[[], T],
++    *,
++    max_attempts: int = 3,
++    base_delay: float = 0.1,
++    max_delay: float = 1.0,
++    sleep: Callable[[float], None] = time.sleep,
++) -> T:
++    """Run a network operation with exponential backoff."""
++    if max_attempts < 1:
++        raise ValueError("max_attempts must be at least 1")
++    if base_delay < 0:
++        raise ValueError("base_delay must be nonnegative")
++    if max_delay < base_delay:
++        raise ValueError("max_delay must be at least base_delay")
++
++    for attempt in range(max_attempts):
++        try:
++            return operation()
++        except OSError:
++            if attempt == max_attempts - 1:
++                raise
++            sleep(min(base_delay * 2**attempt, max_delay))
++
++    raise AssertionError("retry loop exited unexpectedly")
+diff --git a/tests/test_retry.py b/tests/test_retry.py
+new file mode 100644
+index 0000000..d4e5f6a
+--- /dev/null
++++ b/tests/test_retry.py
+@@ -0,0 +1,79 @@
++import pytest
++
++from retry import retry_call
++
++
++@pytest.mark.parametrize("error_type", [ConnectionError, TimeoutError])
++def test_retries_network_errors(error_type):
++    calls = 0
++    delays = []
++
++    def operation():
++        nonlocal calls
++        calls += 1
++        if calls == 1:
++            raise error_type("temporary")
++        return "ready"
++
++    assert retry_call(
++        operation, max_attempts=2, base_delay=0.25, sleep=delays.append
++    ) == "ready"
++    assert calls == 2
++    assert delays == [0.25]
++
++
++def test_delays_are_capped_and_end_with_last_attempt():
++    calls = 0
++    delays = []
++
++    def operation():
++        nonlocal calls
++        calls += 1
++        raise TimeoutError("temporary")
++
++    with pytest.raises(TimeoutError, match="temporary"):
++        retry_call(
++            operation,
++            max_attempts=4,
++            base_delay=0.2,
++            max_delay=0.3,
++            sleep=delays.append,
++        )
++
++    assert calls == 4
++    assert delays == [0.2, 0.3, 0.3]
++
++
++def test_unrelated_error_propagates_immediately():
++    calls = 0
++    delays = []
++
++    def operation():
++        nonlocal calls
++        calls += 1
++        raise RuntimeError("closed")
++
++    with pytest.raises(RuntimeError, match="closed"):
++        retry_call(operation, sleep=delays.append)
++
++    assert calls == 1
++    assert delays == []
++
++
++def test_success_on_first_attempt_does_not_sleep():
++    delays = []
++    assert retry_call(lambda: 42, sleep=delays.append) == 42
++    assert delays == []
++
++
++@pytest.mark.parametrize(
++    "options",
++    [
++        {"max_attempts": 0},
++        {"base_delay": -0.1},
++        {"base_delay": 0.2, "max_delay": 0.1},
++    ],
++)
++def test_rejects_invalid_settings(options):
++    with pytest.raises(ValueError):
++        retry_call(lambda: "ready", sleep=lambda _: None, **options)

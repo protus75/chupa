@@ -1,0 +1,10 @@
+{
+  "expected_verdict": "snag",
+  "defect_class": "acceptance_mismatch",
+  "defect": "orders_export.py:11 uses SQL LIKE for `--status`, so `%` and `_` act as wildcards instead of matching the supplied status exactly.",
+  "author": {
+    "provider": "codex",
+    "model": "gpt-6-sol",
+    "tier": "high"
+  }
+}
