@@ -16,6 +16,7 @@ agent_effort: medium
 
 ## On-demand
 - specs/implement.md
+- tests/test_stages.py
 
 ## Plan contract
 - 19.L
@@ -43,13 +44,14 @@ Owners (section 9 ownership law): `chupa/stages.py` owns the `ImplementReply` mo
 - chupa/stages.py
 - specs/implement.md
 - tests/test_second_problems.py
+- tests/test_stages.py
 
 ## Acceptance criteria
 1. The `python -c` command in `## Verification` exits 0: `specs/implement.md` loads through `load_spec` at version `1.1`, and its text names `second_problems`.
 2. `tests/test_second_problems.py` drives `chupa.__main__.main(["run", ...])` with a FakeLLM whose implement reply carries two `second_problems`. Two `suggestion` messages exist in `<state_dir>/box/`, each with `origin` equal to the stem, `stage` `implement`, and `outcome` `ok`. The lifted `tickets/<stem>/run.md` on main lists both ids under `## Second problems filed`, in reply order.
 3. `tests/test_second_problems.py` proves dedup and the empty case. A second run whose reply repeats a summary differing only in a line number lists the SAME id and adds no message file. A reply with no `second_problems` key writes `none` and creates no box dir entry.
 4. `tests/test_second_problems.py` proves a `premise_failed` reply carrying a second problem still files it, with `outcome` `premise_failed`, and its run record lists the id.
-5. `uv run pytest -q tests/test_stages.py tests/test_terminal.py tests/test_drain_reentry.py` passes with no edit to those files.
+5. `uv run pytest -q tests/test_stages.py tests/test_terminal.py tests/test_drain_reentry.py` passes. The ONLY permitted edit to those files is the run-record provenance assertion in `tests/test_stages.py` (`- spec: implement 1.0` becomes `- spec: implement 1.1`), which the spec bump contradicts; every other line of the three files is unedited.
 6. `uv run pytest -q` exits 0 with no test removed or skipped.
 
 ## Verification
