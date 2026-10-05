@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Bootstrap ingest reported 0 new messages because the main checkout already contained the ingested messages.
+The ingest created 81 new messages in the main checkout; all four verification commands passed, including 556 tests.
 
 ## Dead ends
 
-none
+An optional Ruff check could not run because Ruff is not installed.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-75m expected; approximately 5m actual.
+75 minutes expected; about 8 minutes actual.
 
