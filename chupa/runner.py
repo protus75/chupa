@@ -17,6 +17,7 @@ from chupa.llm import LLM
 from chupa.lockfile import Lockfile
 from chupa.merge import merge
 from chupa.providers import ProviderLLM
+from chupa.reconcile import reconcile
 from chupa.seams import Clock, FileSystem, GroupExec
 from chupa.stages import StageContext, run_stages
 from chupa.status import last_states
@@ -97,6 +98,8 @@ async def run_ticket(stem: str, checkout: Checkout, dispatch: Dispatch) -> int:
                     clock=checkout.clock)
     lock.acquire()
     try:
+        assert checkout.config.worktree_root is not None  # resolved at config load
+        await reconcile(checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root)
         ticket = await _admit(stem, checkout)
         checkout.journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket=stem)
         terminal = await dispatch(ticket)

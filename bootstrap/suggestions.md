@@ -127,3 +127,7 @@
 - [terminal-review] tests/test_terminal.py builds its config.yaml by string-splitting test_stages.py's source on `CONFIG = """`; import `CONFIG` from tests.test_stages instead (it already imports siblings from there).
 - [terminal-review] No test pins `already_satisfied` through `drive` (journal body + exit code); add one once section 18 settles its exit code (see the [terminal] item above).
 - [exit-gate] The [terminal-review] item about tests/test_terminal.py string-splitting test_stages.py for `CONFIG` is resolved: it was the Phase 1 exit ticket `terminal-test-config-import`, merged by `run` as b059824.
+- [reconcile-review] An orphaned `merge/<stem>/<attempt>` intent whose squash already landed on main (crash before the completion was journaled) is reaped to `abandoned` while main carries the merge; reconcile should check the merge effect's landing (or defer to the Phase 2 harvest) before choosing the terminal.
+- [reconcile-review] No test pins the journal-before-wipe crash point: add one where `worktree_remove` raises after `abandoned` is journaled and assert the next run is a no-op reap that still dispatches.
+- [reconcile-review] `worktree_root is not None` is now asserted in both runner.py and stages.py; resolve it to a non-optional field after config load so call sites need no assert.
+- [reconcile-review] `reconcile` calls `worktree_prune` after the loop although `Git.worktree_remove` already prunes; the extra prune only matters when no worktree existed, so prune once unconditionally per reaped batch or drop the inner one.
