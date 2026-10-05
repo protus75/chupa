@@ -314,7 +314,8 @@ def _inserted(diff: str) -> int:
 
 
 async def gather_evidence(
-    ctx: StageContext, ticket: Ticket, claimed: Literal["ok", "already_satisfied"], *, attempt: int
+    ctx: StageContext, ticket: Ticket, claimed: Literal["ok", "already_satisfied"], *, attempt: int,
+    stage: str = "check",
 ) -> Evidence:
     stem = ticket.stem
     worktree = ctx.worktree(stem)
@@ -327,7 +328,7 @@ async def gather_evidence(
             rc, out, err = None, "", f"timed out after the ticket's stuck budget ({ticket.stuck_minutes}m)"
         except ExecutableNotFound as e:
             rc, out, err = None, "", str(e)
-        ctx.driver.spool.write(stem, attempt, f"check/verify-{n:02d}.txt",
+        ctx.driver.spool.write(stem, attempt, f"{stage}/verify-{n:02d}.txt",
                                f"$ {' '.join(argv)}\n[exit {rc}]\n--- stdout\n{out}\n--- stderr\n{err}")
         tail = ctx.driver.redactor.scrub((out + err)[-OUTPUT_TAIL_CHARS:])
         results.append(CommandResult(argv=list(argv), rc=rc, tail=tail))
