@@ -26,7 +26,7 @@ from chupa.stages import (
     read_review,
     run_stages,
 )
-from chupa.tickets import validate_ticket
+from chupa.tickets import TicketInvalid, validate_ticket
 
 SPECS = Path(__file__).resolve().parent.parent / "specs"
 SECRET = "sk-test-not-for-children"
@@ -118,10 +118,10 @@ def repo(tmp_path: Path) -> Path:
     return root
 
 
-def author(repo: Path, bypass: str = "") -> None:
+def author(repo: Path, bypass: str = "", plan_contract: str = "") -> None:
     path = repo / "tickets" / STEM / "ticket.md"
     path.parent.mkdir(parents=True)
-    path.write_text(TICKET.format(bypass=bypass))
+    path.write_text(TICKET.format(bypass=bypass).replace("## Goal / Why", plan_contract + "## Goal / Why"))
     git(repo, "add", "tickets")
     git(repo, "commit", "-m", f"chupa({STEM}): ticket")
 
@@ -156,8 +156,8 @@ def verdict(v: str = "approve", findings: list | None = None) -> str:
 SNAG = {"code": "logic", "path": "chupa/thing.py", "line": 1, "message": "wrong word", "paved_road": "write ok"}
 
 
-def run(repo: Path, script: list, bypass: str = ""):
-    author(repo, bypass)
+def run(repo: Path, script: list, bypass: str = "", plan_contract: str = ""):
+    author(repo, bypass, plan_contract)
     config = load_config(None, cwd=repo)
     llm = FakeLLM(script)
     clock = lambda: datetime(2026, 10, 5, tzinfo=UTC)  # noqa: E731
@@ -182,6 +182,26 @@ def outcomes(result) -> dict[str, str]:
 
 
 # --- transitions --------------------------------------------------------------------------------
+
+
+def test_implement_renders_numeric_plan_contract_section(repo):
+    (repo / "CHUPA_PLAN.md").write_text("# Plan\n\n## 11. Failure spine\n\nSpine prose.\n")
+    git(repo, "commit", "-am", "plan section 11")
+
+    result, llm, _ = run(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()],
+                         plan_contract="## Plan contract\n- section 11\n\n")
+
+    assert outcomes(result) == {"implement": "ok", "check": "ok", "review": "ok"}
+    assert "## 11. Failure spine\n\nSpine prose." in llm.requests[0].rendered
+
+
+def test_bare_numeric_plan_contract_bullet_is_refused_at_intake(repo):
+    (repo / "CHUPA_PLAN.md").write_text("# Plan\n\n## 11. Failure spine\n")
+    author(repo, plan_contract="## Plan contract\n- 11\n\n")
+
+    with pytest.raises(TicketInvalid) as e:
+        validate_ticket(STEM, (repo / "tickets" / STEM / "ticket.md").read_text(), repo)
+    assert any("Plan contract" in finding.message for finding in e.value.findings)
 
 
 def test_implement_check_review_all_ok_with_artifacts_and_provenance(repo):

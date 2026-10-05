@@ -338,7 +338,7 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None) -> Ticke
                 if plan is None:
                     raise PlanContractError(_f(f"`## Plan contract` cites {item!r} but {PLAN_FILE} is absent",
                                                f"restore {PLAN_FILE} at the repo root"))
-                resolve_plan_contract(plan, [item])
+                resolve_plan_contract(plan, [pid])
             except PlanContractError as e:
                 findings.append(e.finding.model_copy(update={"code": CODE, "path": path,
                                                              "message": f"`## Plan contract`: {e.finding.message}"}))

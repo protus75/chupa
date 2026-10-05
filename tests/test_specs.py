@@ -215,7 +215,7 @@ why
 
 
 def test_section_cited_twice_resolves_to_its_bytes_exactly_once():
-    out = resolve_plan_contract(PLAN, ["section 1", "section 1"])
+    out = resolve_plan_contract(PLAN, ["1", "1"])
     assert out == "## 1. One\n\none body\n\n"
 
 
@@ -228,33 +228,33 @@ def test_unit_id_resolves_to_exactly_its_unit():
 
 
 def test_resolution_is_verbatim_in_first_citation_order():
-    out = resolve_plan_contract(PLAN, ["section 20", "19.L", "section 20", "section 1"])
+    out = resolve_plan_contract(PLAN, ["20", "19.L", "20", "1"])
     assert out == (
         "## 20. Open\n\nopen body\n\n" + "### 19.L Laws\n\nlaws body\n\n" + "## 1. One\n\none body\n\n"
     )
 
 
-@pytest.mark.parametrize("bad", ["section 7", "19.P5", "19.P9", "19.X", "section", "CHUPA_PLAN.md", "2"])
+@pytest.mark.parametrize("bad", ["7", "19.P5", "19.P9", "19.X", "section", "CHUPA_PLAN.md", "2"])
 def test_unknown_id_is_refused(bad):
     with pytest.raises(PlanContractError) as e:
-        resolve_plan_contract(PLAN, ["section 1", bad])
+        resolve_plan_contract(PLAN, ["1", bad])
     assert e.value.finding.paved_road
 
 
 def test_fenced_heading_never_resolves():
     with pytest.raises(PlanContractError):
-        resolve_plan_contract(PLAN, ["section 2"])
+        resolve_plan_contract(PLAN, ["2"])
 
 
 def test_section_22_is_refused():
     with pytest.raises(PlanContractError) as e:
-        resolve_plan_contract(PLAN, ["section 22"])
+        resolve_plan_contract(PLAN, ["22"])
     assert "22" in str(e.value)
 
 
 def test_duplicate_heading_is_refused():
     with pytest.raises(PlanContractError):
-        resolve_plan_contract(PLAN + "## 1. Again\n\nx\n", ["section 1"])
+        resolve_plan_contract(PLAN + "## 1. Again\n\nx\n", ["1"])
 
 
 def test_real_plan_unit_resolves():

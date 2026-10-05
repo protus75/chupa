@@ -237,6 +237,7 @@ REFUSED_SECTIONS = frozenset({22})  # uncited rationale appendix: never resolves
 _SECTION_HEAD = re.compile(r"## (\d+)\. ")
 _UNIT_HEAD = re.compile(r"### (19\.\S+) ")
 _PLAN_ID = re.compile(r"section (\d+)|(19\.(?:L|P[0-6]))")
+_CANONICAL_PLAN_ID = re.compile(r"(?:0|[1-9]\d*|19\.(?:L|P[0-6]))")
 
 
 def plan_id(text: str) -> str:
@@ -287,18 +288,20 @@ def _units(plan: str) -> tuple[dict[str, list[str]], list[str]]:
 
 
 def resolve_plan_contract(plan: str, ids: Iterable[str]) -> str:
-    """Resolve `Plan contract` bullets to verbatim plan bytes, deduplicated in first-citation order."""
+    """Resolve canonical plan ids to verbatim plan bytes, deduplicated in first-citation order."""
     found, _ = _units(plan)
     seen: list[str] = []
-    for raw in ids:
-        pid = plan_id(raw)
+    for pid in ids:
+        if _CANONICAL_PLAN_ID.fullmatch(pid) is None:
+            raise PlanContractError(_f("plan_contract", f"{pid!r} is not a canonical plan id",
+                                       "canonicalize a `Plan contract` bullet with `plan_id` first"))
         if "." not in pid and int(pid) in REFUSED_SECTIONS:
             raise PlanContractError(_f("plan_contract", f"section {pid} never resolves (uncited rationale)",
                                        "cite the section or unit that states the rule itself"))
         slices = found.get(pid, [])
         if len(slices) != 1:
             raise PlanContractError(_f("plan_contract",
-                                       f"{raw!r} matches {len(slices)} plan headings, not exactly one",
+                                       f"{pid!r} matches {len(slices)} plan headings, not exactly one",
                                        "cite an id with exactly one `## N.` or `### 19.<unit>` heading"))
         if pid not in seen:
             seen.append(pid)
