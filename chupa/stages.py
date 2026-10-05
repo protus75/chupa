@@ -18,6 +18,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 from chupa.artifacts import OUTCOMES, Artifact, Cost, Diagnosis, DiagnosisReply, Finding, Harvest, NonBlank, Outcome, ReviewVerdict, StageResult
+from chupa.box import BOX_DIR, Box
 from chupa.config import Config, Severity
 from chupa.driver import Driver, LlmStage
 from chupa.gates import GateReport, run_gates
@@ -57,6 +58,10 @@ class _Strict(BaseModel):
 # --- artifacts ----------------------------------------------------------------------------------
 
 
+class SecondProblem(_Strict):
+    summary: NonBlank
+
+
 class ImplementReply(_Strict):
     """The implement surface's model-facing reply (specs/implement.md); the stage stamps provenance."""
 
@@ -66,6 +71,7 @@ class ImplementReply(_Strict):
     dead_ends: str
     predicted_vs_actual: str
     findings: list[Finding]
+    second_problems: list[SecondProblem] = []
 
     @model_validator(mode="after")
     def _findings_match_outcome(self) -> "ImplementReply":
@@ -399,13 +405,15 @@ def implement_stage(ctx: StageContext, ticket: Ticket, worktree: Path) -> tuple[
     return LlmStage(surface="implement", emits=ImplementReply, gates=[], render=render_ticket), spec
 
 
-def run_record(reply: ImplementReply, cost: Cost, spec: Spec) -> str:
+def run_record(reply: ImplementReply, cost: Cost, spec: Spec, second_problem_ids: Sequence[str]) -> str:
     fields = {
         "Outcome": reply.outcome,
         "Surprises / judgment calls": reply.surprises,
         "Dead ends": reply.dead_ends,
-        # The Suggestion Box ships with the Phase 2 spine; until then nothing files box messages.
-        "Second problems filed": "none",
+        "Second problems filed": "\n".join(
+            f"- {id}: {_one_line(problem.summary)}"
+            for id, problem in zip(second_problem_ids, reply.second_problems, strict=True)
+        ) or "none",
         "Resolved engine/model": f"- provider: {cost.provider}\n- model: {cost.model}\n"
                                  f"- spec: {spec.meta.llm_surface} {spec.meta.version}",
         "Predicted vs actual": reply.predicted_vs_actual,
@@ -431,8 +439,14 @@ async def implement(ctx: StageContext, ticket: Ticket, *, attempt: int) -> Stage
         return result
     reply = result.artifact
     assert isinstance(reply, ImplementReply)
+    box = Box(ctx.config.state_dir / BOX_DIR, ctx.fs)
+    second_problem_ids = [
+        box.enqueue(message_class="suggestion", origin=stem, stage="implement",
+                    outcome=reply.outcome, summary=problem.summary)[0]
+        for problem in reply.second_problems
+    ]
     record = f"{TICKETS_DIR}/{stem}/run.md"
-    ctx.fs.write(worktree / record, run_record(reply, result.cost, spec).encode())
+    ctx.fs.write(worktree / record, run_record(reply, result.cost, spec, second_problem_ids).encode())
     await lift_outbox(ctx, stem, "run-record", attempt=attempt)
     if reply.outcome == "premise_failed":
         return _short(result, "premise_failed", list(reply.findings))
