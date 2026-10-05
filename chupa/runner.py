@@ -8,6 +8,7 @@ import asyncio
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from chupa.artifacts import Finding, Harvest, StageResult
 from chupa.caps import consume
@@ -134,6 +135,15 @@ async def harvest(
     await lift_outbox(ctx, stem, "harvest", attempt=attempt, only=f"attempts/{attempt}/harvest.json")
 
 
+async def harvest_orphan(checkout: Checkout, stem: str, attempt: int) -> None:
+    """Use the run-terminal harvest with an effects context; an orphan makes no model call."""
+    driver = Driver.from_config(checkout.config, llm=cast(LLM, None), env=checkout.env,
+                                clock=checkout.clock, sleep=asyncio.sleep, fs=checkout.fs)
+    ctx = StageContext(repo=checkout.repo, config=checkout.config, env=checkout.env, exec_=checkout.exec_,
+                       git=checkout.git, fs=checkout.fs, driver=driver, specs_dir=SPECS_DIR)
+    await harvest(ctx, stem, attempt=attempt, stage=None, terminal="abandoned", findings=[], results=())
+
+
 async def run_ticket(stem: str, checkout: Checkout, dispatch: Dispatch) -> int:
     if findings := stem_findings(stem):
         raise Refusal(findings[0].message, findings[0].paved_road)
@@ -142,7 +152,8 @@ async def run_ticket(stem: str, checkout: Checkout, dispatch: Dispatch) -> int:
     lock.acquire()
     try:
         assert checkout.config.worktree_root is not None  # resolved at config load
-        await reconcile(checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root)
+        await reconcile(checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root,
+                        lambda orphan, attempt: harvest_orphan(checkout, orphan, attempt))
         ticket = await _admit(stem, checkout)
         checkout.journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket=stem)
         terminal = await dispatch(ticket)

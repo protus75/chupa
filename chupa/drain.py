@@ -20,7 +20,7 @@ from chupa import caps
 from chupa.journal import TERMINAL_STATES, Event, EventType
 from chupa.lockfile import Lockfile
 from chupa.reconcile import reconcile
-from chupa.runner import EXIT_MERGED, EXIT_TICKET, Checkout, Dispatch, Refusal
+from chupa.runner import EXIT_MERGED, EXIT_TICKET, Checkout, Dispatch, Refusal, harvest_orphan
 from chupa.seams import ProcessExec
 from chupa.status import last_states
 from chupa.tickets import (
@@ -141,7 +141,8 @@ async def drain(
     lock.acquire()
     try:
         assert checkout.config.worktree_root is not None  # resolved at config load
-        await reconcile(checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root)
+        await reconcile(checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root,
+                        lambda stem, attempt: harvest_orphan(checkout, stem, attempt))
         await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
         run = _Drain(checkout, dispatch, frozenset(parked))
         report = await run.run()

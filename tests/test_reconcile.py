@@ -25,7 +25,10 @@ def orphan_worktree(root: Path, stem: str) -> Path:
 
 
 def reap(root: Path) -> list[str]:
-    return asyncio.run(reconcile(journal(root), git(), root, root / STATE / "worktrees"))
+    async def harvest(stem: str, attempt: int) -> None:
+        pass
+
+    return asyncio.run(reconcile(journal(root), git(), root, root / STATE / "worktrees", harvest))
 
 
 def test_running_with_no_terminal_is_reaped_to_abandoned_on_the_next_run(root):
