@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "8bb06a1e06f3e94fd6454ddcef842df19d20877e",
+  "produced_at_sha": "eef7e9793f29e3643e28b0684a2b34cf314cc2d8",
   "stem": "box-triage",
-  "attempt": 2,
-  "terminal": "infra_error",
-  "stage": "implement",
+  "attempt": 3,
+  "terminal": "gate_failed",
+  "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "The failure was transient provider capacity ('Selected model is at capacity'), not a defect in the approach; rerun the same implementation at the same capability.",
-    "The aborted attempt had partly edited chupa/driver.py (run_seq) and added specs/triage.md. Start from a clean worktree, or re-read those files, before building on them.",
-    "Keep the per-message spool path <surface>/<run_seq>/<attempt>/ and the ValueError for run_seq with a non-None ticket. tests/test_driver.py must pass unedited.",
-    "Commit each record before resolving its message, and never put the raw message summary into a record body. Tests check both through a unique marker and through crash-resume over existing registry records.",
-    "Leave the drain path alone: no box read in the drain. Add only the one new test_drain.py test proving no triage request and no triage_pass journal entry during a dispatch+merge."
+    "Before resolving a message from a record that already exists, confirm the record is committed: check rev_parse of HEAD:<record_path(id)>. Treat a record that exists only in the working tree as uncommitted.",
+    "If the record file is on disk but not in HEAD, commit it first. Use driver.effects.run with key ticket-plane/decisions/<id> and stage only that path. Call box.resolve only after that commit succeeds.",
+    "When checking a tombstone link against registry ids, accept only records committed in HEAD. An uncommitted or untracked decision file must not count as a valid link target.",
+    "Add a test where a record file is written to the working tree but not committed: the pass must make the chupa(decisions) commit before the message is resolved, with no LLM request. Add a test that an uncommitted registry id used as a tombstone link becomes a decision record.",
+    "Keep the rest of the diff as it is. The review found only this crash-resume flaw, and all gates and tests passed. Stay inside the fence: chupa/triage.py and tests/test_triage.py."
   ],
   "mechanical": null,
   "spec_version": "1.0",
