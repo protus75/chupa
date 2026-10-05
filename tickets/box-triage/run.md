@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-none
+None.
 
 ## Dead ends
 
-none
+None.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Ticket expected 90 minutes; implementation took about 10 minutes.
+90m expected; approximately 8m actual.
 
