@@ -8,7 +8,7 @@ none
 
 ## Dead ends
 
-none
+The first targeted test run failed because existing FakeLLM scripts lacked diagnosis replies; I updated the scripts and reran the tests successfully.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the ticket’s 90-minute expected budget.
+Expected 90m; completed in about 20m.
 
