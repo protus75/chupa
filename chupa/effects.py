@@ -3,9 +3,10 @@
 Once is COMPLETION-keyed: a key with a journaled completion replays its recorded
 result. An intent with no completion (crash mid-effect) re-executes here on
 purpose -- that window belongs to reconcile-on-entry (section 11), not this
-primitive. `@effect(key=...)` sugar ships with its first call site.
+primitive. A completion may carry a `cost` body field: the ledger folds it (D3).
 """
 
+import functools
 import json
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -21,7 +22,14 @@ class Effects:
             e.key for e in journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key is not None
         }
 
-    async def run(self, action: Callable[[], Awaitable[Any]], *, key: str, ticket: str | None) -> Any:
+    async def run(
+        self,
+        action: Callable[[], Awaitable[Any]],
+        *,
+        key: str,
+        ticket: str | None,
+        cost: Callable[[Any], dict[str, Any]] | None = None,
+    ) -> Any:
         if not isinstance(key, str) or not key:
             raise ValueError(f"effect key must be a non-empty string, got {key!r}; join components with '/'")
         if key in self._completed:
@@ -37,7 +45,8 @@ class Effects:
             ) from exc
         # Return the decoded record, not `result`, so executing and replaying yield identical values.
         recorded = json.loads(encoded)
-        self._journal.append(EventType.EFFECT_COMPLETION, {"result": recorded}, ticket=ticket, key=key)
+        body = {"result": recorded} if cost is None else {"result": recorded, "cost": cost(recorded)}
+        self._journal.append(EventType.EFFECT_COMPLETION, body, ticket=ticket, key=key)
         self._completed.add(key)
         return recorded
 
@@ -46,3 +55,23 @@ class Effects:
             if e.type == EventType.EFFECT_COMPLETION and e.key == key:
                 return e.body["result"]
         raise AssertionError(f"completed key {key!r} has no completion event in the journal")
+
+
+def effect(
+    key: str | Callable[..., str], *, cost: Callable[[Any], dict[str, Any]] | None = None
+) -> Callable[[Callable[..., Awaitable[Any]]], Callable[..., Awaitable[Any]]]:
+    """`@effect(key=...)` sugar over `Effects.run`.
+
+    The decorated function is called as `f(effects, *args, ticket=..., **kwargs)`; `key` is a bare
+    string (singleton) or a callable over the function's own arguments, components joined with '/'.
+    """
+
+    def wrap(fn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:
+        @functools.wraps(fn)
+        async def run(effects: Effects, *args: Any, ticket: str | None, **kwargs: Any) -> Any:
+            k = key if isinstance(key, str) else key(*args, **kwargs)
+            return await effects.run(lambda: fn(*args, **kwargs), key=k, ticket=ticket, cost=cost)
+
+        return run
+
+    return wrap

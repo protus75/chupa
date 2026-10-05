@@ -1,14 +1,18 @@
 """The one LLM-stage driver (CHUPA_PLAN.md section 5 invariant 2, section 6).
 
-render -> spool prompt -> call (raced against the stuck budget) -> spool output -> unwrap one
+render -> spool prompt -> LLM effect (raced against the stuck budget) -> spool output -> unwrap one
 fence -> validate -> gates -> on hard failure re-prompt the SAME workspace with the findings,
 bounded by the retry cap. Stages differ only in spec (render), artifact type, and gate list.
+
+Every model call crosses the LLM effect, keyed `llm/<stem>/<run_seq>/<surface>/<attempt>/<call_seq>`:
+one cost-bearing completion per call, and a same-key re-entry (no intervening terminal) replays the
+recorded result instead of calling.
 """
 
 import asyncio
 import re
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -16,8 +20,10 @@ from pydantic import BaseModel, ValidationError
 
 from chupa.artifacts import Cost, Finding, Outcome, StageResult
 from chupa.config import Config, Severity
+from chupa.effects import Effects, effect
 from chupa.enginelog import EngineLog
 from chupa.gates import Gate, merge_severity, run_gates
+from chupa.journal import Journal, run_seq
 from chupa.llm import LLM, AgentEffort, AgentTier, LLMRequest, LLMResult
 from chupa.providers import WRITING_SURFACES
 from chupa.redact import Redactor
@@ -52,6 +58,28 @@ class Spool:
         self._fs.write(self.root / stem / str(attempt) / name, self._redactor.scrub(text).encode())
 
 
+def llm_key(stem: str, run_seq: int, surface: str, attempt: int, call_seq: int) -> str:
+    return "/".join(("llm", stem, str(run_seq), surface, str(attempt), str(call_seq)))
+
+
+def _cost(result: dict[str, Any]) -> dict[str, Any]:
+    return {k: result[k] for k in ("usd", "input_tokens", "output_tokens", "provider", "model")}
+
+
+@effect(
+    key=lambda llm, req, redactor, *, stem, run_seq, attempt, call_seq: llm_key(
+        stem, run_seq, req.surface, attempt, call_seq
+    ),
+    cost=_cost,
+)
+async def llm_call(
+    llm: LLM, req: LLMRequest, redactor: Redactor, *, stem: str, run_seq: int, attempt: int, call_seq: int
+) -> dict[str, Any]:
+    result = await llm.call(req)
+    # Scrubbed once, before it becomes the completion record: execute and replay return the same bytes.
+    return asdict(replace(result, text=redactor.scrub(result.text)))
+
+
 class _StuckBudget(Exception):
     pass
 
@@ -77,6 +105,8 @@ class Driver:
         self,
         *,
         llm: LLM,
+        journal: Journal,
+        redactor: Redactor,
         spool: Spool,
         log: EngineLog,
         clock: Clock,
@@ -85,6 +115,9 @@ class Driver:
         retry_cap: int,
     ) -> None:
         self.llm = llm
+        self.journal = journal
+        self.effects = Effects(journal)
+        self.redactor = redactor
         self.spool = spool
         self.log = log
         self.clock = clock
@@ -107,6 +140,8 @@ class Driver:
         redactor = Redactor.from_config(config, env)
         return cls(
             llm=llm,
+            journal=Journal(config.state_dir, clock),
+            redactor=redactor,
             spool=Spool(config.state_dir / "spools", redactor, fs or LocalFileSystem()),
             log=EngineLog(config.state_dir / "engine.log", redactor, clock),
             clock=clock,
@@ -128,7 +163,8 @@ class Driver:
         stuck_budget: float,
     ) -> StageResult:
         """Run one stage attempt; `attempt` is the run sequence (section 6), stuck_budget in seconds."""
-        stem = ticket or stage.surface  # ticketless surfaces spool under their surface name
+        stem = ticket or stage.surface  # ticketless surfaces spool and key under their surface name
+        seq = run_seq(self.journal.read(), stem)
         started = self.clock()
         deadline = started.timestamp() + stuck_budget
         ctx = {"stem": stem, "attempt": attempt, "surface": stage.surface}
@@ -167,7 +203,13 @@ class Driver:
             self.log.event("llm_call", **call)
             tally.calls += 1
             try:
-                result = await self._race(req, deadline - self.clock().timestamp())
+                recorded = await self._race(
+                    lambda: llm_call(
+                        self.effects, self.llm, req, self.redactor, ticket=ticket,
+                        stem=stem, run_seq=seq, attempt=attempt, call_seq=call_seq,
+                    ),
+                    deadline - self.clock().timestamp(),
+                )
             except _StuckBudget:
                 self.log.event("stuck_budget_kill", **call)
                 tally.findings = []
@@ -177,6 +219,7 @@ class Driver:
                 self.log.event("llm_error", **call, error=f"{type(e).__name__}: {e}")
                 tally.findings = []  # unclassified: no finding (section 6)
                 return done("infra_error")
+            result = LLMResult(**recorded)
             tally.add(result)
             self.spool.write(stem, attempt, f"{name}/output.txt", result.text)
 
@@ -197,10 +240,10 @@ class Driver:
             self.log.event("gate_failed", **call, codes=[r.code for r in gated.hard_failures])
         return done(outcome)
 
-    async def _race(self, req: LLMRequest, remaining: float) -> LLMResult:
+    async def _race(self, start: Callable[[], Awaitable[Any]], remaining: float) -> Any:
         if remaining <= 0:
             raise _StuckBudget
-        call = asyncio.ensure_future(self.llm.call(req))
+        call = asyncio.ensure_future(start())
         timer = asyncio.ensure_future(self.sleep(remaining))
         try:
             await asyncio.wait({call, timer}, return_when=asyncio.FIRST_COMPLETED)

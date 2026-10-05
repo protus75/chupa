@@ -7,12 +7,14 @@ simply grows. Rolling ships with the Phase 3 daemon.
 import json
 import os
 import re
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
+
+from chupa.artifacts import OUTCOMES
 
 
 class EventType(StrEnum):
@@ -34,6 +36,18 @@ _NOT_EMITTED = frozenset({EventType.CHECKPOINT.value})
 
 _ENVELOPE_KEYS = ("v", "type", "ts", "ticket", "key", "body")
 _SEGMENT_NAME = re.compile(r"^(\d{6})-(\d{8})\.jsonl$")
+
+
+# The terminal half of the closed RUN-STATE vocabulary (`running` is the one non-terminal).
+TERMINAL_STATES: frozenset[str] = frozenset({"merged", "abandoned", "rejected"}) | (OUTCOMES - {"ok"})
+
+
+def run_seq(events: Iterable[Any], stem: str) -> int:
+    """The RUN SEQUENCE: count of the stem's prior terminal events, folded at run entry, never stored."""
+    return sum(
+        e.type == EventType.STATE_TRANSITION and e.ticket == stem and e.body.get("to") in TERMINAL_STATES
+        for e in events
+    )
 
 
 class JournalCorruption(Exception):

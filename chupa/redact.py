@@ -4,7 +4,8 @@ Writer-site checklist (extend in the same change that adds a writer of a capture
 - attempt-spool writer: chupa/driver.py `Spool`
 - engine-log writer: chupa/enginelog.py `EngineLog`
 - attempt-spool writer: chupa/providers.py `CliAdapter.invoke` (prompt, cli event stream, stderr)
-- journal writer: chupa/journal.py -- NOT YET WIRED (no secret-bearing producer before Phase 1)
+- journal writer: chupa/journal.py -- NOT YET WIRED; its one secret-bearing producer, the LLM effect
+  result, is scrubbed before it becomes the completion record (chupa/driver.py `llm_call`)
 - harvest serialization: not built (Phase 2)
 """
 

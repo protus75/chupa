@@ -12,6 +12,7 @@ from chupa.config import load_config
 from chupa.driver import Driver, LlmStage, unwrap_fence
 from chupa.enginelog import EngineLog
 from chupa.gates import GateReport
+from chupa.journal import Journal
 from chupa.llm import HANG, FakeLLM, LLMRequest, LLMResult
 from chupa.redact import Redactor
 
@@ -132,7 +133,10 @@ def test_echo_stage_with_empty_gate_list_emits_validated_artifact(tmp_path):
     assert (spool(state) / "call-01" / "output.txt").read_text() == echo_json("hi")
     events = [e["event"] for e in log_events(state)]
     assert events[0] == "stage_start" and events[-1] == "stage_end"
-    assert not (state / "journal").exists()  # the engine log, never the journal
+    # Diagnostics go to the engine log; the journal holds only the LLM effect's intent + completion.
+    journal = [(e.type, e.key) for e in Journal(state, FakeClock()).read()]
+    key = "llm/t-echo/0/implement/1/1"
+    assert journal == [("effect_intent", key), ("effect_completion", key)]
 
 
 def test_prompt_is_on_disk_before_the_call_executes(tmp_path):
