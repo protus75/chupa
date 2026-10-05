@@ -16,7 +16,7 @@ from chupa.config import ConfigError, load_config
 from chupa.git import Git
 from chupa.journal import Journal, JournalCorruption
 from chupa.lockfile import LockHeld
-from chupa.providers import child_env
+from chupa.providers import ProviderSetupError, child_env
 from chupa.seams import Clock, LocalFileSystem, SubprocessExec
 from chupa.status import project, render
 from chupa.tickets import IntakeRefused, TicketInvalid, stem_findings, template, ticket_path, validate_ticket
@@ -66,7 +66,7 @@ def main(
         )
         dispatch = pipeline(checkout)
         return asyncio.run(runner.run_ticket(args.stem, checkout, dispatch))
-    except (ConfigError, runner.Refusal, LockHeld, IntakeRefused, JournalCorruption) as e:
+    except (ConfigError, runner.Refusal, LockHeld, IntakeRefused, JournalCorruption, ProviderSetupError) as e:
         print(f"chupa {args.verb}: {e}", file=sys.stderr)
         return runner.EXIT_REFUSED
 
