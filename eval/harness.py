@@ -33,7 +33,8 @@ from chupa.git import Git
 from chupa.journal import EventType, Journal
 from chupa.llm import AgentTier, LLMRequest
 from chupa.lockfile import Lockfile
-from chupa.providers import ADAPTERS, ProviderLLM, resolve
+from chupa.policy import BASELINE_SIGNAL, TIERS, baseline_identity
+from chupa.providers import ADAPTERS, ProviderLLM
 from chupa.redact import Redactor
 from chupa.seams import Clock, LocalFileSystem, SubprocessExec
 from chupa.specs import Spec, load_spec, render
@@ -42,11 +43,8 @@ ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = ROOT / "eval" / "fixtures"
 SPECS = ROOT / "specs"
 
-SIGNAL = "review_baseline"
 DefectClass = Literal["logic", "hidden_info_leak", "acceptance_mismatch", "scope_escape"]
 DEFECT_CLASSES: tuple[str, ...] = get_args(DefectClass)
-TIERS: tuple[AgentTier, ...] = get_args(AgentTier)
-BASELINED_SURFACES = ("review", "author")
 # 19.P1's spike floor; Phase 6 raises it to GO grade.
 MIN_DEFECTS, MIN_CLEAN = 15, 3
 CALL_TIMEOUT_S = 900.0
@@ -104,23 +102,6 @@ def load_fixtures(root: Path = FIXTURES) -> list[Fixture]:
     if defects < MIN_DEFECTS or len(out) - defects < MIN_CLEAN:
         raise FixtureError(f"{defects} planted and {len(out) - defects} clean fixtures; the spike needs at least"
                            f" {MIN_DEFECTS} planted and {MIN_CLEAN} clean -- author more")
-    return out
-
-
-def baseline_identity(config: Config, specs_dir: Path = SPECS) -> dict:
-    """The resolved (provider, model) rows serving REVIEW and AUTHOR at every tier, plus their spec majors.
-
-    A surface with no spec yet (author.md lands in Phase 2) records spec_major null.
-    """
-    out = {}
-    for surface in BASELINED_SURFACES:
-        rows = {}
-        for tier in TIERS:
-            served = resolve(config, tier, surface)
-            rows[tier] = {"provider": served.provider.name, "model": served.model}
-        path = specs_dir / f"{surface}.md"
-        major = int(load_spec(path.read_text()).meta.version.split(".")[0]) if path.exists() else None
-        out[surface] = {"spec_major": major, "rows": rows}
     return out
 
 
@@ -197,7 +178,7 @@ async def run_baseline(
     authors = sorted({f.expected.author for f in fixtures}, key=lambda a: (a.provider, a.model, a.tier))
     refuse_same_author(authors, identity, tier)
     # Spools key on the fixture and this run's ordinal, so a re-run never overwrites a prior capture.
-    attempt = 1 + sum(e.type == EventType.SIGNAL and e.body.get("signal") == SIGNAL for e in journal.read())
+    attempt = 1 + sum(e.type == EventType.SIGNAL and e.body.get("signal") == BASELINE_SIGNAL for e in journal.read())
     stage = review_stage(spec)
     results = []
     for fx in fixtures:
@@ -210,7 +191,7 @@ async def run_baseline(
                          usd=r.cost.usd)
         progress(f"{fx.name}: expected {fx.expected.expected_verdict}, got {verdict or r.outcome}")
     body = {
-        "signal": SIGNAL,
+        "signal": BASELINE_SIGNAL,
         # The only verdict this spike can support: catastrophic-NO-GO detection, never GO grading.
         "verdict": "NO_GO",
         "identity": identity,
