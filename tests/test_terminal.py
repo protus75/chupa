@@ -71,7 +71,8 @@ def test_a_review_snag_journals_its_terminal_and_exits_1(repo):
     code, llm = run(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis_reply()])
 
     assert code == runner.EXIT_TICKET
-    assert transitions(repo) == [{"to": "running"}, {"to": "gate_failed", "stage": "review"}]
+    assert transitions(repo) == [{"to": "running"}, {"to": "gate_failed", "stage": "review",
+                                                       "reason": "logic", "dispatch": "retry"}]
     left_in_place(repo)
     assert git(repo, "show", f"{STEM}:chupa/thing.py") == "ok\n"  # the branch keeps the work
 
@@ -81,7 +82,8 @@ def test_a_red_check_journals_its_terminal_and_never_reaches_review(repo):
     code, llm = run(repo, [agent({"chupa/thing.py": "nope\n"}), diagnosis_reply()])
 
     assert code == runner.EXIT_TICKET
-    assert transitions(repo)[-1] == {"to": "gate_failed", "stage": "check"}
+    assert transitions(repo)[-1] == {"to": "gate_failed", "stage": "check", "reason": "verification",
+                                     "dispatch": "retry"}
     assert [r.surface for r in llm.requests if r.surface != "diagnose"] == ["implement"]
     left_in_place(repo)
 
@@ -93,7 +95,8 @@ def test_a_spent_retry_cap_is_a_non_ok_terminal(repo):
 
     assert code == runner.EXIT_TICKET
     assert len([r for r in llm.requests if r.surface != "diagnose"]) == cap + 1
-    assert transitions(repo)[-1] == {"to": "invalid_artifact", "stage": "implement"}
+    assert transitions(repo)[-1] == {"to": "invalid_artifact", "stage": "implement",
+                                     "reason": "invalid_artifact", "dispatch": "retry"}
     left_in_place(repo)
 
 
@@ -103,7 +106,8 @@ def test_a_premise_failure_journals_its_terminal(repo):
     code, _ = run(repo, [implement_reply("premise_failed", [finding]), diagnosis_reply()])
 
     assert code == runner.EXIT_TICKET
-    assert transitions(repo)[-1] == {"to": "premise_failed", "stage": "implement"}
+    assert transitions(repo)[-1] == {"to": "premise_failed", "stage": "implement",
+                                     "reason": "premise", "dispatch": "retry"}
     assert (repo / "tickets" / STEM / "ticket.md").is_file()
 
 
@@ -118,7 +122,8 @@ def test_a_refused_merge_journals_its_terminal_and_leaves_main_where_it_was(repo
     code, _ = run(repo, [implement_while_main_moves, verdict(), diagnosis_reply()])
 
     assert code == runner.EXIT_TICKET
-    assert transitions(repo)[-1] == {"to": "gate_failed", "stage": "merge"}
+    assert transitions(repo)[-1] == {"to": "gate_failed", "stage": "merge",
+                                     "reason": "post_rebase_regate", "dispatch": "retry"}
     assert git(repo, "show", "main:chupa/thing.py") == "ok but conflicting\n"  # no squash landed
     assert git(repo, "show", f"{STEM}:chupa/thing.py") == "ok\n"  # the branch keeps the work
 

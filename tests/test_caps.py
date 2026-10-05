@@ -5,11 +5,12 @@ import pytest
 from chupa import runner
 from chupa.artifacts import Cost, StageResult
 from chupa.__main__ import main
-from chupa.caps import CAPS, consume, draws, remaining, spent, spent_reason
+from chupa.caps import CAPS, capability, consume, draws, remaining, spent, spent_reason
 from chupa.config import Caps
 from chupa.journal import EventType, Journal
 from chupa.llm import FakeLLM
 from chupa.stages import StagesRun
+from chupa.tickets import validate_ticket
 from tests.test_cli import git_out
 from tests.test_drain import Clock, Script, commit_ticket, confirmed, drain, journal, make_root
 from tests.test_terminal import ENV, STEM, author, clock, diagnosis_reply, repo
@@ -55,6 +56,24 @@ def test_invalid_cap_refuses_all_accounting_and_writer(tmp_path):
     assert event.ticket == "red" and event.body == {"cap": "infra", "ticket_sha": "sha"}
 
 
+def test_retry_rung_is_rejected_on_other_caps_and_operator_keep_resets_it(repo):
+    author(repo)
+    ticket = validate_ticket(STEM, (repo / "tickets" / STEM / "ticket.md").read_text(), repo)
+    j = Journal(repo / ".chupa" / "state", clock)
+    rung = {"tier": "high", "effort": "max"}
+    with pytest.raises(ValueError, match="retry"):
+        consume(j, STEM, "infra", "sha", rung=rung)
+    assert capability(ticket, j.read()) == ("medium", "medium")
+    consume(j, STEM, "retry", "sha", rung=rung)
+    assert capability(ticket, j.read()) == ("high", "max")
+    j.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}, ticket=STEM)
+    assert capability(ticket, j.read()) == ("high", "max")
+    j.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "operator"}, ticket=STEM)
+    assert capability(ticket, j.read()) == ("medium", "medium")
+    consume(j, STEM, "retry", "sha", rung={"tier": "medium", "effort": "high"})
+    assert capability(ticket, j.read()) == ("medium", "high")
+
+
 def test_crashing_implement_draws_infra_immediately_before_terminal(repo):
     author(repo)
     llm = FakeLLM([RuntimeError("provider crashed"), diagnosis_reply()])
@@ -87,7 +106,8 @@ def test_other_terminals_draw_only_when_infra(repo, monkeypatch, outcome, expect
     assert main(["run", STEM], cwd=repo, env=ENV, clock=clock,
                 pipeline=lambda c: runner.bind(c, FakeLLM([]))) == runner.EXIT_TICKET
     events = [e for e in Journal(repo / ".chupa" / "state", clock).read() if e.ticket == STEM]
-    assert events[-1].body == {"to": outcome, "stage": "implement"}
+    assert events[-1].body == {"to": outcome, "stage": "implement", "reason": outcome,
+                               "dispatch": "reject_queue", "routed": "reject_queue"}
     assert draws(events, STEM, "infra") == expected_draws
     if expected_draws:
         sha = git_out(repo, "rev-parse", f"HEAD:tickets/{STEM}/ticket.md").strip()

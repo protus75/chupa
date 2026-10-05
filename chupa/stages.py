@@ -225,7 +225,7 @@ async def diagnose(ctx: StageContext, ticket: Ticket, material: DiagnosisMateria
     result = await ctx.driver.run(
         diagnose_stage(spec, material), material, ticket=ticket.stem, attempt=attempt,
         workspace=ctx.worktree(ticket.stem), tier=ticket.frontmatter.agent_tier,
-        effort=spec.meta.effort, stuck_budget=DIAGNOSIS_STUCK_S,
+        effort=ticket.frontmatter.agent_effort, stuck_budget=DIAGNOSIS_STUCK_S,
     )
     reply = result.artifact
     if result.outcome == "ok" and isinstance(reply, DiagnosisReply):
@@ -678,10 +678,11 @@ async def review(ctx: StageContext, ticket: Ticket, invoice: Invoice, *, attempt
     diff = await ctx.git.diff(ctx.repo, MAIN, stem)
     stage, spec = review_stage(ctx, (ctx.repo / ticket_path(stem)).read_text(), diff)
     try:
-        # Tier is the ticket's (a surface invoked FOR a ticket, section 6); effort is the spec's, as baselined.
+        # The effective ticket capability applies to every call in this attempt.
         result = await ctx.driver.run(
             stage, invoice, ticket=stem, attempt=attempt, workspace=ctx.worktree(stem),
-            tier=ticket.frontmatter.agent_tier, effort=spec.meta.effort, stuck_budget=ticket.stuck_minutes * 60.0,
+            tier=ticket.frontmatter.agent_tier, effort=ticket.frontmatter.agent_effort,
+            stuck_budget=ticket.stuck_minutes * 60.0,
         )
     except RenderOverBound as e:
         return StageResult(outcome="premise_failed", artifact=None, findings=[e.finding], cost=Cost())

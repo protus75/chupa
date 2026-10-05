@@ -87,7 +87,8 @@ def test_review_snag_orders_harvest_draw_effect_signal_and_terminal(repo):
         repo, "rev-parse", f"HEAD:tickets/{STEM}/ticket.md").strip()}
     assert events[signal].body == {"signal": "diagnosis", "attempt": 0, "verdict": "retry",
                                    "lessons": [lesson], "mechanical": None}
-    assert events[terminal].body == {"to": "gate_failed", "stage": "review"}
+    assert events[terminal].body == {"to": "gate_failed", "stage": "review", "reason": "logic",
+                                     "dispatch": "retry"}
     requests = [r for r in llm.requests if r.surface == "diagnose"]
     assert len(requests) == 1 and requests[0].tier == "medium"
     assert SNAG["message"] in requests[0].rendered

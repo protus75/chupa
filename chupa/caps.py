@@ -2,10 +2,13 @@
 
 from collections.abc import Iterable
 
-from chupa.config import Caps
+from chupa.config import Caps, Config
 from chupa.journal import Event, EventType, Journal
+from chupa.providers import ProviderSetupError, resolve
+from chupa.tickets import Ticket
 
 CAPS = ("diagnosis", "retry", "infra", "premise_bounce")
+LEVELS = ("low", "medium", "high", "max")
 
 
 def _check(cap: str) -> None:
@@ -13,16 +16,21 @@ def _check(cap: str) -> None:
         raise ValueError(f"cap {cap!r} is not one of CAPS {CAPS}")
 
 
-def draws(events: Iterable[Event], stem: str, cap: str) -> int:
-    """Count this stem's draws for one cap across all ticket content revisions."""
-    _check(cap)
+def _since_keep(events: Iterable[Event], stem: str) -> tuple[Event, ...]:
+    """The one lineage window for both cap counts and effective capability."""
     history = tuple(events)
     keep = next((i for i, e in reversed(list(enumerate(history)))
                  if e.type == EventType.SIGNAL and e.ticket == stem
                  and e.body.get("signal") == "reject_verdict" and e.body.get("verdict") == "keep"
                  and e.body.get("actor") == "operator"), -1)
+    return history[keep + 1:]
+
+
+def draws(events: Iterable[Event], stem: str, cap: str) -> int:
+    """Count this stem's draws for one cap across all ticket content revisions."""
+    _check(cap)
     return sum(e.type == EventType.CAP_CONSUMED and e.ticket == stem and e.body.get("cap") == cap
-               for e in history[keep + 1:])
+               for e in _since_keep(events, stem))
 
 
 def remaining(caps_config: Caps, events: Iterable[Event], stem: str, cap: str) -> int:
@@ -36,9 +44,44 @@ def spent(caps_config: Caps, events: Iterable[Event], stem: str) -> str | None:
     return next((cap for cap in CAPS if remaining(caps_config, history, stem, cap) <= 0), None)
 
 
-def consume(journal: Journal, stem: str, cap: str, ticket_sha: str) -> None:
+def consume(journal: Journal, stem: str, cap: str, ticket_sha: str,
+            *, rung: dict[str, str] | None = None) -> None:
     _check(cap)
-    journal.append(EventType.CAP_CONSUMED, {"cap": cap, "ticket_sha": ticket_sha}, ticket=stem)
+    if rung is not None and cap != "retry":
+        raise ValueError("a rung belongs only on a retry cap draw")
+    body = {"cap": cap, "ticket_sha": ticket_sha}
+    if rung is not None:
+        body["rung"] = rung
+    journal.append(EventType.CAP_CONSUMED, body, ticket=stem)
+
+
+def capability(ticket: Ticket, events: Iterable[Event]) -> tuple[str, str]:
+    """The authored capability or the latest retry rung inside the operator keep fold."""
+    rung = next((e.body["rung"] for e in reversed(_since_keep(events, ticket.stem))
+                 if e.type == EventType.CAP_CONSUMED and e.ticket == ticket.stem
+                 and e.body.get("cap") == "retry" and "rung" in e.body), None)
+    if rung is None:
+        return ticket.frontmatter.agent_tier, ticket.frontmatter.agent_effort
+    return rung["tier"], rung["effort"]
+
+
+def next_rung(config: Config, tier: str, effort: str) -> dict[str, str] | None:
+    """Move to the next distinct Implement model, then increase effort."""
+    def model(level: str) -> tuple[str, str] | None:
+        try:
+            served = resolve(config, level, "implement")
+        except ProviderSetupError:
+            return None
+        return served.provider.name, served.model
+
+    current = model(tier)
+    for higher in LEVELS[LEVELS.index(tier) + 1:]:
+        candidate = model(higher)
+        if candidate is not None and candidate != current:
+            return {"tier": higher, "effort": effort}
+    if effort != "max":
+        return {"tier": tier, "effort": LEVELS[LEVELS.index(effort) + 1]}
+    return None
 
 
 def spent_reason(cap: str) -> str:

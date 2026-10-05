@@ -6,7 +6,7 @@ Exit codes (section 18): 0 merged, 1 a non-ok ticket terminal, 2 an engine-plane
 
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import cast
 
@@ -14,7 +14,7 @@ import yaml
 
 from chupa.artifacts import Finding, Harvest, StageResult
 from chupa.box import BOX_DIR, Box
-from chupa.caps import consume, spent, spent_reason
+from chupa.caps import capability, consume, next_rung, spent, spent_reason
 from chupa.config import Config
 from chupa.driver import Driver
 from chupa.git import Git
@@ -38,6 +38,7 @@ EXIT_REFUSED = 2
 SPECS_DIR = Path(__file__).resolve().parent.parent / "specs"
 CALL_TIMEOUT_S = 900.0
 HARVEST_TAIL_CHARS = 4_000
+IDENTICAL_K = 3
 
 # The stage seam: drives the validated ticket through the stages and merge, journals the run's single
 # terminal transition (section 11), and returns that terminal state.
@@ -85,6 +86,9 @@ def bind(checkout: Checkout, llm: LLM) -> Dispatch:
 
 async def drive(ctx: StageContext, ticket: Ticket) -> str:
     """Implement -> Check -> Review -> Merge; harvest, dispatch, journal, then wipe a non-ok run."""
+    tier, effort = capability(ticket, ctx.driver.journal.read())
+    ticket = replace(ticket, frontmatter=ticket.frontmatter.model_copy(
+        update={"agent_tier": tier, "agent_effort": effort}))
     run = await run_stages(ctx, ticket)
     stage, result = run.last
     if stage == "review" and result.outcome == "ok":
@@ -108,8 +112,8 @@ async def drive(ctx: StageContext, ticket: Ticket) -> str:
     if result.outcome == "premise_failed" and not over_bound:
         ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
         consume(ctx.driver.journal, ticket.stem, "premise_bounce", ticket_sha)
-    if (result.outcome != "budget_exceeded"
-            and not over_bound):
+    diagnosed = result.outcome != "budget_exceeded" and not over_bound
+    if diagnosed:
         worktree = ctx.worktree(ticket.stem)
         mechanical = None if worktree.exists() else "workspace gone"
         if mechanical is None and (cap := spent(ctx.config.caps, ctx.driver.journal.read(), ticket.stem)):
@@ -141,8 +145,30 @@ async def drive(ctx: StageContext, ticket: Ticket) -> str:
                                   {"signal": "diagnosis", "attempt": run.attempt, "verdict": verdict,
                                    "lessons": lessons, "mechanical": mechanical if diagnosis is None else diagnosis.mechanical},
                                   ticket=ticket.stem)
-    terminal = {"to": result.outcome, "stage": stage}
-    if not over_bound and spent(ctx.config.caps, ctx.driver.journal.read(), ticket.stem):
+    reason = ",".join(sorted({f.code for f in result.findings})) or result.outcome
+    terminal = {"to": result.outcome, "stage": stage, "reason": reason}
+    history = ctx.driver.journal.read()
+    if diagnosed:
+        previous = [e.body for e in history if e.type == EventType.STATE_TRANSITION
+                    and e.ticket == ticket.stem and e.body.get("to") in TERMINAL_STATES]
+        identical = (verdict == "retry" and bool(previous)
+                     and previous[-1].get("dispatch") == "retry" and previous[-1].get("reason") == reason)
+        identical = identical or (len(previous) >= IDENTICAL_K - 1 and all(
+            e.get("reason") == reason for e in previous[-(IDENTICAL_K - 1):]))
+        if spent(ctx.config.caps, history, ticket.stem) or verdict in {"split", "reject", "abandon-human"}:
+            terminal["dispatch"] = "reject_queue"
+        elif verdict == "escalate" or identical:
+            rung = next_rung(ctx.config, tier, effort)
+            if rung is None:
+                terminal["dispatch"] = "reject_queue"
+            else:
+                terminal["dispatch"] = "escalate"
+                terminal["rung"] = rung
+        elif verdict == "retry":
+            terminal["dispatch"] = "retry"
+        else:
+            terminal["dispatch"] = "reject_queue"
+    if terminal.get("dispatch") == "reject_queue" or (not over_bound and spent(ctx.config.caps, history, ticket.stem)):
         terminal["routed"] = "reject_queue"
     ctx.driver.journal.append(EventType.STATE_TRANSITION, terminal, ticket=ticket.stem)
     if ctx.worktree(ticket.stem).exists():

@@ -236,7 +236,11 @@ class _Drain:
         fresh, reoffers = [], []
         for t in ready:
             if t.stem in awaiting:
-                continue
+                if caps.spent(self.c.config.caps, events, t.stem) is not None:
+                    continue
+                self.c.journal.append(EventType.SIGNAL,
+                                      {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"},
+                                      ticket=t.stem)
             if t.stem in self.over_budget:
                 continue
             if t.stuck_minutes > self.c.config.drain.max_ticket_minutes:
@@ -260,7 +264,10 @@ class _Drain:
         stem = ticket.stem
         if reoffer and last_states(self.c.journal.read()).get(stem) != PREMISE:
             # The draw precedes the dispatch: a crash mid-run never hands the stem a free attempt.
-            caps.consume(self.c.journal, stem, "retry", sha)
+            body = next(e.body for e in reversed(self.c.journal.read())
+                        if e.type == EventType.STATE_TRANSITION and e.ticket == stem
+                        and e.body.get("to") in TERMINAL_STATES)
+            caps.consume(self.c.journal, stem, "retry", sha, rung=body.get("rung"))
         # The `ticket.md` the run answers: a `premise_failed` verdict parks the stem until this changes.
         self.c.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": sha}, ticket=stem)
         terminal = await self.dispatch(ticket)
