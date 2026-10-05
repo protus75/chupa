@@ -5,12 +5,14 @@ import os
 import shutil
 import signal
 import subprocess
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 Clock = Callable[[], datetime]
+# Every timed wait races its work against this to a clock-derived deadline, so tests wait zero wall-clock.
+Sleep = Callable[[float], Awaitable[None]]
 
 
 @runtime_checkable
@@ -84,3 +86,17 @@ class FileSystem(Protocol):
 
     def replace(self, src: Path, dst: Path) -> None: ...
 
+
+
+class LocalFileSystem:
+    def write(self, path: Path, data: bytes) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(f".{path.name}.tmp")
+        with open(tmp, "wb") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+
+    def replace(self, src: Path, dst: Path) -> None:
+        os.replace(src, dst)

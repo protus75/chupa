@@ -1,0 +1,28 @@
+"""Redaction seam (CHUPA_PLAN.md section 6): one shared filter every captured-stream writer is built with.
+
+Writer-site checklist (extend in the same change that adds a writer of a captured stream):
+- attempt-spool writer: chupa/driver.py `Spool`
+- engine-log writer: chupa/enginelog.py `EngineLog`
+- journal writer: chupa/journal.py -- NOT YET WIRED (no secret-bearing producer before Phase 1)
+- harvest serialization: not built (Phase 2)
+"""
+
+from collections.abc import Mapping
+
+from chupa.config import Config
+
+
+class Redactor:
+    def __init__(self, secrets: Mapping[str, str]) -> None:
+        # An empty value would match everywhere; longest first so an embedded shorter secret cannot split a longer one.
+        self._secrets = sorted(((n, v) for n, v in secrets.items() if v), key=lambda nv: -len(nv[1]))
+
+    @classmethod
+    def from_config(cls, config: Config, env: Mapping[str, str]) -> "Redactor":
+        """Resolve each provider's `auth` env-var NAME to its value; unset names have nothing to leak."""
+        return cls({p.auth: env[p.auth] for p in config.providers if p.auth and p.auth in env})
+
+    def scrub(self, text: str) -> str:
+        for name, value in self._secrets:
+            text = text.replace(value, f"[REDACTED:{name}]")
+        return text
