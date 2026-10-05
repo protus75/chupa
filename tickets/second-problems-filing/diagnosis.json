@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "341809a8abc982dc0b52abd28d4c8778f3ded475",
+  "stem": "second-problems-filing",
+  "attempt": 0,
+  "terminal": "infra_error",
+  "stage": "implement",
+  "verdict": "retry",
+  "lessons": [
+    "The attempt died on a transient provider error ('Selected model is at capacity'), not a code or ticket defect. Retry the same approach unchanged.",
+    "tests/conftest.py does not exist. Build fixtures inline in tests/test_second_problems.py, following the git/env/config.yaml setup in the existing box tests (Git(SubprocessExec(), env=...), LocalFileSystem).",
+    "Enqueue only through Box(ctx.config.state_dir / BOX_DIR, ctx.fs).enqueue(...) from chupa/box.py, before run.md is written. Pass the returned ids to run_record and add no signature logic in stages.py.",
+    "Make second_problems default to [] so existing replies still validate. Run tests/test_stages.py, test_terminal.py and test_drain_reentry.py early to confirm. Bump specs/implement.md to version 1.1 and check it with load_spec."
+  ],
+  "mechanical": null,
+  "spec_version": "1.0",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
