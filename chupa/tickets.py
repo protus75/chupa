@@ -578,3 +578,12 @@ async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem) -> Inta
                                           "new": pending[stem], "commit": sha}, ticket=stem)
         committed.append(stem)
     return IntakeResult(committed=tuple(committed), refused=refused)
+
+
+# --- new ----------------------------------------------------------------------------------------
+
+
+def template() -> str:
+    """The `new <stem>` skeleton: every required section, empty, so the synchronous lint lists what to fill."""
+    body = "".join(f"\n## {name}\n{'none' if name == 'Depends on' else ''}\n" for name in REQUIRED_SECTIONS)
+    return "---\nstate: confirmed\nsource: human\npriority: P2\nkind: feature\n---\n" + body
