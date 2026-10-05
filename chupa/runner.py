@@ -9,6 +9,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from chupa.artifacts import Finding, Harvest, StageResult
 from chupa.caps import consume
 from chupa.config import Config
 from chupa.driver import Driver
@@ -20,7 +21,7 @@ from chupa.merge import merge
 from chupa.providers import ProviderLLM
 from chupa.reconcile import reconcile
 from chupa.seams import Clock, FileSystem, GroupExec
-from chupa.stages import StageContext, run_stages
+from chupa.stages import StageContext, lift_outbox, run_stages
 from chupa.status import last_states
 from chupa.tickets import Ticket, TicketInvalid, intake, stem_findings, ticket_path, validate_ticket
 
@@ -31,6 +32,7 @@ EXIT_REFUSED = 2
 # Engine plane: the prompt specs ship with the engine, not the host checkout it runs against.
 SPECS_DIR = Path(__file__).resolve().parent.parent / "specs"
 CALL_TIMEOUT_S = 900.0
+HARVEST_TAIL_CHARS = 4_000
 
 # The stage seam: drives the validated ticket through the stages and merge, journals the run's single
 # terminal transition (section 11), and returns that terminal state.
@@ -77,22 +79,59 @@ def bind(checkout: Checkout, llm: LLM) -> Dispatch:
 
 
 async def drive(ctx: StageContext, ticket: Ticket) -> str:
-    """Implement -> Check -> Review -> Merge; journal a non-ok terminal (merge journals `merged` itself).
-
-    Phase 1 has no retry, diagnosis, or harvest (Phase 2): a non-ok terminal leaves the ticket, branch,
-    and worktree in place for the operator, and the stem stays eligible for a fresh `run`.
-    """
+    """Implement -> Check -> Review -> Merge; harvest, dispatch, journal, then wipe a non-ok run."""
     run = await run_stages(ctx, ticket)
     stage, result = run.last
     if stage == "review" and result.outcome == "ok":
         stage, result = "merge", await merge(ctx, ticket, attempt=run.attempt)
         if result.outcome == "ok":
             return "merged"
+    if ctx.worktree(ticket.stem).exists() and result.outcome != "already_satisfied":
+        try:
+            await harvest(ctx, ticket.stem, attempt=run.attempt, stage=stage, terminal=result.outcome,
+                          findings=result.findings, results=(*run.results.values(),)
+                          + ((result,) if stage == "merge" else ()))
+        except Exception as e:
+            ctx.driver.journal.append(EventType.SIGNAL,
+                                      {"signal": "harvest_failed", "error": f"{type(e).__name__}: {e}"},
+                                      ticket=ticket.stem)
     if result.outcome in {"infra_error", "timeout"}:
         ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
         consume(ctx.driver.journal, ticket.stem, "infra", ticket_sha)
     ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": result.outcome, "stage": stage}, ticket=ticket.stem)
+    if ctx.worktree(ticket.stem).exists():
+        await ctx.git.worktree_remove(ctx.repo, ctx.worktree(ticket.stem))
     return result.outcome
+
+
+async def harvest(
+    ctx: StageContext, stem: str, *, attempt: int, stage: str | None, terminal: str,
+    findings: list[Finding], results: tuple[StageResult, ...],
+) -> None:
+    """Extract the allowlisted failed-run record and lift it through the one outbox lane."""
+    spool = ctx.config.state_dir / "spools" / stem / str(attempt)
+    errors = list(spool.rglob("error.txt")) if spool.is_dir() else []
+    newest_error = max(errors, key=lambda p: (p.stat().st_mtime_ns, str(p))) if errors else None
+    reason = None if findings else (newest_error.read_text(errors="replace") if newest_error else terminal)
+    # Prompts are inputs, not stage logs: Review's prompt carries the unreviewed code diff.
+    logs = sorted(p for p in spool.rglob("*") if p.is_file() and p.name != "prompt.md") if spool.is_dir() else []
+    stage_log_tail = "".join(p.read_text(errors="replace") for p in logs)[-HARVEST_TAIL_CHARS:]
+    providers = ctx.config.state_dir / "spools" / "providers" / stem
+    events = list(providers.rglob("events.jsonl")) if providers.is_dir() else []
+    newest_events = max(events, key=lambda p: (p.stat().st_mtime_ns, str(p))) if events else None
+    events_tail = (newest_events.read_text(errors="replace") if newest_events else "")[-HARVEST_TAIL_CHARS:]
+    record = f"tickets/{stem}/run.md"
+    artifact = Harvest(
+        attempt=attempt, stage=stage, terminal=terminal, findings=findings, reason=reason,
+        diff_stat=await ctx.git.diff_stat(ctx.repo, "main", stem),
+        stage_log_tail=stage_log_tail, events_tail=events_tail,
+        wall_seconds=sum(r.cost.seconds for r in results) if results else None,
+        usd=sum(r.cost.usd for r in results) if results else None,
+        run_record=record if (ctx.repo / record).is_file() else None,
+    )
+    path = ctx.worktree(stem) / "tickets" / stem / "attempts" / str(attempt) / "harvest.json"
+    ctx.fs.write(path, (artifact.model_dump_json(indent=2) + "\n").encode())
+    await lift_outbox(ctx, stem, "harvest", attempt=attempt, only=f"attempts/{attempt}/harvest.json")
 
 
 async def run_ticket(stem: str, checkout: Checkout, dispatch: Dispatch) -> int:

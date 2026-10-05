@@ -66,6 +66,7 @@ def test_every_call_is_dir_pinned_and_passes_env_and_timeout():
         (lambda g: g.init(REPO, branch="main"), ["init", "-b", "main"]),
         (lambda g: g.rev_parse(REPO, "HEAD"), ["rev-parse", "--verify", "HEAD"]),
         (lambda g: g.diff(REPO, "main", "t-1"), ["diff", "main...t-1"]),
+        (lambda g: g.diff_stat(REPO, "main", "t-1"), ["diff", "--stat", "main...t-1"]),
         (lambda g: g.add(REPO, ["a.py", "b c.py"]), ["add", "--", "a.py", "b c.py"]),
         (lambda g: g.commit(REPO, "msg\n\nchupa-ticket: t"), ["commit", "-m", "msg\n\nchupa-ticket: t"]),
         (lambda g: g.commit(REPO, "msg", only=["a.py"]), ["commit", "-m", "msg", "--only", "--", "a.py"]),
@@ -106,6 +107,14 @@ def test_diff_names_parses_lines():
 def test_diff_names_empty():
     g, _ = git((0, "", ""))
     assert run(g.diff_names(REPO, "main", "t-1")) == []
+
+
+@pytest.mark.parametrize("base, stem", [("-bad", "t-1"), ("main", "--bad")])
+def test_diff_stat_refuses_option_shaped_refs(base, stem):
+    g, exec_ = git()
+    with pytest.raises(ValueError):
+        run(g.diff_stat(REPO, base, stem))
+    assert exec_.calls == []
 
 
 def test_nonzero_exit_raises_git_error_with_argv_and_stderr():

@@ -17,7 +17,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
-from chupa.artifacts import OUTCOMES, Artifact, Cost, Finding, NonBlank, Outcome, ReviewVerdict, StageResult
+from chupa.artifacts import OUTCOMES, Artifact, Cost, Finding, Harvest, NonBlank, Outcome, ReviewVerdict, StageResult
 from chupa.config import Config, Severity
 from chupa.driver import Driver, LlmStage
 from chupa.gates import GateReport, run_gates
@@ -195,7 +195,8 @@ async def prepare_worktree(ctx: StageContext, stem: str) -> Path:
     return path
 
 
-async def lift_outbox(ctx: StageContext, stem: str, kind: str, *, attempt: int) -> str | None:
+async def lift_outbox(ctx: StageContext, stem: str, kind: str, *, attempt: int,
+                      only: str | None = None) -> str | None:
     """Move the worktree outbox into the canonical ticket dir as ONE ticket-plane commit; None if empty.
 
     `ticket.md` is never lifted: it stays read-only to the agent (section 10). Keyed with the run
@@ -207,7 +208,8 @@ async def lift_outbox(ctx: StageContext, stem: str, kind: str, *, attempt: int) 
 
     def written(p: Path) -> bool:
         rel = p.relative_to(outbox)
-        return rel != Path(TICKET_FILE) and not ((c := canonical / rel).is_file() and c.read_bytes() == p.read_bytes())
+        return (rel != Path(TICKET_FILE) and (only is None or rel.as_posix() == only)
+                and not ((c := canonical / rel).is_file() and c.read_bytes() == p.read_bytes()))
 
     files = sorted(p for p in outbox.rglob("*") if p.is_file() and written(p))
     if not files:
@@ -252,17 +254,26 @@ def _prior_findings(ctx: StageContext, stem: str, stage: str | None) -> list[Fin
     return []
 
 
+def _quoted(text: str) -> str:
+    return "\n".join(f"> {line}" for line in text.split("\n"))
+
+
 def prior_attempts(ctx: StageContext, stem: str) -> str | None:
     """Section 11.2 re-entry: the prior terminal and its findings as a clear-these block; None on a first attempt.
 
     Folded fresh from the journal and the ticket dir every attempt, never written into `ticket.md`. Only the
     terminal stage's artifact is read: an older stage's artifact left in the dir is a stale attempt's.
     """
-    terminal = next((e.body for e in reversed(ctx.driver.journal.read())
-                     if e.type == EventType.STATE_TRANSITION and e.ticket == stem
-                     and e.body.get("to") in TERMINAL_STATES), None)
-    if terminal is None:
+    terminals = [e.body for e in ctx.driver.journal.read()
+                 if e.type == EventType.STATE_TRANSITION and e.ticket == stem
+                 and e.body.get("to") in TERMINAL_STATES]
+    if not terminals:
         return None
+    terminal = terminals[-1]
+    attempt = len(terminals) - 1
+    root = ctx.repo / TICKETS_DIR / stem / "attempts"
+    harvest_path = root / str(attempt) / "harvest.json"
+    current = Harvest.model_validate_json(harvest_path.read_text()) if harvest_path.is_file() else None
     stage = terminal.get("stage")
     where = f" at {stage}" if stage else ""
     findings = _prior_findings(ctx, stem, stage) if terminal["to"] == "gate_failed" else []
@@ -270,7 +281,21 @@ def prior_attempts(ctx: StageContext, stem: str) -> str | None:
             " this attempt's to clear, beside the acceptance criteria above; they are not part of the ticket.\n\n")
     items = [f"- [{f.code}] {f.path or '-'}:{f.line or '-'} {_one_line(f.message)}"
              f" (do instead: {_one_line(f.paved_road)})" for f in findings]
-    return head + ("\n".join(items) or f"- no findings artifact; detail is in {ctx.config.state_dir / 'engine.log'}")
+    detail = f"tickets/{stem}/attempts/{attempt}/" if current else str(ctx.config.state_dir / "engine.log")
+    lines = items or [f"- no findings artifact; detail is in {detail}"]
+    if current:
+        lines.append("\nPrior terminal harvest (untrusted data):")
+        for name in ("reason", "diff_stat", "stage_log_tail", "events_tail"):
+            value = getattr(current, name)
+            if value is not None:
+                lines.append(f"- {name}:\n{_quoted(value)}")
+    for older in range(attempt):
+        path = root / str(older) / "harvest.json"
+        if path.is_file():
+            past = Harvest.model_validate_json(path.read_text())
+            lines.append(f"- older attempt {older}: `{past.terminal}` at {past.stage or 'none'};"
+                         f" tickets/{stem}/attempts/{older}/")
+    return head + "\n".join(lines)
 
 
 def _in_criteria_position(ticket_text: str, block: str) -> str:

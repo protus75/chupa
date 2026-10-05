@@ -59,6 +59,9 @@ class Git:
     async def diff(self, dir: Path, base: str, stem: str) -> str:
         return await self._run(dir, "diff", f"{_ref(base)}...{_ref(stem)}")
 
+    async def diff_stat(self, dir: Path, base: str, stem: str) -> str:
+        return await self._run(dir, "diff", "--stat", f"{_ref(base)}...{_ref(stem)}")
+
     async def add(self, dir: Path, paths: Sequence[str]) -> None:
         await self._run(dir, "add", "--", *paths)
 

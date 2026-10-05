@@ -34,6 +34,37 @@ class Finding(_Strict):
     paved_road: NonBlank  # required: a finding that cannot say what to do instead fails gate-lint
 
 
+class Harvest(_Strict):
+    """The closed, ticket-plane record extracted from one failed run."""
+
+    attempt: Annotated[int, Field(ge=0)]
+    stage: Literal["implement", "check", "review", "merge"] | None
+    terminal: str
+    findings: list[Finding]
+    reason: str | None
+    diff_stat: str
+    stage_log_tail: str
+    events_tail: str
+    wall_seconds: float | None
+    usd: float | None
+    run_record: str | None
+
+    @field_validator("terminal")
+    @classmethod
+    def _terminal_state(cls, value: str) -> str:
+        from chupa.journal import TERMINAL_STATES
+
+        if value not in TERMINAL_STATES:
+            raise ValueError(f"terminal {value!r} is not one of {sorted(TERMINAL_STATES)}")
+        return value
+
+    @model_validator(mode="after")
+    def _reason_only_without_findings(self) -> "Harvest":
+        if self.findings and self.reason is not None:
+            raise ValueError("reason is set only when findings is empty")
+        return self
+
+
 class Artifact(_Strict):
     """Base of every stage-emitted artifact except the ticket (section 5 versioning policy)."""
 
