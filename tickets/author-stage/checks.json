@@ -1,7 +1,7 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "069507224e5ed8b5973192f90169158f8cb435b2",
+  "produced_at_sha": "c4a7b2e03a349c98d6839718ecd0427ff03647e3",
   "stem": "author-stage",
   "passed": true,
   "changed_files": [
@@ -14,7 +14,7 @@
     "tests/test_git.py",
     "tests/test_triage.py"
   ],
-  "inserted_lines": 321,
+  "inserted_lines": 371,
   "bypassed": [],
   "reports": [
     {
