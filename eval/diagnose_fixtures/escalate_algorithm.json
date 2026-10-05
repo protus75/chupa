@@ -1,0 +1,19 @@
+{
+  "ticket": "# Escalate Algorithm\n\nSmall Python project: implement the requested behavior and pass its tests.\n",
+  "harvest": {
+    "attempt": 1,
+    "stage": "check",
+    "terminal": "gate_failed",
+    "findings": [],
+    "reason": "Attempt 2 still exceeds the 1-second limit for 100000 items.",
+    "diff_stat": "src/app.py | 5 +++--",
+    "stage_log_tail": "Attempt 2 still exceeds the 1-second limit for 100000 items.",
+    "events_tail": "",
+    "wall_seconds": 30.0,
+    "usd": 0.0,
+    "run_record": null
+  },
+  "run_record": null,
+  "expected": "escalate",
+  "why": "Two attempts use the same naive search and fail the large input test despite specific feedback."
+}

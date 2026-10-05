@@ -1,0 +1,19 @@
+{
+  "ticket": "# Split Migration\n\nSmall Python project: implement the requested behavior and pass its tests.\n",
+  "harvest": {
+    "attempt": 1,
+    "stage": "review",
+    "terminal": "gate_failed",
+    "findings": [],
+    "reason": "Review found schema migration and API rewrite mixed in one oversized diff.",
+    "diff_stat": "src/app.py | 5 +++--",
+    "stage_log_tail": "Review found schema migration and API rewrite mixed in one oversized diff.",
+    "events_tail": "",
+    "wall_seconds": 30.0,
+    "usd": 0.0,
+    "run_record": null
+  },
+  "run_record": null,
+  "expected": "split",
+  "why": "The proposed migration and API rewrite cross independent boundaries and cannot fit one reviewable change."
+}

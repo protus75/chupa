@@ -1,0 +1,19 @@
+{
+  "ticket": "# Reject Absent File\n\nSmall Python project: implement the requested behavior and pass its tests.\n",
+  "harvest": {
+    "attempt": 1,
+    "stage": "implement",
+    "terminal": "premise_failed",
+    "findings": [],
+    "reason": "src/legacy_store.py does not exist at the base commit.",
+    "diff_stat": "src/app.py | 5 +++--",
+    "stage_log_tail": "src/legacy_store.py does not exist at the base commit.",
+    "events_tail": "",
+    "wall_seconds": 30.0,
+    "usd": 0.0,
+    "run_record": null
+  },
+  "run_record": null,
+  "expected": "reject",
+  "why": "The ticket requires editing a module absent from the project and excludes creating it."
+}

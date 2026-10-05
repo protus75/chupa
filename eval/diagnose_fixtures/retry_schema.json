@@ -1,0 +1,19 @@
+{
+  "ticket": "# Retry Schema\n\nSmall Python project: implement the requested behavior and pass its tests.\n",
+  "harvest": {
+    "attempt": 1,
+    "stage": "review",
+    "terminal": "gate_failed",
+    "findings": [],
+    "reason": "response.schema lacks the required status field.",
+    "diff_stat": "src/app.py | 5 +++--",
+    "stage_log_tail": "response.schema lacks the required status field.",
+    "events_tail": "",
+    "wall_seconds": 30.0,
+    "usd": 0.0,
+    "run_record": null
+  },
+  "run_record": null,
+  "expected": "retry",
+  "why": "The reviewer found one missing response field with a direct fix inside scope."
+}

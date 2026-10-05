@@ -1,0 +1,19 @@
+{
+  "ticket": "# Escalate Parser\n\nSmall Python project: implement the requested behavior and pass its tests.\n",
+  "harvest": {
+    "attempt": 1,
+    "stage": "check",
+    "terminal": "gate_failed",
+    "findings": [],
+    "reason": "tests/test_expr.py::test_nested still fails on a nested group.",
+    "diff_stat": "src/app.py | 5 +++--",
+    "stage_log_tail": "tests/test_expr.py::test_nested still fails on a nested group.",
+    "events_tail": "",
+    "wall_seconds": 30.0,
+    "usd": 0.0,
+    "run_record": null
+  },
+  "run_record": null,
+  "expected": "escalate",
+  "why": "A revised regular expression again rejects nested expressions after feedback to use a parser."
+}
