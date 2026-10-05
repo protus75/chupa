@@ -2,7 +2,8 @@
 
 One ticket at a time, in the one process holding the single-writer lock, through the same dispatch seam as
 `run <stem>`. A non-ok terminal parks its stem and the drain moves on; at quiescence each parked stem with
-`retry` budget left is re-offered, one journaled `cap_consumed` unit per re-offer. Every selection re-scans
+`retry` budget left is re-offered, one journaled `cap_consumed` unit per re-offer, findings-fed: the Implement
+render folds the prior terminal's durable findings into criteria-position (section 11.2). Every selection re-scans
 the committed tickets dir and re-folds the journal, so a merge or a ticket-plane commit landed mid-invocation
 is visible to the very next pick. This is the eligibility sort's owner (section 9).
 """
@@ -30,16 +31,9 @@ SETTLED = frozenset({"merged", "already_satisfied"})
 RETIRED = frozenset({"rejected"})
 PRIORITY = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
 
-# Re-entry render seam (section 11.2): called before every re-offer. Prompt 12 folds the prior terminal's
-# findings into the next attempt's render behind it; until then it renders nothing extra.
-Reentry = Callable[[Ticket], None]
 # Self-upgrade seam (section 18): called after every merge with the invocation's parked set. Prompt 13
 # re-execs the drain behind it when the admission touched `chupa/**` or `specs/**`.
 SelfUpgrade = Callable[[str, tuple[str, ...]], None]
-
-
-def no_reentry(ticket: Ticket) -> None:
-    return None
 
 
 def no_upgrade(stem: str, parked: tuple[str, ...]) -> None:
@@ -121,7 +115,7 @@ class _Scan:
 
 
 async def drain(
-    checkout: Checkout, dispatch: Dispatch, *, reentry: Reentry = no_reentry, upgrade: SelfUpgrade = no_upgrade,
+    checkout: Checkout, dispatch: Dispatch, *, upgrade: SelfUpgrade = no_upgrade,
 ) -> Report:
     lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo),
                     clock=checkout.clock)
@@ -130,16 +124,15 @@ async def drain(
         assert checkout.config.worktree_root is not None  # resolved at config load
         await reconcile(checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root)
         await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
-        return await _Drain(checkout, dispatch, reentry, upgrade).run()
+        return await _Drain(checkout, dispatch, upgrade).run()
     finally:
         lock.release()
 
 
 class _Drain:
-    def __init__(self, checkout: Checkout, dispatch: Dispatch, reentry: Reentry, upgrade: SelfUpgrade) -> None:
+    def __init__(self, checkout: Checkout, dispatch: Dispatch, upgrade: SelfUpgrade) -> None:
         self.c = checkout
         self.dispatch = dispatch
-        self.reentry = reentry
         self.upgrade = upgrade
         self.deadline = checkout.clock() + timedelta(hours=checkout.config.drain.max_runtime_hours)
         self.over_budget: dict[str, Parked] = {}  # parked at dispatch by the per-ticket ceiling
@@ -225,7 +218,6 @@ class _Drain:
             # The draw precedes the dispatch: a crash mid-run never hands the stem a free attempt.
             sha = await self.c.git.rev_parse(self.c.repo, f"HEAD:{ticket_path(stem)}")
             self.c.journal.append(EventType.CAP_CONSUMED, {"cap": RETRY_CAP, "ticket_sha": sha}, ticket=stem)
-            self.reentry(ticket)
         self.c.journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket=stem)
         terminal = await self.dispatch(ticket)
         if terminal not in TERMINAL_STATES:

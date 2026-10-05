@@ -22,11 +22,11 @@ from chupa.config import Config, Severity
 from chupa.driver import Driver, LlmStage
 from chupa.gates import GateReport, run_gates
 from chupa.git import Git, GitError
-from chupa.journal import run_seq
+from chupa.journal import TERMINAL_STATES, EventType, run_seq
 from chupa.providers import child_env
 from chupa.seams import ExecutableNotFound, FileSystem, ProcessExec
 from chupa.specs import RenderOverBound, Spec, load_spec, render, resolve_plan_contract
-from chupa.tickets import PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, ticket_path
+from chupa.tickets import _HEADING, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, ticket_path
 
 MAIN = "main"
 # Section 7 diff budget: sized so every rendered review prompt fits the serving provider's bound.
@@ -45,6 +45,8 @@ RUN_RECORD_SECTIONS = (
 )
 
 StageName = Literal["implement", "check", "review"]
+# Section 11.2: the attempt-scoped re-entry block's heading, rendered in criteria-position.
+PRIOR_ATTEMPTS = "## Prior attempts (attempt-scoped, informational, unverified, not reviewed)"
 
 
 class _Strict(BaseModel):
@@ -197,10 +199,17 @@ async def lift_outbox(ctx: StageContext, stem: str, kind: str, *, attempt: int) 
     """Move the worktree outbox into the canonical ticket dir as ONE ticket-plane commit; None if empty.
 
     `ticket.md` is never lifted: it stays read-only to the agent (section 10). Keyed with the run
-    sequence, so a same-run re-entry never commits twice.
+    sequence, so a same-run re-entry never commits twice. A file byte-equal to its canonical copy is a prior
+    run's artifact the worktree inherited from main, not this stage's output: it is never lifted.
     """
     outbox = ctx.worktree(stem) / TICKETS_DIR / stem
-    files = sorted(p for p in outbox.rglob("*") if p.is_file() and p.relative_to(outbox) != Path(TICKET_FILE))
+    canonical = ctx.repo / TICKETS_DIR / stem
+
+    def written(p: Path) -> bool:
+        rel = p.relative_to(outbox)
+        return rel != Path(TICKET_FILE) and not ((c := canonical / rel).is_file() and c.read_bytes() == p.read_bytes())
+
+    files = sorted(p for p in outbox.rglob("*") if p.is_file() and written(p))
     if not files:
         return None
 
@@ -227,11 +236,65 @@ def _context_text(ctx: StageContext, ticket: Ticket, worktree: Path) -> str:
     return "\n\n".join(f"### {p}\n{(worktree / p).read_text()}" for p in paths) or "none"
 
 
+def _one_line(text: str) -> str:
+    # A payload newline could forge a ticket section heading inside the rendered ticket block.
+    return " ".join(text.split())
+
+
+def _prior_findings(ctx: StageContext, stem: str, stage: str | None) -> list[Finding]:
+    """The terminal stage's durable findings artifact in the canonical ticket dir; [] when it wrote none."""
+    root = ctx.repo / TICKETS_DIR / stem
+    if stage == "review" and (path := root / "review.md").is_file():
+        return list(read_review(path.read_text()).findings)
+    if stage == "check" and (path := root / "checks.json").is_file():
+        invoice = Invoice.model_validate_json(path.read_text())
+        return [f for r in invoice.reports if r.verdict == "fail" for f in r.findings]
+    return []
+
+
+def prior_attempts(ctx: StageContext, stem: str) -> str | None:
+    """Section 11.2 re-entry: the prior terminal and its findings as a clear-these block; None on a first attempt.
+
+    Folded fresh from the journal and the ticket dir every attempt, never written into `ticket.md`. Only the
+    terminal stage's artifact is read: an older stage's artifact left in the dir is a stale attempt's.
+    """
+    terminal = next((e.body for e in reversed(ctx.driver.journal.read())
+                     if e.type == EventType.STATE_TRANSITION and e.ticket == stem
+                     and e.body.get("to") in TERMINAL_STATES), None)
+    if terminal is None:
+        return None
+    stage = terminal.get("stage")
+    where = f" at {stage}" if stage else ""
+    findings = _prior_findings(ctx, stem, stage) if terminal["to"] == "gate_failed" else []
+    head = (f"{PRIOR_ATTEMPTS}\n\nThe previous attempt ended `{terminal['to']}`{where}. These findings are"
+            " this attempt's to clear, beside the acceptance criteria above; they are not part of the ticket.\n\n")
+    items = [f"- [{f.code}] {f.path or '-'}:{f.line or '-'} {_one_line(f.message)}"
+             f" (do instead: {_one_line(f.paved_road)})" for f in findings]
+    return head + ("\n".join(items) or f"- no findings artifact; detail is in {ctx.config.state_dir / 'engine.log'}")
+
+
+def _in_criteria_position(ticket_text: str, block: str) -> str:
+    """Splice `block` at the end of `## Acceptance criteria`, before the next section (fences skipped)."""
+    lines = ticket_text.splitlines(keepends=True)
+    fence = inside = False
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            fence = not fence
+        elif not fence and (m := _HEADING.match(line)):
+            if inside:
+                return "".join(lines[:i]) + block + "\n\n" + "".join(lines[i:])
+            inside = m.group(1) == "Acceptance criteria"
+    return ticket_text.rstrip("\n") + "\n\n" + block + "\n"
+
+
 def implement_stage(ctx: StageContext, ticket: Ticket, worktree: Path) -> tuple[LlmStage, Spec]:
     spec = _spec(ctx, "implement")
     plan = (ctx.repo / PLAN_FILE).read_text() if ticket.plan_contract else ""
+    ticket_text = (ctx.repo / ticket_path(ticket.stem)).read_text()
+    if (prior := prior_attempts(ctx, ticket.stem)) is not None:
+        ticket_text = _in_criteria_position(ticket_text, prior)
     inputs = {
-        "ticket": (ctx.repo / ticket_path(ticket.stem)).read_text(),
+        "ticket": ticket_text,
         "plan_contract": resolve_plan_contract(plan, ticket.plan_contract) if ticket.plan_contract else "none",
         "context": _context_text(ctx, ticket, worktree),
     }
