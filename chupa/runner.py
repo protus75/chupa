@@ -9,6 +9,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from chupa.caps import consume
 from chupa.config import Config
 from chupa.driver import Driver
 from chupa.git import Git
@@ -87,6 +88,9 @@ async def drive(ctx: StageContext, ticket: Ticket) -> str:
         stage, result = "merge", await merge(ctx, ticket, attempt=run.attempt)
         if result.outcome == "ok":
             return "merged"
+    if result.outcome in {"infra_error", "timeout"}:
+        ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
+        consume(ctx.driver.journal, ticket.stem, "infra", ticket_sha)
     ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": result.outcome, "stage": stage}, ticket=ticket.stem)
     return result.outcome
 

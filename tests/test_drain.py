@@ -11,7 +11,8 @@ from pathlib import Path
 import pytest
 
 from chupa.__main__ import main
-from chupa.drain import CEILING, HALT_SIGNAL, RETRY_CAP, cap_draws
+from chupa.caps import draws
+from chupa.drain import CEILING, HALT_SIGNAL
 from chupa.git import Git
 from chupa.journal import EventType, Journal
 from chupa.lockfile import Lockfile, LockHeld
@@ -112,7 +113,7 @@ def intake_at(root: Path, stem: str, at: datetime) -> None:
 
 
 def retry_draws(root: Path, stem: str) -> int:
-    return cap_draws(journal(root).read(), stem, RETRY_CAP)
+    return draws(journal(root).read(), stem, "retry")
 
 
 def tos(root: Path, stem: str) -> list[str]:

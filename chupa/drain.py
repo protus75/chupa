@@ -16,6 +16,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
 
+from chupa import caps
 from chupa.journal import TERMINAL_STATES, Event, EventType
 from chupa.lockfile import Lockfile
 from chupa.reconcile import reconcile
@@ -27,7 +28,6 @@ from chupa.tickets import (
     parse_ticket, ticket_path,
 )
 
-RETRY_CAP = "retry"
 HALT_SIGNAL = "drain_halted"
 CEILING = "drain.max_runtime_hours"
 # `already_satisfied` settles the stem as a no-op (section 7): it satisfies `depends` and is never re-offered.
@@ -58,11 +58,6 @@ def premise_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:
             if last == "running":
                 ran_sha = e.body.get("ticket_sha")
     return last == PREMISE and ran_sha == ticket_sha
-
-
-def cap_draws(events: Iterable[Event], stem: str, cap: str) -> int:
-    """The cap fold (section 11.2): the lineage's `cap_consumed` events NAMING `cap`, across every ticket sha."""
-    return sum(e.type == EventType.CAP_CONSUMED and e.ticket == stem and e.body.get("cap") == cap for e in events)
 
 
 def authored_at(events: Iterable[Event]) -> dict[str, str]:
@@ -249,7 +244,7 @@ class _Drain:
                 continue
             if last.get(t.stem) is None:
                 fresh.append(t)
-            elif t.stem not in held and self._budget(events, t.stem) > 0:
+            elif t.stem not in held and caps.spent(self.c.config.caps, events, t.stem) is None:
                 reoffers.append(t)
         if fresh:
             return fresh[0], False
@@ -257,14 +252,11 @@ class _Drain:
             return reoffers[0], True
         return None, False
 
-    def _budget(self, events: Iterable[Event], stem: str) -> int:
-        return self.c.config.caps.retry - cap_draws(events, stem, RETRY_CAP)
-
     async def _run_one(self, ticket: Ticket, reoffer: bool, sha: str) -> None:
         stem = ticket.stem
         if reoffer:
             # The draw precedes the dispatch: a crash mid-run never hands the stem a free attempt.
-            self.c.journal.append(EventType.CAP_CONSUMED, {"cap": RETRY_CAP, "ticket_sha": sha}, ticket=stem)
+            caps.consume(self.c.journal, stem, "retry", sha)
         # The `ticket.md` the run answers: a `premise_failed` verdict parks the stem until this changes.
         self.c.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": sha}, ticket=stem)
         terminal = await self.dispatch(ticket)
@@ -291,7 +283,6 @@ class _Drain:
         return tuple(sorted(red | carried | set(self.over_budget)))
 
     def _settle(self, scan: _Scan, events: list[Event], last: Mapping[str, str], held: set[str]) -> None:
-        caps = self.c.config.caps.retry
         for stem, t in sorted(scan.tickets.items()):
             if t.frontmatter.state != "confirmed" or last.get(stem) in SETTLED | RETIRED:
                 continue
@@ -305,14 +296,16 @@ class _Drain:
                 body = next(e.body for e in reversed(events)
                             if e.type == EventType.STATE_TRANSITION and e.ticket == stem)
                 where = f" at {body['stage']}" if "stage" in body else ""
-                drawn = cap_draws(events, stem, RETRY_CAP)
+                spent_cap = caps.spent(self.c.config.caps, events, stem)
+                drawn = caps.draws(events, stem, spent_cap or "retry")
+                cap_limit = getattr(self.c.config.caps, spent_cap or "retry")
                 if stem in held:
                     why, road = f"{to}{where}; parked until its committed ticket.md changes", self._premise_road(t)
-                elif drawn < caps:  # only a halt leaves budget unspent: the continuing drain re-offers it
-                    why, road = (f"{to}{where}; {caps - drawn} of {caps} retry units left",
+                elif spent_cap is None:  # only a halt leaves budget unspent: the continuing drain re-offers it
+                    why, road = (f"{to}{where}; {cap_limit - drawn} of {cap_limit} retry units left",
                                  "`uv run python -m chupa drain` re-offers it")
                 else:
-                    why, road = (f"{to}{where}; retry cap spent ({drawn}/{caps})",
+                    why, road = (f"{to}{where}; {caps.spent_reason(spent_cap)} ({drawn}/{cap_limit})",
                                  "read the findings below and the engine log; fix the cause in the plan (or the"
                                  " ticket if provably not the plan's) and author a successor stem -- a"
                                  " `ticket.md` edit never re-arms the cap")
@@ -341,4 +334,3 @@ class _Drain:
         self._settle(scan, events, last, held)
         self.report.halted = f"{hours}h elapsed"
         return self.report
-
