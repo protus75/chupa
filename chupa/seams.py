@@ -71,14 +71,17 @@ class SubprocessExec:
     ) -> tuple[int, str, str]:
         if shutil.which(argv[0], path=env.get("PATH", "")) is None:
             raise ExecutableNotFound(argv[0])
+        # The one unbounded caller -- the drain's self-upgrade handoff child -- streams to the operator through
+        # INHERITED stdio; its out/err come back empty (section 15).
+        stream = None if timeout is None else subprocess.PIPE
         with open(stdin_path, "rb") if stdin_path else open(os.devnull, "rb") as stdin:
             proc = await asyncio.create_subprocess_exec(
                 *argv,
                 cwd=cwd,
                 env=dict(env),
                 stdin=stdin,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=stream,
+                stderr=stream,
                 start_new_session=True,
             )
             if on_spawn is not None:
@@ -90,7 +93,7 @@ class SubprocessExec:
                 # Timeout and outer cancellation alike: grandchildren must not outlive the call.
                 await _kill_and_wait(proc)
                 raise
-        return proc.returncode or 0, out.decode(errors="replace"), err.decode(errors="replace")
+        return proc.returncode or 0, (out or b"").decode(errors="replace"), (err or b"").decode(errors="replace")
 
     def kill_group(self, pgid: int) -> None:
         try:

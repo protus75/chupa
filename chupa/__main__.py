@@ -17,7 +17,7 @@ from chupa.git import Git
 from chupa.journal import Journal, JournalCorruption
 from chupa.lockfile import LockHeld
 from chupa.providers import ProviderSetupError, child_env
-from chupa.seams import Clock, LocalFileSystem, SubprocessExec
+from chupa.seams import Clock, ExecutableNotFound, LocalFileSystem, ProcessExec, SubprocessExec
 from chupa.status import project, render
 from chupa.tickets import IntakeRefused, TicketInvalid, stem_findings, template, ticket_path, validate_ticket
 
@@ -37,7 +37,9 @@ def _parser() -> argparse.ArgumentParser:
     new.add_argument("stem")
     run = sub.add_parser("run", help="drive one ticket through intake and the stage pipeline under the lock")
     run.add_argument("stem")
-    sub.add_parser("drain", help="run every eligible ticket to quiescence under the lock")
+    dr = sub.add_parser("drain", help="run every eligible ticket to quiescence under the lock")
+    dr.add_argument("--parked", action="append", default=[], metavar="STEM",
+                    help="a stem the handing-off parent drain parked (set by the self-upgrade re-exec)")
     return ap
 
 
@@ -48,6 +50,7 @@ def main(
     env: Mapping[str, str] | None = None,
     clock: Clock = _clock,
     pipeline: runner.Pipeline = runner.pipeline,
+    reexec: ProcessExec | None = None,
 ) -> int:
     args = _parser().parse_args(argv)
     repo = Path(cwd) if cwd is not None else Path.cwd()
@@ -67,11 +70,15 @@ def main(
         )
         dispatch = pipeline(checkout)
         if args.verb == "drain":
-            report = asyncio.run(drain.drain(checkout, dispatch))
-            print(report.render(), end="")
+            # The handoff's own seam instance, never shared with active work (section 15).
+            report = asyncio.run(drain.drain(checkout, dispatch, reexec=reexec or SubprocessExec(),
+                                             parked=args.parked))
+            if report.handoff is None:
+                print(report.render(), end="")
             return report.exit_code
         return asyncio.run(runner.run_ticket(args.stem, checkout, dispatch))
-    except (ConfigError, runner.Refusal, LockHeld, IntakeRefused, JournalCorruption, ProviderSetupError) as e:
+    except (ConfigError, runner.Refusal, LockHeld, IntakeRefused, JournalCorruption, ProviderSetupError,
+            ExecutableNotFound) as e:
         print(f"chupa {args.verb}: {e}", file=sys.stderr)
         return runner.EXIT_REFUSED
 

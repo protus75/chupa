@@ -76,11 +76,18 @@ class Journal:
         self.dir = Path(state_dir) / "journal"
         self._clock = clock
         self._tail_repaired = False
+        self._closed = False
+
+    def close(self) -> None:
+        """End this handle's writes: the drain's self-upgrade handoff closes it before its child takes the lock."""
+        self._closed = True
 
     def append(
         self, type: str, body: dict[str, Any], *, ticket: str | None = None, key: str | None = None
     ) -> Event:
         """Write one event and fsync it before returning (write-ahead)."""
+        if self._closed:
+            raise RuntimeError(f"{self.dir} handle is closed: a handed-off drain never writes after its spawn")
         if type not in EVENT_VERSIONS or type in _NOT_EMITTED:
             emittable = sorted(set(EVENT_VERSIONS) - _NOT_EMITTED)
             raise ValueError(f"event type {type!r} is not emittable; use one of {emittable}")

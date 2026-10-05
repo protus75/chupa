@@ -6,9 +6,13 @@ One ticket at a time, in the one process holding the single-writer lock, through
 render folds the prior terminal's durable findings into criteria-position (section 11.2). Every selection re-scans
 the committed tickets dir and re-folds the journal, so a merge or a ticket-plane commit landed mid-invocation
 is visible to the very next pick. This is the eligibility sort's owner (section 9).
+
+An admission touching `chupa/**` or `specs/**` is a SELF-UPGRADE: before the next dispatch the drain hands off to
+a re-exec'd child running the upgraded checkout (section 18's HANDOFF), carrying the invocation's parked set in
+argv. A `premise_failed` stem stays parked, across invocations, until its committed `ticket.md` content changes.
 """
 
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
 
@@ -16,6 +20,7 @@ from chupa.journal import TERMINAL_STATES, Event, EventType
 from chupa.lockfile import Lockfile
 from chupa.reconcile import reconcile
 from chupa.runner import EXIT_MERGED, EXIT_TICKET, Checkout, Dispatch, Refusal
+from chupa.seams import ProcessExec
 from chupa.status import last_states
 from chupa.tickets import (
     INTAKE_SIGNAL, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, TicketInvalid, _porcelain, depends_cycle, intake,
@@ -31,13 +36,28 @@ SETTLED = frozenset({"merged", "already_satisfied"})
 RETIRED = frozenset({"rejected"})
 PRIORITY = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
 
-# Self-upgrade seam (section 18): called after every merge with the invocation's parked set. Prompt 13
-# re-execs the drain behind it when the admission touched `chupa/**` or `specs/**`.
-SelfUpgrade = Callable[[str, tuple[str, ...]], None]
+PREMISE = "premise_failed"
+HANDOFF_SIGNAL = "drain_handoff"
+# The engine plane the running process has loaded: admitting a change under either re-execs the drain.
+UPGRADE_PREFIXES = ("chupa/", "specs/")
+# D1's one named runtime `uv` exception (section 18): one form, dependency changes included.
+REEXEC = ("uv", "run", "python", "-m", "chupa", "drain")
 
 
-def no_upgrade(stem: str, parked: tuple[str, ...]) -> None:
-    return None
+def reexec_argv(parked: Iterable[str]) -> list[str]:
+    return [*REEXEC, *(a for stem in parked for a in ("--parked", stem))]
+
+
+def premise_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:
+    """The premise park (section 18): the stem's last run ended `premise_failed` against this same `ticket.md`."""
+    last: str | None = None
+    ran_sha: str | None = None
+    for e in events:
+        if e.type == EventType.STATE_TRANSITION and e.ticket == stem:
+            last = e.body.get("to")
+            if last == "running":
+                ran_sha = e.body.get("ticket_sha")
+    return last == PREMISE and ran_sha == ticket_sha
 
 
 def cap_draws(events: Iterable[Event], stem: str, cap: str) -> int:
@@ -77,9 +97,12 @@ class Report:
     invalid: list[tuple[str, str]] = field(default_factory=list)
     drafts: list[str] = field(default_factory=list)
     halted: str | None = None
+    handoff: int | None = None  # the re-exec'd child's exit code: the child reports, the parent stays silent
 
     @property
     def exit_code(self) -> int:
+        if self.handoff is not None:
+            return self.handoff
         # Section 18: quiescence is 0 whatever it parked; a ceiling halt is a non-quiescent stop.
         return EXIT_TICKET if self.halted else EXIT_MERGED
 
@@ -115,8 +138,9 @@ class _Scan:
 
 
 async def drain(
-    checkout: Checkout, dispatch: Dispatch, *, upgrade: SelfUpgrade = no_upgrade,
+    checkout: Checkout, dispatch: Dispatch, *, reexec: ProcessExec, parked: Iterable[str] = (),
 ) -> Report:
+    """`reexec` is the handoff's own process seam (section 15): never the instance active work spawns through."""
     lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo),
                     clock=checkout.clock)
     lock.acquire()
@@ -124,16 +148,30 @@ async def drain(
         assert checkout.config.worktree_root is not None  # resolved at config load
         await reconcile(checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root)
         await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
-        return await _Drain(checkout, dispatch, upgrade).run()
+        run = _Drain(checkout, dispatch, frozenset(parked))
+        report = await run.run()
+        if run.upgrade is None:
+            return report
+        stem, commit = run.upgrade
+        carried = run.parked_stems()
+        checkout.journal.append(EventType.SIGNAL, {"signal": HANDOFF_SIGNAL, "commit": commit,
+                                                   "parked": list(carried), "merged": list(report.merged)},
+                                ticket=stem)
+        checkout.journal.close()
     finally:
         lock.release()
+    # The fixed HANDOFF order (section 18): journaled, journal closed, lock free -- the child is the only writer,
+    # and the parent does nothing after the spawn but exit with its code.
+    report.handoff, _, _ = await reexec.run(reexec_argv(carried), cwd=checkout.repo, env=checkout.env, timeout=None)
+    return report
 
 
 class _Drain:
-    def __init__(self, checkout: Checkout, dispatch: Dispatch, upgrade: SelfUpgrade) -> None:
+    def __init__(self, checkout: Checkout, dispatch: Dispatch, carried: frozenset[str]) -> None:
         self.c = checkout
         self.dispatch = dispatch
-        self.upgrade = upgrade
+        self.carried = carried  # parked earlier in this invocation, by a parent that handed off
+        self.upgrade: tuple[str, str] | None = None  # (stem, commit) of a self-upgrading admission
         self.deadline = checkout.clock() + timedelta(hours=checkout.config.drain.max_runtime_hours)
         self.over_budget: dict[str, Parked] = {}  # parked at dispatch by the per-ticket ceiling
         self.report = Report()
@@ -143,13 +181,17 @@ class _Drain:
             scan = await self._scan()
             events = self.c.journal.read()
             last = last_states(events)
-            pick, reoffer = self._select(scan, events, last)
+            held = {s for s in scan.tickets
+                    if last.get(s) == PREMISE and premise_parked(events, s, await self._sha(s))}
+            pick, reoffer = self._select(scan, events, last, held)
             if pick is None:
-                self._settle(scan, events, last)
+                self._settle(scan, events, last, held)
                 return self.report
             if self.c.clock() >= self.deadline:
-                return self._halt(scan, events, last)
-            await self._run_one(pick, reoffer)
+                return self._halt(scan, events, last, held)
+            await self._run_one(pick, reoffer, await self._sha(pick.stem))
+            if self.upgrade is not None:
+                return self.report
 
     async def _scan(self) -> _Scan:
         """Committed tickets only: a ticket file dirty in the working tree is not yet on the ticket plane."""
@@ -175,7 +217,13 @@ class _Drain:
             tickets[stem] = ticket
         return _Scan(tickets, invalid, tuple(drafts))
 
-    def _select(self, scan: _Scan, events: list[Event], last: Mapping[str, str]) -> tuple[Ticket | None, bool]:
+    async def _sha(self, stem: str) -> str:
+        """The committed `ticket.md` blob: the content identity a premise park and a retry draw are keyed to."""
+        return await self.c.git.rev_parse(self.c.repo, f"HEAD:{ticket_path(stem)}")
+
+    def _select(
+        self, scan: _Scan, events: list[Event], last: Mapping[str, str], held: set[str],
+    ) -> tuple[Ticket | None, bool]:
         """The next dispatch: fresh eligible work first, then re-offers, each in (priority, age) order."""
         open_ = {s: t for s, t in scan.tickets.items()
                  if t.frontmatter.state == "confirmed" and last.get(s) not in SETTLED | RETIRED}
@@ -201,7 +249,7 @@ class _Drain:
                 continue
             if last.get(t.stem) is None:
                 fresh.append(t)
-            elif self._budget(events, t.stem) > 0:
+            elif t.stem not in held and self._budget(events, t.stem) > 0:
                 reoffers.append(t)
         if fresh:
             return fresh[0], False
@@ -212,29 +260,37 @@ class _Drain:
     def _budget(self, events: Iterable[Event], stem: str) -> int:
         return self.c.config.caps.retry - cap_draws(events, stem, RETRY_CAP)
 
-    async def _run_one(self, ticket: Ticket, reoffer: bool) -> None:
+    async def _run_one(self, ticket: Ticket, reoffer: bool, sha: str) -> None:
         stem = ticket.stem
         if reoffer:
             # The draw precedes the dispatch: a crash mid-run never hands the stem a free attempt.
-            sha = await self.c.git.rev_parse(self.c.repo, f"HEAD:{ticket_path(stem)}")
             self.c.journal.append(EventType.CAP_CONSUMED, {"cap": RETRY_CAP, "ticket_sha": sha}, ticket=stem)
-        self.c.journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket=stem)
+        # The `ticket.md` the run answers: a `premise_failed` verdict parks the stem until this changes.
+        self.c.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": sha}, ticket=stem)
         terminal = await self.dispatch(ticket)
         if terminal not in TERMINAL_STATES:
             raise ValueError(f"stage seam returned {terminal!r}, not a terminal state {sorted(TERMINAL_STATES)}")
-        if (journaled := last_states(self.c.journal.read()).get(stem)) != terminal:
-            raise ValueError(f"stage seam returned {terminal!r} for {stem} but journaled {journaled!r};"
+        body = next(e.body for e in reversed(self.c.journal.read())
+                    if e.type == EventType.STATE_TRANSITION and e.ticket == stem)
+        if body["to"] != terminal:
+            raise ValueError(f"stage seam returned {terminal!r} for {stem} but journaled {body['to']!r};"
                              " the seam must journal the run's single terminal transition")
         if terminal == "merged":
             self.report.merged.append(stem)
-            self.upgrade(stem, self._parked_stems())
+            # A `merged` with no commit is the no-diff settlement (section 7): nothing was admitted.
+            if (commit := body.get("commit")) is not None:
+                changed = await self.c.git.diff_names(self.c.repo, f"{commit}^", commit)
+                if any(p.startswith(UPGRADE_PREFIXES) for p in changed):
+                    self.upgrade = (stem, commit)
 
-    def _parked_stems(self) -> tuple[str, ...]:
+    def parked_stems(self) -> tuple[str, ...]:
+        """The invocation's parked set, carried across the handoff chain: every unsettled red plus the carried."""
         last = last_states(self.c.journal.read())
-        return tuple(sorted({s for s, to in last.items() if to in TERMINAL_STATES - SETTLED - RETIRED}
-                            | set(self.over_budget)))
+        red = {s for s, to in last.items() if to in TERMINAL_STATES - SETTLED - RETIRED}
+        carried = {s for s in self.carried if last.get(s) not in SETTLED | RETIRED}
+        return tuple(sorted(red | carried | set(self.over_budget)))
 
-    def _settle(self, scan: _Scan, events: list[Event], last: Mapping[str, str]) -> None:
+    def _settle(self, scan: _Scan, events: list[Event], last: Mapping[str, str], held: set[str]) -> None:
         caps = self.c.config.caps.retry
         for stem, t in sorted(scan.tickets.items()):
             if t.frontmatter.state != "confirmed" or last.get(stem) in SETTLED | RETIRED:
@@ -250,7 +306,9 @@ class _Drain:
                             if e.type == EventType.STATE_TRANSITION and e.ticket == stem)
                 where = f" at {body['stage']}" if "stage" in body else ""
                 drawn = cap_draws(events, stem, RETRY_CAP)
-                if drawn < caps:  # only a halt leaves budget unspent: the continuing drain re-offers it
+                if stem in held:
+                    why, road = f"{to}{where}; parked until its committed ticket.md changes", self._premise_road(t)
+                elif drawn < caps:  # only a halt leaves budget unspent: the continuing drain re-offers it
                     why, road = (f"{to}{where}; {caps - drawn} of {caps} retry units left",
                                  "`uv run python -m chupa drain` re-offers it")
                 else:
@@ -262,17 +320,25 @@ class _Drain:
         self.report.invalid = sorted(scan.invalid.items())
         self.report.drafts = list(scan.drafts)
 
+    def _premise_road(self, t: Ticket) -> str:
+        """`source`-keyed (section 18): the release is the same commit, only where the fix originates differs."""
+        rel = ticket_path(t.stem)
+        if t.frontmatter.source == "seed":
+            return (f"the verdict below names a false assumption in CHUPA_PLAN.md: fix it in the plan and commit that"
+                    f" first, then commit the plan-congruent correction of {rel} -- that ticket.md change releases it")
+        return f"answer the premise findings below by editing {rel} and committing it -- the content change releases it"
+
     def _findings(self, stem: str) -> tuple[str, ...]:
         """Where the parked stem's detail lives: its durable ticket-plane artifacts (section 10)."""
         root = self.c.repo / TICKETS_DIR / stem
         return tuple(p.relative_to(self.c.repo).as_posix() for p in sorted(root.rglob("*"))
                      if p.is_file() and p.name != TICKET_FILE)
 
-    def _halt(self, scan: _Scan, events: list[Event], last: Mapping[str, str]) -> Report:
+    def _halt(self, scan: _Scan, events: list[Event], last: Mapping[str, str], held: set[str]) -> Report:
         hours = self.c.config.drain.max_runtime_hours
         self.c.journal.append(EventType.SIGNAL, {"signal": HALT_SIGNAL, "ceiling": CEILING, "hours": hours,
                                                  "merged": list(self.report.merged)})
-        self._settle(scan, events, last)
+        self._settle(scan, events, last, held)
         self.report.halted = f"{hours}h elapsed"
         return self.report
 

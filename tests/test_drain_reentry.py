@@ -16,9 +16,16 @@ from tests.test_stages import ENV, SNAG, STEM, agent, git, verdict
 from tests.test_terminal import author, clock, repo, transitions  # noqa: F401 -- `repo` is the fixture
 
 
+class NoChild:
+    """The merge admits `chupa/thing.py`, a self-upgrade: the handoff's re-exec is faked to a quiescent child."""
+
+    async def run(self, argv, *, cwd, env, timeout, stdin_path=None):
+        return 0, "", ""
+
+
 def drain(repo: Path, script: list) -> tuple[int, FakeLLM]:
     llm = FakeLLM(script)
-    code = main(["drain"], cwd=repo, env=ENV, clock=clock, pipeline=lambda c: runner.bind(c, llm))
+    code = main(["drain"], cwd=repo, env=ENV, clock=clock, pipeline=lambda c: runner.bind(c, llm), reexec=NoChild())
     return code, llm
 
 
