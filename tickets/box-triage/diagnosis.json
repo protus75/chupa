@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "19b015b037a9fec9bfe4b01b7875e9dbd21e4983",
+  "produced_at_sha": "8bb06a1e06f3e94fd6454ddcef842df19d20877e",
   "stem": "box-triage",
-  "attempt": 1,
-  "terminal": "gate_failed",
-  "stage": "review",
+  "attempt": 2,
+  "terminal": "infra_error",
+  "stage": "implement",
   "verdict": "retry",
   "lessons": [
-    "When run_seq is given, carry it into the spool path as well as the effect key: pass a spool stem like f\"{surface}/{run_seq}\" to every self.spool.write call in Driver.run. Leave the ticket and existing ticketless paths byte-identical so tests/test_driver.py passes unedited.",
-    "In tests/test_triage.py, assert that each triage pass writes to a separate spool dir per message: two messages in one pass must not share a prompt.md or output.txt path.",
-    "Criterion 2: assert r.tier == config.routing_default_tier for every llm.requests entry. Then read the journal's LLM effect events and assert the key set equals {f\"llm/triage/{m.seq}/triage/0/1\"} for the three messages. Distinct rendered text alone does not prove this.",
-    "Before finishing, check each acceptance criterion against a specific assertion in the tests. Every criterion clause, such as tier, keys, or spool dir, needs an explicit check. Passing tests are not enough."
+    "The failure was transient provider capacity ('Selected model is at capacity'), not a defect in the approach; rerun the same implementation at the same capability.",
+    "The aborted attempt had partly edited chupa/driver.py (run_seq) and added specs/triage.md. Start from a clean worktree, or re-read those files, before building on them.",
+    "Keep the per-message spool path <surface>/<run_seq>/<attempt>/ and the ValueError for run_seq with a non-None ticket. tests/test_driver.py must pass unedited.",
+    "Commit each record before resolving its message, and never put the raw message summary into a record body. Tests check both through a unique marker and through crash-resume over existing registry records.",
+    "Leave the drain path alone: no box read in the drain. Add only the one new test_drain.py test proving no triage request and no triage_pass journal entry during a dispatch+merge."
   ],
   "mechanical": null,
   "spec_version": "1.0",
