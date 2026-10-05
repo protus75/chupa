@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from chupa.__main__ import main
+from chupa.box import Box
 from chupa.caps import draws
 from chupa.drain import CEILING, HALT_SIGNAL
 from chupa.git import Git
@@ -256,6 +257,21 @@ def test_a_ticket_committed_during_the_invocation_runs_in_the_same_invocation(ro
     script = Script(hooks={"seeder": seed})
     assert drain(root, script) == 0
     assert script.calls == ["seeder", "seeded"]
+
+
+def test_drain_merges_without_scanning_the_box(root, monkeypatch):
+    box = Box(root / ".chupa" / "state" / "box", LocalFileSystem())
+    id, _ = box.enqueue(message_class="suggestion", origin="test", summary="pending observation")
+    write(root, "work", ticket())
+    requests = []
+    monkeypatch.setattr("chupa.triage.triage_pass", lambda *args: requests.append(args))
+    script = Script()
+    assert drain(root, script) == 0
+    assert script.calls == ["work"]
+    assert requests == []
+    assert box.get(id).status == "pending"
+    assert not any(e.type == EventType.SIGNAL and e.body.get("signal") == "triage_pass"
+                   for e in journal(root).read())
 
 
 def test_an_uncommitted_ticket_file_is_not_eligible(root):

@@ -11,12 +11,12 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
-from chupa import drain, runner
+from chupa import drain, runner, triage
 from chupa.config import ConfigError, load_config
 from chupa.git import Git
 from chupa.journal import Journal, JournalCorruption
-from chupa.lockfile import LockHeld
-from chupa.providers import ProviderSetupError, child_env
+from chupa.lockfile import LockHeld, Lockfile
+from chupa.providers import ProviderLLM, ProviderSetupError, child_env
 from chupa.seams import Clock, ExecutableNotFound, LocalFileSystem, ProcessExec, SubprocessExec
 from chupa.status import project, render
 from chupa.tickets import IntakeRefused, TicketInvalid, stem_findings, template, ticket_path, validate_ticket
@@ -33,6 +33,7 @@ def _parser() -> argparse.ArgumentParser:
     ap.add_argument("--config", type=Path, help="config path (default: config.yaml at the checkout root)")
     sub = ap.add_subparsers(dest="verb", required=True)
     sub.add_parser("status", help="project current state from the journal (read-only)")
+    sub.add_parser("triage", help="make one sequential pass over pending suggestions under the lock")
     new = sub.add_parser("new", help="template tickets/<stem>/ticket.md and lint it")
     new.add_argument("stem")
     run = sub.add_parser("run", help="drive one ticket through intake and the stage pipeline under the lock")
@@ -72,6 +73,20 @@ def main(
         )
         if args.verb in {"confirm", "reject"}:
             return asyncio.run(runner.verdict(args.stem, checkout, kill=args.verb == "reject"))
+        if args.verb == "triage":
+            async def one_pass() -> list[tuple[str, str]]:
+                lock = Lockfile(config.state_dir, instance_id=await checkout.git.describe(repo), clock=clock)
+                lock.acquire()
+                try:
+                    llm = ProviderLLM(config, exec_=exec_, fs=checkout.fs, env=env,
+                                      cwd=repo, timeout=runner.CALL_TIMEOUT_S)
+                    return await triage.triage_pass(checkout, llm)
+                finally:
+                    lock.release()
+
+            lines = asyncio.run(one_pass())
+            print("\n".join(line for _, line in lines) if lines else "no pending suggestions")
+            return 0
         dispatch = pipeline(checkout)
         if args.verb == "drain":
             # The handoff's own seam instance, never shared with active work (section 15).

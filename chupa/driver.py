@@ -21,7 +21,7 @@ from chupa.config import Config, Severity
 from chupa.effects import Effects
 from chupa.enginelog import EngineLog
 from chupa.gates import Gate, merge_severity, run_gates
-from chupa.journal import Journal, run_seq
+from chupa.journal import Journal, run_seq as journal_run_seq
 from chupa.llm import LLM, AgentEffort, AgentTier, LLMRequest, LLMResult
 from chupa.llmeffect import llm_call
 from chupa.providers import WRITING_SURFACES
@@ -138,10 +138,14 @@ class Driver:
         tier: AgentTier,
         effort: AgentEffort,
         stuck_budget: float,
+        run_seq: int | None = None,
     ) -> StageResult:
         """Run one stage attempt; `attempt` is the run sequence (section 6), stuck_budget in seconds."""
         stem = ticket or stage.surface  # ticketless surfaces spool and key under their surface name
-        seq = run_seq(self.journal.read(), stem)
+        if run_seq is not None and ticket is not None:
+            raise ValueError("run_seq requires ticket=None")
+        seq = run_seq if run_seq is not None else journal_run_seq(self.journal.read(), stem)
+        spool_stem = f"{stem}/{run_seq}" if run_seq is not None else stem
         started = self.clock()
         deadline = started.timestamp() + stuck_budget
         ctx = {"stem": stem, "attempt": attempt, "surface": stage.surface}
@@ -176,7 +180,7 @@ class Driver:
                 worktree=workspace if stage.surface in WRITING_SURFACES else None,
             )
             # Before the call: a call that raises or hangs must leave exactly what was sent on disk.
-            self.spool.write(stem, attempt, f"{name}/prompt.md", prompt)
+            self.spool.write(spool_stem, attempt, f"{name}/prompt.md", prompt)
             self.log.event("llm_call", **call)
             tally.calls += 1
             try:
@@ -192,13 +196,13 @@ class Driver:
                 tally.findings = []
                 return done("timeout")
             except Exception as e:
-                self.spool.write(stem, attempt, f"{name}/error.txt", f"{type(e).__name__}: {e}")
+                self.spool.write(spool_stem, attempt, f"{name}/error.txt", f"{type(e).__name__}: {e}")
                 self.log.event("llm_error", **call, error=f"{type(e).__name__}: {e}")
                 tally.findings = []  # unclassified: no finding (section 6)
                 return done("infra_error")
             result = LLMResult(**recorded)
             tally.add(result)
-            self.spool.write(stem, attempt, f"{name}/output.txt", result.text)
+            self.spool.write(spool_stem, attempt, f"{name}/output.txt", result.text)
 
             try:
                 artifact = stage.emits.model_validate_json(unwrap_fence(result.text))
