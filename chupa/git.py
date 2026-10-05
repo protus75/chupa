@@ -62,8 +62,9 @@ class Git:
     async def add(self, dir: Path, paths: Sequence[str]) -> None:
         await self._run(dir, "add", "--", *paths)
 
-    async def commit(self, dir: Path, message: str) -> None:
-        await self._run(dir, "commit", "-m", message)
+    async def commit(self, dir: Path, message: str, *, only: Sequence[str] = ()) -> None:
+        # `only` limits the commit to those paths, whatever else is staged.
+        await self._run(dir, "commit", "-m", message, *(("--only", "--", *only) if only else ()))
 
     async def branch(self, dir: Path, name: str, start: str) -> None:
         await self._run(dir, "branch", _ref(name), _ref(start))

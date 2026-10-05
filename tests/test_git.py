@@ -68,6 +68,7 @@ def test_every_call_is_dir_pinned_and_passes_env_and_timeout():
         (lambda g: g.diff(REPO, "main", "t-1"), ["diff", "main...t-1"]),
         (lambda g: g.add(REPO, ["a.py", "b c.py"]), ["add", "--", "a.py", "b c.py"]),
         (lambda g: g.commit(REPO, "msg\n\nchupa-ticket: t"), ["commit", "-m", "msg\n\nchupa-ticket: t"]),
+        (lambda g: g.commit(REPO, "msg", only=["a.py"]), ["commit", "-m", "msg", "--only", "--", "a.py"]),
         (lambda g: g.branch(REPO, "t-1", "main"), ["branch", "t-1", "main"]),
         (lambda g: g.branch_delete(REPO, "t-1"), ["branch", "-D", "t-1"]),
         (
