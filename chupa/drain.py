@@ -1,0 +1,286 @@
+"""The `drain` scaffold verb (CHUPA_PLAN.md sections 9, 11.2, 18, 19.P1): run the ready queue to quiescence.
+
+One ticket at a time, in the one process holding the single-writer lock, through the same dispatch seam as
+`run <stem>`. A non-ok terminal parks its stem and the drain moves on; at quiescence each parked stem with
+`retry` budget left is re-offered, one journaled `cap_consumed` unit per re-offer. Every selection re-scans
+the committed tickets dir and re-folds the journal, so a merge or a ticket-plane commit landed mid-invocation
+is visible to the very next pick. This is the eligibility sort's owner (section 9).
+"""
+
+from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass, field
+from datetime import timedelta
+
+from chupa.journal import TERMINAL_STATES, Event, EventType
+from chupa.lockfile import Lockfile
+from chupa.reconcile import reconcile
+from chupa.runner import EXIT_MERGED, EXIT_TICKET, Checkout, Dispatch, Refusal
+from chupa.status import last_states
+from chupa.tickets import (
+    INTAKE_SIGNAL, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, TicketInvalid, _porcelain, depends_cycle, intake,
+    parse_ticket, ticket_path,
+)
+
+RETRY_CAP = "retry"
+HALT_SIGNAL = "drain_halted"
+CEILING = "drain.max_runtime_hours"
+# `already_satisfied` settles the stem as a no-op (section 7): it satisfies `depends` and is never re-offered.
+SETTLED = frozenset({"merged", "already_satisfied"})
+# A `rejected` stem is retired (section 11.2): never dispatched again.
+RETIRED = frozenset({"rejected"})
+PRIORITY = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
+
+# Re-entry render seam (section 11.2): called before every re-offer. Prompt 12 folds the prior terminal's
+# findings into the next attempt's render behind it; until then it renders nothing extra.
+Reentry = Callable[[Ticket], None]
+# Self-upgrade seam (section 18): called after every merge with the invocation's parked set. Prompt 13
+# re-execs the drain behind it when the admission touched `chupa/**` or `specs/**`.
+SelfUpgrade = Callable[[str, tuple[str, ...]], None]
+
+
+def no_reentry(ticket: Ticket) -> None:
+    return None
+
+
+def no_upgrade(stem: str, parked: tuple[str, ...]) -> None:
+    return None
+
+
+def cap_draws(events: Iterable[Event], stem: str, cap: str) -> int:
+    """The cap fold (section 11.2): the lineage's `cap_consumed` events NAMING `cap`, across every ticket sha."""
+    return sum(e.type == EventType.CAP_CONSUMED and e.ticket == stem and e.body.get("cap") == cap for e in events)
+
+
+def authored_at(events: Iterable[Event]) -> dict[str, str]:
+    """Each stem's age anchor (section 9): the `ts` of its FIRST ticket-plane authoring-commit event."""
+    first: dict[str, str] = {}
+    for e in events:
+        if e.type == EventType.SIGNAL and e.body.get("signal") == INTAKE_SIGNAL and e.ticket is not None:
+            first.setdefault(e.ticket, e.ts)
+    return first
+
+
+def sort_key(ticket: Ticket, authored: Mapping[str, str]) -> tuple:
+    """(priority, age, stem): older first; a stem with no authoring event has no seniority and sorts last."""
+    ts = authored.get(ticket.stem)
+    return (PRIORITY[ticket.frontmatter.priority], ts is None, ts or "", ticket.stem)
+
+
+@dataclass(frozen=True)
+class Parked:
+    stem: str
+    reason: str
+    paved_road: str
+    findings: tuple[str, ...] = ()
+
+
+@dataclass
+class Report:
+    merged: list[str] = field(default_factory=list)
+    parked: list[Parked] = field(default_factory=list)
+    blocked: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
+    unadmitted: list[str] = field(default_factory=list)  # eligible but never run: only a halt leaves any
+    invalid: list[tuple[str, str]] = field(default_factory=list)
+    drafts: list[str] = field(default_factory=list)
+    halted: str | None = None
+
+    @property
+    def exit_code(self) -> int:
+        # Section 18: quiescence is 0 whatever it parked; a ceiling halt is a non-quiescent stop.
+        return EXIT_TICKET if self.halted else EXIT_MERGED
+
+    def render(self) -> str:
+        def block(name: str, lines: Iterable[str]) -> str:
+            return f"{name}:\n" + ("\n".join(f"- {line}" for line in lines) or "(none)")
+
+        if self.halted:
+            head = (f"drain HALTED by the {CEILING} ceiling ({self.halted}) -- NOT quiescent; no new ticket was"
+                    " admitted. Continue with `uv run python -m chupa drain`.")
+        elif not (self.merged or self.parked or self.blocked):
+            head = "drain quiescent: nothing eligible (empty ready set)."
+        else:
+            head = "drain quiescent: nothing eligible, unparked, re-offerable, or newly authored."
+        parked = (f"{p.stem}: {p.reason} -- {p.paved_road}"
+                  + "".join(f"\n  - {f}" for f in p.findings) for p in self.parked)
+        return "\n\n".join((
+            head,
+            block("merged this invocation", self.merged),
+            block("parked", parked),
+            block("eligible, not admitted", self.unadmitted),
+            block("blocked on unmerged depends", (f"{s}: waits on {', '.join(d)}" for s, d in self.blocked)),
+            block("invalid committed tickets", (f"{s}: {why}" for s, why in self.invalid)),
+            block("drafts awaiting confirm", self.drafts),
+        )) + "\n"
+
+
+@dataclass(frozen=True)
+class _Scan:
+    tickets: dict[str, Ticket]
+    invalid: dict[str, str]
+    drafts: tuple[str, ...]
+
+
+async def drain(
+    checkout: Checkout, dispatch: Dispatch, *, reentry: Reentry = no_reentry, upgrade: SelfUpgrade = no_upgrade,
+) -> Report:
+    lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo),
+                    clock=checkout.clock)
+    lock.acquire()
+    try:
+        assert checkout.config.worktree_root is not None  # resolved at config load
+        await reconcile(checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root)
+        await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
+        return await _Drain(checkout, dispatch, reentry, upgrade).run()
+    finally:
+        lock.release()
+
+
+class _Drain:
+    def __init__(self, checkout: Checkout, dispatch: Dispatch, reentry: Reentry, upgrade: SelfUpgrade) -> None:
+        self.c = checkout
+        self.dispatch = dispatch
+        self.reentry = reentry
+        self.upgrade = upgrade
+        self.deadline = checkout.clock() + timedelta(hours=checkout.config.drain.max_runtime_hours)
+        self.over_budget: dict[str, Parked] = {}  # parked at dispatch by the per-ticket ceiling
+        self.report = Report()
+
+    async def run(self) -> Report:
+        while True:
+            scan = await self._scan()
+            events = self.c.journal.read()
+            last = last_states(events)
+            pick, reoffer = self._select(scan, events, last)
+            if pick is None:
+                self._settle(scan, events, last)
+                return self.report
+            if self.c.clock() >= self.deadline:
+                return self._halt(scan, events, last)
+            await self._run_one(pick, reoffer)
+
+    async def _scan(self) -> _Scan:
+        """Committed tickets only: a ticket file dirty in the working tree is not yet on the ticket plane."""
+        repo = self.c.repo
+        dirty = {p for _, p in _porcelain(await self.c.git.status_porcelain(repo))}
+        plan_file = repo / PLAN_FILE
+        plan = plan_file.read_text() if plan_file.is_file() else None
+        tickets: dict[str, Ticket] = {}
+        invalid: dict[str, str] = {}
+        drafts: list[str] = []
+        for path in sorted((repo / TICKETS_DIR).glob(f"*/{TICKET_FILE}")):
+            stem = path.parent.name
+            rel = ticket_path(stem)
+            if any(p == rel or (p.endswith("/") and rel.startswith(p)) for p in dirty):
+                continue
+            try:
+                ticket = parse_ticket(stem, path.read_text(), repo, plan=plan)
+            except TicketInvalid as e:
+                invalid[stem] = "; ".join(f"[{f.code}] {f.message} ({f.paved_road})" for f in e.findings)
+                continue
+            if ticket.frontmatter.state == "draft":
+                drafts.append(stem)
+            tickets[stem] = ticket
+        return _Scan(tickets, invalid, tuple(drafts))
+
+    def _select(self, scan: _Scan, events: list[Event], last: Mapping[str, str]) -> tuple[Ticket | None, bool]:
+        """The next dispatch: fresh eligible work first, then re-offers, each in (priority, age) order."""
+        open_ = {s: t for s, t in scan.tickets.items()
+                 if t.frontmatter.state == "confirmed" and last.get(s) not in SETTLED | RETIRED}
+        edges = {s: list(t.depends) for s, t in open_.items()}
+        for stem in sorted(open_):
+            if cycle := depends_cycle(stem, edges):
+                raise Refusal(f"`## Depends on` cycle among committed tickets: {' -> '.join(cycle)}",
+                              f"edit one ticket on the cycle to drop the edge that inverts the intended order,"
+                              f" then `drain` again")
+        authored = authored_at(events)
+        ready = sorted((t for t in open_.values() if all(last.get(d) in SETTLED for d in t.depends)),
+                       key=lambda t: sort_key(t, authored))
+        fresh, reoffers = [], []
+        for t in ready:
+            if t.stem in self.over_budget:
+                continue
+            if t.stuck_minutes > self.c.config.drain.max_ticket_minutes:
+                self.over_budget[t.stem] = Parked(
+                    t.stem, f"`## Time budget` stuck {t.stuck_minutes}m exceeds drain.max_ticket_minutes"
+                    f" ({self.c.config.drain.max_ticket_minutes}m); never dispatched",
+                    f"lower `- stuck:` in {ticket_path(t.stem)} to at most"
+                    f" {self.c.config.drain.max_ticket_minutes}m (split the ticket if it cannot fit)")
+                continue
+            if last.get(t.stem) is None:
+                fresh.append(t)
+            elif self._budget(events, t.stem) > 0:
+                reoffers.append(t)
+        if fresh:
+            return fresh[0], False
+        if reoffers:
+            return reoffers[0], True
+        return None, False
+
+    def _budget(self, events: Iterable[Event], stem: str) -> int:
+        return self.c.config.caps.retry - cap_draws(events, stem, RETRY_CAP)
+
+    async def _run_one(self, ticket: Ticket, reoffer: bool) -> None:
+        stem = ticket.stem
+        if reoffer:
+            # The draw precedes the dispatch: a crash mid-run never hands the stem a free attempt.
+            sha = await self.c.git.rev_parse(self.c.repo, f"HEAD:{ticket_path(stem)}")
+            self.c.journal.append(EventType.CAP_CONSUMED, {"cap": RETRY_CAP, "ticket_sha": sha}, ticket=stem)
+            self.reentry(ticket)
+        self.c.journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket=stem)
+        terminal = await self.dispatch(ticket)
+        if terminal not in TERMINAL_STATES:
+            raise ValueError(f"stage seam returned {terminal!r}, not a terminal state {sorted(TERMINAL_STATES)}")
+        if (journaled := last_states(self.c.journal.read()).get(stem)) != terminal:
+            raise ValueError(f"stage seam returned {terminal!r} for {stem} but journaled {journaled!r};"
+                             " the seam must journal the run's single terminal transition")
+        if terminal == "merged":
+            self.report.merged.append(stem)
+            self.upgrade(stem, self._parked_stems())
+
+    def _parked_stems(self) -> tuple[str, ...]:
+        last = last_states(self.c.journal.read())
+        return tuple(sorted({s for s, to in last.items() if to in TERMINAL_STATES - SETTLED - RETIRED}
+                            | set(self.over_budget)))
+
+    def _settle(self, scan: _Scan, events: list[Event], last: Mapping[str, str]) -> None:
+        caps = self.c.config.caps.retry
+        for stem, t in sorted(scan.tickets.items()):
+            if t.frontmatter.state != "confirmed" or last.get(stem) in SETTLED | RETIRED:
+                continue
+            if stem in self.over_budget:
+                self.report.parked.append(self.over_budget[stem])
+            elif unmet := tuple(d for d in t.depends if last.get(d) not in SETTLED):
+                self.report.blocked.append((stem, unmet))
+            elif (to := last.get(stem)) is None:
+                self.report.unadmitted.append(stem)
+            else:
+                body = next(e.body for e in reversed(events)
+                            if e.type == EventType.STATE_TRANSITION and e.ticket == stem)
+                where = f" at {body['stage']}" if "stage" in body else ""
+                drawn = cap_draws(events, stem, RETRY_CAP)
+                if drawn < caps:  # only a halt leaves budget unspent: the continuing drain re-offers it
+                    why, road = (f"{to}{where}; {caps - drawn} of {caps} retry units left",
+                                 "`uv run python -m chupa drain` re-offers it")
+                else:
+                    why, road = (f"{to}{where}; retry cap spent ({drawn}/{caps})",
+                                 "read the findings below and the engine log; fix the cause in the plan (or the"
+                                 " ticket if provably not the plan's) and author a successor stem -- a"
+                                 " `ticket.md` edit never re-arms the cap")
+                self.report.parked.append(Parked(stem, why, road, self._findings(stem)))
+        self.report.invalid = sorted(scan.invalid.items())
+        self.report.drafts = list(scan.drafts)
+
+    def _findings(self, stem: str) -> tuple[str, ...]:
+        """Where the parked stem's detail lives: its durable ticket-plane artifacts (section 10)."""
+        root = self.c.repo / TICKETS_DIR / stem
+        return tuple(p.relative_to(self.c.repo).as_posix() for p in sorted(root.rglob("*"))
+                     if p.is_file() and p.name != TICKET_FILE)
+
+    def _halt(self, scan: _Scan, events: list[Event], last: Mapping[str, str]) -> Report:
+        hours = self.c.config.drain.max_runtime_hours
+        self.c.journal.append(EventType.SIGNAL, {"signal": HALT_SIGNAL, "ceiling": CEILING, "hours": hours,
+                                                 "merged": list(self.report.merged)})
+        self._settle(scan, events, last)
+        self.report.halted = f"{hours}h elapsed"
+        return self.report
+

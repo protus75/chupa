@@ -11,7 +11,7 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
-from chupa import runner
+from chupa import drain, runner
 from chupa.config import ConfigError, load_config
 from chupa.git import Git
 from chupa.journal import Journal, JournalCorruption
@@ -37,6 +37,7 @@ def _parser() -> argparse.ArgumentParser:
     new.add_argument("stem")
     run = sub.add_parser("run", help="drive one ticket through intake and the stage pipeline under the lock")
     run.add_argument("stem")
+    sub.add_parser("drain", help="run every eligible ticket to quiescence under the lock")
     return ap
 
 
@@ -65,6 +66,10 @@ def main(
             journal=Journal(config.state_dir, clock), fs=LocalFileSystem(), clock=clock,
         )
         dispatch = pipeline(checkout)
+        if args.verb == "drain":
+            report = asyncio.run(drain.drain(checkout, dispatch))
+            print(report.render(), end="")
+            return report.exit_code
         return asyncio.run(runner.run_ticket(args.stem, checkout, dispatch))
     except (ConfigError, runner.Refusal, LockHeld, IntakeRefused, JournalCorruption, ProviderSetupError) as e:
         print(f"chupa {args.verb}: {e}", file=sys.stderr)
