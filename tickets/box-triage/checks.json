@@ -1,7 +1,7 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "9b9152dec886748ec7afaec0408508ad1976f621",
+  "produced_at_sha": "19b015b037a9fec9bfe4b01b7875e9dbd21e4983",
   "stem": "box-triage",
   "passed": true,
   "changed_files": [
@@ -12,7 +12,7 @@
     "tests/test_drain.py",
     "tests/test_triage.py"
   ],
-  "inserted_lines": 307,
+  "inserted_lines": 318,
   "bypassed": [],
   "reports": [
     {
