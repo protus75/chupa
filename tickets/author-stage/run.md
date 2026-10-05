@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-none
+Verified directly: Box.enqueue raises BoxError for that message shape; no files changed.
 
 ## Dead ends
 
-none
+Stopped before implementing because satisfying this criterion requires changing chupa/box.py, which is outside the scope fence.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 90m; completed in about 15m.
+90m budget; stopped early on a contract contradiction.
 
