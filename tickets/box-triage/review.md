@@ -1,11 +1,10 @@
 # Review: snag
 
-The triage flow is mostly right, but run_seq does not reach the spool path, so all messages in one pass write to the same spool dir, and the main triage test never checks the tier or effect keys that criterion 2 requires.
+The diff meets the ticket in most respects, but the crash-resume path resolves a message from a decision record that exists only in the working tree, so a message can be resolved before its record commits.
 
 ## Findings
 
-- [acceptance] chupa/driver.py:147 The ticket says that when `run_seq` is given, the call spools under `<surface>/<run_seq>/<attempt>/`, so two messages in one pass never share a spool dir. The diff only swaps `seq` for the effect key. Every `self.spool.write(stem, attempt, ...)` call is unchanged, and `Spool.write` writes to `<root>/<stem>/<attempt>/<name>`. So every triage call in pass N writes `spools/triage/N/call-01/prompt.md` and `output.txt`, and each message overwrites the previous message's prompt and output. (do instead: When `run_seq` is given, put it in the spool path, e.g. a spool stem of `f"{stage.surface}/{run_seq}"` passed to every `self.spool.write` call in `run`. Keep the existing ticket and ticketless paths byte-identical so tests/test_driver.py passes unedited. Add a test assertion that two messages in one pass get distinct spool dirs.)
-- [acceptance] tests/test_triage.py:34 Criterion 2 requires the test to prove three `triage` requests at `routing_default_tier` with distinct effect keys `llm/triage/<seq>/triage/0/1`. The test checks only the surface and that the `rendered` texts differ. Those texts differ anyway because the message contents differ. Neither the request tier nor any journaled LLM effect key is asserted, so a wrong tier or a key collision would still pass. (do instead: Assert `r.tier == config.routing_default_tier` for each `llm.requests` entry. Read the journal's LLM effect events and assert the keys equal `{f"llm/triage/{m.seq}/triage/0/1" for m in the three messages}`.)
+- [logic] chupa/triage.py:82 `read_registry` globs `tickets/decisions/*.md` in the working tree and does not check HEAD. Suppose a pass crashes, or `git commit` raises, after `checkout.fs.write` has put the record on disk but before the `chupa(decisions): <id>` commit lands. On the next pass, step 1 finds the uncommitted file and calls `box.resolve`, and the record is never committed. The message ends up resolved with no ticket-plane commit. This hits the Definition of rejected ('a message is resolved before its record commits') and the ticket rule 'The message is resolved only after the commit'. Any stray untracked file named `decision-<id>.md` would resolve a message the same way. The tombstone-link check at the `any(r.id == link for r, _ in registry)` branch has the same flaw: an uncommitted record counts as a valid target. (do instead: Before resolving from an existing record, confirm it is committed with `checkout.git.rev_parse(checkout.repo, f"HEAD:{record_path(id)}")`. If the file is on disk but not committed, run the same `driver.effects.run` commit (key `ticket-plane/decisions/<id>`, staging that path only) and resolve the message after that. Check tombstone-link registry targets against HEAD in the same way. Add a test where the record file exists but is uncommitted: the pass must commit it before the message is resolved.)
 
 ## Record
 
@@ -13,24 +12,17 @@ The triage flow is mostly right, but run_seq does not reach the spool path, so a
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "19b015b037a9fec9bfe4b01b7875e9dbd21e4983",
+  "produced_at_sha": "eef7e9793f29e3643e28b0684a2b34cf314cc2d8",
   "stem": "box-triage",
-  "reviewed_sha": "19b015b037a9fec9bfe4b01b7875e9dbd21e4983",
-  "summary": "The triage flow is mostly right, but run_seq does not reach the spool path, so all messages in one pass write to the same spool dir, and the main triage test never checks the tier or effect keys that criterion 2 requires.",
+  "reviewed_sha": "eef7e9793f29e3643e28b0684a2b34cf314cc2d8",
+  "summary": "The diff meets the ticket in most respects, but the crash-resume path resolves a message from a decision record that exists only in the working tree, so a message can be resolved before its record commits.",
   "findings": [
     {
-      "code": "acceptance",
-      "path": "chupa/driver.py",
-      "line": 147,
-      "message": "The ticket says that when `run_seq` is given, the call spools under `<surface>/<run_seq>/<attempt>/`, so two messages in one pass never share a spool dir. The diff only swaps `seq` for the effect key. Every `self.spool.write(stem, attempt, ...)` call is unchanged, and `Spool.write` writes to `<root>/<stem>/<attempt>/<name>`. So every triage call in pass N writes `spools/triage/N/call-01/prompt.md` and `output.txt`, and each message overwrites the previous message's prompt and output.",
-      "paved_road": "When `run_seq` is given, put it in the spool path, e.g. a spool stem of `f\"{stage.surface}/{run_seq}\"` passed to every `self.spool.write` call in `run`. Keep the existing ticket and ticketless paths byte-identical so tests/test_driver.py passes unedited. Add a test assertion that two messages in one pass get distinct spool dirs."
-    },
-    {
-      "code": "acceptance",
-      "path": "tests/test_triage.py",
-      "line": 34,
-      "message": "Criterion 2 requires the test to prove three `triage` requests at `routing_default_tier` with distinct effect keys `llm/triage/<seq>/triage/0/1`. The test checks only the surface and that the `rendered` texts differ. Those texts differ anyway because the message contents differ. Neither the request tier nor any journaled LLM effect key is asserted, so a wrong tier or a key collision would still pass.",
-      "paved_road": "Assert `r.tier == config.routing_default_tier` for each `llm.requests` entry. Read the journal's LLM effect events and assert the keys equal `{f\"llm/triage/{m.seq}/triage/0/1\" for m in the three messages}`."
+      "code": "logic",
+      "path": "chupa/triage.py",
+      "line": 82,
+      "message": "`read_registry` globs `tickets/decisions/*.md` in the working tree and does not check HEAD. Suppose a pass crashes, or `git commit` raises, after `checkout.fs.write` has put the record on disk but before the `chupa(decisions): <id>` commit lands. On the next pass, step 1 finds the uncommitted file and calls `box.resolve`, and the record is never committed. The message ends up resolved with no ticket-plane commit. This hits the Definition of rejected ('a message is resolved before its record commits') and the ticket rule 'The message is resolved only after the commit'. Any stray untracked file named `decision-<id>.md` would resolve a message the same way. The tombstone-link check at the `any(r.id == link for r, _ in registry)` branch has the same flaw: an uncommitted record counts as a valid target.",
+      "paved_road": "Before resolving from an existing record, confirm it is committed with `checkout.git.rev_parse(checkout.repo, f\"HEAD:{record_path(id)}\")`. If the file is on disk but not committed, run the same `driver.effects.run` commit (key `ticket-plane/decisions/<id>`, staging that path only) and resolve the message after that. Check tombstone-link registry targets against HEAD in the same way. Add a test where the record file exists but is uncommitted: the pass must commit it before the message is resolved."
     }
   ],
   "spec_version": "1.0",
