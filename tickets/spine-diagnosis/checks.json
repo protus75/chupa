@@ -1,7 +1,7 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "6a4a63c7f02129e24a1b6f3ed46c43d0d598a382",
+  "produced_at_sha": "7a1e98bbeed4b8508ab500fd4b64e4e6d235ace3",
   "stem": "spine-diagnosis",
   "passed": true,
   "changed_files": [
@@ -16,7 +16,7 @@
     "tests/test_harvest.py",
     "tests/test_terminal.py"
   ],
-  "inserted_lines": 440,
+  "inserted_lines": 431,
   "bypassed": [],
   "reports": [
     {
