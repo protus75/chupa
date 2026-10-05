@@ -1,0 +1,43 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "bc8611dc272e033158c10a535124c04b05e0a29f",
+  "stem": "spine-harvest",
+  "passed": true,
+  "changed_files": [
+    "chupa/artifacts.py",
+    "chupa/git.py",
+    "chupa/runner.py",
+    "chupa/stages.py",
+    "tests/test_git.py",
+    "tests/test_harvest.py"
+  ],
+  "inserted_lines": 273,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ]
+}
