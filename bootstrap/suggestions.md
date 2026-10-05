@@ -126,3 +126,4 @@
 - [terminal-review] `drive` journals the non-ok terminal through `ctx.driver.journal` while `run_ticket` journals `running` through `checkout.journal`: two Journal instances over one state dir in one process. Thread the checkout's journal into the Driver so the run has a single writer handle.
 - [terminal-review] tests/test_terminal.py builds its config.yaml by string-splitting test_stages.py's source on `CONFIG = """`; import `CONFIG` from tests.test_stages instead (it already imports siblings from there).
 - [terminal-review] No test pins `already_satisfied` through `drive` (journal body + exit code); add one once section 18 settles its exit code (see the [terminal] item above).
+- [exit-gate] The [terminal-review] item about tests/test_terminal.py string-splitting test_stages.py for `CONFIG` is resolved: it was the Phase 1 exit ticket `terminal-test-config-import`, merged by `run` as b059824.
