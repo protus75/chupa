@@ -367,6 +367,9 @@ parse and enforce. If any routing row pins a non-Claude agent CLI, author
 AGENTS.md (the section 17 curated subset) in this same deliverable AND reconcile
 CLAUDE.md's note that AGENTS.md now exists (a both-files change, section 17) --
 the first non-Claude context must start with conduct rules.
+The operator's provider values (models_by_tier, routing pins, cli kinds,
+est_cost_per_call_usd) are in bootstrap/operator-setup.md -- operator-owned
+truth; author config.yaml from them, never placeholders for values it states.
 TDD the registry + routing parse and key-scoping against
 fakes (tests/test_providers.py); keep the suite offline -- no real call in uv run
 pytest. Stop when uv run
@@ -1878,6 +1881,8 @@ If this deliverable's output already exists (a re-run over prior work),
 VERIFY it against the plan and its stop-condition and change only what
 fails them -- never rebuild green work. An out-of-scope problem is
 appended to bootstrap/suggestions.md and left alone; never stop to ask.
+Never run git commit, git add, or any other git write: the conductor
+reviews your UNCOMMITTED diff and commits it only after review passes.
 
 """
 

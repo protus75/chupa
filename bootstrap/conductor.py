@@ -96,6 +96,8 @@ If this deliverable's output already exists (a re-run over prior work),
 VERIFY it against the plan and its stop-condition and change only what
 fails them -- never rebuild green work. An out-of-scope problem is
 appended to bootstrap/suggestions.md and left alone; never stop to ask.
+Never run git commit, git add, or any other git write: the conductor
+reviews your UNCOMMITTED diff and commits it only after review passes.
 
 """
 
