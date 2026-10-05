@@ -1,0 +1,46 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "a08472e93f4d6bf9e76ba4011edba761ccdc783c",
+  "stem": "reject-queue-verbs",
+  "passed": true,
+  "changed_files": [
+    "chupa/__main__.py",
+    "chupa/caps.py",
+    "chupa/drain.py",
+    "chupa/runner.py",
+    "chupa/status.py",
+    "chupa/tickets.py",
+    "tests/test_caps.py",
+    "tests/test_drain_upgrade.py",
+    "tests/test_reject_queue.py"
+  ],
+  "inserted_lines": 324,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ]
+}
