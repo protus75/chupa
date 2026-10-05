@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "341809a8abc982dc0b52abd28d4c8778f3ded475",
+  "produced_at_sha": "b95e5d4c435e1df8be182909d37e3d36a9b94a30",
   "stem": "second-problems-filing",
-  "attempt": 0,
-  "terminal": "infra_error",
+  "attempt": 1,
+  "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "retry",
+  "verdict": "reject",
   "lessons": [
-    "The attempt died on a transient provider error ('Selected model is at capacity'), not a code or ticket defect. Retry the same approach unchanged.",
-    "tests/conftest.py does not exist. Build fixtures inline in tests/test_second_problems.py, following the git/env/config.yaml setup in the existing box tests (Git(SubprocessExec(), env=...), LocalFileSystem).",
-    "Enqueue only through Box(ctx.config.state_dir / BOX_DIR, ctx.fs).enqueue(...) from chupa/box.py, before run.md is written. Pass the returned ids to run_record and add no signature logic in stages.py.",
-    "Make second_problems default to [] so existing replies still validate. Run tests/test_stages.py, test_terminal.py and test_drain_reentry.py early to confirm. Bump specs/implement.md to version 1.1 and check it with load_spec."
+    "Confirmed: tests/test_stages.py:225 checks that run.md contains 'spec: implement 1.0'. The required bump to 1.1 makes that check fail, and criterion 5 forbids editing that file. Fix the ticket before retrying.",
+    "Rewrite the ticket: add tests/test_stages.py to the scope fence. Change criterion 5 to allow exactly one edit, changing the line-225 provenance assertion from 'implement 1.0' to 'implement 1.1'. Keep every other preserved-suite file unedited.",
+    "Before authoring a spec version bump, grep tests/ for the old version string (e.g. 'implement 1.0'). Fence every hit or explicitly allow its edit, so a 'no edit to those files' criterion cannot contradict the bump.",
+    "On the next attempt, check that the first enqueue happens before run.md is written, including on premise_failed replies. In implement, run_record is called before lift_outbox and before the premise_failed early return, so the ids must be computed above that call."
   ],
   "mechanical": null,
   "spec_version": "1.0",
