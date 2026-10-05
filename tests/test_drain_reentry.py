@@ -13,7 +13,7 @@ from chupa.llm import FakeLLM
 from chupa.specs import data_close, data_open
 from chupa.stages import PRIOR_ATTEMPTS
 from tests.test_stages import ENV, SNAG, STEM, agent, git, verdict
-from tests.test_terminal import author, clock, repo, transitions  # noqa: F401 -- `repo` is the fixture
+from tests.test_terminal import author, clock, diagnosis_reply, repo, transitions  # noqa: F401 -- `repo` is the fixture
 
 
 class NoChild:
@@ -51,7 +51,7 @@ def test_a_reoffer_after_a_review_reject_renders_its_findings_in_criteria_positi
         ticket_md = (repo / "tickets" / STEM / "ticket.md").read_text()
         return agent({"chupa/thing.py": "ok\n"})(req)
 
-    code, llm = drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]),
+    code, llm = drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis_reply(),
                              capture_ticket, verdict()])
 
     assert code == 0
@@ -69,7 +69,8 @@ def test_a_reoffer_after_a_review_reject_renders_its_findings_in_criteria_positi
 
 def test_a_reoffer_after_a_red_check_renders_the_failing_checks(repo):
     author(repo)
-    code, llm = drain(repo, [agent({"chupa/thing.py": "nope\n"}), agent({"chupa/thing.py": "ok\n"}), verdict()])
+    code, llm = drain(repo, [agent({"chupa/thing.py": "nope\n"}), diagnosis_reply(),
+                             agent({"chupa/thing.py": "ok\n"}), verdict()])
 
     assert code == 0
     first, second = implements(llm)
@@ -83,8 +84,8 @@ def test_a_reoffer_after_a_red_check_renders_the_failing_checks(repo):
 def test_a_stale_review_md_never_feeds_a_later_check_failure(repo):
     # Attempt 1 rejected at review; attempt 2 went red at check: attempt 3 sees the check, not the stale reject.
     author(repo)
-    code, llm = drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]),
-                             agent({"chupa/thing.py": "nope\n"}),
+    code, llm = drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis_reply(),
+                             agent({"chupa/thing.py": "nope\n"}), diagnosis_reply(),
                              agent({"chupa/thing.py": "ok\n"}), verdict()])
 
     assert code == 0

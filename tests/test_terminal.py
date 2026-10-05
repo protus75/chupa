@@ -4,6 +4,8 @@ A non-ok terminal journals the run's single terminal transition and exits 1, lea
 place; an engine-plane refusal exits 2 with nothing dispatched. Retry, diagnosis, and harvest are Phase 2.
 """
 
+import json
+
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -48,6 +50,10 @@ def run(repo: Path, script: list) -> tuple[int, FakeLLM]:
     return code, llm
 
 
+def diagnosis_reply(*lessons: str) -> str:
+    return json.dumps({"verdict": "retry", "lessons": list(lessons or ("Apply the terminal findings.",))})
+
+
 def transitions(repo: Path) -> list[dict]:
     return [e.body for e in Journal(repo / ".chupa" / "state", clock).read()
             if e.type == EventType.STATE_TRANSITION and e.ticket == STEM]
@@ -62,7 +68,7 @@ def left_in_place(repo: Path) -> None:
 
 def test_a_review_snag_journals_its_terminal_and_exits_1(repo):
     author(repo)
-    code, llm = run(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG])])
+    code, llm = run(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis_reply()])
 
     assert code == runner.EXIT_TICKET
     assert transitions(repo) == [{"to": "running"}, {"to": "gate_failed", "stage": "review"}]
@@ -72,21 +78,21 @@ def test_a_review_snag_journals_its_terminal_and_exits_1(repo):
 
 def test_a_red_check_journals_its_terminal_and_never_reaches_review(repo):
     author(repo)
-    code, llm = run(repo, [agent({"chupa/thing.py": "nope\n"})])
+    code, llm = run(repo, [agent({"chupa/thing.py": "nope\n"}), diagnosis_reply()])
 
     assert code == runner.EXIT_TICKET
     assert transitions(repo)[-1] == {"to": "gate_failed", "stage": "check"}
-    assert [r.surface for r in llm.requests] == ["implement"]
+    assert [r.surface for r in llm.requests if r.surface != "diagnose"] == ["implement"]
     left_in_place(repo)
 
 
 def test_a_spent_retry_cap_is_a_non_ok_terminal(repo):
     author(repo)
     cap = load_config(None, cwd=repo).caps.retry
-    code, llm = run(repo, ["not json"] * (cap + 1))
+    code, llm = run(repo, ["not json"] * (cap + 1) + [diagnosis_reply()])
 
     assert code == runner.EXIT_TICKET
-    assert len(llm.requests) == cap + 1
+    assert len([r for r in llm.requests if r.surface != "diagnose"]) == cap + 1
     assert transitions(repo)[-1] == {"to": "invalid_artifact", "stage": "implement"}
     left_in_place(repo)
 
@@ -94,7 +100,7 @@ def test_a_spent_retry_cap_is_a_non_ok_terminal(repo):
 def test_a_premise_failure_journals_its_terminal(repo):
     author(repo)
     finding = {"code": "premise", "message": "thing.py is generated", "paved_road": "edit the generator"}
-    code, _ = run(repo, [implement_reply("premise_failed", [finding])])
+    code, _ = run(repo, [implement_reply("premise_failed", [finding]), diagnosis_reply()])
 
     assert code == runner.EXIT_TICKET
     assert transitions(repo)[-1] == {"to": "premise_failed", "stage": "implement"}
@@ -109,7 +115,7 @@ def test_a_refused_merge_journals_its_terminal_and_leaves_main_where_it_was(repo
         git(repo, "commit", "-am", "main moves under the run")
         return agent({"chupa/thing.py": "ok\n"})(req)
 
-    code, _ = run(repo, [implement_while_main_moves, verdict()])
+    code, _ = run(repo, [implement_while_main_moves, verdict(), diagnosis_reply()])
 
     assert code == runner.EXIT_TICKET
     assert transitions(repo)[-1] == {"to": "gate_failed", "stage": "merge"}

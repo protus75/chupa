@@ -66,6 +66,8 @@ class Served:
 def resolve(config: Config, tier: AgentTier, surface: str) -> Served:
     """The FIRST candidate of the (tier, surface) row; its model, else the provider's models_by_tier[tier]."""
     route = next((r for r in config.routing if r.tier == tier and r.surface == surface), None)
+    if route is None and surface != "review":
+        route = next((r for r in config.routing if r.tier == tier and r.surface == "review"), None)
     if route is None:
         raise ProviderSetupError(
             f"no routing row for tier {tier!r}, surface {surface!r}; add one under `routing:` in config.yaml"

@@ -14,7 +14,7 @@ from chupa.specs import data_close, data_open
 from chupa.stages import PRIOR_ATTEMPTS, StagesRun
 from tests.test_drain_reentry import NoChild
 from tests.test_stages import ENV, SNAG, STEM, agent, git, verdict
-from tests.test_terminal import author, clock, repo  # noqa: F401 -- fixture
+from tests.test_terminal import author, clock, diagnosis_reply, repo  # noqa: F401 -- fixture
 
 
 def run(repo: Path, script: list, verb: str = "run") -> tuple[int, FakeLLM]:
@@ -50,7 +50,7 @@ def test_review_snag_commits_closed_harvest_without_code_content_and_wipes(repo)
         path.write_text("e" * (runner.HARVEST_TAIL_CHARS + 100))
         return json.dumps({"verdict": "snag", "summary": long_summary, "findings": [SNAG]})
 
-    code, _ = run(repo, [agent({"chupa/thing.py": f"ok # {marker}\n"}), review])
+    code, _ = run(repo, [agent({"chupa/thing.py": f"ok # {marker}\n"}), review, diagnosis_reply()])
     assert code == 1
     h = harvest(repo)
     assert h.terminal == "gate_failed" and h.stage == "review" and h.attempt == 0
@@ -63,7 +63,8 @@ def test_review_snag_commits_closed_harvest_without_code_content_and_wipes(repo)
     for path in (repo / "tickets" / STEM / "attempts").rglob("*"):
         if path.is_file():
             assert marker not in path.read_text()
-    assert git(repo, "log", "-1", "--format=%s", "main").strip() == f"chupa({STEM}): harvest"
+    log = git(repo, "log", "--format=%s", "main").splitlines()
+    assert log[0] == f"chupa({STEM}): diagnosis" and f"chupa({STEM}): harvest" in log
     assert not (repo / ".chupa" / "state" / "worktrees" / STEM).exists()
     assert git(repo, "rev-parse", "--verify", STEM).strip()
 
@@ -77,7 +78,7 @@ def test_infra_harvest_precedes_cap_and_terminal_and_carries_spooled_error(repo)
         extra.write_text("unreviewed agent material")
         raise RuntimeError("provider exploded at call")
 
-    code, _ = run(repo, [fail_with_unreviewed_outbox])
+    code, _ = run(repo, [fail_with_unreviewed_outbox, diagnosis_reply()])
     assert code == 1
     h = harvest(repo)
     assert h.findings == [] and "provider exploded at call" in h.reason
@@ -100,7 +101,7 @@ def test_harvest_failure_is_soft(repo, monkeypatch):
         raise RuntimeError("cannot harvest")
 
     monkeypatch.setattr(runner, "harvest", broken)
-    code, _ = run(repo, [RuntimeError("provider failed")])
+    code, _ = run(repo, [RuntimeError("provider failed"), diagnosis_reply()])
     assert code == 1
     history = events(repo)
     assert [e.body for e in history if e.type == EventType.SIGNAL
@@ -135,18 +136,17 @@ def test_drain_reentry_quotes_prior_harvest_and_summarizes_older(repo):
     author(repo)
     first = "first dead end"
     second = "second dead end"
-    code, llm = run(repo, [RuntimeError(first), RuntimeError(second),
+    code, llm = run(repo, [RuntimeError(first), diagnosis_reply(), RuntimeError(second), diagnosis_reply(),
                            agent({"chupa/thing.py": "ok\n"}), verdict()], verb="drain")
     assert code == 0
     renders = [criteria(r.rendered) for r in llm.requests if r.surface == "implement"]
     assert len(renders) == 3
     assert PRIOR_ATTEMPTS not in renders[0]
     assert f"tickets/{STEM}/attempts/0/" in renders[1]
-    assert f"> RuntimeError: {first}" in renders[1]
-    assert f"> RuntimeError: {second}" in renders[2]
-    assert f"tickets/{STEM}/attempts/0/" in renders[2]
+    assert "> Apply the terminal findings." in renders[1]
+    assert "> Apply the terminal findings." in renders[2]
     assert first not in renders[2]
-    assert "- older attempt 0: `infra_error` at implement;" in renders[2]
+    assert "- older attempt 0: `infra_error` at implement:" in renders[2]
     for line in renders[2].splitlines():
         if first in line or second in line:
             assert line.startswith("> ")

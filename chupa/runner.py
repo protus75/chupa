@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import cast
 
 from chupa.artifacts import Finding, Harvest, StageResult
-from chupa.caps import consume
+from chupa.caps import consume, spent, spent_reason
 from chupa.config import Config
 from chupa.driver import Driver
 from chupa.git import Git
@@ -22,7 +22,7 @@ from chupa.merge import merge
 from chupa.providers import ProviderLLM
 from chupa.reconcile import reconcile
 from chupa.seams import Clock, FileSystem, GroupExec
-from chupa.stages import StageContext, lift_outbox, run_stages
+from chupa.stages import DiagnosisMaterial, StageContext, diagnose, lift_outbox, run_stages, write_diagnosis
 from chupa.status import last_states
 from chupa.tickets import Ticket, TicketInvalid, intake, stem_findings, ticket_path, validate_ticket
 
@@ -99,6 +99,40 @@ async def drive(ctx: StageContext, ticket: Ticket) -> str:
     if result.outcome in {"infra_error", "timeout"}:
         ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
         consume(ctx.driver.journal, ticket.stem, "infra", ticket_sha)
+    if (result.outcome != "budget_exceeded"
+            and not (result.outcome == "premise_failed"
+                     and any(f.code == "render_over_bound" for f in result.findings))):
+        worktree = ctx.worktree(ticket.stem)
+        mechanical = None if worktree.exists() else "workspace gone"
+        if mechanical is None and (cap := spent(ctx.config.caps, ctx.driver.journal.read(), ticket.stem)):
+            mechanical = spent_reason(cap)
+        if mechanical is not None:
+            if worktree.exists():
+                diagnosis = await write_diagnosis(
+                    ctx, ticket, attempt=run.attempt, terminal=result.outcome, stage=stage,
+                    verdict="abandon-human", lessons=[], mechanical=mechanical,
+                )
+            else:
+                # A lost workspace has no outbox; retain the mechanical verdict in the journal.
+                diagnosis = None
+            verdict = "abandon-human"
+            lessons = []
+        else:
+            ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
+            consume(ctx.driver.journal, ticket.stem, "diagnosis", ticket_sha)
+            harvest_path = ctx.repo / "tickets" / ticket.stem / "attempts" / str(run.attempt) / "harvest.json"
+            harvest_artifact = Harvest.model_validate_json(harvest_path.read_text()) if harvest_path.is_file() else None
+            record_path = ctx.repo / "tickets" / ticket.stem / "run.md"
+            material = DiagnosisMaterial(
+                ticket=(ctx.repo / ticket_path(ticket.stem)).read_text(), terminal=result.outcome, stage=stage,
+                harvest=harvest_artifact, run_record=record_path.read_text() if record_path.is_file() else None,
+            )
+            diagnosis = await diagnose(ctx, ticket, material, attempt=run.attempt)
+            verdict, lessons = diagnosis.verdict, diagnosis.lessons
+        ctx.driver.journal.append(EventType.SIGNAL,
+                                  {"signal": "diagnosis", "attempt": run.attempt, "verdict": verdict,
+                                   "lessons": lessons, "mechanical": mechanical if diagnosis is None else diagnosis.mechanical},
+                                  ticket=ticket.stem)
     ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": result.outcome, "stage": stage}, ticket=ticket.stem)
     if ctx.worktree(ticket.stem).exists():
         await ctx.git.worktree_remove(ctx.repo, ctx.worktree(ticket.stem))

@@ -1,18 +1,18 @@
 """Failure-spine cap fold, terminal draws, and parked-stem eligibility."""
 
-from types import SimpleNamespace
-
 import pytest
 
 from chupa import runner
+from chupa.artifacts import Cost, StageResult
 from chupa.__main__ import main
 from chupa.caps import CAPS, consume, draws, remaining, spent, spent_reason
 from chupa.config import Caps
 from chupa.journal import EventType, Journal
 from chupa.llm import FakeLLM
+from chupa.stages import StagesRun
 from tests.test_cli import git_out
 from tests.test_drain import Clock, Script, commit_ticket, confirmed, drain, journal, make_root
-from tests.test_terminal import ENV, STEM, author, clock, repo
+from tests.test_terminal import ENV, STEM, author, clock, diagnosis_reply, repo
 
 
 def test_fold_counts_only_named_cap_and_stem_across_ticket_revisions(tmp_path):
@@ -57,16 +57,21 @@ def test_invalid_cap_refuses_all_accounting_and_writer(tmp_path):
 
 def test_crashing_implement_draws_infra_immediately_before_terminal(repo):
     author(repo)
-    llm = FakeLLM([RuntimeError("provider crashed")])
+    llm = FakeLLM([RuntimeError("provider crashed"), diagnosis_reply()])
     assert main(["run", STEM], cwd=repo, env=ENV, clock=clock,
                 pipeline=lambda c: runner.bind(c, llm)) == runner.EXIT_TICKET
-    assert [request.surface for request in llm.requests] == ["implement"]
+    assert [request.surface for request in llm.requests if request.surface != "diagnose"] == ["implement"]
     events = [e for e in Journal(repo / ".chupa" / "state", clock).read() if e.ticket == STEM]
     terminal = next(i for i, e in enumerate(events)
                     if e.type == EventType.STATE_TRANSITION and e.body.get("to") == "infra_error")
     sha = git_out(repo, "rev-parse", f"HEAD:tickets/{STEM}/ticket.md").strip()
-    assert events[terminal - 1].type == EventType.CAP_CONSUMED
-    assert events[terminal - 1].body == {"cap": "infra", "ticket_sha": sha}
+    infra = next(i for i, e in enumerate(events) if e.type == EventType.CAP_CONSUMED and e.body["cap"] == "infra")
+    assert infra < terminal
+    assert events[infra].body == {"cap": "infra", "ticket_sha": sha}
+    assert all((e.type == EventType.CAP_CONSUMED and e.body["cap"] == "diagnosis")
+               or (e.type == EventType.SIGNAL and e.body.get("signal") == "diagnosis")
+               or (e.key is not None and ("/diagnose/" in e.key or e.key.endswith("/diagnosis")))
+               for e in events[infra + 1:terminal])
     assert draws(events, STEM, "infra") == 1
 
 
@@ -75,7 +80,8 @@ def test_other_terminals_draw_only_when_infra(repo, monkeypatch, outcome, expect
     author(repo)
 
     async def stage_seam(ctx, ticket):
-        return SimpleNamespace(last=("implement", SimpleNamespace(outcome=outcome)))
+        return StagesRun(attempt=0, results={"implement": StageResult(
+            outcome=outcome, artifact=None, findings=[], cost=Cost())})
 
     monkeypatch.setattr(runner, "run_stages", stage_seam)
     assert main(["run", STEM], cwd=repo, env=ENV, clock=clock,
@@ -85,7 +91,7 @@ def test_other_terminals_draw_only_when_infra(repo, monkeypatch, outcome, expect
     assert draws(events, STEM, "infra") == expected_draws
     if expected_draws:
         sha = git_out(repo, "rev-parse", f"HEAD:tickets/{STEM}/ticket.md").strip()
-        assert events[-2].body == {"cap": "infra", "ticket_sha": sha}
+        assert next(e.body for e in events if e.type == EventType.CAP_CONSUMED) == {"cap": "infra", "ticket_sha": sha}
 
 
 @pytest.mark.parametrize("cap", ["infra", "diagnosis"])
