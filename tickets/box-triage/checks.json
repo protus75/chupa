@@ -1,0 +1,43 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "9b9152dec886748ec7afaec0408508ad1976f621",
+  "stem": "box-triage",
+  "passed": true,
+  "changed_files": [
+    "chupa/__main__.py",
+    "chupa/driver.py",
+    "chupa/triage.py",
+    "specs/triage.md",
+    "tests/test_drain.py",
+    "tests/test_triage.py"
+  ],
+  "inserted_lines": 307,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ]
+}
