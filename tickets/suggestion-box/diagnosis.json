@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "a8f5f3c5cd5cceafd6a2a08e63413b6a4b11b7e7",
+  "stem": "suggestion-box",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "The ticket contradicts itself. It requires deleting bootstrap/suggestions.md, but its own `## On-demand` lists that path. tests/test_seeded_phase2.py checks that path, sits outside the fence, and fails 3 tests. Fix the ticket before retrying.",
+    "Amend the ticket: drop bootstrap/suggestions.md from `## On-demand` (Goal/Scope can still name it). Or add tests/test_seeded_phase2.py to the scope fence, and change the seed checks so they skip On-demand paths that a delivered ticket deletes.",
+    "After the amendment, keep the implementation that passed the first three Verification commands: box.py, git_common_dir and the ingest. The only blocker was the full suite. Do not rewrite working code.",
+    "The first attempt already ingested 193 messages into the main checkout's <state_dir>/box/. Signature dedup makes a re-run return 0. Do not clear the box or treat 0 as a failure; Verification only needs exit 0."
+  ],
+  "mechanical": null,
+  "spec_version": "1.0",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
