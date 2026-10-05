@@ -28,4 +28,6 @@ routing:
   - {tier: max, surface: review, candidates: [{provider: claude, model: claude-opus-5-5}]}
 review: {}
 merge: {}
+drain:
+  max_ticket_minutes: 180  # raised from the shipped 90 to admit the Phase 2 seeds' largest stuck budget (section 18)
 engine_plane_safety_inventory: [specs/, chupa/gates.py, chupa/config.py, chupa/providers.py, config.yaml]
