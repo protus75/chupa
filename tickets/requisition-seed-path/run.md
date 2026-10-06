@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-The Git wrapper has no public show method, so merge reads committed blobs through its existing argv-list _run method.
+Kept the merge seed check hard so a soft gate setting cannot admit a mismatched approval.
 
 ## Dead ends
 
-none
+A test fixture using “broken” passed grep because it contains “ok”; changed it to “nope”.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-90m expected; completed within budget. Both verification commands passed; the full suite passed with 632 tests.
+90m expected; about 15m actual.
 
