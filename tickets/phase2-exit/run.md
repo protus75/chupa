@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The committed Phase 2 report and Check invoice are present; the three required Phase 3 seed files are absent.
+The implement spec now permits uncommitted seed tickets; Check has not yet recorded its review verdicts.
 
 ## Dead ends
 
-Stopped before editing or running verification because the required seed files cannot be authored under the stated file restriction.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-90m expected; stopped during the initial contract check.
+60m expected; under 10m actual. All three verification commands passed, including 684 full-suite tests.
 
