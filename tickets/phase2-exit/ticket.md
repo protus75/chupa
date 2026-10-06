@@ -51,7 +51,7 @@ Owners: `tests/test_phase2_exit.py` owns the exit reads. `tests/test_seeded_phas
 ## Acceptance criteria
 1. `uv run pytest -q tests/test_phase2_exit.py` passes, reading the battery report and the `checks.json` exactly as stated, and this ticket's transitive `## Depends on` covers every Phase 2 seed (pinned by `tests/test_seeded_phase2.py`).
 2. `uv run pytest -q tests/test_seeded_phase3_core.py` passes over exactly `daemon-scheduler`, `seed-successor-proof`, and `phase3-continue`.
-3. The three seeds are ALREADY on main (lifted by an earlier attempt in one `chupa(phase2-exit): seeds` commit); do not re-author or edit them. At this ticket's Check, all three receive a `requisition_review` `approve` for main's committed blob, recorded in `tickets/phase2-exit/checks.json`.
+3. The three seeds are ALREADY on main (lifted by an earlier attempt in one `chupa(phase2-exit): seeds` commit); do not re-author or edit them. At this ticket's Check, all three receive a `requisition_review` `approve` for main's committed blob, recorded in `tickets/phase2-exit/checks.json`. `tickets/phase3-continue/ticket.md` was corrected on main after the first lift; Check reviews main's CURRENT blob, and the seeding test pins its current size.
 4. The branch's committed diff carries no `tickets/` path, so the `post_rebase_regate` MERGE-SAFETY check passes and every seed reaches main only through the ticket-plane lift.
 5. `uv run pytest -q` exits 0 with no test removed or skipped.
 
