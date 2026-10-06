@@ -1,18 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "1f5d0cfd379a2f7002061fa734ed0b53f050ec70",
+  "produced_at_sha": "f81573989a3d6c7c83d3a3acb9d1abd8c9c07c1c",
   "stem": "shakeout-providers",
   "passed": true,
   "changed_files": [
     "chupa/driver.py",
     "chupa/providers.py",
-    "eval/shakeout/bench.py",
     "eval/shakeout/providers.py",
     "eval/shakeout/run.py",
     "tests/test_shakeout.py"
   ],
-  "inserted_lines": 171,
+  "inserted_lines": 176,
   "bypassed": [],
   "reports": [
     {
@@ -69,7 +68,7 @@
         "tests/test_shakeout.py"
       ],
       "rc": 0,
-      "tail": "........................                                                 [100%]\n24 passed in 7.68s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................                                                 [100%]\n24 passed in 7.44s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -82,7 +81,7 @@
         "tests/test_driver.py"
       ],
       "rc": 0,
-      "tail": ".......................................................                  [100%]\n55 passed in 1.62s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": ".......................................................                  [100%]\n55 passed in 0.81s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -93,7 +92,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "........................................................................ [ 10%]\n........................................................................ [ 21%]\n........................................................................ [ 32%]\n........................................................................ [ 42%]\n........................................................................ [ 53%]\n........................................................................ [ 64%]\n........................................................................ [ 74%]\n........................................................................ [ 85%]\n........................................................................ [ 96%]\n...........................                                              [100%]\n675 passed in 57.06s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................................ [ 10%]\n........................................................................ [ 21%]\n........................................................................ [ 32%]\n........................................................................ [ 42%]\n........................................................................ [ 53%]\n........................................................................ [ 64%]\n........................................................................ [ 74%]\n........................................................................ [ 85%]\n........................................................................ [ 96%]\n...........................                                              [100%]\n675 passed in 56.42s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
