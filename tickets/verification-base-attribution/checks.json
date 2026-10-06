@@ -1,0 +1,46 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "66c35bd422b8fbcb8d3176d2c6126643675de743",
+  "stem": "verification-base-attribution",
+  "passed": true,
+  "changed_files": [
+    "chupa/git.py",
+    "chupa/stages.py",
+    "tests/test_diagnose.py",
+    "tests/test_drain_reentry.py",
+    "tests/test_git.py",
+    "tests/test_merge.py",
+    "tests/test_stages.py",
+    "tests/test_terminal.py"
+  ],
+  "inserted_lines": 120,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": []
+}
