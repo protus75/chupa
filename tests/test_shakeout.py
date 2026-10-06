@@ -15,6 +15,7 @@ from chupa.journal import EventType
 from eval.shakeout.bench import Bench
 from eval.shakeout import run as shakeout
 from eval.shakeout.driver import MEMBERS as DRIVER_MEMBERS
+from eval.shakeout.runner import MEMBERS as RUNNER_MEMBERS
 from eval.shakeout.stages import MEMBERS
 
 
@@ -190,3 +191,18 @@ def test_invalid_output_exhausted_member_observes_bounded_reprompts_and_harvest(
 def test_stuck_budget_kill_member_observes_abort_harvest_and_followup_merge(tmp_path):
     result = asyncio.run(shakeout.run_member(DRIVER_MEMBERS[1], tmp_path))
     assert result.green and result.observed == "timeout_harvest_reason_after_stuck_kill"
+
+
+def test_premise_false_member_observes_harvest_and_premise_park(tmp_path):
+    result = asyncio.run(shakeout.run_member(RUNNER_MEMBERS[0], tmp_path))
+    assert result.green and result.observed == "premise_harvested_without_reoffer"
+
+
+def test_timeout_dead_ends_member_observes_lesson_on_second_attempt(tmp_path):
+    result = asyncio.run(shakeout.run_member(RUNNER_MEMBERS[1], tmp_path))
+    assert result.green and result.observed == "timeout_lesson_rendered_on_retry"
+
+
+def test_identical_terminals_member_observes_escalation_at_k(tmp_path):
+    result = asyncio.run(shakeout.run_member(RUNNER_MEMBERS[2], tmp_path))
+    assert result.green and result.observed == "identical_reason_escalates_at_k"
