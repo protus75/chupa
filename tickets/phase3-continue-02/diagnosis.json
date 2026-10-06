@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "f78c73f502a2ff3cab4ab677d829ff4ef2c18160",
+  "produced_at_sha": "7b7f67e798867bcf291a65c0edd54642120042c0",
   "stem": "phase3-continue-02",
-  "attempt": 6,
+  "attempt": 7,
   "terminal": "gate_failed",
   "stage": "check",
   "verdict": "retry",
   "lessons": [
-    "In tickets/rework-stage/ticket.md, never put `seeded_by` in a split-successor `ticket_intake` body; merged code reads `seeded_by == stem` as seed ownership. Record lineage only via the `supersedes` signal, and add a criterion and test that no stem's `seeded_by` set changes after an update or split.",
-    "Split successors must inherit the original ticket's `source`, as an update does; never stamp `source: seed`. The lint at chupa/tickets.py:347 requires 19.L/19.P citations for seeds. Add a test that each successor of a non-seed original passes `parse_ticket`.",
-    "Spec the exhausted ladder: when `caps.next_rung` returns None, Rework emits no `rework_escalate` signal and returns a typed Reject-queue routing result (RMA, section 11.4). Name the pinning test in tests/test_rework.py.",
-    "Before Check, check every journal body key, frontmatter value, and caps return the seed names against the merged code that reads it (mergequeue.py, merge.py, stages.py, tickets.py, caps.py), including None and edge returns. Cut any metadata no plan text asks for.",
-    "After editing the seeds, rerun tests/test_seeded_phase3_02.py and update its render-size pins. Leave both ticket.md files uncommitted."
+    "Narrow rework-stage criterion 5 to what Rework owns: one appended {signal: rework_escalate, rung} whose rung equals caps.next_rung(...) for the folded caps.capability, and Rework never calls caps.consume. Name the test and the journal body keys.",
+    "Remove every clause about the drain re-offer, rung reuse, or the rung coming only from the terminal body. Drain._run_one (chupa/drain.py:265-270) never reads rework_escalate, and chupa/drain.py is outside the fence and listed as Scope out.",
+    "File the drain-side use of the escalation rung to the Suggestion Box as a plan gap, with rework-activation as the likely owner. Do not fence chupa/drain.py and do not widen the registry fence floor.",
+    "Before Check, read each seed criterion against the code it touches. Any criterion whose proof needs an edit outside that seed's Scope fence is a fence_closure snag, so rewrite it to an observable inside the fence.",
+    "After editing the seed, rerun tests/test_seeded_phase3_02.py and update its render-size pins. Do not commit the test under the 'chupa(phase3-continue-02): seeds' message: that message is reserved for Check's lift commit."
   ],
   "mechanical": null,
   "spec_version": "1.0",
