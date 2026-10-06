@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "720abebdd4c2b243760c0333a9f48668b838c9b1",
+  "stem": "requisition-seed-path",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "In `_review_seeds` (chupa/stages.py ~line 700), pass `tier=parsed.frontmatter.agent_tier`, taken from the seed's validated frontmatter, not the seeding ticket's `ticket.frontmatter.agent_tier`. Ticket Scope in says each seed is judged at the SEED's `agent_tier`.",
+    "Add a tests/test_seed_path.py case with a medium seeding ticket and a seed authored `agent_tier: high`. Give FakeLLM a route for the high tier and assert that the requisition request for that seed resolves on the seed's tier and route.",
+    "Make fixture seeds stop defaulting to the seeding ticket's tier in at least one case. Tests where every tier is equal cannot catch a mix-up between the seeding ticket's frontmatter and the seed's.",
+    "Keep the rest of the diff as it is: the lift, the MERGE-SAFETY re-check and the other tests were judged correct, and the full suite passes (629 tests). Change only the tier argument and the new test, and stay inside the scope fence.",
+    "Check that carrying forward recorded approvals for already-lifted seeds on a re-run does not re-review those seeds or change their recorded `ticket_sha`. Acceptance criterion 3 requires an already-lifted seed to be skipped, not re-judged."
+  ],
+  "mechanical": null,
+  "spec_version": "1.0",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
