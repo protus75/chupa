@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The merge-queue entry unit addresses its prior findings, but continuation 02 cannot satisfy the required entry-unit checks for continuation 03; confirmed on base commit 56dede165a4d36a2fbb2d4ebbce17484ffcef072.
+The previously missing thresh-runtime entry unit is now complete; all 13 targeted tests and 757 full-suite tests passed.
 
 ## Dead ends
 
-Drafted seeds and passed 13 targeted tests, then removed them after finding that deferring the required thresh-runtime check contradicted the ticket.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped within the 60m expected budget.
+Completed within the expected 60-minute budget.
 
