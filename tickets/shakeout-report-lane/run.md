@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The prior failed attempt’s implementation was absent from the branch, so it was restored and completed within scope.
+none
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-90m budget; completed within budget.
+90m expected; about 50m actual.
 
