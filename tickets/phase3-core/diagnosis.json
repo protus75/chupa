@@ -1,0 +1,19 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "28de9ffc7548cee8f4d39149b0ad1d6d915feafe",
+  "stem": "phase3-core",
+  "attempt": 0,
+  "terminal": "infra_error",
+  "stage": "implement",
+  "verdict": "abandon-human",
+  "lessons": [
+    "The ticket content was never attempted. codex failed in 3.7s with HTTP 400 'gpt-6.1-sol model is not supported when using Codex with a ChatGPT account', before any diff existed. Changing the ticket or retrying at the same routing cannot clear this.",
+    "A human must fix the provider side. Either give the Codex CLI a login that can use the routed model, or route Implement to a model the current ChatGPT account supports. This material does not show where that routing is configured.",
+    "After the provider fix, rerun Implement unchanged. The ticket is sound as written and has no findings against it, so no scope, split, or premise change is warranted."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
