@@ -1,15 +1,21 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "678a985f38c853987237c792eae465b2607b61aa",
+  "produced_at_sha": "66c35bd422b8fbcb8d3176d2c6126643675de743",
   "stem": "verification-base-attribution",
-  "attempt": 1,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "premise_bounce cap spent",
+  "attempt": 2,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Add a new base-red test to tests/test_drain_reentry.py: make Verification red on main and on the branch, then drain one implement+verdict script. Assert exit 0, one implement request, no `retry` in the journal, and one box failure_report (outcome base_red) naming the command.",
+    "Do not edit the bodies of the existing tests in tests/test_drain_reentry.py, including test_a_reoffer_after_a_red_check_renders_the_failing_checks and test_a_stale_review_md_never_feeds_a_later_check_failure. Run `git diff` on that file before finishing: the only changes should be additions.",
+    "If the existing re-entry tests go base-red under attribution, keep each command green at the merge base by changing the shared repo/author/drain helper or fixture, not the test bodies.",
+    "If a shared helper change still cannot keep the existing tests unchanged and green, stop and record it in the run record as a ticket conflict (AC5 vs attribution) rather than editing the tests silently.",
+    "Before finishing, check every acceptance criterion against the diff and name the test that proves each one. AC5 needs both a NEW test and the existing tests left UNCHANGED, and a green suite alone does not show either."
+  ],
+  "mechanical": null,
   "spec_version": "1.0",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
