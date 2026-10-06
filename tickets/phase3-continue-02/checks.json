@@ -1,13 +1,13 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "7b7f67e798867bcf291a65c0edd54642120042c0",
+  "produced_at_sha": "282f77ff065e652bed902e467aca331a3d2dfe97",
   "stem": "phase3-continue-02",
   "passed": false,
   "changed_files": [
     "tests/test_seeded_phase3_02.py"
   ],
-  "inserted_lines": 88,
+  "inserted_lines": 90,
   "bypassed": [],
   "reports": [
     {
@@ -39,11 +39,11 @@
       "verdict": "fail",
       "findings": [
         {
-          "code": "fence_closure",
-          "path": "chupa/drain.py",
-          "line": 270,
-          "message": "Criterion 5 asserts that after a Rework escalation, the drain's one re-offer records a retry `cap_consumed` body `{cap: retry, ticket_sha, rung}` carrying the escalated rung. `Drain._run_one` (chupa/drain.py:265-270) gets its rung only from the latest terminal `state_transition` body (`body.get(\"rung\")`) and never reads a `rework_escalate` signal. So the escalated rung can only reach the draw if `chupa/drain.py` is edited. Under the section 9 ownership law, the module that journals `cap_consumed` owns the cap draw, and here that module is the drain. That forced edit is outside `## Scope fence`, and Scope out explicitly says 'Out: ... `chupa/drain.py` retry-draw behavior'. As written, the correct Implement outcome is `premise_failed`.",
-          "paved_road": "Pick one. (a) Narrow criterion 5 to what Rework owns: the test proves Rework appends exactly one `{signal: rework_escalate, rung}` whose rung equals `caps.next_rung(...)` for the folded `caps.capability`, and that Rework never calls `caps.consume`. Drop the clauses about the drain re-offer, rung reuse, and terminal-body-only rung, and file the drain-side consumption of the escalation rung to the Suggestion Box as a plan gap (no P3 row fences `chupa/drain.py` for it; `rework-activation` is the likely owner). (b) Fence `chupa/drain.py` and `tests/test_drain.py`, move the drain consumption of `rework_escalate` into Scope in, remove it from Scope out and Definition of rejected, and add a behavioral-dormancy test showing no production caller writes the signal. Option (a) keeps the registry row's fence floor intact and is the smaller repair."
+          "code": "fence_widening",
+          "path": null,
+          "line": null,
+          "message": "The `## Scope fence` lists `tickets`. The 19.P3 registry row `rework-stage` fences only chupa/rework.py, specs/rework.md, chupa/mergequeue.py and tests/test_rework.py. Under 19.L, a widening that mechanical rules 2-5 do not find is a plan edit, and none of them reaches the ticket plane here. Rework's split and update ticket-plane commits happen at runtime through the git seam inside the test repos, so they never put `tickets/**` in this diff. A fenced `tickets` prefix also makes the Implement render treat this code ticket as a seeding ticket ('a seeding ticket (its fence includes `tickets`) CREATES each NEW tickets/<seed-stem>/ticket.md'). That invites uncommitted ticket files that the lift would treat as seeds. The fence also breaks 19.L CONTEXT CLOSURE: `tickets` is an existing fenced path, but it is neither embedded in `## Context` nor listed in `## On-demand`.",
+          "paved_road": "Delete the `- tickets` line from `## Scope fence` so the fence equals the registry floor: chupa/rework.py, specs/rework.md, chupa/mergequeue.py, tests/test_rework.py. Keep the ticket-plane commits as runtime behavior exercised in tests/test_rework.py against temporary repos through chupa/git.py."
         }
       ],
       "autofix_applied": false
@@ -52,22 +52,22 @@
   "seeds": [
     {
       "stem": "phase3-continue-03",
-      "ticket_sha": "d5e6a0d6c8a3bd8c4751f22583825ac781f0021e",
+      "ticket_sha": "a1dcf63a0dfc5c3f19d66780da5384b80f6cb98d",
       "verdict": "approve",
       "findings": [],
       "mechanical": null
     },
     {
       "stem": "rework-stage",
-      "ticket_sha": "aa8e98ea26efeb3c0b07d1cf56dfb5fb293c96c3",
+      "ticket_sha": "907e111097f44382ee025fc817d62a21eeebee72",
       "verdict": "snag",
       "findings": [
         {
-          "code": "fence_closure",
-          "path": "chupa/drain.py",
-          "line": 270,
-          "message": "Criterion 5 asserts that after a Rework escalation, the drain's one re-offer records a retry `cap_consumed` body `{cap: retry, ticket_sha, rung}` carrying the escalated rung. `Drain._run_one` (chupa/drain.py:265-270) gets its rung only from the latest terminal `state_transition` body (`body.get(\"rung\")`) and never reads a `rework_escalate` signal. So the escalated rung can only reach the draw if `chupa/drain.py` is edited. Under the section 9 ownership law, the module that journals `cap_consumed` owns the cap draw, and here that module is the drain. That forced edit is outside `## Scope fence`, and Scope out explicitly says 'Out: ... `chupa/drain.py` retry-draw behavior'. As written, the correct Implement outcome is `premise_failed`.",
-          "paved_road": "Pick one. (a) Narrow criterion 5 to what Rework owns: the test proves Rework appends exactly one `{signal: rework_escalate, rung}` whose rung equals `caps.next_rung(...)` for the folded `caps.capability`, and that Rework never calls `caps.consume`. Drop the clauses about the drain re-offer, rung reuse, and terminal-body-only rung, and file the drain-side consumption of the escalation rung to the Suggestion Box as a plan gap (no P3 row fences `chupa/drain.py` for it; `rework-activation` is the likely owner). (b) Fence `chupa/drain.py` and `tests/test_drain.py`, move the drain consumption of `rework_escalate` into Scope in, remove it from Scope out and Definition of rejected, and add a behavioral-dormancy test showing no production caller writes the signal. Option (a) keeps the registry row's fence floor intact and is the smaller repair."
+          "code": "fence_widening",
+          "path": null,
+          "line": null,
+          "message": "The `## Scope fence` lists `tickets`. The 19.P3 registry row `rework-stage` fences only chupa/rework.py, specs/rework.md, chupa/mergequeue.py and tests/test_rework.py. Under 19.L, a widening that mechanical rules 2-5 do not find is a plan edit, and none of them reaches the ticket plane here. Rework's split and update ticket-plane commits happen at runtime through the git seam inside the test repos, so they never put `tickets/**` in this diff. A fenced `tickets` prefix also makes the Implement render treat this code ticket as a seeding ticket ('a seeding ticket (its fence includes `tickets`) CREATES each NEW tickets/<seed-stem>/ticket.md'). That invites uncommitted ticket files that the lift would treat as seeds. The fence also breaks 19.L CONTEXT CLOSURE: `tickets` is an existing fenced path, but it is neither embedded in `## Context` nor listed in `## On-demand`.",
+          "paved_road": "Delete the `- tickets` line from `## Scope fence` so the fence equals the registry floor: chupa/rework.py, specs/rework.md, chupa/mergequeue.py, tests/test_rework.py. Keep the ticket-plane commits as runtime behavior exercised in tests/test_rework.py against temporary repos through chupa/git.py."
         }
       ],
       "mechanical": null
@@ -94,7 +94,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "........................................................................ [ 10%]\n........................................................................ [ 20%]\n........................................................................ [ 30%]\n........................................................................ [ 40%]\n........................................................................ [ 50%]\n........................................................................ [ 60%]\n........................................................................ [ 70%]\n........................................................................ [ 80%]\n........................................................................ [ 90%]\n.................................................................        [100%]\n713 passed in 58.72s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................................ [ 10%]\n........................................................................ [ 20%]\n........................................................................ [ 30%]\n........................................................................ [ 40%]\n........................................................................ [ 50%]\n........................................................................ [ 60%]\n........................................................................ [ 70%]\n........................................................................ [ 80%]\n........................................................................ [ 90%]\n.................................................................        [100%]\n713 passed in 59.44s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
