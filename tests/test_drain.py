@@ -369,3 +369,53 @@ def test_drain_reconciles_on_entry(root):
     journal(root).append(EventType.STATE_TRANSITION, {"to": "running"}, ticket="dead-run")
     assert drain(root, Script()) == 0
     assert tos(root, "dead-run") == ["running", "abandoned"]
+
+
+# --- spec-gap hold (section 11.4) ---------------------------------------------------------------
+
+
+def test_a_spec_gap_hold_waits_for_its_hardening_ticket_then_re_runs_free(root):
+    commit_ticket(root, "held", confirmed())
+    calls: list[str] = []
+
+    def pipeline(checkout):
+        async def dispatch(t):
+            calls.append(t.stem)
+            if t.stem == "held" and calls.count("held") == 1:
+                commit_ticket(root, "harden-held-1", confirmed(priority="P3"))
+                checkout.journal.append(EventType.SIGNAL, {"signal": "spec_gap_hold", "awaits": ["harden-held-1"],
+                                                           "gaps": {"held": ["fact"]}}, ticket="held")
+                checkout.journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "stage": "check",
+                                                                     "dispatch": "spec_gap_hold"}, ticket="held")
+                return "gate_failed"
+            checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=t.stem)
+            return "merged"
+
+        return dispatch
+
+    assert drain(root, pipeline) == 0
+    assert calls == ["held", "harden-held-1", "held"]  # held while the hardening ticket is unmerged
+    assert retry_draws(root, "held") == 0  # the release re-run draws no retry unit
+    assert tos(root, "held")[-1] == "merged"
+
+
+def test_a_spec_gap_hold_never_re_runs_while_its_hardening_ticket_is_unmerged(root, capsys):
+    commit_ticket(root, "held", confirmed())
+    calls: list[str] = []
+
+    def pipeline(checkout):
+        async def dispatch(t):
+            calls.append(t.stem)
+            draft = confirmed().replace("state: confirmed", "state: draft")  # never dispatched
+            commit_ticket(root, "harden-held-1", draft)
+            checkout.journal.append(EventType.SIGNAL, {"signal": "spec_gap_hold", "awaits": ["harden-held-1"],
+                                                       "gaps": {"held": ["fact"]}}, ticket="held")
+            checkout.journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "stage": "check",
+                                                                 "dispatch": "spec_gap_hold"}, ticket="held")
+            return "gate_failed"
+
+        return dispatch
+
+    drain(root, pipeline)
+    assert calls == ["held"]
+    assert "spec gap held on harden-held-1" in capsys.readouterr().out

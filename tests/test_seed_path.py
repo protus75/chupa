@@ -15,6 +15,7 @@ from chupa.llm import FakeLLM, LLMRequest
 from chupa.providers import resolve
 from chupa.runner import drive
 from chupa.seams import LocalFileSystem, SubprocessExec
+from chupa.artifacts import Finding
 from chupa.stages import Invoice, StageContext
 from chupa.tickets import validate_ticket
 from tests.test_stages import CONFIG, ENV, STEM, TICKET, git, implement_reply, verdict
@@ -262,16 +263,76 @@ def test_retry_keeps_the_approved_seed_and_re_reviews_only_the_snag_with_its_pri
     assert (repo / "tickets/beta-seed/ticket.md").read_text() == fixed
 
 
-def test_row_seed_without_its_entry_unit_is_a_mechanical_spec_gap(repo):
-    plan = (repo / "CHUPA_PLAN.md").read_text() + (
-        "\n### 19.P3 Phase 3\n\n```yaml\n# BEGIN_REGISTRY_P3\nphase: 3\nadmissions:\n  - [gamma-seed]\n"
-        "seeds:\n  gamma-seed: {fence: [chupa/thing.py]}\n# END_REGISTRY_P3\n```\n")
-    (repo / "CHUPA_PLAN.md").write_text(plan)
-    git(repo, "commit", "-am", "registry row without an entry unit")
-    outcome, ctx, llm = run(repo, [write_seeds({"gamma-seed": seed_text("gamma-seed")}), diagnosis_reply()])
+REGISTRY_ROW = ("\n### 19.P3 Phase 3\n\n```yaml\n# BEGIN_REGISTRY_P3\nphase: 3\nadmissions:\n  - [gamma-seed]\n"
+                "seeds:\n  gamma-seed: {fence: [chupa/thing.py]}\n# END_REGISTRY_P3\n```\n")
+
+
+def add_registry_row(repo: Path) -> None:
+    (repo / "CHUPA_PLAN.md").write_text((repo / "CHUPA_PLAN.md").read_text() + REGISTRY_ROW)
+    (repo / "tests").mkdir(exist_ok=True)
+    (repo / "tests/test_plan_lint.py").write_text("")
+    git(repo, "add", ".")
+    git(repo, "commit", "-m", "registry row without an entry unit")
+
+
+def terminal_body(ctx: StageContext) -> dict:
+    return next(e.body for e in reversed(ctx.driver.journal.read())
+                if e.type == EventType.STATE_TRANSITION and e.ticket == STEM)
+
+
+def test_row_seed_without_its_entry_unit_files_a_hardening_ticket_and_holds(repo):
+    add_registry_row(repo)
+    outcome, ctx, llm = run(repo, [write_seeds({"gamma-seed": seed_text("gamma-seed")})])
 
     assert outcome == "gate_failed"
     [seed] = invoice(repo).seeds
     assert (seed.verdict, seed.mechanical) == ("snag", "entry unit gap")
     assert seed.findings[0].kind == "spec_gap" and "19.P3.gamma-seed is missing" in seed.findings[0].message
-    assert [r.surface for r in llm.requests] == ["implement", "diagnose"]
+    assert [r.surface for r in llm.requests] == ["implement"]  # no review call, no diagnosis
+    hardening = validate_ticket("harden-gamma-seed-1",
+                                (repo / "tickets/harden-gamma-seed-1/ticket.md").read_text(), repo)
+    assert hardening.scope_fence == ("CHUPA_PLAN.md#19.P3.gamma-seed",)
+    assert hardening.frontmatter.source == "seed" and "seeded_by" not in str(ctx.driver.journal.read())
+    assert terminal_body(ctx) == {"to": "gate_failed", "stage": "check", "reason": "spec_gap",
+                                  "dispatch": "spec_gap_hold"}
+    [hold] = [e.body for e in ctx.driver.journal.read() if e.body.get("signal") == "spec_gap_hold"]
+    assert hold["awaits"] == ["harden-gamma-seed-1"]
+    assert not any(e.type == EventType.CAP_CONSUMED for e in ctx.driver.journal.read())
+
+
+def test_spent_hardening_cap_routes_the_stem_to_the_reject_queue(repo):
+    from chupa.runner import hold_on_hardening
+    add_registry_row(repo)
+    for n in (1, 2, 3):
+        path = repo / f"tickets/harden-gamma-seed-{n}/ticket.md"
+        path.parent.mkdir(parents=True)
+        path.write_text("earlier round\n")
+    ctx, _ = context(repo, [])
+    for n in (1, 2, 3):
+        ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=f"harden-gamma-seed-{n}")
+    asyncio.run(hold_on_hardening(ctx, ticket(repo), {"gamma-seed": ["still missing"]}, attempt=0))
+    assert terminal_body(ctx) == {"to": "gate_failed", "stage": "check", "reason": "spec_gap",
+                                  "dispatch": "reject_queue", "routed": "reject_queue"}
+    assert not (repo / "tickets/harden-gamma-seed-4").exists()
+
+
+def test_review_that_never_converges_is_a_spec_gap(repo):
+    from chupa.runner import spec_gaps
+    from chupa.stages import SeedReview
+    add_registry_row(repo)
+    ctx, _ = context(repo, [])
+    finding = {"code": "scope", "message": "m", "paved_road": "r", "kind": "authoring_error"}
+    for messages in (["a", "b"], ["b", "c"], ["c", "d"]):  # each pass clears one and raises a new one
+        ctx.driver.journal.append(EventType.SIGNAL, {
+            "signal": "requisition_verdict", "seeding": STEM, "verdict": "snag", "ticket_sha": "x", "text": "t",
+            "findings": [{**finding, "message": m} for m in messages]}, ticket="gamma-seed")
+    snag = SeedReview(stem="gamma-seed", ticket_sha="x", verdict="snag", mechanical=None,
+                      findings=[Finding(**{**finding, "message": "d"})])
+    Path(repo / "tickets" / STEM / "checks.json").write_text(Invoice(
+        produced_by_spec_version=1, produced_at_sha="x", stem=STEM, passed=False, changed_files=[],
+        inserted_lines=0, bypassed=[], reports=[], seeds=[snag], verification=[]).model_dump_json())
+    assert list(spec_gaps(ctx, STEM)) == ["gamma-seed"]
+    ctx.driver.journal.append(EventType.SIGNAL, {  # a pass that raises nothing new is not divergence
+        "signal": "requisition_verdict", "seeding": STEM, "verdict": "snag", "ticket_sha": "x", "text": "t",
+        "findings": [{**finding, "message": "d"}]}, ticket="gamma-seed")
+    assert spec_gaps(ctx, STEM) == {}

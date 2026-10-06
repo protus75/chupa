@@ -20,7 +20,7 @@ from chupa import caps
 from chupa.journal import TERMINAL_STATES, Event, EventType
 from chupa.lockfile import Lockfile
 from chupa.reconcile import reconcile
-from chupa.runner import EXIT_MERGED, EXIT_TICKET, Checkout, Dispatch, Refusal, harvest_orphan
+from chupa.runner import EXIT_MERGED, EXIT_TICKET, SPEC_GAP_HOLD, Checkout, Dispatch, Refusal, harvest_orphan
 from chupa.seams import ProcessExec
 from chupa.status import last_states, reject_queue
 from chupa.tickets import (
@@ -46,6 +46,19 @@ REEXEC = ("uv", "run", "python", "-m", "chupa", "drain")
 
 def reexec_argv(parked: Iterable[str]) -> list[str]:
     return [*REEXEC, *(a for stem in parked for a in ("--parked", stem))]
+
+
+def awaited_hardening(events: Iterable[Event], stem: str) -> tuple[str, ...]:
+    """The hardening stems a spec-gap hold still waits on (section 11.4); () when the stem is not held."""
+    history = list(events)
+    terminal = next((e.body for e in reversed(history) if e.type == EventType.STATE_TRANSITION
+                     and e.ticket == stem and e.body.get("to") in TERMINAL_STATES), None)
+    if terminal is None or terminal.get("dispatch") != SPEC_GAP_HOLD:
+        return ()
+    hold = next(e.body for e in reversed(history) if e.type == EventType.SIGNAL
+                and e.ticket == stem and e.body.get("signal") == SPEC_GAP_HOLD)
+    last = last_states(history)
+    return tuple(s for s in hold["awaits"] if last.get(s) not in SETTLED)
 
 
 def premise_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:
@@ -178,7 +191,8 @@ class _Drain:
             events = self.c.journal.read()
             last = last_states(events)
             held = {s for s in scan.tickets
-                    if last.get(s) == PREMISE and premise_parked(events, s, await self._sha(s))}
+                    if (last.get(s) == PREMISE and premise_parked(events, s, await self._sha(s)))
+                    or awaited_hardening(events, s)}
             pick, reoffer = self._select(scan, events, last, held)
             if pick is None:
                 self._settle(scan, events, last, held)
@@ -263,11 +277,13 @@ class _Drain:
     async def _run_one(self, ticket: Ticket, reoffer: bool, sha: str) -> None:
         stem = ticket.stem
         if reoffer and last_states(self.c.journal.read()).get(stem) != PREMISE:
-            # The draw precedes the dispatch: a crash mid-run never hands the stem a free attempt.
             body = next(e.body for e in reversed(self.c.journal.read())
                         if e.type == EventType.STATE_TRANSITION and e.ticket == stem
                         and e.body.get("to") in TERMINAL_STATES)
-            caps.consume(self.c.journal, stem, "retry", sha, rung=body.get("rung"))
+            # The draw precedes the dispatch: a crash mid-run never hands the stem a free attempt. A released
+            # spec-gap hold re-runs free: the gap was the plan's, not the attempt's (section 11.4).
+            if body.get("dispatch") != SPEC_GAP_HOLD:
+                caps.consume(self.c.journal, stem, "retry", sha, rung=body.get("rung"))
         # The `ticket.md` the run answers: a `premise_failed` verdict parks the stem until this changes.
         self.c.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": sha}, ticket=stem)
         terminal = await self.dispatch(ticket)
@@ -320,7 +336,10 @@ class _Drain:
                 spent_cap = caps.spent(self.c.config.caps, events, stem)
                 drawn = caps.draws(events, stem, spent_cap or "retry")
                 cap_limit = getattr(self.c.config.caps, spent_cap or "retry")
-                if stem in held:
+                if awaits := awaited_hardening(events, stem):
+                    why, road = (f"{to}{where}; spec gap held on {', '.join(awaits)}",
+                                 "the drain runs the hardening tickets first, then re-runs this stem free")
+                elif stem in held:
                     why, road = f"{to}{where}; parked until its committed ticket.md changes", self._premise_road(t)
                 elif spent_cap is None:  # only a halt leaves budget unspent: the continuing drain re-offers it
                     why, road = (f"{to}{where}; {cap_limit - drawn} of {cap_limit} retry units left",

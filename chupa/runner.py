@@ -25,10 +25,12 @@ from chupa.merge import merge
 from chupa.providers import ProviderLLM
 from chupa.reconcile import reconcile
 from chupa.seams import Clock, FileSystem, GroupExec, Sleep
-from chupa.stages import DiagnosisMaterial, StageContext, diagnose, lift_outbox, run_stages, write_diagnosis
+from chupa.specs import registry_rows
+from chupa.stages import (VERDICT_SIGNAL, DiagnosisMaterial, Invoice, StageContext, diagnose, lift_outbox,
+                          run_stages, write_diagnosis)
 from chupa.status import last_states, reject_queue
-from chupa.tickets import (Ticket, TicketInvalid, intake, parse_ticket, split_frontmatter, stamp,
-                           stem_findings, ticket_path, validate_ticket)
+from chupa.tickets import (HARDENING_STEM, INTAKE_SIGNAL, PLAN_FILE, TICKETS_DIR, Ticket, TicketInvalid, intake,
+                           parse_ticket, split_frontmatter, stamp, stem_findings, ticket_path, validate_ticket)
 
 EXIT_MERGED = 0
 EXIT_TICKET = 1
@@ -39,6 +41,7 @@ SPECS_DIR = Path(__file__).resolve().parent.parent / "specs"
 CALL_TIMEOUT_S = 900.0
 HARVEST_TAIL_CHARS = 4_000
 IDENTICAL_K = 3
+SPEC_GAP_HOLD = "spec_gap_hold"
 
 # The stage seam: drives the validated ticket through the stages and merge, journals the run's single
 # terminal transition (section 11), and returns that terminal state.
@@ -108,6 +111,11 @@ async def drive(ctx: StageContext, ticket: Ticket) -> str:
     if result.outcome in {"infra_error", "timeout"}:
         ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
         consume(ctx.driver.journal, ticket.stem, "infra", ticket_sha)
+    if result.outcome == "gate_failed" and stage == "check" and (gaps := spec_gaps(ctx, ticket.stem)):
+        await hold_on_hardening(ctx, ticket, gaps, attempt=run.attempt)
+        if ctx.worktree(ticket.stem).exists():
+            await ctx.git.worktree_remove(ctx.repo, ctx.worktree(ticket.stem))
+        return result.outcome
     over_bound = result.outcome == "premise_failed" and any(
         f.code == "render_over_bound" for f in result.findings)
     if result.outcome == "premise_failed" and not over_bound:
@@ -175,6 +183,105 @@ async def drive(ctx: StageContext, ticket: Ticket) -> str:
     if ctx.worktree(ticket.stem).exists():
         await ctx.git.worktree_remove(ctx.repo, ctx.worktree(ticket.stem))
     return result.outcome
+
+
+def spec_gaps(ctx: StageContext, stem: str) -> dict[str, list[str]]:
+    """Section 11.4: each registry row whose seed this Check snagged on a `spec_gap`, or that review
+    did not converge on (each of the last K passes cleared findings yet raised new ones), with its gap facts."""
+    path = ctx.repo / TICKETS_DIR / stem / "checks.json"
+    if not path.is_file():
+        return {}
+    rows = registry_rows((ctx.repo / PLAN_FILE).read_text())
+    gaps: dict[str, list[str]] = {}
+    for seed in Invoice.model_validate_json(path.read_text()).seeds:
+        if seed.verdict == "approve" or seed.stem not in rows or rows[seed.stem][1].get("exit"):
+            continue
+        if facts := [f.message for f in seed.findings if f.kind == "spec_gap"]:
+            gaps[seed.stem] = facts
+            continue
+        passes = [e.body for e in ctx.driver.journal.read()
+                  if e.type == EventType.SIGNAL and e.ticket == seed.stem
+                  and e.body.get("signal") == VERDICT_SIGNAL and e.body.get("seeding") == stem][-IDENTICAL_K:]
+        messages = [{f["message"] for f in p.get("findings", [])} for p in passes]
+        if (len(passes) == IDENTICAL_K and all(p["verdict"] != "approve" for p in passes)
+                and all(now - before and before - now for before, now in zip(messages, messages[1:]))):
+            gaps[seed.stem] = [f"requisition_review did not converge over {IDENTICAL_K} passes; standing: {m}"
+                               for m in sorted(messages[-1])]
+    return gaps
+
+
+async def hold_on_hardening(ctx: StageContext, ticket: Ticket, gaps: dict[str, list[str]], *, attempt: int) -> None:
+    """File one hardening ticket per gapped entry unit (or await its open one) and hold the stem on them;
+    past the hardening cap the stem routes to the Reject queue. No diagnosis, no cap draw (section 11.4)."""
+    plan = (ctx.repo / PLAN_FILE).read_text()
+    rows = registry_rows(plan)
+    states = last_states(ctx.driver.journal.read())
+    awaits: list[str] = []
+    capped: list[str] = []
+    for row, facts in sorted(gaps.items()):
+        rounds = sorted((int(m.group(2)), p.parent.name) for p in (ctx.repo / TICKETS_DIR).glob("harden-*/ticket.md")
+                        if (m := HARDENING_STEM.fullmatch(p.parent.name)) and m.group(1) == row)
+        if rounds and states.get(rounds[-1][1]) != "merged":
+            awaits.append(rounds[-1][1])
+        elif len(rounds) >= ctx.config.caps.hardening:
+            capped.append(row)
+        else:
+            awaits.append(await file_hardening(ctx, ticket.stem, row, rows[row], facts, len(rounds) + 1,
+                                               plan=plan, attempt=attempt))
+    terminal: dict = {"to": "gate_failed", "stage": "check", "reason": "spec_gap"}
+    if capped:
+        terminal.update(dispatch="reject_queue", routed="reject_queue")
+    else:
+        ctx.driver.journal.append(EventType.SIGNAL, {"signal": SPEC_GAP_HOLD, "awaits": awaits,
+                                                     "gaps": {r: f for r, f in sorted(gaps.items())}},
+                                  ticket=ticket.stem)
+        terminal["dispatch"] = SPEC_GAP_HOLD
+    ctx.driver.journal.append(EventType.STATE_TRANSITION, terminal, ticket=ticket.stem)
+
+
+def hardening_text(seeding: str, row: str, phase: int, row_spec: Mapping, facts: list[str], unit_exists: bool) -> str:
+    uid = f"19.P{phase}.{row}"
+    tier = "high" if row_spec.get("deep") else "medium"
+    cites = [f"section {c}" if not str(c).startswith("19.") else str(c) for c in row_spec.get("cite", []) or []]
+    contract = ["19.L", f"19.P{phase}", *([uid] if unit_exists else []), *[c for c in cites if c != "19.L"]]
+    criteria = "\n".join(f"{n}. `{PLAN_FILE}` unit `{uid}` states, consistent with merged code: {' '.join(f.split())}"
+                         for n, f in enumerate(facts, 2))
+    return (f"---\nstate: confirmed\nsource: seed\npriority: P1\nkind: chore\n"
+            f"agent_tier: {tier}\nagent_effort: {tier}\n---\n\n"
+            f"## Depends on\nnone\n\n## Context\n- tests/test_plan_lint.py\n\n"
+            f"## Plan contract\n" + "".join(f"- {c}\n" for c in contract) + "\n"
+            f"## Goal / Why\n`{PLAN_FILE}` entry unit `{uid}` states every fact the `{row}` seed needs, so `{seeding}`"
+            f" authors that seed from the plan instead of inventing it.\n\n"
+            f"## Scope in / Scope out\n- In: the entry unit `### {uid}` (inserted after its phase's last unit when"
+            f" missing), with its Owner, Records, Observable, and Tests parts.\n- Out: every other plan byte, code, and"
+            f" tickets.\n\n"
+            f"## Scope fence\n- {PLAN_FILE}#{uid}\n\n"
+            f"## Acceptance criteria\n1. `uv run pytest tests/test_plan_lint.py` exits 0.\n{criteria}\n\n"
+            f"## Verification\n```\nuv run pytest tests/test_plan_lint.py\n```\n\n"
+            f"## Definition of rejected\nStating a fact needs plan text outside `{uid}`, or contradicts merged code.\n\n"
+            f"## Time budget\n- expected: 30m\n- stuck: 90m\n")
+
+
+async def file_hardening(ctx: StageContext, seeding: str, row: str, row_entry: tuple[int, Mapping],
+                         facts: list[str], n: int, *, plan: str, attempt: int) -> str:
+    """One engine-composed hardening ticket on the ticket plane, with its intake signal (never `seeded_by`)."""
+    phase, row_spec = row_entry
+    stem = f"harden-{row}-{n}"
+    rel = ticket_path(stem)
+    text = hardening_text(seeding, row, phase, row_spec, facts,
+                          unit_exists=f"### 19.P{phase}.{row} " in plan)
+
+    async def commit() -> dict:
+        ctx.fs.write(ctx.repo / rel, text.encode())
+        await ctx.git.add(ctx.repo, [rel])
+        await ctx.git.commit(ctx.repo, f"chupa({seeding}): harden {row}", only=[rel])
+        return {"commit": await ctx.git.rev_parse(ctx.repo, "main")}
+
+    committed = await ctx.driver.effects.run(commit, key=f"ticket-plane/{seeding}/{attempt}/harden/{row}",
+                                             ticket=seeding)
+    ctx.driver.journal.append(EventType.SIGNAL, {"signal": INTAKE_SIGNAL, "source": "seed", "state": "confirmed",
+                                                 "new": True, "commit": committed["commit"]}, ticket=stem)
+    return stem
 
 
 async def harvest(

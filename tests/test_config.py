@@ -66,7 +66,7 @@ def test_valid_config_loads_from_cwd_with_shipped_defaults(tmp_path):
     assert cfg.merge.strategies[0].argv == ["uv", "lock"]
     assert cfg.scheduler.max_unmerged == 2
     assert cfg.caps.model_dump() == {
-        "diagnosis": 6, "retry": 6, "premise_bounce": 2, "infra": 6, "quarantine": 5, "poison": 2,
+        "diagnosis": 6, "retry": 6, "premise_bounce": 2, "hardening": 3, "infra": 6, "quarantine": 5, "poison": 2,
     }
     assert cfg.seeding.max_seeds_per_admission == 3
     assert cfg.circuit_breaker.k == 3

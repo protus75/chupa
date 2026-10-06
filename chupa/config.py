@@ -133,6 +133,7 @@ class Caps(_Strict):
     diagnosis: Count = 6
     retry: Count = 6
     premise_bounce: Count = 2
+    hardening: Count = 3  # hardening tickets per entry unit (section 11.4)
     infra: Count = 6
     quarantine: Count = 5
     poison: Count = 2
