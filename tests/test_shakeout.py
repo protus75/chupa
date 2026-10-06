@@ -17,6 +17,7 @@ from eval.shakeout import run as shakeout
 from eval.shakeout.driver import MEMBERS as DRIVER_MEMBERS
 from eval.shakeout.drain import MEMBERS as DRAIN_MEMBERS
 from eval.shakeout.recovery import MEMBERS as RECOVERY_MEMBERS
+from eval.shakeout.merge import MEMBERS as MERGE_MEMBERS
 from eval.shakeout.runner import MEMBERS as RUNNER_MEMBERS
 from eval.shakeout.stages import MEMBERS
 
@@ -228,3 +229,8 @@ def test_red_then_green_member_observes_one_retry_and_attempt_one_review_finding
 def test_engine_death_mid_call_member_observes_orphan_harvest_and_fresh_rerun(tmp_path):
     result = asyncio.run(shakeout.run_member(RECOVERY_MEMBERS[0], tmp_path))
     assert result.green and result.observed == "orphan_harvested_and_rerun_with_fresh_key"
+
+
+def test_conflicted_rebase_member_observes_refusal_with_clean_worktree(tmp_path):
+    result = asyncio.run(shakeout.run_member(MERGE_MEMBERS[0], tmp_path))
+    assert result.green and result.observed == "conflicted_rebase_refused_cleanly"
