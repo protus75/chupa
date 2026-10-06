@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "c338c89564180eb5d27c34da84bcd5d2a3b6d4b5",
+  "stem": "phase3-continue",
+  "attempt": 2,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "abandon-human",
+  "lessons": [
+    "Engine defect, not an authoring error: stages.py:840 _review_one runs validate_ticket(seed_stem, data, ctx.repo) against main, so a seed depending on an unlifted sibling seed (merge-queue) can never resolve. A retry with the same authoring would fail the same way.",
+    "Plan CHUPA_PLAN.md:1636 allows within-batch dependencies: 'a seed consuming a sibling's output declares depends on it'. The ticket's criterion (phase3-continue-02 depends on merge-queue) is valid, so do not drop or rewrite that edge in the seed.",
+    "Operator: fix the dependency resolution in Check seed review (chupa/stages.py, chupa/tickets.py, both outside this ticket's fence) to accept stems authored in the same admission. Commit the plan fix first, file a cause ticket, then re-run phase3-continue.",
+    "After the engine fix, keep the earlier attempt's work: the committed tests/test_seeded_phase3_01.py passed (13 tests, 757 in the full suite). Re-author both seeds unchanged and leave them uncommitted for Check to review and lift together."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
