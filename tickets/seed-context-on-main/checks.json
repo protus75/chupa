@@ -1,0 +1,65 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "07b550bbbf25f62fb18da411f717f2e327736e64",
+  "stem": "seed-context-on-main",
+  "passed": true,
+  "changed_files": [
+    "chupa/stages.py",
+    "tests/test_seed_path.py"
+  ],
+  "inserted_lines": 53,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_seed_path.py"
+      ],
+      "rc": 0,
+      "tail": ".................                                                        [100%]\n17 passed in 3.25s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [  9%]\n........................................................................ [ 19%]\n........................................................................ [ 29%]\n........................................................................ [ 38%]\n........................................................................ [ 48%]\n........................................................................ [ 58%]\n........................................................................ [ 67%]\n........................................................................ [ 77%]\n........................................................................ [ 87%]\n........................................................................ [ 96%]\n........................                                                 [100%]\n744 passed in 71.31s (0:01:11)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
