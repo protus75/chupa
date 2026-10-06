@@ -1,10 +1,10 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-The three seeds were already on main, so no ticket files needed changes; their Check approval is pending the engine's Check stage.
+The previous Check recorded a requisition_review snag for the exact blob still on main.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60m; completed well under budget.
+60m expected; stopped during pre-implementation validation.
 
