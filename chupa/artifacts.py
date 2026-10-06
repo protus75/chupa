@@ -1,6 +1,7 @@
 """Artifact base model and stage result types (CHUPA_PLAN.md sections 4, 5)."""
 
 from dataclasses import dataclass
+import re
 from typing import Annotated, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
@@ -81,6 +82,42 @@ class Artifact(_Strict):
                 " upgrade chupa to a release that reads it"
             )
         return v
+
+
+SHAKEOUT_REPORT = "shakeout-report.json"
+SHAKEOUT_SPEC_VERSION = 1
+
+
+class ShakeoutEntry(_Strict):
+    member: NonBlank
+    group: NonBlank
+    planted_fault: NonBlank
+    expected: NonBlank
+    observed: NonBlank
+    producing_run: NonBlank
+    auditor: list[NonBlank]
+    green: bool
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "ShakeoutEntry":
+        if not re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", self.member):
+            raise ValueError("member must be a snake-case id")
+        if not re.fullmatch(r"[a-z][a-z0-9_-]*/[0-9]+", self.producing_run):
+            raise ValueError("producing_run must be <bench stem>/<run seq>")
+        if self.green != (self.observed == self.expected and not self.auditor):
+            raise ValueError("green must match the observation and empty auditor")
+        return self
+
+
+class ShakeoutReport(Artifact):
+    entries: list[ShakeoutEntry]
+
+    @model_validator(mode="after")
+    def _unique_members(self) -> "ShakeoutReport":
+        ids = [entry.member for entry in self.entries]
+        if len(ids) != len(set(ids)):
+            raise ValueError("member ids must be unique")
+        return self
 
 
 @dataclass(frozen=True)

@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from chupa.config import load_config
+from chupa.artifacts import SHAKEOUT_REPORT, ShakeoutEntry, ShakeoutReport
 from chupa.driver import Driver
 from chupa.git import Git
 from chupa.llm import FakeLLM, LLMRequest
@@ -179,6 +180,77 @@ def subjects(repo: Path) -> list[str]:
 
 def outcomes(result) -> dict[str, str]:
     return {name: r.outcome for name, r in result.results.items()}
+
+
+def _report_bytes() -> str:
+    entry = ShakeoutEntry(member="member_one", group="first", planted_fault="fault", expected="ok",
+                          observed="ok", producing_run="member_one/0", auditor=[], green=True)
+    return ShakeoutReport(produced_by_spec_version=1, produced_at_sha="abc", entries=[entry]).model_dump_json()
+
+
+def _report_ticket(monkeypatch, verification: str) -> None:
+    monkeypatch.setattr(__import__(__name__, fromlist=["TICKET"]), "TICKET",
+                        TICKET.replace("env\n", verification + "\n"))
+
+
+def _write_outbox_report(path: str, body: str):
+    def act(req: LLMRequest) -> str:
+        assert req.worktree is not None
+        (req.worktree / "chupa/thing.py").write_text("ok\n")
+        git(req.worktree, "add", "chupa/thing.py")
+        git(req.worktree, "commit", "-m", "work")
+        target = req.worktree / "tickets" / STEM / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(body)
+        return implement_reply()
+    return act
+
+
+def test_verification_report_lifts_only_in_checks_commit(repo, monkeypatch):
+    (repo / "source.json").write_text(_report_bytes())
+    git(repo, "add", "source.json")
+    git(repo, "commit", "-m", "source")
+    _report_ticket(monkeypatch, f"cp source.json tickets/{STEM}/{SHAKEOUT_REPORT}")
+    result, _, _ = run(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
+    assert outcomes(result)["check"] == "ok"
+    assert (repo / "tickets" / STEM / SHAKEOUT_REPORT).is_file()
+    run_commit = git(repo, "log", "--format=%H", "--grep", f"chupa({STEM}): run-record").splitlines()[0]
+    assert SHAKEOUT_REPORT not in git(repo, "show", "--format=", "--name-only", run_commit)
+    checks_commit = git(repo, "log", "--format=%H", "--grep", f"chupa({STEM}): checks").splitlines()[0]
+    assert SHAKEOUT_REPORT in git(repo, "show", "--format=", "--name-only", checks_commit)
+
+
+def test_invalid_report_fails_check_without_lifting_checks_or_report(repo, monkeypatch):
+    (repo / "source.json").write_text('{"invalid":true}')
+    git(repo, "add", "source.json")
+    git(repo, "commit", "-m", "source")
+    _report_ticket(monkeypatch, f"cp source.json tickets/{STEM}/{SHAKEOUT_REPORT}")
+    result, _, _ = run(repo, [agent({"chupa/thing.py": "ok\n"})])
+    assert outcomes(result)["check"] == "gate_failed"
+    assert [f.code for f in result.last[1].findings] == ["verification"]
+    assert not (repo / "tickets" / STEM / "checks.json").exists()
+    assert not (repo / "tickets" / STEM / SHAKEOUT_REPORT).exists()
+    assert f"chupa({STEM}): checks" not in subjects(repo)
+
+
+@pytest.mark.parametrize("path", [SHAKEOUT_REPORT, f"x/{SHAKEOUT_REPORT}"])
+@pytest.mark.parametrize("body", [_report_bytes(), '{"invalid":true}'])
+def test_implement_report_is_not_lifted_and_stale_report_is_purged(repo, path, body):
+    result, _, config = run(repo, [_write_outbox_report(path, body), verdict()])
+    assert outcomes(result)["check"] == "ok"
+    assert not list((repo / "tickets" / STEM).rglob(SHAKEOUT_REPORT))
+    assert not list((config.worktree_root / STEM / "tickets" / STEM).rglob(SHAKEOUT_REPORT))
+    assert SHAKEOUT_REPORT not in git(repo, "show", "--format=", "--name-only", "main~2")
+
+
+@pytest.mark.parametrize("flag", ["--out", "--out="])
+def test_named_missing_report_fails_even_when_other_commands_pass(repo, monkeypatch, flag):
+    target = f"tickets/{STEM}/{SHAKEOUT_REPORT}"
+    command = f"true {flag} {target}" if flag == "--out" else f"true {flag}{target}"
+    _report_ticket(monkeypatch, command)
+    result, _, _ = run(repo, [agent({"chupa/thing.py": "ok\n"})])
+    assert outcomes(result)["check"] == "gate_failed"
+    assert [f.code for f in result.last[1].findings] == ["verification"]
 
 
 # --- transitions --------------------------------------------------------------------------------

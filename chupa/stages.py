@@ -18,7 +18,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
-from chupa.artifacts import OUTCOMES, Artifact, Cost, Diagnosis, DiagnosisReply, Finding, Harvest, NonBlank, Outcome, ReviewVerdict, StageResult
+from chupa.artifacts import OUTCOMES, SHAKEOUT_REPORT, Artifact, Cost, Diagnosis, DiagnosisReply, Finding, Harvest, NonBlank, Outcome, ReviewVerdict, ShakeoutReport, StageResult
 from chupa.box import BOX_DIR, Box
 from chupa.config import Config, Severity
 from chupa.driver import Driver, LlmStage
@@ -31,6 +31,7 @@ from chupa.specs import RenderOverBound, Spec, load_spec, render, resolve_plan_c
 from chupa.tickets import _HEADING, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, TicketInvalid, ticket_path, validate_ticket
 
 MAIN = "main"
+KNOWN_ARTIFACTS: Mapping[str, type[BaseModel]] = {SHAKEOUT_REPORT: ShakeoutReport}
 # Section 7 diff budget: sized so every rendered review prompt fits the serving provider's bound.
 DIFF_BUDGET_FILES = 30
 DIFF_BUDGET_INSERTED = 1_500
@@ -180,6 +181,17 @@ class StageContext:
         return self.config.worktree_root / stem
 
 
+class ArtifactInvalid(Exception):
+    def __init__(self, path: Path, error: Exception) -> None:
+        super().__init__(f"{path}: {error}")
+        self.path = path
+        self.error = error
+
+
+def _registered_files(outbox: Path) -> list[Path]:
+    return [p for p in outbox.rglob("*") if p.is_file() and p.name in KNOWN_ARTIFACTS]
+
+
 def _spec(ctx: StageContext, surface: str) -> Spec:
     return load_spec((ctx.specs_dir / f"{surface}.md").read_text())
 
@@ -287,9 +299,16 @@ async def lift_outbox(ctx: StageContext, stem: str, kind: str, *, attempt: int,
         return (rel != Path(TICKET_FILE) and (only is None or rel.as_posix() == only)
                 and not ((c := canonical / rel).is_file() and c.read_bytes() == p.read_bytes()))
 
-    files = sorted(p for p in outbox.rglob("*") if p.is_file() and written(p))
+    files = sorted(p for p in outbox.rglob("*") if p.is_file() and written(p)
+                   and (p.name not in KNOWN_ARTIFACTS or kind == "checks"))
     if not files:
         return None
+    for path in files:
+        if path.name in KNOWN_ARTIFACTS:
+            try:
+                KNOWN_ARTIFACTS[path.name].model_validate_json(path.read_bytes())
+            except Exception as error:
+                raise ArtifactInvalid(path, error) from error
 
     async def commit() -> dict:
         rels = []
@@ -759,8 +778,20 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
     """Invoicing: run the mechanical gates on the branch head, write + lift `checks.json`."""
     stem = ticket.stem
     started = ctx.driver.clock()
+    outbox = ctx.worktree(stem) / TICKETS_DIR / stem
+    for path in _registered_files(outbox):
+        path.unlink()
     evidence = await gather_evidence(ctx, ticket, slip.outcome, attempt=attempt)
     gated = run_gates(CHECK_GATES, evidence, ctx.worktree(stem), severity=check_severity(ctx, ticket))
+    required = [name for name in KNOWN_ARTIFACTS
+                if any(f"{TICKETS_DIR}/{stem}/{name}" in arg
+                       for argv in ticket.verification for arg in argv)]
+    missing = [name for name in required if not (outbox / name).is_file()]
+    required_report = _report("verification", [Finding(
+        code="verification", path=f"{TICKETS_DIR}/{stem}/{name}",
+        message=f"Verification named {name} but left no report in the outbox",
+        paved_road="make the named eval.shakeout.run command exit 0 so it writes the report",
+    ) for name in missing]) if missing else None
     seeding = TICKETS_DIR in ticket.scope_fence
     own = _seeded_stems(ctx, stem) if seeding else set()
     prior = await _prior_seed_reviews(ctx, stem, own) if seeding else {}
@@ -771,21 +802,33 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
         seeds, new_paths = await _review_seeds(ctx, ticket, attempt=attempt, own=own, prior=prior)
         seed_findings = [finding for seed in seeds if seed.verdict != "approve" for finding in seed.findings]
         seed_report = _report("requisition_review", seed_findings)
-    passed = gated.passed and (seed_report is None or seed_report.verdict == "pass")
+    passed = gated.passed and not missing and (seed_report is None or seed_report.verdict == "pass")
     invoice = Invoice(
         produced_by_spec_version=CHECK_SPEC_VERSION, produced_at_sha=evidence.head_sha, stem=stem,
         passed=passed, changed_files=evidence.changed_files, inserted_lines=evidence.inserted_lines,
         bypassed=sorted({b.code for b in ticket.frontmatter.gate_bypass}),
-        reports=[*gated.reports, *([seed_report] if seed_report is not None else [])], seeds=seeds,
+        reports=[*gated.reports, *([required_report] if required_report is not None else []),
+                 *([seed_report] if seed_report is not None else [])], seeds=seeds,
     )
     ctx.fs.write(ctx.worktree(stem) / TICKETS_DIR / stem / "checks.json",
                  (invoice.model_dump_json(indent=2) + "\n").encode())
-    await lift_outbox(ctx, stem, "checks", attempt=attempt)
+    try:
+        await lift_outbox(ctx, stem, "checks", attempt=attempt)
+    except ArtifactInvalid as error:
+        error.path.unlink()
+        (outbox / "checks.json").unlink(missing_ok=True)
+        finding = Finding(code="verification", path=str(error.path.relative_to(ctx.worktree(stem))),
+                          message=f"invalid registered artifact: {error.error}",
+                          paved_road="produce the report only through eval.shakeout.run")
+        return StageResult(outcome="gate_failed", artifact=invoice.model_copy(update={"passed": False}), findings=[finding],
+                           cost=Cost(seconds=(ctx.driver.clock() - started).total_seconds()))
     if passed:
         await lift_seeds(ctx, stem, new_paths, attempt=attempt)
     cost = Cost(seconds=(ctx.driver.clock() - started).total_seconds())
     if not passed:
         hard = [f for r in gated.hard_failures for f in r.findings]
+        if required_report is not None:
+            hard.extend(required_report.findings)
         if seed_report is not None:
             hard.extend(seed_report.findings)
         return StageResult(outcome="gate_failed", artifact=invoice, findings=hard, cost=cost)
