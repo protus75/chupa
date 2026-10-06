@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-none
+Full suite passed: 713 tests in 60.49s.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-60m expected; completed in about 10m.
+Expected 60m; completed in under 10m.
 
