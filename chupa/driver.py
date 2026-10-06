@@ -20,7 +20,7 @@ from chupa.artifacts import Cost, Finding, Outcome, StageResult
 from chupa.config import Config, Severity
 from chupa.effects import Effects
 from chupa.enginelog import EngineLog
-from chupa.gates import Gate, merge_severity, run_gates
+from chupa.gates import Gate, GateReport, merge_severity, run_gates
 from chupa.journal import Journal, run_seq as journal_run_seq
 from chupa.llm import LLM, AgentEffort, AgentTier, LLMRequest, LLMResult
 from chupa.llmeffect import llm_call
@@ -43,6 +43,8 @@ class LlmStage:
     emits: type[BaseModel]
     gates: Sequence[Gate]
     render: Callable[[Any, list[Finding]], str]  # (consumed artifact, re-prompt findings) -> prompt
+    review: Callable[[BaseModel, int], Awaitable[GateReport]] | None = None
+    terminal_findings: frozenset[str] = frozenset()
 
 
 class Spool:
@@ -213,12 +215,31 @@ class Driver:
                 continue
 
             gated = run_gates(stage.gates, artifact, workspace, severity=self.severity)
+            hard_findings = [f for report in gated.hard_failures for f in report.findings]
+            if stage.review is not None:
+                try:
+                    review = await self.race(lambda: stage.review(artifact, call_seq),
+                                             deadline - self.clock().timestamp())
+                except _StuckBudget:
+                    self.log.event("stuck_budget_kill", **call)
+                    tally.findings = []
+                    return done("timeout")
+                except Exception as e:
+                    self.log.event("review_error", **call, error=f"{type(e).__name__}: {e}")
+                    tally.findings = []
+                    return done("infra_error")
+                if review.verdict == "fail":
+                    hard_findings.extend(review.findings)
+            if hard_findings:
+                outcome = "gate_failed"
+                tally.findings = hard_findings
+                self.log.event("gate_failed", **call, codes=[f.code for f in hard_findings])
+                if any(f.code in stage.terminal_findings for f in hard_findings):
+                    return done(outcome)
+                continue
             if gated.passed:
                 tally.findings = gated.findings  # soft only
                 return done("ok", artifact)
-            outcome = "gate_failed"
-            tally.findings = [f for r in gated.hard_failures for f in r.findings]
-            self.log.event("gate_failed", **call, codes=[r.code for r in gated.hard_failures])
         return done(outcome)
 
     async def race(self, start: Callable[[], Awaitable[Any]], remaining: float) -> Any:

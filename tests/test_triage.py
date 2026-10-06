@@ -78,6 +78,10 @@ uv run pytest
 """})
 
 
+def requisition_reply(verdict: str, findings: list | None = None) -> str:
+    return json.dumps({"verdict": verdict, "summary": "reviewed", "findings": findings or []})
+
+
 def run(root: Path, monkeypatch, llm: FakeLLM) -> int:
     monkeypatch.setattr("chupa.__main__.ProviderLLM", lambda *args, **kwargs: llm)
     return main(["triage"], cwd=root, env=ENV, clock=Clock())
@@ -98,7 +102,7 @@ def test_three_verdicts_and_second_pass_and_stale_author(tmp_path, monkeypatch, 
     ids = [enqueue(box, marker), enqueue(box, "another concern"), enqueue(box, "third concern")]
     messages = [box.get(id) for id in ids]
     llm = FakeLLM([reply("tombstone", link="existing", days=7), reply("decision", days=14),
-                   reply("author"), author_reply("authored")])
+                   reply("author"), author_reply("authored"), requisition_reply("approve")])
     before = subjects(root)
     assert run(root, monkeypatch, llm) == 0
     assert "ticket -> authored" in capsys.readouterr().out
@@ -115,21 +119,22 @@ def test_three_verdicts_and_second_pass_and_stale_author(tmp_path, monkeypatch, 
         assert git_out(root, "rev-parse", f"HEAD:{path}").strip()
     assert box.get(ids[2]).resolution == Resolution(kind="ticket", link="authored")
     assert box.get(ids[2]).verdict.produced_by_spec_version == "1.0"
-    assert len(llm.requests) == 4
+    assert len(llm.requests) == 5
     assert [(r.surface, r.tier, r.ticket) for r in llm.requests] == [
         ("triage", "medium", None), ("triage", "medium", None), ("triage", "medium", None),
-        ("author", "medium", None),
+        ("author", "medium", None), ("requisition_review", "medium", None),
     ]
     keys = {e.key for e in events(root) if e.type == EventType.EFFECT_COMPLETION and e.key.startswith("llm/")}
     assert keys == {f"llm/triage/{m.seq}/triage/0/1" for m in messages} | {
-        f"llm/author/0/author/{messages[2].seq}/1"}
+        f"llm/author/0/author/{messages[2].seq}/1",
+        f"llm/author/0/requisition_review/{messages[2].seq}/1"}
     for m in messages:
         spool = root / ".chupa" / "state" / "spools" / "triage" / str(m.seq) / "0" / "call-01"
         assert (spool / "prompt.md").exists() and (spool / "output.txt").exists()
     stale_id = enqueue(box, "stale concern")
     box.record_verdict(stale_id, Verdict(verdict="author", produced_by_spec_version="0.9", rationale="old"))
     assert run(root, monkeypatch, llm) == 0
-    assert len(llm.requests) == 4
+    assert len(llm.requests) == 5
     assert box.get(stale_id).status == "resolved"
     assert subjects(root)[0] == f"chupa(decisions): decision-{stale_id}"
     stale, body = parse_record((root / record_path(f"decision-{stale_id}")).read_text())

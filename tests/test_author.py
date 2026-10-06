@@ -45,13 +45,21 @@ def _failure(box):
                        stage="check", outcome="gate_failed")[0]
 
 
+def requisition_reply(verdict, findings=None):
+    return json.dumps({"verdict": verdict, "summary": "reviewed", "findings": findings or []})
+
+
+SNAG = {"code": "scope", "message": "missing test", "paved_road": "add the test"}
+RMA = {"code": "scope", "message": "plan cannot support this", "paved_road": "repair the plan"}
+
+
 def test_triage_authors_ticket_and_journals_intake(tmp_path, monkeypatch):
     root = make_root(tmp_path)
     _routes(root)
     box = _box(root)
     message_id = _failure(box)
     message = box.get(message_id)
-    llm = FakeLLM([reply("author"), author_reply("repair-thing")])
+    llm = FakeLLM([reply("author"), author_reply("repair-thing"), requisition_reply("approve")])
     before = git_out(root, "log", "--format=%s").splitlines()
     assert _run(root, monkeypatch, llm) == 0
     text = (root / "tickets/repair-thing/ticket.md").read_text()
@@ -65,7 +73,11 @@ def test_triage_authors_ticket_and_journals_intake(tmp_path, monkeypatch):
     assert box.get(message_id).resolution == Resolution(kind="ticket", link="repair-thing")
     keys = [e.key for e in _events(root) if e.type == EventType.EFFECT_COMPLETION]
     assert f"llm/author/0/author/{message.seq}/1" in keys
+    assert f"llm/author/0/requisition_review/{message.seq}/1" in keys
     assert llm.requests[1].tier == "medium"
+    verdicts = [e for e in _events(root) if e.type == EventType.SIGNAL
+                and e.ticket == "repair-thing" and e.body.get("signal") == "requisition_verdict"]
+    assert len(verdicts) == 1 and verdicts[0].body["verdict"] == "approve"
 
 
 def test_author_reprompts_for_reused_stem_and_invalid_ticket(tmp_path, monkeypatch):
@@ -75,13 +87,40 @@ def test_author_reprompts_for_reused_stem_and_invalid_ticket(tmp_path, monkeypat
     box = _box(root)
     _failure(box)
     invalid = json.dumps({"stem": "bad-ticket", "ticket": "not a ticket"})
-    llm = FakeLLM([reply("author"), author_reply("existing"), invalid, author_reply("fresh-ticket")])
+    llm = FakeLLM([reply("author"), author_reply("existing"), invalid, author_reply("fresh-ticket"),
+                   requisition_reply("approve")])
     assert _run(root, monkeypatch, llm) == 0
     prompts = [r.rendered for r in llm.requests if r.surface == "author"]
     assert len(prompts) == 3
     assert "already exists" in prompts[1]
     assert "ticket.md has no frontmatter" in prompts[2]
     assert (root / "tickets/fresh-ticket/ticket.md").exists()
+
+
+def test_author_snag_reprompts_then_approve(tmp_path, monkeypatch):
+    root = make_root(tmp_path)
+    _routes(root)
+    box = _box(root)
+    _failure(box)
+    llm = FakeLLM([reply("author"), author_reply("first"), requisition_reply("snag", [SNAG]),
+                   author_reply("second"), requisition_reply("approve")])
+    assert _run(root, monkeypatch, llm) == 0
+    assert (root / "tickets/second/ticket.md").exists()
+    authors = [request for request in llm.requests if request.surface == "author"]
+    assert len(authors) == 2 and "- scope: missing test (do instead: add the test)" in authors[1].rendered
+
+
+def test_author_rma_writes_decision_without_ticket(tmp_path, monkeypatch):
+    root = make_root(tmp_path)
+    _routes(root)
+    box = _box(root)
+    message_id = _failure(box)
+    llm = FakeLLM([reply("author"), author_reply("blocked"), requisition_reply("rma", [RMA])])
+    assert _run(root, monkeypatch, llm) == 0
+    assert not (root / "tickets/blocked").exists()
+    assert [request.surface for request in llm.requests] == ["triage", "author", "requisition_review"]
+    _, body = parse_record((root / record_path(f"decision-{message_id}")).read_text())
+    assert "plan cannot support this" in body
 
 
 def test_author_exhaustion_records_one_decision(tmp_path, monkeypatch):

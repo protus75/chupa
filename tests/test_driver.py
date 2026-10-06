@@ -237,6 +237,52 @@ def test_hard_gate_failure_reprompts_same_workspace_with_findings(tmp_path):
     assert [r.worktree for r in llm.requests] == [tmp_path / "wt"] * 2  # the SAME workspace
 
 
+def test_failing_review_reprompts_with_its_findings(tmp_path):
+    finding = Finding(code="review", message="needs revision", paved_road="revise it")
+
+    async def review(artifact, call_seq):
+        return GateReport(code="review", verdict="fail" if call_seq == 1 else "pass",
+                          findings=[finding] if call_seq == 1 else [])
+
+    stage = LlmStage(surface="implement", emits=Echo, gates=[], render=render, review=review)
+    driver, _ = build(tmp_path, FakeLLM([echo_json("hi"), echo_json("hi")]))
+    result = run(driver, stage)
+    assert result.outcome == "ok"
+    assert "[review] needs revision -- revise it" in driver.llm.requests[1].rendered
+
+
+def test_terminal_review_finding_returns_all_hard_findings_after_one_call(tmp_path):
+    sync = Finding(code="run_record", message="sync failed", paved_road="fix sync")
+    terminal = Finding(code="stop", message="review refused", paved_road="stop now")
+
+    class SyncGate:
+        code = "run_record"
+
+        def check(self, artifact, workspace):
+            return GateReport(code=self.code, verdict="fail", findings=[sync])
+
+    async def review(artifact, call_seq):
+        return GateReport(code="review", verdict="fail", findings=[terminal])
+
+    stage = LlmStage(surface="implement", emits=Echo, gates=[SyncGate()], render=render,
+                     review=review, terminal_findings=frozenset({"stop"}))
+    llm = FakeLLM([echo_json("hi")])
+    driver, _ = build(tmp_path, llm)
+    result = run(driver, stage)
+    assert result.outcome == "gate_failed"
+    assert result.findings == [sync, terminal]
+    assert len(llm.requests) == 1
+
+
+def test_stage_without_hooks_keeps_its_request_shape(tmp_path):
+    llm = FakeLLM([echo_json("hi")])
+    driver, _ = build(tmp_path, llm)
+    assert run(driver).outcome == "ok"
+    assert [(request.surface, request.ticket, request.worktree) for request in llm.requests] == [
+        ("implement", "t-echo", Path("."))
+    ]
+
+
 def test_reprompts_are_bounded_by_the_retry_cap(tmp_path):
     stage = LlmStage(surface="implement", emits=Echo, gates=[MustSayHello()], render=render)
     llm = FakeLLM([echo_json("no")] * 20)
