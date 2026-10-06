@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-`tests/test_diagnose.py` expects a command red on both branch and base to consume retry attempts, contradicting the ticket’s required base-red exemption.
+tests/test_terminal.py::test_a_red_check_journals_its_terminal_and_never_reaches_review assumes a base-red verification failure draws retry; attribution correctly excuses it, so the test reaches Review instead.
 
 ## Dead ends
 
-Implemented and focused-tested attribution, but full-suite verification exposed the out-of-fence contradictory test.
+Ran the required full suite; it failed only on the unfenced terminal fixture.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-75m budget; stopped during verification.
+75m budget; stopped after verification exposed the fence contradiction.
 
