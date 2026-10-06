@@ -1,11 +1,11 @@
 # Review: snag
 
-The engine changes look plausible, but tests/test_stages.py adds only the report-required test; the tests acceptance criteria 1 and 2 require for lifting and stale-report deletion are missing.
+The registration, lift gating and runner largely match the ticket, but acceptance criterion 2's report-required test is missing, and the check that a Verification command names the report only matches a whole argv element.
 
 ## Findings
 
-- [acceptance] tests/test_stages.py:306 Acceptance criterion 1 is unmet. No test shows that a Check whose Verification writes a valid shakeout-report.json lifts it in the `chupa(<stem>): checks` commit. No test shows that a schema-invalid report makes the Check gate_failed and commits neither checks.json nor the report. No test shows that the implement-terminal lift leaves a registered artifact unlifted. The diff adds only test_named_shakeout_report_is_required_even_when_verification_is_excused. (do instead: Add three tests to tests/test_stages.py through the production pipeline. (1) Verification writes a valid ShakeoutReport to tickets/<stem>/shakeout-report.json; assert the checks commit contains it. (2) Verification writes an invalid report; assert the Check is gate_failed with one `verification` finding and the checks commit holds neither file. (3) The implementer writes a valid report into the outbox; assert the implement commit does not contain it.)
-- [acceptance] tests/test_stages.py:306 The first half of acceptance criterion 2 is unmet. No test shows that a report left in the outbox before Check is deleted before Verification runs, so that a Verification that writes nothing lifts no report. (do instead: Add a test that places a valid shakeout-report.json in the worktree outbox before Check, runs a Verification that writes nothing, and asserts the file is not in the checks commit or on main.)
+- [acceptance] tests/test_stages.py:338 Criterion 2 requires a test showing that a Check fails `verification` when a Verification command names `tickets/<stem>/shakeout-report.json` but leaves no report, even when every command is otherwise excused. No added test covers this. `test_stale_registered_report_is_deleted_before_verification` keeps the default Verification, which does not name the report, so the REPORT REQUIRED path in `check` never runs in any test. (do instead: Add a test whose TICKET Verification names `tickets/<stem>/shakeout-report.json`, for example `--out tickets/<stem>/shakeout-report.json` on a command that exits 0 without writing the file. Assert the Check is `gate_failed` with one finding coded `verification` on that path.)
+- [logic] chupa/stages.py:788 `ticket.verification` is `tuple[tuple[str, ...], ...]`, so `f"{TICKETS_DIR}/{stem}/{name}" in argv` tests whether one whole argv element equals the path. A command that names the report inside a larger element, such as `--out=tickets/<stem>/shakeout-report.json` or `sh -c '... > tickets/<stem>/shakeout-report.json'`, does not count as naming it. The Check then passes with no report in the outbox, which the Definition of rejected forbids. (do instead: Treat the report as named when any argv element contains the path as a substring, for example `any(target in arg for arg in argv)`. Add a test case that uses an `--out=` style argument.)
 
 ## Record
 
@@ -13,24 +13,24 @@ The engine changes look plausible, but tests/test_stages.py adds only the report
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "4bdfac094390b6b5a38ee32b2a69dab3658d1ae2",
+  "produced_at_sha": "117efe2ea203f10e1b1f6a6ed3bea3d172e80ee7",
   "stem": "shakeout-report-lane",
-  "reviewed_sha": "4bdfac094390b6b5a38ee32b2a69dab3658d1ae2",
-  "summary": "The engine changes look plausible, but tests/test_stages.py adds only the report-required test; the tests acceptance criteria 1 and 2 require for lifting and stale-report deletion are missing.",
+  "reviewed_sha": "117efe2ea203f10e1b1f6a6ed3bea3d172e80ee7",
+  "summary": "The registration, lift gating and runner largely match the ticket, but acceptance criterion 2's report-required test is missing, and the check that a Verification command names the report only matches a whole argv element.",
   "findings": [
     {
       "code": "acceptance",
       "path": "tests/test_stages.py",
-      "line": 306,
-      "message": "Acceptance criterion 1 is unmet. No test shows that a Check whose Verification writes a valid shakeout-report.json lifts it in the `chupa(<stem>): checks` commit. No test shows that a schema-invalid report makes the Check gate_failed and commits neither checks.json nor the report. No test shows that the implement-terminal lift leaves a registered artifact unlifted. The diff adds only test_named_shakeout_report_is_required_even_when_verification_is_excused.",
-      "paved_road": "Add three tests to tests/test_stages.py through the production pipeline. (1) Verification writes a valid ShakeoutReport to tickets/<stem>/shakeout-report.json; assert the checks commit contains it. (2) Verification writes an invalid report; assert the Check is gate_failed with one `verification` finding and the checks commit holds neither file. (3) The implementer writes a valid report into the outbox; assert the implement commit does not contain it."
+      "line": 338,
+      "message": "Criterion 2 requires a test showing that a Check fails `verification` when a Verification command names `tickets/<stem>/shakeout-report.json` but leaves no report, even when every command is otherwise excused. No added test covers this. `test_stale_registered_report_is_deleted_before_verification` keeps the default Verification, which does not name the report, so the REPORT REQUIRED path in `check` never runs in any test.",
+      "paved_road": "Add a test whose TICKET Verification names `tickets/<stem>/shakeout-report.json`, for example `--out tickets/<stem>/shakeout-report.json` on a command that exits 0 without writing the file. Assert the Check is `gate_failed` with one finding coded `verification` on that path."
     },
     {
-      "code": "acceptance",
-      "path": "tests/test_stages.py",
-      "line": 306,
-      "message": "The first half of acceptance criterion 2 is unmet. No test shows that a report left in the outbox before Check is deleted before Verification runs, so that a Verification that writes nothing lifts no report.",
-      "paved_road": "Add a test that places a valid shakeout-report.json in the worktree outbox before Check, runs a Verification that writes nothing, and asserts the file is not in the checks commit or on main."
+      "code": "logic",
+      "path": "chupa/stages.py",
+      "line": 788,
+      "message": "`ticket.verification` is `tuple[tuple[str, ...], ...]`, so `f\"{TICKETS_DIR}/{stem}/{name}\" in argv` tests whether one whole argv element equals the path. A command that names the report inside a larger element, such as `--out=tickets/<stem>/shakeout-report.json` or `sh -c '... > tickets/<stem>/shakeout-report.json'`, does not count as naming it. The Check then passes with no report in the outbox, which the Definition of rejected forbids.",
+      "paved_road": "Treat the report as named when any argv element contains the path as a substring, for example `any(target in arg for arg in argv)`. Add a test case that uses an `--out=` style argument."
     }
   ],
   "spec_version": "1.0",
