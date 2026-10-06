@@ -1,7 +1,7 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "dee84e4c8a206059d11c5b1c7512123031d7a86f",
+  "produced_at_sha": "ed80ca5a0cfaf431bf597ee0c8569f4683488986",
   "entries": [
     {
       "member": "scope_escape",
@@ -157,8 +157,8 @@
       "member": "conflicted_rebase",
       "group": "merge",
       "planted_fault": "main and branch edit the same line after Review",
-      "expected": "conflicted_rebase_refused_without_moving_main",
-      "observed": "conflicted_rebase_refused_without_moving_main",
+      "expected": "conflicted_rebase_refused_cleanly",
+      "observed": "conflicted_rebase_refused_cleanly",
       "producing_run": "conflicted-rebase/0",
       "auditor": [],
       "green": true
