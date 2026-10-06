@@ -6,7 +6,7 @@ Intake stands in for the Phase 3 watcher: at invocation it lints every pending h
 
 import re
 import shlex
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal
@@ -265,7 +265,7 @@ def _criteria(text: str) -> list[str]:
     return items
 
 
-def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None) -> Ticket:
+def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings: Collection[str] = ()) -> Ticket:
     """Validate one ticket against the full section 13 grammar; raise TicketInvalid with every finding.
 
     `repo` resolves `Context` / `On-demand` existence and `Depends on` stems (existing ticket dirs).
@@ -309,7 +309,7 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None) -> Ticke
                 if dep == stem:
                     findings.append(_f(f"`## Depends on` names the ticket itself ({dep!r})",
                                        "drop the self-edge", path))
-                elif not STEM.fullmatch(dep) or not (tickets_root / dep / TICKET_FILE).is_file():
+                elif not STEM.fullmatch(dep) or not ((tickets_root / dep / TICKET_FILE).is_file() or dep in siblings):
                     findings.append(_f(f"`## Depends on` stem {dep!r} does not resolve to an existing ticket",
                                        f"name an existing `{TICKETS_DIR}/<stem>/` dir, or `none`", path))
                 else:
@@ -490,10 +490,14 @@ def _graph(repo: Path) -> dict[str, list[str]]:
     return edges
 
 
-def validate_ticket(stem: str, text: str, repo: Path) -> Ticket:
-    """The full intake lint: grammar, plan ids resolved against the repo's plan file, and acyclicity."""
+def validate_ticket(stem: str, text: str, repo: Path, siblings: Collection[str] = ()) -> Ticket:
+    """The full intake lint: grammar, plan ids resolved against the repo's plan file, and acyclicity.
+
+    `siblings` are the other seeds of a seeding batch: a seed may depend on one before the batch lifts (19.L).
+    """
     plan_file = repo / PLAN_FILE
-    ticket = parse_ticket(stem, text, repo, plan=plan_file.read_text() if plan_file.is_file() else None)
+    ticket = parse_ticket(stem, text, repo, plan=plan_file.read_text() if plan_file.is_file() else None,
+                          siblings=siblings)
     edges = _graph(repo)
     edges[stem] = list(ticket.depends)
     if cycle := depends_cycle(stem, edges):

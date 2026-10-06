@@ -807,8 +807,9 @@ async def _review_seeds(ctx: StageContext, ticket: Ticket, *, attempt: int,
             if main_sha is None:
                 new_paths.append(path)
             continue
-        review = await _review_one(ctx, ticket, seed_stem, rel, data, sha, main_sha, plan, worktree,
-                                   earlier, attempt=attempt, call_seq=candidate_index)
+        review = await _review_one(ctx, ticket, seed_stem, rel, data, sha, main_sha, plan, worktree, earlier,
+                                   siblings={p.parent.name for p in candidates} - {seed_stem},
+                                   attempt=attempt, call_seq=candidate_index)
         reviews[seed_stem] = review
         text = data.decode(errors="replace")
         ctx.driver.journal.append(EventType.SIGNAL, {
@@ -822,7 +823,7 @@ async def _review_seeds(ctx: StageContext, ticket: Ticket, *, attempt: int,
 
 async def _review_one(ctx: StageContext, ticket: Ticket, seed_stem: str, rel: str, data: bytes, sha: str,
                       main_sha: str | None, plan: str, worktree: Path, earlier: Mapping | None, *,
-                      attempt: int, call_seq: int) -> SeedReview:
+                      siblings: set[str], attempt: int, call_seq: int) -> SeedReview:
     """One seed's verdict: mechanical refusals first, then the requisition_review call with its prior review."""
     from chupa.requisition import review_ticket  # requisition imports implement_inputs from this module
 
@@ -837,7 +838,7 @@ async def _review_one(ctx: StageContext, ticket: Ticket, seed_stem: str, rel: st
         return snag(gap, "harden the entry unit through section 11.4; never invent its facts in the seed",
                     "entry unit gap", kind="spec_gap")
     try:
-        parsed = validate_ticket(seed_stem, data.decode(), ctx.repo)
+        parsed = validate_ticket(seed_stem, data.decode(), ctx.repo, siblings)
     except UnicodeDecodeError:
         return snag("ticket.md is not UTF-8", "write UTF-8 ticket text", "ticket lint failed")
     except TicketInvalid as exc:
@@ -857,7 +858,7 @@ async def _review_one(ctx: StageContext, ticket: Ticket, seed_stem: str, rel: st
     reviewed = await review_ticket(
         ctx.driver, repo=ctx.repo, plan=plan, stem=seed_stem, text=data.decode(), specs_dir=ctx.specs_dir,
         tier=parsed.frontmatter.agent_tier, stem_slot=ticket.stem, run_seq=attempt, attempt=attempt,
-        call_seq=call_seq, prior=_prior_review(earlier, data.decode()),
+        call_seq=call_seq, prior=_prior_review(earlier, data.decode()), siblings=siblings,
     )
     return SeedReview(stem=seed_stem, ticket_sha=reviewed.ticket_sha, verdict=reviewed.verdict,
                       findings=list(reviewed.findings), mechanical=reviewed.mechanical)

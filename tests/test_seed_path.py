@@ -409,3 +409,14 @@ def test_premise_without_an_entry_unit_gap_keeps_the_ordinary_park(repo):
     assert outcome == "premise_failed"
     assert terminal_body(ctx).get("dispatch") != "spec_gap_hold"
     assert not list((repo / "tickets").glob("harden-*"))
+
+
+def test_a_seed_may_depend_on_a_sibling_seed_of_its_own_batch(repo):
+    alpha = seed_text("alpha-seed")
+    beta = seed_text("beta-seed").replace("## Depends on\nnone", "## Depends on\n- alpha-seed")
+    assert "- alpha-seed" in beta
+    outcome, _, llm = run(repo, [write_seeds({"alpha-seed": alpha, "beta-seed": beta}), requisition("approve"),
+                                 requisition("approve"), verdict()])
+    assert outcome == "merged"
+    assert (repo / "tickets/beta-seed/ticket.md").read_text() == beta
+    assert [r.surface for r in llm.requests].count("requisition_review") == 2
