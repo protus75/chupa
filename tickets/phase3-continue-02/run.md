@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The full suite completed with no cached failures; seed tickets remain intentionally uncommitted.
+none
 
 ## Dead ends
 
@@ -12,7 +12,7 @@ none
 
 ## Second problems filed
 
-none
+- box-000278-dac9049a: The drain does not yet consume Rework's escalation signal; rework-activation is the likely owner.
 
 ## Resolved engine/model
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60m expected budget.
+Expected 60m; completed within budget.
 
