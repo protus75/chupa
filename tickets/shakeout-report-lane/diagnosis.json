@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "d351fa2e93d5d41e6099f601d781102f038aca82",
+  "produced_at_sha": "f407c6ec84cdfb988982c12bb872b27fc713a0f2",
   "stem": "shakeout-report-lane",
-  "attempt": 3,
+  "attempt": 4,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "In lift_outbox, validate a registered artifact only when this lift will carry it: kind == \"checks\" AND the file passes the written/only filter. Non-checks lifts (run-record, harvest, diagnosis) must skip registered files entirely and never raise ArtifactInvalid.",
-    "When check returns gate_failed on ArtifactInvalid, delete the invalid registered artifact from the outbox so the later harvest and write_diagnosis lifts proceed instead of re-raising or crashing drive.",
-    "Add a test where the Implement agent writes an invalid shakeout-report.json and the run-record lift still completes. Add another where a failed Check's invalid report flows through harvest and diagnosis without an exception.",
-    "Strengthen the AC1 invalid-report test: assert that tickets/<stem>/checks.json and the report are both absent from the repo, and that 'chupa(<stem>): checks' is not in subjects(repo)."
+    "In `check`, purge registered artifacts with the same rule `lift_outbox` uses: before Verification, unlink every `p in outbox.rglob('*')` where `p.is_file()` and `p.name in KNOWN_ARTIFACTS`, not only `outbox / name`.",
+    "Better still, put the registered-artifact matching in one helper that both the pre-Verification purge and `lift_outbox` call. Then the purge and the lift can never disagree again, and there is still only one lift path.",
+    "Add a `tests/test_stages.py` case: Implement writes a schema-valid report at a nested outbox path (e.g. `tickets/<stem>/x/shakeout-report.json`), Verification writes nothing, and the test asserts no report file is in the `chupa(<stem>): checks` commit or on main.",
+    "Check that REPORT REQUIRED still reads the top-level `tickets/<stem>/shakeout-report.json` path written after Verification. The broader purge must not delete the report the runner just produced. The purge runs only before Verification."
   ],
   "mechanical": null,
   "spec_version": "1.0",
