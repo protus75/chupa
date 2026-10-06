@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "a7132c4ecbde9a372d591dce0a889a7f639aafa0",
+  "stem": "shakeout-stages",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "In `_scope_escape` (eval/shakeout/stages.py ~line 93), bind `report = await bench.drain()` and add `assert stem not in report.merged`, matching how `_review_reject_reentry` and `_base_diff_attribution` check `report.merged`.",
+    "Before resubmitting, check every member against each conjunct of its named observable. `unfixable_lint_branch_only`, `review_reject` and `empty_committed_diff` must each assert no merge, plus their terminal stage and finding. A terminal name alone is not enough.",
+    "In `tests/test_shakeout.py`, also assert the no-merge observable for `scope_escape`, so a regression that merges an out-of-fence branch fails a test and not just the report.",
+    "Change nothing else: the three Verification commands passed and the diff stayed inside the fence. Rerun all three commands after the fix."
+  ],
+  "mechanical": null,
+  "spec_version": "1.0",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
