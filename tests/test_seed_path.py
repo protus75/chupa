@@ -187,6 +187,57 @@ def test_lint_failure_is_a_recorded_snag_without_a_requisition_call(repo):
     assert not intake_events(ctx)
 
 
+@pytest.mark.parametrize("section", ["Context", "On-demand"])
+def test_seed_context_must_exist_on_main(repo, section):
+    own = repo / "tickets" / STEM / "ticket.md"
+    own.write_text(own.read_text().replace("- tickets\n", "- tickets\n- tests/new_idiom.py\n"))
+    git(repo, "add", str(own.relative_to(repo)))
+    git(repo, "commit", "-m", "allow the seeding branch to create an idiom")
+    text = seed_text("alpha-seed")
+    if section == "On-demand":
+        text = text.replace("## Goal / Why", "## On-demand\n- tests/new_idiom.py\n\n## Goal / Why")
+        text = text.replace("## Scope fence\n", "## Scope fence\n- tests/new_idiom.py\n")
+    else:
+        text = text.replace("## Context\n", "## Context\n- tests/new_idiom.py\n")
+
+    def implement(req: LLMRequest) -> str:
+        assert req.worktree is not None
+        path = req.worktree / "tests/new_idiom.py"
+        path.parent.mkdir(parents=True)
+        path.write_text("# Branch-only idiom.\n")
+        git(req.worktree, "add", "tests/new_idiom.py")
+        git(req.worktree, "commit", "-m", "create branch-only idiom")
+        return write_seeds({"alpha-seed": text})(req)
+
+    def respond(req: LLMRequest) -> str:
+        return diagnosis_reply() if req.surface == "diagnose" else requisition("approve")
+
+    outcome, ctx, llm = run(repo, [implement, respond, verdict(), diagnosis_reply()])
+
+    assert outcome == "gate_failed"
+    assert terminal_body(ctx)["stage"] == "check"
+    [seed] = invoice(repo).seeds
+    assert (seed.verdict, seed.mechanical) == ("snag", "ticket lint failed")
+    assert any("tests/new_idiom.py" in f.message for f in seed.findings)
+    assert [r.surface for r in llm.requests] == ["implement", "diagnose"]
+    assert not (repo / "tests/new_idiom.py").exists()
+    assert not intake_events(ctx)
+
+
+def test_seed_review_renders_context_from_main(repo):
+    (repo / "chupa/thing.py").write_text("ok main context\n")
+    git(repo, "add", "chupa/thing.py")
+    git(repo, "commit", "-m", "provide main context")
+    outcome, _, llm = run(repo, [write_seeds({"alpha-seed": seed_text("alpha-seed")},
+                                          code="ok branch context\n"),
+                               requisition("approve"), verdict()])
+
+    assert outcome == "merged"
+    [request] = [r for r in llm.requests if r.surface == "requisition_review"]
+    assert "ok main context" in request.rendered
+    assert "ok branch context" not in request.rendered
+
+
 def test_identical_own_seed_is_skipped_on_rerun_and_prior_approvals_survive(repo):
     seeds = {"alpha-seed": seed_text("alpha-seed"), "beta-seed": seed_text("beta-seed")}
     first, _, _ = run(repo, [write_seeds(seeds), requisition("approve"), requisition("approve"), verdict()])

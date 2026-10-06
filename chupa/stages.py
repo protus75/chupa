@@ -837,7 +837,7 @@ async def _review_one(ctx: StageContext, ticket: Ticket, seed_stem: str, rel: st
         return snag(gap, "harden the entry unit through section 11.4; never invent its facts in the seed",
                     "entry unit gap", kind="spec_gap")
     try:
-        parsed = validate_ticket(seed_stem, data.decode(), worktree)
+        parsed = validate_ticket(seed_stem, data.decode(), ctx.repo)
     except UnicodeDecodeError:
         return snag("ticket.md is not UTF-8", "write UTF-8 ticket text", "ticket lint failed")
     except TicketInvalid as exc:
@@ -855,7 +855,7 @@ async def _review_one(ctx: StageContext, ticket: Ticket, seed_stem: str, rel: st
         return SeedReview(stem=seed_stem, ticket_sha=sha, verdict="snag", findings=findings,
                           mechanical="seed frontmatter")
     reviewed = await review_ticket(
-        ctx.driver, repo=worktree, plan=plan, stem=seed_stem, text=data.decode(), specs_dir=ctx.specs_dir,
+        ctx.driver, repo=ctx.repo, plan=plan, stem=seed_stem, text=data.decode(), specs_dir=ctx.specs_dir,
         tier=parsed.frontmatter.agent_tier, stem_slot=ticket.stem, run_seq=attempt, attempt=attempt,
         call_seq=call_seq, prior=_prior_review(earlier, data.decode()),
     )
