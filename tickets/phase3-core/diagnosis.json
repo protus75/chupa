@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "2ca1f98c4fb52d9b82907a2a664e729502e1bf52",
+  "produced_at_sha": "d6cf1f5e4547fd0e40a9377caa5bb5f90cf89f43",
   "stem": "phase3-core",
-  "attempt": 3,
+  "attempt": 4,
   "terminal": "infra_error",
   "stage": "implement",
   "verdict": "abandon-human",
   "lessons": [
-    "Attempt 3 failed in 2s before any work: codex returned HTTP 400 because model 'gpt-6.1-sol' is not supported with a ChatGPT-account Codex login. Nothing in the ticket caused it, and retrying at the same routing will fail the same way.",
-    "A human must fix the Implement route: either point it at a model this Codex ChatGPT account supports, or sign codex in with an account or API plan that has 'gpt-6.1-sol'. The ticket and plan need no change.",
-    "The material does not show where the routed codex model is configured. A human should find the routing source that resolved to 'gpt-6.1-sol' and fix it before rerunning phase3-core.",
-    "Once routing works, run the ticket unchanged: write the three seed ticket.md files uncommitted under tickets/ and add tests/test_seeded_phase3_core.py, as the Scope in section says."
+    "Implement never ran. The codex provider refused the request before the first turn: 'The gpt-6.1-sol model is not supported when using Codex with a ChatGPT account' (HTTP 400, 2.57s, $0, empty diff). Nothing in the ticket or the approach caused this.",
+    "A human must fix the codex provider setup: either map Implement's routing to a model that this ChatGPT-account login supports, or switch codex to an account or API login that can use gpt-6.1-sol. This attempt does not say which config fact sets that model.",
+    "Do not retry or escalate at the same routing. This is attempt 4, and every rerun fails the same way at provider startup without touching the ticket.",
+    "Once the provider runs, keep the ticket's scope as written: author only daemon-scheduler, seed-successor-proof and phase3-continue as uncommitted tickets/ files, plus tests/test_seeded_phase3_core.py. The plan's 19.P3 registry, read live from CHUPA_PLAN.md, is the only source."
   ],
   "mechanical": null,
   "spec_version": "1.1",
