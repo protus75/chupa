@@ -1,13 +1,13 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "48943b599d401b42262c6d7cbf209287f4d3ddf5",
+  "produced_at_sha": "a32d2078054686d4f48d824bccb0846c015f1744",
   "stem": "phase3-continue-02",
   "passed": false,
   "changed_files": [
     "tests/test_seeded_phase3_02.py"
   ],
-  "inserted_lines": 111,
+  "inserted_lines": 107,
   "bypassed": [],
   "reports": [
     {
@@ -39,32 +39,11 @@
       "verdict": "fail",
       "findings": [
         {
-          "code": "unspecified_handoff_record",
-          "path": "chupa/drain.py",
-          "line": 270,
-          "message": "Today the drain re-offer reads the rung only from the latest terminal state_transition body (drain.py _run_one: caps.consume(..., rung=body.get(\"rung\"))). The only writer of that body is runner.py's terminal handler. Rework runs after admission and is not the terminal writer, so the rung it gets from caps.next_rung needs a new durable record the drain folds. The ticket never names that record's kind or body, or whether it takes precedence over the terminal's rung. An in-memory handoff would break the journal-derived rung law (section 11.4) across invocations and the self-upgrade re-exec.",
-          "paved_road": "Name the exact journal record Rework writes for an escalation (for example a SIGNAL {signal: rework_escalate, rung: {tier, effort}}). State how drain._run_one picks between it and the terminal body's rung, and that the record is consumed by exactly one retry draw. Add a criterion proving a second re-offer does not reuse it."
-        },
-        {
-          "code": "missing_dormancy_observable",
-          "path": "chupa/drain.py",
+          "code": "missing_test_obligation",
+          "path": "tickets/phase3-continue-03/ticket.md",
           "line": null,
-          "message": "The drain.py change lands in a module already reachable from production. 19.L requires a construction there to state a behavioral observable: no production caller of the new seam, proven by a test over the CLI composition root. Criterion 1 covers only the import closure of chupa.rework. Nothing proves the new drain fold is inert in production, or that existing terminal-rung re-offers are unchanged. tests/test_drain.py is a preservation suite and does not exercise the new path.",
-          "paved_road": "Add a criterion in tests/test_rework.py that proves, over the chupa/__main__.py composition root, that no production module writes the new escalation record. It must also prove that a re-offer with only a terminal-body rung journals the same cap_consumed body as before."
-        },
-        {
-          "code": "intake_body_unspecified",
-          "path": "chupa/mergequeue.py",
-          "line": 94,
-          "message": "Criterion 2 requires one ticket_intake per admitted ticket but leaves the body open beyond its source, and says split successors are 'citing this Phase 3 seed chain'. Merged code treats ticket_intake events carrying seeded_by=<stem> as that stem's seeds: mergequeue._candidate, merge.py:188 and stages.py:708 apply seed-safety and requisition_review hard severity to them. If a split's intake stamps seeded_by=<old_stem>, the original stem's admission picks up seed checks it never authored.",
-          "paved_road": "Spell out the exact ticket_intake body for an update and for a split (for example {signal, source, state: confirmed, new, commit}). Say explicitly whether seeded_by is present and with what value, and add an assertion that a split's intake does not change mergequeue._candidate's seed set for the original stem."
-        },
-        {
-          "code": "spec_test_obligation",
-          "path": "specs/rework.md",
-          "line": null,
-          "message": "specs/rework.md sits among the engine prompt specs, and 'rework' is in chupa.specs.ENGINE_LLM_SURFACES. The ticket calls it an 'operator specification' and names no test that it parses with chupa.specs.load_spec under llm_surface rework. It also never says whether Rework's update/split/escalate decision comes from an LLM call through that spec. A free-form doc would pass a green suite that never loads it.",
-          "paved_road": "State that specs/rework.md is the rework-surface prompt spec. Add to criterion 2 or 3 that tests/test_rework.py loads it with chupa.specs.load_spec (llm_surface rework) and that Rework's decision is rendered from it, or else say explicitly that it is not a prompt spec and how it is kept out of spec lint."
+          "message": "In the `BEGIN_REGISTRY_P3` registry, `thresh-runtime` is `deep: true`. Under the KNOWN-DEEP rule in 19.L, it rides its admission alone and starts at `agent_tier: high, agent_effort: high`. Criterion 1 only asks the test to pin \"the registry row's fence floor and cited section\". It names no tier pin. The only Context idiom is `tests/test_seeded_phase3_core.py`, and its `test_seed_intake_frontmatter_edges_and_fence` asserts `(agent_tier, agent_effort) == (\"medium\", \"medium\")` for every stem. An implementer copying that idiom would author and pin `thresh-runtime` at `medium`/`medium`, against 19.L, and the suite would still pass (false-green). The predecessor `phase3-continue-02` stated this obligation explicitly (\"`rework-stage` at `high`/`high`\") and spelled out the next admission's tier, cite, depends and successor shape. This ticket dropped that paragraph.",
+          "paved_road": "Restore the next-admission paragraph in Goal / Why. It should say that the next admission is `thresh-runtime` alone: known-deep, `high`/`high`, with its exact `does`, cited section 6, and its fence floor (`chupa/thresh.py`, `chupa/providers.py`, `chupa/config.py`, `tests/test_thresh.py`, `tests/test_providers.py`), and that it depends on `rework-stage`. It should also say that the successor `phase3-continue-04` depends on `thresh-runtime`, fences `tickets` plus its own new `tests/test_seeded_phase3_04.py`, stays at `medium`/`medium`, and embeds a merged earlier seeding test as its idiom. Then amend criterion 1 to read: \"... including `thresh-runtime` at `high`/`high`, `phase3-continue-04` at `medium`/`medium`, and the registry row's fence floor and cited section 6\"."
         }
       ],
       "autofix_applied": false
@@ -73,45 +52,24 @@
   "seeds": [
     {
       "stem": "phase3-continue-03",
-      "ticket_sha": "82d6ac8e9fa21ca11126c53be7e514106fced0f5",
-      "verdict": "approve",
-      "findings": [],
+      "ticket_sha": "44bbb8058f8011faccedcfc448c25ccd03249ea9",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "missing_test_obligation",
+          "path": "tickets/phase3-continue-03/ticket.md",
+          "line": null,
+          "message": "In the `BEGIN_REGISTRY_P3` registry, `thresh-runtime` is `deep: true`. Under the KNOWN-DEEP rule in 19.L, it rides its admission alone and starts at `agent_tier: high, agent_effort: high`. Criterion 1 only asks the test to pin \"the registry row's fence floor and cited section\". It names no tier pin. The only Context idiom is `tests/test_seeded_phase3_core.py`, and its `test_seed_intake_frontmatter_edges_and_fence` asserts `(agent_tier, agent_effort) == (\"medium\", \"medium\")` for every stem. An implementer copying that idiom would author and pin `thresh-runtime` at `medium`/`medium`, against 19.L, and the suite would still pass (false-green). The predecessor `phase3-continue-02` stated this obligation explicitly (\"`rework-stage` at `high`/`high`\") and spelled out the next admission's tier, cite, depends and successor shape. This ticket dropped that paragraph.",
+          "paved_road": "Restore the next-admission paragraph in Goal / Why. It should say that the next admission is `thresh-runtime` alone: known-deep, `high`/`high`, with its exact `does`, cited section 6, and its fence floor (`chupa/thresh.py`, `chupa/providers.py`, `chupa/config.py`, `tests/test_thresh.py`, `tests/test_providers.py`), and that it depends on `rework-stage`. It should also say that the successor `phase3-continue-04` depends on `thresh-runtime`, fences `tickets` plus its own new `tests/test_seeded_phase3_04.py`, stays at `medium`/`medium`, and embeds a merged earlier seeding test as its idiom. Then amend criterion 1 to read: \"... including `thresh-runtime` at `high`/`high`, `phase3-continue-04` at `medium`/`medium`, and the registry row's fence floor and cited section 6\"."
+        }
+      ],
       "mechanical": null
     },
     {
       "stem": "rework-stage",
-      "ticket_sha": "253bd3e5f9d66be85d74a0ba8d40deeb14f7da64",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "unspecified_handoff_record",
-          "path": "chupa/drain.py",
-          "line": 270,
-          "message": "Today the drain re-offer reads the rung only from the latest terminal state_transition body (drain.py _run_one: caps.consume(..., rung=body.get(\"rung\"))). The only writer of that body is runner.py's terminal handler. Rework runs after admission and is not the terminal writer, so the rung it gets from caps.next_rung needs a new durable record the drain folds. The ticket never names that record's kind or body, or whether it takes precedence over the terminal's rung. An in-memory handoff would break the journal-derived rung law (section 11.4) across invocations and the self-upgrade re-exec.",
-          "paved_road": "Name the exact journal record Rework writes for an escalation (for example a SIGNAL {signal: rework_escalate, rung: {tier, effort}}). State how drain._run_one picks between it and the terminal body's rung, and that the record is consumed by exactly one retry draw. Add a criterion proving a second re-offer does not reuse it."
-        },
-        {
-          "code": "missing_dormancy_observable",
-          "path": "chupa/drain.py",
-          "line": null,
-          "message": "The drain.py change lands in a module already reachable from production. 19.L requires a construction there to state a behavioral observable: no production caller of the new seam, proven by a test over the CLI composition root. Criterion 1 covers only the import closure of chupa.rework. Nothing proves the new drain fold is inert in production, or that existing terminal-rung re-offers are unchanged. tests/test_drain.py is a preservation suite and does not exercise the new path.",
-          "paved_road": "Add a criterion in tests/test_rework.py that proves, over the chupa/__main__.py composition root, that no production module writes the new escalation record. It must also prove that a re-offer with only a terminal-body rung journals the same cap_consumed body as before."
-        },
-        {
-          "code": "intake_body_unspecified",
-          "path": "chupa/mergequeue.py",
-          "line": 94,
-          "message": "Criterion 2 requires one ticket_intake per admitted ticket but leaves the body open beyond its source, and says split successors are 'citing this Phase 3 seed chain'. Merged code treats ticket_intake events carrying seeded_by=<stem> as that stem's seeds: mergequeue._candidate, merge.py:188 and stages.py:708 apply seed-safety and requisition_review hard severity to them. If a split's intake stamps seeded_by=<old_stem>, the original stem's admission picks up seed checks it never authored.",
-          "paved_road": "Spell out the exact ticket_intake body for an update and for a split (for example {signal, source, state: confirmed, new, commit}). Say explicitly whether seeded_by is present and with what value, and add an assertion that a split's intake does not change mergequeue._candidate's seed set for the original stem."
-        },
-        {
-          "code": "spec_test_obligation",
-          "path": "specs/rework.md",
-          "line": null,
-          "message": "specs/rework.md sits among the engine prompt specs, and 'rework' is in chupa.specs.ENGINE_LLM_SURFACES. The ticket calls it an 'operator specification' and names no test that it parses with chupa.specs.load_spec under llm_surface rework. It also never says whether Rework's update/split/escalate decision comes from an LLM call through that spec. A free-form doc would pass a green suite that never loads it.",
-          "paved_road": "State that specs/rework.md is the rework-surface prompt spec. Add to criterion 2 or 3 that tests/test_rework.py loads it with chupa.specs.load_spec (llm_surface rework) and that Rework's decision is rendered from it, or else say explicitly that it is not a prompt spec and how it is kept out of spec lint."
-        }
-      ],
+      "ticket_sha": "c43d6836c00cfe8c9a44f09c6ca5998d25a6f1d8",
+      "verdict": "approve",
+      "findings": [],
       "mechanical": null
     }
   ],
@@ -125,7 +83,7 @@
         "tests/test_seeded_phase3_02.py"
       ],
       "rc": 0,
-      "tail": "......                                                                   [100%]\n6 passed in 0.09s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "......                                                                   [100%]\n6 passed in 0.08s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -136,7 +94,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "........................................................................ [ 10%]\n........................................................................ [ 20%]\n........................................................................ [ 30%]\n........................................................................ [ 40%]\n........................................................................ [ 50%]\n........................................................................ [ 60%]\n........................................................................ [ 70%]\n........................................................................ [ 80%]\n........................................................................ [ 90%]\n..................................................................       [100%]\n714 passed in 59.22s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................................ [ 10%]\n........................................................................ [ 20%]\n........................................................................ [ 30%]\n........................................................................ [ 40%]\n........................................................................ [ 50%]\n........................................................................ [ 60%]\n........................................................................ [ 70%]\n........................................................................ [ 80%]\n........................................................................ [ 90%]\n..................................................................       [100%]\n714 passed in 59.05s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
