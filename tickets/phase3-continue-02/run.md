@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-none
+Rework's existing mergequeue test moved to fenced On-demand context to satisfy render headroom.
 
 ## Dead ends
 
@@ -12,7 +12,7 @@ none
 
 ## Second problems filed
 
-none
+- box-000277-3e247fbd: The registry lacks a fenced owner for scheduler and dead-dependency consumption of the Rework supersedes map.
 
 ## Resolved engine/model
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-60m expected / 90m stuck; completed within the expected budget.
+Expected 60m; completed in about 10m.
 
