@@ -1,13 +1,13 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "c338c89564180eb5d27c34da84bcd5d2a3b6d4b5",
+  "produced_at_sha": "9a5c5e954d196f591044083ba42734393f50c02e",
   "stem": "phase3-continue",
-  "passed": false,
+  "passed": true,
   "changed_files": [
     "tests/test_seeded_phase3_01.py"
   ],
-  "inserted_lines": 172,
+  "inserted_lines": 152,
   "bypassed": [],
   "reports": [
     {
@@ -36,17 +36,8 @@
     },
     {
       "code": "requisition_review",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "ticket_schema",
-          "path": "tickets/phase3-continue-02/ticket.md",
-          "line": null,
-          "message": "`## Depends on` stem 'merge-queue' does not resolve to an existing ticket",
-          "paved_road": "name an existing `tickets/<stem>/` dir, or `none`",
-          "kind": "authoring_error"
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false
     }
   ],
@@ -56,23 +47,14 @@
       "ticket_sha": "22267f1748d6fe369e9df1cbe1daff01c0be939e",
       "verdict": "approve",
       "findings": [],
-      "mechanical": null
+      "mechanical": "approved earlier"
     },
     {
       "stem": "phase3-continue-02",
-      "ticket_sha": "bb4f4678f6845afb4e7f46a65cc20be224312f4b",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "ticket_schema",
-          "path": "tickets/phase3-continue-02/ticket.md",
-          "line": null,
-          "message": "`## Depends on` stem 'merge-queue' does not resolve to an existing ticket",
-          "paved_road": "name an existing `tickets/<stem>/` dir, or `none`",
-          "kind": "authoring_error"
-        }
-      ],
-      "mechanical": "ticket lint failed"
+      "ticket_sha": "a3b231e593dce027160265da76461b082d0b0171",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
     }
   ],
   "verification": [
@@ -96,7 +78,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "........................................................................ [  9%]\n........................................................................ [ 19%]\n........................................................................ [ 28%]\n........................................................................ [ 38%]\n........................................................................ [ 47%]\n........................................................................ [ 57%]\n........................................................................ [ 66%]\n........................................................................ [ 76%]\n........................................................................ [ 85%]\n........................................................................ [ 95%]\n.....................................                                    [100%]\n757 passed in 70.71s (0:01:10)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................................ [  9%]\n........................................................................ [ 18%]\n........................................................................ [ 28%]\n........................................................................ [ 37%]\n........................................................................ [ 47%]\n........................................................................ [ 56%]\n........................................................................ [ 66%]\n........................................................................ [ 75%]\n........................................................................ [ 85%]\n........................................................................ [ 94%]\n......................................                                   [100%]\n758 passed in 70.89s (0:01:10)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
