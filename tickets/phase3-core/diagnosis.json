@@ -1,16 +1,15 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "83fb026174f5e378c51f6aae25e31d47d09a87e8",
+  "produced_at_sha": "9941ca2f77eee9f0faa132b62325e8f04daf1f35",
   "stem": "phase3-core",
-  "attempt": 1,
+  "attempt": 2,
   "terminal": "infra_error",
   "stage": "implement",
   "verdict": "abandon-human",
   "lessons": [
-    "The Implement call to codex failed in 2.5s before any work began: the API returned 400 \"The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account.\" Nothing in the ticket caused this, so its scope and criteria need no change.",
-    "A human must fix the provider setup. Either point the codex route at a model that a ChatGPT-account login supports, or give codex credentials that allow 'gpt-6.1-sol'. Then re-run the ticket unchanged.",
-    "Codex also logged 'Model metadata for gpt-6.1-sol not found'. A human should check that this model id is spelled correctly in the provider/model config for codex before requeueing."
+    "The attempt never ran: codex rejected model 'gpt-6.1-sol' with HTTP 400 ('not supported when using Codex with a ChatGPT account') after 2.4s with an empty diff. A human must fix the provider routing or account so Implement resolves to a model this codex login accepts.",
+    "The material has no ticket-content finding, so do not change the ticket. Once routing works, re-run Implement unchanged: author the three seeds uncommitted under tickets/ and tests/test_seeded_phase3_core.py, per the Scope in and Scope fence."
   ],
   "mechanical": null,
   "spec_version": "1.1",
