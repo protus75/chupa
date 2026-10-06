@@ -1,19 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "d351fa2e93d5d41e6099f601d781102f038aca82",
+  "produced_at_sha": "f407c6ec84cdfb988982c12bb872b27fc713a0f2",
   "stem": "shakeout-report-lane",
   "passed": true,
   "changed_files": [
     "chupa/artifacts.py",
     "chupa/stages.py",
-    "eval/shakeout/__init__.py",
     "eval/shakeout/bench.py",
     "eval/shakeout/run.py",
     "tests/test_shakeout.py",
     "tests/test_stages.py"
   ],
-  "inserted_lines": 417,
+  "inserted_lines": 510,
   "bypassed": [],
   "reports": [
     {
