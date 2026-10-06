@@ -12,7 +12,7 @@ state: confirmed
 - seed-successor-proof
 
 ## Context
-- tests/test_seeded_phase3_core.py
+- tests/test_seeded_phase2.py
 
 ## Plan contract
 - 19.L
