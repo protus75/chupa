@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "4e6bfe6124652250d10fa209126ee419cee0f784",
+  "produced_at_sha": "f4f78e2a99871b8e715fd36ac2a51aa0b30a07c1",
   "stem": "verification-base-attribution",
-  "attempt": 3,
+  "attempt": 4,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "Rewrite the criterion-1 test in tests/test_stages.py so its ticket has TWO `## Verification` commands. Build it with the `TICKET.replace` pattern `_report_ticket` uses: one command red at both base and branch, and one always green (e.g. `test -f chupa/thing.py`).",
-    "In that test, assert that Check is ok, `verification[0].base_red is True`, `verification[1].base_red is False` with rc 0, and that the box holds exactly one `failure_report` with outcome `base_red` and origin STEM.",
-    "Leave the attribution logic, cleanup, and other test files as they are, because review found them correct. Change only the test_stages.py criterion-1 test, then rerun both Verification commands.",
-    "Before finishing, check each numbered acceptance criterion against its literal test shape (command count, which fields to assert). A test that passes but uses a simpler fixture than the criterion names will fail review."
+    "Default the new `Invoice.verification` field to an empty list (`verification: list[\"CommandResult\"] = []`), matching the neighbouring `seeds` field. Older checks.json files on main lack the field, and extra=forbid strict models must still validate them.",
+    "Add a test in tests/test_stages.py: a checks.json without `verification` still parses through `Invoice.model_validate_json` and `_prior_findings`. Then a gate_failed re-entry and `_prior_seed_reviews` keep working on pre-change stems.",
+    "Before adding any field to a persisted pydantic model in stages.py, grep main's tickets/*/checks.json for real artifacts and confirm they still validate. Persisted schemas must stay readable for old records.",
+    "Keep the rest of the diff as is. Reviewers accepted the attribution logic, the worktree cleanup, and the fixture conversions, and the full suite passed (657 tests). Change only the schema default and add its test."
   ],
   "mechanical": null,
   "spec_version": "1.0",
