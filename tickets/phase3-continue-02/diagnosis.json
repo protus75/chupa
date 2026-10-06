@@ -1,18 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "7b7f67e798867bcf291a65c0edd54642120042c0",
+  "produced_at_sha": "282f77ff065e652bed902e467aca331a3d2dfe97",
   "stem": "phase3-continue-02",
-  "attempt": 7,
+  "attempt": 8,
   "terminal": "gate_failed",
   "stage": "check",
   "verdict": "retry",
   "lessons": [
-    "Narrow rework-stage criterion 5 to what Rework owns: one appended {signal: rework_escalate, rung} whose rung equals caps.next_rung(...) for the folded caps.capability, and Rework never calls caps.consume. Name the test and the journal body keys.",
-    "Remove every clause about the drain re-offer, rung reuse, or the rung coming only from the terminal body. Drain._run_one (chupa/drain.py:265-270) never reads rework_escalate, and chupa/drain.py is outside the fence and listed as Scope out.",
-    "File the drain-side use of the escalation rung to the Suggestion Box as a plan gap, with rework-activation as the likely owner. Do not fence chupa/drain.py and do not widen the registry fence floor.",
-    "Before Check, read each seed criterion against the code it touches. Any criterion whose proof needs an edit outside that seed's Scope fence is a fence_closure snag, so rewrite it to an observable inside the fence.",
-    "After editing the seed, rerun tests/test_seeded_phase3_02.py and update its render-size pins. Do not commit the test under the 'chupa(phase3-continue-02): seeds' message: that message is reserved for Check's lift commit."
+    "In tickets/rework-stage/ticket.md, delete the `- tickets` line from `## Scope fence`. The fence must equal the BEGIN_REGISTRY_P3 rework-stage floor exactly: chupa/rework.py, specs/rework.md, chupa/mergequeue.py, tests/test_rework.py.",
+    "Only seeding tickets (phase3-continue-NN) fence `tickets`. A code row like rework-stage never does. Rework's split/update ticket-plane commits are runtime behavior, tested in tests/test_rework.py against temp repos through chupa/git.py, not fenced paths.",
+    "Make tests/test_seeded_phase3_02.py assert that rework-stage's fence EQUALS the registry floor, not just contains it. That catches widening before Check. Rerun the test after the edit and update its authoring-time render-size pins.",
+    "Leave phase3-continue-03 as it is: the reviewer found no defects in it. Re-verify that every fenced existing path in rework-stage is embedded in `## Context` or listed in `## On-demand`, to satisfy 19.L context closure."
   ],
   "mechanical": null,
   "spec_version": "1.0",
