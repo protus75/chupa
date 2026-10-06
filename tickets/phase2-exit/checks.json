@@ -1,7 +1,7 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "529ef9b2d19e33d773bb5b3c707b98b66ad4b4be",
+  "produced_at_sha": "c95911cf75b502508dd1dfda9f4892d38d3ac244",
   "stem": "phase2-exit",
   "passed": false,
   "changed_files": [
@@ -40,18 +40,11 @@
       "verdict": "fail",
       "findings": [
         {
-          "code": "context_closure",
-          "path": "tickets/phase3-continue/ticket.md",
+          "code": "requisition_review",
+          "path": null,
           "line": null,
-          "message": "Goal / Why says the successor `phase3-continue-02` 'embeds `tests/test_seeded_phase3_01.py` as its idiom'. This ticket creates that file on its code branch. The seed lifts to main through the ticket-plane lane at this ticket's Check, before the branch merges, so the seed's `## Context` names a path missing from main. Section 13 requires every Context path to already exist. 19.L requires each continuation to embed 'one merged earlier seeding test as its idiom, never the test created in its own admission'. Commit 7130ee8 repaired the same defect in phase3-continue itself, whose Context had named the unmerged tests/test_seeded_phase3_core.py.",
-          "paved_road": "Change the successor sentence in Goal / Why so `phase3-continue-02` embeds a seeding test that is merged when the seed is authored: `tests/test_seeded_phase3_core.py`, which phase2-exit merges before this ticket can dispatch through the daemon-scheduler edge, or `tests/test_seeded_phase2.py`. Keep `tests/test_seeded_phase3_01.py` only in the successor's prose and out of its `## Context`. Have `tests/test_seeded_phase3_01.py` assert that the successor's Context excludes it."
-        },
-        {
-          "code": "idiom_mismatch",
-          "path": "tickets/phase3-continue/ticket.md",
-          "line": null,
-          "message": "Goal / Why says `tests/test_seeded_phase3_01.py` 'uses the merged core seeding test as its idiom'. `## Context` embeds `tests/test_seeded_phase2.py`, not the core seeding test `tests/test_seeded_phase3_core.py`. The prose and the embedded idiom name different files, so the implementer has no single clear template for the pins.",
-          "paved_road": "Make the prose match the Context: either say the idiom is the merged `tests/test_seeded_phase2.py`, or keep 'core seeding test' and state that the implementer reads `tests/test_seeded_phase3_core.py` from the worktree. That file is merged at dispatch because daemon-scheduler depends on phase2-exit."
+          "message": "invalid requisition review reply: 1 schema error(s)",
+          "paved_road": "reply with a schema-valid requisition verdict"
         }
       ],
       "autofix_applied": false
@@ -67,25 +60,18 @@
     },
     {
       "stem": "phase3-continue",
-      "ticket_sha": "7afce5b8418dec5d3189f900ca1bd7d4983de908",
+      "ticket_sha": "168d632b949426550f544944a47a33b32ceb2d2a",
       "verdict": "snag",
       "findings": [
         {
-          "code": "context_closure",
-          "path": "tickets/phase3-continue/ticket.md",
+          "code": "requisition_review",
+          "path": null,
           "line": null,
-          "message": "Goal / Why says the successor `phase3-continue-02` 'embeds `tests/test_seeded_phase3_01.py` as its idiom'. This ticket creates that file on its code branch. The seed lifts to main through the ticket-plane lane at this ticket's Check, before the branch merges, so the seed's `## Context` names a path missing from main. Section 13 requires every Context path to already exist. 19.L requires each continuation to embed 'one merged earlier seeding test as its idiom, never the test created in its own admission'. Commit 7130ee8 repaired the same defect in phase3-continue itself, whose Context had named the unmerged tests/test_seeded_phase3_core.py.",
-          "paved_road": "Change the successor sentence in Goal / Why so `phase3-continue-02` embeds a seeding test that is merged when the seed is authored: `tests/test_seeded_phase3_core.py`, which phase2-exit merges before this ticket can dispatch through the daemon-scheduler edge, or `tests/test_seeded_phase2.py`. Keep `tests/test_seeded_phase3_01.py` only in the successor's prose and out of its `## Context`. Have `tests/test_seeded_phase3_01.py` assert that the successor's Context excludes it."
-        },
-        {
-          "code": "idiom_mismatch",
-          "path": "tickets/phase3-continue/ticket.md",
-          "line": null,
-          "message": "Goal / Why says `tests/test_seeded_phase3_01.py` 'uses the merged core seeding test as its idiom'. `## Context` embeds `tests/test_seeded_phase2.py`, not the core seeding test `tests/test_seeded_phase3_core.py`. The prose and the embedded idiom name different files, so the implementer has no single clear template for the pins.",
-          "paved_road": "Make the prose match the Context: either say the idiom is the merged `tests/test_seeded_phase2.py`, or keep 'core seeding test' and state that the implementer reads `tests/test_seeded_phase3_core.py` from the worktree. That file is merged at dispatch because daemon-scheduler depends on phase2-exit."
+          "message": "invalid requisition review reply: 1 schema error(s)",
+          "paved_road": "reply with a schema-valid requisition verdict"
         }
       ],
-      "mechanical": null
+      "mechanical": "invalid reply"
     },
     {
       "stem": "seed-successor-proof",
@@ -117,7 +103,7 @@
         "tests/test_seeded_phase3_core.py"
       ],
       "rc": 0,
-      "tail": ".......                                                                  [100%]\n7 passed in 0.08s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": ".......                                                                  [100%]\n7 passed in 0.09s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -128,7 +114,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "........................................................................ [ 10%]\n........................................................................ [ 21%]\n........................................................................ [ 31%]\n........................................................................ [ 42%]\n........................................................................ [ 52%]\n........................................................................ [ 63%]\n........................................................................ [ 73%]\n........................................................................ [ 84%]\n........................................................................ [ 94%]\n....................................                                     [100%]\n684 passed in 57.92s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................................ [ 10%]\n........................................................................ [ 21%]\n........................................................................ [ 31%]\n........................................................................ [ 42%]\n........................................................................ [ 52%]\n........................................................................ [ 63%]\n........................................................................ [ 73%]\n........................................................................ [ 84%]\n........................................................................ [ 94%]\n....................................                                     [100%]\n684 passed in 58.05s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
