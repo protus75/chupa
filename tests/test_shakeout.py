@@ -18,6 +18,7 @@ from eval.shakeout.driver import MEMBERS as DRIVER_MEMBERS
 from eval.shakeout.drain import MEMBERS as DRAIN_MEMBERS
 from eval.shakeout.recovery import MEMBERS as RECOVERY_MEMBERS
 from eval.shakeout.merge import MEMBERS as MERGE_MEMBERS
+from eval.shakeout.providers import MEMBERS as PROVIDER_MEMBERS
 from eval.shakeout.runner import MEMBERS as RUNNER_MEMBERS
 from eval.shakeout.stages import MEMBERS
 
@@ -234,3 +235,13 @@ def test_engine_death_mid_call_member_observes_orphan_harvest_and_fresh_rerun(tm
 def test_conflicted_rebase_member_observes_refusal_with_clean_worktree(tmp_path):
     result = asyncio.run(shakeout.run_member(MERGE_MEMBERS[0], tmp_path))
     assert result.green and result.observed == "conflicted_rebase_refused_cleanly"
+
+
+def test_auth_expiry_member_observes_classified_finding_and_reauth_road(tmp_path):
+    result = asyncio.run(shakeout.run_member(PROVIDER_MEMBERS[0], tmp_path))
+    assert result.green and result.observed == "auth_expiry_harvested_with_reauth_road"
+
+
+def test_planted_secret_member_observes_redacted_run_record(tmp_path):
+    result = asyncio.run(shakeout.run_member(PROVIDER_MEMBERS[1], tmp_path))
+    assert result.green and result.observed == "planted_secret_redacted_from_ticket_plane"

@@ -14,7 +14,7 @@ from chupa.git import Git
 from chupa.seams import FileSystem, LocalFileSystem, SubprocessExec
 from eval.shakeout.bench import Bench
 
-GROUPS: tuple[str, ...] = ("stages", "driver", "runner", "drain", "recovery", "merge")
+GROUPS: tuple[str, ...] = ("stages", "driver", "runner", "drain", "recovery", "merge", "providers")
 
 
 @dataclass(frozen=True)

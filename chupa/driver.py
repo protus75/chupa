@@ -24,7 +24,7 @@ from chupa.gates import Gate, GateReport, merge_severity, run_gates
 from chupa.journal import Journal, run_seq as journal_run_seq
 from chupa.llm import LLM, AgentEffort, AgentTier, LLMRequest, LLMResult
 from chupa.llmeffect import llm_call
-from chupa.providers import WRITING_SURFACES
+from chupa.providers import ProviderCallError, WRITING_SURFACES
 from chupa.redact import Redactor
 from chupa.seams import Clock, FileSystem, LocalFileSystem, Sleep
 
@@ -197,6 +197,12 @@ class Driver:
                 self.log.event("stuck_budget_kill", **call)
                 tally.findings = []
                 return done("timeout")
+            except ProviderCallError as e:
+                self.spool.write(spool_stem, attempt, f"{name}/error.txt", f"{type(e).__name__}: {e}")
+                self.log.event("llm_error", **call, error=f"{type(e).__name__}: {e}")
+                tally.findings = ([Finding(code=e.failure_class, message=str(e), paved_road=e.paved_road)]
+                                  if e.failure_class is not None and e.paved_road is not None else [])
+                return done("infra_error")
             except Exception as e:
                 self.spool.write(spool_stem, attempt, f"{name}/error.txt", f"{type(e).__name__}: {e}")
                 self.log.event("llm_error", **call, error=f"{type(e).__name__}: {e}")

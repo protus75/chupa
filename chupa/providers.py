@@ -31,11 +31,22 @@ class ProviderSetupError(Exception):
 class ProviderCallError(Exception):
     """The CLI ran and failed. `stderr_tail` is scrubbed."""
 
-    def __init__(self, provider: str, message: str, *, rc: int, stderr_tail: str) -> None:
+    def __init__(
+        self,
+        provider: str,
+        message: str,
+        *,
+        rc: int,
+        stderr_tail: str,
+        failure_class: str | None = None,
+        paved_road: str | None = None,
+    ) -> None:
         super().__init__(f"{provider}: {message} (exit {rc}); stderr tail: {stderr_tail!r}")
         self.provider = provider
         self.rc = rc
         self.stderr_tail = stderr_tail
+        self.failure_class = failure_class
+        self.paved_road = paved_road
 
 
 def secret_names(config: Config) -> frozenset[str]:
@@ -96,6 +107,8 @@ class CliAdapter:
 
     binary: str
     reports_cost: bool
+    AUTH_MARKERS: tuple[str, ...]
+    LOGIN_ROAD: str
 
     def __init__(
         self,
@@ -159,15 +172,14 @@ class CliAdapter:
         self._fs.write(call_dir / "stderr.txt", err.encode())
         tail = err[-2000:]
         if rc != 0:
-            raise ProviderCallError(self.provider.name, "nonzero exit", rc=rc, stderr_tail=tail)
+            self._raise_call_error("nonzero exit", rc=rc, stderr_tail=tail)
         try:
             parsed = self.parse(out)
         except ValueError as e:
-            raise ProviderCallError(self.provider.name, str(e), rc=rc, stderr_tail=tail) from None
+            self._raise_call_error(str(e), rc=rc, stderr_tail=tail)
         usd = parsed.usd if parsed.usd is not None else self.provider.limits.est_cost_per_call_usd
         if usd is None:
-            raise ProviderCallError(
-                self.provider.name,
+            self._raise_call_error(
                 "stream reported no cost and limits.est_cost_per_call_usd is unset; declare the estimate",
                 rc=rc,
                 stderr_tail=tail,
@@ -185,6 +197,17 @@ class CliAdapter:
 
     def _spawned(self, pgid: int) -> None:
         self._pgid = pgid
+
+    def _raise_call_error(self, message: str, *, rc: int, stderr_tail: str) -> None:
+        auth = any(marker in f"{stderr_tail}\n{message}".lower() for marker in self.AUTH_MARKERS)
+        raise ProviderCallError(
+            self.provider.name,
+            message,
+            rc=rc,
+            stderr_tail=stderr_tail,
+            failure_class="auth_error" if auth else None,
+            paved_road=self.LOGIN_ROAD if auth else None,
+        )
 
     def abort(self) -> None:
         if self._pgid is not None:
@@ -207,6 +230,8 @@ def _events(out: str) -> list[dict]:
 class ClaudeAdapter(CliAdapter):
     binary = "claude"
     reports_cost = True
+    AUTH_MARKERS = ("invalid api key", "please run /login", "not logged in", "oauth token has expired")
+    LOGIN_ROAD = "run claude interactively and complete /login, then uv run python -m chupa drain"
 
     def argv(self, model: str, effort: AgentEffort, writes: bool) -> list[str]:
         # No effort flag: effort is recorded in provenance only. stream-json under -p requires --verbose.
@@ -233,6 +258,8 @@ class ClaudeAdapter(CliAdapter):
 class CodexAdapter(CliAdapter):
     binary = "codex"
     reports_cost = False
+    AUTH_MARKERS = ("not logged in", "401 unauthorized", "token has expired")
+    LOGIN_ROAD = "run codex login, then uv run python -m chupa drain"
 
     def argv(self, model: str, effort: AgentEffort, writes: bool) -> list[str]:
         grant = (
