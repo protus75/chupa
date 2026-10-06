@@ -1,10 +1,10 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The previous Check recorded a requisition_review snag for the exact blob still on main.
+The existing checks.json records an earlier failed Check against an older seed blob; main now has the corrected blob for the next Check.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-60m expected; stopped during pre-implementation validation.
+60m expected; completed in under 10m.
 
