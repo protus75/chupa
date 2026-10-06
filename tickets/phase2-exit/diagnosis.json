@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "e5ebb5c5ed2fca99904bc4547da24d99453e669f",
+  "produced_at_sha": "c95911cf75b502508dd1dfda9f4892d38d3ac244",
   "stem": "phase2-exit",
-  "attempt": 4,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "abandon-human",
+  "attempt": 5,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "retry",
   "lessons": [
-    "A human must fix the phase3-continue seed on main through the operator recovery path. This ticket forbids editing seeds, and the seed fails review because its stated idiom conflicts with its Context.",
-    "Check whether the 19.L/19.P3 plan text produced the bad idiom or the successor embedding. If it did, fix the plan first and regenerate the seed. Do not hand-edit tickets/phase3-continue/ticket.md.",
-    "The successor seed must embed a seeding test that is already merged when the seed is admitted. Do not point it at tests/test_seeded_phase3_01.py, which does not exist yet at seeding time.",
-    "Before rerunning, run `git rev-parse main:tickets/phase3-continue/ticket.md` and compare it with the blob in phase2-exit/checks.json. Rerun Implement only after the blob changes and the requisition_review snag no longer applies to it.",
-    "On rerun, keep tickets/ out of the branch diff (AC4). Author only tests/test_phase2_exit.py and tests/test_seeded_phase3_core.py, and pin the seed sizes in the test against the corrected blob."
+    "The implementation is green: 684 tests pass and the diff is only the two fenced tests with no tickets/ path. Keep tests/test_phase2_exit.py and tests/test_seeded_phase3_core.py as they are. Do not rewrite them to chase this gate.",
+    "The failure was in the engine's Check requisition review, not in the code. The reviewer started its reply with prose ('Approve: all three seeds...') before the JSON. RequisitionReply.model_validate_json(unwrap_fence(text)) then failed with one json_invalid error.",
+    "The requisition reviewer must reply with ONLY the JSON object {verdict, summary, findings}: no prose before or after it, and findings empty exactly when the verdict is approve. Its approve content was valid; only the leading text broke the parse.",
+    "Do not touch any seed's ticket.md, and do not hand-write tickets/phase2-exit/checks.json. Check must record an approve for main's current blob of all three seeds itself, which needs a clean schema-valid review reply.",
+    "If the same leading-prose failure repeats, file a Suggestion Box ticket for requisition.py: make it extract the trailing JSON object or re-ask on an invalid reply. Do not fold that fix into this branch."
   ],
   "mechanical": null,
   "spec_version": "1.0",
