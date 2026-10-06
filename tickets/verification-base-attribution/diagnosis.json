@@ -1,18 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "66c35bd422b8fbcb8d3176d2c6126643675de743",
+  "produced_at_sha": "4e6bfe6124652250d10fa209126ee419cee0f784",
   "stem": "verification-base-attribution",
-  "attempt": 2,
+  "attempt": 3,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "Add a new base-red test to tests/test_drain_reentry.py: make Verification red on main and on the branch, then drain one implement+verdict script. Assert exit 0, one implement request, no `retry` in the journal, and one box failure_report (outcome base_red) naming the command.",
-    "Do not edit the bodies of the existing tests in tests/test_drain_reentry.py, including test_a_reoffer_after_a_red_check_renders_the_failing_checks and test_a_stale_review_md_never_feeds_a_later_check_failure. Run `git diff` on that file before finishing: the only changes should be additions.",
-    "If the existing re-entry tests go base-red under attribution, keep each command green at the merge base by changing the shared repo/author/drain helper or fixture, not the test bodies.",
-    "If a shared helper change still cannot keep the existing tests unchanged and green, stop and record it in the run record as a ticket conflict (AC5 vs attribution) rather than editing the tests silently.",
-    "Before finishing, check every acceptance criterion against the diff and name the test that proves each one. AC5 needs both a NEW test and the existing tests left UNCHANGED, and a green suite alone does not show either."
+    "Rewrite the criterion-1 test in tests/test_stages.py so its ticket has TWO `## Verification` commands. Build it with the `TICKET.replace` pattern `_report_ticket` uses: one command red at both base and branch, and one always green (e.g. `test -f chupa/thing.py`).",
+    "In that test, assert that Check is ok, `verification[0].base_red is True`, `verification[1].base_red is False` with rc 0, and that the box holds exactly one `failure_report` with outcome `base_red` and origin STEM.",
+    "Leave the attribution logic, cleanup, and other test files as they are, because review found them correct. Change only the test_stages.py criterion-1 test, then rerun both Verification commands.",
+    "Before finishing, check each numbered acceptance criterion against its literal test shape (command count, which fields to assert). A test that passes but uses a simpler fixture than the criterion names will fail review."
   ],
   "mechanical": null,
   "spec_version": "1.0",
