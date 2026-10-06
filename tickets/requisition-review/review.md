@@ -1,10 +1,11 @@
 # Review: snag
 
-The code is correct and stays inside the fence, but the new spec's Output format never names the strict `Finding` field keys, so a real model's `snag` or `rma` finding is likely to fail schema validation and come back as a mechanical snag.
+The diff changes where Implement reads Context files, so its renders are no longer byte-identical, and the requisition prompt render can fail with an uncaught RenderOverBound on tickets that pass the headroom check.
 
 ## Findings
 
-- [logic] specs/requisition_review.md:50 `RequisitionReply.findings` is `list[Finding]`, and `Finding` is strict with `extra="forbid"` and a required `paved_road`. The Output format only says each finding has `code`, `message`, and "a paved road". It never spells out the `paved_road` key or the optional `path` and `line` keys. A model that writes `paved road`, `road`, or `fix` fails `RequisitionReply.model_validate_json`, so a real buildability snag is swapped for a mechanical `requisition_review` snag and the model's findings are lost. The FakeLLM tests hand-write the exact keys, so they cannot catch this. (do instead: Spell out the exact reply schema in the Output format, as the other specs do. Each finding is an object with `code` (non-blank), `message` (non-blank), `paved_road` (non-blank), and optional `path` (string or null) and `line` (integer >= 1 or null), and no other keys. Reply with only the JSON object.)
+- [logic] chupa/stages.py:407 implement_stage now calls implement_inputs(ctx.repo, ...), so Context files are read from the main checkout instead of the Implement worktree the old _context_text read. Any uncommitted or in-flight change to a Context file in the main checkout changes the Implement prompt, which breaks 'Implement renders stay byte-identical'. (do instead: Pass the worktree as implement_inputs' root in implement_stage (implement_inputs(worktree, plan, ticket_text, ticket, ctx.config.context_files)). Requisition measurement keeps passing repo.)
+- [logic] chupa/requisition.py:128 The requisition prompt holds context and plan_contract twice: once directly and once inside the embedded Implement render. That makes it about twice the base render. It is rendered at effort high (240k bound) outside the try. A ticket whose base render is under the 120k headroom can still go over 240k here, and render() then raises RenderOverBound out of review_ticket instead of returning a closed snag verdict. (do instead: Render the requisition prompt inside the guarded path. Turn RenderOverBound into a mechanical snag with no call, or drop the duplicated plan_contract and context data from the prompt so it fits whenever the base render fits.)
 
 ## Record
 
@@ -12,17 +13,24 @@ The code is correct and stays inside the fence, but the new spec's Output format
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "4df389b51530ccdabc5e6aae2f728335ea847294",
+  "produced_at_sha": "a98b52164c0a2b7cf5520993fdc716c11f28e4a7",
   "stem": "requisition-review",
-  "reviewed_sha": "4df389b51530ccdabc5e6aae2f728335ea847294",
-  "summary": "The code is correct and stays inside the fence, but the new spec's Output format never names the strict `Finding` field keys, so a real model's `snag` or `rma` finding is likely to fail schema validation and come back as a mechanical snag.",
+  "reviewed_sha": "a98b52164c0a2b7cf5520993fdc716c11f28e4a7",
+  "summary": "The diff changes where Implement reads Context files, so its renders are no longer byte-identical, and the requisition prompt render can fail with an uncaught RenderOverBound on tickets that pass the headroom check.",
   "findings": [
     {
       "code": "logic",
-      "path": "specs/requisition_review.md",
-      "line": 50,
-      "message": "`RequisitionReply.findings` is `list[Finding]`, and `Finding` is strict with `extra=\"forbid\"` and a required `paved_road`. The Output format only says each finding has `code`, `message`, and \"a paved road\". It never spells out the `paved_road` key or the optional `path` and `line` keys. A model that writes `paved road`, `road`, or `fix` fails `RequisitionReply.model_validate_json`, so a real buildability snag is swapped for a mechanical `requisition_review` snag and the model's findings are lost. The FakeLLM tests hand-write the exact keys, so they cannot catch this.",
-      "paved_road": "Spell out the exact reply schema in the Output format, as the other specs do. Each finding is an object with `code` (non-blank), `message` (non-blank), `paved_road` (non-blank), and optional `path` (string or null) and `line` (integer >= 1 or null), and no other keys. Reply with only the JSON object."
+      "path": "chupa/stages.py",
+      "line": 407,
+      "message": "implement_stage now calls implement_inputs(ctx.repo, ...), so Context files are read from the main checkout instead of the Implement worktree the old _context_text read. Any uncommitted or in-flight change to a Context file in the main checkout changes the Implement prompt, which breaks 'Implement renders stay byte-identical'.",
+      "paved_road": "Pass the worktree as implement_inputs' root in implement_stage (implement_inputs(worktree, plan, ticket_text, ticket, ctx.config.context_files)). Requisition measurement keeps passing repo."
+    },
+    {
+      "code": "logic",
+      "path": "chupa/requisition.py",
+      "line": 128,
+      "message": "The requisition prompt holds context and plan_contract twice: once directly and once inside the embedded Implement render. That makes it about twice the base render. It is rendered at effort high (240k bound) outside the try. A ticket whose base render is under the 120k headroom can still go over 240k here, and render() then raises RenderOverBound out of review_ticket instead of returning a closed snag verdict.",
+      "paved_road": "Render the requisition prompt inside the guarded path. Turn RenderOverBound into a mechanical snag with no call, or drop the duplicated plan_contract and context data from the prompt so it fits whenever the base render fits."
     }
   ],
   "spec_version": "1.0",
