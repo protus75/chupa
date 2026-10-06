@@ -184,7 +184,7 @@ class Driver:
             self.log.event("llm_call", **call)
             tally.calls += 1
             try:
-                recorded = await self._race(
+                recorded = await self.race(
                     lambda: llm_call(
                         self.effects, self.llm, req, self.redactor, ticket=ticket,
                         stem=stem, run_seq=seq, attempt=attempt, call_seq=call_seq,
@@ -221,7 +221,7 @@ class Driver:
             self.log.event("gate_failed", **call, codes=[r.code for r in gated.hard_failures])
         return done(outcome)
 
-    async def _race(self, start: Callable[[], Awaitable[Any]], remaining: float) -> Any:
+    async def race(self, start: Callable[[], Awaitable[Any]], remaining: float) -> Any:
         if remaining <= 0:
             raise _StuckBudget
         call = asyncio.ensure_future(start())

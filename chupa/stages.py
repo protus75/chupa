@@ -297,9 +297,16 @@ async def lift_outbox(ctx: StageContext, stem: str, kind: str, *, attempt: int,
 # --- Implement ----------------------------------------------------------------------------------
 
 
-def _context_text(ctx: StageContext, ticket: Ticket, worktree: Path) -> str:
-    paths = list(dict.fromkeys([*ticket.context, *(str(p) for p in ctx.config.context_files)]))
-    return "\n\n".join(f"### {p}\n{(worktree / p).read_text()}" for p in paths) or "none"
+def implement_inputs(repo: Path, plan: str, ticket_text: str, ticket: Ticket,
+                     context_files: Sequence[Path]) -> dict[str, str]:
+    """The production Implement inputs, also used to measure a ticket at authoring."""
+    paths = list(dict.fromkeys([*ticket.context, *(str(p) for p in context_files)]))
+    context = "\n\n".join(f"### {p}\n{(repo / p).read_text()}" for p in paths) or "none"
+    return {
+        "ticket": ticket_text,
+        "plan_contract": resolve_plan_contract(plan, ticket.plan_contract) if ticket.plan_contract else "none",
+        "context": context,
+    }
 
 
 def _one_line(text: str) -> str:
@@ -393,11 +400,7 @@ def implement_stage(ctx: StageContext, ticket: Ticket, worktree: Path) -> tuple[
     ticket_text = (ctx.repo / ticket_path(ticket.stem)).read_text()
     if (prior := prior_attempts(ctx, ticket.stem)) is not None:
         ticket_text = _in_criteria_position(ticket_text, prior)
-    inputs = {
-        "ticket": ticket_text,
-        "plan_contract": resolve_plan_contract(plan, ticket.plan_contract) if ticket.plan_contract else "none",
-        "context": _context_text(ctx, ticket, worktree),
-    }
+    inputs = implement_inputs(worktree, plan, ticket_text, ticket, ctx.config.context_files)
 
     def render_ticket(_: Ticket, findings: list[Finding]) -> str:
         return render(spec, {**inputs, "retry_findings": findings_text(findings)}, ticket.frontmatter.agent_effort)
