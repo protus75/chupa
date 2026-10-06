@@ -1,0 +1,152 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "45ade5c398ed26709800a8377c6ef8fba3e6b13a",
+  "stem": "phase3-continue",
+  "passed": false,
+  "changed_files": [
+    "tests/test_seeded_phase3_01.py"
+  ],
+  "inserted_lines": 135,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "requisition_review",
+      "verdict": "fail",
+      "findings": [
+        {
+          "code": "fence_closure_gap",
+          "path": "chupa/stages.py",
+          "line": 534,
+          "message": "The entry unit requires MERGE-SAFETY to run before integration, so a refusal pays no full verification run. Two of the safety gates, `ScopeFenceGate` and `RunRecordGate`, judge an `Evidence` record. The only producer of `Evidence` is `stages.gather_evidence`, and it runs every Verification command, including the base-red worktree rerun, before it returns `changed_files` and `run_record`. Section 9.5's fence-authoring law makes stage-evidence gathering the stage layer's seam (`chupa/stages.py`), and a deliverable that hooks that seam must fence it. That leaves the implementer two options, and the ticket forbids both: build the non-verification `Evidence` fields a second time inside `mergequeue.py`, which duplicates the stage-owned gatherer and conflicts with 'reuse the stage-owned gather_evidence'; or split `gather_evidence`, which needs an edit to `chupa/stages.py` outside the fence. The entry unit does not say which owner produces safety-tier evidence without running Verification.",
+          "paved_road": "Harden 19.P3.merge-queue under section 11.4 before regenerating. Either (a) name `chupa/stages.py` as the owner of a split evidence gather, one call for the safety fields without Verification and one for the Verification results with the existing spool, redaction and base-red handling, and add `chupa/stages.py` plus `tests/test_stages.py` to the fence and Context; or (b) state explicitly that the safety tier builds `Evidence` with `verification=[]` from `Git.diff_names`, `diff` and `rev_parse` plus the lifted `run.md`, and that this is not a second evidence writer. Then regenerate the ticket.",
+          "kind": "spec_gap"
+        },
+        {
+          "code": "host_check_runner_unowned",
+          "path": "chupa/config.py",
+          "line": 99,
+          "message": "Nothing in the engine executes `review.mechanical` entries today: no module outside `config.py` reads `.mechanical`, `safety_checks` or `strategies`. The ticket says host checks run 'through the existing evidence writer', but `gather_evidence` runs only the ticket's own Verification commands. So the queue would be the first host-check runner, and the entry unit leaves out the facts that runner needs: (1) its child env (presumably `child_env(ctx.env, ctx.config)`, to keep provider keys out) and its timeout source; (2) where output is spooled and how it is redacted at the write seam; (3) how a nonzero, timed-out or unresolvable check becomes a `GateReport`/`Finding`, with which code and which paved road; (4) whether a soft or non-`always` entry is skipped or reported; (5) what happens when a `merge.safety_checks` code matches no `review.mechanical` entry (fail closed is implied but not stated); (6) whether host checks get base-red attribution. Without these the implementer has to invent entry-unit facts, which the Definition of rejected forbids.",
+          "paved_road": "Add a host-check record to 19.P3.merge-queue before regenerating. State the owner module (for example `chupa/mergequeue.py`, or `chupa/stages.py` if it is fenced per the previous finding), the env (`child_env`), the timeout (for example the ticket's `stuck_minutes` budget, as in `gather_evidence`), the spool path and redaction through `driver.spool` and `driver.redactor`, the finding shape (code = the entry's `code`, a message carrying the redacted tail, a stated paved road), the rule for an unmatched `safety_checks` code (fail closed with a stated paved road), and base-red handling (none or reused). Name a test obligation for each.",
+          "kind": "spec_gap"
+        },
+        {
+          "code": "missing_next_admission_entry_unit",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "Scope in requires continuation 02 to run entry_unit_gap and resolve_plan_contract on the next continuation's next-admission units. It also requires phase3-continue-03 to author thresh-runtime and to cite the entry units its seeds need. CHUPA_PLAN.md has entry units only for 19.P3.daemon-scheduler, merge-queue, seed-successor-proof and rework-stage. There is no '### 19.P3.thresh-runtime' unit. The required gap check therefore always returns premise_failed, and phase3-continue-03's Plan contract cannot cite an entry unit for its thresh-runtime payload. The facts that are missing are thresh-runtime's Owner, Records, Observable and Tests bullets.",
+          "paved_road": "Harden the plan through section 11.4 before regenerating: add a '### 19.P3.thresh-runtime' entry unit after 19.P3.rework-stage with Owner, Records, Observable and Tests bullets taken from its registry row. Then rerun this seed. Alternatively, have the author narrow the pre-authoring check to rework-stage alone and leave the thresh-runtime unit check to phase3-continue-03. Either way, the facts must not be invented in the ticket.",
+          "kind": "spec_gap"
+        },
+        {
+          "code": "stuck_budget_exceeds_drain_envelope",
+          "path": "chupa/config.py",
+          "line": 161,
+          "message": "The ticket's Time budget is stuck: 120m. drain.max_ticket_minutes is 90: the default in chupa/config.py:161, and no repo config overrides it. The ticket requires each seed's stuck budget to fit drain.max_ticket_minutes, and tests/test_seeded_phase3_core.py pins that rule for this ticket's batch, yet this ticket breaks it. The safety envelope trips at 90 minutes, before the declared stuck threshold is reached.",
+          "paved_road": "Set the Time budget to stuck at 90m or less (for example expected 45m, stuck 90m). Make sure the budgets authored for rework-stage and phase3-continue-03 also stay at 90m or less.",
+          "kind": "authoring_error"
+        }
+      ],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [
+    {
+      "stem": "merge-queue",
+      "ticket_sha": "f1c89cf906ecc0c539d0b482e77f0f6d16f7ec33",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "fence_closure_gap",
+          "path": "chupa/stages.py",
+          "line": 534,
+          "message": "The entry unit requires MERGE-SAFETY to run before integration, so a refusal pays no full verification run. Two of the safety gates, `ScopeFenceGate` and `RunRecordGate`, judge an `Evidence` record. The only producer of `Evidence` is `stages.gather_evidence`, and it runs every Verification command, including the base-red worktree rerun, before it returns `changed_files` and `run_record`. Section 9.5's fence-authoring law makes stage-evidence gathering the stage layer's seam (`chupa/stages.py`), and a deliverable that hooks that seam must fence it. That leaves the implementer two options, and the ticket forbids both: build the non-verification `Evidence` fields a second time inside `mergequeue.py`, which duplicates the stage-owned gatherer and conflicts with 'reuse the stage-owned gather_evidence'; or split `gather_evidence`, which needs an edit to `chupa/stages.py` outside the fence. The entry unit does not say which owner produces safety-tier evidence without running Verification.",
+          "paved_road": "Harden 19.P3.merge-queue under section 11.4 before regenerating. Either (a) name `chupa/stages.py` as the owner of a split evidence gather, one call for the safety fields without Verification and one for the Verification results with the existing spool, redaction and base-red handling, and add `chupa/stages.py` plus `tests/test_stages.py` to the fence and Context; or (b) state explicitly that the safety tier builds `Evidence` with `verification=[]` from `Git.diff_names`, `diff` and `rev_parse` plus the lifted `run.md`, and that this is not a second evidence writer. Then regenerate the ticket.",
+          "kind": "spec_gap"
+        },
+        {
+          "code": "host_check_runner_unowned",
+          "path": "chupa/config.py",
+          "line": 99,
+          "message": "Nothing in the engine executes `review.mechanical` entries today: no module outside `config.py` reads `.mechanical`, `safety_checks` or `strategies`. The ticket says host checks run 'through the existing evidence writer', but `gather_evidence` runs only the ticket's own Verification commands. So the queue would be the first host-check runner, and the entry unit leaves out the facts that runner needs: (1) its child env (presumably `child_env(ctx.env, ctx.config)`, to keep provider keys out) and its timeout source; (2) where output is spooled and how it is redacted at the write seam; (3) how a nonzero, timed-out or unresolvable check becomes a `GateReport`/`Finding`, with which code and which paved road; (4) whether a soft or non-`always` entry is skipped or reported; (5) what happens when a `merge.safety_checks` code matches no `review.mechanical` entry (fail closed is implied but not stated); (6) whether host checks get base-red attribution. Without these the implementer has to invent entry-unit facts, which the Definition of rejected forbids.",
+          "paved_road": "Add a host-check record to 19.P3.merge-queue before regenerating. State the owner module (for example `chupa/mergequeue.py`, or `chupa/stages.py` if it is fenced per the previous finding), the env (`child_env`), the timeout (for example the ticket's `stuck_minutes` budget, as in `gather_evidence`), the spool path and redaction through `driver.spool` and `driver.redactor`, the finding shape (code = the entry's `code`, a message carrying the redacted tail, a stated paved road), the rule for an unmatched `safety_checks` code (fail closed with a stated paved road), and base-red handling (none or reused). Name a test obligation for each.",
+          "kind": "spec_gap"
+        }
+      ],
+      "mechanical": null
+    },
+    {
+      "stem": "phase3-continue-02",
+      "ticket_sha": "e27cc6a5a5a9a3f8de47cf6f6eecb210510736d2",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "missing_next_admission_entry_unit",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "Scope in requires continuation 02 to run entry_unit_gap and resolve_plan_contract on the next continuation's next-admission units. It also requires phase3-continue-03 to author thresh-runtime and to cite the entry units its seeds need. CHUPA_PLAN.md has entry units only for 19.P3.daemon-scheduler, merge-queue, seed-successor-proof and rework-stage. There is no '### 19.P3.thresh-runtime' unit. The required gap check therefore always returns premise_failed, and phase3-continue-03's Plan contract cannot cite an entry unit for its thresh-runtime payload. The facts that are missing are thresh-runtime's Owner, Records, Observable and Tests bullets.",
+          "paved_road": "Harden the plan through section 11.4 before regenerating: add a '### 19.P3.thresh-runtime' entry unit after 19.P3.rework-stage with Owner, Records, Observable and Tests bullets taken from its registry row. Then rerun this seed. Alternatively, have the author narrow the pre-authoring check to rework-stage alone and leave the thresh-runtime unit check to phase3-continue-03. Either way, the facts must not be invented in the ticket.",
+          "kind": "spec_gap"
+        },
+        {
+          "code": "stuck_budget_exceeds_drain_envelope",
+          "path": "chupa/config.py",
+          "line": 161,
+          "message": "The ticket's Time budget is stuck: 120m. drain.max_ticket_minutes is 90: the default in chupa/config.py:161, and no repo config overrides it. The ticket requires each seed's stuck budget to fit drain.max_ticket_minutes, and tests/test_seeded_phase3_core.py pins that rule for this ticket's batch, yet this ticket breaks it. The safety envelope trips at 90 minutes, before the declared stuck threshold is reached.",
+          "paved_road": "Set the Time budget to stuck at 90m or less (for example expected 45m, stuck 90m). Make sure the budgets authored for rework-stage and phase3-continue-03 also stay at 90m or less.",
+          "kind": "authoring_error"
+        }
+      ],
+      "mechanical": null
+    }
+  ],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_seeded_phase3_01.py"
+      ],
+      "rc": 0,
+      "tail": ".............                                                            [100%]\n13 passed in 0.34s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [  9%]\n........................................................................ [ 19%]\n........................................................................ [ 28%]\n........................................................................ [ 38%]\n........................................................................ [ 47%]\n........................................................................ [ 57%]\n........................................................................ [ 66%]\n........................................................................ [ 76%]\n........................................................................ [ 85%]\n........................................................................ [ 95%]\n..................................                                       [100%]\n754 passed in 72.22s (0:01:12)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
