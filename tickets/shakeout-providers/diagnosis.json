@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "1f5d0cfd379a2f7002061fa734ed0b53f050ec70",
+  "stem": "shakeout-providers",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Do not touch eval/shakeout/bench.py. Scope out forbids any bench edit beyond GROUPS, even though eval/shakeout/ is inside the fence. Leave bench.py byte-identical to base.",
+    "In eval/shakeout/providers.py, set the existing bench attributes (llm = ProviderLLM over a scripted process seam, process, env with SHAKEOUT_SECRET) on the Bench instance, then call the unchanged bench.configure(config), which rebuilds the pipeline from self.llm.",
+    "Before writing the member setup, read eval/shakeout/bench.py to confirm which attributes configure() reads (llm, process, env). If one is not reachable without an API change, reply premise_failed and file the bench change as a second problem.",
+    "Keep the providers.py and driver.py changes. Review judged the classification and the finding mapping correct. Rerun all four Verification commands after the revert and confirm 18 green entries."
+  ],
+  "mechanical": null,
+  "spec_version": "1.0",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
