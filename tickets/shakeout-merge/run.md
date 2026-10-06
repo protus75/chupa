@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Post-refusal harvesting advances main only with ticket-plane artifacts, so the fixture verifies admission leaves source unchanged.
+Admission-time state is captured at rebase refusal because later ticket-plane artifact lifting changes history before worktree cleanup.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-45m predicted, about 25m actual
+45m predicted; completed within budget.
 
