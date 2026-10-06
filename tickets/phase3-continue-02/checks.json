@@ -1,13 +1,13 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "cfea5abc45ae6b26592f63d1be06d81224a0510c",
+  "produced_at_sha": "0164676c061b4dfbbfec7b48dcb84ddcead51c26",
   "stem": "phase3-continue-02",
   "passed": false,
   "changed_files": [
     "tests/test_seeded_phase3_02.py"
   ],
-  "inserted_lines": 92,
+  "inserted_lines": 89,
   "bypassed": [],
   "reports": [
     {
@@ -39,25 +39,11 @@
       "verdict": "fail",
       "findings": [
         {
-          "code": "fence_closure",
-          "path": "chupa/stages.py",
-          "line": 787,
-          "message": "There is no existing public seam that Rework can use to update or split a ticket. `stages.lift_seeds` always journals `source: seed`, `new: True` and `seeded_by: <stem>`. Its reviewer, `stages._review_seeds`, is private, runs only inside a seeding Check, and snags any stem already on main, so an update of `tickets/<stem>/ticket.md` cannot pass through it. `author.author` is tied to a Box `Message`/`Resolution` and refuses stems that already exist or appear in the journal. Rework would therefore have to either write a second commit-and-intake path in `chupa/rework.py`, which the ticket's own wording and the no-dual-path rule forbid, or extend a seam owned by `chupa/stages.py` or `chupa/author.py`. Neither file is fenced. That is the section 9 outside-owner hook gap.",
-          "paved_road": "Name the exact seam. Option (a): fence `chupa/stages.py` and `tests/test_stages.py`, then generalize `lift_seeds` and its review so they accept a Rework origin (no `seeded_by`, `new: False` for an update) and allow an existing stem for an update. Also fence each direct caller that a grep of `lift_seeds`/`_review_seeds` finds across `chupa/`, `eval/` and `tests/`. Option (b): state that Rework calls the public `requisition.review_ticket` and owns the ticket-plane commit and the `ticket_intake` journal append itself, and justify that against the single-lift-path rule."
-        },
-        {
-          "code": "unnamed_observable",
+          "code": "requisition_review",
           "path": null,
           "line": null,
-          "message": "Criterion 3 requires a `requisition_review` approval before a successor is confirmed, but does not name the durable record of that approval. The engine has two different shapes: `author.py` journals a `requisition_verdict` signal carrying `ticket_sha`, provider, model and `spec_version`, while the seeding Check records a `SeedReview` inside `checks.json`. The implementer cannot tell which one the test must assert.",
-          "paved_road": "Rewrite criterion 3 to name the record. For example: each successor has one `ticket_intake` signal and one `requisition_verdict` signal with `verdict: approve`, whose `ticket_sha` equals the committed blob SHA. State the ordering (approval journaled before the commit and intake)."
-        },
-        {
-          "code": "ambiguous_invariant",
-          "path": null,
-          "line": null,
-          "message": "The Goal says update and split preserve the original lineage's caps. But `caps.draws` folds only by `e.ticket == stem`, so split successors start with fresh budgets. Section 11.2 says no re-author resets caps. Criterion 3 only checks that the original stem's fold is unchanged, so the cited invariant (successors do not reset lineage caps) has no named test obligation, and the code has no mechanism that would meet it.",
-          "paved_road": "Either narrow the Goal to say that only the original stem's cap fold is unchanged and successors are new lineages under the sanctioned succession rule (section 11.2), or, if successors must inherit the budget, fence `chupa/caps.py` and `tests/test_caps.py`, add a criterion naming that fold through the supersedes map, and give it a test."
+          "message": "invalid requisition review reply: 1 schema error(s)",
+          "paved_road": "reply with a schema-valid requisition verdict"
         }
       ],
       "autofix_applied": false
@@ -73,32 +59,18 @@
     },
     {
       "stem": "rework-stage",
-      "ticket_sha": "d1f845605d123f02122aead019fb9a08c98c0ffb",
+      "ticket_sha": "0b4787788d96968834a0ccbb85af12bad441233d",
       "verdict": "snag",
       "findings": [
         {
-          "code": "fence_closure",
-          "path": "chupa/stages.py",
-          "line": 787,
-          "message": "There is no existing public seam that Rework can use to update or split a ticket. `stages.lift_seeds` always journals `source: seed`, `new: True` and `seeded_by: <stem>`. Its reviewer, `stages._review_seeds`, is private, runs only inside a seeding Check, and snags any stem already on main, so an update of `tickets/<stem>/ticket.md` cannot pass through it. `author.author` is tied to a Box `Message`/`Resolution` and refuses stems that already exist or appear in the journal. Rework would therefore have to either write a second commit-and-intake path in `chupa/rework.py`, which the ticket's own wording and the no-dual-path rule forbid, or extend a seam owned by `chupa/stages.py` or `chupa/author.py`. Neither file is fenced. That is the section 9 outside-owner hook gap.",
-          "paved_road": "Name the exact seam. Option (a): fence `chupa/stages.py` and `tests/test_stages.py`, then generalize `lift_seeds` and its review so they accept a Rework origin (no `seeded_by`, `new: False` for an update) and allow an existing stem for an update. Also fence each direct caller that a grep of `lift_seeds`/`_review_seeds` finds across `chupa/`, `eval/` and `tests/`. Option (b): state that Rework calls the public `requisition.review_ticket` and owns the ticket-plane commit and the `ticket_intake` journal append itself, and justify that against the single-lift-path rule."
-        },
-        {
-          "code": "unnamed_observable",
+          "code": "requisition_review",
           "path": null,
           "line": null,
-          "message": "Criterion 3 requires a `requisition_review` approval before a successor is confirmed, but does not name the durable record of that approval. The engine has two different shapes: `author.py` journals a `requisition_verdict` signal carrying `ticket_sha`, provider, model and `spec_version`, while the seeding Check records a `SeedReview` inside `checks.json`. The implementer cannot tell which one the test must assert.",
-          "paved_road": "Rewrite criterion 3 to name the record. For example: each successor has one `ticket_intake` signal and one `requisition_verdict` signal with `verdict: approve`, whose `ticket_sha` equals the committed blob SHA. State the ordering (approval journaled before the commit and intake)."
-        },
-        {
-          "code": "ambiguous_invariant",
-          "path": null,
-          "line": null,
-          "message": "The Goal says update and split preserve the original lineage's caps. But `caps.draws` folds only by `e.ticket == stem`, so split successors start with fresh budgets. Section 11.2 says no re-author resets caps. Criterion 3 only checks that the original stem's fold is unchanged, so the cited invariant (successors do not reset lineage caps) has no named test obligation, and the code has no mechanism that would meet it.",
-          "paved_road": "Either narrow the Goal to say that only the original stem's cap fold is unchanged and successors are new lineages under the sanctioned succession rule (section 11.2), or, if successors must inherit the budget, fence `chupa/caps.py` and `tests/test_caps.py`, add a criterion naming that fold through the supersedes map, and give it a test."
+          "message": "invalid requisition review reply: 1 schema error(s)",
+          "paved_road": "reply with a schema-valid requisition verdict"
         }
       ],
-      "mechanical": null
+      "mechanical": "invalid reply"
     }
   ],
   "verification": [
@@ -122,7 +94,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "........................................................................ [ 10%]\n........................................................................ [ 20%]\n........................................................................ [ 30%]\n........................................................................ [ 40%]\n........................................................................ [ 50%]\n........................................................................ [ 60%]\n........................................................................ [ 70%]\n........................................................................ [ 80%]\n........................................................................ [ 90%]\n.................................................................        [100%]\n713 passed in 59.16s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................................ [ 10%]\n........................................................................ [ 20%]\n........................................................................ [ 30%]\n........................................................................ [ 40%]\n........................................................................ [ 50%]\n........................................................................ [ 60%]\n........................................................................ [ 70%]\n........................................................................ [ 80%]\n........................................................................ [ 90%]\n.................................................................        [100%]\n713 passed in 57.93s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
