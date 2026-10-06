@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-none
+Merge regating needed to avoid filing a duplicate report for a command already reported at Check.
 
 ## Dead ends
 
-none
+A diagnosis fixture initially left an empty diff on its final attempt; I gave it a green, committed branch change.
 
 ## Second problems filed
 
@@ -17,10 +17,10 @@ none
 ## Resolved engine/model
 
 - provider: codex
-- model: gpt-5.6-terra
+- model: gpt-6-sol
 - spec: implement 1.1
 
 ## Predicted vs actual
 
-75m budget; completed within budget.
+75m expected; about 10m actual.
 
