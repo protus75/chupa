@@ -1,10 +1,10 @@
-# Review: snag
+# Review: approve
 
-The invalid_output_exhausted member never checks its main observable: the bounded re-prompt count and the re-prompt finding text are asserted inside a FakeLLM callable, and the driver swallows that assertion, so the member is green whether or not those checks hold.
+The diff adds a defaulted `sleep` seam on `Checkout` and threads it into the three `Driver.from_config` sites. The bench's event-gated sleep moves the bench clock forward with no real waiting. The two driver members check their named observables (re-prompt count, `invalid_artifact` in the re-prompts, the harvested finding and diagnosis signal, abort, one infra cap_consumed, timeout harvest reason, the follow-up ticket merging). Every changed file is inside the fence. The tests and the Verification commands were not run in this review (sandbox approval was refused); the verdict comes from reading the code.
 
 ## Findings
 
-- [logic] eval/shakeout/driver.py:101 The checks for exactly `retry + 1` implement requests and for `[invalid_artifact]` in each re-prompt sit inside the `diagnosis` script callable. FakeLLM.call appends the request before it runs the callable, and the diagnose request also has `ticket == stem`. So `requests` always holds allowance + 1 entries, and `assert len(requests) == allowance` always fails. That AssertionError is raised inside `llm_call`. Driver.run catches it as `except Exception` -> `infra_error`, and diagnose() turns that into a mechanical `abandon-human`, which dispatches to the reject queue just as `reject` would. The member's outer asserts (terminal, harvest finding code, next ticket merged) still pass, so the member is green. Its central observable (a bounded allowance of implement calls, each re-prompt rendering the prior validation error) can never fail. The scripted `reject` diagnosis is also never used. (do instead: Move the checks out of the callable and run them after `await bench.drain()`. Filter `bench.llm.requests` to `ticket == stem and surface == 'implement'`, assert the count equals `bench.config.caps.retry + 1`, and assert every re-prompt after the first contains the `[invalid_artifact]` finding line. Script the diagnosis as a plain string reply. Also assert the diagnosis signal is not mechanical, so a swallowed exception can no longer hide.)
+none
 
 ## Record
 
@@ -12,22 +12,14 @@ The invalid_output_exhausted member never checks its main observable: the bounde
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "40a74be24a34855dab7639d24e15596b7c231940",
+  "produced_at_sha": "c693b5711832b3873d1c88e078fbb4244fb9d545",
   "stem": "shakeout-driver",
-  "reviewed_sha": "40a74be24a34855dab7639d24e15596b7c231940",
-  "summary": "The invalid_output_exhausted member never checks its main observable: the bounded re-prompt count and the re-prompt finding text are asserted inside a FakeLLM callable, and the driver swallows that assertion, so the member is green whether or not those checks hold.",
-  "findings": [
-    {
-      "code": "logic",
-      "path": "eval/shakeout/driver.py",
-      "line": 101,
-      "message": "The checks for exactly `retry + 1` implement requests and for `[invalid_artifact]` in each re-prompt sit inside the `diagnosis` script callable. FakeLLM.call appends the request before it runs the callable, and the diagnose request also has `ticket == stem`. So `requests` always holds allowance + 1 entries, and `assert len(requests) == allowance` always fails. That AssertionError is raised inside `llm_call`. Driver.run catches it as `except Exception` -> `infra_error`, and diagnose() turns that into a mechanical `abandon-human`, which dispatches to the reject queue just as `reject` would. The member's outer asserts (terminal, harvest finding code, next ticket merged) still pass, so the member is green. Its central observable (a bounded allowance of implement calls, each re-prompt rendering the prior validation error) can never fail. The scripted `reject` diagnosis is also never used.",
-      "paved_road": "Move the checks out of the callable and run them after `await bench.drain()`. Filter `bench.llm.requests` to `ticket == stem and surface == 'implement'`, assert the count equals `bench.config.caps.retry + 1`, and assert every re-prompt after the first contains the `[invalid_artifact]` finding line. Script the diagnosis as a plain string reply. Also assert the diagnosis signal is not mechanical, so a swallowed exception can no longer hide."
-    }
-  ],
+  "reviewed_sha": "c693b5711832b3873d1c88e078fbb4244fb9d545",
+  "summary": "The diff adds a defaulted `sleep` seam on `Checkout` and threads it into the three `Driver.from_config` sites. The bench's event-gated sleep moves the bench clock forward with no real waiting. The two driver members check their named observables (re-prompt count, `invalid_artifact` in the re-prompts, the harvested finding and diagnosis signal, abort, one infra cap_consumed, timeout harvest reason, the follow-up ticket merging). Every changed file is inside the fence. The tests and the Verification commands were not run in this review (sandbox approval was refused); the verdict comes from reading the code.",
+  "findings": [],
   "spec_version": "1.0",
   "provider": "claude",
   "model": "claude-opus-5-5",
-  "verdict": "snag"
+  "verdict": "approve"
 }
 ```
