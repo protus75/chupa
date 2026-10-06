@@ -1,28 +1,19 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "32f30d8d87506cb1bc047eaffe3e31810a692146",
+  "produced_at_sha": "06ad19fa07689a005bcd8a29d1ba7acd4e4151bb",
   "stem": "harden-merge-queue-2",
-  "passed": false,
+  "passed": true,
   "changed_files": [
     "CHUPA_PLAN.md"
   ],
-  "inserted_lines": 10,
+  "inserted_lines": 12,
   "bypassed": [],
   "reports": [
     {
       "code": "scope_fence",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "scope_fence",
-          "path": "CHUPA_PLAN.md",
-          "line": null,
-          "message": "CHUPA_PLAN.md is outside `## Scope fence`",
-          "paved_road": "revert the edit and commit; if the criteria force it, reply premise_failed naming the file so the fence is widened",
-          "kind": null
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false
     },
     {
