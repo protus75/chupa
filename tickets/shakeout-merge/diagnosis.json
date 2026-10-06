@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "dee84e4c8a206059d11c5b1c7512123031d7a86f",
+  "stem": "shakeout-merge",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Don't assert 'no rebase in progress' after drain(). By then runner cleanup has run worktree remove --force and prune, which deletes .git/worktrees/<stem>, so the check passes even when a rebase was left behind. Observe the worktree at the moment of refusal instead.",
+    "In eval/shakeout/merge.py only, wrap the bench's Git worktree_remove (or the equivalent seam) for this stem. Before it delegates, run git status and git rev-parse --git-dir in the worktree, then record the rebase state, the worktree HEAD and main's HEAD.",
+    "After drain(), assert on the recorded snapshot: neither rebase-merge nor rebase-apply exists under the git-dir, git status shows no rebase, worktree HEAD == review.reviewed_sha, and main HEAD == its pre-admission SHA.",
+    "Prove the check can fail: temporarily stub Git.rebase so it skips the abort, confirm the member goes red, then remove the stub. Make no edits to chupa/git.py or runner.py, which are outside the fence."
+  ],
+  "mechanical": null,
+  "spec_version": "1.0",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
