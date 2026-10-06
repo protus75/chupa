@@ -1,18 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "3278970ea45ee980406f87508bd5ebf6fbfbb7b8",
+  "produced_at_sha": "0dd6b2d9f1ee35c74cb28f511e5678bcad57a823",
   "stem": "phase2-exit",
-  "attempt": 0,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "abandon-human",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "merge",
+  "verdict": "retry",
   "lessons": [
-    "The conflict is in the engine: specs/implement.md v1.1 step 1 bans every write under tickets/ and step 4 says to commit all work. This ticket needs 3 uncommitted seed ticket.md files for the seed-path lift. A human must fix the plan's implement spec, then regenerate it.",
-    "Plan fix to make: carve out new seed tickets/<stem>/ticket.md files for seed-path tickets (requisition-seed-path). Allow writing them, require leaving them uncommitted, and keep the ban on editing existing tickets and the run record.",
-    "No ticket edit can release this. Retrying or escalating at any capability hits the same prohibition, so do not redispatch until the implement spec's version is bumped with the carve-out.",
-    "Once unblocked: commit only tests/test_phase2_exit.py and tests/test_seeded_phase3_core.py. Leave the three seeds uncommitted. Read config drain.max_ticket_minutes (90) and set stuck at or under 90m, not this ticket's 180m.",
-    "Recorded lesson: the exit reads have been checked. tickets/shakeout-providers/shakeout-report.json and checks.json are both committed, so the premise of the exit-read half holds."
+    "Remove tests/test_seeded_phase3_core.py from phase3-continue's `## Context`. Requisition review checks Context paths against the base at lift time, and that file exists only on this branch, so the seed fails review.",
+    "To give phase3-continue its idiom, name tests/test_seeded_phase3_core.py in its Goal/Why prose as the pattern to follow. phase3-continue depends on phase2-exit, so the file exists when it runs. Put the existing tests/test_seeded_phase2.py in `## Context` as the read-first idiom.",
+    "Before handing off, check every seed's `## Context` and `## On-demand` path with `git ls-files` on the base commit. Any path this branch or a sibling seed creates belongs only in `## Scope fence` and `## Verification`.",
+    "Update tests/test_seeded_phase3_core.py's Context-closure pin so it fails when a Context path is missing on base, and adjust its recorded render sizes to match the changed Context list."
   ],
   "mechanical": null,
   "spec_version": "1.0",
