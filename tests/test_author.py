@@ -49,8 +49,8 @@ def requisition_reply(verdict, findings=None):
     return json.dumps({"verdict": verdict, "summary": "reviewed", "findings": findings or []})
 
 
-SNAG = {"code": "scope", "message": "missing test", "paved_road": "add the test"}
-RMA = {"code": "scope", "message": "plan cannot support this", "paved_road": "repair the plan"}
+SNAG = {"code": "scope", "message": "missing test", "paved_road": "add the test", "kind": "authoring_error"}
+RMA = {"code": "scope", "message": "plan cannot support this", "paved_road": "repair the plan", "kind": "spec_gap"}
 
 
 def test_triage_authors_ticket_and_journals_intake(tmp_path, monkeypatch):

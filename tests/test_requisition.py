@@ -94,7 +94,7 @@ def reply(verdict: str, findings: list | None = None) -> str:
     return json.dumps({"verdict": verdict, "summary": "reviewed", "findings": findings or []})
 
 
-FINDING = {"code": "scope", "message": "missing file", "paved_road": "add it to the fence"}
+FINDING = {"code": "scope", "message": "missing file", "paved_road": "add it to the fence", "kind": "authoring_error"}
 
 
 def test_spec_loads_and_names_finding_keys():
@@ -102,8 +102,8 @@ def test_spec_loads_and_names_finding_keys():
     assert lint_spec(source) == []
     spec = load_spec(source)
     assert spec.meta.llm_surface == "requisition_review"
-    assert spec.inputs == ("ticket", "plan_contract", "context", "render", "retry_findings")
-    assert all(key in source for key in ("`code`", "`message`", "`paved_road`"))
+    assert spec.inputs == ("ticket", "plan_contract", "context", "render", "prior_review", "retry_findings")
+    assert all(key in source for key in ("`code`", "`message`", "`paved_road`", "`kind`"))
 
 
 def test_approve_and_effect_key(tmp_path):

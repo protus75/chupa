@@ -33,6 +33,8 @@ class Finding(_Strict):
     line: Annotated[int, Field(ge=1)] | None = None
     message: NonBlank
     paved_road: NonBlank  # required: a finding that cannot say what to do instead fails gate-lint
+    # Section 7: a requisition_review finding names whether the spec or the authoring is at fault.
+    kind: Literal["spec_gap", "authoring_error"] | None = None
 
 
 class Harvest(_Strict):

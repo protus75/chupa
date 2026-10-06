@@ -229,3 +229,49 @@ def test_mechanical_failure_preserves_prior_seed_approvals_for_later_merge(repo)
     assert third == "merged"
     assert [r.surface for r in llm.requests] == ["implement", "review"]
     assert len(intake_events(ctx)) == 2
+
+
+def verdict_events(ctx: StageContext) -> list:
+    return [e for e in ctx.driver.journal.read()
+            if e.type == EventType.SIGNAL and e.body.get("signal") == "requisition_verdict"]
+
+
+def test_retry_keeps_the_approved_seed_and_re_reviews_only_the_snag_with_its_prior(repo):
+    alpha, beta = seed_text("alpha-seed"), seed_text("beta-seed")
+    snag = {"code": "scope", "message": "missing test", "paved_road": "add a test", "kind": "authoring_error"}
+    first, ctx, _ = run(repo, [write_seeds({"alpha-seed": alpha, "beta-seed": beta}), requisition("approve"),
+                               requisition("snag", [snag]), diagnosis_reply()])
+    assert first == "gate_failed"
+    assert [(e.ticket, e.body["verdict"], e.body["seeding"]) for e in verdict_events(ctx)] == [
+        ("alpha-seed", "approve", STEM), ("beta-seed", "snag", STEM)]
+    assert verdict_events(ctx)[1].body["findings"] == [snag]
+
+    fixed = beta.replace("holds the word ok for beta-seed.", "holds the word ok for beta-seed, tested.")
+
+    def retry(req: LLMRequest) -> str:
+        assert "## Approved seeds (keep verbatim)" in req.rendered and "tickets/alpha-seed/ticket.md" in req.rendered
+        assert (req.worktree / "tickets/alpha-seed/ticket.md").read_text() == alpha  # restored, never re-authored
+        return write_seeds({"beta-seed": fixed})(req)
+
+    second, ctx, llm = run(repo, [retry, requisition("approve"), verdict()])
+    assert second == "merged"
+    [review] = [r for r in llm.requests if r.surface == "requisition_review"]  # alpha is not re-reviewed
+    assert "Verdict: snag" in review.rendered and "missing test" in review.rendered
+    assert "+" in review.rendered and "tested." in review.rendered  # the diff from the judged text
+    assert (repo / "tickets/alpha-seed/ticket.md").read_text() == alpha
+    assert (repo / "tickets/beta-seed/ticket.md").read_text() == fixed
+
+
+def test_row_seed_without_its_entry_unit_is_a_mechanical_spec_gap(repo):
+    plan = (repo / "CHUPA_PLAN.md").read_text() + (
+        "\n### 19.P3 Phase 3\n\n```yaml\n# BEGIN_REGISTRY_P3\nphase: 3\nadmissions:\n  - [gamma-seed]\n"
+        "seeds:\n  gamma-seed: {fence: [chupa/thing.py]}\n# END_REGISTRY_P3\n```\n")
+    (repo / "CHUPA_PLAN.md").write_text(plan)
+    git(repo, "commit", "-am", "registry row without an entry unit")
+    outcome, ctx, llm = run(repo, [write_seeds({"gamma-seed": seed_text("gamma-seed")}), diagnosis_reply()])
+
+    assert outcome == "gate_failed"
+    [seed] = invoice(repo).seeds
+    assert (seed.verdict, seed.mechanical) == ("snag", "entry unit gap")
+    assert seed.findings[0].kind == "spec_gap" and "19.P3.gamma-seed is missing" in seed.findings[0].message
+    assert [r.surface for r in llm.requests] == ["implement", "diagnose"]

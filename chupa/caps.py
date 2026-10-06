@@ -16,7 +16,7 @@ def _check(cap: str) -> None:
         raise ValueError(f"cap {cap!r} is not one of CAPS {CAPS}")
 
 
-def _since_keep(events: Iterable[Event], stem: str) -> tuple[Event, ...]:
+def lineage(events: Iterable[Event], stem: str) -> tuple[Event, ...]:
     """The one lineage window for both cap counts and effective capability."""
     history = tuple(events)
     keep = next((i for i, e in reversed(list(enumerate(history)))
@@ -30,7 +30,7 @@ def draws(events: Iterable[Event], stem: str, cap: str) -> int:
     """Count this stem's draws for one cap across all ticket content revisions."""
     _check(cap)
     return sum(e.type == EventType.CAP_CONSUMED and e.ticket == stem and e.body.get("cap") == cap
-               for e in _since_keep(events, stem))
+               for e in lineage(events, stem))
 
 
 def remaining(caps_config: Caps, events: Iterable[Event], stem: str, cap: str) -> int:
@@ -57,7 +57,7 @@ def consume(journal: Journal, stem: str, cap: str, ticket_sha: str,
 
 def capability(ticket: Ticket, events: Iterable[Event]) -> tuple[str, str]:
     """The authored capability or the latest retry rung inside the operator keep fold."""
-    rung = next((e.body["rung"] for e in reversed(_since_keep(events, ticket.stem))
+    rung = next((e.body["rung"] for e in reversed(lineage(events, ticket.stem))
                  if e.type == EventType.CAP_CONSUMED and e.ticket == ticket.stem
                  and e.body.get("cap") == "retry" and "rung" in e.body), None)
     if rung is None:

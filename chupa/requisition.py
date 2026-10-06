@@ -30,6 +30,8 @@ class RequisitionReply(BaseModel):
     def _findings_match_verdict(self) -> "RequisitionReply":
         if bool(self.findings) == (self.verdict == "approve"):
             raise ValueError("findings must be empty exactly for approve")
+        if any(f.kind is None for f in self.findings):
+            raise ValueError("every finding needs a kind: spec_gap or authoring_error")
         return self
 
 
@@ -68,7 +70,7 @@ def base_render_chars(repo: Path, plan: str, ticket: Ticket, text: str, specs_di
 
 async def review_ticket(driver: Driver, *, repo: Path, plan: str, stem: str, text: str,
                         specs_dir: Path, tier: AgentTier, stem_slot: str, run_seq: int,
-                        attempt: int, call_seq: int) -> RequisitionVerdict:
+                        attempt: int, call_seq: int, prior: str = "none") -> RequisitionVerdict:
     ticket = review_target(repo, stem, text)
     spec = load_spec((specs_dir / "requisition_review.md").read_text())
     ticket_bytes = text.encode()
@@ -86,7 +88,8 @@ async def review_ticket(driver: Driver, *, repo: Path, plan: str, stem: str, tex
     def snag(message: str, mechanical: str, code: str = "requisition_review",
              road: str = "repair the ticket or review response and retry") -> RequisitionVerdict:
         return RequisitionVerdict(**common, verdict="snag", summary=message,
-                                  findings=[Finding(code=code, message=message, paved_road=road)],
+                                  findings=[Finding(code=code, message=message, paved_road=road,
+                                                    kind="authoring_error")],
                                   mechanical=mechanical, provider=None, model=None)
 
     if chars > REQ_RENDER_HEADROOM * RENDER_BOUND_CHARS:
@@ -97,7 +100,7 @@ async def review_ticket(driver: Driver, *, repo: Path, plan: str, stem: str, tex
     try:
         prompt = render(spec, {"ticket": text, "plan_contract": "included in render",
                                "context": "included in render", "render": base,
-                               "retry_findings": "none"})
+                               "prior_review": prior, "retry_findings": "none"})
     except RenderOverBound as exc:
         return snag(str(exc), "review render over bound", road="shrink or split the ticket at authoring")
 
@@ -126,7 +129,8 @@ async def review_ticket(driver: Driver, *, repo: Path, plan: str, stem: str, tex
         message = f"invalid requisition review reply: {exc.error_count()} schema error(s)"
         return RequisitionVerdict(**common, verdict="snag", summary=message,
                                   findings=[Finding(code="requisition_review", message=message,
-                                                    paved_road="reply with a schema-valid requisition verdict")],
+                                                    paved_road="reply with a schema-valid requisition verdict",
+                                                    kind="authoring_error")],
                                   mechanical="invalid reply", provider=result.provider, model=result.model)
     return RequisitionVerdict(**common, verdict=reply.verdict, summary=reply.summary,
                               findings=reply.findings, mechanical=None,

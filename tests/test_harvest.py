@@ -54,7 +54,7 @@ def test_review_snag_commits_closed_harvest_without_code_content_and_wipes(repo)
     assert code == 1
     h = harvest(repo)
     assert h.terminal == "gate_failed" and h.stage == "review" and h.attempt == 0
-    assert [f.model_dump() for f in h.findings] == [SNAG]
+    assert [f.model_dump(exclude_none=True) for f in h.findings] == [SNAG]
     assert "chupa/thing.py" in h.diff_stat and marker not in h.diff_stat
     assert len(h.stage_log_tail) <= runner.HARVEST_TAIL_CHARS
     assert len(h.events_tail) <= runner.HARVEST_TAIL_CHARS

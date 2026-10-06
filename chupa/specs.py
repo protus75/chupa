@@ -334,6 +334,19 @@ def without_unit(plan: str, uid: str) -> str:
     return plan.replace(slices[0], "", 1) if len(slices) == 1 else plan
 
 
+def entry_unit_gap(plan: str, stem: str) -> str | None:
+    """Why a registry row's entry unit cannot govern its seed (missing or lacking a SPEC DEPTH part); None when it can."""
+    row = registry_rows(plan).get(stem)
+    if row is None or row[1].get("exit"):
+        return None
+    uid = f"19.P{row[0]}.{stem}"
+    slices = _units(plan)[0].get(uid, [])
+    if len(slices) != 1:
+        return f"entry unit {uid} is missing"
+    missing = [p for p in ENTRY_PARTS if not re.search(rf"^- \*\*{p}:\*\*[ \t]*\S", slices[0], re.M)]
+    return f"entry unit {uid} lacks its {', '.join(missing)} part(s)" if missing else None
+
+
 def registry_rows(plan: str) -> dict[str, tuple[int, dict]]:
     """Every parseable registry row: stem -> (phase, row). Malformed registries are lint's to report."""
     rows: dict[str, tuple[int, dict]] = {}
