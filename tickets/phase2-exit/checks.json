@@ -1,14 +1,14 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "c95911cf75b502508dd1dfda9f4892d38d3ac244",
+  "produced_at_sha": "283c9d37a4e7cbded13c743fdb10f30b1e0f4c42",
   "stem": "phase2-exit",
-  "passed": false,
+  "passed": true,
   "changed_files": [
     "tests/test_phase2_exit.py",
     "tests/test_seeded_phase3_core.py"
   ],
-  "inserted_lines": 117,
+  "inserted_lines": 116,
   "bypassed": [],
   "reports": [
     {
@@ -37,16 +37,8 @@
     },
     {
       "code": "requisition_review",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "requisition_review",
-          "path": null,
-          "line": null,
-          "message": "invalid requisition review reply: 1 schema error(s)",
-          "paved_road": "reply with a schema-valid requisition verdict"
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false
     }
   ],
@@ -61,17 +53,9 @@
     {
       "stem": "phase3-continue",
       "ticket_sha": "168d632b949426550f544944a47a33b32ceb2d2a",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "requisition_review",
-          "path": null,
-          "line": null,
-          "message": "invalid requisition review reply: 1 schema error(s)",
-          "paved_road": "reply with a schema-valid requisition verdict"
-        }
-      ],
-      "mechanical": "invalid reply"
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
     },
     {
       "stem": "seed-successor-proof",
@@ -114,7 +98,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "........................................................................ [ 10%]\n........................................................................ [ 21%]\n........................................................................ [ 31%]\n........................................................................ [ 42%]\n........................................................................ [ 52%]\n........................................................................ [ 63%]\n........................................................................ [ 73%]\n........................................................................ [ 84%]\n........................................................................ [ 94%]\n....................................                                     [100%]\n684 passed in 58.05s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................................ [ 10%]\n........................................................................ [ 21%]\n........................................................................ [ 31%]\n........................................................................ [ 42%]\n........................................................................ [ 52%]\n........................................................................ [ 63%]\n........................................................................ [ 73%]\n........................................................................ [ 84%]\n........................................................................ [ 94%]\n....................................                                     [100%]\n684 passed in 57.30s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
