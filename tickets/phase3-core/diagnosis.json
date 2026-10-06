@@ -1,16 +1,16 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "28de9ffc7548cee8f4d39149b0ad1d6d915feafe",
+  "produced_at_sha": "83fb026174f5e378c51f6aae25e31d47d09a87e8",
   "stem": "phase3-core",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "infra_error",
   "stage": "implement",
   "verdict": "abandon-human",
   "lessons": [
-    "The ticket content was never attempted. codex failed in 3.7s with HTTP 400 'gpt-6.1-sol model is not supported when using Codex with a ChatGPT account', before any diff existed. Changing the ticket or retrying at the same routing cannot clear this.",
-    "A human must fix the provider side. Either give the Codex CLI a login that can use the routed model, or route Implement to a model the current ChatGPT account supports. This material does not show where that routing is configured.",
-    "After the provider fix, rerun Implement unchanged. The ticket is sound as written and has no findings against it, so no scope, split, or premise change is warranted."
+    "The Implement call to codex failed in 2.5s before any work began: the API returned 400 \"The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account.\" Nothing in the ticket caused this, so its scope and criteria need no change.",
+    "A human must fix the provider setup. Either point the codex route at a model that a ChatGPT-account login supports, or give codex credentials that allow 'gpt-6.1-sol'. Then re-run the ticket unchanged.",
+    "Codex also logged 'Model metadata for gpt-6.1-sol not found'. A human should check that this model id is spelled correctly in the provider/model config for codex before requeueing."
   ],
   "mechanical": null,
   "spec_version": "1.1",
