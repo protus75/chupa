@@ -1,15 +1,20 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "00dd82b0e50f6d94b47774b6ac45ce2bdb9c61a2",
+  "produced_at_sha": "67ffed3179aacf9522b4aa38ba92d24b7117b45b",
   "stem": "phase3-core",
-  "attempt": 5,
-  "terminal": "infra_error",
+  "attempt": 6,
+  "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "infra cap spent",
+  "verdict": "reject",
+  "lessons": [
+    "Premise false: CHUPA_PLAN.md has BEGIN_REGISTRY_P3 at line 1697, then 19.P4 starts at line 1800. No 19.P3.daemon-scheduler, 19.P3.seed-successor-proof or 19.P3.merge-queue heading exists, so the required Plan contract cites resolve to nothing.",
+    "Don't invent the missing entry units inside the seeds. The ticket's Definition of rejected forbids a seed stating a fact its entry unit omits, and 19.L SPEC DEPTH forbids invented facts.",
+    "Release path: harden the missing entry units in CHUPA_PLAN.md through section 11.4, with Owner, Records, Observable and Tests bullets, and commit them. Then rerun phase3-core unchanged. The plan edit is outside this ticket's fence (tickets, tests/test_seeded_phase3_core.py).",
+    "After the plan fix, confirm each registry row's cite and fence ids resolve to headings on the new base before authoring any seed. Record the plan-unit lengths for the render-feasibility test from that base."
+  ],
+  "mechanical": null,
   "spec_version": "1.1",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
