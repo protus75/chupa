@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "c338c89564180eb5d27c34da84bcd5d2a3b6d4b5",
+  "produced_at_sha": "dc54b8851242f8cb9f02c8eaef65c85ee6b0b67e",
   "stem": "phase3-continue",
-  "attempt": 2,
-  "terminal": "gate_failed",
-  "stage": "check",
-  "verdict": "abandon-human",
+  "attempt": 3,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
   "lessons": [
-    "Engine defect, not an authoring error: stages.py:840 _review_one runs validate_ticket(seed_stem, data, ctx.repo) against main, so a seed depending on an unlifted sibling seed (merge-queue) can never resolve. A retry with the same authoring would fail the same way.",
-    "Plan CHUPA_PLAN.md:1636 allows within-batch dependencies: 'a seed consuming a sibling's output declares depends on it'. The ticket's criterion (phase3-continue-02 depends on merge-queue) is valid, so do not drop or rewrite that edge in the seed.",
-    "Operator: fix the dependency resolution in Check seed review (chupa/stages.py, chupa/tickets.py, both outside this ticket's fence) to accept stems authored in the same admission. Commit the plan fix first, file a cause ticket, then re-run phase3-continue.",
-    "After the engine fix, keep the earlier attempt's work: the committed tests/test_seeded_phase3_01.py passed (13 tests, 757 in the full suite). Re-author both seeds unchanged and leave them uncommitted for Check to review and lift together."
+    "Criterion 3 can't be met on the current engine. At chupa/stages.py:840, _review_one calls validate_ticket(seed_stem, data, ctx.repo) against main. Main does not have the unlifted sibling merge-queue yet, so phase3-continue-02's required depends fails ticket lint with a snag.",
+    "Don't drop or rename phase3-continue-02's merge-queue dependency to get past the lint. The ticket requires it, and the Definition of rejected forbids changing it.",
+    "Rerun only after a separate engine change, outside this fence, makes Check resolve a seed's depends against the sibling seeds in the same batch. The plan does not say which mechanism should do this. That missing fact must be added to the plan (sections 13/19) before the fix.",
+    "On rerun, keep the approved merge-queue seed byte-identical (sha256 87e6cb2d...). A matching approve then holds without re-review, per the stages.py:803 check.",
+    "Leave tickets/ uncommitted on the branch. The branch diff should contain only tests/test_seeded_phase3_01.py, and its render assertions should use fixed sizes recorded at authoring time."
   ],
   "mechanical": null,
   "spec_version": "1.1",
