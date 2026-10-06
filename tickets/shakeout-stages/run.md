@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-90m predicted, about 25m actual.
+90m predicted, about 25m actual
 
