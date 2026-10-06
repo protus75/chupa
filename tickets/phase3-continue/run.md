@@ -1,10 +1,10 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-The previously missing thresh-runtime entry unit is now complete; all 13 targeted tests and 757 full-suite tests passed.
+On base dc54b8851242f8cb9f02c8eaef65c85ee6b0b67e, _review_one rejects the required merge-queue dependency against main despite accepting it in the author worktree. The approved seed remains byte-identical. Full verification passed: 744 tests; targeted verification exited 4 because the new test was not authored after confirming the blocker.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the expected 60-minute budget.
+Investigation took approximately 5 minutes against the 60m expected budget.
 
