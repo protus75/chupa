@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The shipped entry_unit_gap checker confirms all three omissions on base commit 6a061e41efc80bd1fef43c49d90e0f45f927ff50; HEAD equals that base, the working plan matches it, and git status is clean.
+Required entry units now exist; verification passed with 19 targeted and 729 total tests. Seed review and lift remain Check's responsibility.
 
 ## Dead ends
 
-Verification was not run because the ticket explicitly requires stopping when entry units are missing.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during initial validation, below the 60m expected and 120m stuck budgets.
+Completed within the 60m expected and 120m stuck budgets.
 
