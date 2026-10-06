@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-Required verification passed: 28 tests; the scope comparison uses main's working plan rather than its committed plan.
+Specified that required host checks receive no base-red exemption; main's plan was clean and scope confinement passed.
 
 ## Dead ends
 
-No implementation attempted because clearing the verified scope blocker requires an unauthorized main-checkout change or an out-of-fence section 13 edit.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during initial investigation, within the expected 30 minutes.
+Completed within the expected 30-minute budget.
 
