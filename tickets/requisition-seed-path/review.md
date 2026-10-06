@@ -1,10 +1,11 @@
 # Review: snag
 
-The seed lift and the merge re-check are wired correctly, but each seed is reviewed at the seeding ticket's agent_tier instead of the seed's own agent_tier, as the ticket requires.
+The seed review, lift and merge re-check are wired as the ticket asks, but the acceptance-5 test cannot catch the bug it targets, and the merge gate checks main's working-tree files instead of main's committed files.
 
 ## Findings
 
-- [acceptance] chupa/stages.py:700 `_review_seeds` calls `review_ticket(..., tier=ticket.frontmatter.agent_tier, ...)`, which is the SEEDING ticket's tier. Scope in says each seed is judged 'at the SEED's `agent_tier`'. A seed authored `agent_tier: high` under a `medium` seeding ticket is reviewed on the wrong tier and route. The tests miss this because the fixture seeds and the seeding ticket both default to `medium`. (do instead: Pass `tier=parsed.frontmatter.agent_tier`, the seed's validated frontmatter. Add a seed-path case where the seed's tier differs from the seeding ticket's, with a route for that tier, and assert that the requisition request carries the seed's tier.)
+- [acceptance] tests/test_stages.py:237 `test_non_seeding_worktree_ticket_is_neither_reviewed_nor_lifted` uses `agent()`, which commits the foreign `tickets/foreign-ticket/ticket.md`. The `scope_fence` gate then fails Check before seed handling runs. If the `"tickets" in ticket.scope_fence` guard were removed, the test would still pass, so it does not prove acceptance criterion 5. (do instead: Leave the foreign ticket.md uncommitted in the worktree (write it without `git add`/commit) so every mechanical Check gate passes. Then assert that Check is `ok`, `seeds == []`, there is no `requisition_review` request, and no seed was lifted to main.)
+- [logic] chupa/merge.py:186 The MERGE-SAFETY inputs read the seed text (`ctx.repo / path`) and `checks.json` (`ctx.repo / TICKETS_DIR / stem / "checks.json"`) from the main checkout's working tree. Only the blob SHA comes from `main:<path>`. An uncommitted edit in the shared checkout (ticket-file authoring there is a sanctioned path) can change the approvals or the text that gets validated, so the gate does not re-check what main actually commits. (do instead: Read both the seed text and `checks.json` from main's committed tree through `git.py` (`main:<path>`), so that the SHA, the validated text and the recorded approvals all come from the same commit.)
 
 ## Record
 
@@ -12,17 +13,24 @@ The seed lift and the merge re-check are wired correctly, but each seed is revie
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "720abebdd4c2b243760c0333a9f48668b838c9b1",
+  "produced_at_sha": "0cfefc42eba8136151754de9737589a47626f3d5",
   "stem": "requisition-seed-path",
-  "reviewed_sha": "720abebdd4c2b243760c0333a9f48668b838c9b1",
-  "summary": "The seed lift and the merge re-check are wired correctly, but each seed is reviewed at the seeding ticket's agent_tier instead of the seed's own agent_tier, as the ticket requires.",
+  "reviewed_sha": "0cfefc42eba8136151754de9737589a47626f3d5",
+  "summary": "The seed review, lift and merge re-check are wired as the ticket asks, but the acceptance-5 test cannot catch the bug it targets, and the merge gate checks main's working-tree files instead of main's committed files.",
   "findings": [
     {
       "code": "acceptance",
-      "path": "chupa/stages.py",
-      "line": 700,
-      "message": "`_review_seeds` calls `review_ticket(..., tier=ticket.frontmatter.agent_tier, ...)`, which is the SEEDING ticket's tier. Scope in says each seed is judged 'at the SEED's `agent_tier`'. A seed authored `agent_tier: high` under a `medium` seeding ticket is reviewed on the wrong tier and route. The tests miss this because the fixture seeds and the seeding ticket both default to `medium`.",
-      "paved_road": "Pass `tier=parsed.frontmatter.agent_tier`, the seed's validated frontmatter. Add a seed-path case where the seed's tier differs from the seeding ticket's, with a route for that tier, and assert that the requisition request carries the seed's tier."
+      "path": "tests/test_stages.py",
+      "line": 237,
+      "message": "`test_non_seeding_worktree_ticket_is_neither_reviewed_nor_lifted` uses `agent()`, which commits the foreign `tickets/foreign-ticket/ticket.md`. The `scope_fence` gate then fails Check before seed handling runs. If the `\"tickets\" in ticket.scope_fence` guard were removed, the test would still pass, so it does not prove acceptance criterion 5.",
+      "paved_road": "Leave the foreign ticket.md uncommitted in the worktree (write it without `git add`/commit) so every mechanical Check gate passes. Then assert that Check is `ok`, `seeds == []`, there is no `requisition_review` request, and no seed was lifted to main."
+    },
+    {
+      "code": "logic",
+      "path": "chupa/merge.py",
+      "line": 186,
+      "message": "The MERGE-SAFETY inputs read the seed text (`ctx.repo / path`) and `checks.json` (`ctx.repo / TICKETS_DIR / stem / \"checks.json\"`) from the main checkout's working tree. Only the blob SHA comes from `main:<path>`. An uncommitted edit in the shared checkout (ticket-file authoring there is a sanctioned path) can change the approvals or the text that gets validated, so the gate does not re-check what main actually commits.",
+      "paved_road": "Read both the seed text and `checks.json` from main's committed tree through `git.py` (`main:<path>`), so that the SHA, the validated text and the recorded approvals all come from the same commit."
     }
   ],
   "spec_version": "1.0",
