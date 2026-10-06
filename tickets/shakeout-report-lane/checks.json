@@ -1,7 +1,7 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "f38a467e6b3f832963e91056d8ad380966d9a5a8",
+  "produced_at_sha": "4bdfac094390b6b5a38ee32b2a69dab3658d1ae2",
   "stem": "shakeout-report-lane",
   "passed": true,
   "changed_files": [
@@ -10,7 +10,8 @@
     "eval/shakeout/__init__.py",
     "eval/shakeout/bench.py",
     "eval/shakeout/run.py",
-    "tests/test_shakeout.py"
+    "tests/test_shakeout.py",
+    "tests/test_stages.py"
   ],
   "inserted_lines": 342,
   "bypassed": [],
