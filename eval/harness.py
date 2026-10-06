@@ -156,7 +156,7 @@ def _findings_text(findings: list[Finding]) -> str:
 def review_stage(spec: Spec) -> LlmStage:
     def render_fixture(fx: Fixture, findings: list[Finding]) -> str:
         inputs = {"ticket": fx.ticket, "diff": fx.diff, "retry_findings": _findings_text(findings)}
-        return render(spec, inputs, spec.meta.effort)
+        return render(spec, inputs)
 
     return LlmStage(surface="review", emits=ReviewVerdict, gates=[], render=render_fixture)
 

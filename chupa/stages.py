@@ -224,7 +224,7 @@ def diagnose_stage(spec: Spec, material: DiagnosisMaterial) -> LlmStage:
     }
 
     def render_material(_: DiagnosisMaterial, findings: list[Finding]) -> str:
-        return render(spec, {**inputs, "retry_findings": findings_text(findings)}, spec.meta.effort)
+        return render(spec, {**inputs, "retry_findings": findings_text(findings)})
 
     return LlmStage(surface="diagnose", emits=DiagnosisReply, gates=[], render=render_material)
 
@@ -435,7 +435,7 @@ def implement_stage(ctx: StageContext, ticket: Ticket, worktree: Path) -> tuple[
     inputs = implement_inputs(worktree, plan, ticket_text, ticket, ctx.config.context_files)
 
     def render_ticket(_: Ticket, findings: list[Finding]) -> str:
-        return render(spec, {**inputs, "retry_findings": findings_text(findings)}, ticket.frontmatter.agent_effort)
+        return render(spec, {**inputs, "retry_findings": findings_text(findings)})
 
     return LlmStage(surface="implement", emits=ImplementReply, gates=[], render=render_ticket), spec
 
@@ -883,7 +883,7 @@ def review_stage(ctx: StageContext, ticket_text: str, diff: str) -> tuple[LlmSta
 
     def render_diff(_: object, findings: list[Finding]) -> str:
         inputs = {"ticket": ticket_text, "diff": diff, "retry_findings": findings_text(findings)}
-        return render(spec, inputs, spec.meta.effort)
+        return render(spec, inputs)
 
     return LlmStage(surface="review", emits=ReviewVerdict, gates=[], render=render_diff), spec
 

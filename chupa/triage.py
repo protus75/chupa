@@ -145,7 +145,7 @@ async def triage_pass(checkout: Checkout, llm: LLM) -> list[tuple[str, str]]:
         }
 
         def render_message(_consumed: object, findings: list) -> str:
-            return render(spec, {**inputs, "retry_findings": findings_text(findings)}, spec.meta.effort)
+            return render(spec, {**inputs, "retry_findings": findings_text(findings)})
 
         result = await driver.run(
             LlmStage(surface="triage", emits=TriageReply, gates=[], render=render_message), message,

@@ -117,7 +117,7 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
     def render_author(_: object, findings: list) -> str:
         inputs = {"request": request, "files": files, "open_tickets": open_tickets,
                   "retry_findings": findings_text(findings)}
-        return render(spec, inputs, spec.meta.effort)
+        return render(spec, inputs)
 
     open_tickets = await _open_tickets(checkout)
     reviewed: RequisitionVerdict | None = None

@@ -10,6 +10,7 @@ from chupa.config import load_config
 from chupa.driver import Driver
 from chupa.gates import lint_gate
 from chupa.llm import FakeLLM
+from chupa.specs import REQ_RENDER_HEADROOM, RENDER_BOUND_CHARS
 from chupa.requisition import (RequisitionGate, RequisitionReply, RequisitionVerdict,
                                base_render_chars, review_target, review_ticket)
 from chupa.specs import lint_spec, load_spec
@@ -139,7 +140,7 @@ def test_invalid_ticket_and_reserved_stem_spend_no_call(tmp_path):
 
 def test_over_headroom_spends_no_call(tmp_path):
     repo, driver, llm = setup(tmp_path, [])
-    (repo / "context.txt").write_text("x" * 121_000)
+    (repo / "context.txt").write_text("x" * (int(REQ_RENDER_HEADROOM * RENDER_BOUND_CHARS) + 1_000))
     verdict = run(driver, repo)
     assert verdict.verdict == "snag"
     assert verdict.mechanical == "render over headroom"
@@ -149,11 +150,11 @@ def test_over_headroom_spends_no_call(tmp_path):
 
 def test_render_over_max_bound_is_still_headroom_snag(tmp_path):
     repo, driver, llm = setup(tmp_path, [])
-    (repo / "context.txt").write_text("x" * 161_000)
+    (repo / "context.txt").write_text("x" * (RENDER_BOUND_CHARS + 1_000))
     verdict = run(driver, repo)
     assert verdict.verdict == "snag"
     assert verdict.findings[0].code == "render_feasibility"
-    assert verdict.render_chars > 160_000
+    assert verdict.render_chars > RENDER_BOUND_CHARS
     assert llm.requests == []
 
 
@@ -184,8 +185,12 @@ def test_implement_reads_context_from_its_worktree(tmp_path):
 
 def test_review_render_over_bound_is_mechanical_snag(tmp_path, monkeypatch):
     repo, driver, llm = setup(tmp_path, [])
-    from chupa.specs import RENDER_BOUND_CHARS
-    monkeypatch.setitem(RENDER_BOUND_CHARS, "high", 1000)
+    import chupa.requisition as requisition
+    import chupa.specs as specs
+    # The base Implement render fits the bound; the review render, which embeds it, does not.
+    base = base_render_chars(repo, "", review_target(repo, "one-thing", TICKET), TICKET, SPECS)
+    monkeypatch.setattr(specs, "RENDER_BOUND_CHARS", base + 1)
+    monkeypatch.setattr(requisition, "RENDER_BOUND_CHARS", 2 * base)
     verdict = run(driver, repo)
     assert verdict.verdict == "snag" and verdict.mechanical == "review render over bound"
     assert verdict.findings[0].code == "requisition_review"
@@ -197,7 +202,7 @@ def test_base_render_matches_implement_and_gate(tmp_path):
     ticket = review_target(repo, "one-thing", TICKET)
     spec = load_spec((SPECS / "implement.md").read_text())
     production = render(spec, {**implement_inputs(repo, "", TICKET, ticket, ()),
-                               "retry_findings": "none"}, "max")
+                               "retry_findings": "none"})
     assert base_render_chars(repo, "", ticket, TICKET, SPECS) == len(production)
     approved = run(driver, repo)
     snag = approved.model_copy(update={"verdict": "snag", "findings": [Finding(**FINDING)]})

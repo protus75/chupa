@@ -54,7 +54,7 @@ def review_target(repo: Path, stem: str, text: str) -> Ticket:
 def _base_render(repo: Path, plan: str, ticket: Ticket, text: str, specs_dir: Path) -> str:
     spec = load_spec((specs_dir / "implement.md").read_text())
     inputs = implement_inputs(repo, plan, text, ticket, ())
-    return render(spec, {**inputs, "retry_findings": "none"}, "max")
+    return render(spec, {**inputs, "retry_findings": "none"})
 
 
 def base_render_chars(repo: Path, plan: str, ticket: Ticket, text: str, specs_dir: Path) -> int:
@@ -89,7 +89,7 @@ async def review_ticket(driver: Driver, *, repo: Path, plan: str, stem: str, tex
                                   findings=[Finding(code=code, message=message, paved_road=road)],
                                   mechanical=mechanical, provider=None, model=None)
 
-    if chars > REQ_RENDER_HEADROOM * RENDER_BOUND_CHARS["max"]:
+    if chars > REQ_RENDER_HEADROOM * RENDER_BOUND_CHARS:
         return snag(f"base Implement render has {chars} characters, over authoring headroom",
                     "render over headroom", "render_feasibility", "shrink or split the ticket at authoring")
     assert base is not None
@@ -97,7 +97,7 @@ async def review_ticket(driver: Driver, *, repo: Path, plan: str, stem: str, tex
     try:
         prompt = render(spec, {"ticket": text, "plan_contract": "included in render",
                                "context": "included in render", "render": base,
-                               "retry_findings": "none"}, spec.meta.effort)
+                               "retry_findings": "none"})
     except RenderOverBound as exc:
         return snag(str(exc), "review render over bound", road="shrink or split the ticket at authoring")
 

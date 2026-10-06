@@ -17,9 +17,9 @@ from chupa.artifacts import Finding
 from chupa.gates import ENGINE_GATE_CODES
 from chupa.llm import AgentEffort, AgentTier
 
-# Section 8: one engine-owned conservative character bound per resolved effort; stage-local bounds are forbidden.
-RENDER_BOUND_CHARS: Mapping[str, int] = {"low": 400_000, "medium": 320_000, "high": 240_000, "max": 160_000}
-# An authored ticket's base Implement render must fit this fraction of its ladder-top effort's bound.
+# Section 8: one bound at every tier and effort, so climbing the ladder never shrinks it.
+RENDER_BOUND_CHARS = 400_000
+# An authored ticket's base Implement render must fit this fraction of the bound.
 REQ_RENDER_HEADROOM = 0.75
 
 # Built, never spelled: a file carrying the raw delimiter can never be injected as Context (section 13).
@@ -209,7 +209,7 @@ def validate_data_blocks(rendered: str) -> list[Finding]:
     return _blocks(rendered.splitlines(), template=False)[1]
 
 
-def render(spec: Spec, inputs: Mapping[str, str], effort: AgentEffort) -> str:
+def render(spec: Spec, inputs: Mapping[str, str]) -> str:
     """Render `spec` with each input quoted into its data block, refusing an over-bound prompt."""
     if set(inputs) != set(spec.inputs):
         raise SpecError([_f("render_inputs", f"inputs {sorted(inputs)} do not match the spec's data blocks"
@@ -218,44 +218,54 @@ def render(spec: Spec, inputs: Mapping[str, str], effort: AgentEffort) -> str:
     rendered = _PLACEHOLDER_LINE.sub(lambda m: quote_payload(inputs[m.group(1)]).removesuffix("\n"), spec.body)
     if findings := validate_data_blocks(rendered):
         raise SpecError(findings)
-    check_render_bound(rendered, effort)
+    check_render_bound(rendered)
     return rendered
 
 
-def check_render_bound(rendered: str, effort: AgentEffort) -> None:
-    bound = RENDER_BOUND_CHARS[effort]
-    if len(rendered) > bound:
+def check_render_bound(rendered: str) -> None:
+    if len(rendered) > RENDER_BOUND_CHARS:
         raise RenderOverBound(_f("render_over_bound",
-                                 f"rendered prompt is {len(rendered)} characters, over the {effort} bound {bound}",
+                                 f"rendered prompt is {len(rendered)} characters, over the bound {RENDER_BOUND_CHARS}",
                                  "shrink the inputs or split the ticket"))
 
 
 # --- Plan contract resolver ---------------------------------------------------------------------
 
-PLAN_UNITS = ("19.L",) + tuple(f"19.P{n}" for n in range(7))
+PLAN_UNITS = ("19.L", "19.I") + tuple(f"19.P{n}" for n in range(7))
 REFUSED_SECTIONS = frozenset({22})  # uncited rationale appendix: never resolves
+ENTRY_PARTS = ("Owner", "Records", "Observable", "Tests")  # section 19 SPEC DEPTH
 _SECTION_HEAD = re.compile(r"## (\d+)\. ")
-_UNIT_HEAD = re.compile(r"### (19\.\S+) ")
-_PLAN_ID = re.compile(r"section (\d+)|(19\.(?:L|P[0-6]))")
-_CANONICAL_PLAN_ID = re.compile(r"(?:0|[1-9]\d*|19\.(?:L|P[0-6]))")
+_UNIT_HEAD = re.compile(r"### (\d+\.\d+|19\.\S+) ")
+_PLAN_ID = re.compile(r"section (\d+(?:\.\d+)?)|(19\.(?:L|I|P[0-6](?:\.[a-z0-9][a-z0-9-]*)?))")
+_CANONICAL_PLAN_ID = re.compile(r"(?:0|[1-9]\d*)(?:\.[1-9]\d*)?|19\.(?:L|I|P[0-6](?:\.[a-z0-9][a-z0-9-]*)?)")
+_ENTRY_ID = re.compile(r"19\.P([0-6])\.([a-z0-9][a-z0-9-]*)")
 
 
 def plan_id(text: str) -> str:
-    """Canonical id for a `Plan contract` bullet: `section N` -> `N`; `19.L` / `19.P<n>` verbatim."""
+    """Canonical id for a `Plan contract` bullet: `section N[.k]` -> `N[.k]`; `19.<unit>` verbatim."""
     m = _PLAN_ID.fullmatch(text.strip())
     if m is None:
         raise PlanContractError(_f("plan_contract", f"{text!r} is not a plan id",
-                                   "cite `section N` or a unit id `19.L` / `19.P0`-`19.P6`"))
+                                   "cite `section N`, `section N.k`, or a unit id `19.L` / `19.I` /"
+                                   " `19.P<n>` / `19.P<n>.<stem>`"))
     if m.group(1) is not None:
-        return str(int(m.group(1)))
+        return ".".join(str(int(p)) for p in m.group(1).split("."))
     return m.group(2)
 
 
-def _units(plan: str) -> tuple[dict[str, list[str]], list[str]]:
-    """Map every heading id to its verbatim slices (a list: duplicates are a lint defect). Fence-aware."""
-    lines = plan.splitlines(keepends=True)
-    heads: list[tuple[int, str, int]] = []  # (line index, id, level)
+@dataclass(frozen=True)
+class _Head:
+    line: int
+    pid: str  # "" for a heading carrying no id
+    level: int
+    section: str  # the enclosing `## N.` id ("" outside numbered sections)
+
+
+def _heads(lines: list[str]) -> list[_Head]:
+    """Every `##`/`###` heading outside fenced blocks, with its enclosing numbered section."""
+    heads: list[_Head] = []
     fence: str | None = None
+    section = ""
     for i, line in enumerate(lines):
         stripped = line.rstrip("\n")
         if m := re.match(r"(`{3,}|~{3,})", stripped):
@@ -267,24 +277,30 @@ def _units(plan: str) -> tuple[dict[str, list[str]], list[str]]:
         if fence is not None:
             continue
         if m := _SECTION_HEAD.match(stripped):
-            heads.append((i, str(int(m.group(1))), 2))
+            section = str(int(m.group(1)))
+            heads.append(_Head(i, section, 2, section))
         elif stripped.startswith("## "):
-            heads.append((i, "", 2))
+            section = ""
+            heads.append(_Head(i, "", 2, section))
         elif m := _UNIT_HEAD.match(stripped):
-            heads.append((i, m.group(1), 3))
+            heads.append(_Head(i, m.group(1), 3, section))
         elif stripped.startswith("### "):
-            heads.append((i, "", 3))
+            heads.append(_Head(i, "", 3, section))
+    return heads
+
+
+def _units(plan: str) -> tuple[dict[str, list[str]], list[_Head]]:
+    """Map every heading id to its verbatim slices (a list: duplicates are a lint defect)."""
+    lines = plan.splitlines(keepends=True)
+    heads = _heads(lines)
     found: dict[str, list[str]] = {}
-    unit_heads: list[str] = []
-    for k, (i, pid, level) in enumerate(heads):
-        if level == 3 and pid:
-            unit_heads.append(pid)
-        if not pid:
+    for k, h in enumerate(heads):
+        if not h.pid:
             continue
-        # A section runs to the next `##`; a 19 unit to the next `###` or `##`.
-        end = next((j for j, _, lv in heads[k + 1:] if lv <= level), len(lines))
-        found.setdefault(pid, []).append("".join(lines[i:end]))
-    return found, unit_heads
+        # A section runs to the next `##`; a subsection or 19 unit to the next `###` or `##`.
+        end = next((x.line for x in heads[k + 1:] if x.level <= h.level), len(lines))
+        found.setdefault(h.pid, []).append("".join(lines[h.line:end]))
+    return found, heads
 
 
 def resolve_plan_contract(plan: str, ids: Iterable[str]) -> str:
@@ -295,60 +311,84 @@ def resolve_plan_contract(plan: str, ids: Iterable[str]) -> str:
         if _CANONICAL_PLAN_ID.fullmatch(pid) is None:
             raise PlanContractError(_f("plan_contract", f"{pid!r} is not a canonical plan id",
                                        "canonicalize a `Plan contract` bullet with `plan_id` first"))
-        if "." not in pid and int(pid) in REFUSED_SECTIONS:
+        if not pid.startswith("19.") and int(pid.split(".")[0]) in REFUSED_SECTIONS:
             raise PlanContractError(_f("plan_contract", f"section {pid} never resolves (uncited rationale)",
                                        "cite the section or unit that states the rule itself"))
         slices = found.get(pid, [])
         if len(slices) != 1:
             raise PlanContractError(_f("plan_contract",
                                        f"{pid!r} matches {len(slices)} plan headings, not exactly one",
-                                       "cite an id with exactly one `## N.` or `### 19.<unit>` heading"))
+                                       "cite an id with exactly one `## N.` or `### <id>` heading"))
         if pid not in seen:
             seen.append(pid)
+    for pid in seen:
+        if not pid.startswith("19.") and "." in pid and pid.split(".")[0] in seen:
+            raise PlanContractError(_f("plan_contract", f"section {pid.split('.')[0]} is cited with its own"
+                                       f" subsection {pid}", "cite the whole section or its subsections, not both"))
     return "".join(found[pid][0] for pid in seen)
+
+
+def registry_rows(plan: str) -> dict[str, tuple[int, dict]]:
+    """Every parseable registry row: stem -> (phase, row). Malformed registries are lint's to report."""
+    rows: dict[str, tuple[int, dict]] = {}
+    for phase, body, _ in _REGISTRY.findall(plan):
+        try:
+            reg = yaml.safe_load(body)
+        except yaml.YAMLError:
+            continue
+        seeds = reg.get("seeds") if isinstance(reg, dict) else None
+        if isinstance(seeds, dict):
+            rows.update({stem: (int(phase), row) for stem, row in seeds.items() if isinstance(row, dict)})
+    return rows
 
 
 # --- PLAN LINT ----------------------------------------------------------------------------------
 
-UNIT_CAP_L = 22_000
-UNIT_CAP_PHASE = 26_000
-SECTION_CAP = 36_000
 CITABLE_SECTIONS = tuple(range(1, 19)) + (20,)
-SEED_RENDER_BUDGET = RENDER_BOUND_CHARS["max"] // 2
 MAX_ADMISSION_PAYLOADS = 2
 _REGISTRY = re.compile(r"^# BEGIN_REGISTRY_P(\d+)\n(.*?)^# END_REGISTRY_P(\d+)$", re.DOTALL | re.MULTILINE)
 
 
 def lint_plan(plan: str) -> list[Finding]:
-    """Keep the plan renderable as seed contracts (section 8). Empty = green."""
+    """Keep the plan renderable as per-ticket seed contracts (section 8). Empty = green."""
     out: list[Finding] = []
-    found, unit_heads = _units(plan)
+    found, heads = _units(plan)
     for pid, slices in found.items():
         if len(slices) > 1:
             out.append(_f("plan_heading", f"heading id {pid} appears {len(slices)} times",
-                          "give every section and 19 unit exactly one heading"))
-    for u in unit_heads:
-        if u not in PLAN_UNITS:
-            out.append(_f("plan_unit", f"`### {u}` is not a citable unit id",
-                          f"name section-19 units only {list(PLAN_UNITS)}"))
-    sizes: dict[str, int] = {}
+                          "give every section, subsection, and 19 unit exactly one heading"))
+    rows = registry_rows(plan)
+    for h in heads:
+        if h.level != 3 or not h.pid:
+            continue
+        if h.pid.startswith("19."):
+            entry = _ENTRY_ID.fullmatch(h.pid)
+            if h.section != "19" or not (h.pid in PLAN_UNITS or (entry and rows.get(entry.group(2), (None,))[0]
+                                                                  == int(entry.group(1)))):
+                out.append(_f("plan_unit", f"`### {h.pid}` is not a citable unit id", f"name section-19 units only"
+                              f" {list(PLAN_UNITS)} or `19.P<n>.<stem>` for a row of that phase's registry"))
+        elif h.pid.split(".")[0] != h.section:
+            out.append(_f("plan_unit", f"`### {h.pid}` sits outside its own `## {h.pid.split('.')[0]}.` section",
+                          "number a subsection after the section that contains it"))
     for pid in PLAN_UNITS + tuple(map(str, CITABLE_SECTIONS)):
         if not found.get(pid):
             out.append(_f("plan_unit", f"plan id {pid} has no heading", f"restore the heading for {pid}"))
-            continue
-        sizes[pid] = size = len(found[pid][0])
-        cap = UNIT_CAP_L if pid == "19.L" else UNIT_CAP_PHASE if pid.startswith("19.") else SECTION_CAP
-        if size > cap:
-            out.append(_f("plan_size", f"{pid} is {size} characters, over its {cap} cap",
-                          f"tighten {pid} or move its rationale to section 22"))
-    phases = [sizes[u] for u in PLAN_UNITS[1:] if u in sizes]
-    others = [sizes[str(s)] for s in CITABLE_SECTIONS if str(s) in sizes]
-    if "19.L" in sizes and phases and others:
-        synthetic = sizes["19.L"] + max(phases) + max(others)
-        if synthetic > SEED_RENDER_BUDGET:
-            out.append(_f("plan_seed_render", f"synthetic seed render is {synthetic} characters, over"
-                          f" {SEED_RENDER_BUDGET}", "shrink 19.L, the largest phase unit, or the largest section"))
+    for pid, slices in found.items():
+        if _ENTRY_ID.fullmatch(pid):
+            missing = [p for p in ENTRY_PARTS if not re.search(rf"^- \*\*{p}:\*\*[ \t]*\S", slices[0], re.M)]
+            if missing:
+                out.append(_f("plan_entry", f"entry unit {pid} lacks its {', '.join(missing)} part(s)",
+                              "state each SPEC DEPTH part as a non-empty `- **<Part>:**` bullet (section 19)"))
     return out + _lint_registries(plan, found)
+
+
+def _cite_resolves(c: object, found: Mapping[str, list[str]]) -> bool:
+    if isinstance(c, int):
+        return c in CITABLE_SECTIONS and bool(found.get(str(c)))
+    if c == "19.L":
+        return True
+    return (isinstance(c, str) and re.fullmatch(r"[1-9]\d*\.[1-9]\d*", c) is not None
+            and int(c.split(".")[0]) in CITABLE_SECTIONS and bool(found.get(c)))
 
 
 def _lint_registries(plan: str, found: Mapping[str, list[str]]) -> list[Finding]:
@@ -387,7 +427,8 @@ def _lint_registries(plan: str, found: Mapping[str, list[str]]) -> list[Finding]
         for stem, row in seeds.items():
             cites = row.get("cite", [])
             for c in cites if isinstance(cites, list) else [cites]:
-                if not (isinstance(c, int) and c in CITABLE_SECTIONS and found.get(str(c))):
+                if not _cite_resolves(c, found):
                     out.append(_f("registry_cite", f"{where} seed {stem!r} cites {c!r}, which does not resolve",
-                                  f"cite section numbers from {list(CITABLE_SECTIONS)}"))
+                                  f"cite an integer section from {list(CITABLE_SECTIONS)}, a quoted"
+                                  " `\"N.k\"` subsection, or `\"19.L\"`"))
     return out
