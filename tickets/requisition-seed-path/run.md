@@ -8,7 +8,7 @@ none
 
 ## Dead ends
 
-The initial rerun fixture had no code diff; I corrected it and reran verification.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-90m expected; about 12m actual
+90m expected; completed within budget. Focused verification passed (32 tests) and the full suite passed (627 tests).
 
