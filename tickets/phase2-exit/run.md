@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-The implement spec now permits uncommitted seed tickets; Check has not yet recorded its review verdicts.
+The previous Check approved and lifted the seeds, but phase3-continue still names a Context file absent from the base commit.
 
 ## Dead ends
 
-none
+The reconstructed tests passed both focused commands and the full suite (684 passed), but correcting the existing seed is prohibited; all edits were reverted.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-60m expected; under 10m actual. All three verification commands passed, including 684 full-suite tests.
+Expected 60m; stopped after about 4m.
 
