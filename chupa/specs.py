@@ -328,6 +328,12 @@ def resolve_plan_contract(plan: str, ids: Iterable[str]) -> str:
     return "".join(found[pid][0] for pid in seen)
 
 
+def without_unit(plan: str, uid: str) -> str:
+    """The plan with one `###` unit's verbatim slice removed (unchanged when the unit is absent or duplicated)."""
+    slices = _units(plan)[0].get(uid, [])
+    return plan.replace(slices[0], "", 1) if len(slices) == 1 else plan
+
+
 def registry_rows(plan: str) -> dict[str, tuple[int, dict]]:
     """Every parseable registry row: stem -> (phase, row). Malformed registries are lint's to report."""
     rows: dict[str, tuple[int, dict]] = {}

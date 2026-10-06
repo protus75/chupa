@@ -27,7 +27,7 @@ from chupa.git import Git, GitError
 from chupa.journal import TERMINAL_STATES, EventType, run_seq
 from chupa.providers import child_env
 from chupa.seams import ExecutableNotFound, FileSystem, ProcessExec
-from chupa.specs import RenderOverBound, Spec, load_spec, render, resolve_plan_contract
+from chupa.specs import RenderOverBound, Spec, load_spec, render, resolve_plan_contract, without_unit
 from chupa.tickets import _HEADING, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, TicketInvalid, ticket_path, validate_ticket
 
 MAIN = "main"
@@ -514,6 +514,9 @@ class Evidence(_Strict):
     inserted_lines: int
     verification: list[CommandResult]
     run_record: str | None  # the lifted run.md text, None when absent
+    # Main's and the branch's plan, gathered only when a `CHUPA_PLAN.md#<unit>` fence entry may admit a plan edit.
+    plan_main: str | None = None
+    plan_head: str | None = None
 
 
 def _inserted(diff: str) -> int:
@@ -575,15 +578,19 @@ async def gather_evidence(
         finally:
             await ctx.git.worktree_remove(ctx.repo, base_worktree)
     run_md = ctx.repo / TICKETS_DIR / stem / "run.md"
+    changed = await ctx.git.diff_names(ctx.repo, MAIN, stem)
+    anchored = PLAN_FILE in changed and any("#" in f for f in ticket.scope_fence)
     return Evidence(
         stem=stem,
         head_sha=await ctx.git.rev_parse(ctx.repo, stem),
         claimed=claimed,
         scope_fence=list(ticket.scope_fence),
-        changed_files=await ctx.git.diff_names(ctx.repo, MAIN, stem),
+        changed_files=changed,
         inserted_lines=_inserted(await ctx.git.diff(ctx.repo, MAIN, stem)),
         verification=results,
         run_record=run_md.read_text() if run_md.is_file() else None,
+        plan_main=(ctx.repo / PLAN_FILE).read_text() if anchored else None,
+        plan_head=(worktree / PLAN_FILE).read_text() if anchored else None,
     )
 
 
@@ -607,13 +614,22 @@ class ScopeFenceGate:
         outbox = f"{TICKETS_DIR}/{artifact.stem}/"
         outside = [p for p in artifact.changed_files
                    if not _in_fence(p, artifact.scope_fence)
-                   and not (p.startswith(outbox) and p != outbox + TICKET_FILE)]
+                   and not (p.startswith(outbox) and p != outbox + TICKET_FILE)
+                   and not (p == PLAN_FILE and self._unit_confined(artifact))]
         return _report(self.code, [
             Finding(code=self.code, path=p, message=f"{p} is outside `## Scope fence`",
                     paved_road="revert the edit and commit; if the criteria force it, reply premise_failed"
                                " naming the file so the fence is widened")
             for p in outside
         ])
+
+    @staticmethod
+    def _unit_confined(artifact: Evidence) -> bool:
+        """A plan diff is admitted only when everything outside one anchored unit is unchanged."""
+        if artifact.plan_main is None or artifact.plan_head is None:
+            return False
+        units = [f.partition("#")[2] for f in artifact.scope_fence if f.startswith(PLAN_FILE + "#")]
+        return any(without_unit(artifact.plan_main, u) == without_unit(artifact.plan_head, u) for u in units)
 
 
 class VerificationGate:

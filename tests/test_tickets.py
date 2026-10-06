@@ -271,6 +271,56 @@ def test_seed_must_cite_build_laws_and_phase_unit_never_refused_sections(repo):
     assert "never cites section(s) 19" in messages(refusal(root, cited.replace("- section 11", "- section 19")))
 
 
+ROW_PLAN = PLAN.replace("## 22. Appendix", """### 19.P3 Phase 3
+
+```yaml
+# BEGIN_REGISTRY_P3
+phase: 3
+admissions:
+  - [t-row]
+  - [t-exit]
+seeds:
+  t-row: {cite: ["11.4"], fence: [chupa/thing.py]}
+  t-exit: {exit: true, fence: [tickets]}
+# END_REGISTRY_P3
+```
+
+### 19.P3.t-row Row
+
+- **Owner:** o
+- **Records:** r
+- **Observable:** b
+- **Tests:** t
+
+## 22. Appendix""").replace("Spine prose.", "Spine prose.\n\n### 11.4 Dispatch\n\nDispatch.")
+
+
+def seed_citing(*ids: str) -> str:
+    seed = VALID.replace("---\npriority", "---\nstate: confirmed\nsource: seed\npriority")
+    return seed.replace("- section 11", "\n".join(f"- {i}" for i in ids))
+
+
+def test_row_seed_cites_its_entry_unit_never_its_phase(repo):
+    root, _, _ = repo
+    (root / "CHUPA_PLAN.md").write_text(ROW_PLAN)
+    good = seed_citing("19.I", "19.P3.t-row", "section 11.4")
+    write(root, "t-row", good)
+    (root / "CHUPA_PLAN.md").write_text(ROW_PLAN.replace("### 19.L Build laws", "### 19.I Impl\n\nI.\n\n### 19.L Build laws"))
+    assert validate_ticket("t-row", good, root).plan_contract == ("19.I", "19.P3.t-row", "11.4")
+    assert "never cites its phase unit" in messages(refusal(root, seed_citing("19.I", "19.P3", "19.P3.t-row",
+                                                                             "section 11.4"), stem="t-row"))
+    assert "also cite 11.4" in messages(refusal(root, seed_citing("19.I", "19.P3.t-row"), stem="t-row"))
+
+
+def test_fence_anchor_names_one_entry_unit_of_the_plan(repo):
+    root, _, _ = repo
+    anchored = VALID.replace("- tests/test_thing.py", "- tests/test_thing.py\n- CHUPA_PLAN.md#19.P3.t-row")
+    write(root, "t-one", anchored)
+    assert "CHUPA_PLAN.md#19.P3.t-row" in validate_ticket("t-one", complete(anchored), root).scope_fence
+    for bad in ("README.md#19.P3.t-row", "CHUPA_PLAN.md#19.L", "CHUPA_PLAN.md#section 11"):
+        assert "anchor" in messages(refusal(root, VALID.replace("- tests/test_thing.py", f"- {bad}")))
+
+
 def test_reserved_and_malformed_stems_are_refused(repo):
     root, _, _ = repo
     assert "reserved" in messages(refusal(root, VALID, stem="retro"))

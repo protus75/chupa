@@ -24,6 +24,7 @@ from chupa.stages import (
     Invoice,
     PackingSlip,
     RunRecordGate,
+    ScopeFenceGate,
     SnagList,
     StageContext,
     _prior_findings,
@@ -475,6 +476,21 @@ def evidence(**kw) -> Evidence:
     base = dict(stem=STEM, head_sha="abc", claimed="ok", scope_fence=["chupa/"], changed_files=["chupa/a.py"],
                 inserted_lines=1, verification=[], run_record=None)
     return Evidence(**{**base, **kw})
+
+
+UNIT_MAIN = "## 19. P\n\n### 19.P3 Phase\n\nreg\n\n### 19.P4 Next\n\nn\n"
+UNIT_HEAD = UNIT_MAIN.replace("### 19.P4 Next", "### 19.P3.row Row\n\n- **Owner:** o\n\n### 19.P4 Next")
+
+
+def test_scope_fence_admits_a_plan_edit_confined_to_its_anchored_unit(tmp_path):
+    gate = ScopeFenceGate()
+    anchored = dict(scope_fence=["CHUPA_PLAN.md#19.P3.row"], changed_files=["CHUPA_PLAN.md"])
+    assert gate.check(evidence(**anchored, plan_main=UNIT_MAIN, plan_head=UNIT_HEAD), tmp_path).verdict == "pass"
+    escaped = UNIT_HEAD.replace("reg\n", "reg edited\n")
+    assert gate.check(evidence(**anchored, plan_main=UNIT_MAIN, plan_head=escaped), tmp_path).verdict == "fail"
+    other = dict(anchored, scope_fence=["CHUPA_PLAN.md#19.P3.other"])
+    assert gate.check(evidence(**other, plan_main=UNIT_MAIN, plan_head=UNIT_HEAD), tmp_path).verdict == "fail"
+    assert gate.check(evidence(changed_files=["CHUPA_PLAN.md"]), tmp_path).verdict == "fail"
 
 
 def test_diff_budget_caps_files_and_inserted_lines(tmp_path):

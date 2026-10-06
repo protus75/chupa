@@ -19,7 +19,7 @@ from chupa.gates import ENGINE_GATE_CODES
 from chupa.git import Git
 from chupa.journal import EVENT_VERSIONS, EventType, Journal
 from chupa.seams import FileSystem
-from chupa.specs import PlanContractError, plan_id, resolve_plan_contract
+from chupa.specs import PlanContractError, plan_id, registry_rows, resolve_plan_contract
 
 TICKETS_DIR = "tickets"
 TICKET_FILE = "ticket.md"
@@ -75,6 +75,7 @@ REQUIRED_SECTIONS = (
 OPTIONAL_SECTIONS = ("On-demand", "Plan contract", "Regression", "Exit-read window")
 SECTIONS = REQUIRED_SECTIONS + OPTIONAL_SECTIONS
 SEED_REFUSED_SECTIONS = frozenset({"0", "19", "21", "22"})
+HARDENING_STEM = re.compile(r"harden-([a-z0-9][a-z0-9-]*)-([1-9]\d*)")
 BANNED_ADJECTIVES = re.compile(r"\b(improved|better|cleaner)\b", re.IGNORECASE)
 _FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
 _HEADING = re.compile(r"^## (.+?)\s*$")
@@ -217,6 +218,41 @@ def _repo_path(value: str, name: str, path: str) -> list[Finding]:
     return []
 
 
+def _seed_cites(stem: str, plan_ids: list[str], plan: str, path: str) -> list[Finding]:
+    """The section 13 seed cite law, by role: each seed cites exactly the plan bytes it works from."""
+    out: list[Finding] = []
+    rows = registry_rows(plan)
+    cited = set(plan_ids)
+    hardening = HARDENING_STEM.fullmatch(stem)
+    if hardening and hardening.group(1) in rows:
+        phase = rows[hardening.group(1)][0]
+        need = {"19.L", f"19.P{phase}"}
+        road = "a hardening ticket cites `19.L`, its phase unit, the entry unit it hardens, and that row's `cite`"
+    elif stem in rows and not rows[stem][1].get("exit"):
+        phase, row = rows[stem]
+        row_cites = {str(c) for c in row.get("cite", []) or []}
+        need = {"19.I", f"19.P{phase}.{stem}"} | row_cites
+        road = "a seed implementing a registry row cites `19.I`, its own entry unit, and its row's `cite`"
+        if f"19.P{phase}" in cited or ("19.L" in cited and "19.L" not in row_cites):
+            out.append(_f("a seed implementing a registry row never cites its phase unit, nor `19.L` unless its"
+                          " row cites it", road, path))
+    elif stem in rows:
+        need = {"19.L", "19.I", f"19.P{rows[stem][0]}"}
+        road = "an exit seed cites `19.L`, `19.I`, its phase unit, and the entry units of the seeds it authors"
+    else:
+        road = "a seeding seed cites `19.L` and its phase unit"
+        need = {"19.L"}
+        if not any(re.fullmatch(r"19\.P[0-6]", p) for p in cited):
+            out.append(_f("a `source: seed` ticket's `## Plan contract` must cite `19.L` and its phase unit",
+                          road, path))
+    if missing := sorted(need - cited):
+        out.append(_f(f"a `source: seed` ticket's `## Plan contract` must also cite {', '.join(missing)}",
+                      road, path))
+    if bad := sorted(cited & SEED_REFUSED_SECTIONS, key=int):
+        out.append(_f(f"a seed never cites section(s) {', '.join(bad)}", road, path))
+    return out
+
+
 def _criteria(text: str) -> list[str]:
     items: list[str] = []
     for line in text.splitlines():
@@ -305,9 +341,17 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None) -> Ticke
         items, errs = _bullets(text_, "Scope fence", path)
         findings += errs
         for item in items:
-            findings += (errs := _repo_path(item, "Scope fence", path))
-            if not errs:
-                fence.append(item)
+            if "#" in item:  # `CHUPA_PLAN.md#<unit id>`: plan edits confined to one unit (section 9)
+                file, _, unit = item.partition("#")
+                if file != PLAN_FILE or not re.fullmatch(r"19\.P[0-6]\.[a-z0-9][a-z0-9-]*", unit):
+                    findings.append(_f(f"`## Scope fence` anchor {item!r} is not `{PLAN_FILE}#19.P<n>.<stem>`",
+                                       "anchor only the plan file, to one entry unit", path))
+                    continue
+            else:
+                findings += (errs := _repo_path(item, "Scope fence", path))
+                if errs:
+                    continue
+            fence.append(item)
 
     on_demand: list[str] = []
     if text_ := sections.get("On-demand"):
@@ -345,12 +389,7 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None) -> Ticke
                 continue
             plan_ids.append(pid)
     if fm is not None and fm.source == "seed":
-        road = "a seed cites `19.L`, its own `19.P<n>` unit, and the sections its registry row names"
-        if "19.L" not in plan_ids or not any(p.startswith("19.P") for p in plan_ids):
-            findings.append(_f("a `source: seed` ticket's `## Plan contract` must cite `19.L` and its phase unit",
-                               road, path))
-        if bad := sorted(set(plan_ids) & SEED_REFUSED_SECTIONS, key=int):
-            findings.append(_f(f"a seed never cites section(s) {', '.join(bad)}", road, path))
+        findings += _seed_cites(stem, plan_ids, plan or "", path)
 
     if text_ := sections.get("Acceptance criteria"):
         if m := BANNED_ADJECTIVES.search(text_):
