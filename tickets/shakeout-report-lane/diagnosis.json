@@ -1,18 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "4bdfac094390b6b5a38ee32b2a69dab3658d1ae2",
+  "produced_at_sha": "117efe2ea203f10e1b1f6a6ed3bea3d172e80ee7",
   "stem": "shakeout-report-lane",
-  "attempt": 1,
+  "attempt": 2,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "Engine code passed; only tests are missing. Keep the stages.py/artifacts.py/eval changes and add the absent tests to tests/test_stages.py. Do not rewrite working code.",
-    "AC1: add three production-pipeline tests: a valid report written by Verification is in the checks commit; an invalid report gives gate_failed with one `verification` finding and neither file is committed; a report written at implement time stays out of the implement commit.",
-    "AC2: add a test that seeds a valid shakeout-report.json in the outbox before Check, runs a Verification that writes nothing, and asserts the report is in neither the checks commit nor main.",
-    "Before reporting ok, map each acceptance criterion to a named test you wrote and confirm each assertion exists. A green suite does not prove the criteria are covered.",
-    "Run the full `uv run pytest -q` to completion and report its result honestly. Last time the run record said the full runner detached."
+    "Add a tests/test_stages.py case whose ticket Verification names tickets/<stem>/shakeout-report.json (e.g. `--out tickets/<stem>/shakeout-report.json` on a command that exits 0 and writes nothing). Assert the Check is gate_failed with exactly one `verification` finding.",
+    "In chupa/stages.py REPORT REQUIRED, decide whether a command names the report by substring over each argv element: `any(target in arg for arg in argv)`, not `target in argv`. Then `--out=tickets/<stem>/shakeout-report.json` and shell-redirect forms also count.",
+    "Add a second test case that uses an `--out=tickets/<stem>/shakeout-report.json` argument with no report produced. It must fail `verification` even when every command is otherwise excused.",
+    "Keep the existing restored implementation and its passing tests as they are. Change only the REPORT REQUIRED match and add the missing tests, all inside the fence. Before finishing, map each acceptance criterion to a named test that exercises it."
   ],
   "mechanical": null,
   "spec_version": "1.0",
