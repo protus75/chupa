@@ -20,12 +20,15 @@ Read the ticket, the plan contract, and the context files below before writing a
 
 1. Change only files under the ticket's `## Scope fence` prefixes. Never edit
    `tickets/<stem>/ticket.md` or anything else under `tickets/`; the engine writes the run record.
+   One exception: a seeding ticket (its fence includes `tickets`) CREATES each NEW
+   `tickets/<seed-stem>/ticket.md` its criteria require and leaves those files UNCOMMITTED; the
+   engine reviews and lifts them. Never edit an existing ticket or a run record.
 2. Meet every acceptance criterion with the simplest change that does. No speculative features,
    flags, compatibility shims, or refactors the ticket does not ask for. Report a second problem
    in `second_problems`, never fix it in this diff. Before reporting a failure you did not cause,
    verify that it also fails on the base commit (section 11.7).
 3. Run every `## Verification` command yourself and make each one exit 0.
-4. Commit all of your work on the current branch (`git add` the changed paths, then
+4. Commit all of your work except new seed ticket files on the current branch (`git add` the changed paths, then
    `git commit`). Do not push, rebase, merge, switch branches, or create other branches. Only
    committed changes count: uncommitted edits are discarded with the worktree.
 
