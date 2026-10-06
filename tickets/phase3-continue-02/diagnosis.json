@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "cfea5abc45ae6b26592f63d1be06d81224a0510c",
+  "produced_at_sha": "0164676c061b4dfbbfec7b48dcb84ddcead51c26",
   "stem": "phase3-continue-02",
-  "attempt": 1,
+  "attempt": 2,
   "terminal": "gate_failed",
   "stage": "check",
   "verdict": "retry",
   "lessons": [
-    "Seed review rejected the rework-stage ticket text, not the test. Keep tests/test_seeded_phase3_02.py and rewrite only tickets/rework-stage/ticket.md to clear the three findings, then rerun both pytest commands.",
-    "In rework-stage, name the update/split seam. Either fence chupa/stages.py, tests/test_stages.py and every grep-found caller of lift_seeds/_review_seeds to generalize lift for a Rework origin, or state that Rework calls requisition.review_ticket and owns the commit and ticket_intake.",
-    "Rewrite rework-stage's approval criterion to name the durable record: one ticket_intake and one requisition_verdict signal with verdict approve, whose ticket_sha equals the committed blob SHA. The approval is journaled before the commit and intake.",
-    "Narrow the rework-stage Goal so only the original stem's caps fold stays unchanged and split successors are new lineages under section 11.2. Do not claim successors inherit caps unless you fence chupa/caps.py and tests/test_caps.py and add a criterion for that.",
-    "Fence additions must stay at or above the registry floor. Update the authoring-time render sizes pinned in test_seeded_phase3_02.py so the rewritten seed still fits section 8 headroom. Leave both ticket.md files uncommitted."
+    "Check failed because the requisition reviewer's reply had a schema error, not because of the diff, which passed all 713 tests. Before retrying, make the rework-stage seed answer the reviewer's substantive findings so the next review approves cleanly.",
+    "In tickets/rework-stage/ticket.md, Rework must hand its caps.next_rung result to the drain's single existing draw and never call caps.consume itself. Add a criterion proving an escalation plus the drain re-offer journals exactly one retry cap_consumed.",
+    "In the rework-stage Goal, the ticket_intake signal's source must mirror the committed frontmatter source (tickets.py:577, :533). An update keeps the original's source. State which source split successors carry, so seed-sourced successors cite 19.L and a 19.P unit.",
+    "Extend rework-stage criterion 3 so tests/test_rework.py proves an update keeps the original stem's caps.draws fold for every cap. It must also prove split successors fold to zero draws, so no budget is inherited.",
+    "Keep mergequeue.py On-demand if embedding it breaks headroom. Re-record the authoring-time render sizes in tests/test_seeded_phase3_02.py after editing the rework-stage seed. Leave both ticket.md files uncommitted, and stay within the tickets fence and the test file."
   ],
   "mechanical": null,
   "spec_version": "1.0",
