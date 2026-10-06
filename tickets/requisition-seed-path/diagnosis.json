@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "1ef687b844713284ee6c79ec2145b9a396be1912",
+  "produced_at_sha": "ef47a141e619976c53ff1baaf831ab8de7a54441",
   "stem": "requisition-seed-path",
-  "attempt": 2,
+  "attempt": 3,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "For a seeding ticket, carry forward the prior `seeds` from main's checks.json on EVERY Check write, including a mechanical-gate failure, so lift_outbox never erases approvals of already-lifted seeds.",
-    "In _review_seeds, an own already-lifted seed that is byte-identical to main but has no prior `approve` entry must become a candidate again and be re-reviewed. Never skip it silently, or the merge SeedSafetyGate hold has no reachable release.",
-    "Add a test_seed_path.py case: run 1 approves and lifts seeds, run 2 fails a mechanical Check gate, run 3 passes. Assert that main's checks.json keeps the seed approvals throughout and that the merge SeedSafetyGate admits the branch.",
-    "Keep the existing passing behavior unchanged: one `seeds` commit, per-seed review keys, a foreign-stem refusal, and the merge re-check against the committed blob SHA. Make only the minimal fix in chupa/stages.py, inside the fence."
+    "In `_review_seeds`, first skip any worktree `tickets/<s>/ticket.md` whose blob SHA equals main's, unless it is one of this stem's journaled seeds. Only untracked files or files that differ from main are candidates. Classify existing-on-main only after this filter.",
+    "Add a test where main already holds an unrelated committed ticket (and the seeding ticket's own ticket.md). A seeding run must still pass Check, review only its new seeds, and send exactly one requisition request per new seed.",
+    "Keep the RE-RUN rule. Skip an identical own seed only when the journal has `ticket_intake` with `seeded_by == <stem>`. A foreign stem whose bytes differ from main must still fail with `requisition_review`.",
+    "Seed the fixture repos in test_seed_path/test_stages with several existing tickets on main. That way the candidate filter is exercised under realistic repo state, not only in an empty tickets/ plane."
   ],
   "mechanical": null,
   "spec_version": "1.0",
