@@ -1,13 +1,13 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "98d0fa6e820b14b9da60e294a97740d533206bee",
+  "produced_at_sha": "cfea5abc45ae6b26592f63d1be06d81224a0510c",
   "stem": "phase3-continue-02",
   "passed": false,
   "changed_files": [
     "tests/test_seeded_phase3_02.py"
   ],
-  "inserted_lines": 86,
+  "inserted_lines": 92,
   "bypassed": [],
   "reports": [
     {
@@ -39,39 +39,25 @@
       "verdict": "fail",
       "findings": [
         {
-          "code": "missing_dormancy_obligation",
-          "path": "tests/test_rework.py",
-          "line": null,
-          "message": "Rework is a 19.L CONSTRUCTION row and a new module, so it needs the discriminating dormancy observable: the transitive chupa.* import closure rooted at chupa/__main__.py, recognizing both `import chupa.x` and `from chupa import x`, must exclude chupa.rework. No criterion names that test. Without it, nothing proves Rework stays unreachable before rework-activation.",
-          "paved_road": "Add a criterion: `uv run pytest -q tests/test_rework.py` proves chupa.rework is absent from the transitive chupa.* import closure of chupa/__main__.py, and the test fails once the module becomes reachable. Reuse the mergequeue dormancy-test idiom."
+          "code": "fence_closure",
+          "path": "chupa/stages.py",
+          "line": 787,
+          "message": "There is no existing public seam that Rework can use to update or split a ticket. `stages.lift_seeds` always journals `source: seed`, `new: True` and `seeded_by: <stem>`. Its reviewer, `stages._review_seeds`, is private, runs only inside a seeding Check, and snags any stem already on main, so an update of `tickets/<stem>/ticket.md` cannot pass through it. `author.author` is tied to a Box `Message`/`Resolution` and refuses stems that already exist or appear in the journal. Rework would therefore have to either write a second commit-and-intake path in `chupa/rework.py`, which the ticket's own wording and the no-dual-path rule forbid, or extend a seam owned by `chupa/stages.py` or `chupa/author.py`. Neither file is fenced. That is the section 9 outside-owner hook gap.",
+          "paved_road": "Name the exact seam. Option (a): fence `chupa/stages.py` and `tests/test_stages.py`, then generalize `lift_seeds` and its review so they accept a Rework origin (no `seeded_by`, `new: False` for an update) and allow an existing stem for an update. Also fence each direct caller that a grep of `lift_seeds`/`_review_seeds` finds across `chupa/`, `eval/` and `tests/`. Option (b): state that Rework calls the public `requisition.review_ticket` and owns the ticket-plane commit and the `ticket_intake` journal append itself, and justify that against the single-lift-path rule."
         },
         {
-          "code": "uncited_invariant_test",
-          "path": "chupa/rework.py",
+          "code": "unnamed_observable",
+          "path": null,
           "line": null,
-          "message": "Section 4 says the escalation element is consumed by the section 11.4 journal-derived rung and is never written into ticket frontmatter. Section 11.4 says escalate climbs model-first through caps.next_rung, and the rung is recorded on the retry cap_consumed body through caps.consume. Criterion 1 only says it 'proves escalate' and names no test that ticket.md frontmatter stays unchanged or that the rung goes through the existing caps seam.",
-          "paved_road": "Make criterion 1 name an escalate test with two asserts. First, Rework escalate leaves tickets/<stem>/ticket.md byte-identical. Second, it records exactly one retry cap_consumed carrying the caps.next_rung rung, using caps.consume and never a second rung writer."
+          "message": "Criterion 3 requires a `requisition_review` approval before a successor is confirmed, but does not name the durable record of that approval. The engine has two different shapes: `author.py` journals a `requisition_verdict` signal carrying `ticket_sha`, provider, model and `spec_version`, while the seeding Check records a `SeedReview` inside `checks.json`. The implementer cannot tell which one the test must assert.",
+          "paved_road": "Rewrite criterion 3 to name the record. For example: each successor has one `ticket_intake` signal and one `requisition_verdict` signal with `verdict: approve`, whose `ticket_sha` equals the committed blob SHA. State the ordering (approval journaled before the commit and intake)."
         },
         {
-          "code": "uncited_invariant_test",
-          "path": "chupa/rework.py",
+          "code": "ambiguous_invariant",
+          "path": null,
           "line": null,
-          "message": "The ticket cites section 9 and states 'the supersedes map' but gives no shape to prove: no journal event or constant, and no body of old stem mapped to successor stems. Section 9 also attaches consumption invariants: a dependency on a superseded stem is satisfied only once ALL successors merge, and the dead-dependency scan resolves through the map in both directions. The owner of those is the eligibility sort in chupa/drain.py, which is unfenced, and grep shows no merged code reads a supersedes map. As written, an implementer cannot tell whether consumption is in scope. If it is, the fence misses chupa/drain.py and tests/test_drain.py.",
-          "paved_road": "Name the journaled supersedes event, its kind, and its body {old stem: [successor stems]}, and add a test that a split journals exactly one such entry. Add a Scope out bullet: 'scheduler and dead-dependency consumption of the supersedes map (chupa/drain.py)'. File the missing registry owner for that consumption to the Suggestion Box as a 19.P3 plan gap; rework-activation's fence also omits drain.py."
-        },
-        {
-          "code": "uncited_invariant_test",
-          "path": "tests/test_rework.py",
-          "line": null,
-          "message": "Split and update are machine authoring paths, which brings in the cited invariants below, none with a named test. Section 9: every authoring path journals the per-stem ticket_intake authoring event, or the age term is dead for those stems. Section 11.2: no ticket edit or rename resets lineage caps. 19.L: a machine-authored ticket passes requisition_review before it commits confirmed.",
-          "paved_road": "Add criteria with named tests in tests/test_rework.py. First, each split successor journals one ticket_intake event and passes requisition_review through the existing chupa.requisition seam before it is confirmed. Second, after an update or split the cap fold over the original lineage is unchanged. Reuse the existing stages lift path; never add a second ticket-plane writer."
-        },
-        {
-          "code": "ambiguous_observable",
-          "path": "chupa/mergequeue.py",
-          "line": null,
-          "message": "Criterion 2 says the handoff is 'consumed only after MergeQueue admission unwinds', but names no observable. MergeQueue.admit releases its asyncio lock on return, so a test that just calls Rework afterwards cannot tell a deferred consumer from an inline one.",
-          "paved_road": "Restate criterion 2 with a concrete observable. Example: Rework consumes UnresolvedConflict only from a returned QueueResult.handoff, and its entry asserts or records that MergeQueue._lock is not held. A test drives admit to unresolved_conflict and shows Rework never ran during admit. Use a spy that fails if invoked while the lock is held. If mergequeue.py is not edited, drop it from the fence; otherwise state what the edit adds."
+          "message": "The Goal says update and split preserve the original lineage's caps. But `caps.draws` folds only by `e.ticket == stem`, so split successors start with fresh budgets. Section 11.2 says no re-author resets caps. Criterion 3 only checks that the original stem's fold is unchanged, so the cited invariant (successors do not reset lineage caps) has no named test obligation, and the code has no mechanism that would meet it.",
+          "paved_road": "Either narrow the Goal to say that only the original stem's cap fold is unchanged and successors are new lineages under the sanctioned succession rule (section 11.2), or, if successors must inherit the budget, fence `chupa/caps.py` and `tests/test_caps.py`, add a criterion naming that fold through the supersedes map, and give it a test."
         }
       ],
       "autofix_applied": false
@@ -80,50 +66,36 @@
   "seeds": [
     {
       "stem": "phase3-continue-03",
-      "ticket_sha": "8baa81b2a90f40b4db07a99462b982c25c46321e",
+      "ticket_sha": "0b3b41a3d45a79eb2974a2f7b714a89aa5103b3b",
       "verdict": "approve",
       "findings": [],
       "mechanical": null
     },
     {
       "stem": "rework-stage",
-      "ticket_sha": "c0f2f7575bb946d8998da6af0261e19d41de4957",
+      "ticket_sha": "d1f845605d123f02122aead019fb9a08c98c0ffb",
       "verdict": "snag",
       "findings": [
         {
-          "code": "missing_dormancy_obligation",
-          "path": "tests/test_rework.py",
-          "line": null,
-          "message": "Rework is a 19.L CONSTRUCTION row and a new module, so it needs the discriminating dormancy observable: the transitive chupa.* import closure rooted at chupa/__main__.py, recognizing both `import chupa.x` and `from chupa import x`, must exclude chupa.rework. No criterion names that test. Without it, nothing proves Rework stays unreachable before rework-activation.",
-          "paved_road": "Add a criterion: `uv run pytest -q tests/test_rework.py` proves chupa.rework is absent from the transitive chupa.* import closure of chupa/__main__.py, and the test fails once the module becomes reachable. Reuse the mergequeue dormancy-test idiom."
+          "code": "fence_closure",
+          "path": "chupa/stages.py",
+          "line": 787,
+          "message": "There is no existing public seam that Rework can use to update or split a ticket. `stages.lift_seeds` always journals `source: seed`, `new: True` and `seeded_by: <stem>`. Its reviewer, `stages._review_seeds`, is private, runs only inside a seeding Check, and snags any stem already on main, so an update of `tickets/<stem>/ticket.md` cannot pass through it. `author.author` is tied to a Box `Message`/`Resolution` and refuses stems that already exist or appear in the journal. Rework would therefore have to either write a second commit-and-intake path in `chupa/rework.py`, which the ticket's own wording and the no-dual-path rule forbid, or extend a seam owned by `chupa/stages.py` or `chupa/author.py`. Neither file is fenced. That is the section 9 outside-owner hook gap.",
+          "paved_road": "Name the exact seam. Option (a): fence `chupa/stages.py` and `tests/test_stages.py`, then generalize `lift_seeds` and its review so they accept a Rework origin (no `seeded_by`, `new: False` for an update) and allow an existing stem for an update. Also fence each direct caller that a grep of `lift_seeds`/`_review_seeds` finds across `chupa/`, `eval/` and `tests/`. Option (b): state that Rework calls the public `requisition.review_ticket` and owns the ticket-plane commit and the `ticket_intake` journal append itself, and justify that against the single-lift-path rule."
         },
         {
-          "code": "uncited_invariant_test",
-          "path": "chupa/rework.py",
+          "code": "unnamed_observable",
+          "path": null,
           "line": null,
-          "message": "Section 4 says the escalation element is consumed by the section 11.4 journal-derived rung and is never written into ticket frontmatter. Section 11.4 says escalate climbs model-first through caps.next_rung, and the rung is recorded on the retry cap_consumed body through caps.consume. Criterion 1 only says it 'proves escalate' and names no test that ticket.md frontmatter stays unchanged or that the rung goes through the existing caps seam.",
-          "paved_road": "Make criterion 1 name an escalate test with two asserts. First, Rework escalate leaves tickets/<stem>/ticket.md byte-identical. Second, it records exactly one retry cap_consumed carrying the caps.next_rung rung, using caps.consume and never a second rung writer."
+          "message": "Criterion 3 requires a `requisition_review` approval before a successor is confirmed, but does not name the durable record of that approval. The engine has two different shapes: `author.py` journals a `requisition_verdict` signal carrying `ticket_sha`, provider, model and `spec_version`, while the seeding Check records a `SeedReview` inside `checks.json`. The implementer cannot tell which one the test must assert.",
+          "paved_road": "Rewrite criterion 3 to name the record. For example: each successor has one `ticket_intake` signal and one `requisition_verdict` signal with `verdict: approve`, whose `ticket_sha` equals the committed blob SHA. State the ordering (approval journaled before the commit and intake)."
         },
         {
-          "code": "uncited_invariant_test",
-          "path": "chupa/rework.py",
+          "code": "ambiguous_invariant",
+          "path": null,
           "line": null,
-          "message": "The ticket cites section 9 and states 'the supersedes map' but gives no shape to prove: no journal event or constant, and no body of old stem mapped to successor stems. Section 9 also attaches consumption invariants: a dependency on a superseded stem is satisfied only once ALL successors merge, and the dead-dependency scan resolves through the map in both directions. The owner of those is the eligibility sort in chupa/drain.py, which is unfenced, and grep shows no merged code reads a supersedes map. As written, an implementer cannot tell whether consumption is in scope. If it is, the fence misses chupa/drain.py and tests/test_drain.py.",
-          "paved_road": "Name the journaled supersedes event, its kind, and its body {old stem: [successor stems]}, and add a test that a split journals exactly one such entry. Add a Scope out bullet: 'scheduler and dead-dependency consumption of the supersedes map (chupa/drain.py)'. File the missing registry owner for that consumption to the Suggestion Box as a 19.P3 plan gap; rework-activation's fence also omits drain.py."
-        },
-        {
-          "code": "uncited_invariant_test",
-          "path": "tests/test_rework.py",
-          "line": null,
-          "message": "Split and update are machine authoring paths, which brings in the cited invariants below, none with a named test. Section 9: every authoring path journals the per-stem ticket_intake authoring event, or the age term is dead for those stems. Section 11.2: no ticket edit or rename resets lineage caps. 19.L: a machine-authored ticket passes requisition_review before it commits confirmed.",
-          "paved_road": "Add criteria with named tests in tests/test_rework.py. First, each split successor journals one ticket_intake event and passes requisition_review through the existing chupa.requisition seam before it is confirmed. Second, after an update or split the cap fold over the original lineage is unchanged. Reuse the existing stages lift path; never add a second ticket-plane writer."
-        },
-        {
-          "code": "ambiguous_observable",
-          "path": "chupa/mergequeue.py",
-          "line": null,
-          "message": "Criterion 2 says the handoff is 'consumed only after MergeQueue admission unwinds', but names no observable. MergeQueue.admit releases its asyncio lock on return, so a test that just calls Rework afterwards cannot tell a deferred consumer from an inline one.",
-          "paved_road": "Restate criterion 2 with a concrete observable. Example: Rework consumes UnresolvedConflict only from a returned QueueResult.handoff, and its entry asserts or records that MergeQueue._lock is not held. A test drives admit to unresolved_conflict and shows Rework never ran during admit. Use a spy that fails if invoked while the lock is held. If mergequeue.py is not edited, drop it from the fence; otherwise state what the edit adds."
+          "message": "The Goal says update and split preserve the original lineage's caps. But `caps.draws` folds only by `e.ticket == stem`, so split successors start with fresh budgets. Section 11.2 says no re-author resets caps. Criterion 3 only checks that the original stem's fold is unchanged, so the cited invariant (successors do not reset lineage caps) has no named test obligation, and the code has no mechanism that would meet it.",
+          "paved_road": "Either narrow the Goal to say that only the original stem's cap fold is unchanged and successors are new lineages under the sanctioned succession rule (section 11.2), or, if successors must inherit the budget, fence `chupa/caps.py` and `tests/test_caps.py`, add a criterion naming that fold through the supersedes map, and give it a test."
         }
       ],
       "mechanical": null
@@ -150,7 +122,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "........................................................................ [ 10%]\n........................................................................ [ 20%]\n........................................................................ [ 30%]\n........................................................................ [ 40%]\n........................................................................ [ 50%]\n........................................................................ [ 60%]\n........................................................................ [ 70%]\n........................................................................ [ 80%]\n........................................................................ [ 90%]\n.................................................................        [100%]\n713 passed in 58.89s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................................ [ 10%]\n........................................................................ [ 20%]\n........................................................................ [ 30%]\n........................................................................ [ 40%]\n........................................................................ [ 50%]\n........................................................................ [ 60%]\n........................................................................ [ 70%]\n........................................................................ [ 80%]\n........................................................................ [ 90%]\n.................................................................        [100%]\n713 passed in 59.16s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
