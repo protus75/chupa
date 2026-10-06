@@ -103,26 +103,8 @@ class Git:
         argv, rc, out, err = await self._call(dir, "rebase", _ref(onto))
         if rc != 0:
             # Unchecked: a rebase refused before starting (e.g. dirty tree) has nothing to abort.
-            await self._rebase_abort(dir)
+            await self._call(dir, "rebase", "--abort")
             raise RebaseRefused(argv, rc, out, err)
-
-    async def rebase_stop_at_conflict(self, dir: Path, onto: str) -> GitError | None:
-        """Start a rebase and leave conflicts for the queue's resolution ladder."""
-        argv, rc, out, err = await self._call(dir, "rebase", _ref(onto))
-        return GitError(argv, rc, out, err) if rc else None
-
-    async def conflicted_paths(self, dir: Path) -> list[str]:
-        return (await self._run(dir, "diff", "--name-only", "--diff-filter=U")).splitlines()
-
-    async def rebase_continue(self, dir: Path) -> None:
-        await self._run(dir, "-c", "core.editor=true", "rebase", "--continue")
-
-    async def _rebase_abort(self, dir: Path) -> None:
-        await self._call(dir, "rebase", "--abort")
-
-    async def _restore_head(self, dir: Path, head: str) -> None:
-        await self._run(dir, "reset", "--hard", _ref(head))
-        await self._run(dir, "clean", "-fd")
 
     async def restore(self, dir: Path, paths: Sequence[str], *, source: str) -> None:
         await self._run(dir, "restore", "--source", _ref(source), "--staged", "--worktree", "--", *paths)

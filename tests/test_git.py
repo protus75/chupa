@@ -211,38 +211,6 @@ def test_rebase_success_does_not_abort():
     assert len(exec_.calls) == 1
 
 
-def test_phase3_git_public_surface_adds_exactly_three_operations():
-    previous = {
-        "init", "status_porcelain", "ls_files", "rev_parse", "merge_base", "git_common_dir",
-        "diff_names", "diff", "diff_stat", "add", "commit", "branch", "branch_delete",
-        "worktree_add", "worktree_add_detached", "worktree_remove", "worktree_prune", "rebase",
-        "restore", "merge_squash", "describe",
-    }
-    added = {"rebase_stop_at_conflict", "conflicted_paths", "rebase_continue"}
-    assert {name for name in vars(Git) if not name.startswith("_")} == previous | added
-
-
-def test_stop_at_conflict_leaves_rebase_for_caller_and_list_paths():
-    g, exec_ = git((1, "", "CONFLICT"), (0, "a.txt\nb.txt\n", ""))
-    error = run(g.rebase_stop_at_conflict(REPO, "main"))
-    assert isinstance(error, GitError) and error.rc == 1
-    assert run(g.conflicted_paths(REPO)) == ["a.txt", "b.txt"]
-    assert exec_.argvs == [
-        ["git", "-C", "/repo", "rebase", "main"],
-        ["git", "-C", "/repo", "diff", "--name-only", "--diff-filter=U"],
-    ]
-
-
-def test_stop_at_conflict_success_and_continue_do_not_abort():
-    g, exec_ = git((0, "", ""), (0, "", ""))
-    assert run(g.rebase_stop_at_conflict(REPO, "main")) is None
-    run(g.rebase_continue(REPO))
-    assert exec_.argvs == [
-        ["git", "-C", "/repo", "rebase", "main"],
-        ["git", "-C", "/repo", "-c", "core.editor=true", "rebase", "--continue"],
-    ]
-
-
 # --- real process-exec seam ---------------------------------------------------
 
 
