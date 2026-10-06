@@ -65,12 +65,14 @@ def premise_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:
     """The premise park (section 18): the stem's last run ended `premise_failed` against this same `ticket.md`."""
     last: str | None = None
     ran_sha: str | None = None
+    dispatch: str | None = None
     for e in events:
         if e.type == EventType.STATE_TRANSITION and e.ticket == stem:
-            last = e.body.get("to")
+            last, dispatch = e.body.get("to"), e.body.get("dispatch")
             if last == "running":
                 ran_sha = e.body.get("ticket_sha")
-    return last == PREMISE and ran_sha == ticket_sha
+    # A spec-gap premise waits on its hardening tickets instead (section 11.4), never on a ticket edit.
+    return last == PREMISE and ran_sha == ticket_sha and dispatch != SPEC_GAP_HOLD
 
 
 def authored_at(events: Iterable[Event]) -> dict[str, str]:

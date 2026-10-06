@@ -336,3 +336,25 @@ def test_review_that_never_converges_is_a_spec_gap(repo):
         "signal": "requisition_verdict", "seeding": STEM, "verdict": "snag", "ticket_sha": "x", "text": "t",
         "findings": [{**finding, "message": "d"}]}, ticket="gamma-seed")
     assert spec_gaps(ctx, STEM) == {}
+
+
+def test_premise_naming_a_missing_entry_unit_files_a_hardening_ticket_not_a_park(repo):
+    add_registry_row(repo)
+    premise = {"code": "premise", "message": "19.P3.gamma-seed has no entry unit, so the seed cannot cite it",
+               "paved_road": "harden 19.P3.gamma-seed through section 11.4"}
+    outcome, ctx, llm = run(repo, [implement_reply("premise_failed", [premise])])
+
+    assert outcome == "premise_failed"
+    assert (repo / "tickets/harden-gamma-seed-1/ticket.md").is_file()
+    assert terminal_body(ctx) == {"to": "premise_failed", "stage": "implement", "reason": "spec_gap",
+                                  "dispatch": "spec_gap_hold"}
+    assert not any(e.type == EventType.CAP_CONSUMED for e in ctx.driver.journal.read())  # no premise_bounce
+    assert [r.surface for r in llm.requests] == ["implement"]
+
+
+def test_premise_without_an_entry_unit_gap_keeps_the_ordinary_park(repo):
+    premise = {"code": "premise", "message": "criterion 2 contradicts merged behavior", "paved_road": "fix it"}
+    outcome, ctx, _ = run(repo, [implement_reply("premise_failed", [premise]), diagnosis_reply()])
+    assert outcome == "premise_failed"
+    assert terminal_body(ctx).get("dispatch") != "spec_gap_hold"
+    assert not list((repo / "tickets").glob("harden-*"))

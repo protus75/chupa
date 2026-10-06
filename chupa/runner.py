@@ -5,6 +5,7 @@ Exit codes (section 18): 0 merged, 1 a non-ok ticket terminal, 2 an engine-plane
 """
 
 import asyncio
+import re
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -25,7 +26,7 @@ from chupa.merge import merge
 from chupa.providers import ProviderLLM
 from chupa.reconcile import reconcile
 from chupa.seams import Clock, FileSystem, GroupExec, Sleep
-from chupa.specs import registry_rows
+from chupa.specs import entry_unit_gap, registry_rows
 from chupa.stages import (VERDICT_SIGNAL, DiagnosisMaterial, Invoice, StageContext, diagnose, lift_outbox,
                           run_stages, write_diagnosis)
 from chupa.status import last_states, reject_queue
@@ -114,8 +115,9 @@ async def drive(ctx: StageContext, ticket: Ticket) -> str:
     if result.outcome in {"infra_error", "timeout"}:
         ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
         consume(ctx.driver.journal, ticket.stem, "infra", ticket_sha)
-    if result.outcome == "gate_failed" and stage == "check" and (gaps := spec_gaps(ctx, ticket.stem)):
-        await hold_on_hardening(ctx, ticket, gaps, attempt=run.attempt)
+    if ((result.outcome == "gate_failed" and stage == "check" and (gaps := spec_gaps(ctx, ticket.stem)))
+            or (result.outcome == "premise_failed" and (gaps := premise_spec_gaps(ctx, result.findings)))):
+        await hold_on_hardening(ctx, ticket, gaps, attempt=run.attempt, to=result.outcome, stage=stage)
         if ctx.worktree(ticket.stem).exists():
             await ctx.git.worktree_remove(ctx.repo, ctx.worktree(ticket.stem))
         return result.outcome
@@ -213,7 +215,19 @@ def spec_gaps(ctx: StageContext, stem: str) -> dict[str, list[str]]:
     return gaps
 
 
-async def hold_on_hardening(ctx: StageContext, ticket: Ticket, gaps: dict[str, list[str]], *, attempt: int) -> None:
+def premise_spec_gaps(ctx: StageContext, findings: list[Finding]) -> dict[str, list[str]]:
+    """Section 11.4: a `premise_failed` naming entry units that are missing or thin is a spec gap of each."""
+    plan = (ctx.repo / PLAN_FILE).read_text()
+    gaps: dict[str, list[str]] = {}
+    for finding in findings:
+        for m in re.finditer(r"19\.P[0-6]\.([a-z0-9][a-z0-9-]*[a-z0-9])", f"{finding.message} {finding.paved_road}"):
+            if (gap := entry_unit_gap(plan, m.group(1))) is not None and gap not in gaps.get(m.group(1), []):
+                gaps.setdefault(m.group(1), []).append(gap)
+    return gaps
+
+
+async def hold_on_hardening(ctx: StageContext, ticket: Ticket, gaps: dict[str, list[str]], *, attempt: int,
+                            to: str = "gate_failed", stage: str | None = "check") -> None:
     """File one hardening ticket per gapped entry unit (or await its open one) and hold the stem on them;
     past the hardening cap the stem routes to the Reject queue. No diagnosis, no cap draw (section 11.4)."""
     plan = (ctx.repo / PLAN_FILE).read_text()
@@ -231,7 +245,7 @@ async def hold_on_hardening(ctx: StageContext, ticket: Ticket, gaps: dict[str, l
         else:
             awaits.append(await file_hardening(ctx, ticket.stem, row, rows[row], facts, len(rounds) + 1,
                                                plan=plan, attempt=attempt))
-    terminal: dict = {"to": "gate_failed", "stage": "check", "reason": "spec_gap"}
+    terminal: dict = {"to": to, "stage": stage, "reason": "spec_gap"}
     if capped:
         terminal.update(dispatch="reject_queue", routed="reject_queue")
     else:

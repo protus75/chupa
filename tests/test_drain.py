@@ -419,3 +419,27 @@ def test_a_spec_gap_hold_never_re_runs_while_its_hardening_ticket_is_unmerged(ro
     drain(root, pipeline)
     assert calls == ["held"]
     assert "spec gap held on harden-held-1" in capsys.readouterr().out
+
+
+def test_a_spec_gap_premise_releases_on_its_hardening_merge_without_a_ticket_edit(root):
+    commit_ticket(root, "held", confirmed())
+    calls: list[str] = []
+
+    def pipeline(checkout):
+        async def dispatch(t):
+            calls.append(t.stem)
+            if t.stem == "held" and calls.count("held") == 1:
+                commit_ticket(root, "harden-held-1", confirmed(priority="P3"))
+                checkout.journal.append(EventType.SIGNAL, {"signal": "spec_gap_hold", "awaits": ["harden-held-1"],
+                                                           "gaps": {"held": ["fact"]}}, ticket="held")
+                checkout.journal.append(EventType.STATE_TRANSITION, {"to": "premise_failed", "stage": "implement",
+                                                                     "dispatch": "spec_gap_hold"}, ticket="held")
+                return "premise_failed"
+            checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=t.stem)
+            return "merged"
+
+        return dispatch
+
+    assert drain(root, pipeline) == 0
+    assert calls == ["held", "harden-held-1", "held"]
+    assert tos(root, "held")[-1] == "merged"
