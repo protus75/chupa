@@ -1,18 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "0164676c061b4dfbbfec7b48dcb84ddcead51c26",
+  "produced_at_sha": "30aca182eced6e9bf4b86a5487b8b735d18f62db",
   "stem": "phase3-continue-02",
-  "attempt": 2,
-  "terminal": "gate_failed",
-  "stage": "check",
+  "attempt": 3,
+  "terminal": "infra_error",
+  "stage": "implement",
   "verdict": "retry",
   "lessons": [
-    "Check failed because the requisition reviewer's reply had a schema error, not because of the diff, which passed all 713 tests. Before retrying, make the rework-stage seed answer the reviewer's substantive findings so the next review approves cleanly.",
-    "In tickets/rework-stage/ticket.md, Rework must hand its caps.next_rung result to the drain's single existing draw and never call caps.consume itself. Add a criterion proving an escalation plus the drain re-offer journals exactly one retry cap_consumed.",
-    "In the rework-stage Goal, the ticket_intake signal's source must mirror the committed frontmatter source (tickets.py:577, :533). An update keeps the original's source. State which source split successors carry, so seed-sourced successors cite 19.L and a 19.P unit.",
-    "Extend rework-stage criterion 3 so tests/test_rework.py proves an update keeps the original stem's caps.draws fold for every cap. It must also prove split successors fold to zero draws, so no budget is inherited.",
-    "Keep mergequeue.py On-demand if embedding it breaks headroom. Re-record the authoring-time render sizes in tests/test_seeded_phase3_02.py after editing the rework-stage seed. Leave both ticket.md files uncommitted, and stay within the tickets fence and the test file."
+    "The failure was the provider, not the ticket: codex said 'Selected model is at capacity' and the turn failed within 3s with no diff. Retry the same approach unchanged.",
+    "Prior run record shows a working approach: keep mergequeue.py On-demand rather than embedded so the successor seed fits section 8 authoring headroom; record the authoring-time sizes in tests/test_seeded_phase3_02.py.",
+    "Author only rework-stage (high/high, depends merge-queue, sections 4/9/11, registry fence floor) and phase3-continue-03 (depends rework-stage, fences tickets + tests/test_seeded_phase3_03.py); leave both ticket.md files uncommitted.",
+    "If the capacity error repeats on the next attempt, treat it as an external environment issue for a human to resolve (provider availability), not a ticket defect."
   ],
   "mechanical": null,
   "spec_version": "1.0",
