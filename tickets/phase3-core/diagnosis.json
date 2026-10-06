@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "4dda5b062ccd13acb1a7fe88bc932e9d904092c5",
+  "produced_at_sha": "87c92f11c0964d08a9875e6c35728a14f60382f3",
   "stem": "phase3-core",
-  "attempt": 8,
+  "attempt": 10,
   "terminal": "gate_failed",
-  "stage": "check",
+  "stage": "merge",
   "verdict": "reject",
   "lessons": [
-    "CHUPA_PLAN.md has P3 entry units only at lines 1800, 1807 and 1824. There is no `### 19.P3.rework-stage`, so phase3-continue cannot author phase3-continue-02 with a cite that resolves. Harden the plan through section 11.4 before rerunning this ticket.",
-    "The missing fact is rework-stage's entry unit: its Owner, Records, Observable and Tests. The seed path must not invent it. A harden-rework-stage ticket must add `### 19.P3.rework-stage` to the plan.",
-    "On rerun, check that every entry unit the authored seeds will require resolves through resolve_plan_contract (chupa/tickets.py validate_ticket). If one is missing, reply premise_failed and name the unit id, rather than returning ok.",
-    "Do not report 'Required entry units now exist' unless you have checked the next payload's units too. The phase3-continue seed's successor needs 19.P3.rework-stage, and the plan lacks that unit."
+    "The ticket requires phase3-continue to embed tests/test_seeded_phase3_core.py as its idiom. 19.L forbids this: a continuation embeds one merged earlier seeding test, never the test created in its own admission. That file is created on this branch and is absent at Check.",
+    "The requisition_review paved road agrees with 19.L: `## Context` lists only existing files. A file the ticket creates goes in `## Scope fence` or `## Verification`. No ticket edit can satisfy both this ticket's scope line and the gate.",
+    "Fix the ticket so phase3-continue embeds a merged earlier seeding test that exists on main, such as tests/test_seeded_phase2.py (this ticket's own Context). Then regenerate phase3-continue. Leave the approved daemon-scheduler and merge-queue seeds unchanged.",
+    "Keep tests/test_seeded_phase3_core.py inside the fence as this branch's committed test. The suite passed (19 core tests, 729 in all) and was approved. Only the Context line in phase3-continue failed."
   ],
   "mechanical": null,
   "spec_version": "1.1",
