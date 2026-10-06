@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "98d0fa6e820b14b9da60e294a97740d533206bee",
+  "stem": "phase3-continue-02",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "retry",
+  "lessons": [
+    "rework-stage criteria need a dormancy test: tests/test_rework.py proves chupa.rework is absent from the transitive chupa.* import closure of chupa/__main__.py, handling both import forms. Reuse the mergequeue dormancy-test idiom.",
+    "Escalate criterion must name a test that checks two things: ticket.md stays byte-identical, and exactly one retry cap_consumed records the caps.next_rung rung via caps.consume, with no second rung writer.",
+    "Name the journaled supersedes event, its kind, and its body {old stem: [successors]}, and test that a split journals exactly one. Add Scope out: supersedes consumption in chupa/drain.py. File the missing consumer owner to the Suggestion Box.",
+    "Add named tests: each split successor journals one ticket_intake event and passes requisition_review through chupa.requisition before it is confirmed. The lineage cap fold is unchanged after an update or split. Reuse the stages lift path.",
+    "Give the handoff criterion an observable: Rework consumes only a returned QueueResult.handoff, and a spy fails if it runs while MergeQueue._lock is held. Drop chupa/mergequeue.py from the fence unless the ticket states an edit to it. Then re-pin the sizes in test_seeded_phase3_02."
+  ],
+  "mechanical": null,
+  "spec_version": "1.0",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
