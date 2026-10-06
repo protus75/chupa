@@ -1,13 +1,11 @@
 # Review: snag
 
-The engine and runner changes are mostly in place, but tests for acceptance criteria 1, 2 and 5 and part of criterion 3 are missing, and `Bench.configure` does not rebuild what the ticket requires.
+The engine changes look plausible, but tests/test_stages.py adds only the report-required test; the tests acceptance criteria 1 and 2 require for lifting and stale-report deletion are missing.
 
 ## Findings
 
-- [acceptance] tests/test_stages.py:- The diff does not touch tests/test_stages.py. Nothing proves criterion 1: a valid shakeout-report.json lifting in the checks commit, a schema-invalid report making the Check gate_failed with neither file committed, and the implement-terminal lift leaving a registered artifact unlifted. Nothing proves criterion 2 either: a stale outbox report deleted before Verification runs, and a Verification that names tickets/<stem>/shakeout-report.json but leaves none failing with code verification even when every command is otherwise excused. (do instead: Add tests to tests/test_stages.py that drive `check` and the implement-terminal `lift_outbox` through the existing stage fixtures, one test for each behavior in criteria 1 and 2.)
-- [acceptance] tests/test_shakeout.py:37 Criterion 3 asks for a proof that `produce` refuses when a re-run prior member's `observed` differs from the prior entry. No test covers that branch. The only refusal tested is a missing prior entry. (do instead: Add a test that builds a prior report whose entry for the earlier member has a different `observed` value (or a member whose re-run returns a different observation), then asserts `produce` raises ShakeoutRefused naming that member.)
-- [acceptance] tests/test_shakeout.py:60 Criterion 5 is unmet. No test proves `Bench.configure` keeps the journal, clock, repo and scripted model while changing a config cap. No test runs `python -m eval.shakeout.run --group nope --out x.json` and asserts exit code 2. (do instead: Add a test that configures a Bench with a parsed config that changes one cap and asserts the journal, clock, root and llm objects are the same ones afterward and the cap changed. Add a test that runs the module command through the process seam (or calls `main` with those argv) and asserts it returns 2.)
-- [logic] eval/shakeout/bench.py:87 `configure` mutates the caller's parsed config in place. It does not rebuild the runner, drain, log or pipeline factory the ticket names, and `self.journal = self.journal` is a no-op. Its only effect is swapping `self.config` and rebuilding the redactor, so it fails the ticket's 'rebuilds the production runner, drain, redactor, log, and pipeline factory' contract. (do instead: Build a copy of the config with `state_dir`/`worktree_root` replaced (for example with `model_copy(update=...)`), then rebuild every production component the bench holds from that copy. Drop the self-assignment.)
+- [acceptance] tests/test_stages.py:306 Acceptance criterion 1 is unmet. No test shows that a Check whose Verification writes a valid shakeout-report.json lifts it in the `chupa(<stem>): checks` commit. No test shows that a schema-invalid report makes the Check gate_failed and commits neither checks.json nor the report. No test shows that the implement-terminal lift leaves a registered artifact unlifted. The diff adds only test_named_shakeout_report_is_required_even_when_verification_is_excused. (do instead: Add three tests to tests/test_stages.py through the production pipeline. (1) Verification writes a valid ShakeoutReport to tickets/<stem>/shakeout-report.json; assert the checks commit contains it. (2) Verification writes an invalid report; assert the Check is gate_failed with one `verification` finding and the checks commit holds neither file. (3) The implementer writes a valid report into the outbox; assert the implement commit does not contain it.)
+- [acceptance] tests/test_stages.py:306 The first half of acceptance criterion 2 is unmet. No test shows that a report left in the outbox before Check is deleted before Verification runs, so that a Verification that writes nothing lifts no report. (do instead: Add a test that places a valid shakeout-report.json in the worktree outbox before Check, runs a Verification that writes nothing, and asserts the file is not in the checks commit or on main.)
 
 ## Record
 
@@ -15,38 +13,24 @@ The engine and runner changes are mostly in place, but tests for acceptance crit
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "f38a467e6b3f832963e91056d8ad380966d9a5a8",
+  "produced_at_sha": "4bdfac094390b6b5a38ee32b2a69dab3658d1ae2",
   "stem": "shakeout-report-lane",
-  "reviewed_sha": "f38a467e6b3f832963e91056d8ad380966d9a5a8",
-  "summary": "The engine and runner changes are mostly in place, but tests for acceptance criteria 1, 2 and 5 and part of criterion 3 are missing, and `Bench.configure` does not rebuild what the ticket requires.",
+  "reviewed_sha": "4bdfac094390b6b5a38ee32b2a69dab3658d1ae2",
+  "summary": "The engine changes look plausible, but tests/test_stages.py adds only the report-required test; the tests acceptance criteria 1 and 2 require for lifting and stale-report deletion are missing.",
   "findings": [
     {
       "code": "acceptance",
       "path": "tests/test_stages.py",
-      "line": null,
-      "message": "The diff does not touch tests/test_stages.py. Nothing proves criterion 1: a valid shakeout-report.json lifting in the checks commit, a schema-invalid report making the Check gate_failed with neither file committed, and the implement-terminal lift leaving a registered artifact unlifted. Nothing proves criterion 2 either: a stale outbox report deleted before Verification runs, and a Verification that names tickets/<stem>/shakeout-report.json but leaves none failing with code verification even when every command is otherwise excused.",
-      "paved_road": "Add tests to tests/test_stages.py that drive `check` and the implement-terminal `lift_outbox` through the existing stage fixtures, one test for each behavior in criteria 1 and 2."
+      "line": 306,
+      "message": "Acceptance criterion 1 is unmet. No test shows that a Check whose Verification writes a valid shakeout-report.json lifts it in the `chupa(<stem>): checks` commit. No test shows that a schema-invalid report makes the Check gate_failed and commits neither checks.json nor the report. No test shows that the implement-terminal lift leaves a registered artifact unlifted. The diff adds only test_named_shakeout_report_is_required_even_when_verification_is_excused.",
+      "paved_road": "Add three tests to tests/test_stages.py through the production pipeline. (1) Verification writes a valid ShakeoutReport to tickets/<stem>/shakeout-report.json; assert the checks commit contains it. (2) Verification writes an invalid report; assert the Check is gate_failed with one `verification` finding and the checks commit holds neither file. (3) The implementer writes a valid report into the outbox; assert the implement commit does not contain it."
     },
     {
       "code": "acceptance",
-      "path": "tests/test_shakeout.py",
-      "line": 37,
-      "message": "Criterion 3 asks for a proof that `produce` refuses when a re-run prior member's `observed` differs from the prior entry. No test covers that branch. The only refusal tested is a missing prior entry.",
-      "paved_road": "Add a test that builds a prior report whose entry for the earlier member has a different `observed` value (or a member whose re-run returns a different observation), then asserts `produce` raises ShakeoutRefused naming that member."
-    },
-    {
-      "code": "acceptance",
-      "path": "tests/test_shakeout.py",
-      "line": 60,
-      "message": "Criterion 5 is unmet. No test proves `Bench.configure` keeps the journal, clock, repo and scripted model while changing a config cap. No test runs `python -m eval.shakeout.run --group nope --out x.json` and asserts exit code 2.",
-      "paved_road": "Add a test that configures a Bench with a parsed config that changes one cap and asserts the journal, clock, root and llm objects are the same ones afterward and the cap changed. Add a test that runs the module command through the process seam (or calls `main` with those argv) and asserts it returns 2."
-    },
-    {
-      "code": "logic",
-      "path": "eval/shakeout/bench.py",
-      "line": 87,
-      "message": "`configure` mutates the caller's parsed config in place. It does not rebuild the runner, drain, log or pipeline factory the ticket names, and `self.journal = self.journal` is a no-op. Its only effect is swapping `self.config` and rebuilding the redactor, so it fails the ticket's 'rebuilds the production runner, drain, redactor, log, and pipeline factory' contract.",
-      "paved_road": "Build a copy of the config with `state_dir`/`worktree_root` replaced (for example with `model_copy(update=...)`), then rebuild every production component the bench holds from that copy. Drop the self-assignment."
+      "path": "tests/test_stages.py",
+      "line": 306,
+      "message": "The first half of acceptance criterion 2 is unmet. No test shows that a report left in the outbox before Check is deleted before Verification runs, so that a Verification that writes nothing lifts no report.",
+      "paved_road": "Add a test that places a valid shakeout-report.json in the worktree outbox before Check, runs a Verification that writes nothing, and asserts the file is not in the checks commit or on main."
     }
   ],
   "spec_version": "1.0",
