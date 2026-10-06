@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "292b06f4864cea29c54578d06b2f5169053139d3",
+  "produced_at_sha": "40a74be24a34855dab7639d24e15596b7c231940",
   "stem": "shakeout-driver",
-  "attempt": 1,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "reject",
+  "attempt": 2,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
   "lessons": [
-    "Premise confirmed: chupa/runner.py:81 and :212 (and chupa/triage.py:99) pass raw asyncio.sleep to Driver, so the deadline timer in Driver.race (chupa/driver.py:249) cannot follow the bench clock. The stuck_budget_kill member cannot pass while the fence excludes runner.py.",
-    "Re-author with `depends` on the ticket that resolves box-000276-527c50bd: an injectable sleep seam on Checkout, wired in runner.bind and triage. Or widen this ticket's fence to chupa/runner.py plus the Checkout seam, keeping runner.py changes out of the shakeout files.",
-    "Once the seam exists, stuck_budget_kill must advance the bench clock and wake the injected sleep, never real wall-clock time. Assert abort_current, the infra cap_consumed, the timeout terminal, the harvest reason, and that a second ticket merges.",
-    "Next attempt: also set GROUPS to (\"stages\", \"driver\") in eval/shakeout/run.py. The --group driver command exits 2 until then. Implement invalid_output_exhausted first; it needs no seam."
+    "In invalid_output_exhausted, move the request-count and re-prompt-text assertions out of the FakeLLM diagnosis callable. Run them after `await bench.drain()`. If one is raised inside llm_call, Driver.run swallows it as infra_error and the member stays green whatever the driver does.",
+    "Filter bench.llm.requests to `ticket == stem and surface == 'implement'`, since the diagnose request also carries the stem. Assert the count equals `bench.config.caps.retry + 1`, and assert that every re-prompt after the first contains the prior `[invalid_artifact]` finding line.",
+    "Script the diagnosis as a plain string reply, not a callable. Assert that the harvested diagnosis signal is not mechanical (no infra_error or abandon-human fallback), so a swallowed exception can no longer turn the member green.",
+    "Check each member's assertions by temporarily breaking the observable (for example, an off-by-one in the expected count) and confirming the member goes red. Then restore it. A member that cannot fail is the reject condition.",
+    "Keep the eval/shakeout/bench.py diff to wiring the bench clock into the Checkout sleep seam. The ticket rules out any other bench edit. Do not commit the generated shakeout-report.json."
   ],
   "mechanical": null,
   "spec_version": "1.0",
