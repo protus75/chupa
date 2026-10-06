@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "98d0fa6e820b14b9da60e294a97740d533206bee",
+  "produced_at_sha": "cfea5abc45ae6b26592f63d1be06d81224a0510c",
   "stem": "phase3-continue-02",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "gate_failed",
   "stage": "check",
   "verdict": "retry",
   "lessons": [
-    "rework-stage criteria need a dormancy test: tests/test_rework.py proves chupa.rework is absent from the transitive chupa.* import closure of chupa/__main__.py, handling both import forms. Reuse the mergequeue dormancy-test idiom.",
-    "Escalate criterion must name a test that checks two things: ticket.md stays byte-identical, and exactly one retry cap_consumed records the caps.next_rung rung via caps.consume, with no second rung writer.",
-    "Name the journaled supersedes event, its kind, and its body {old stem: [successors]}, and test that a split journals exactly one. Add Scope out: supersedes consumption in chupa/drain.py. File the missing consumer owner to the Suggestion Box.",
-    "Add named tests: each split successor journals one ticket_intake event and passes requisition_review through chupa.requisition before it is confirmed. The lineage cap fold is unchanged after an update or split. Reuse the stages lift path.",
-    "Give the handoff criterion an observable: Rework consumes only a returned QueueResult.handoff, and a spy fails if it runs while MergeQueue._lock is held. Drop chupa/mergequeue.py from the fence unless the ticket states an edit to it. Then re-pin the sizes in test_seeded_phase3_02."
+    "Seed review rejected the rework-stage ticket text, not the test. Keep tests/test_seeded_phase3_02.py and rewrite only tickets/rework-stage/ticket.md to clear the three findings, then rerun both pytest commands.",
+    "In rework-stage, name the update/split seam. Either fence chupa/stages.py, tests/test_stages.py and every grep-found caller of lift_seeds/_review_seeds to generalize lift for a Rework origin, or state that Rework calls requisition.review_ticket and owns the commit and ticket_intake.",
+    "Rewrite rework-stage's approval criterion to name the durable record: one ticket_intake and one requisition_verdict signal with verdict approve, whose ticket_sha equals the committed blob SHA. The approval is journaled before the commit and intake.",
+    "Narrow the rework-stage Goal so only the original stem's caps fold stays unchanged and split successors are new lineages under section 11.2. Do not claim successors inherit caps unless you fence chupa/caps.py and tests/test_caps.py and add a criterion for that.",
+    "Fence additions must stay at or above the registry floor. Update the authoring-time render sizes pinned in test_seeded_phase3_02.py so the rewritten seed still fits section 8 headroom. Leave both ticket.md files uncommitted."
   ],
   "mechanical": null,
   "spec_version": "1.0",
