@@ -51,6 +51,7 @@ class Bench:
         self.fs.write(self.repo / "CHUPA_PLAN.md", b"# Shakeout bench\n")
         self.config = load_config(None, cwd=self.repo)
         self.clock = AdvancingClock()
+        self._sleep_wake = asyncio.Event()
         self.process = SubprocessExec()
         self.env: Mapping[str, str] = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"),
                                         "HOME": str(self.repo), "GIT_CONFIG_NOSYSTEM": "1",
@@ -76,7 +77,17 @@ class Bench:
 
     def _compose(self, config: Config) -> Checkout:
         return Checkout(repo=self.repo, config=config, env=self.env, exec_=self.process,
-                        git=self.git, journal=self.journal, fs=self.fs, clock=self.clock)
+                        git=self.git, journal=self.journal, fs=self.fs, clock=self.clock,
+                        sleep=self._sleep)
+
+    async def _sleep(self, seconds: float) -> None:
+        """Advance only when a fixture wakes the timer after its call has started."""
+        await self._sleep_wake.wait()
+        self._sleep_wake.clear()
+        self.clock.advance(seconds)
+
+    def advance_sleep(self) -> None:
+        self._sleep_wake.set()
 
     def configure(self, parsed_config: Config) -> None:
         self.config = parsed_config.model_copy(update={"state_dir": self.config.state_dir,

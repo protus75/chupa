@@ -24,7 +24,7 @@ from chupa.lockfile import Lockfile
 from chupa.merge import merge
 from chupa.providers import ProviderLLM
 from chupa.reconcile import reconcile
-from chupa.seams import Clock, FileSystem, GroupExec
+from chupa.seams import Clock, FileSystem, GroupExec, Sleep
 from chupa.stages import DiagnosisMaterial, StageContext, diagnose, lift_outbox, run_stages, write_diagnosis
 from chupa.status import last_states, reject_queue
 from chupa.tickets import (Ticket, TicketInvalid, intake, parse_ticket, split_frontmatter, stamp,
@@ -64,6 +64,7 @@ class Checkout:
     journal: Journal
     fs: FileSystem
     clock: Clock
+    sleep: Sleep = asyncio.sleep
 
 
 Pipeline = Callable[[Checkout], Dispatch]
@@ -78,7 +79,7 @@ def pipeline(checkout: Checkout) -> Dispatch:
 
 def bind(checkout: Checkout, llm: LLM) -> Dispatch:
     driver = Driver.from_config(checkout.config, llm=llm, env=checkout.env, clock=checkout.clock,
-                                sleep=asyncio.sleep, fs=checkout.fs)
+                                sleep=checkout.sleep, fs=checkout.fs)
     ctx = StageContext(repo=checkout.repo, config=checkout.config, env=checkout.env, exec_=checkout.exec_,
                        git=checkout.git, fs=checkout.fs, driver=driver, specs_dir=SPECS_DIR)
     return lambda ticket: drive(ctx, ticket)
@@ -209,7 +210,7 @@ async def harvest(
 async def harvest_orphan(checkout: Checkout, stem: str, attempt: int) -> None:
     """Use the run-terminal harvest with an effects context; an orphan makes no model call."""
     driver = Driver.from_config(checkout.config, llm=cast(LLM, None), env=checkout.env,
-                                clock=checkout.clock, sleep=asyncio.sleep, fs=checkout.fs)
+                                clock=checkout.clock, sleep=checkout.sleep, fs=checkout.fs)
     ctx = StageContext(repo=checkout.repo, config=checkout.config, env=checkout.env, exec_=checkout.exec_,
                        git=checkout.git, fs=checkout.fs, driver=driver, specs_dir=SPECS_DIR)
     await harvest(ctx, stem, attempt=attempt, stage=None, terminal="abandoned", findings=[], results=())

@@ -1,6 +1,5 @@
 """One operator-triggered, sequential Suggestion Box pass (plan section 12)."""
 
-import asyncio
 import json
 from pathlib import Path
 from typing import Annotated, Literal
@@ -96,7 +95,7 @@ async def triage_pass(checkout: Checkout, llm: LLM) -> list[tuple[str, str]]:
     box = Box(checkout.config.state_dir / BOX_DIR, checkout.fs)
     spec = load_spec((SPECS_DIR / "triage.md").read_text())
     driver = Driver.from_config(checkout.config, llm=llm, env=checkout.env, clock=checkout.clock,
-                                sleep=asyncio.sleep, fs=checkout.fs)
+                                sleep=checkout.sleep, fs=checkout.fs)
     states = last_states(history)
     merged = sorted(stem for stem, state in states.items() if state == "merged")
     lines: list[tuple[str, str]] = []

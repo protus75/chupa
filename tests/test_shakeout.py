@@ -14,6 +14,7 @@ from chupa.artifacts import ShakeoutEntry, ShakeoutReport
 from chupa.journal import EventType
 from eval.shakeout.bench import Bench
 from eval.shakeout import run as shakeout
+from eval.shakeout.driver import MEMBERS as DRIVER_MEMBERS
 from eval.shakeout.stages import MEMBERS
 
 
@@ -179,3 +180,13 @@ def test_produce_stages_returns_six_green_entries(tmp_path):
     produced = asyncio.run(shakeout.produce("stages", None, tmp_path))
     assert [entry.member for entry in produced.entries] == [member.id for member in MEMBERS]
     assert len(produced.entries) == 6 and all(entry.green for entry in produced.entries)
+
+
+def test_invalid_output_exhausted_member_observes_bounded_reprompts_and_harvest(tmp_path):
+    result = asyncio.run(shakeout.run_member(DRIVER_MEMBERS[0], tmp_path))
+    assert result.green and result.observed == "invalid_artifact_harvested_after_bounded_reprompts"
+
+
+def test_stuck_budget_kill_member_observes_abort_harvest_and_followup_merge(tmp_path):
+    result = asyncio.run(shakeout.run_member(DRIVER_MEMBERS[1], tmp_path))
+    assert result.green and result.observed == "timeout_harvest_reason_after_stuck_kill"
