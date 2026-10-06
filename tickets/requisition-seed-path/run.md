@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-none
+The Git wrapper has no public show method, so merge reads committed blobs through its existing argv-list _run method.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-90m expected; completed within budget. Focused verification passed (32 tests) and the full suite passed (627 tests).
+90m expected; completed within budget. Both verification commands passed; the full suite passed with 632 tests.
 
