@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "720abebdd4c2b243760c0333a9f48668b838c9b1",
+  "produced_at_sha": "0cfefc42eba8136151754de9737589a47626f3d5",
   "stem": "requisition-seed-path",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "In `_review_seeds` (chupa/stages.py ~line 700), pass `tier=parsed.frontmatter.agent_tier`, taken from the seed's validated frontmatter, not the seeding ticket's `ticket.frontmatter.agent_tier`. Ticket Scope in says each seed is judged at the SEED's `agent_tier`.",
-    "Add a tests/test_seed_path.py case with a medium seeding ticket and a seed authored `agent_tier: high`. Give FakeLLM a route for the high tier and assert that the requisition request for that seed resolves on the seed's tier and route.",
-    "Make fixture seeds stop defaulting to the seeding ticket's tier in at least one case. Tests where every tier is equal cannot catch a mix-up between the seeding ticket's frontmatter and the seed's.",
-    "Keep the rest of the diff as it is: the lift, the MERGE-SAFETY re-check and the other tests were judged correct, and the full suite passes (629 tests). Change only the tier argument and the new test, and stay inside the scope fence.",
-    "Check that carrying forward recorded approvals for already-lifted seeds on a re-run does not re-review those seeds or change their recorded `ticket_sha`. Acceptance criterion 3 requires an already-lifted seed to be skipped, not re-judged."
+    "In test_stages.py acceptance-5 test, write the foreign tickets/<x>/ticket.md into the worktree WITHOUT git add/commit so scope_fence and every mechanical Check gate pass; then assert Check ok, Invoice.seeds == [], no requisition_review request, and nothing lifted to main.",
+    "Sanity-check the acceptance-5 test by mentally removing the `\"tickets\" in ticket.scope_fence` guard: the test must then fail. A test that fails earlier at an unrelated gate proves nothing.",
+    "In merge.py MERGE-SAFETY gathering, read the seed text AND tickets/<stem>/checks.json from main's committed tree via git.py (`main:<path>` show), never from ctx.repo working-tree files, so the blob SHA, validated text and approvals all come from one commit.",
+    "Add a test_merge.py case showing an uncommitted working-tree edit to checks.json or the seed text in the main checkout does not change the gate's verdict, which proves the gate reads committed blobs.",
+    "Keep the rest as it is: the seed review, lift and fence were judged correct. Change only these two findings, stay inside the scope fence, and rerun both verification commands."
   ],
   "mechanical": null,
   "spec_version": "1.0",
