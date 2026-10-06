@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-No closure additions or On-demand paths were needed; Check's seed review and lift remain engine-owned.
+The merge-queue entry unit addresses its prior findings, but continuation 02 cannot satisfy the required entry-unit checks for continuation 03; confirmed on base commit 56dede165a4d36a2fbb2d4ebbce17484ffcef072.
 
 ## Dead ends
 
-none
+Drafted seeds and passed 13 targeted tests, then removed them after finding that deferring the required thresh-runtime check contradicted the ticket.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60m expected and 120m stuck budgets.
+Stopped within the 60m expected budget.
 
