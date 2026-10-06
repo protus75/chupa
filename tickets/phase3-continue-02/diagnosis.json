@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "30aca182eced6e9bf4b86a5487b8b735d18f62db",
+  "produced_at_sha": "48943b599d401b42262c6d7cbf209287f4d3ddf5",
   "stem": "phase3-continue-02",
-  "attempt": 3,
-  "terminal": "infra_error",
-  "stage": "implement",
+  "attempt": 4,
+  "terminal": "gate_failed",
+  "stage": "check",
   "verdict": "retry",
   "lessons": [
-    "The failure was the provider, not the ticket: codex said 'Selected model is at capacity' and the turn failed within 3s with no diff. Retry the same approach unchanged.",
-    "Prior run record shows a working approach: keep mergequeue.py On-demand rather than embedded so the successor seed fits section 8 authoring headroom; record the authoring-time sizes in tests/test_seeded_phase3_02.py.",
-    "Author only rework-stage (high/high, depends merge-queue, sections 4/9/11, registry fence floor) and phase3-continue-03 (depends rework-stage, fences tickets + tests/test_seeded_phase3_03.py); leave both ticket.md files uncommitted.",
-    "If the capacity error repeats on the next attempt, treat it as an external environment issue for a human to resolve (provider availability), not a ticket defect."
+    "In rework-stage's ticket, name the escalation journal record (e.g. SIGNAL {signal: rework_escalate, rung}), state how drain._run_one prefers it over the terminal body's rung, say one retry draw consumes it, and add a criterion that a second re-offer does not reuse it.",
+    "Add a rework-stage criterion in tests/test_rework.py, rooted at chupa/__main__.py, proving no production module writes the escalation record and that a re-offer carrying only a terminal-body rung journals an unchanged cap_consumed body.",
+    "Spell out the exact ticket_intake body for an update and for a split. State whether seeded_by is present and its value, and assert that a split's intake leaves mergequeue._candidate's seed set for the original stem unchanged.",
+    "Declare specs/rework.md as the rework llm_surface prompt spec. Require tests/test_rework.py to load it via chupa.specs.load_spec and show Rework's update/split/escalate decision is rendered from it.",
+    "Read chupa/drain.py, mergequeue.py, merge.py:188, stages.py:708 and chupa/specs.py before authoring. Then update tests/test_seeded_phase3_02.py render arithmetic so the longer rework-stage ticket still fits section 8 headroom."
   ],
   "mechanical": null,
   "spec_version": "1.0",
