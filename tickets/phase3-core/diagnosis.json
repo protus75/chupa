@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "67ffed3179aacf9522b4aa38ba92d24b7117b45b",
+  "produced_at_sha": "4dda5b062ccd13acb1a7fe88bc932e9d904092c5",
   "stem": "phase3-core",
-  "attempt": 6,
-  "terminal": "premise_failed",
-  "stage": "implement",
+  "attempt": 8,
+  "terminal": "gate_failed",
+  "stage": "check",
   "verdict": "reject",
   "lessons": [
-    "Premise false: CHUPA_PLAN.md has BEGIN_REGISTRY_P3 at line 1697, then 19.P4 starts at line 1800. No 19.P3.daemon-scheduler, 19.P3.seed-successor-proof or 19.P3.merge-queue heading exists, so the required Plan contract cites resolve to nothing.",
-    "Don't invent the missing entry units inside the seeds. The ticket's Definition of rejected forbids a seed stating a fact its entry unit omits, and 19.L SPEC DEPTH forbids invented facts.",
-    "Release path: harden the missing entry units in CHUPA_PLAN.md through section 11.4, with Owner, Records, Observable and Tests bullets, and commit them. Then rerun phase3-core unchanged. The plan edit is outside this ticket's fence (tickets, tests/test_seeded_phase3_core.py).",
-    "After the plan fix, confirm each registry row's cite and fence ids resolve to headings on the new base before authoring any seed. Record the plan-unit lengths for the render-feasibility test from that base."
+    "CHUPA_PLAN.md has P3 entry units only at lines 1800, 1807 and 1824. There is no `### 19.P3.rework-stage`, so phase3-continue cannot author phase3-continue-02 with a cite that resolves. Harden the plan through section 11.4 before rerunning this ticket.",
+    "The missing fact is rework-stage's entry unit: its Owner, Records, Observable and Tests. The seed path must not invent it. A harden-rework-stage ticket must add `### 19.P3.rework-stage` to the plan.",
+    "On rerun, check that every entry unit the authored seeds will require resolves through resolve_plan_contract (chupa/tickets.py validate_ticket). If one is missing, reply premise_failed and name the unit id, rather than returning ok.",
+    "Do not report 'Required entry units now exist' unless you have checked the next payload's units too. The phase3-continue seed's successor needs 19.P3.rework-stage, and the plan lacks that unit."
   ],
   "mechanical": null,
   "spec_version": "1.1",
