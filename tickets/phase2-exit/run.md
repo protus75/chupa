@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The previous Check approved and lifted the seeds, but phase3-continue still names a Context file absent from the base commit.
+The three seeds were already on main, so no ticket files needed changes; their Check approval is pending the engine's Check stage.
 
 ## Dead ends
 
-The reconstructed tests passed both focused commands and the full suite (684 passed), but correcting the existing seed is prohibited; all edits were reverted.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60m; stopped after about 4m.
+Expected 60m; completed well under budget.
 
