@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The review effect temporarily reserves the draft stem in the journal; AuthorGate now ignores author-local review effects so snag retries retain their stem.
+Review effect events required exclusion from stem reservation checks.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 75m; completed in about 12m.
+Completed within the 75m estimate.
 
