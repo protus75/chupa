@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "529ef9b2d19e33d773bb5b3c707b98b66ad4b4be",
+  "produced_at_sha": "e5ebb5c5ed2fca99904bc4547da24d99453e669f",
   "stem": "phase2-exit",
-  "attempt": 3,
-  "terminal": "gate_failed",
-  "stage": "check",
-  "verdict": "reject",
+  "attempt": 4,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "abandon-human",
   "lessons": [
-    "Criteria contradict: AC3 forbids editing the three seeds on main yet requires a requisition_review approve for main's blob. Main's tickets/phase3-continue/ticket.md fails context_closure and idiom_mismatch, so no attempt can pass Check until that seed is fixed.",
-    "Fix the seed before re-dispatching, as commit 7130ee8 did. The successor phase3-continue-02 must embed a merged seeding test (tests/test_seeded_phase2.py or tests/test_seeded_phase3_core.py), never tests/test_seeded_phase3_01.py.",
-    "Make phase3-continue's prose idiom match its ## Context: name one seeding test in both places, so the implementer has a single template.",
-    "Amend AC3 and Scope out so the next attempt may re-author tickets/phase3-continue/ticket.md uncommitted for the seed-path lift, or record that a human fixed it on main. Keep the committed diff free of tickets/ paths (AC4).",
-    "The code branch is fine: tests/test_phase2_exit.py and tests/test_seeded_phase3_core.py pass and the full suite passed (684 tests). Reuse commit 529ef9b and don't re-author those tests."
+    "A human must fix the phase3-continue seed on main through the operator recovery path. This ticket forbids editing seeds, and the seed fails review because its stated idiom conflicts with its Context.",
+    "Check whether the 19.L/19.P3 plan text produced the bad idiom or the successor embedding. If it did, fix the plan first and regenerate the seed. Do not hand-edit tickets/phase3-continue/ticket.md.",
+    "The successor seed must embed a seeding test that is already merged when the seed is admitted. Do not point it at tests/test_seeded_phase3_01.py, which does not exist yet at seeding time.",
+    "Before rerunning, run `git rev-parse main:tickets/phase3-continue/ticket.md` and compare it with the blob in phase2-exit/checks.json. Rerun Implement only after the blob changes and the requisition_review snag no longer applies to it.",
+    "On rerun, keep tickets/ out of the branch diff (AC4). Author only tests/test_phase2_exit.py and tests/test_seeded_phase3_core.py, and pin the seed sizes in the test against the corrected blob."
   ],
   "mechanical": null,
   "spec_version": "1.0",
