@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-none
+Full-suite command exceeded the terminal 30-second window; targeted verification passed (66 tests).
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-90m budget; completed within budget.
+90m budget; completed within the session.
 
