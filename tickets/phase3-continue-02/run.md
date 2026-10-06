@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60m expected budget.
+60m expected; completed in about 10m.
 
