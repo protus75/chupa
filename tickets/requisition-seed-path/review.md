@@ -1,11 +1,10 @@
 # Review: snag
 
-The seed review, lift and merge re-check are wired as the ticket asks, but the acceptance-5 test cannot catch the bug it targets, and the merge gate checks main's working-tree files instead of main's committed files.
+The seed path is mostly correct, but when a re-run of a seeding ticket fails a mechanical gate it overwrites main's checks.json and drops the approvals of seeds already lifted, which can leave the ticket permanently unmergeable.
 
 ## Findings
 
-- [acceptance] tests/test_stages.py:237 `test_non_seeding_worktree_ticket_is_neither_reviewed_nor_lifted` uses `agent()`, which commits the foreign `tickets/foreign-ticket/ticket.md`. The `scope_fence` gate then fails Check before seed handling runs. If the `"tickets" in ticket.scope_fence` guard were removed, the test would still pass, so it does not prove acceptance criterion 5. (do instead: Leave the foreign ticket.md uncommitted in the worktree (write it without `git add`/commit) so every mechanical Check gate passes. Then assert that Check is `ok`, `seeds == []`, there is no `requisition_review` request, and no seed was lifted to main.)
-- [logic] chupa/merge.py:186 The MERGE-SAFETY inputs read the seed text (`ctx.repo / path`) and `checks.json` (`ctx.repo / TICKETS_DIR / stem / "checks.json"`) from the main checkout's working tree. Only the blob SHA comes from `main:<path>`. An uncommitted edit in the shared checkout (ticket-file authoring there is a sanctioned path) can change the approvals or the text that gets validated, so the gate does not re-check what main actually commits. (do instead: Read both the seed text and `checks.json` from main's committed tree through `git.py` (`main:<path>`), so that the SHA, the validated text and the recorded approvals all come from the same commit.)
+- [logic] chupa/stages.py:752 When a seeding ticket's mechanical Check gates fail, the seed block is skipped and `seeds` stays `[]`. `lift_outbox` still lifts that checks.json to main, which erases the `approve` entries of seeds lifted by an earlier run. On the next run each lifted seed is byte-identical to main, so `_review_seeds` skips it (line 684). It also finds no `prior` entry, so it carries no approval forward and makes no new review call. The merge `SeedSafetyGate` then refuses with 'seed has no approval pinned to its committed blob', and its paved road ('re-run so Check approves the exact committed seed text') can never succeed, so the hold has no reachable release. (do instead: Keep the approvals of already-lifted seeds on every Check write for a seeding ticket. One way: load the prior `seeds` from main's checks.json whenever the ticket is seeding, whether or not the mechanical gates passed. Another: let an own seed that has no prior approval become a candidate again so it is re-reviewed. Add a test with a mechanical Check failure between two runs.)
 
 ## Record
 
@@ -13,24 +12,17 @@ The seed review, lift and merge re-check are wired as the ticket asks, but the a
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "0cfefc42eba8136151754de9737589a47626f3d5",
+  "produced_at_sha": "1ef687b844713284ee6c79ec2145b9a396be1912",
   "stem": "requisition-seed-path",
-  "reviewed_sha": "0cfefc42eba8136151754de9737589a47626f3d5",
-  "summary": "The seed review, lift and merge re-check are wired as the ticket asks, but the acceptance-5 test cannot catch the bug it targets, and the merge gate checks main's working-tree files instead of main's committed files.",
+  "reviewed_sha": "1ef687b844713284ee6c79ec2145b9a396be1912",
+  "summary": "The seed path is mostly correct, but when a re-run of a seeding ticket fails a mechanical gate it overwrites main's checks.json and drops the approvals of seeds already lifted, which can leave the ticket permanently unmergeable.",
   "findings": [
     {
-      "code": "acceptance",
-      "path": "tests/test_stages.py",
-      "line": 237,
-      "message": "`test_non_seeding_worktree_ticket_is_neither_reviewed_nor_lifted` uses `agent()`, which commits the foreign `tickets/foreign-ticket/ticket.md`. The `scope_fence` gate then fails Check before seed handling runs. If the `\"tickets\" in ticket.scope_fence` guard were removed, the test would still pass, so it does not prove acceptance criterion 5.",
-      "paved_road": "Leave the foreign ticket.md uncommitted in the worktree (write it without `git add`/commit) so every mechanical Check gate passes. Then assert that Check is `ok`, `seeds == []`, there is no `requisition_review` request, and no seed was lifted to main."
-    },
-    {
       "code": "logic",
-      "path": "chupa/merge.py",
-      "line": 186,
-      "message": "The MERGE-SAFETY inputs read the seed text (`ctx.repo / path`) and `checks.json` (`ctx.repo / TICKETS_DIR / stem / \"checks.json\"`) from the main checkout's working tree. Only the blob SHA comes from `main:<path>`. An uncommitted edit in the shared checkout (ticket-file authoring there is a sanctioned path) can change the approvals or the text that gets validated, so the gate does not re-check what main actually commits.",
-      "paved_road": "Read both the seed text and `checks.json` from main's committed tree through `git.py` (`main:<path>`), so that the SHA, the validated text and the recorded approvals all come from the same commit."
+      "path": "chupa/stages.py",
+      "line": 752,
+      "message": "When a seeding ticket's mechanical Check gates fail, the seed block is skipped and `seeds` stays `[]`. `lift_outbox` still lifts that checks.json to main, which erases the `approve` entries of seeds lifted by an earlier run. On the next run each lifted seed is byte-identical to main, so `_review_seeds` skips it (line 684). It also finds no `prior` entry, so it carries no approval forward and makes no new review call. The merge `SeedSafetyGate` then refuses with 'seed has no approval pinned to its committed blob', and its paved road ('re-run so Check approves the exact committed seed text') can never succeed, so the hold has no reachable release.",
+      "paved_road": "Keep the approvals of already-lifted seeds on every Check write for a seeding ticket. One way: load the prior `seeds` from main's checks.json whenever the ticket is seeding, whether or not the mechanical gates passed. Another: let an own seed that has no prior approval become a candidate again so it is re-reviewed. Add a test with a mechanical Check failure between two runs."
     }
   ],
   "spec_version": "1.0",
