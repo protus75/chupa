@@ -41,7 +41,7 @@ uv run pytest tests/test_plan_lint.py
 ```
 
 ## Definition of rejected
-Stating a fact needs plan text outside `19.P3.merge-queue`, or contradicts merged code.
+Stating a fact needs plan text outside `19.P3.merge-queue`, or contradicts merged code. The base is main's committed plan; an uncommitted plan edit in the main checkout is an environment fault, not this ticket's premise.
 
 ## Time budget
 - expected: 30m
