@@ -13,7 +13,7 @@ providers:
   - name: codex
     kind: cli
     package: "@openai/codex"
-    models_by_tier: {low: gpt-6-luna, medium: gpt-5.6-terra, high: gpt-6.1-sol, max: gpt-6.1-sol}
+    models_by_tier: {low: gpt-6-luna, medium: gpt-6.1-sol, high: gpt-6.1-sol, max: gpt-6-astra}
     limits: {concurrency: 1, est_cost_per_call_usd: 1.00}  # stream reports no cost; flat subscription
 routing:
   - {tier: low, surface: implement, candidates: [{provider: codex}]}
