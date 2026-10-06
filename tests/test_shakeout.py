@@ -16,6 +16,7 @@ from eval.shakeout.bench import Bench
 from eval.shakeout import run as shakeout
 from eval.shakeout.driver import MEMBERS as DRIVER_MEMBERS
 from eval.shakeout.drain import MEMBERS as DRAIN_MEMBERS
+from eval.shakeout.recovery import MEMBERS as RECOVERY_MEMBERS
 from eval.shakeout.runner import MEMBERS as RUNNER_MEMBERS
 from eval.shakeout.stages import MEMBERS
 
@@ -222,3 +223,8 @@ def test_premise_park_release_member_observes_unchanged_park_then_content_releas
 def test_red_then_green_member_observes_one_retry_and_attempt_one_review_findings(tmp_path):
     result = asyncio.run(shakeout.run_member(DRAIN_MEMBERS[2], tmp_path))
     assert result.green and result.observed == "review_red_then_green_merges_with_one_retry"
+
+
+def test_engine_death_mid_call_member_observes_orphan_harvest_and_fresh_rerun(tmp_path):
+    result = asyncio.run(shakeout.run_member(RECOVERY_MEMBERS[0], tmp_path))
+    assert result.green and result.observed == "orphan_harvested_and_rerun_with_fresh_key"
