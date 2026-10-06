@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Moved mergequeue.py to On-demand because embedding it exceeded authoring headroom.
+none
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60m; completed in roughly 20m.
+Completed within the 60m expected budget.
 
