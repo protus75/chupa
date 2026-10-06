@@ -1,0 +1,66 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "ef22aee62ede5939601a8d0875ac219efc108dfa",
+  "stem": "seed-successor-proof",
+  "passed": true,
+  "changed_files": [
+    "tests/test_seed_successor.py"
+  ],
+  "inserted_lines": 234,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "tests/test_seed_successor.py",
+        "tests/test_seed_path.py",
+        "tests/test_drain.py",
+        "tests/test_merge.py"
+      ],
+      "rc": 0,
+      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/seed-successor-proof\nconfigfile: pyproject.toml\nplugins: asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 51 items\n\ntests/test_seed_successor.py .                                           [  1%]\ntests/test_seed_path.py ..............                                   [ 29%]\ntests/test_drain.py ......................                               [ 72%]\ntests/test_merge.py ..............                                       [100%]\n\n============================== 51 passed in 6.98s ==============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [  9%]\n........................................................................ [ 19%]\n........................................................................ [ 29%]\n........................................................................ [ 38%]\n........................................................................ [ 48%]\n........................................................................ [ 58%]\n........................................................................ [ 68%]\n........................................................................ [ 77%]\n........................................................................ [ 87%]\n........................................................................ [ 97%]\n.....................                                                    [100%]\n741 passed in 70.60s (0:01:10)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
