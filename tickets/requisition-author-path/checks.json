@@ -1,7 +1,7 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "dcdb2f6c03781db81df80dc9e006cf1302e2f3de",
+  "produced_at_sha": "db82cae8eeae4021315d808b568521ae26748bd6",
   "stem": "requisition-author-path",
   "passed": true,
   "changed_files": [
@@ -11,7 +11,7 @@
     "tests/test_driver.py",
     "tests/test_triage.py"
   ],
-  "inserted_lines": 144,
+  "inserted_lines": 151,
   "bypassed": [],
   "reports": [
     {
