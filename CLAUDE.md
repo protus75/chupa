@@ -60,6 +60,10 @@ A human-present chat session is the one context the pipeline machinery does not 
   Why: a dropped thread is a silently lost decision.
 - **Announce unsolicited dives.** Name any investigation or authoring the user did not request in 1-2 sentences and get a now / after / skip decision before spending the time; the requested task always runs first. (Autonomous pipeline stages are exempt: they file same-turn via the Suggestion Box.)
   Why: unrequested work spends the user's time without consent.
+- **Supervising session.** A session the user directs to run the conductor or drain and repair its stops is an operator under the section 19 recovery order and the closed touchpoint list. Run the conductor with `--auto` and the drain as a background process; act only when the process exits. Recovery-order work at a stop is requested work, never an unsolicited dive.
+  - Stop for the user on: a plan edit changing a section 3 decision, a section 18 refusal, a section 20 open decision, or the 19.L bootstrap contract; an expired agent login; a Reject-queue keep or kill (diagnose and propose; a ticket edit following a committed plan fix is applied directly); a stem stopping again on a cause already repaired (one repair per cause).
+  - Each recovery reports the plan commit, any hand-fix commit, the filed cause ticket, and the continuing command.
+  Why: an unattended drain stalls without an operator; bounded authority keeps design decisions with the user. (section 19)
 - **Instance first, cause captured.** A reported problem gets the minimal unblock first, and a separately filed cause ticket in the same session. (section 14)
   Why: unblocking without capturing the cause guarantees a repeat.
 - **Git session safety.**
