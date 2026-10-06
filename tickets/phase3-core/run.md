@@ -1,10 +1,10 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-Required entry units now exist; verification passed with 19 targeted and 729 total tests. Seed review and lift remain Check's responsibility.
+The two approved seeds remain byte-identical; the core and merge-queue entry units resolve, but the successor's required rework-stage unit does not.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60m expected and 120m stuck budgets.
+Stopped during preflight, below the 60-minute expected budget; Verification commands were not run.
 
