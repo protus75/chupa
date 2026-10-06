@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-Required entry units now resolve; approved seeds remain byte-identical, and all three seeds remain uncommitted for Check review and ticket-plane lifting.
+HEAD equals the base commit, and all three seeds already exist as tracked tickets. Intake validation rejects phase3-continue’s missing Context file. Targeted verification exited 4 because tests/test_seeded_phase3_core.py is absent; the full suite passed all 710 tests.
 
 ## Dead ends
 
-none
+Authoring was stopped because satisfying the required Context would violate the plan, and correcting the existing continuation is forbidden by this task.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60-minute expected budget and 120-minute stuck threshold.
+Read-only validation completed within the 60m expected budget.
 
