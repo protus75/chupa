@@ -234,6 +234,36 @@ def test_implement_check_review_all_ok_with_artifacts_and_provenance(repo):
     assert "+ok" in review_req.rendered  # the reviewer sees `git diff main...<stem>`
 
 
+def test_non_seeding_ticket_ignores_an_untracked_foreign_ticket(repo):
+    def act(req: LLMRequest) -> str:
+        assert req.worktree is not None
+        (req.worktree / "chupa/thing.py").write_text("ok\n")
+        git(req.worktree, "add", "chupa/thing.py")
+        git(req.worktree, "commit", "-m", "work")
+        foreign = req.worktree / "tickets" / "foreign-seed" / "ticket.md"
+        foreign.parent.mkdir(parents=True)
+        foreign.write_text("untracked seed\n")
+        return implement_reply()
+
+    result, llm, _ = run(repo, [act, verdict()])
+
+    assert outcomes(result) == {"implement": "ok", "check": "ok", "review": "ok"}
+    assert result.results["check"].artifact.seeds == []
+    assert all(req.surface != "requisition_review" for req in llm.requests)
+    assert not (repo / "tickets" / "foreign-seed" / "ticket.md").exists()
+    assert f"chupa({STEM}): seeds" not in subjects(repo)
+
+
+def test_old_checks_json_without_seeds_still_parses(repo):
+    result, _, _ = run(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
+    old = json.loads((repo / "tickets" / STEM / "checks.json").read_text())
+    del old["seeds"]
+
+    parsed = Invoice.model_validate(old)
+
+    assert parsed.seeds == [] and parsed.passed == result.results["check"].artifact.passed
+
+
 def test_premise_failed_stops_after_implement_with_its_run_record(repo):
     finding = {"code": "premise", "path": None, "line": None, "message": "contradicts X", "paved_road": "drop X"}
     act = lambda req: implement_reply("premise_failed", [finding])  # noqa: E731

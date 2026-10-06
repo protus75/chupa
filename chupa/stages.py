@@ -8,6 +8,7 @@ lift moves it to the canonical tickets dir as ONE ticket-plane commit `chupa(<st
 The run's terminal `state_transition` is not written here: that is the runner's (section 11.2).
 """
 
+import hashlib
 import json
 import re
 from collections.abc import Mapping, Sequence
@@ -27,7 +28,7 @@ from chupa.journal import TERMINAL_STATES, EventType, run_seq
 from chupa.providers import child_env
 from chupa.seams import ExecutableNotFound, FileSystem, ProcessExec
 from chupa.specs import RenderOverBound, Spec, load_spec, render, resolve_plan_contract
-from chupa.tickets import _HEADING, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, ticket_path
+from chupa.tickets import _HEADING, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, TicketInvalid, ticket_path, validate_ticket
 
 MAIN = "main"
 # Section 7 diff budget: sized so every rendered review prompt fits the serving provider's bound.
@@ -93,6 +94,16 @@ class PackingSlip(Artifact):
     run_record: NonBlank  # repo-relative path of the lifted run.md
 
 
+class SeedReview(_Strict):
+    """The Check verdict for one authored seed, pinned to its ticket.md blob."""
+
+    stem: NonBlank
+    ticket_sha: NonBlank
+    verdict: Literal["approve", "snag", "rma"]
+    findings: list[Finding]
+    mechanical: str | None
+
+
 class Invoice(Artifact):
     """Check's artifact, persisted as `checks.json`: every mechanical gate report for one branch head."""
 
@@ -102,6 +113,7 @@ class Invoice(Artifact):
     inserted_lines: Annotated[int, Field(ge=0)]
     bypassed: list[str]  # gate codes the ticket's `gate_bypass` valve demoted to soft
     reports: list[GateReport]
+    seeds: list[SeedReview] = []
 
 
 class _Review(Artifact):
@@ -634,23 +646,148 @@ def check_severity(ctx: StageContext, ticket: Ticket) -> dict[str, Severity]:
     return severity
 
 
+def _seeded_stems(ctx: StageContext, stem: str) -> set[str]:
+    return {e.ticket for e in ctx.driver.journal.read()
+            if e.type == EventType.SIGNAL and e.ticket is not None
+            and e.body.get("signal") == "ticket_intake" and e.body.get("seeded_by") == stem}
+
+
+async def _prior_seed_reviews(ctx: StageContext, stem: str, own: set[str]) -> dict[str, SeedReview]:
+    path = f"{TICKETS_DIR}/{stem}/checks.json"
+    try:
+        text = await ctx.git._run(ctx.repo, "show", f"{MAIN}:{path}")
+    except GitError:
+        return {}
+    invoice = Invoice.model_validate_json(text)
+    return {seed.stem: seed for seed in invoice.seeds if seed.stem in own and seed.verdict == "approve"}
+
+
+async def _review_seeds(ctx: StageContext, ticket: Ticket, *, attempt: int,
+                        own: set[str], prior: dict[str, SeedReview]) -> tuple[list[SeedReview], list[Path]]:
+    """Judge only new or changed ticket.md files; an identical foreign main file is not a candidate."""
+    from chupa.requisition import review_ticket  # requisition imports implement_inputs from this module
+
+    stem = ticket.stem
+    worktree = ctx.worktree(stem)
+    reviews = dict(prior)
+    new_paths: list[Path] = []
+    candidates = sorted(p for p in (worktree / TICKETS_DIR).glob(f"*/{TICKET_FILE}")
+                        if p.parent.name != stem)
+    candidate_index = 0
+    for path in candidates:
+        seed_stem = path.parent.name
+        rel = ticket_path(seed_stem)
+        data = path.read_bytes()
+        sha = hashlib.sha1(f"blob {len(data)}\0".encode() + data).hexdigest()
+        try:
+            main_sha = await ctx.git.rev_parse(ctx.repo, f"{MAIN}:{rel}")
+        except GitError:
+            main_sha = None
+        if main_sha == sha and (seed_stem not in own or
+                                (seed_stem in reviews and reviews[seed_stem].ticket_sha == sha)):
+            continue
+        candidate_index += 1
+        if main_sha is not None and main_sha != sha:
+            finding = Finding(code="requisition_review", path=rel,
+                              message=f"{rel} already exists on main",
+                              paved_road="a seeding run only creates new stems; use a fresh stem")
+            reviews[seed_stem] = SeedReview(stem=seed_stem, ticket_sha=sha, verdict="snag",
+                                            findings=[finding], mechanical="existing stem")
+            continue
+        try:
+            parsed = validate_ticket(seed_stem, data.decode(), worktree)
+        except (TicketInvalid, UnicodeDecodeError) as exc:
+            findings = (exc.findings if isinstance(exc, TicketInvalid) else
+                        [Finding(code="requisition_review", path=rel, message="ticket.md is not UTF-8",
+                                 paved_road="write UTF-8 ticket text")])
+            reviews[seed_stem] = SeedReview(stem=seed_stem, ticket_sha=sha, verdict="snag",
+                                            findings=list(findings), mechanical="ticket lint failed")
+            continue
+        findings = []
+        if parsed.frontmatter.source != "seed":
+            findings.append(Finding(code="requisition_review", path=rel, message="seed source must be seed",
+                                    paved_road="set frontmatter `source: seed`"))
+        if parsed.frontmatter.state != "confirmed":
+            findings.append(Finding(code="requisition_review", path=rel, message="seed state must be confirmed",
+                                    paved_road="set frontmatter `state: confirmed`"))
+        if findings:
+            reviews[seed_stem] = SeedReview(stem=seed_stem, ticket_sha=sha, verdict="snag",
+                                            findings=findings, mechanical="seed frontmatter")
+            continue
+        reviewed = await review_ticket(
+            ctx.driver, repo=worktree, plan=(ctx.repo / PLAN_FILE).read_text(),
+            stem=seed_stem, text=data.decode(), specs_dir=ctx.specs_dir,
+            tier=parsed.frontmatter.agent_tier, stem_slot=stem, run_seq=attempt,
+            attempt=attempt, call_seq=candidate_index,
+        )
+        reviews[seed_stem] = SeedReview(stem=seed_stem, ticket_sha=reviewed.ticket_sha,
+                                        verdict=reviewed.verdict, findings=list(reviewed.findings),
+                                        mechanical=reviewed.mechanical)
+        if main_sha is None and reviewed.verdict == "approve":
+            new_paths.append(path)
+    return [reviews[key] for key in sorted(reviews)], new_paths
+
+
+async def lift_seeds(ctx: StageContext, stem: str, paths: list[Path], *, attempt: int) -> None:
+    """One ticket-plane commit for the approved new ticket.md paths, followed by per-seed intake events."""
+    if not paths:
+        return
+    rels = [ticket_path(p.parent.name) for p in paths]
+
+    async def commit() -> dict:
+        for src, rel in zip(paths, rels, strict=True):
+            ctx.fs.write(ctx.repo / rel, src.read_bytes())
+            src.unlink()
+        await ctx.git.add(ctx.repo, rels)
+        await ctx.git.commit(ctx.repo, f"chupa({stem}): seeds", only=rels)
+        return {"commit": await ctx.git.rev_parse(ctx.repo, MAIN)}
+
+    key = f"ticket-plane/{stem}/{attempt}/seeds"
+    committed = await ctx.driver.effects.run(commit, key=key, ticket=stem)
+    for path in paths:
+        seed_stem = path.parent.name
+        if not any(e.type == EventType.SIGNAL and e.ticket == seed_stem
+                   and e.body.get("signal") == "ticket_intake" and e.body.get("commit") == committed["commit"]
+                   and e.body.get("seeded_by") == stem for e in ctx.driver.journal.read()):
+            ctx.driver.journal.append(EventType.SIGNAL,
+                                      {"signal": "ticket_intake", "source": "seed", "state": "confirmed",
+                                       "new": True, "commit": committed["commit"], "seeded_by": stem},
+                                      ticket=seed_stem)
+
+
 async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt: int) -> StageResult:
     """Invoicing: run the mechanical gates on the branch head, write + lift `checks.json`."""
     stem = ticket.stem
     started = ctx.driver.clock()
     evidence = await gather_evidence(ctx, ticket, slip.outcome, attempt=attempt)
     gated = run_gates(CHECK_GATES, evidence, ctx.worktree(stem), severity=check_severity(ctx, ticket))
+    seeding = TICKETS_DIR in ticket.scope_fence
+    own = _seeded_stems(ctx, stem) if seeding else set()
+    prior = await _prior_seed_reviews(ctx, stem, own) if seeding else {}
+    seeds = [prior[key] for key in sorted(prior)]
+    new_paths: list[Path] = []
+    seed_report = None
+    if seeding and gated.passed:
+        seeds, new_paths = await _review_seeds(ctx, ticket, attempt=attempt, own=own, prior=prior)
+        seed_findings = [finding for seed in seeds if seed.verdict != "approve" for finding in seed.findings]
+        seed_report = _report("requisition_review", seed_findings)
+    passed = gated.passed and (seed_report is None or seed_report.verdict == "pass")
     invoice = Invoice(
         produced_by_spec_version=CHECK_SPEC_VERSION, produced_at_sha=evidence.head_sha, stem=stem,
-        passed=gated.passed, changed_files=evidence.changed_files, inserted_lines=evidence.inserted_lines,
-        bypassed=sorted({b.code for b in ticket.frontmatter.gate_bypass}), reports=gated.reports,
+        passed=passed, changed_files=evidence.changed_files, inserted_lines=evidence.inserted_lines,
+        bypassed=sorted({b.code for b in ticket.frontmatter.gate_bypass}),
+        reports=[*gated.reports, *([seed_report] if seed_report is not None else [])], seeds=seeds,
     )
     ctx.fs.write(ctx.worktree(stem) / TICKETS_DIR / stem / "checks.json",
                  (invoice.model_dump_json(indent=2) + "\n").encode())
     await lift_outbox(ctx, stem, "checks", attempt=attempt)
+    if passed:
+        await lift_seeds(ctx, stem, new_paths, attempt=attempt)
     cost = Cost(seconds=(ctx.driver.clock() - started).total_seconds())
-    if not gated.passed:
+    if not passed:
         hard = [f for r in gated.hard_failures for f in r.findings]
+        if seed_report is not None:
+            hard.extend(seed_report.findings)
         return StageResult(outcome="gate_failed", artifact=invoice, findings=hard, cost=cost)
     outcome = "already_satisfied" if slip.outcome == "already_satisfied" else "ok"
     return StageResult(outcome=outcome, artifact=invoice, findings=gated.findings, cost=cost)

@@ -2,6 +2,7 @@
 
 import asyncio
 import dataclasses
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -16,6 +17,8 @@ from chupa.merge import Admission, Candidate, PostRebaseGate, merge
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.stages import StageContext, run_stages
 from chupa.tickets import validate_ticket
+from tests.test_seed_path import (context as seed_context, repo as seed_repo, requisition, seed_text,
+                                  ticket as seeding_ticket, write_seeds)
 from tests.test_stages import ENV, SNAG, SPECS, STEM, agent, author, git, verdict
 
 GOAL = "`thing.py` holds the word ok."
@@ -209,3 +212,64 @@ def test_a_conflicted_rebase_is_aborted_and_refused(repo):
     assert "re-branches from current main" in result.findings[0].paved_road
     assert git(repo, "rev-parse", STEM).strip() == head  # never left mid-rebase
     assert not (repo / ".git" / "worktrees" / STEM / "rebase-merge").exists()
+
+
+def seed_reviewed(repo):
+    seed = seed_text("alpha-seed")
+    ctx, llm = seed_context(repo, [write_seeds({"alpha-seed": seed}), requisition("approve"), verdict()])
+    ticket = seeding_ticket(repo)
+    run = asyncio.run(run_stages(ctx, ticket))
+    assert run.results["review"].outcome == "ok"
+    assert [req.surface for req in llm.requests] == ["implement", "requisition_review", "review"]
+    return ctx, ticket, run.attempt
+
+
+def test_merge_safety_refuses_a_seed_whose_committed_blob_changed(seed_repo):
+    ctx, ticket, attempt = seed_reviewed(seed_repo)
+    path = seed_repo / "tickets/alpha-seed/ticket.md"
+    path.write_text(path.read_text() + "\n")
+    git(seed_repo, "commit", "-am", "seed text changes after Check")
+    before = git(seed_repo, "rev-parse", "main").strip()
+
+    result = admit(ctx, ticket, attempt)
+
+    refused_untouched(ctx, result, before, "requisition_review")
+    assert any("no approve verdict pins" in f.message for f in result.findings)
+
+
+def test_merge_safety_rechecks_seed_lint_even_with_a_matching_approval(seed_repo):
+    ctx, ticket, attempt = seed_reviewed(seed_repo)
+    path = seed_repo / "tickets/alpha-seed/ticket.md"
+    path.write_text(path.read_text().replace("## Definition of rejected\nNeeds a new dependency.\n\n", ""))
+    checks_path = seed_repo / "tickets" / STEM / "checks.json"
+    checks = json.loads(checks_path.read_text())
+    checks["seeds"][0]["ticket_sha"] = git(seed_repo, "hash-object", str(path)).strip()
+    checks_path.write_text(json.dumps(checks))
+    git(seed_repo, "commit", "-am", "invalid seed and matching approval")
+    before = git(seed_repo, "rev-parse", "main").strip()
+
+    result = admit(ctx, ticket, attempt)
+
+    refused_untouched(ctx, result, before, "requisition_review")
+    assert any("Definition of rejected" in f.message for f in result.findings)
+
+
+def test_merge_safety_admits_a_seed_with_matching_recorded_approval(seed_repo):
+    ctx, ticket, attempt = seed_reviewed(seed_repo)
+
+    result = admit(ctx, ticket, attempt)
+
+    assert result.outcome == "ok", result.findings
+    assert (seed_repo / "tickets/alpha-seed/ticket.md").is_file()
+    assert git(seed_repo, "show", "--name-only", "--format=", "main").split() == ["chupa/thing.py"]
+
+
+def test_merge_safety_reads_committed_seed_and_checks_despite_dirty_main_checkout(seed_repo):
+    ctx, ticket, attempt = seed_reviewed(seed_repo)
+    (seed_repo / "tickets/alpha-seed/ticket.md").write_text("uncommitted invalid ticket\n")
+    (seed_repo / "tickets" / STEM / "checks.json").write_text("uncommitted invalid checks\n")
+
+    result = admit(ctx, ticket, attempt)
+
+    assert result.outcome == "ok", result.findings
+    assert git(seed_repo, "show", "main:tickets/alpha-seed/ticket.md") == seed_text("alpha-seed")

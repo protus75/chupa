@@ -12,16 +12,17 @@ runner's (section 11.2).
 
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from chupa.artifacts import Artifact, Cost, Finding, NonBlank, StageResult
 from chupa.gates import GateReport, run_gates
-from chupa.git import RebaseRefused
+from chupa.git import GitError, RebaseRefused
 from chupa.journal import EventType
 from chupa.stages import (
     CHECK_GATES,
     MAIN,
     ApprovedInvoice,
+    Invoice,
     StageContext,
     check_severity,
     gather_evidence,
@@ -43,6 +44,18 @@ class Candidate(BaseModel):
     changed_files: list[str]
     ticket_text: str
     review_text: str | None  # main's `review.md`, None when absent
+    seeds: list["SeedOnMain"] = []
+    seed_checks_text: str | None = None
+
+
+class SeedOnMain(BaseModel):
+    """A journaled seed's blob as committed on main before the admission rebase."""
+
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+
+    stem: NonBlank
+    ticket_sha: str | None
+    ticket_text: str | None
 
 
 class Admission(Artifact):
@@ -110,7 +123,48 @@ class ApprovalGate:
                           findings=[Finding(code=self.code, path=path, message=message, paved_road=road)])
 
 
-MERGE_GATES = (TicketSchemaGate(), PostRebaseGate(), ApprovalGate())
+class SeedSafetyGate:
+    """MERGE-SAFETY: every journaled seed still has an approval for main's exact committed blob."""
+
+    code = "requisition_review"
+
+    def check(self, artifact: Candidate, workspace: Path) -> GateReport:
+        if not artifact.seeds:
+            return GateReport(code=self.code, verdict="pass")
+        path = f"{TICKETS_DIR}/{artifact.stem}/checks.json"
+        road = f"re-run `run {artifact.stem}` so Check records approvals for the committed seeds"
+        findings = []
+        if artifact.seed_checks_text is None:
+            findings.append(Finding(code=self.code, path=path, message="checks.json is missing on main",
+                                    paved_road=road))
+            reviews = []
+        else:
+            try:
+                reviews = Invoice.model_validate_json(artifact.seed_checks_text).seeds
+            except ValidationError as exc:
+                findings.append(Finding(code=self.code, path=path,
+                                        message=f"checks.json does not parse: {exc.error_count()} schema error(s)",
+                                        paved_road=road))
+                reviews = []
+        for seed in artifact.seeds:
+            seed_path = ticket_path(seed.stem)
+            if seed.ticket_sha is None or seed.ticket_text is None:
+                findings.append(Finding(code=self.code, path=seed_path, message="seed is missing on main",
+                                        paved_road=road))
+                continue
+            if not any(r.stem == seed.stem and r.verdict == "approve" and r.ticket_sha == seed.ticket_sha
+                       for r in reviews):
+                findings.append(Finding(code=self.code, path=seed_path,
+                                        message="no approve verdict pins the committed seed ticket.md blob",
+                                        paved_road=road))
+            try:
+                validate_ticket(seed.stem, seed.ticket_text, workspace)
+            except TicketInvalid as exc:
+                findings.extend(f.model_copy(update={"code": self.code}) for f in exc.findings)
+        return GateReport(code=self.code, verdict="fail" if findings else "pass", findings=findings)
+
+
+MERGE_GATES = (TicketSchemaGate(), PostRebaseGate(), ApprovalGate(), SeedSafetyGate())
 
 
 def squash_message(ticket: Ticket, reviewed_sha: str) -> str:
@@ -129,6 +183,24 @@ async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResu
     started = ctx.driver.clock()
     worktree = ctx.worktree(stem)
     reviewed = await ctx.git.rev_parse(ctx.repo, stem)
+    seeded_stems = sorted({e.ticket for e in ctx.driver.journal.read()
+                           if e.type == EventType.SIGNAL and e.ticket is not None
+                           and e.body.get("signal") == "ticket_intake" and e.body.get("seeded_by") == stem})
+    seeds = []
+    for seed_stem in seeded_stems:
+        path = ticket_path(seed_stem)
+        try:
+            sha = await ctx.git.rev_parse(ctx.repo, f"{MAIN}:{path}")
+            text = await ctx.git._run(ctx.repo, "show", f"{MAIN}:{path}")
+        except GitError:
+            sha, text = None, None
+        seeds.append(SeedOnMain(stem=seed_stem, ticket_sha=sha, ticket_text=text))
+    checks_text = None
+    if seeds:
+        try:
+            checks_text = await ctx.git._run(ctx.repo, "show", f"{MAIN}:{TICKETS_DIR}/{stem}/checks.json")
+        except GitError:
+            pass
 
     # Lifted outbox copies show as tracked deletions in a worktree born from a main that already held
     # them, and a dirty tree refuses the rebase. Restoring to the branch's committed ticket plane (which
@@ -149,8 +221,11 @@ async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResu
         stem=stem, reviewed_sha=reviewed, changed_files=evidence.changed_files,
         ticket_text=(ctx.repo / ticket_path(stem)).read_text(),
         review_text=review_md.read_text() if review_md.is_file() else None,
+        seeds=seeds, seed_checks_text=checks_text,
     )
     severity = check_severity(ctx, ticket)
+    if seeds:
+        severity["requisition_review"] = "hard"  # a seeded branch needs an exact committed approval
     gated = [run_gates(CHECK_GATES, evidence, worktree, severity=severity),
              run_gates(MERGE_GATES, candidate, ctx.repo, severity=severity)]
     if hard := [f for g in gated for r in g.hard_failures for f in r.findings]:
