@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "4df389b51530ccdabc5e6aae2f728335ea847294",
+  "produced_at_sha": "a98b52164c0a2b7cf5520993fdc716c11f28e4a7",
   "stem": "requisition-review",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "In specs/requisition_review.md Output format, spell out the exact reply schema: {\"verdict\": \"approve\"|\"snag\"|\"rma\", \"summary\": \"<non-blank>\", \"findings\": [...]}, and say findings is empty exactly for approve. Reply with ONLY the JSON object.",
-    "Name every Finding key literally: `code`, `message`, `paved_road` (all non-blank, required), optional `path` (string or null) and `line` (integer >= 1 or null), and no other keys. Copy the wording from an existing spec's Output format such as specs/review.md.",
-    "Keep the rest of the diff as it is: code, fence, render helper, and race rename all passed review and all four verification commands. Change only the spec text, then rerun lint_spec and the full pytest suite.",
-    "Optional hardening: add a test in tests/test_requisition.py that checks the spec's Output format text names `paved_road`, so a key drift fails a test and not only review."
+    "In implement_stage, call implement_inputs with the Implement worktree as the root, so Context files are read from the worktree as before. Only requisition's base_render_chars passes repo. This keeps Implement renders byte-identical.",
+    "Render the requisition_review prompt inside the guarded path. If render() raises RenderOverBound, return a mechanical snag with no model call. Never let it propagate out of review_ticket.",
+    "Don't duplicate plan_contract and context in the requisition prompt. Since the embedded base render already contains them, pass them once, so the review prompt fits whenever the base render fits the headroom.",
+    "Add tests: implement_stage reads Context from the worktree even when the main checkout copy differs, and a review prompt over its bound returns snag with mechanical set and zero requests."
   ],
   "mechanical": null,
   "spec_version": "1.0",
