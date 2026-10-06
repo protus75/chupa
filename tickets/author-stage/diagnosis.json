@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "2c5999369c6db56b07a3edf15a12b7a25f74f3fa",
+  "produced_at_sha": "6bb4c6193c540c57a7f2cea69f6d90973697059a",
   "stem": "author-stage",
-  "attempt": 5,
+  "attempt": 6,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "In tests/test_git.py, add a real-repo test that follows test_git_common_dir_resolves_main_and_linked_worktree(tmp_path): git init in tmp_path, commit tracked.txt, write untracked.txt without adding it, then assert ls_files(tmp_path) contains 'tracked.txt' and does not contain 'untracked.txt'.",
-    "Keep the existing FakeExec argv parametrize row for ls_files. The new test adds to it and replaces nothing. A test passes acceptance only if it would fail when ls_files ran the wrong git command, such as `ls-files --others`.",
-    "The rest of the diff passed review (author.py, triage.py, specs/author.md, eval-harness change). Change only tests/test_git.py so a new defect can't reach the files the reviewer already accepted.",
-    "Before replying, rerun `uv run pytest -q tests/test_git.py` and then `uv run pytest -q`. Report the new test by name in the run record."
+    "Add tests to tests/test_author.py for criterion 3: FakeLLM author replies naming an existing stem and failing validate_ticket must re-prompt with those findings. Exhausting the allowance must give no ticket commit, one decision-<id> record, and a decision resolution.",
+    "Add a criterion 4 test: pre-journal author_invoked for a pending message that has a recorded author verdict, run triage, then assert one decision-<id> record and zero requests with surface author.",
+    "Tighten the criterion 2 test. Assert exactly one new commit on main with subject chupa(<stem>): ticket, exactly one ticket_intake signal on the stem (a count, not any()), and the effect key llm/author/0/author/<seq>/1.",
+    "Build open_tickets as '<stem>: <first line of ## Goal / Why>' for each tracked tickets/<stem>/ticket.md, skipping merged stems by journal or ticket state. Do not send raw paths.",
+    "Remove the bare except around go_binds/baseline_identity. Call go_binds(events, baseline_identity(config, specs_dir)) directly. Before reporting ok, check every acceptance criterion against a named test."
   ],
   "mechanical": null,
   "spec_version": "1.0",
