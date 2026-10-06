@@ -1,12 +1,10 @@
 # Review: snag
 
-The stage and its wiring are mostly correct, but `open_tickets` lists merged and uncommitted tickets, and the tests that acceptance criteria 3 and 4 require are missing.
+The Author stage, triage wiring, spec and eval-harness change are correct, but the new ls_files test does not prove acceptance criterion 6: it never shows that an untracked file is left out.
 
 ## Findings
 
-- [acceptance] chupa/author.py:86 The ticket says `open_tickets` lists each committed non-merged stem. This loop globs every `tickets/*/ticket.md` in the working tree, so it also lists merged tickets and uncommitted files. `chupa/triage.py` filters both out with `stem not in merged` and `_committed(...)`. (do instead: Build the list the way `triage_pass` does: skip stems whose folded state is `merged` and include only paths committed on main.)
-- [acceptance] tests/test_author.py:41 Criterion 3 is only partly met. The tests cover a reply that fails `validate_ticket`, but no test sends a reply naming an existing stem (an existing `tickets/<stem>/` or a stem named in a journal event) and asserts it re-prompts with the stem-reuse finding. (do instead: Add a test whose first author reply names an already-committed stem. Assert that the second author request's rendered prompt carries the 'already used' finding and that a valid second reply commits.)
-- [acceptance] tests/test_author.py:41 Criterion 4 is unmet. No test sends a `bug_report` message missing `has_repro` and asserts a `decision-<id>` record with zero author requests. No test sets up a pending message whose journal carries `author_invoked` and asserts the decision record with zero requests. (do instead: Add both tests to `tests/test_author.py`. In each, drive `main(["triage"])` and assert the message resolves to `decision-<id>`, the record commits, and `llm.requests` holds no `author` surface request.)
+- [acceptance] tests/test_git.py:137 Acceptance criterion 6 requires `tests/test_git.py` to prove that `ls_files` lists a committed file and leaves out an untracked one. `test_ls_files_parses_tracked_paths_only` feeds canned stdout to a FakeExec and only checks that `splitlines` parses it. No repository exists, so nothing is committed and nothing is untracked. The test would still pass if `ls_files` ran `ls-files --others` or any command that lists untracked files, so it cannot fail on the behavior the criterion names. (do instead: Add a test that uses a real repo, following the existing `test_git_common_dir_resolves_main_and_linked_worktree(tmp_path)`: init a repo in tmp_path, commit one file, write a second file without adding it, then assert that `ls_files` returns the committed path and not the untracked one. The argv parametrize row can stay.)
 
 ## Record
 
@@ -14,31 +12,17 @@ The stage and its wiring are mostly correct, but `open_tickets` lists merged and
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "a19903f1c9db33fb6e876c786bc7f07e85fceedf",
+  "produced_at_sha": "2c5999369c6db56b07a3edf15a12b7a25f74f3fa",
   "stem": "author-stage",
-  "reviewed_sha": "a19903f1c9db33fb6e876c786bc7f07e85fceedf",
-  "summary": "The stage and its wiring are mostly correct, but `open_tickets` lists merged and uncommitted tickets, and the tests that acceptance criteria 3 and 4 require are missing.",
+  "reviewed_sha": "2c5999369c6db56b07a3edf15a12b7a25f74f3fa",
+  "summary": "The Author stage, triage wiring, spec and eval-harness change are correct, but the new ls_files test does not prove acceptance criterion 6: it never shows that an untracked file is left out.",
   "findings": [
     {
       "code": "acceptance",
-      "path": "chupa/author.py",
-      "line": 86,
-      "message": "The ticket says `open_tickets` lists each committed non-merged stem. This loop globs every `tickets/*/ticket.md` in the working tree, so it also lists merged tickets and uncommitted files. `chupa/triage.py` filters both out with `stem not in merged` and `_committed(...)`.",
-      "paved_road": "Build the list the way `triage_pass` does: skip stems whose folded state is `merged` and include only paths committed on main."
-    },
-    {
-      "code": "acceptance",
-      "path": "tests/test_author.py",
-      "line": 41,
-      "message": "Criterion 3 is only partly met. The tests cover a reply that fails `validate_ticket`, but no test sends a reply naming an existing stem (an existing `tickets/<stem>/` or a stem named in a journal event) and asserts it re-prompts with the stem-reuse finding.",
-      "paved_road": "Add a test whose first author reply names an already-committed stem. Assert that the second author request's rendered prompt carries the 'already used' finding and that a valid second reply commits."
-    },
-    {
-      "code": "acceptance",
-      "path": "tests/test_author.py",
-      "line": 41,
-      "message": "Criterion 4 is unmet. No test sends a `bug_report` message missing `has_repro` and asserts a `decision-<id>` record with zero author requests. No test sets up a pending message whose journal carries `author_invoked` and asserts the decision record with zero requests.",
-      "paved_road": "Add both tests to `tests/test_author.py`. In each, drive `main([\"triage\"])` and assert the message resolves to `decision-<id>`, the record commits, and `llm.requests` holds no `author` surface request."
+      "path": "tests/test_git.py",
+      "line": 137,
+      "message": "Acceptance criterion 6 requires `tests/test_git.py` to prove that `ls_files` lists a committed file and leaves out an untracked one. `test_ls_files_parses_tracked_paths_only` feeds canned stdout to a FakeExec and only checks that `splitlines` parses it. No repository exists, so nothing is committed and nothing is untracked. The test would still pass if `ls_files` ran `ls-files --others` or any command that lists untracked files, so it cannot fail on the behavior the criterion names.",
+      "paved_road": "Add a test that uses a real repo, following the existing `test_git_common_dir_resolves_main_and_linked_worktree(tmp_path)`: init a repo in tmp_path, commit one file, write a second file without adding it, then assert that `ls_files` returns the committed path and not the untracked one. The argv parametrize row can stay."
     }
   ],
   "spec_version": "1.0",
