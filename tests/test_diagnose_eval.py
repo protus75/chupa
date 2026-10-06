@@ -24,6 +24,7 @@ state_dir: state
 providers:
   - name: codex
     kind: cli
+    package: test-cli
     models_by_tier: {low: fake, medium: fake, high: fake, max: fake}
     limits: {concurrency: 1, est_cost_per_call_usd: 1.0}
 routing:

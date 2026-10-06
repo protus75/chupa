@@ -20,6 +20,7 @@ CONFIG = textwrap.dedent(
     providers:
       - name: fake
         kind: cli
+        package: test-cli
         models_by_tier: {low: fake, medium: fake, high: fake, max: fake}
         limits: {concurrency: 1, est_cost_per_call_usd: 0.0}
     routing:

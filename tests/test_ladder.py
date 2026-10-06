@@ -20,6 +20,7 @@ state_dir: .chupa/state
 providers:
   - name: fake
     kind: cli
+    package: test-cli
     auth: FAKE_KEY
     models_by_tier: {low: A, medium: A, high: B, max: B}
     limits: {concurrency: 1, est_cost_per_call_usd: 0.5}

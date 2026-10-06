@@ -73,8 +73,16 @@ class Provider(_Strict):
     name: str
     kind: Literal["api", "cli"]
     auth: str | None = None
+    package: str | None = None  # a `cli` provider's pnpm package: the preflight reads its latest release
     models_by_tier: ModelsByTier
     limits: Limits
+
+    @model_validator(mode="after")
+    def _cli_declares_its_package(self) -> "Provider":
+        if self.kind == "cli" and not self.package:
+            raise ValueError(f"cli provider {self.name!r} declares no `package`; name its pnpm package"
+                             " (section 6 provider preflight)")
+        return self
 
 
 class Candidate(_Strict):

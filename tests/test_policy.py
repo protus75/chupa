@@ -23,6 +23,7 @@ def config(tmp_path: Path):
         providers:
           - name: claude
             kind: cli
+            package: test-cli
             models_by_tier: {low: low, medium: medium, high: high, max: max}
             limits: {concurrency: 1}
         routing:

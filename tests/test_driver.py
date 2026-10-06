@@ -25,6 +25,7 @@ CONFIG = textwrap.dedent(
     providers:
       - name: claude
         kind: cli
+        package: test-cli
         auth: CHUPA_TEST_KEY
         models_by_tier: {low: haiku, medium: sonnet, high: opus, max: opus}
         limits: {concurrency: 1, est_cost_per_call_usd: 0.25}

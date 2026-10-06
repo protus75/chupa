@@ -7,10 +7,12 @@ state_dir: .chupa/state
 providers:
   - name: claude
     kind: cli
+    package: "@anthropic-ai/claude-code"
     models_by_tier: {low: claude-sonnet-5-5, medium: claude-sonnet-5-5, high: claude-opus-5-5, max: claude-opus-5-5}
     limits: {concurrency: 1}  # stream reports total_cost_usd: no estimate needed
   - name: codex
     kind: cli
+    package: "@openai/codex"
     models_by_tier: {low: gpt-6-luna, medium: gpt-5.6-terra, high: gpt-6-sol, max: gpt-6-sol}
     limits: {concurrency: 1, est_cost_per_call_usd: 1.00}  # stream reports no cost; flat subscription
 routing:

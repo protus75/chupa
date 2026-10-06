@@ -98,7 +98,7 @@ def test_bootstrap_ingest_uses_main_checkout(tmp_path):
     main.mkdir()
     (main / "config.yaml").write_text(
         "schema_version: 1\nstate_dir: .chupa\nproviders:\n"
-        "  - {name: test, kind: cli, models_by_tier: {low: a, medium: b, high: c, max: d}, limits: {concurrency: 1}}\n"
+        "  - {name: test, kind: cli, package: test-cli, models_by_tier: {low: a, medium: b, high: c, max: d}, limits: {concurrency: 1}}\n"
         "routing:\n  - {tier: medium, surface: implement, candidates: [{provider: test}]}\n"
         "review: {}\nmerge: {}\nengine_plane_safety_inventory: []\n"
     )

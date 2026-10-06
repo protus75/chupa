@@ -46,7 +46,7 @@ def _claude_result(text: str) -> tuple[int, str, str]:
 
 def _provider_config(bench: Bench, *, auth: str | None = None):
     provider = Provider(
-        name="claude", kind="cli", auth=auth,
+        name="claude", kind="cli", auth=auth, package="@anthropic-ai/claude-code",
         models_by_tier=ModelsByTier(low="claude", medium="claude", high="claude", max="claude"),
         limits=Limits(concurrency=1),
     )

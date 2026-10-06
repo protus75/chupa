@@ -7,6 +7,7 @@ argv contract and event-stream parse.
 """
 
 import json
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -300,6 +301,10 @@ class CodexAdapter(CliAdapter):
 ADAPTERS: dict[str, type[CliAdapter]] = {"claude": ClaudeAdapter, "codex": CodexAdapter}
 
 
+PROBE_PROMPT = "Reply with the single word ok."
+PREFLIGHT_TIMEOUT_S = 120.0
+
+
 class ProviderLLM:
     """The real `LLM`: one adapter per configured provider, each call served by its route's first candidate."""
 
@@ -316,6 +321,7 @@ class ProviderLLM:
         timeout: float,
     ) -> None:
         self._config = config
+        self._exec, self._env, self._cwd = exec_, env, cwd
         redactor = Redactor.from_config(config, env)
         self._adapters: dict[str, CliAdapter] = {}
         for p in config.providers:
@@ -335,6 +341,39 @@ class ProviderLLM:
                 timeout=timeout,
             )
         self._active: CliAdapter | None = None
+
+    async def preflight(self) -> list[str]:
+        """Section 6.11: every cli provider at its latest pnpm release, every routed (provider, model) answering.
+
+        Returns each refusal reason with its paved road; empty means the run may dispatch.
+        """
+        problems: list[str] = []
+        for adapter in self._adapters.values():
+            package = adapter.provider.package
+            _, out, err = await self._exec.run([adapter.binary, "--version"], cwd=self._cwd, env=self._env,
+                                               timeout=PREFLIGHT_TIMEOUT_S)
+            _, latest, _ = await self._exec.run(["pnpm", "view", str(package), "version"], cwd=self._cwd,
+                                                env=self._env, timeout=PREFLIGHT_TIMEOUT_S)
+            installed = re.search(r"\d+\.\d+\.\d+", out + err)
+            if not latest.strip() or installed is None or installed.group(0) != latest.strip():
+                problems.append(f"{adapter.binary} {installed.group(0) if installed else '(unknown)'} is not the"
+                                f" latest release {latest.strip() or '(unreadable)'} -- run: pnpm add -g {package}@latest")
+        probed: set[tuple[str, str]] = set()
+        for route in self._config.routing:
+            for cand in route.candidates:
+                adapter = self._adapters[cand.provider]
+                model = cand.model or getattr(adapter.provider.models_by_tier, route.tier)
+                if (cand.provider, model) in probed:
+                    continue
+                probed.add((cand.provider, model))
+                req = LLMRequest(surface="preflight", rendered=PROBE_PROMPT, tier=route.tier, effort="low",
+                                 ticket=None, worktree=None)
+                try:
+                    await adapter.invoke(req, model)
+                except Exception as e:
+                    problems.append(f"{cand.provider} model {model!r} failed its probe: {e} -- install the latest"
+                                    f" {adapter.binary} or route a model this login serves in config.yaml")
+        return problems
 
     async def call(self, req: LLMRequest) -> LLMResult:
         served = resolve(self._config, req.tier, req.surface)

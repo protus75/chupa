@@ -29,6 +29,7 @@ state_dir: .chupa/state
 providers:
   - name: claude
     kind: cli
+    package: test-cli
     models_by_tier: {low: m, medium: m, high: m, max: m}
     limits: {concurrency: 1}
 routing:

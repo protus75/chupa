@@ -27,10 +27,12 @@ CONFIG = textwrap.dedent(
     providers:
       - name: claude
         kind: cli
+        package: test-cli
         models_by_tier: {low: c-low, medium: c-med, high: c-high, max: c-max}
         limits: {concurrency: 1}
       - name: codex
         kind: cli
+        package: test-cli
         models_by_tier: {low: x-low, medium: x-med, high: x-high, max: x-max}
         limits: {concurrency: 1, est_cost_per_call_usd: 1.0}
     routing:

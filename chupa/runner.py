@@ -77,6 +77,9 @@ def pipeline(checkout: Checkout) -> Dispatch:
     """The production stage-seam binding: the configured providers serve every call."""
     llm = ProviderLLM(checkout.config, exec_=checkout.exec_, fs=checkout.fs, env=checkout.env,
                       cwd=checkout.repo, timeout=CALL_TIMEOUT_S)
+    if problems := asyncio.run(llm.preflight()):
+        raise Refusal("provider preflight failed: " + "; ".join(problems),
+                      "fix each named provider, then run the same command again (section 6 provider preflight)")
     return bind(checkout, llm)
 
 

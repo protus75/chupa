@@ -192,6 +192,7 @@ def test_runner_applies_soft_severity_from_config(tmp_path):
             providers:
               - name: claude
                 kind: cli
+                package: test-cli
                 models_by_tier: {low: a, medium: b, high: c, max: d}
                 limits: {concurrency: 1, est_cost_per_call_usd: 0.25}
             routing:

@@ -26,11 +26,13 @@ CONFIG = textwrap.dedent(
     providers:
       - name: claude
         kind: cli
+        package: test-cli
         auth: CLAUDE_KEY
         models_by_tier: {low: c-low, medium: c-med, high: c-high, max: c-max}
         limits: {concurrency: 1}
       - name: codex
         kind: cli
+        package: test-cli
         auth: CODEX_KEY
         models_by_tier: {low: x-low, medium: x-med, high: x-high, max: x-max}
         limits: {concurrency: 1, est_cost_per_call_usd: 1.5}
@@ -371,3 +373,53 @@ def test_abort_current_group_kills_the_active_child(tmp_path):
     assert exec_.killed == [4242]
     client.abort_current()  # idle: no active child, nothing to kill
     assert exec_.killed == [4242]
+
+
+# --- provider preflight (section 6.11) ---
+
+
+class PreflightExec:
+    """Answers `--version`, `pnpm view`, and per-model probes; a model listed in `refused` fails its turn."""
+
+    def __init__(self, versions: dict[str, str], latest: str, refused: frozenset[str] = frozenset()) -> None:
+        self.versions, self.latest, self.refused = versions, latest, refused
+        self.probed: list[str] = []
+
+    async def run(self, argv, *, cwd, env, timeout, stdin_path=None, on_spawn=None):
+        if argv[1:] == ["--version"]:
+            return 0, self.versions[argv[0]], ""
+        if argv[0] == "pnpm":
+            return 0, self.latest + "\n", ""
+        model = argv[argv.index("--model" if argv[0] == "claude" else "-m") + 1]
+        self.probed.append(model)
+        if model in self.refused:
+            return 1, jsonl({"type": "error", "message": f"The '{model}' model is not supported"}), ""
+        return 0, (claude_ok("ok") if argv[0] == "claude" else codex_ok("ok")), ""
+
+
+CURRENT = {"claude": "1.2.3 (Claude Code)", "codex": "codex-cli 1.2.3"}
+
+
+def preflight(tmp_path, exec_) -> list[str]:
+    return asyncio.run(llm(config(tmp_path), exec_, tmp_path).preflight())
+
+
+def test_preflight_passes_with_current_clis_and_every_routed_model_answering(tmp_path):
+    exec_ = PreflightExec(CURRENT, "1.2.3")
+    assert preflight(tmp_path, exec_) == []
+    assert sorted(exec_.probed) == ["c-high", "c-max", "c-med", "x-low", "x-med"]  # each routed pair once
+
+
+def test_preflight_refuses_a_stale_cli_with_its_upgrade_road(tmp_path):
+    [problem] = preflight(tmp_path, PreflightExec({**CURRENT, "codex": "codex-cli 1.2.0"}, "1.2.3"))
+    assert "codex 1.2.0 is not the latest release 1.2.3" in problem and "pnpm add -g test-cli@latest" in problem
+
+
+def test_preflight_refuses_a_model_the_login_cannot_serve(tmp_path):
+    [problem] = preflight(tmp_path, PreflightExec(CURRENT, "1.2.3", refused=frozenset({"x-low"})))
+    assert "codex model 'x-low' failed its probe" in problem and "not supported" in problem
+
+
+def test_cli_provider_must_declare_its_package(tmp_path):
+    with pytest.raises(ConfigError, match="declares no `package`"):
+        config(tmp_path, CONFIG.replace("    package: test-cli\n    auth: CODEX_KEY", "    auth: CODEX_KEY"))
