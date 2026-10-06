@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "db82cae8eeae4021315d808b568521ae26748bd6",
+  "produced_at_sha": "7765aa9f0924acc2022ee905c04aa55cc7da2932",
   "stem": "requisition-author-path",
-  "attempt": 1,
-  "terminal": "gate_failed",
-  "stage": "review",
+  "attempt": 2,
+  "terminal": "premise_failed",
+  "stage": "implement",
   "verdict": "reject",
   "lessons": [
-    "Amend the ticket and plan 19.P2: test_triage.py may update request-count, request-list, and llm/ key-set assertions, but only to reflect the added requisition_review request and its effect key.",
-    "Settle whether the review runs when sync gates fail. Recommended: review only after sync gates pass. Then rewrite criterion 1 so terminal_findings returns review findings after one call, with no sync-gate finding in it.",
-    "If combined sync+review findings are truly wanted, say outright that the review runs on every call, and accept that a candidate AuthorGate already rejected still costs a review call.",
-    "Re-implement only after the amendment. Keep the existing hooks-off driver path byte-identical, and keep the review keyed llm/author/<pass>/requisition_review/<seq>/<call_seq>."
+    "Amend AC4/scope: adding a mandatory review adds a request and an llm/author/.../requisition_review key, so the exact request-count and key-set assertions in test_triage.py (e.g. test_three_verdicts_and_second_pass_and_stale_author) must be allowed to change.",
+    "Settle when review runs in the ticket: either review always runs, even after a hard sync-gate failure, or AC1 asks only for the review's terminal findings plus any soft sync-gate findings. As written, 'only after sync gates pass' contradicts AC1.",
+    "Before re-confirming, read test_triage.py and list every test that asserts exact LLM request counts or keys, and name them in the scope as allowed assertion edits limited to the added review call.",
+    "Keep the rest of the contract: no driver change to existing stages' requests or keys, a single review call path, and the review key distinct from the author call key."
   ],
   "mechanical": null,
   "spec_version": "1.0",
