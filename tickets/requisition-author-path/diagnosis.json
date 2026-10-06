@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "dcdb2f6c03781db81df80dc9e006cf1302e2f3de",
+  "stem": "requisition-author-path",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Review the exact text that will be committed: inside the review hook, run validate_ticket on the provisional stamp, resolve start_state, apply the final state stamp, then call review_ticket on that final text. Never review the draft-stamped text.",
+    "Carry the reviewed final text with its verdict (for example in `reviewed`) and commit those exact bytes. Do not restamp the text after approval, so the journaled ticket_sha matches the committed blob.",
+    "Add a test in tests/test_author.py where start_state resolves to a non-draft state (box_policy row such as `confirmed`). Assert that the requisition_verdict ticket_sha equals the sha of `git rev-parse HEAD:<ticket path>` content.",
+    "Keep the rest of the already-passing work as it is: the driver hooks, the review keying `llm/author/<pass>/requisition_review/<seq>/<call_seq>`, the rma terminal path and the triage script additions. Change only the stamp ordering and add its test."
+  ],
+  "mechanical": null,
+  "spec_version": "1.0",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
