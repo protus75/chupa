@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Removed an out-of-fence package marker before finalizing.
+The full suite runner detached in this environment; focused required suites passed (21 tests).
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-90m budget; completed within budget.
+Within the 90m budget.
 
