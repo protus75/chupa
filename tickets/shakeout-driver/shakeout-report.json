@@ -1,7 +1,7 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "40a74be24a34855dab7639d24e15596b7c231940",
+  "produced_at_sha": "c693b5711832b3873d1c88e078fbb4244fb9d545",
   "entries": [
     {
       "member": "scope_escape",
@@ -66,20 +66,20 @@
     {
       "member": "invalid_output_exhausted",
       "group": "driver",
-      "planted_fault": "unparseable Implement replies",
+      "planted_fault": "unparseable Implement replies exhaust re-prompts",
       "expected": "invalid_artifact_harvested_after_bounded_reprompts",
       "observed": "invalid_artifact_harvested_after_bounded_reprompts",
-      "producing_run": "invalid-output/0",
+      "producing_run": "invalid-output-exhausted/0",
       "auditor": [],
       "green": true
     },
     {
       "member": "stuck_budget_kill",
       "group": "driver",
-      "planted_fault": "Implement call hangs",
-      "expected": "timeout_harvested_after_clock_driven_abort",
-      "observed": "timeout_harvested_after_clock_driven_abort",
-      "producing_run": "a-stuck-budget/0",
+      "planted_fault": "Implement hangs past its stuck budget",
+      "expected": "timeout_harvest_reason_after_stuck_kill",
+      "observed": "timeout_harvest_reason_after_stuck_kill",
+      "producing_run": "stuck-budget-kill/0",
       "auditor": [],
       "green": true
     }
