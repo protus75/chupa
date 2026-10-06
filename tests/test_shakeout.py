@@ -15,6 +15,7 @@ from chupa.journal import EventType
 from eval.shakeout.bench import Bench
 from eval.shakeout import run as shakeout
 from eval.shakeout.driver import MEMBERS as DRIVER_MEMBERS
+from eval.shakeout.drain import MEMBERS as DRAIN_MEMBERS
 from eval.shakeout.runner import MEMBERS as RUNNER_MEMBERS
 from eval.shakeout.stages import MEMBERS
 
@@ -206,3 +207,18 @@ def test_timeout_dead_ends_member_observes_lesson_on_second_attempt(tmp_path):
 def test_identical_terminals_member_observes_escalation_at_k(tmp_path):
     result = asyncio.run(shakeout.run_member(RUNNER_MEMBERS[2], tmp_path))
     assert result.green and result.observed == "identical_reason_escalates_at_k"
+
+
+def test_bad_schema_member_observes_invalid_committed_ticket_without_dispatch(tmp_path):
+    result = asyncio.run(shakeout.run_member(DRAIN_MEMBERS[0], tmp_path))
+    assert result.green and result.observed == "invalid_committed_ticket_reported_without_dispatch"
+
+
+def test_premise_park_release_member_observes_unchanged_park_then_content_release(tmp_path):
+    result = asyncio.run(shakeout.run_member(DRAIN_MEMBERS[1], tmp_path))
+    assert result.green and result.observed == "unchanged_premise_is_parked_then_content_change_releases"
+
+
+def test_red_then_green_member_observes_one_retry_and_attempt_one_review_findings(tmp_path):
+    result = asyncio.run(shakeout.run_member(DRAIN_MEMBERS[2], tmp_path))
+    assert result.green and result.observed == "review_red_then_green_merges_with_one_retry"
