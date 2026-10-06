@@ -14,6 +14,7 @@ from chupa.artifacts import ShakeoutEntry, ShakeoutReport
 from chupa.journal import EventType
 from eval.shakeout.bench import Bench
 from eval.shakeout import run as shakeout
+from eval.shakeout.stages import MEMBERS
 
 
 def entry(member: str, observed: str = "ok") -> ShakeoutEntry:
@@ -142,3 +143,39 @@ def test_unknown_group_command_exits_two(tmp_path):
                              "--out", str(tmp_path / "x.json")], check=False)
     assert result.returncode == 2
     assert not (tmp_path / "x.json").exists()
+
+
+def test_scope_escape_member_observes_check_failure_and_no_merge(tmp_path):
+    result = asyncio.run(shakeout.run_member(MEMBERS[0], tmp_path))
+    assert result.green and result.observed == "scope_fence_harvested"
+
+
+def test_unfixable_lint_branch_only_member_observes_check_failure_and_no_merge(tmp_path):
+    result = asyncio.run(shakeout.run_member(MEMBERS[1], tmp_path))
+    assert result.green and result.observed == "branch_only_verification_rejected"
+
+
+def test_review_reject_member_observes_snag_and_no_merge(tmp_path):
+    result = asyncio.run(shakeout.run_member(MEMBERS[2], tmp_path))
+    assert result.green and result.observed == "review_snag_pinned"
+
+
+def test_review_reject_reentry_member_observes_criteria_position_reentry_and_merge(tmp_path):
+    result = asyncio.run(shakeout.run_member(MEMBERS[3], tmp_path))
+    assert result.green and result.observed == "review_finding_in_reentry_criteria"
+
+
+def test_empty_committed_diff_member_observes_check_failure_and_no_merge(tmp_path):
+    result = asyncio.run(shakeout.run_member(MEMBERS[4], tmp_path))
+    assert result.green and result.observed == "empty_diff_harvested"
+
+
+def test_base_diff_attribution_member_observes_base_red_and_merge(tmp_path):
+    result = asyncio.run(shakeout.run_member(MEMBERS[5], tmp_path))
+    assert result.green and result.observed == "base_red_attributed"
+
+
+def test_produce_stages_returns_six_green_entries(tmp_path):
+    produced = asyncio.run(shakeout.produce("stages", None, tmp_path))
+    assert [entry.member for entry in produced.entries] == [member.id for member in MEMBERS]
+    assert len(produced.entries) == 6 and all(entry.green for entry in produced.entries)
