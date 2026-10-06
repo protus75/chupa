@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "f38a467e6b3f832963e91056d8ad380966d9a5a8",
+  "stem": "shakeout-report-lane",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Add tests to tests/test_stages.py, using the existing stage fixtures, for criteria 1 and 2: valid report lifts in the checks commit, invalid report gives gate_failed with neither file committed, implement lift skips it, a stale report is deleted, and a named-but-missing report fails verification.",
+    "In tests/test_shakeout.py, add a produce test where a re-run prior member's observed differs from the prior entry, and assert that ShakeoutRefused names that member.",
+    "Add a criterion 5 test: Bench.configure with a changed cap keeps the same journal, clock, repo root and llm objects, and the cap changes. Add a test that main(['--group','nope','--out','x.json']) returns 2.",
+    "Rewrite Bench.configure to use config.model_copy(update={state_dir...}) and never mutate the caller's config. Rebuild the runner, drain, redactor, log and pipeline factory from the copy. Drop the self.journal = self.journal no-op.",
+    "Before finishing, map each acceptance criterion to a named test that exists in the diff. Passing tests do not prove the criteria are met; review checks each criterion for its own test."
+  ],
+  "mechanical": null,
+  "spec_version": "1.0",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
