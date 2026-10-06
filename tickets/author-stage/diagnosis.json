@@ -1,15 +1,20 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "dfc12aaaf2f06794cdc131d3f6a28638e583fd94",
+  "produced_at_sha": "2c5999369c6db56b07a3edf15a12b7a25f74f3fa",
   "stem": "author-stage",
-  "attempt": 4,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "premise_bounce cap spent",
+  "attempt": 5,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "In tests/test_git.py, add a real-repo test that follows test_git_common_dir_resolves_main_and_linked_worktree(tmp_path): git init in tmp_path, commit tracked.txt, write untracked.txt without adding it, then assert ls_files(tmp_path) contains 'tracked.txt' and does not contain 'untracked.txt'.",
+    "Keep the existing FakeExec argv parametrize row for ls_files. The new test adds to it and replaces nothing. A test passes acceptance only if it would fail when ls_files ran the wrong git command, such as `ls-files --others`.",
+    "The rest of the diff passed review (author.py, triage.py, specs/author.md, eval-harness change). Change only tests/test_git.py so a new defect can't reach the files the reviewer already accepted.",
+    "Before replying, rerun `uv run pytest -q tests/test_git.py` and then `uv run pytest -q`. Report the new test by name in the run record."
+  ],
+  "mechanical": null,
   "spec_version": "1.0",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
