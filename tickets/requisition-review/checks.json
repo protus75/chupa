@@ -1,7 +1,7 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "4df389b51530ccdabc5e6aae2f728335ea847294",
+  "produced_at_sha": "a98b52164c0a2b7cf5520993fdc716c11f28e4a7",
   "stem": "requisition-review",
   "passed": true,
   "changed_files": [
@@ -11,7 +11,7 @@
     "specs/requisition_review.md",
     "tests/test_requisition.py"
   ],
-  "inserted_lines": 380,
+  "inserted_lines": 383,
   "bypassed": [],
   "reports": [
     {
