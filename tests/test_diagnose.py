@@ -158,6 +158,8 @@ def test_spent_caps_short_circuit_after_infra_draw(repo, cap, expected):
 
 
 def test_drain_renders_two_attempts_lessons_and_no_spooled_raw_marker(repo):
+    (repo / "chupa" / "thing.py").write_text("ok base\n")
+    git(repo, "commit", "-am", "green verification base")
     author(repo)
     marker = "PRIVATE_SPOOLED_FIRST_ATTEMPT_MARKER"
     code, llm = invoke(repo, [RuntimeError(marker), diagnosis_reply("Avoid the first dead end."),

@@ -55,6 +55,9 @@ class Git:
     async def rev_parse(self, dir: Path, rev: str) -> str:
         return (await self._run(dir, "rev-parse", "--verify", _ref(rev))).strip()
 
+    async def merge_base(self, dir: Path, a: str, b: str) -> str:
+        return (await self._run(dir, "merge-base", _ref(a), _ref(b))).strip()
+
     async def git_common_dir(self, dir: Path) -> Path:
         path = Path((await self._run(dir, "rev-parse", "--git-common-dir")).strip())
         return (dir / path).resolve() if not path.is_absolute() else path
@@ -84,6 +87,9 @@ class Git:
 
     async def worktree_add(self, dir: Path, path: Path, branch: str, start: str) -> None:
         await self._run(dir, "worktree", "add", "-b", _ref(branch), str(path), _ref(start))
+
+    async def worktree_add_detached(self, dir: Path, path: Path, rev: str) -> None:
+        await self._run(dir, "worktree", "add", "--detach", str(path), _ref(rev))
 
     async def worktree_remove(self, dir: Path, path: Path) -> None:
         """Cleanup is remove + prune, never rm -rf: a bare delete orphans the worktree metadata."""

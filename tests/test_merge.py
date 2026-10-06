@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from chupa.config import load_config
+from chupa.box import BOX_DIR, Box
 from chupa.driver import Driver
 from chupa.git import Git
 from chupa.journal import EventType
@@ -141,9 +142,9 @@ def test_a_rerun_worktree_with_lifted_tracked_copies_is_restored_and_merges(repo
 
 
 def test_a_failing_hard_gate_blocks_admission(repo):
-    # Verification goes red on the rebased candidate: green alone, red together.
+    # Verification goes red on the rebased candidate but stays green on the merge base.
     ctx, ticket, attempt = reviewed(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
-    ticket = dataclasses.replace(ticket, verification=(("test", "!", "-s", "chupa/other.py"),))
+    ticket = dataclasses.replace(ticket, verification=(("test", "!", "-s", "chupa/thing.py"),))
     (repo / "chupa" / "other.py").write_text("x\n")
     git(repo, "commit", "-am", "main moves")
     before = git(repo, "rev-parse", "main").strip()
@@ -151,6 +152,19 @@ def test_a_failing_hard_gate_blocks_admission(repo):
     result = admit(ctx, ticket, attempt)
 
     refused_untouched(ctx, result, before, "verification")
+
+
+def test_base_red_verification_does_not_refuse_merge_regating(repo):
+    ctx, ticket, attempt = reviewed(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
+    ticket = dataclasses.replace(ticket, verification=(("grep", "-q", "absent", "chupa/thing.py"),))
+
+    result = admit(ctx, ticket, attempt)
+
+    assert result.outcome == "ok", result.findings
+    messages = Box(ctx.config.state_dir / BOX_DIR, ctx.fs).messages()
+    assert len(messages) == 1 and messages[0].outcome == "base_red"
+    assert messages[0].stage == "merge"
+    assert not (ctx.config.worktree_root / ".base" / STEM).exists()
 
 
 def test_an_approval_pinned_to_an_older_head_blocks_admission(repo):

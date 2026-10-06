@@ -66,6 +66,7 @@ def test_every_call_is_dir_pinned_and_passes_env_and_timeout():
         (lambda g: g.init(REPO, branch="main"), ["init", "-b", "main"]),
         (lambda g: g.ls_files(REPO), ["ls-files"]),
         (lambda g: g.rev_parse(REPO, "HEAD"), ["rev-parse", "--verify", "HEAD"]),
+        (lambda g: g.merge_base(REPO, "main", "t-1"), ["merge-base", "main", "t-1"]),
         (lambda g: g.git_common_dir(REPO), ["rev-parse", "--git-common-dir"]),
         (lambda g: g.diff(REPO, "main", "t-1"), ["diff", "main...t-1"]),
         (lambda g: g.diff_stat(REPO, "main", "t-1"), ["diff", "--stat", "main...t-1"]),
@@ -78,6 +79,8 @@ def test_every_call_is_dir_pinned_and_passes_env_and_timeout():
             lambda g: g.worktree_add(REPO, Path("/wt/t-1"), "t-1", "main"),
             ["worktree", "add", "-b", "t-1", "/wt/t-1", "main"],
         ),
+        (lambda g: g.worktree_add_detached(REPO, Path("/wt/base"), "main"),
+         ["worktree", "add", "--detach", "/wt/base", "main"]),
         (lambda g: g.worktree_prune(REPO), ["worktree", "prune"]),
         (lambda g: g.rebase(REPO, "main"), ["rebase", "main"]),
         (
@@ -178,6 +181,10 @@ def test_option_shaped_or_empty_refs_are_refused_before_exec(ref):
         run(g.branch(REPO, ref, "main"))
     with pytest.raises(ValueError):
         run(g.rebase(REPO, ref))
+    with pytest.raises(ValueError):
+        run(g.merge_base(REPO, "main", ref))
+    with pytest.raises(ValueError):
+        run(g.worktree_add_detached(REPO, Path("/wt/base"), ref))
     assert exec_.calls == []
 
 
@@ -310,6 +317,11 @@ def test_ticket_lifecycle_against_real_repo(tmp_path):
         assert await g.describe(repo) == base[:7]
 
         await g.worktree_add(repo, wt, "t-1", "main")
+        assert await g.merge_base(repo, "main", "t-1") == base
+        detached = tmp_path / "wt" / "base"
+        await g.worktree_add_detached(repo, detached, base)
+        assert await g.rev_parse(detached, "HEAD") == base
+        await g.worktree_remove(repo, detached)
         (wt / "b.txt").write_text("two\n")
         (wt / "tickets" / "t-1.md").unlink()
         await g.add(wt, ["b.txt"])

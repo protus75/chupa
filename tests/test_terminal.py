@@ -59,11 +59,11 @@ def transitions(repo: Path) -> list[dict]:
             if e.type == EventType.STATE_TRANSITION and e.ticket == STEM]
 
 
-def left_in_place(repo: Path) -> None:
+def left_in_place(repo: Path, expected: str = "") -> None:
     """Ticket committed on main, branch still there, main's code untouched."""
     assert git(repo, "ls-files", f"tickets/{STEM}/ticket.md").strip() == f"tickets/{STEM}/ticket.md"
     assert git(repo, "rev-parse", "--verify", STEM).strip()
-    assert git(repo, "show", "main:chupa/thing.py") == ""
+    assert git(repo, "show", "main:chupa/thing.py") == expected
 
 
 def test_a_review_snag_journals_its_terminal_and_exits_1(repo):
@@ -78,6 +78,8 @@ def test_a_review_snag_journals_its_terminal_and_exits_1(repo):
 
 
 def test_a_red_check_journals_its_terminal_and_never_reaches_review(repo):
+    (repo / "chupa" / "thing.py").write_text("ok base\n")
+    git(repo, "commit", "-am", "green verification base")
     author(repo)
     code, llm = run(repo, [agent({"chupa/thing.py": "nope\n"}), diagnosis_reply()])
 
@@ -85,7 +87,7 @@ def test_a_red_check_journals_its_terminal_and_never_reaches_review(repo):
     assert transitions(repo)[-1] == {"to": "gate_failed", "stage": "check", "reason": "verification",
                                      "dispatch": "retry"}
     assert [r.surface for r in llm.requests if r.surface != "diagnose"] == ["implement"]
-    left_in_place(repo)
+    left_in_place(repo, "ok base\n")
 
 
 def test_a_spent_retry_cap_is_a_non_ok_terminal(repo):

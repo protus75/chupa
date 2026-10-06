@@ -9,7 +9,11 @@ from pathlib import Path
 
 from chupa import runner
 from chupa.__main__ import main
+from chupa.box import BOX_DIR, Box
+from chupa.config import load_config
+from chupa.journal import EventType, Journal
 from chupa.llm import FakeLLM
+from chupa.seams import LocalFileSystem
 from chupa.specs import data_close, data_open
 from chupa.stages import PRIOR_ATTEMPTS
 from tests.test_stages import ENV, SNAG, STEM, agent, git, verdict
@@ -23,7 +27,10 @@ class NoChild:
         return 0, "", ""
 
 
-def drain(repo: Path, script: list) -> tuple[int, FakeLLM]:
+def drain(repo: Path, script: list, *, green_base: bool = True) -> tuple[int, FakeLLM]:
+    if green_base:
+        (repo / "chupa" / "thing.py").write_text("ok base\n")
+        git(repo, "commit", "-am", "green verification base")
     llm = FakeLLM(script)
     code = main(["drain"], cwd=repo, env=ENV, clock=clock, pipeline=lambda c: runner.bind(c, llm), reexec=NoChild())
     return code, llm
@@ -79,6 +86,22 @@ def test_a_reoffer_after_a_red_check_renders_the_failing_checks(repo):
     assert PRIOR_ATTEMPTS in criteria
     assert "`gate_failed` at check" in criteria
     assert "`grep -q ok chupa/thing.py` exited 1" in criteria  # the red verification command's finding
+
+
+def test_a_base_red_check_merges_without_retry_and_files_one_report(repo):
+    author(repo)
+    code, llm = drain(repo, [agent({"chupa/thing.py": "changed\n"}), verdict()], green_base=False)
+
+    assert code == 0
+    assert len(implements(llm)) == 1
+    assert [t["to"] for t in transitions(repo)] == ["running", "merged"]
+    assert not any(e.type == EventType.CAP_CONSUMED and e.body.get("cap") == "retry"
+                   for e in Journal(repo / ".chupa" / "state", clock).read())
+    config = load_config(None, cwd=repo)
+    messages = Box(config.state_dir / BOX_DIR, LocalFileSystem()).messages()
+    assert len(messages) == 1
+    assert messages[0].message_class == "failure_report" and messages[0].outcome == "base_red"
+    assert "grep -q ok chupa/thing.py" in messages[0].summary
 
 
 def test_a_stale_review_md_never_feeds_a_later_check_failure(repo):

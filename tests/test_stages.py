@@ -5,11 +5,13 @@ import json
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from chupa.config import load_config
 from chupa.artifacts import SHAKEOUT_REPORT, ShakeoutEntry, ShakeoutReport
+from chupa.box import BOX_DIR, Box
 from chupa.driver import Driver
 from chupa.git import Git
 from chupa.llm import FakeLLM, LLMRequest
@@ -24,6 +26,7 @@ from chupa.stages import (
     RunRecordGate,
     SnagList,
     StageContext,
+    _prior_findings,
     read_review,
     run_stages,
 )
@@ -336,6 +339,19 @@ def test_old_checks_json_without_seeds_still_parses(repo):
     assert parsed.seeds == [] and parsed.passed == result.results["check"].artifact.passed
 
 
+def test_old_checks_json_without_verification_still_feeds_prior_findings(repo):
+    (repo / "chupa" / "thing.py").write_text("ok base\n")
+    git(repo, "commit", "-am", "green base")
+    result, _, _ = run(repo, [agent({"chupa/thing.py": "nope\n"})])
+    path = repo / "tickets" / STEM / "checks.json"
+    old = json.loads(path.read_text())
+    del old["verification"]
+    path.write_text(json.dumps(old))
+
+    assert Invoice.model_validate_json(path.read_text()).verification == []
+    assert [f.code for f in _prior_findings(SimpleNamespace(repo=repo), STEM, "check")] == ["verification"]
+
+
 def test_premise_failed_stops_after_implement_with_its_run_record(repo):
     finding = {"code": "premise", "path": None, "line": None, "message": "contradicts X", "paved_road": "drop X"}
     act = lambda req: implement_reply("premise_failed", [finding])  # noqa: E731
@@ -368,11 +384,34 @@ def test_gate_bypass_demotes_its_code_to_soft(repo):
 
 
 def test_red_verification_fails_check(repo):
-    result, _, _ = run(repo, [agent({"chupa/thing.py": "nope\n"})])
+    (repo / "chupa" / "thing.py").write_text("ok base\n")
+    git(repo, "commit", "-am", "green base")
+    result, _, config = run(repo, [agent({"chupa/thing.py": "nope\n"})])
 
     assert outcomes(result) == {"implement": "ok", "check": "gate_failed"}
     assert [f.code for f in result.last[1].findings] == ["verification"]
     assert "grep -q ok chupa/thing.py" in result.last[1].findings[0].message
+    assert Box(config.state_dir / BOX_DIR, LocalFileSystem()).messages() == []
+    assert not (config.worktree_root / ".base" / STEM).exists()
+
+
+def test_base_red_command_is_recorded_and_filed_without_failing_check(repo, monkeypatch):
+    _report_ticket(monkeypatch, "test -f chupa/thing.py")
+    result, _, config = run(repo, [agent({"chupa/thing.py": "changed\n"}), verdict()])
+
+    assert outcomes(result)["check"] == "ok"
+    invoice = Invoice.model_validate_json((repo / "tickets" / STEM / "checks.json").read_text())
+    assert len(invoice.verification) == 2
+    assert invoice.verification[0].base_red is True and invoice.verification[0].rc == 1
+    assert invoice.verification[1].base_red is False and invoice.verification[1].rc == 0
+    messages = Box(config.state_dir / BOX_DIR, LocalFileSystem()).messages()
+    assert len(messages) == 1
+    assert (messages[0].message_class, messages[0].outcome, messages[0].origin) == (
+        "failure_report", "base_red", STEM)
+    assert "grep -q ok chupa/thing.py" in messages[0].summary
+    assert (config.state_dir / "spools" / STEM / str(result.attempt) / "check" /
+            "verify-01-base.txt").is_file()
+    assert not (config.worktree_root / ".base" / STEM).exists()
 
 
 def test_empty_diff_claimed_ok_fails_verification(repo):

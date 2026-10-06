@@ -115,6 +115,7 @@ class Invoice(Artifact):
     bypassed: list[str]  # gate codes the ticket's `gate_bypass` valve demoted to soft
     reports: list[GateReport]
     seeds: list[SeedReview] = []
+    verification: list["CommandResult"] = []
 
 
 class _Review(Artifact):
@@ -499,6 +500,7 @@ class CommandResult(_Strict):
     argv: list[str]
     rc: int | None  # None: the command could not run or timed out -- fails closed like a nonzero exit
     tail: str
+    base_red: bool = False
 
 
 class Evidence(_Strict):
@@ -526,9 +528,11 @@ async def gather_evidence(
     worktree = ctx.worktree(stem)
     env = child_env(ctx.env, ctx.config)  # verification never inherits a provider key (section 6)
     results = []
+    red: list[tuple[int, list[str]]] = []
+    timeout = ticket.stuck_minutes * 60.0
     for n, argv in enumerate(ticket.verification, 1):
         try:
-            rc, out, err = await ctx.exec_.run(list(argv), cwd=worktree, env=env, timeout=ticket.stuck_minutes * 60.0)
+            rc, out, err = await ctx.exec_.run(list(argv), cwd=worktree, env=env, timeout=timeout)
         except TimeoutError:
             rc, out, err = None, "", f"timed out after the ticket's stuck budget ({ticket.stuck_minutes}m)"
         except ExecutableNotFound as e:
@@ -537,6 +541,39 @@ async def gather_evidence(
                                f"$ {' '.join(argv)}\n[exit {rc}]\n--- stdout\n{out}\n--- stderr\n{err}")
         tail = ctx.driver.redactor.scrub((out + err)[-OUTPUT_TAIL_CHARS:])
         results.append(CommandResult(argv=list(argv), rc=rc, tail=tail))
+        if rc != 0:
+            red.append((n, list(argv)))
+    if red:
+        base = await ctx.git.merge_base(ctx.repo, MAIN, stem)
+        assert ctx.config.worktree_root is not None
+        base_worktree = ctx.config.worktree_root / ".base" / stem
+        if base_worktree.exists():
+            await ctx.git.worktree_remove(ctx.repo, base_worktree)
+        base_worktree.parent.mkdir(parents=True, exist_ok=True)
+        await ctx.git.worktree_add_detached(ctx.repo, base_worktree, base)
+        try:
+            box = Box(ctx.config.state_dir / BOX_DIR, ctx.fs)
+            for n, argv in red:
+                try:
+                    rc, out, err = await ctx.exec_.run(argv, cwd=base_worktree, env=env, timeout=timeout)
+                except TimeoutError:
+                    rc, out, err = None, "", f"timed out after the ticket's stuck budget ({ticket.stuck_minutes}m)"
+                except ExecutableNotFound as e:
+                    rc, out, err = None, "", str(e)
+                ctx.driver.spool.write(stem, attempt, f"{stage}/verify-{n:02d}-base.txt",
+                                       f"$ {' '.join(argv)}\n[exit {rc}]\n--- stdout\n{out}\n--- stderr\n{err}")
+                if rc != 0:
+                    results[n - 1] = results[n - 1].model_copy(update={"base_red": True})
+                    summary = (f"`{' '.join(argv)}` fails on the merge base {base[:8]} too;"
+                               " fix main, not this ticket")
+                    if not any(m.message_class == "failure_report" and m.origin == stem
+                               and m.outcome == "base_red"
+                               and m.summary.startswith(f"`{' '.join(argv)}` fails on the merge base ")
+                               for m in box.messages()):
+                        box.enqueue(message_class="failure_report", origin=stem, stage=stage,
+                                    outcome="base_red", summary=summary)
+        finally:
+            await ctx.git.worktree_remove(ctx.repo, base_worktree)
     run_md = ctx.repo / TICKETS_DIR / stem / "run.md"
     return Evidence(
         stem=stem,
@@ -580,7 +617,7 @@ class ScopeFenceGate:
 
 
 class VerificationGate:
-    """The ticket's own `## Verification` commands, all green on the branch (Phase 1: no base attribution).
+    """The ticket's own `## Verification` commands, with base-red failures attributed to main.
 
     An EMPTY committed diff fails here unless Implement claimed `already_satisfied` (section 11).
     """
@@ -591,7 +628,7 @@ class VerificationGate:
         findings = [
             Finding(code=self.code, message=f"`{' '.join(r.argv)}` exited {r.rc}: {r.tail.strip() or '(no output)'}",
                     paved_road=f"make `{' '.join(r.argv)}` exit 0 on the branch and commit the fix")
-            for r in artifact.verification if r.rc != 0
+            for r in artifact.verification if r.rc != 0 and not r.base_red
         ]
         empty = not artifact.changed_files
         if empty and artifact.claimed == "ok":
@@ -809,6 +846,7 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
         bypassed=sorted({b.code for b in ticket.frontmatter.gate_bypass}),
         reports=[*gated.reports, *([required_report] if required_report is not None else []),
                  *([seed_report] if seed_report is not None else [])], seeds=seeds,
+        verification=evidence.verification,
     )
     ctx.fs.write(ctx.worktree(stem) / TICKETS_DIR / stem / "checks.json",
                  (invoice.model_dump_json(indent=2) + "\n").encode())
