@@ -51,7 +51,7 @@ uv run pytest -q
 ```
 
 ## Definition of rejected
-Reject if a registry row is copied, changed, split, reordered, widened without an earned closure path, or omitted; an implementing seed cites the whole phase or another entry unit; a seed invents an entry-unit fact; a seed is filed through the box, committed on the code branch, or authored beyond merge-queue and phase3-continue-02; or an edit leaves the fence. Missing or incomplete required entry units return premise_failed naming their ids for section 11.4 hardening before regeneration.
+Reject if a registry row is copied, changed, split, reordered, widened without an earned closure path, or omitted; an implementing seed cites the whole phase or another entry unit; a seed invents an entry-unit fact; a seed is filed through the box, committed on the code branch, or authored beyond merge-queue and phase3-continue-02; or an edit leaves the fence. Missing or incomplete required entry units return premise_failed naming their ids for section 11.4 hardening before regeneration. A seed may depend on a sibling seed of its own batch (section 13.3).
 
 ## Time budget
 - expected: 60m
