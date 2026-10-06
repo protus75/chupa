@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The generated report was verified with 18 green entries and removed before commit because ticket-plane artifacts are out of scope.
+The report command updated only generated SHA provenance, so it was restored to comply with the no-tickets-edit rule.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-75m expected; about 15m actual.
+75m expected; about 25m actual.
 
