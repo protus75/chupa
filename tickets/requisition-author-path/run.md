@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-Review effect events required exclusion from stem reservation checks.
+`uv run pytest -q tests/test_triage.py` passes unchanged (8 passed), confirming its existing exact request/key assertions are active.
 
 ## Dead ends
 
-none
+Stopped before editing: adding the mandatory review necessarily adds a request and effect key, while the ticket forbids assertion changes; also the required combined sync-gate and review findings conflicts with running review only after sync gates pass.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 75m estimate.
+The 75m budget was not applicable because the premise failed during contract validation.
 
