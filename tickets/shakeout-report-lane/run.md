@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The full suite runner detached in this environment; focused required suites passed (21 tests).
+The prior failed attempt’s implementation was absent from the branch, so it was restored and completed within scope.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Within the 90m budget.
+90m budget; completed within budget.
 
