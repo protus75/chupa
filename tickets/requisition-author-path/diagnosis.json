@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "dcdb2f6c03781db81df80dc9e006cf1302e2f3de",
+  "produced_at_sha": "db82cae8eeae4021315d808b568521ae26748bd6",
   "stem": "requisition-author-path",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "gate_failed",
   "stage": "review",
-  "verdict": "retry",
+  "verdict": "reject",
   "lessons": [
-    "Review the exact text that will be committed: inside the review hook, run validate_ticket on the provisional stamp, resolve start_state, apply the final state stamp, then call review_ticket on that final text. Never review the draft-stamped text.",
-    "Carry the reviewed final text with its verdict (for example in `reviewed`) and commit those exact bytes. Do not restamp the text after approval, so the journaled ticket_sha matches the committed blob.",
-    "Add a test in tests/test_author.py where start_state resolves to a non-draft state (box_policy row such as `confirmed`). Assert that the requisition_verdict ticket_sha equals the sha of `git rev-parse HEAD:<ticket path>` content.",
-    "Keep the rest of the already-passing work as it is: the driver hooks, the review keying `llm/author/<pass>/requisition_review/<seq>/<call_seq>`, the rma terminal path and the triage script additions. Change only the stamp ordering and add its test."
+    "Amend the ticket and plan 19.P2: test_triage.py may update request-count, request-list, and llm/ key-set assertions, but only to reflect the added requisition_review request and its effect key.",
+    "Settle whether the review runs when sync gates fail. Recommended: review only after sync gates pass. Then rewrite criterion 1 so terminal_findings returns review findings after one call, with no sync-gate finding in it.",
+    "If combined sync+review findings are truly wanted, say outright that the review runs on every call, and accept that a candidate AuthorGate already rejected still costs a review call.",
+    "Re-implement only after the amendment. Keep the existing hooks-off driver path byte-identical, and keep the review keyed llm/author/<pass>/requisition_review/<seq>/<call_seq>."
   ],
   "mechanical": null,
   "spec_version": "1.0",
