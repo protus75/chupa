@@ -12,6 +12,8 @@ agent_effort: medium
 
 ## Context
 - chupa/driver.py
+- chupa/runner.py
+- chupa/triage.py
 
 ## Plan contract
 - 19.L
@@ -31,11 +33,15 @@ Owners (19.P2 Emits): this group fences ONLY `chupa/driver.py`, plus `eval/shake
   - `invalid_output_exhausted`: (1) every Implement reply is unparseable or schema-invalid. (2) The attempt makes exactly the driver's bounded allowance of implement requests (the first call plus its re-prompts), each re-prompt rendering the prior validation error as a finding, then the terminal `invalid_artifact` at `implement`, and the drain proceeds to the next ticket. (3) The harvested `invalid_artifact` finding.
   - `stuck_budget_kill`: (1) the scripted Implement call hangs (the FakeLLM `HANG` item) past the ticket's stuck budget, with the bench clock advanced. (2) `abort_current` runs before the terminal, the terminal is `timeout` with one `infra` `cap_consumed` before it, the attempt is harvested, and a second eligible ticket still merges in the same drain. (3) The harvest's `reason`.
 - In: `eval/shakeout/run.py`: `GROUPS` becomes `("stages", "driver")`.
+- In: an injectable `sleep` seam on `Checkout` (`chupa/runner.py`, default `asyncio.sleep`), passed to `Driver` in place of raw `asyncio.sleep` at `chupa/runner.py` and `chupa/triage.py`, so the bench clock drives the stuck-budget timer. Production behavior is unchanged.
 - In: `tests/test_shakeout.py`: one test per member asserting its observable through `run_member`.
-- Out: members owned by other modules, any production change outside `chupa/driver.py`, and any runner, bench, or schema edit beyond `GROUPS`.
+- Out: members owned by other modules, any production change outside `chupa/driver.py` and the `Checkout` sleep seam, and any bench or schema edit beyond `GROUPS` and wiring the bench sleep.
 
 ## Scope fence
 - chupa/driver.py
+- chupa/runner.py
+- chupa/triage.py
+- chupa/__main__.py
 - eval/shakeout/
 - tests/test_shakeout.py
 
