@@ -1,18 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "e586aaba090cf3343d4c7bca294dc6451de2f884",
+  "produced_at_sha": "292b06f4864cea29c54578d06b2f5169053139d3",
   "stem": "shakeout-driver",
-  "attempt": 0,
-  "terminal": "gate_failed",
-  "stage": "review",
-  "verdict": "retry",
+  "attempt": 1,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
   "lessons": [
-    "Revert the race() block in chupa/driver.py that re-reads self.clock() once after the call starts. It is a production branch built only for the fixture, and review will reject it again.",
-    "First read chupa/runner.py:81 and :212, plus the bench wiring, to see if the stuck-budget timer can use the injected clock/sleep seam. If the fix needs runner.py or Checkout changes, file it in the Suggestion Box and reply premise_failed, naming it.",
-    "If the fix fits entirely in driver.py, make race() wait through the Sleep seam in a loop, re-checking the deadline against self.clock() on every wake, so the whole wait follows the injected clock and never uses one stale timer.",
-    "In stuck_budget_kill, advance the bench clock while the HANG is in progress, not inside the script callable before it returns HANG. Assert abort_current, the infra cap_consumed, timeout, the harvest reason, and that a second ticket merges.",
-    "Run record must describe any driver change truthfully. Do not write 'Outcome: ok' over a fixture-specific workaround; list the seam gap under second problems."
+    "Premise confirmed: chupa/runner.py:81 and :212 (and chupa/triage.py:99) pass raw asyncio.sleep to Driver, so the deadline timer in Driver.race (chupa/driver.py:249) cannot follow the bench clock. The stuck_budget_kill member cannot pass while the fence excludes runner.py.",
+    "Re-author with `depends` on the ticket that resolves box-000276-527c50bd: an injectable sleep seam on Checkout, wired in runner.bind and triage. Or widen this ticket's fence to chupa/runner.py plus the Checkout seam, keeping runner.py changes out of the shakeout files.",
+    "Once the seam exists, stuck_budget_kill must advance the bench clock and wake the injected sleep, never real wall-clock time. Assert abort_current, the infra cap_consumed, the timeout terminal, the harvest reason, and that a second ticket merges.",
+    "Next attempt: also set GROUPS to (\"stages\", \"driver\") in eval/shakeout/run.py. The --group driver command exits 2 until then. Implement invalid_output_exhausted first; it needs no seam."
   ],
   "mechanical": null,
   "spec_version": "1.0",
