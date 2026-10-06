@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "117efe2ea203f10e1b1f6a6ed3bea3d172e80ee7",
+  "produced_at_sha": "d351fa2e93d5d41e6099f601d781102f038aca82",
   "stem": "shakeout-report-lane",
-  "attempt": 2,
+  "attempt": 3,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "Add a tests/test_stages.py case whose ticket Verification names tickets/<stem>/shakeout-report.json (e.g. `--out tickets/<stem>/shakeout-report.json` on a command that exits 0 and writes nothing). Assert the Check is gate_failed with exactly one `verification` finding.",
-    "In chupa/stages.py REPORT REQUIRED, decide whether a command names the report by substring over each argv element: `any(target in arg for arg in argv)`, not `target in argv`. Then `--out=tickets/<stem>/shakeout-report.json` and shell-redirect forms also count.",
-    "Add a second test case that uses an `--out=tickets/<stem>/shakeout-report.json` argument with no report produced. It must fail `verification` even when every command is otherwise excused.",
-    "Keep the existing restored implementation and its passing tests as they are. Change only the REPORT REQUIRED match and add the missing tests, all inside the fence. Before finishing, map each acceptance criterion to a named test that exercises it."
+    "In lift_outbox, validate a registered artifact only when this lift will carry it: kind == \"checks\" AND the file passes the written/only filter. Non-checks lifts (run-record, harvest, diagnosis) must skip registered files entirely and never raise ArtifactInvalid.",
+    "When check returns gate_failed on ArtifactInvalid, delete the invalid registered artifact from the outbox so the later harvest and write_diagnosis lifts proceed instead of re-raising or crashing drive.",
+    "Add a test where the Implement agent writes an invalid shakeout-report.json and the run-record lift still completes. Add another where a failed Check's invalid report flows through harvest and diagnosis without an exception.",
+    "Strengthen the AC1 invalid-report test: assert that tickets/<stem>/checks.json and the report are both absent from the repo, and that 'chupa(<stem>): checks' is not in subjects(repo)."
   ],
   "mechanical": null,
   "spec_version": "1.0",
