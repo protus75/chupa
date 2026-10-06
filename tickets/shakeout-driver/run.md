@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The production drain re-offers non-ok tickets, so each fixture verifies its first attempt while allowing the prescribed retry lifecycle; the generated report remains uncommitted.
+The generated report was restored after verification so it was not committed.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-45m expected; completed within budget.
+45m predicted; completed within budget.
 
