@@ -172,7 +172,13 @@ class CliAdapter:
         self._fs.write(call_dir / "stderr.txt", err.encode())
         tail = err[-2000:]
         if rc != 0:
-            self._raise_call_error("nonzero exit", rc=rc, stderr_tail=tail)
+            # A CLI may report its failure in the event stream, not stderr: carry that message forward.
+            try:
+                self.parse(out)
+                message = "nonzero exit"
+            except ValueError as e:
+                message = f"nonzero exit: {e}"
+            self._raise_call_error(message, rc=rc, stderr_tail=tail)
         try:
             parsed = self.parse(out)
         except ValueError as e:

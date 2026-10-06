@@ -335,6 +335,14 @@ def test_codex_failed_turn_raises_even_on_exit_zero(tmp_path, out):
         call(config(tmp_path), FakeExec((0, out, "")), tmp_path, req("implement", worktree=tmp_path))
 
 
+def test_codex_nonzero_exit_carries_the_stream_failure_message(tmp_path):
+    out = jsonl({"type": "turn.started"},
+                {"type": "turn.failed", "error": {"message": "Selected model is at capacity."}})
+    with pytest.raises(ProviderCallError, match="at capacity") as e:
+        call(config(tmp_path), FakeExec((1, out, "")), tmp_path, req("implement", worktree=tmp_path))
+    assert e.value.rc == 1
+
+
 # --- shared base ---
 
 
