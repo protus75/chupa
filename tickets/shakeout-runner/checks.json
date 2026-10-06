@@ -1,0 +1,84 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "d1a5428ad9e5e9a92013727503cb95d02615a24d",
+  "stem": "shakeout-runner",
+  "passed": true,
+  "changed_files": [
+    "eval/shakeout/run.py",
+    "eval/shakeout/runner.py",
+    "tests/test_shakeout.py"
+  ],
+  "inserted_lines": 125,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "eval.shakeout.run",
+        "--group",
+        "runner",
+        "--prior",
+        "tickets/shakeout-driver/shakeout-report.json",
+        "--out",
+        "tickets/shakeout-runner/shakeout-report.json"
+      ],
+      "rc": 0,
+      "tail": "warning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_shakeout.py"
+      ],
+      "rc": 0,
+      "tail": ".................                                                        [100%]\n17 passed in 5.92s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 10%]\n........................................................................ [ 21%]\n........................................................................ [ 32%]\n........................................................................ [ 43%]\n........................................................................ [ 53%]\n........................................................................ [ 64%]\n........................................................................ [ 75%]\n........................................................................ [ 86%]\n........................................................................ [ 97%]\n....................                                                     [100%]\n668 passed in 55.17s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
