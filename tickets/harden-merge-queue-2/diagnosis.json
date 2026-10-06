@@ -1,17 +1,16 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "32f30d8d87506cb1bc047eaffe3e31810a692146",
+  "produced_at_sha": "19cf2ea8c5863ce04d7ec7a546261bf032323921",
   "stem": "harden-merge-queue-2",
-  "attempt": 0,
-  "terminal": "gate_failed",
-  "stage": "check",
+  "attempt": 1,
+  "terminal": "premise_failed",
+  "stage": "implement",
   "verdict": "abandon-human",
   "lessons": [
-    "Human: the main checkout has uncommitted CHUPA_PLAN.md edits (git status shows ` M CHUPA_PLAN.md`). ScopeFenceGate._unit_confined compares without_unit(plan_main) to plan_head, and stages.py:600 reads plan_main from the working tree at ctx.repo/CHUPA_PLAN.md, not from main's commit.",
-    "Human: commit or set aside the uncommitted CHUPA_PLAN.md edits in the main checkout, then rerun. Otherwise any plan bytes outside 19.P3.merge-queue that differ between that working tree and the branch fail scope_fence, wherever the agent edited.",
-    "Next attempt: run `git diff main -- CHUPA_PLAN.md` before committing and confirm every hunk sits between `### 19.P3.merge-queue` and the next unit heading. ScopeFenceGate admits a plan diff only when without_unit(main) == without_unit(head) for the anchored unit.",
-    "Next attempt: if criterion 2 forces fence additions for chupa/stages.py, state them only as text inside the 19.P3.merge-queue unit. Never touch the registry or another section, because the Definition of rejected forbids plan text outside the unit."
+    "A human must commit or set aside the uncommitted CHUPA_PLAN.md edit in the main checkout. Section 13 differs outside 19.P3.merge-queue, so ScopeFenceGate._unit_confined is false on untouched base 19cf2ea before any edit. No edit inside the fence can clear it.",
+    "Once main's plan is clean, retry with the same fence, CHUPA_PLAN.md#19.P3.merge-queue. The implement attempt confirmed that `uv run pytest tests/test_plan_lint.py` already passes (28 tests), so the only blocker is the dirty base.",
+    "On retry, edit only the unit 19.P3.merge-queue. Do not touch section 13 or any other plan text to get past the scope gate; the Definition of rejected forbids stating facts that need plan text outside the unit."
   ],
   "mechanical": null,
   "spec_version": "1.1",
