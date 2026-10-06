@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Full suite passed: 713 tests in 60.49s.
+The full suite completed with no cached failures; seed tickets remain intentionally uncommitted.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60m; completed in under 10m.
+Completed within the 60m expected budget.
 
