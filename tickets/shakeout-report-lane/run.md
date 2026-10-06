@@ -4,15 +4,15 @@ ok
 
 ## Surprises / judgment calls
 
-none
+A bench test fixture needed a valid Context section before intake would run it.
 
 ## Dead ends
 
-An initial bench smoke test used an invalid stem and then a synchronous fake callback that tried to start a nested event loop; the final test uses a valid stem and the existing git test helper.
+none
 
 ## Second problems filed
 
-- box-000275-95e087f1: The base runner diagnoses an already_satisfied Check and routes it to the Reject queue.
+none
 
 ## Resolved engine/model
 
@@ -22,5 +22,5 @@ An initial bench smoke test used an invalid stem and then a synchronous fake cal
 
 ## Predicted vs actual
 
-90m expected; completed within the budget.
+90m expected; about 10m actual.
 
