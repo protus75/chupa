@@ -1,10 +1,10 @@
 # Review: snag
 
-The seed path is mostly correct, but when a re-run of a seeding ticket fails a mechanical gate it overwrites main's checks.json and drops the approvals of seeds already lifted, which can leave the ticket permanently unmergeable.
+The seed candidate filter treats every tracked ticket that is identical to main as an existing foreign stem, so a seeding Check fails in any repo that already holds other tickets.
 
 ## Findings
 
-- [logic] chupa/stages.py:752 When a seeding ticket's mechanical Check gates fail, the seed block is skipped and `seeds` stays `[]`. `lift_outbox` still lifts that checks.json to main, which erases the `approve` entries of seeds lifted by an earlier run. On the next run each lifted seed is byte-identical to main, so `_review_seeds` skips it (line 684). It also finds no `prior` entry, so it carries no approval forward and makes no new review call. The merge `SeedSafetyGate` then refuses with 'seed has no approval pinned to its committed blob', and its paved road ('re-run so Check approves the exact committed seed text') can never succeed, so the hold has no reachable release. (do instead: Keep the approvals of already-lifted seeds on every Check write for a seeding ticket. One way: load the prior `seeds` from main's checks.json whenever the ticket is seeding, whether or not the mechanical gates passed. Another: let an own seed that has no prior approval become a candidate again so it is re-reviewed. Add a test with a mechanical Check failure between two runs.)
+- [logic] chupa/stages.py:682 `_review_seeds` globs every `tickets/*/ticket.md` in the worktree. The worktree is created from main by `worktree_add(..., MAIN)`, so it holds every ticket already committed on main. The code never drops files that match main. Any ticket on main that this stem did not seed (main_sha == sha, seed not in own) hits `main_sha is not None and (main_sha != sha or seed not in own)` and becomes a `snag` with 'already exists on main'. In a real repo with other tickets, every seeding ticket therefore fails Check with `gate_failed`. The tests miss this only because their fixture repos hold no other tickets on main. The ticket says candidates are only files that are 'untracked or differ from main'. (do instead: Before any other classification, skip a worktree ticket whose blob SHA equals main's blob SHA and that is not one of this stem's journaled seeds, so it is not a candidate at all. Add a test where main already holds an unrelated ticket and a seeding run still passes with only its new seeds reviewed.)
 
 ## Record
 
@@ -12,17 +12,17 @@ The seed path is mostly correct, but when a re-run of a seeding ticket fails a m
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "1ef687b844713284ee6c79ec2145b9a396be1912",
+  "produced_at_sha": "ef47a141e619976c53ff1baaf831ab8de7a54441",
   "stem": "requisition-seed-path",
-  "reviewed_sha": "1ef687b844713284ee6c79ec2145b9a396be1912",
-  "summary": "The seed path is mostly correct, but when a re-run of a seeding ticket fails a mechanical gate it overwrites main's checks.json and drops the approvals of seeds already lifted, which can leave the ticket permanently unmergeable.",
+  "reviewed_sha": "ef47a141e619976c53ff1baaf831ab8de7a54441",
+  "summary": "The seed candidate filter treats every tracked ticket that is identical to main as an existing foreign stem, so a seeding Check fails in any repo that already holds other tickets.",
   "findings": [
     {
       "code": "logic",
       "path": "chupa/stages.py",
-      "line": 752,
-      "message": "When a seeding ticket's mechanical Check gates fail, the seed block is skipped and `seeds` stays `[]`. `lift_outbox` still lifts that checks.json to main, which erases the `approve` entries of seeds lifted by an earlier run. On the next run each lifted seed is byte-identical to main, so `_review_seeds` skips it (line 684). It also finds no `prior` entry, so it carries no approval forward and makes no new review call. The merge `SeedSafetyGate` then refuses with 'seed has no approval pinned to its committed blob', and its paved road ('re-run so Check approves the exact committed seed text') can never succeed, so the hold has no reachable release.",
-      "paved_road": "Keep the approvals of already-lifted seeds on every Check write for a seeding ticket. One way: load the prior `seeds` from main's checks.json whenever the ticket is seeding, whether or not the mechanical gates passed. Another: let an own seed that has no prior approval become a candidate again so it is re-reviewed. Add a test with a mechanical Check failure between two runs."
+      "line": 682,
+      "message": "`_review_seeds` globs every `tickets/*/ticket.md` in the worktree. The worktree is created from main by `worktree_add(..., MAIN)`, so it holds every ticket already committed on main. The code never drops files that match main. Any ticket on main that this stem did not seed (main_sha == sha, seed not in own) hits `main_sha is not None and (main_sha != sha or seed not in own)` and becomes a `snag` with 'already exists on main'. In a real repo with other tickets, every seeding ticket therefore fails Check with `gate_failed`. The tests miss this only because their fixture repos hold no other tickets on main. The ticket says candidates are only files that are 'untracked or differ from main'.",
+      "paved_road": "Before any other classification, skip a worktree ticket whose blob SHA equals main's blob SHA and that is not one of this stem's journaled seeds, so it is not a candidate at all. Add a test where main already holds an unrelated ticket and a seeding run still passes with only its new seeds reviewed."
     }
   ],
   "spec_version": "1.0",
