@@ -1,0 +1,105 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "54c8e455bb7dd878f61bf9aa3a081df5ffd872a2",
+  "stem": "phase2-exit",
+  "passed": true,
+  "changed_files": [
+    "tests/test_phase2_exit.py",
+    "tests/test_seeded_phase3_core.py"
+  ],
+  "inserted_lines": 131,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "requisition_review",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [
+    {
+      "stem": "daemon-scheduler",
+      "ticket_sha": "e454ba5f94229883b0899c9b1d38413b7f43d542",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
+    },
+    {
+      "stem": "phase3-continue",
+      "ticket_sha": "7480b68d16fabf29ef7d444089424198f1b6148b",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
+    },
+    {
+      "stem": "seed-successor-proof",
+      "ticket_sha": "b1b5d7f3851dbe3ff4eaef7c3c7dd7052852c499",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
+    }
+  ],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_phase2_exit.py"
+      ],
+      "rc": 0,
+      "tail": "..                                                                       [100%]\n2 passed in 0.07s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_seeded_phase3_core.py"
+      ],
+      "rc": 0,
+      "tail": ".......                                                                  [100%]\n7 passed in 0.08s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 10%]\n........................................................................ [ 21%]\n........................................................................ [ 31%]\n........................................................................ [ 42%]\n........................................................................ [ 52%]\n........................................................................ [ 63%]\n........................................................................ [ 73%]\n........................................................................ [ 84%]\n........................................................................ [ 94%]\n....................................                                     [100%]\n684 passed in 58.35s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
