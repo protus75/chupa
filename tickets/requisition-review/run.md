@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 75m; completed in roughly 15m.
+75m budget; completed in about 10m.
 
