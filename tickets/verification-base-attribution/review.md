@@ -1,10 +1,10 @@
 # Review: snag
 
-The attribution logic and cleanup look correct, but the test_stages.py base-red test does not prove acceptance criterion 1: it uses the default one-command ticket instead of a ticket with two Verification commands, one base-red and one green.
+The attribution logic and tests match the ticket, but the diff adds a required `verification` field to the persisted `Invoice` schema, so every checks.json written before this change no longer validates.
 
 ## Findings
 
-- [acceptance] tests/test_stages.py:380 Criterion 1 needs a ticket with TWO Verification commands, one red at both base and branch and one green, that passes Check. `test_base_red_verification_passes_check_files_a_report_and_cleans_worktree` runs the default fixture ticket, which has only `grep -q ok chupa/thing.py`. So it never shows that a green command beside a base-red one is unaffected, and it never shows that only the red command is marked `base_red` (it checks `verification[0]` only). (do instead: Give the test a two-command `## Verification` ticket, for example via the `TICKET.replace` pattern `_report_ticket` uses: one command red at both base and branch, and one always green (e.g. `test -f chupa/thing.py`). Assert Check is ok, `invoice.verification[0].base_red is True`, `invoice.verification[1].base_red is False` with rc 0, and exactly one `failure_report` with outcome `base_red` and origin STEM.)
+- [logic] chupa/stages.py:117 `Invoice` is strict with extra=forbid. This diff adds `verification: list["CommandResult"]` as a required field with no default. Twenty checks.json files already on main lack the field (for example tickets/box-triage/checks.json). They are still read through `Invoice.model_validate_json`: `_prior_seed_reviews` reads `main:tickets/<stem>/checks.json` and does not catch ValidationError, `_prior_findings` reads the canonical-dir checks.json when a gate_failed ticket re-enters, and merge's seed gate reads `seed_checks_text`. Re-running any of those stems after this change raises a ValidationError or, in the seed gate, refuses with 'does not parse', even though the ticket did nothing wrong. (do instead: Give the field a default like the neighbouring `seeds` field (`verification: list["CommandResult"] = []`), so older checks.json files still validate while new ones record `base_red`. Add a test that a checks.json without `verification` still parses through `_prior_findings`.)
 
 ## Record
 
@@ -12,17 +12,17 @@ The attribution logic and cleanup look correct, but the test_stages.py base-red 
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "4e6bfe6124652250d10fa209126ee419cee0f784",
+  "produced_at_sha": "f4f78e2a99871b8e715fd36ac2a51aa0b30a07c1",
   "stem": "verification-base-attribution",
-  "reviewed_sha": "4e6bfe6124652250d10fa209126ee419cee0f784",
-  "summary": "The attribution logic and cleanup look correct, but the test_stages.py base-red test does not prove acceptance criterion 1: it uses the default one-command ticket instead of a ticket with two Verification commands, one base-red and one green.",
+  "reviewed_sha": "f4f78e2a99871b8e715fd36ac2a51aa0b30a07c1",
+  "summary": "The attribution logic and tests match the ticket, but the diff adds a required `verification` field to the persisted `Invoice` schema, so every checks.json written before this change no longer validates.",
   "findings": [
     {
-      "code": "acceptance",
-      "path": "tests/test_stages.py",
-      "line": 380,
-      "message": "Criterion 1 needs a ticket with TWO Verification commands, one red at both base and branch and one green, that passes Check. `test_base_red_verification_passes_check_files_a_report_and_cleans_worktree` runs the default fixture ticket, which has only `grep -q ok chupa/thing.py`. So it never shows that a green command beside a base-red one is unaffected, and it never shows that only the red command is marked `base_red` (it checks `verification[0]` only).",
-      "paved_road": "Give the test a two-command `## Verification` ticket, for example via the `TICKET.replace` pattern `_report_ticket` uses: one command red at both base and branch, and one always green (e.g. `test -f chupa/thing.py`). Assert Check is ok, `invoice.verification[0].base_red is True`, `invoice.verification[1].base_red is False` with rc 0, and exactly one `failure_report` with outcome `base_red` and origin STEM."
+      "code": "logic",
+      "path": "chupa/stages.py",
+      "line": 117,
+      "message": "`Invoice` is strict with extra=forbid. This diff adds `verification: list[\"CommandResult\"]` as a required field with no default. Twenty checks.json files already on main lack the field (for example tickets/box-triage/checks.json). They are still read through `Invoice.model_validate_json`: `_prior_seed_reviews` reads `main:tickets/<stem>/checks.json` and does not catch ValidationError, `_prior_findings` reads the canonical-dir checks.json when a gate_failed ticket re-enters, and merge's seed gate reads `seed_checks_text`. Re-running any of those stems after this change raises a ValidationError or, in the seed gate, refuses with 'does not parse', even though the ticket did nothing wrong.",
+      "paved_road": "Give the field a default like the neighbouring `seeds` field (`verification: list[\"CommandResult\"] = []`), so older checks.json files still validate while new ones record `base_red`. Add a test that a checks.json without `verification` still parses through `_prior_findings`."
     }
   ],
   "spec_version": "1.0",
