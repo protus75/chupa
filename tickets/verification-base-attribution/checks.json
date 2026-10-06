@@ -1,7 +1,7 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "66c35bd422b8fbcb8d3176d2c6126643675de743",
+  "produced_at_sha": "4e6bfe6124652250d10fa209126ee419cee0f784",
   "stem": "verification-base-attribution",
   "passed": true,
   "changed_files": [
@@ -14,7 +14,7 @@
     "tests/test_stages.py",
     "tests/test_terminal.py"
   ],
-  "inserted_lines": 120,
+  "inserted_lines": 122,
   "bypassed": [],
   "reports": [
     {
