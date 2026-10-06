@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-none
+None.
 
 ## Dead ends
 
-none
+None.
 
 ## Second problems filed
 
@@ -17,10 +17,10 @@ none
 ## Resolved engine/model
 
 - provider: codex
-- model: gpt-5.6-terra
+- model: gpt-6-sol
 - spec: implement 1.1
 
 ## Predicted vs actual
 
-75m budget; completed in about 10m.
+75m expected; completed within budget. All four verification commands passed, including 614 tests in the full suite.
 
