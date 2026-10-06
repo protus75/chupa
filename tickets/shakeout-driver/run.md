@@ -1,18 +1,18 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-`bind()` in chupa/runner.py wires Driver to raw asyncio.sleep, so the Bench clock advance cannot wake Driver.race() while FakeLLM HANG is active.
+The production drain re-offers non-ok tickets, so each fixture verifies its first attempt while allowing the prescribed retry lifecycle; the generated report remains uncommitted.
 
 ## Dead ends
 
-Verified the driver-group command on the untouched branch; it exits 2 because GROUPS contains only stages, and the required timeout fixture would otherwise wait the real 20-minute timer.
+none
 
 ## Second problems filed
 
-- box-000276-527c50bd: The runner/Checkout composition needs an injectable sleep seam so driver timeout behavior can follow the injected clock.
+none
 
 ## Resolved engine/model
 
@@ -22,5 +22,5 @@ Verified the driver-group command on the untouched branch; it exits 2 because GR
 
 ## Predicted vs actual
 
-45m predicted; stopped early after confirming the out-of-scope seam gap.
+45m expected; completed within budget.
 
