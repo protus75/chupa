@@ -1,10 +1,10 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The two approved seeds remain byte-identical; the core and merge-queue entry units resolve, but the successor's required rework-stage unit does not.
+Required entry units now resolve; approved seeds remain byte-identical, and all three seeds remain uncommitted for Check review and ticket-plane lifting.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during preflight, below the 60-minute expected budget; Verification commands were not run.
+Completed within the 60-minute expected budget and 120-minute stuck threshold.
 
