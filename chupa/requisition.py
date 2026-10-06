@@ -101,7 +101,7 @@ async def review_ticket(driver: Driver, *, repo: Path, plan: str, stem: str, tex
     except RenderOverBound as exc:
         return snag(str(exc), "review render over bound", road="shrink or split the ticket at authoring")
 
-    name = f"call-{call_seq:02d}"
+    name = f"requisition_review/call-{call_seq:02d}"
     spool_stem = f"{stem_slot}/{run_seq}"
     driver.spool.write(spool_stem, attempt, f"{name}/prompt.md", prompt)
     req = LLMRequest(surface="requisition_review", rendered=prompt, tier=tier,

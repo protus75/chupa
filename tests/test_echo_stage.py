@@ -108,7 +108,7 @@ def test_echo_stage_runs_end_to_end(tmp_path):
     assert result.findings == []
     assert result.cost.attempts == 1
     assert llm.requests[0].worktree is None  # echo is not a writing surface
-    call = state / "spools" / "t-echo" / "1" / "call-01"
+    call = state / "spools" / "t-echo" / "1" / "echo" / "call-01"
     assert (call / "prompt.md").read_text() == llm.requests[0].rendered
     assert "hello" in (call / "output.txt").read_text()
     events = [json.loads(line)["event"] for line in (state / "engine.log").read_text().splitlines()]

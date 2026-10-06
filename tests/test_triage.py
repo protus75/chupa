@@ -129,7 +129,7 @@ def test_three_verdicts_and_second_pass_and_stale_author(tmp_path, monkeypatch, 
         f"llm/author/0/author/{messages[2].seq}/1",
         f"llm/author/0/requisition_review/{messages[2].seq}/1"}
     for m in messages:
-        spool = root / ".chupa" / "state" / "spools" / "triage" / str(m.seq) / "0" / "call-01"
+        spool = root / ".chupa" / "state" / "spools" / "triage" / str(m.seq) / "0" / "triage" / "call-01"
         assert (spool / "prompt.md").exists() and (spool / "output.txt").exists()
     stale_id = enqueue(box, "stale concern")
     box.record_verdict(stale_id, Verdict(verdict="author", produced_by_spec_version="0.9", rationale="old"))

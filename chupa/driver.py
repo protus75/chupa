@@ -171,7 +171,7 @@ class Driver:
         outcome: Outcome = "ok"
         for call_seq in range(1, self.retry_cap + 2):  # the first call plus retry_cap re-prompts
             call = {**ctx, "call_seq": call_seq}
-            name = f"call-{call_seq:02d}"
+            name = f"{stage.surface}/call-{call_seq:02d}"
             prompt = stage.render(consumed, tally.findings)
             req = LLMRequest(
                 surface=stage.surface,

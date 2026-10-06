@@ -129,8 +129,8 @@ def test_echo_stage_with_empty_gate_list_emits_validated_artifact(tmp_path):
     assert result.cost.provider == "fake"
     req = llm.requests[0]
     assert (req.surface, req.tier, req.effort, req.ticket) == ("implement", "medium", "low", "t-echo")
-    assert (spool(state) / "call-01" / "prompt.md").read_text() == req.rendered
-    assert (spool(state) / "call-01" / "output.txt").read_text() == echo_json("hi")
+    assert (spool(state) / "implement" / "call-01" / "prompt.md").read_text() == req.rendered
+    assert (spool(state) / "implement" / "call-01" / "output.txt").read_text() == echo_json("hi")
     events = [e["event"] for e in log_events(state)]
     assert events[0] == "stage_start" and events[-1] == "stage_end"
     # Diagnostics go to the engine log; the journal holds only the LLM effect's intent + completion.
@@ -143,7 +143,7 @@ def test_prompt_is_on_disk_before_the_call_executes(tmp_path):
     seen = {}
 
     def inspect(req: LLMRequest) -> str:
-        path = spool(state) / "call-01" / "prompt.md"
+        path = spool(state) / "implement" / "call-01" / "prompt.md"
         seen["prompt"] = path.read_text() if path.exists() else None
         return echo_json("hi")
 
@@ -157,8 +157,8 @@ def test_raising_call_leaves_prompt_and_error_spooled_and_terminals_infra_error(
     result = run(driver)
     assert result.outcome == "infra_error"
     assert result.findings == []  # unclassified: no finding (section 6)
-    assert "Echo this text back" in (spool(state) / "call-01" / "prompt.md").read_text()
-    assert "provider exploded" in (spool(state) / "call-01" / "error.txt").read_text()
+    assert "Echo this text back" in (spool(state) / "implement" / "call-01" / "prompt.md").read_text()
+    assert "provider exploded" in (spool(state) / "implement" / "call-01" / "error.txt").read_text()
     assert "llm_error" in [e["event"] for e in log_events(state)]
 
 
@@ -177,7 +177,7 @@ def test_hung_call_is_aborted_at_stuck_budget_and_prompt_survives(tmp_path):
     assert result.outcome == "timeout"
     assert llm.aborted == 1
     assert driver.sleep.calls == [90.0]
-    assert (spool(state) / "call-01" / "prompt.md").exists()
+    assert (spool(state) / "implement" / "call-01" / "prompt.md").exists()
     events = [e["event"] for e in log_events(state)]
     assert "stuck_budget_kill" in events
 
@@ -204,7 +204,7 @@ def test_schema_invalid_output_is_reprompted_with_the_validation_finding(tmp_pat
     second = llm.requests[1].rendered
     assert "[invalid_artifact]" in second
     assert "produced_at_sha" in llm.requests[2].rendered  # the missing field is named
-    assert (spool(state) / "call-03" / "prompt.md").read_text() == llm.requests[2].rendered
+    assert (spool(state) / "implement" / "call-03" / "prompt.md").read_text() == llm.requests[2].rendered
 
 
 def test_single_surrounding_fence_is_stripped_before_validation(tmp_path):
@@ -292,7 +292,7 @@ def test_reprompts_are_bounded_by_the_retry_cap(tmp_path):
     assert result.outcome == "gate_failed"
     assert len(llm.requests) == 1 + 6  # the first call plus six re-prompts
     assert [f.code for f in result.findings] == ["run_record"]
-    assert not (spool(state) / "call-08").exists()
+    assert not (spool(state) / "implement" / "call-08").exists()
 
 
 def test_exhausted_invalid_output_terminals_invalid_artifact(tmp_path):
@@ -330,7 +330,23 @@ def test_ticketless_surface_spools_under_its_surface_name(tmp_path):
     stage = LlmStage(surface="triage", emits=Echo, gates=[], render=render)
     run(driver, stage, ticket=None)
     assert llm.requests[0].ticket is None
-    assert (spool(state, "triage") / "call-01" / "prompt.md").exists()
+    assert (spool(state, "triage") / "triage" / "call-01" / "prompt.md").exists()
+
+
+def test_surfaces_sharing_an_attempt_keep_separate_spools(tmp_path):
+    llm = FakeLLM([echo_json("implemented"), echo_json("reviewed")])
+    driver, state = build(tmp_path, llm)
+    review = LlmStage(surface="review", emits=Echo, gates=[], render=render)
+
+    assert run(driver, ECHO, "implemented").outcome == "ok"
+    assert run(driver, review, "reviewed").outcome == "ok"
+
+    implement = spool(state) / "implement" / "call-01"
+    review_spool = spool(state) / "review" / "call-01"
+    assert (implement / "prompt.md").read_text() == "Echo this text back as JSON: implemented"
+    assert (implement / "output.txt").read_text() == echo_json("implemented")
+    assert (review_spool / "prompt.md").read_text() == "Echo this text back as JSON: reviewed"
+    assert (review_spool / "output.txt").read_text() == echo_json("reviewed")
 
 
 def test_fake_llm_refuses_when_script_exhausted():
@@ -354,8 +370,8 @@ def test_configured_secret_value_never_reaches_spool_or_engine_log(tmp_path):
     assert {p.name for p in files} >= {"prompt.md", "output.txt", "error.txt", "engine.log"}
     for p in files:
         assert SECRET not in p.read_text(), p
-    assert "[REDACTED:CHUPA_TEST_KEY]" in (spool(state) / "call-01" / "prompt.md").read_text()
-    assert "[REDACTED:CHUPA_TEST_KEY]" in (spool(state) / "call-02" / "error.txt").read_text()
+    assert "[REDACTED:CHUPA_TEST_KEY]" in (spool(state) / "implement" / "call-01" / "prompt.md").read_text()
+    assert "[REDACTED:CHUPA_TEST_KEY]" in (spool(state) / "implement" / "call-02" / "error.txt").read_text()
 
 
 def test_redactor_from_config_skips_unset_and_empty_values(tmp_path):
