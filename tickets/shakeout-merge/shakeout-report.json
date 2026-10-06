@@ -1,0 +1,167 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "dee84e4c8a206059d11c5b1c7512123031d7a86f",
+  "entries": [
+    {
+      "member": "scope_escape",
+      "group": "stages",
+      "planted_fault": "commit outside the scope fence",
+      "expected": "scope_fence_harvested",
+      "observed": "scope_fence_harvested",
+      "producing_run": "scope-escape/0",
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "unfixable_lint_branch_only",
+      "group": "stages",
+      "planted_fault": "branch-only verification failure",
+      "expected": "branch_only_verification_rejected",
+      "observed": "branch_only_verification_rejected",
+      "producing_run": "unfixable-lint/0",
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "review_reject",
+      "group": "stages",
+      "planted_fault": "review replies snag",
+      "expected": "review_snag_pinned",
+      "observed": "review_snag_pinned",
+      "producing_run": "review-reject/0",
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "review_reject_reentry",
+      "group": "stages",
+      "planted_fault": "review rejects then approves",
+      "expected": "review_finding_in_reentry_criteria",
+      "observed": "review_finding_in_reentry_criteria",
+      "producing_run": "review-reentry/1",
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "empty_committed_diff",
+      "group": "stages",
+      "planted_fault": "Implement commits nothing",
+      "expected": "empty_diff_harvested",
+      "observed": "empty_diff_harvested",
+      "producing_run": "empty-committed-diff/0",
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "base_diff_attribution",
+      "group": "stages",
+      "planted_fault": "base and branch are both red",
+      "expected": "base_red_attributed",
+      "observed": "base_red_attributed",
+      "producing_run": "base-diff-attribution/0",
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "invalid_output_exhausted",
+      "group": "driver",
+      "planted_fault": "unparseable Implement replies exhaust re-prompts",
+      "expected": "invalid_artifact_harvested_after_bounded_reprompts",
+      "observed": "invalid_artifact_harvested_after_bounded_reprompts",
+      "producing_run": "invalid-output-exhausted/0",
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "stuck_budget_kill",
+      "group": "driver",
+      "planted_fault": "Implement hangs past its stuck budget",
+      "expected": "timeout_harvest_reason_after_stuck_kill",
+      "observed": "timeout_harvest_reason_after_stuck_kill",
+      "producing_run": "stuck-budget-kill/0",
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "premise_false",
+      "group": "runner",
+      "planted_fault": "Implement replies premise_failed",
+      "expected": "premise_harvested_without_reoffer",
+      "observed": "premise_harvested_without_reoffer",
+      "producing_run": "premise-false/0",
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "timeout_dead_ends",
+      "group": "runner",
+      "planted_fault": "Implement hangs after a marked run record",
+      "expected": "timeout_lesson_rendered_on_retry",
+      "observed": "timeout_lesson_rendered_on_retry",
+      "producing_run": "timeout-dead-ends/1",
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "identical_terminals",
+      "group": "runner",
+      "planted_fault": "Review repeats one finding code",
+      "expected": "identical_reason_escalates_at_k",
+      "observed": "identical_reason_escalates_at_k",
+      "producing_run": "identical-terminals/3",
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "bad_schema",
+      "group": "drain",
+      "planted_fault": "committed ticket misses a required section",
+      "expected": "invalid_committed_ticket_reported_without_dispatch",
+      "observed": "invalid_committed_ticket_reported_without_dispatch",
+      "producing_run": "valid-schema/0",
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "premise_park_release",
+      "group": "drain",
+      "planted_fault": "premise_failed ticket is unchanged then corrected",
+      "expected": "unchanged_premise_is_parked_then_content_change_releases",
+      "observed": "unchanged_premise_is_parked_then_content_change_releases",
+      "producing_run": "premise-park-release/1",
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "red_then_green",
+      "group": "drain",
+      "planted_fault": "first Review rejects and second approves",
+      "expected": "review_red_then_green_merges_with_one_retry",
+      "observed": "review_red_then_green_merges_with_one_retry",
+      "producing_run": "red-then-green/1",
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "engine_death_mid_call",
+      "group": "recovery",
+      "planted_fault": "Implement call raises after recording its effect intent",
+      "expected": "orphan_harvested_and_rerun_with_fresh_key",
+      "observed": "orphan_harvested_and_rerun_with_fresh_key",
+      "producing_run": "engine-death-mid-call/1",
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "conflicted_rebase",
+      "group": "merge",
+      "planted_fault": "main and branch edit the same line after Review",
+      "expected": "conflicted_rebase_refused_without_moving_main",
+      "observed": "conflicted_rebase_refused_without_moving_main",
+      "producing_run": "conflicted-rebase/0",
+      "auditor": [],
+      "green": true
+    }
+  ]
+}
