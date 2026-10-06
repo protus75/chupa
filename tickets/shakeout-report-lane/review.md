@@ -1,11 +1,11 @@
 # Review: snag
 
-The registration, lift gating and runner largely match the ticket, but acceptance criterion 2's report-required test is missing, and the check that a Verification command names the report only matches a whole argv element.
+lift_outbox validates every registered outbox file on every lift kind and ignores the `only` filter. As a result, an invalid report, whether left behind by a failed Check or written by the Implement agent, raises an unhandled ArtifactInvalid out of the run-record, harvest and diagnosis lifts.
 
 ## Findings
 
-- [acceptance] tests/test_stages.py:338 Criterion 2 requires a test showing that a Check fails `verification` when a Verification command names `tickets/<stem>/shakeout-report.json` but leaves no report, even when every command is otherwise excused. No added test covers this. `test_stale_registered_report_is_deleted_before_verification` keeps the default Verification, which does not name the report, so the REPORT REQUIRED path in `check` never runs in any test. (do instead: Add a test whose TICKET Verification names `tickets/<stem>/shakeout-report.json`, for example `--out tickets/<stem>/shakeout-report.json` on a command that exits 0 without writing the file. Assert the Check is `gate_failed` with one finding coded `verification` on that path.)
-- [logic] chupa/stages.py:788 `ticket.verification` is `tuple[tuple[str, ...], ...]`, so `f"{TICKETS_DIR}/{stem}/{name}" in argv` tests whether one whole argv element equals the path. A command that names the report inside a larger element, such as `--out=tickets/<stem>/shakeout-report.json` or `sh -c '... > tickets/<stem>/shakeout-report.json'`, does not count as naming it. The Check then passes with no report in the outbox, which the Definition of rejected forbids. (do instead: Treat the report as named when any argv element contains the path as a substring, for example `any(target in arg for arg in argv)`. Add a test case that uses an `--out=` style argument.)
+- [logic] chupa/stages.py:302 The validation loop runs over all outbox candidates for every lift kind and ignores `only`. When a Check fails on a schema-invalid shakeout-report.json, the invalid file stays in the outbox. The runner's next lift then raises ArtifactInvalid again: harvest (`only=attempts/N/harvest.json`) is swallowed as harvest_failed, and write_diagnosis (`only=diagnosis.json`) is uncaught and crashes drive. Likewise, an Implement agent that writes an invalid shakeout-report.json makes the run-record lift in `implement` raise uncaught, crashing the stage instead of producing a terminal outcome. Non-checks lifts never carry the registered artifact, so validating it there only adds crash paths. (do instead: Validate only the registered files that this lift will actually carry, i.e. when kind == "checks" and the file passes `written`/`only`. Also remove the invalid registered artifact from the outbox when `check` returns gate_failed on ArtifactInvalid, so later harvest and diagnosis lifts proceed. Add a test that drives the invalid-report path through harvest and diagnosis.)
+- [acceptance] tests/test_stages.py:393 AC1 requires the schema-invalid Check to commit neither file. The test only asserts that the report is absent from the repo. It never checks that checks.json was not committed or that no `chupa(<stem>): checks` commit exists. (do instead: Also assert that `tickets/<stem>/checks.json` is absent from the repo and that `chupa(<stem>): checks` is not in subjects(repo).)
 
 ## Record
 
@@ -13,24 +13,24 @@ The registration, lift gating and runner largely match the ticket, but acceptanc
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "117efe2ea203f10e1b1f6a6ed3bea3d172e80ee7",
+  "produced_at_sha": "d351fa2e93d5d41e6099f601d781102f038aca82",
   "stem": "shakeout-report-lane",
-  "reviewed_sha": "117efe2ea203f10e1b1f6a6ed3bea3d172e80ee7",
-  "summary": "The registration, lift gating and runner largely match the ticket, but acceptance criterion 2's report-required test is missing, and the check that a Verification command names the report only matches a whole argv element.",
+  "reviewed_sha": "d351fa2e93d5d41e6099f601d781102f038aca82",
+  "summary": "lift_outbox validates every registered outbox file on every lift kind and ignores the `only` filter. As a result, an invalid report, whether left behind by a failed Check or written by the Implement agent, raises an unhandled ArtifactInvalid out of the run-record, harvest and diagnosis lifts.",
   "findings": [
-    {
-      "code": "acceptance",
-      "path": "tests/test_stages.py",
-      "line": 338,
-      "message": "Criterion 2 requires a test showing that a Check fails `verification` when a Verification command names `tickets/<stem>/shakeout-report.json` but leaves no report, even when every command is otherwise excused. No added test covers this. `test_stale_registered_report_is_deleted_before_verification` keeps the default Verification, which does not name the report, so the REPORT REQUIRED path in `check` never runs in any test.",
-      "paved_road": "Add a test whose TICKET Verification names `tickets/<stem>/shakeout-report.json`, for example `--out tickets/<stem>/shakeout-report.json` on a command that exits 0 without writing the file. Assert the Check is `gate_failed` with one finding coded `verification` on that path."
-    },
     {
       "code": "logic",
       "path": "chupa/stages.py",
-      "line": 788,
-      "message": "`ticket.verification` is `tuple[tuple[str, ...], ...]`, so `f\"{TICKETS_DIR}/{stem}/{name}\" in argv` tests whether one whole argv element equals the path. A command that names the report inside a larger element, such as `--out=tickets/<stem>/shakeout-report.json` or `sh -c '... > tickets/<stem>/shakeout-report.json'`, does not count as naming it. The Check then passes with no report in the outbox, which the Definition of rejected forbids.",
-      "paved_road": "Treat the report as named when any argv element contains the path as a substring, for example `any(target in arg for arg in argv)`. Add a test case that uses an `--out=` style argument."
+      "line": 302,
+      "message": "The validation loop runs over all outbox candidates for every lift kind and ignores `only`. When a Check fails on a schema-invalid shakeout-report.json, the invalid file stays in the outbox. The runner's next lift then raises ArtifactInvalid again: harvest (`only=attempts/N/harvest.json`) is swallowed as harvest_failed, and write_diagnosis (`only=diagnosis.json`) is uncaught and crashes drive. Likewise, an Implement agent that writes an invalid shakeout-report.json makes the run-record lift in `implement` raise uncaught, crashing the stage instead of producing a terminal outcome. Non-checks lifts never carry the registered artifact, so validating it there only adds crash paths.",
+      "paved_road": "Validate only the registered files that this lift will actually carry, i.e. when kind == \"checks\" and the file passes `written`/`only`. Also remove the invalid registered artifact from the outbox when `check` returns gate_failed on ArtifactInvalid, so later harvest and diagnosis lifts proceed. Add a test that drives the invalid-report path through harvest and diagnosis."
+    },
+    {
+      "code": "acceptance",
+      "path": "tests/test_stages.py",
+      "line": 393,
+      "message": "AC1 requires the schema-invalid Check to commit neither file. The test only asserts that the report is absent from the repo. It never checks that checks.json was not committed or that no `chupa(<stem>): checks` commit exists.",
+      "paved_road": "Also assert that `tickets/<stem>/checks.json` is absent from the repo and that `chupa(<stem>): checks` is not in subjects(repo)."
     }
   ],
   "spec_version": "1.0",
