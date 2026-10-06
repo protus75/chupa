@@ -1,11 +1,10 @@
 # Review: snag
 
-The base attribution is wired correctly in stages.py and git.py, but the base-red drain re-entry test required by AC5 is missing, and the existing branch-only-red re-entry test was changed even though the ticket says it must stay as is.
+The attribution logic and cleanup look correct, but the test_stages.py base-red test does not prove acceptance criterion 1: it uses the default one-command ticket instead of a ticket with two Verification commands, one base-red and one green.
 
 ## Findings
 
-- [acceptance] tests/test_drain_reentry.py:70 AC5 and Scope-in require a new base-red case in tests/test_drain_reentry.py. In it, a command red at both base and branch lets the drain merge the ticket in one attempt with no `retry` draw, and exactly one `failure_report` names the command. The diff adds no such test. The file still holds only its three existing tests, and the drain-level guarantee in 'Definition of rejected' (a base-red command never draws `retry`) is untested. (do instead: Add a test to tests/test_drain_reentry.py: Verification red on main and on the branch, drain with a single implement+verdict script, assert exit 0, one implement request, no `retry` dispatch in the journal transitions, and one box `failure_report` with outcome `base_red` whose summary names the command.)
-- [acceptance] tests/test_drain_reentry.py:72 AC5 says the existing branch-only-red re-entry test stays unchanged. The diff rewrites `test_a_reoffer_after_a_red_check_renders_the_failing_checks`: it adds a green-base commit and changes the final agent payload. It also rewrites `test_a_stale_review_md_never_feeds_a_later_check_failure`. AC6 permits fixture conversion only in test_diagnose.py and test_terminal.py, so this file has no such permission. (do instead: Leave the existing re-entry tests as they are. If they can only stay red-on-branch-only by changing the shared fixture, make that change in the `author`/`drain` helper or repo fixture so the test bodies stay unchanged. If that is impossible, the ticket must be amended instead of editing the tests silently.)
+- [acceptance] tests/test_stages.py:380 Criterion 1 needs a ticket with TWO Verification commands, one red at both base and branch and one green, that passes Check. `test_base_red_verification_passes_check_files_a_report_and_cleans_worktree` runs the default fixture ticket, which has only `grep -q ok chupa/thing.py`. So it never shows that a green command beside a base-red one is unaffected, and it never shows that only the red command is marked `base_red` (it checks `verification[0]` only). (do instead: Give the test a two-command `## Verification` ticket, for example via the `TICKET.replace` pattern `_report_ticket` uses: one command red at both base and branch, and one always green (e.g. `test -f chupa/thing.py`). Assert Check is ok, `invoice.verification[0].base_red is True`, `invoice.verification[1].base_red is False` with rc 0, and exactly one `failure_report` with outcome `base_red` and origin STEM.)
 
 ## Record
 
@@ -13,24 +12,17 @@ The base attribution is wired correctly in stages.py and git.py, but the base-re
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "66c35bd422b8fbcb8d3176d2c6126643675de743",
+  "produced_at_sha": "4e6bfe6124652250d10fa209126ee419cee0f784",
   "stem": "verification-base-attribution",
-  "reviewed_sha": "66c35bd422b8fbcb8d3176d2c6126643675de743",
-  "summary": "The base attribution is wired correctly in stages.py and git.py, but the base-red drain re-entry test required by AC5 is missing, and the existing branch-only-red re-entry test was changed even though the ticket says it must stay as is.",
+  "reviewed_sha": "4e6bfe6124652250d10fa209126ee419cee0f784",
+  "summary": "The attribution logic and cleanup look correct, but the test_stages.py base-red test does not prove acceptance criterion 1: it uses the default one-command ticket instead of a ticket with two Verification commands, one base-red and one green.",
   "findings": [
     {
       "code": "acceptance",
-      "path": "tests/test_drain_reentry.py",
-      "line": 70,
-      "message": "AC5 and Scope-in require a new base-red case in tests/test_drain_reentry.py. In it, a command red at both base and branch lets the drain merge the ticket in one attempt with no `retry` draw, and exactly one `failure_report` names the command. The diff adds no such test. The file still holds only its three existing tests, and the drain-level guarantee in 'Definition of rejected' (a base-red command never draws `retry`) is untested.",
-      "paved_road": "Add a test to tests/test_drain_reentry.py: Verification red on main and on the branch, drain with a single implement+verdict script, assert exit 0, one implement request, no `retry` dispatch in the journal transitions, and one box `failure_report` with outcome `base_red` whose summary names the command."
-    },
-    {
-      "code": "acceptance",
-      "path": "tests/test_drain_reentry.py",
-      "line": 72,
-      "message": "AC5 says the existing branch-only-red re-entry test stays unchanged. The diff rewrites `test_a_reoffer_after_a_red_check_renders_the_failing_checks`: it adds a green-base commit and changes the final agent payload. It also rewrites `test_a_stale_review_md_never_feeds_a_later_check_failure`. AC6 permits fixture conversion only in test_diagnose.py and test_terminal.py, so this file has no such permission.",
-      "paved_road": "Leave the existing re-entry tests as they are. If they can only stay red-on-branch-only by changing the shared fixture, make that change in the `author`/`drain` helper or repo fixture so the test bodies stay unchanged. If that is impossible, the ticket must be amended instead of editing the tests silently."
+      "path": "tests/test_stages.py",
+      "line": 380,
+      "message": "Criterion 1 needs a ticket with TWO Verification commands, one red at both base and branch and one green, that passes Check. `test_base_red_verification_passes_check_files_a_report_and_cleans_worktree` runs the default fixture ticket, which has only `grep -q ok chupa/thing.py`. So it never shows that a green command beside a base-red one is unaffected, and it never shows that only the red command is marked `base_red` (it checks `verification[0]` only).",
+      "paved_road": "Give the test a two-command `## Verification` ticket, for example via the `TICKET.replace` pattern `_report_ticket` uses: one command red at both base and branch, and one always green (e.g. `test -f chupa/thing.py`). Assert Check is ok, `invoice.verification[0].base_red is True`, `invoice.verification[1].base_red is False` with rc 0, and exactly one `failure_report` with outcome `base_red` and origin STEM."
     }
   ],
   "spec_version": "1.0",
