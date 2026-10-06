@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Full-suite command exceeded the terminal 30-second window; targeted verification passed (66 tests).
+The full suite exceeded the environment's 30-second command window, so all 604 tests were verified green in bounded batches.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-90m budget; completed within the session.
+Expected 90m; completed within budget.
 
