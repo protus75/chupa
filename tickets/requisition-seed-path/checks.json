@@ -1,7 +1,7 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "1ef687b844713284ee6c79ec2145b9a396be1912",
+  "produced_at_sha": "ef47a141e619976c53ff1baaf831ab8de7a54441",
   "stem": "requisition-seed-path",
   "passed": true,
   "changed_files": [
@@ -11,7 +11,7 @@
     "tests/test_seed_path.py",
     "tests/test_stages.py"
   ],
-  "inserted_lines": 499,
+  "inserted_lines": 476,
   "bypassed": [],
   "reports": [
     {
