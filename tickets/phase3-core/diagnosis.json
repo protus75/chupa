@@ -1,20 +1,15 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "87c92f11c0964d08a9875e6c35728a14f60382f3",
+  "produced_at_sha": "02a6f12ddf540fe61ad2149e87e3ca44358cca4a",
   "stem": "phase3-core",
-  "attempt": 10,
-  "terminal": "gate_failed",
-  "stage": "merge",
-  "verdict": "reject",
-  "lessons": [
-    "The ticket requires phase3-continue to embed tests/test_seeded_phase3_core.py as its idiom. 19.L forbids this: a continuation embeds one merged earlier seeding test, never the test created in its own admission. That file is created on this branch and is absent at Check.",
-    "The requisition_review paved road agrees with 19.L: `## Context` lists only existing files. A file the ticket creates goes in `## Scope fence` or `## Verification`. No ticket edit can satisfy both this ticket's scope line and the gate.",
-    "Fix the ticket so phase3-continue embeds a merged earlier seeding test that exists on main, such as tests/test_seeded_phase2.py (this ticket's own Context). Then regenerate phase3-continue. Leave the approved daemon-scheduler and merge-queue seeds unchanged.",
-    "Keep tests/test_seeded_phase3_core.py inside the fence as this branch's committed test. The suite passed (19 core tests, 729 in all) and was approved. Only the Context line in phase3-continue failed."
-  ],
-  "mechanical": null,
+  "attempt": 11,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "abandon-human",
+  "lessons": [],
+  "mechanical": "premise_bounce cap spent",
   "spec_version": "1.1",
-  "provider": "claude",
-  "model": "claude-opus-5-5"
+  "provider": null,
+  "model": null
 }
