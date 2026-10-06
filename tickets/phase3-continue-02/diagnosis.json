@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "48943b599d401b42262c6d7cbf209287f4d3ddf5",
+  "produced_at_sha": "a32d2078054686d4f48d824bccb0846c015f1744",
   "stem": "phase3-continue-02",
-  "attempt": 4,
+  "attempt": 5,
   "terminal": "gate_failed",
   "stage": "check",
   "verdict": "retry",
   "lessons": [
-    "In rework-stage's ticket, name the escalation journal record (e.g. SIGNAL {signal: rework_escalate, rung}), state how drain._run_one prefers it over the terminal body's rung, say one retry draw consumes it, and add a criterion that a second re-offer does not reuse it.",
-    "Add a rework-stage criterion in tests/test_rework.py, rooted at chupa/__main__.py, proving no production module writes the escalation record and that a re-offer carrying only a terminal-body rung journals an unchanged cap_consumed body.",
-    "Spell out the exact ticket_intake body for an update and for a split. State whether seeded_by is present and its value, and assert that a split's intake leaves mergequeue._candidate's seed set for the original stem unchanged.",
-    "Declare specs/rework.md as the rework llm_surface prompt spec. Require tests/test_rework.py to load it via chupa.specs.load_spec and show Rework's update/split/escalate decision is rendered from it.",
-    "Read chupa/drain.py, mergequeue.py, merge.py:188, stages.py:708 and chupa/specs.py before authoring. Then update tests/test_seeded_phase3_02.py render arithmetic so the longer rework-stage ticket still fits section 8 headroom."
+    "In tickets/phase3-continue-03/ticket.md Goal / Why, add a next-admission paragraph: the next admission is `thresh-runtime` alone, known-deep, `high`/`high`, with its exact registry `does`, cited section 6, and its fence floor. It depends on `rework-stage`.",
+    "Copy the thresh-runtime fence floor verbatim from BEGIN_REGISTRY_P3: chupa/thresh.py, chupa/providers.py, chupa/config.py, tests/test_thresh.py, tests/test_providers.py. Do not paraphrase it or trim it.",
+    "Also describe the successor `phase3-continue-04`: it depends on thresh-runtime, stays at medium/medium, and fences `tickets` plus its new tests/test_seeded_phase3_04.py. Its idiom is a merged earlier seeding test, never the test created in its own admission.",
+    "Amend phase3-continue-03 criterion 1 so it names `thresh-runtime` at `high`/`high`, `phase3-continue-04` at `medium`/`medium`, and the registry row's fence floor and cited section 6. Use phase3-continue-02's own Goal and criterion 1 as the template.",
+    "Don't copy the core test's blanket medium/medium tier assertion. Read each row's tier from its registry `deep` flag. After editing, rerun tests/test_seeded_phase3_02.py and fix any render-arithmetic pins the new paragraph changes."
   ],
   "mechanical": null,
   "spec_version": "1.0",
