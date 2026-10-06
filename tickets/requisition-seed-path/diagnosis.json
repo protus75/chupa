@@ -1,18 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "0cfefc42eba8136151754de9737589a47626f3d5",
+  "produced_at_sha": "1ef687b844713284ee6c79ec2145b9a396be1912",
   "stem": "requisition-seed-path",
-  "attempt": 1,
+  "attempt": 2,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "In test_stages.py acceptance-5 test, write the foreign tickets/<x>/ticket.md into the worktree WITHOUT git add/commit so scope_fence and every mechanical Check gate pass; then assert Check ok, Invoice.seeds == [], no requisition_review request, and nothing lifted to main.",
-    "Sanity-check the acceptance-5 test by mentally removing the `\"tickets\" in ticket.scope_fence` guard: the test must then fail. A test that fails earlier at an unrelated gate proves nothing.",
-    "In merge.py MERGE-SAFETY gathering, read the seed text AND tickets/<stem>/checks.json from main's committed tree via git.py (`main:<path>` show), never from ctx.repo working-tree files, so the blob SHA, validated text and approvals all come from one commit.",
-    "Add a test_merge.py case showing an uncommitted working-tree edit to checks.json or the seed text in the main checkout does not change the gate's verdict, which proves the gate reads committed blobs.",
-    "Keep the rest as it is: the seed review, lift and fence were judged correct. Change only these two findings, stay inside the scope fence, and rerun both verification commands."
+    "For a seeding ticket, carry forward the prior `seeds` from main's checks.json on EVERY Check write, including a mechanical-gate failure, so lift_outbox never erases approvals of already-lifted seeds.",
+    "In _review_seeds, an own already-lifted seed that is byte-identical to main but has no prior `approve` entry must become a candidate again and be re-reviewed. Never skip it silently, or the merge SeedSafetyGate hold has no reachable release.",
+    "Add a test_seed_path.py case: run 1 approves and lifts seeds, run 2 fails a mechanical Check gate, run 3 passes. Assert that main's checks.json keeps the seed approvals throughout and that the merge SeedSafetyGate admits the branch.",
+    "Keep the existing passing behavior unchanged: one `seeds` commit, per-seed review keys, a foreign-stem refusal, and the merge re-check against the committed blob SHA. Make only the minimal fix in chupa/stages.py, inside the fence."
   ],
   "mechanical": null,
   "spec_version": "1.0",
