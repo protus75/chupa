@@ -70,5 +70,5 @@ Reject the branch if any of these hold:
 - The diff touches a file outside the fence.
 
 ## Time budget
-- expected: 90m
-- stuck: 180m
+- expected: 60m
+- stuck: 90m
