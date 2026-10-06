@@ -1,7 +1,7 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "f407c6ec84cdfb988982c12bb872b27fc713a0f2",
+  "produced_at_sha": "8b9f8361de99373535bf1327003ea65281cc38b5",
   "stem": "shakeout-report-lane",
   "passed": true,
   "changed_files": [
@@ -12,7 +12,7 @@
     "tests/test_shakeout.py",
     "tests/test_stages.py"
   ],
-  "inserted_lines": 510,
+  "inserted_lines": 511,
   "bypassed": [],
   "reports": [
     {
