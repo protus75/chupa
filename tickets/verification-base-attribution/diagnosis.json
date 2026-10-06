@@ -1,21 +1,15 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "0608c3a9212b272465c73be0d3c3dc0db623e116",
+  "produced_at_sha": "678a985f38c853987237c792eae465b2607b61aa",
   "stem": "verification-base-attribution",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "reject",
-  "lessons": [
-    "Add tests/test_diagnose.py to the scope fence. Its drain fixture (test_drain_renders_two_attempts_lessons_and_no_spooled_raw_marker) uses a Verification command that fails on the merge base too, so under base attribution the 'nope' attempt passes Check and the scripted reply sequence breaks.",
-    "Rewrite that fixture so the verification command is green at the merge base and red only on the branch. For example, commit a base thing.py that passes, or make the check compare against a branch-only change. It should still test real branch-introduced retry, not base-red exemption.",
-    "Before authoring the revised ticket, grep tests/ for every drain or Check fixture whose Verification command fails on main as well as on the branch. Fence each one, because base attribution changes their outcome from retry to pass.",
-    "Keep the implemented attribution (merge_base, worktree_add_detached, base_red, the box filing). The focused tests passed, so only the full-suite fixture conflict blocked the attempt; reuse that diff and don't redesign it.",
-    "Run `uv run pytest -q -x` early in the next attempt to find any other out-of-fence fixture breakage before spending time on the focused tests."
-  ],
-  "mechanical": null,
+  "verdict": "abandon-human",
+  "lessons": [],
+  "mechanical": "premise_bounce cap spent",
   "spec_version": "1.0",
-  "provider": "claude",
-  "model": "claude-opus-5-5"
+  "provider": null,
+  "model": null
 }
