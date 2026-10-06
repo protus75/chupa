@@ -8,6 +8,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from chupa.box import BOX_DIR, Box, DecisionRecord, Resolution, Verdict, read_registry, record_path, render_record
+from chupa.author import author, failure_decision
 from chupa.driver import Driver, LlmStage
 from chupa.git import GitError
 from chupa.journal import EventType
@@ -121,8 +122,11 @@ async def triage_pass(checkout: Checkout, llm: LLM) -> list[tuple[str, str]]:
                 line = await _record(checkout, driver, box, message.id, "decision", message.id, reply,
                                      message.summary)
             else:
-                line = (f"{message.id}: author verdict recorded; waits for the Author stage "
-                        "(chupa/author.py, 19.P2) -- run chupa triage again after it merges")
+                invoked = any(event.type == EventType.SIGNAL and event.body.get("signal") == "author_invoked"
+                              and event.body.get("message") == message.id for event in checkout.journal.read())
+                outcome = (await failure_decision(checkout, driver, box, message, "previous Author invocation did not settle")
+                           if invoked else await author(checkout, driver, box, message, pass_no))
+                line = f"{message.id}: " + (f"ticket -> {outcome.stem}" if outcome.stem else f"decision -> {outcome.decision}")
             lines.append((message.id, line))
             continue
 
@@ -157,8 +161,8 @@ async def triage_pass(checkout: Checkout, llm: LLM) -> list[tuple[str, str]]:
             if reply.verdict == "author":
                 box.record_verdict(message.id, Verdict(verdict="author", produced_by_spec_version=spec.meta.version,
                                                       rationale=reply.rationale))
-                line = (f"{message.id}: author verdict recorded; waits for the Author stage "
-                        "(chupa/author.py, 19.P2) -- run chupa triage again after it merges")
+                outcome = await author(checkout, driver, box, box.get(message.id), pass_no)
+                line = f"{message.id}: " + (f"ticket -> {outcome.stem}" if outcome.stem else f"decision -> {outcome.decision}")
             else:
                 kind = reply.verdict
                 if kind == "tombstone":

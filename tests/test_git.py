@@ -64,6 +64,7 @@ def test_every_call_is_dir_pinned_and_passes_env_and_timeout():
     "call, argv",
     [
         (lambda g: g.init(REPO, branch="main"), ["init", "-b", "main"]),
+        (lambda g: g.ls_files(REPO), ["ls-files"]),
         (lambda g: g.rev_parse(REPO, "HEAD"), ["rev-parse", "--verify", "HEAD"]),
         (lambda g: g.git_common_dir(REPO), ["rev-parse", "--git-common-dir"]),
         (lambda g: g.diff(REPO, "main", "t-1"), ["diff", "main...t-1"]),
@@ -118,6 +119,26 @@ def test_git_common_dir_resolves_main_and_linked_worktree(tmp_path):
         await g.worktree_add(main, linked, "linked", "main")
         assert await g.git_common_dir(main) == main / ".git"
         assert await g.git_common_dir(linked) == main / ".git"
+
+    run(scenario())
+
+
+def test_ls_files_lists_committed_files_not_untracked_files(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
+           "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    g = Git(SubprocessExec(), env=env, timeout=30.0)
+
+    async def scenario():
+        await g.init(repo, branch="main")
+        (repo / "tracked.txt").write_text("tracked\n")
+        await g.add(repo, ["tracked.txt"])
+        await g.commit(repo, "base")
+        (repo / "untracked.txt").write_text("untracked\n")
+        assert "tracked.txt" in await g.ls_files(repo)
+        assert "untracked.txt" not in await g.ls_files(repo)
 
     run(scenario())
 

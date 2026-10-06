@@ -100,7 +100,7 @@ def test_scored_run_journals_one_no_go_signal_with_the_baselined_identity(tmp_pa
     assert [e.body for e in signals] == [body]
     assert body["signal"] == "review_baseline" and body["verdict"] == "NO_GO"
     review, author = body["identity"]["review"], body["identity"]["author"]
-    assert review["spec_major"] == 1 and author["spec_major"] is None  # specs/author.md is a Phase 2 seed
+    assert review["spec_major"] == 1 and author["spec_major"] == 1
     assert review["rows"] == {t: {"provider": "claude", "model": "c-max"} for t in ("low", "medium", "high", "max")}
     assert author["rows"]["low"] == {"provider": "claude", "model": "c-low"}
     assert body["fixture_authors"] == [CODEX]

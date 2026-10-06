@@ -49,6 +49,9 @@ class Git:
     async def status_porcelain(self, dir: Path) -> str:
         return await self._run(dir, "status", "--porcelain")
 
+    async def ls_files(self, dir: Path) -> list[str]:
+        return (await self._run(dir, "ls-files")).splitlines()
+
     async def rev_parse(self, dir: Path, rev: str) -> str:
         return (await self._run(dir, "rev-parse", "--verify", _ref(rev))).strip()
 
