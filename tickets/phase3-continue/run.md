@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-none
+Preservation-suite Context exceeded headroom, so those suites remain Verification-only while required implementation inputs remain embedded.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60m; completed in roughly 10m.
+Expected 60m; completed in about 10m.
 
