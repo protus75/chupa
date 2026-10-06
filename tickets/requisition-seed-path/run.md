@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Reruns carry forward recorded approvals for previously lifted seeds.
+none
 
 ## Dead ends
 
-none
+The initial rerun fixture had no code diff; I corrected it and reran verification.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-90m expected; completed within budget
+90m expected; about 12m actual
 
