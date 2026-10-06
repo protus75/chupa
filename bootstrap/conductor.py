@@ -57,7 +57,7 @@ halts, never a silent phantom completion), and the playbook item's
   none    -- no test and no verdict (the seed-files step): run, check
              expects, commit, advance.
 Guards, all halt-for-operator: a preflight refuses to start without git, uv,
-and claude on PATH; each phase's parsed deliverable count must match the
+pnpm, and claude on PATH, or with claude older than its latest pnpm release; each phase's parsed deliverable count must match the
 plan's stated count (a playbook format drift halts -- never a short parse
 silently declared complete); a deliverable REFUSES to
 start on a dirty tree (the commit sweeps `git add -A`, so anything already
@@ -88,6 +88,7 @@ MAX_FIX_ATTEMPTS = 2
 MAX_ATTEMPT_CALLS = 500   # per-launch model-call ceiling (section 19 bootstrap contract)
 ATTEMPT_ID = datetime.now(timezone.utc).strftime("bs-%Y%m%dT%H%M%SZ")  # durable per-launch id (section 19)
 CLAUDE_TRANSIENT_RETRIES = 2   # bounded backoff before a nonzero exit halts
+CLAUDE_PACKAGE = "@anthropic-ai/claude-code"   # the bootstrap CLI's pnpm package (section 0 preflight)
 EXPECTED_DELIVERABLES = {0: 11, 1: 17}   # playbook counts; a parse drift halts
 REVIEW_FILE = ROOT / "bootstrap" / "review.json"
 PREAMBLE = """\
@@ -193,10 +194,15 @@ def journal_evidence(prompt, started_at):
 
 
 def preflight():
-    missing = [b for b in ("git", "uv", "claude") if not shutil.which(b)]
+    missing = [b for b in ("git", "uv", "pnpm", "claude") if not shutil.which(b)]
     if missing:
         sys.exit("missing required binaries: %s -- see the prerequisites table "
                  "(CHUPA_PLAN.md section 0)" % ", ".join(missing))
+    installed = run(["claude", "--version"], capture_output=True, text=True).stdout.split()[:1]
+    latest = run(["pnpm", "view", CLAUDE_PACKAGE, "version"], capture_output=True, text=True).stdout.strip()
+    if not latest or installed != [latest]:
+        sys.exit("claude %s is not the latest release %s -- run: pnpm add -g %s@latest"
+                 % ((installed or ["(unknown)"])[0], latest or "(unreadable)", CLAUDE_PACKAGE))
 
 
 def claude(prompt):
