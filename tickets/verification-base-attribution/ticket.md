@@ -19,6 +19,7 @@ agent_effort: medium
 
 ## On-demand
 - chupa/stages.py
+- tests/test_diagnose.py
 
 ## Plan contract
 - 19.L
@@ -50,6 +51,7 @@ Owners (section 9 ownership law): `chupa/stages.py` owns stage-evidence gatherin
 - tests/test_git.py
 - tests/test_merge.py
 - tests/test_drain_reentry.py
+- tests/test_diagnose.py
 
 ## Acceptance criteria
 1. `tests/test_stages.py` proves a ticket with two Verification commands, one red at both base and branch and one green, passes Check, its `checks.json` marks the first `base_red`, and one `failure_report` with `outcome == "base_red"` and `origin` the stem is in the box.
@@ -57,7 +59,8 @@ Owners (section 9 ownership law): `chupa/stages.py` owns stage-evidence gatherin
 3. `tests/test_merge.py` proves merge regating attributes the same way: a base-red command does not refuse an otherwise-admissible candidate.
 4. `tests/test_git.py` proves `merge_base` and `worktree_add_detached` against a temp repo and refuses a ref starting with `-`.
 5. `uv run pytest -q tests/test_drain_reentry.py` passes with the base-red case added and the existing branch-only-red test unchanged.
-6. `uv run pytest -q` exits 0 with no test removed or skipped.
+6. `tests/test_diagnose.py`'s drain fixture (`test_drain_renders_two_attempts_lessons_and_no_spooled_raw_marker`) is rewritten so its Verification command is green at the merge base and red only on the branch; it still proves a branch-introduced retry. No other test in that file changes.
+7. `uv run pytest -q` exits 0 with no test removed or skipped.
 
 ## Verification
 ```
