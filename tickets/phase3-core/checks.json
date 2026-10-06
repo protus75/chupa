@@ -1,13 +1,13 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "4dda5b062ccd13acb1a7fe88bc932e9d904092c5",
+  "produced_at_sha": "c690029bc42b721c6178bb49a1e46e487c2bf33a",
   "stem": "phase3-core",
-  "passed": false,
+  "passed": true,
   "changed_files": [
     "tests/test_seeded_phase3_core.py"
   ],
-  "inserted_lines": 155,
+  "inserted_lines": 149,
   "bypassed": [],
   "reports": [
     {
@@ -36,17 +36,8 @@
     },
     {
       "code": "requisition_review",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "missing_entry_unit",
-          "path": "CHUPA_PLAN.md",
-          "line": 1807,
-          "message": "Scope in requires phase3-continue-02 to cite '19.L, 19.I, 19.P3 and the entry units of its next payload'. Its next payload is admissions[2] = [rework-stage]. CHUPA_PLAN.md has P3 entry units only for daemon-scheduler (line 1800), merge-queue (line 1807) and seed-successor-proof (line 1824); there is no `### 19.P3.rework-stage`. A `## Plan contract` bullet citing 19.P3.rework-stage fails intake lint, because `resolve_plan_contract` is called on every cite in chupa/tickets.py validate_ticket. The ticket's own premise check would also stop on the missing unit. The plan is missing rework-stage's Owner (chupa/rework.py, specs/rework.md), Records (the ConflictHandoff it consumes, the supersedes-map shape and its writer, the update/split/escalate outputs), Observable (dormancy) and Tests (named obligations). The seed path needs these facts and must not invent them.",
-          "paved_road": "Before this seeding ticket runs, harden the plan through section 11.4: a harden-rework-stage-1 ticket adds `### 19.P3.rework-stage` with Owner, Records, Observable and Tests bullets taken from the registry row and the merge-queue ConflictHandoff contract. Then rerun phase3-continue unchanged. Alternatively, re-author phase3-continue to depend on that hardening ticket so the successor's required cite resolves when it is authored.",
-          "kind": "spec_gap"
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false
     }
   ],
@@ -56,22 +47,13 @@
       "ticket_sha": "996b389dfa2e04f9202b7649c0bc9917c20be91f",
       "verdict": "approve",
       "findings": [],
-      "mechanical": null
+      "mechanical": "approved earlier"
     },
     {
       "stem": "phase3-continue",
-      "ticket_sha": "f9a64e35265c4082677d959d0e1610dc75b2a613",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "missing_entry_unit",
-          "path": "CHUPA_PLAN.md",
-          "line": 1807,
-          "message": "Scope in requires phase3-continue-02 to cite '19.L, 19.I, 19.P3 and the entry units of its next payload'. Its next payload is admissions[2] = [rework-stage]. CHUPA_PLAN.md has P3 entry units only for daemon-scheduler (line 1800), merge-queue (line 1807) and seed-successor-proof (line 1824); there is no `### 19.P3.rework-stage`. A `## Plan contract` bullet citing 19.P3.rework-stage fails intake lint, because `resolve_plan_contract` is called on every cite in chupa/tickets.py validate_ticket. The ticket's own premise check would also stop on the missing unit. The plan is missing rework-stage's Owner (chupa/rework.py, specs/rework.md), Records (the ConflictHandoff it consumes, the supersedes-map shape and its writer, the update/split/escalate outputs), Observable (dormancy) and Tests (named obligations). The seed path needs these facts and must not invent them.",
-          "paved_road": "Before this seeding ticket runs, harden the plan through section 11.4: a harden-rework-stage-1 ticket adds `### 19.P3.rework-stage` with Owner, Records, Observable and Tests bullets taken from the registry row and the merge-queue ConflictHandoff contract. Then rerun phase3-continue unchanged. Alternatively, re-author phase3-continue to depend on that hardening ticket so the successor's required cite resolves when it is authored.",
-          "kind": "spec_gap"
-        }
-      ],
+      "ticket_sha": "5cd142ee325f3af07527924ec290fe382233cd58",
+      "verdict": "approve",
+      "findings": [],
       "mechanical": null
     },
     {
@@ -79,7 +61,7 @@
       "ticket_sha": "7c68c2e9d9ff4cdf68b1cec7a13d33e1708cd56d",
       "verdict": "approve",
       "findings": [],
-      "mechanical": null
+      "mechanical": "approved earlier"
     }
   ],
   "verification": [
@@ -92,7 +74,7 @@
         "tests/test_seeded_phase3_core.py"
       ],
       "rc": 0,
-      "tail": "...................                                                      [100%]\n19 passed in 0.43s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "...................                                                      [100%]\n19 passed in 0.40s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -103,7 +85,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "........................................................................ [  9%]\n........................................................................ [ 19%]\n........................................................................ [ 29%]\n........................................................................ [ 39%]\n........................................................................ [ 49%]\n........................................................................ [ 59%]\n........................................................................ [ 69%]\n........................................................................ [ 79%]\n........................................................................ [ 88%]\n........................................................................ [ 98%]\n.........                                                                [100%]\n729 passed in 70.40s (0:01:10)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................................ [  9%]\n........................................................................ [ 19%]\n........................................................................ [ 29%]\n........................................................................ [ 39%]\n........................................................................ [ 49%]\n........................................................................ [ 59%]\n........................................................................ [ 69%]\n........................................................................ [ 79%]\n........................................................................ [ 88%]\n........................................................................ [ 98%]\n.........                                                                [100%]\n729 passed in 71.35s (0:01:11)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
