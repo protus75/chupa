@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Merge regating needed to avoid filing a duplicate report for a command already reported at Check.
+Older checks.json records needed a default for the new verification field; Check and merge filings also needed deduplication across stages.
 
 ## Dead ends
 
-A diagnosis fixture initially left an empty diff on its final attempt; I gave it a green, committed branch change.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-75m expected; about 10m actual.
+75m expected; about 6m actual
 
