@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Full suite passed in bounded file batches due console runtime limits.
+none
 
 ## Dead ends
 
