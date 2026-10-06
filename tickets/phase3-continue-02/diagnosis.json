@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "a32d2078054686d4f48d824bccb0846c015f1744",
+  "produced_at_sha": "f78c73f502a2ff3cab4ab677d829ff4ef2c18160",
   "stem": "phase3-continue-02",
-  "attempt": 5,
+  "attempt": 6,
   "terminal": "gate_failed",
   "stage": "check",
   "verdict": "retry",
   "lessons": [
-    "In tickets/phase3-continue-03/ticket.md Goal / Why, add a next-admission paragraph: the next admission is `thresh-runtime` alone, known-deep, `high`/`high`, with its exact registry `does`, cited section 6, and its fence floor. It depends on `rework-stage`.",
-    "Copy the thresh-runtime fence floor verbatim from BEGIN_REGISTRY_P3: chupa/thresh.py, chupa/providers.py, chupa/config.py, tests/test_thresh.py, tests/test_providers.py. Do not paraphrase it or trim it.",
-    "Also describe the successor `phase3-continue-04`: it depends on thresh-runtime, stays at medium/medium, and fences `tickets` plus its new tests/test_seeded_phase3_04.py. Its idiom is a merged earlier seeding test, never the test created in its own admission.",
-    "Amend phase3-continue-03 criterion 1 so it names `thresh-runtime` at `high`/`high`, `phase3-continue-04` at `medium`/`medium`, and the registry row's fence floor and cited section 6. Use phase3-continue-02's own Goal and criterion 1 as the template.",
-    "Don't copy the core test's blanket medium/medium tier assertion. Read each row's tier from its registry `deep` flag. After editing, rerun tests/test_seeded_phase3_02.py and fix any render-arithmetic pins the new paragraph changes."
+    "In tickets/rework-stage/ticket.md, never put `seeded_by` in a split-successor `ticket_intake` body; merged code reads `seeded_by == stem` as seed ownership. Record lineage only via the `supersedes` signal, and add a criterion and test that no stem's `seeded_by` set changes after an update or split.",
+    "Split successors must inherit the original ticket's `source`, as an update does; never stamp `source: seed`. The lint at chupa/tickets.py:347 requires 19.L/19.P citations for seeds. Add a test that each successor of a non-seed original passes `parse_ticket`.",
+    "Spec the exhausted ladder: when `caps.next_rung` returns None, Rework emits no `rework_escalate` signal and returns a typed Reject-queue routing result (RMA, section 11.4). Name the pinning test in tests/test_rework.py.",
+    "Before Check, check every journal body key, frontmatter value, and caps return the seed names against the merged code that reads it (mergequeue.py, merge.py, stages.py, tickets.py, caps.py), including None and edge returns. Cut any metadata no plan text asks for.",
+    "After editing the seeds, rerun tests/test_seeded_phase3_02.py and update its render-size pins. Leave both ticket.md files uncommitted."
   ],
   "mechanical": null,
   "spec_version": "1.0",
