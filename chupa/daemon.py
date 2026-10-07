@@ -1,7 +1,7 @@
 """Production daemon core and dispatch ownership (CHUPA_PLAN.md 19.P3.scheduler-activation)."""
 
 import asyncio
-from collections.abc import Callable, Set
+from collections.abc import Awaitable, Callable, Set
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,6 +25,43 @@ class DaemonCore:
     admission: "DaemonAdmission"
     scheduler: Scheduler
     watcher: Watcher
+
+
+class DaemonTasks:
+    """Explicit lifetime owner for dormant background consumers (19.P3.background-consumers)."""
+
+    def __init__(self, *, watcher: Callable[[], Awaitable[object]],
+                 merge_queue: Callable[[], Awaitable[object]],
+                 box_consumer: Callable[[], Awaitable[object]]) -> None:
+        self._consumers = (watcher, merge_queue, box_consumer)
+        self.tasks: tuple[asyncio.Task, ...] = ()
+
+    async def run(self) -> None:
+        if self.tasks:
+            raise ValueError("finish or cancel and await the existing DaemonTasks.run before another run")
+
+        async def invoke(callback: Callable[[], Awaitable[object]]) -> None:
+            await callback()
+
+        self.tasks = tuple(asyncio.create_task(invoke(callback)) for callback in self._consumers)
+        try:
+            # Shield prevents owner cancellation from cancelling a consumer again during unwind.
+            await asyncio.shield(asyncio.gather(*self.tasks))
+        finally:
+            for task in self.tasks:
+                if not task.done():
+                    task.cancel()
+            cleanup = asyncio.gather(*self.tasks, return_exceptions=True)
+            cancelled = None
+            while not cleanup.done():
+                try:
+                    await asyncio.shield(cleanup)
+                except asyncio.CancelledError as exc:
+                    cancelled = exc
+            cleanup.result()
+            self.tasks = ()
+            if cancelled is not None:
+                raise cancelled
 
 
 async def apply_rework(ctx: StageContext, ticket: Ticket, findings: list[Finding], *, attempt: int,
