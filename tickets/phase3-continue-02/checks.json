@@ -1,0 +1,103 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "0aabbb238514a0a7091a33f10d372456164fd527",
+  "stem": "phase3-continue-02",
+  "passed": false,
+  "changed_files": [
+    "tests/test_seeded_phase3_02.py"
+  ],
+  "inserted_lines": 164,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "requisition_review",
+      "verdict": "fail",
+      "findings": [
+        {
+          "code": "requisition_review",
+          "path": null,
+          "line": null,
+          "message": "invalid requisition review reply: 1 schema error(s)",
+          "paved_road": "reply with a schema-valid requisition verdict",
+          "kind": "authoring_error"
+        }
+      ],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [
+    {
+      "stem": "phase3-continue-03",
+      "ticket_sha": "4e2e40fcc8fa2b3556571fe3a043ef06e900e0a2",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
+    },
+    {
+      "stem": "rework-stage",
+      "ticket_sha": "9a0e3a91b6024d5bfe1cd4f4c57be6a655422395",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "requisition_review",
+          "path": null,
+          "line": null,
+          "message": "invalid requisition review reply: 1 schema error(s)",
+          "paved_road": "reply with a schema-valid requisition verdict",
+          "kind": "authoring_error"
+        }
+      ],
+      "mechanical": "invalid reply"
+    }
+  ],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_seeded_phase3_02.py"
+      ],
+      "rc": 0,
+      "tail": "..............                                                           [100%]\n14 passed in 0.37s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [  8%]\n........................................................................ [ 17%]\n........................................................................ [ 25%]\n........................................................................ [ 34%]\n........................................................................ [ 43%]\n........................................................................ [ 51%]\n........................................................................ [ 60%]\n........................................................................ [ 69%]\n........................................................................ [ 77%]\n........................................................................ [ 86%]\n........................................................................ [ 95%]\n........................................                                 [100%]\n832 passed in 77.49s (0:01:17)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
