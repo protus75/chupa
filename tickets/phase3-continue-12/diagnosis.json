@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "09c5273be714f9973e4c13b3cf8b59492297b491",
+  "stem": "phase3-continue-12",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "retry",
+  "lessons": [
+    "The implementation passed: tests/test_seeded_phase3_12.py had 14 tests pass and the full suite had 1498 pass. Check failed only because the requisition_review reply had a schema error (authoring_error). Re-run Check on the same seeds. Do not re-author anything the reply did not flag.",
+    "The requisition reviewer must reply with exactly one schema-valid requisition verdict object for each seed review. The stage log shows a fenced JSON object written right after another reply's closing brace. Emit one bare object per review, with no code fences and no second object.",
+    "Keep tickets/kill-cli-activation and tickets/phase3-continue-13 unchanged and uncommitted. Keep commit 09c5273 (tests/test_seeded_phase3_12.py) as it is. The ticket says re-author only snagged seeds, and no seed received a substantive finding.",
+    "The material does not say which field broke the schema. The harvest shows only '1 schema error(s)'. Check the reviewer's raw reply against the requisition verdict schema before replying, so that verdict, summary and findings match the required keys and types exactly."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
