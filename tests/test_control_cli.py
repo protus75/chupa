@@ -26,7 +26,7 @@ def acquire(root):
 
 
 def discovery(root, life="restart-unique", hold=None):
-    control.write_active(root / ".chupa/state", control.ControlProjection(life, hold), LocalFileSystem())
+    control.write_active(root / ".chupa/state", control.ControlProjection(life, hold), LocalFileSystem(), hold_id=hold)
 
 
 def requests(root):
@@ -165,7 +165,7 @@ def test_control_routing_lock_and_restart_races(root, monkeypatch, capsys):
         new.inbox.consume()
         assert new.decisions()[0]["decision"] == "stale" and new.projection.pause_id is None
         assert requests(root) == [request]
-        control.write_active(replacement.state_dir, None, LocalFileSystem())
+        control.write_active(replacement.state_dir, None, LocalFileSystem(), hold_id=None)
         assert invoke(root, "pause") == 2
         assert len(requests(root)) == 1
     finally:
@@ -204,5 +204,27 @@ def test_cli_observables_detect_removed_bindings(root, monkeypatch, binding):
             values = requests(root)
             assert len(values) == 1
             assert values[0]["lifecycle_id"] == "target-life" and values[0]["hold_id"] == "exact-hold"
+    finally:
+        lock.release()
+
+
+def test_resume_publishes_selected_hold_identity(root, monkeypatch, capsys):
+    lock = acquire(root)
+    ids = iter(["first-resume", "second-resume"])
+    monkeypatch.setattr(entry, "uuid4", lambda: SimpleNamespace(hex=next(ids)))
+    try:
+        # Selection is explicit: a dispatch pause projection must not replace the supplied admission id.
+        control.write_active(lock.state_dir, control.ControlProjection("life", "pause"),
+                             LocalFileSystem(), hold_id="admission-exact")
+        assert invoke(root, "resume") == 0
+        assert requests(root) == [asdict(control.ControlRequest(
+            "first-resume", "life", "resume", "admission-exact"))]
+        assert invoke(root, "resume") == 0
+        assert len(requests(root)) == 2
+        assert all(r["hold_id"] == "admission-exact" for r in requests(root))
+        discovery(root, "life")
+        assert invoke(root, "resume") == 2
+        assert "no current hold identity" in capsys.readouterr().err
+        assert len(requests(root)) == 2
     finally:
         lock.release()

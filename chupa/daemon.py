@@ -38,21 +38,35 @@ class PauseConsumer:
         self.state_dir, self.fs, self.sleep = state_dir, fs, sleep
         self.projection = ControlProjection(lifecycle_id)
         self._published = False
+        self.admission: str | None = None
         self.inbox = control_inbox(journal=journal, lifecycle_id=lifecycle_id,
-                                   holds=lambda: set(), apply=self._apply, files=files, read=read)
+                                   holds=lambda: {self.admission} if self.admission is not None else set(),
+                                   apply=self._apply, files=files, read=read)
 
     def _apply(self, projection: ControlProjection) -> None:
         # The inbox has already fsynced the decision; discovery is only its projection.
         self.projection = projection
         if self._published:
-            write_active(self.state_dir, projection, self.fs)
+            write_active(self.state_dir, projection, self.fs, hold_id=self._selected_hold())
+
+    def _selected_hold(self) -> str | None:
+        if self.projection.pause_id is not None:
+            return self.projection.pause_id
+        if self.admission not in self.projection.released_hold_ids:
+            return self.admission
+        return None
+
+    def hold(self, hold_id: str) -> None:
+        self.admission = hold_id
+        if self._published:
+            write_active(self.state_dir, self.projection, self.fs, hold_id=self._selected_hold())
 
     def publish(self) -> None:
         self._published = True
-        write_active(self.state_dir, self.projection, self.fs)
+        write_active(self.state_dir, self.projection, self.fs, hold_id=self._selected_hold())
 
     def retire(self) -> None:
-        write_active(self.state_dir, None, self.fs)
+        write_active(self.state_dir, None, self.fs, hold_id=None)
         self._published = False
 
     async def checkpoint(self) -> None:

@@ -2,7 +2,11 @@
 
 import asyncio
 from collections.abc import Callable, Sequence
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+from uuid import uuid4
+
+if TYPE_CHECKING:
+    from chupa.daemon import PauseConsumer
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -45,28 +49,45 @@ class TreeMismatch(RuntimeError):
 
 
 class MergeQueue:
-    def __init__(self, ctx: StageContext, *, escalate: Callable[[Event], None]) -> None:
+    def __init__(self, ctx: StageContext, *, escalate: Callable[[Event], None],
+                 control: "PauseConsumer | None" = None) -> None:
         self.ctx = ctx
         self.escalate = escalate
         self.pending: dict[str, tuple[Ticket, int]] = {}
         self.active: str | None = None
-        self.paused = False
+        self.control = control
+        self.hold_id = (control.admission if control is not None and
+                        control.admission not in control.projection.released_hold_ids else None)
+        self.paused = self.hold_id is not None
         self.red_stems: list[str] = []
         self._slot = asyncio.Lock()
 
     def offer(self, ticket: Ticket, *, attempt: int) -> None:
         self.pending[ticket.stem] = (ticket, attempt)
 
-    async def resume(self) -> None:
-        # Release cannot clear a streak while an active candidate is still checking.
-        async with self._slot:
+    def _release(self) -> None:
+        if (self.paused and self.control is not None and
+                self.hold_id in self.control.projection.released_hold_ids):
             self.paused = False
             self.red_stems.clear()
+            self.hold_id = None
+
+    def _hold(self, stem: str, body: dict) -> None:
+        hold_id = uuid4().hex
+        event = self.ctx.driver.journal.append(
+            EventType.SIGNAL, {**body, "hold_id": hold_id}, ticket=stem, key=None)
+        self.paused, self.hold_id = True, hold_id
+        if self.control is not None:
+            self.control.hold(hold_id)
+        self.escalate(event)
 
     async def process(self) -> list[StageResult | ConflictHandoff]:
         results = []
         async with self._slot:
-            while self.pending and not self.paused:
+            while True:
+                self._release()
+                if not self.pending or self.paused:
+                    break
                 ages = authored_at(self.ctx.driver.journal.read())
                 ticket, attempt = min(self.pending.values(), key=lambda row: sort_key(row[0], ages))
                 del self.pending[ticket.stem]
@@ -260,18 +281,16 @@ class MergeQueue:
                 if stem not in self.red_stems:
                     self.red_stems.append(stem)
                 if len(self.red_stems) == RED_STREAK_LIMIT:
-                    self.paused = True
-                    self._signal(stem, {"kind": RED_STREAK, "stems": list(self.red_stems),
-                                        "limit": RED_STREAK_LIMIT}, escalate=True)
+                    self._hold(stem, {"kind": RED_STREAK, "stems": list(self.red_stems),
+                                      "limit": RED_STREAK_LIMIT})
                 return refused(hard)
             self.red_stems.clear()
             checked_tree = await ctx.git.rev_parse(worktree, "HEAD^{tree}")
             admission = await merge.write_squash(ctx, ticket, reviewed, attempt=attempt)
             main_tree = await ctx.git.rev_parse(ctx.repo, "main^{tree}")
             if main_tree != checked_tree:
-                self.paused = True
-                self._signal(stem, {"kind": TREE_MISMATCH, "checked_tree": checked_tree,
-                                    "main_tree": main_tree}, escalate=True)
+                self._hold(stem, {"kind": TREE_MISMATCH, "checked_tree": checked_tree,
+                                  "main_tree": main_tree})
                 raise TreeMismatch(f"{stem}: checked tree {checked_tree} differs from main tree {main_tree}")
             await merge.retire(ctx, stem)
             return StageResult(outcome="ok", artifact=admission,

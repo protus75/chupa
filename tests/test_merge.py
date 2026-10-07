@@ -116,6 +116,8 @@ def test_bootstrap_pipeline_keeps_inline_admission(repo, monkeypatch):
     source = context(repo, [])
     checkout = runner.Checkout(repo, source.config, source.env, source.exec_, source.git,
                                source.driver.journal, source.fs, source.driver.clock, source.driver.sleep)
+    from chupa.__main__ import build_control
+    checkout = dataclasses.replace(checkout, control=build_control(checkout))
     llm = FakeLLM([agent({"chupa/thing.py": "ok\n"}), verdict()])
 
     def forbidden(*args, **kwargs):
@@ -319,3 +321,20 @@ def test_merge_safety_reads_committed_seed_and_checks_despite_dirty_main_checkou
 
     assert result.outcome == "ok", result.findings
     assert git(seed_repo, "show", "main:tickets/alpha-seed/ticket.md") == seed_text("alpha-seed")
+
+
+def test_pipeline_requires_supplied_control(repo):
+    from chupa import merge as owner
+    from chupa.__main__ import build_control
+    ctx = context(repo, [])
+    checkout = runner.Checkout(repo, ctx.config, ctx.env, ctx.exec_, ctx.git,
+                               ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
+    consumer = build_control(checkout)
+    with pytest.raises(TypeError):
+        owner.compose_pipeline(ctx, escalate=lambda _: None)
+    with pytest.raises(runner.Refusal, match="build_control.*Checkout.control"):
+        owner.compose_pipeline(ctx, escalate=lambda _: None, control=None)
+    queue = owner.compose_pipeline(ctx, escalate=lambda _: None, control=consumer)
+    assert queue.control is consumer and queue.hold_id is None
+    assert MergeQueue(ctx, escalate=lambda _: None).control is None
+    assert ctx.driver.journal.read() == []

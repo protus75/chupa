@@ -9,7 +9,8 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from chupa import merge, stages
+from chupa import control, merge, stages
+from chupa.daemon import PauseConsumer
 from chupa.artifacts import StageResult
 from chupa.box import BOX_DIR, Box
 from chupa.config import MechanicalCheck, RegenerateStrategy, UnionStrategy, load_config
@@ -125,6 +126,25 @@ def scripted(ctx, monkeypatch, results):
         return await original(argv, **kw)
     monkeypatch.setattr(ctx.exec_, "run", execute)
     return calls
+
+
+def admission_control(ctx, lifecycle="admission-life"):
+    return PauseConsumer(journal=ctx.driver.journal, lifecycle_id=lifecycle,
+                         state_dir=ctx.config.state_dir, fs=ctx.fs, sleep=ctx.driver.sleep,
+                         files=lambda: (ctx.config.state_dir / "control/inbox").glob("*"),
+                         read=Path.read_bytes)
+
+
+def request(consumer, request_id, *, hold=None, lifecycle=None, verb="resume"):
+    control.publish_request(consumer.state_dir, control.ControlRequest(
+        request_id, lifecycle or consumer.projection.lifecycle_id, verb, hold), consumer.fs)
+    consumer.inbox.consume()
+
+
+def accept_resume(queue, request_id="resume"):
+    request(queue.control, request_id, hold=queue.hold_id)
+    assert queue.hold_id in queue.control.projection.released_hold_ids
+    assert queue.paused
 
 
 def test_serial_priority_age_order(ctx, monkeypatch):
@@ -497,7 +517,7 @@ def test_tree_mismatch_escalates_and_pauses(ctx, monkeypatch):
             return "mismatch" if ref == "main^{tree}" else await original(root, ref)
         monkeypatch.setattr(ctx.git, "rev_parse", mismatch)
         escalations = []
-        queue = MergeQueue(ctx, escalate=escalations.append)
+        queue = MergeQueue(ctx, escalate=escalations.append, control=admission_control(ctx))
         queue.offer(ticket, attempt=0)
         with pytest.raises(TreeMismatch):
             await queue.process()
@@ -505,9 +525,10 @@ def test_tree_mismatch_escalates_and_pauses(ctx, monkeypatch):
         assert await original(ctx.repo, "main") != before
         assert len(escalations) == 1 and escalations[0].key is None and escalations[0].ticket == ticket.stem
         assert escalations[0].body == {"kind": TREE_MISMATCH,
-            "checked_tree": await original(ctx.worktree(ticket.stem), "HEAD^{tree}"), "main_tree": "mismatch"}
+            "checked_tree": await original(ctx.worktree(ticket.stem), "HEAD^{tree}"), "main_tree": "mismatch", "hold_id": queue.hold_id}
         assert await queue.process() == []
-        await queue.resume()
+        accept_resume(queue)
+        await queue.process()
         assert not queue.paused
     run(scenario())
 
@@ -519,7 +540,7 @@ def test_distinct_red_streak_pause_and_resume(ctx, monkeypatch):
         ctx.config.review.mechanical = [host("integration")]
         calls = scripted(ctx, monkeypatch, [(1, "", "red")] * 4 + [(0, "", "")] * 2)
         escalations = []
-        queue = MergeQueue(ctx, escalate=escalations.append)
+        queue = MergeQueue(ctx, escalate=escalations.append, control=admission_control(ctx))
         await admission(ctx, tickets[0], queue=queue)
         await approve(ctx, tickets[0])
         await admission(ctx, tickets[0], queue=queue, attempt=1)
@@ -537,12 +558,12 @@ def test_distinct_red_streak_pause_and_resume(ctx, monkeypatch):
         [red] = await queue.process()
         assert red.outcome == "gate_failed" and queue.paused and "green" in queue.pending
         assert len(escalations) == 1 and escalations[0].body == {
-            "kind": RED_STREAK, "stems": ["one", "two", "three"], "limit": 3}
+            "kind": RED_STREAK, "stems": ["one", "two", "three"], "limit": 3, "hold_id": queue.hold_id}
         assert escalations[0].ticket == "three" and escalations[0].key is None
         assert await queue.process() == []
-        await queue.resume()
-        assert not queue.red_stems and not queue.paused
+        accept_resume(queue)
         [green] = await queue.process()
+        assert not queue.red_stems and not queue.paused
         assert green.outcome == "ok" and not queue.red_stems
         # Green also resets a sub-limit streak without requiring resume.
         queue.red_stems.append("earlier")
@@ -777,24 +798,207 @@ def test_inline_admission_does_not_use_merge_queue(ctx):
     run(scenario())
 
 
-def test_resume_waits_for_active_admission(ctx, monkeypatch):
+@pytest.mark.parametrize("cancel", [False, True])
+def test_resume_waits_for_active_admission(ctx, monkeypatch, cancel):
     async def scenario():
-        ticket = await ready(ctx)
-        queue = MergeQueue(ctx, escalate=lambda _: None)
+        tickets = [await ready(ctx, stem, changes={f"chupa/{stem}.py": "ok"},
+                               fence=(f"chupa/{stem}.py",)) for stem in ("one", "two", "three")]
+        ctx.config.review.mechanical = [host("integration")]
+        scripted(ctx, monkeypatch, [(1, "", "red")] * 3)
+        queue = MergeQueue(ctx, escalate=lambda _: None, control=admission_control(ctx))
+        for ticket in tickets[:2]:
+            await admission(ctx, ticket, queue=queue)
         entered, release = asyncio.Event(), asyncio.Event()
-        original = stages.gather_safety_evidence
+        original = queue._admit
         async def hold(*args):
+            result = await original(*args)
+            assert queue.paused and queue.active == "three"
             entered.set()
             await release.wait()
-            return await original(*args)
-        monkeypatch.setattr(stages, "gather_safety_evidence", hold)
-        queue.offer(ticket, attempt=0)
+            return result
+        monkeypatch.setattr(queue, "_admit", hold)
+        queue.offer(tickets[2], attempt=0)
         task = asyncio.create_task(queue.process())
         await entered.wait()
-        resume = asyncio.create_task(queue.resume())
-        queue.red_stems.append("previous")
-        assert not resume.done() and queue.active == ticket.stem
-        release.set()
-        await asyncio.gather(task, resume)
-        assert queue.active is None and queue.red_stems == [] and not queue.paused
+        accept_resume(queue)
+        boundary = asyncio.create_task(queue.process())
+        assert queue.paused and queue.red_stems == ["one", "two", "three"] and queue.active == "three"
+        assert not boundary.done() and queue._slot.locked()
+        if cancel:
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        else:
+            release.set()
+            await task
+        await boundary
+        assert queue.active is None and queue.red_stems == [] and not queue.paused and queue.hold_id is None
+        assert not queue._slot.locked()
     run(scenario())
+
+
+@pytest.mark.parametrize("kind", [RED_STREAK, TREE_MISMATCH])
+def test_admission_hold_signal_precedes_projection(ctx, monkeypatch, kind):
+    consumer = admission_control(ctx)
+    chronology = []
+    queue = MergeQueue(ctx, control=consumer, escalate=lambda event: chronology.append("escalate"))
+    body = ({"kind": RED_STREAK, "stems": ["one", "two", "three"], "limit": 3}
+            if kind == RED_STREAK else {"kind": TREE_MISMATCH, "checked_tree": "checked", "main_tree": "main"})
+    append, hold = ctx.driver.journal.append, consumer.hold
+    def appended(type, value, **kwargs):
+        assert not queue.paused and queue.hold_id is None and consumer.admission is None
+        assert set(value) == set(body) | {"hold_id"} and value == {**body, "hold_id": value["hold_id"]}
+        assert value["hold_id"] and len(value["hold_id"]) == 32
+        assert type == EventType.SIGNAL and kwargs == {"ticket": "three", "key": None}
+        chronology.append("append")
+        return append(type, value, **kwargs)
+    def held(identity):
+        assert queue.paused and queue.hold_id == identity
+        assert ctx.driver.journal.read()[-1].body == {**body, "hold_id": identity}
+        chronology.append("hold")
+        hold(identity)
+    monkeypatch.setattr(ctx.driver.journal, "append", appended)
+    monkeypatch.setattr(consumer, "hold", held)
+    identities = []
+    for _ in range(2):
+        queue._hold("three", body)
+        identities.append(queue.hold_id)
+        assert chronology[-3:] == ["append", "hold", "escalate"]
+        queue.paused, queue.hold_id, consumer.admission = False, None, None
+    assert identities[0] != identities[1]
+    def failed(*args, **kwargs):
+        raise OSError("append failed")
+    monkeypatch.setattr(ctx.driver.journal, "append", failed)
+    with pytest.raises(OSError, match="append failed"):
+        queue._hold("three", body)
+    assert not queue.paused and queue.hold_id is None and consumer.admission is None
+    assert chronology == ["append", "hold", "escalate"] * 2
+
+
+def test_admission_resume_matches_lifecycle_and_hold(ctx, monkeypatch):
+    from chupa import mergequeue
+    from types import SimpleNamespace
+    future = "f" * 32
+    identities = iter([future, *(mergequeue.uuid4().hex for _ in range(3))])
+    monkeypatch.setattr(mergequeue, "uuid4", lambda: SimpleNamespace(hex=next(identities)))
+    async def scenario():
+        consumer = admission_control(ctx)
+        queue = MergeQueue(ctx, control=consumer, escalate=lambda _: None)
+        request(consumer, "01-premature", hold=future)
+        request(consumer, "02-absent", hold="absent")
+        queue._hold("three", {"kind": RED_STREAK, "stems": ["one", "two", "three"], "limit": 3})
+        first = queue.hold_id
+        assert first == future
+        consumer.inbox.consume()
+        assert future not in consumer.projection.released_hold_ids
+        fresh = MergeQueue(ctx, control=consumer, escalate=lambda _: None)
+        assert fresh.paused and fresh.hold_id == first
+        request(consumer, "03-wrong", hold="wrong")
+        request(consumer, "04-old", hold=first, lifecycle="old-life")
+        assert await queue.process() == [] and queue.paused
+        request(consumer, "05-pause", verb="pause")
+        assert consumer.projection.pause_id == "05-pause"
+        accept_resume(queue, "06-matching")
+        await queue.process()
+        assert not queue.paused and queue.hold_id is None and queue.red_stems == []
+        assert consumer.projection.pause_id == "05-pause"
+        before = ctx.driver.journal.read()
+        consumer.inbox.consume()
+        assert ctx.driver.journal.read() == before
+        queue._hold("four", {"kind": TREE_MISMATCH, "checked_tree": "a", "main_tree": "b"})
+        second = queue.hold_id
+        assert first != second
+        request(consumer, "07-replaced", hold=first)
+        await queue.process()
+        assert queue.paused and queue.hold_id == second
+        request(consumer, "08-pause-release", hold="05-pause")
+        await queue.process()
+        assert consumer.projection.pause_id is None and queue.paused
+        accept_resume(queue, "09-second")
+        await queue.process()
+        assert not queue.paused
+        decisions = [e.body["decision"] for e in ctx.driver.journal.read()
+                     if e.body.get("kind") == control.CONTROL_DECISION]
+        assert decisions == ["stale"] * 4 + ["accepted", "accepted", "stale", "accepted", "accepted"]
+        unbound = MergeQueue(ctx, escalate=lambda _: None)
+        unbound._hold("unbound", {"kind": TREE_MISMATCH, "checked_tree": "a", "main_tree": "b"})
+        assert await unbound.process() == [] and unbound.paused
+        # A release for the replaced slot cannot name a later fresh hold.
+        queue._hold("five", {"kind": TREE_MISMATCH, "checked_tree": "a", "main_tree": "b"})
+        consumer.inbox.consume()
+        await queue.process()
+        assert queue.paused
+    run(scenario())
+
+
+def test_admission_resume_decision_precedes_release(ctx, monkeypatch):
+    async def scenario():
+        consumer = admission_control(ctx)
+        queue = MergeQueue(ctx, control=consumer, escalate=lambda _: None)
+        queue.red_stems[:] = ["one", "two", "three"]
+        queue._hold("three", {"kind": RED_STREAK, "stems": list(queue.red_stems), "limit": 3})
+        identity = queue.hold_id
+        append = ctx.driver.journal.append
+        def failed(type, body, **kwargs):
+            assert queue.paused and queue.hold_id == identity and queue.red_stems == ["one", "two", "three"]
+            assert identity not in consumer.projection.released_hold_ids
+            raise OSError("decision append failed")
+        monkeypatch.setattr(ctx.driver.journal, "append", failed)
+        with pytest.raises(OSError, match="decision append failed"):
+            request(consumer, "release", hold=identity)
+        await queue.process()
+        assert queue.paused
+        chronology = []
+        def durable(type, body, **kwargs):
+            assert queue.paused and identity not in consumer.projection.released_hold_ids
+            event = append(type, body, **kwargs)
+            chronology.append("decision")
+            return event
+        monkeypatch.setattr(ctx.driver.journal, "append", durable)
+        def crash(projection):
+            assert chronology == ["decision"] and queue.paused
+            assert ctx.driver.journal.read()[-1].body["decision"] == "accepted"
+            raise RuntimeError("crash before application")
+        monkeypatch.setattr(consumer.inbox, "apply", crash)
+        with pytest.raises(RuntimeError, match="crash before application"):
+            consumer.inbox.consume()
+        await queue.process()
+        assert queue.paused
+        recovered = admission_control(ctx)
+        recovered.hold(identity)
+        before = ctx.driver.journal.read()
+        recovered.inbox.consume()
+        assert identity in recovered.projection.released_hold_ids and ctx.driver.journal.read() == before
+        # Binding does not apply recovery; the lock owner recovered before serial processing.
+        queue.control = recovered
+        assert queue.paused and queue.red_stems == ["one", "two", "three"]
+        await queue.process()
+        assert not queue.paused and queue.hold_id is None and queue.red_stems == []
+    run(scenario())
+
+
+@pytest.mark.parametrize("ordering", ["hold", "decision"])
+def test_admission_durability_probes(ctx, monkeypatch, ordering):
+    if ordering == "hold":
+        original = MergeQueue._hold
+        def early(queue, stem, body):
+            queue.paused = True
+            original(queue, stem, body)
+        monkeypatch.setattr(MergeQueue, "_hold", early)
+        with pytest.raises(AssertionError):
+            test_admission_hold_signal_precedes_projection(ctx, monkeypatch, RED_STREAK)
+    else:
+        consume = control.ControlInbox.consume
+        def early(inbox):
+            append = inbox.journal.append
+            def reordered(type, body, **kwargs):
+                if body.get("kind") == control.CONTROL_DECISION and body.get("decision") == "accepted":
+                    inbox.apply(control.ControlProjection(inbox.lifecycle_id,
+                        released_hold_ids=frozenset({body["hold_id"]})))
+                return append(type, body, **kwargs)
+            with monkeypatch.context() as patch:
+                patch.setattr(inbox.journal, "append", reordered)
+                consume(inbox)
+        monkeypatch.setattr(control.ControlInbox, "consume", early)
+        with pytest.raises(AssertionError):
+            test_admission_resume_decision_precedes_release(ctx, monkeypatch)

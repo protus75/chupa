@@ -10,7 +10,10 @@ import sys
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from chupa.daemon import PauseConsumer
 
 import yaml
 
@@ -76,6 +79,7 @@ class Checkout:
     fs: FileSystem
     clock: Clock
     sleep: Sleep = asyncio.sleep
+    control: "PauseConsumer | None" = None
 
 
 Pipeline = Callable[[Checkout], Dispatch]
@@ -113,7 +117,7 @@ def bind(checkout: Checkout, llm: LLM) -> Dispatch:
 
     from chupa.daemon import TicketWriter
 
-    queue = compose_pipeline(ctx, escalate=escalate)
+    queue = compose_pipeline(ctx, escalate=escalate, control=checkout.control)
     return TicketWriter(ctx, queue)
 
 

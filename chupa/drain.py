@@ -152,13 +152,14 @@ async def drain(
     before_dispatch: Callable[[], Awaitable[None]] | None = None,
 ) -> Report:
     """`reexec` is the handoff's own process seam (section 15): never the instance active work spawns through."""
+    consumer = checkout.control
+    if consumer is None:
+        raise Refusal("admission control consumer absent",
+                      "construct it with `build_control` at the composition root and supply it as `Checkout.control`")
     lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo),
                     clock=checkout.clock)
     lock.acquire()
-    consumer = None
     try:
-        from chupa.__main__ import build_control
-        consumer = build_control(checkout)
         consumer.publish()
 
         async def checkpoint() -> None:
@@ -184,8 +185,7 @@ async def drain(
         checkout.journal.close()
     finally:
         try:
-            if consumer is not None:
-                consumer.retire()
+            consumer.retire()
         finally:
             lock.release()
     # The fixed HANDOFF order (section 18): journaled, journal closed, lock free -- the child is the only writer,

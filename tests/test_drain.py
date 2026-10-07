@@ -10,7 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from chupa.__main__ import main
+from chupa.__main__ import build_control, main
+from dataclasses import replace
 from chupa.box import Box
 from chupa.caps import draws
 from chupa.drain import CEILING, HALT_SIGNAL
@@ -684,8 +685,9 @@ def pause_checkout(root):
     from chupa.config import load_config
     from chupa.runner import Checkout
     process = SubprocessExec()
-    return Checkout(root, load_config(None, cwd=root), ENV, process,
+    checkout = Checkout(root, load_config(None, cwd=root), ENV, process,
                     Git(process, env=ENV, timeout=30), journal(root), LocalFileSystem(), Clock())
+    return replace(checkout, control=build_control(checkout))
 
 
 class Pause:
@@ -865,3 +867,49 @@ async def test_pause_preserves_free_premise_and_spec_gap_reoffers(root, kind):
     running, terminal = offer_events(root)[len(before):]
     assert running.body == {"to": "running", "ticket_sha": git_out(root, "rev-parse", "HEAD:tickets/work/ticket.md").strip()}
     assert terminal.body == {"to": "merged"}
+
+
+@pytest.mark.asyncio
+async def test_drain_uses_supplied_control(root, monkeypatch):
+    from chupa import __main__ as cli
+    from chupa.drain import drain as run_drain
+    from chupa.runner import Refusal
+    from tests.test_drain_reentry import NoChild
+    checkout = pause_checkout(root)
+    consumer = checkout.control
+    trace = []
+    def forbidden(*args, **kwargs):
+        pytest.fail("drain constructed a fallback consumer")
+    monkeypatch.setattr(cli, "build_control", forbidden)
+    acquire, release = Lockfile.acquire, Lockfile.release
+    def acquired(lock):
+        acquire(lock)
+        trace.append("lock")
+    def released(lock):
+        assert trace[-1] == "retire"
+        trace.append("unlock")
+        release(lock)
+    monkeypatch.setattr(Lockfile, "acquire", acquired)
+    monkeypatch.setattr(Lockfile, "release", released)
+    for name in ("publish", "checkpoint", "retire"):
+        original = getattr(consumer, name)
+        if name == "checkpoint":
+            async def checked(_original=original):
+                assert trace[0] == "lock" and "unlock" not in trace
+                trace.append("consume")
+                await _original()
+            monkeypatch.setattr(consumer, name, checked)
+        else:
+            def called(_original=original, _name=name):
+                assert trace[0] == "lock" and "unlock" not in trace
+                _original()
+                trace.append(_name)
+            monkeypatch.setattr(consumer, name, called)
+    assert (await run_drain(checkout, Script()(checkout), reexec=NoChild())).merged == []
+    assert trace[:2] == ["lock", "publish"] and "consume" in trace
+    assert trace[-2:] == ["retire", "unlock"]
+    assert (checkout.config.state_dir / "control/active.json").read_bytes() == b"null\n"
+    trace.clear()
+    with pytest.raises(Refusal, match="build_control.*Checkout.control"):
+        await run_drain(replace(checkout, control=None), Script()(checkout), reexec=NoChild())
+    assert trace == []

@@ -162,9 +162,10 @@ _DISCOVERY_ROAD = ("retry after the running engine publishes its current control
                    "read that identity and submit a new request")
 
 
-def write_active(state_dir: Path, projection: ControlProjection | None, fs: FileSystem) -> None:
+def write_active(state_dir: Path, projection: ControlProjection | None, fs: FileSystem, *,
+                 hold_id: str | None) -> None:
     value = (None if projection is None else
-             {"lifecycle_id": projection.lifecycle_id, "hold_id": projection.pause_id})
+             {"lifecycle_id": projection.lifecycle_id, "hold_id": hold_id})
     fs.write(state_dir / "control/active.json", (json.dumps(value) + "\n").encode())
 
 

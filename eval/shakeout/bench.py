@@ -3,15 +3,18 @@
 import asyncio
 import os
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+
+from chupa.__main__ import build_control
 
 from chupa.config import Config, load_config
 from chupa.drain import Report, drain
 from chupa.git import Git
 from chupa.journal import Journal
 from chupa.llm import FakeLLM, LLM, ScriptItem
-from chupa.runner import Checkout, bind
+from chupa.runner import Checkout, Dispatch, bind
 from chupa.seams import LocalFileSystem, SubprocessExec
 
 _CONFIG = """schema_version: 1
@@ -66,7 +69,6 @@ class Bench:
         self.report: Report | None = None
         self._initialized = False
         self._checkout = self._compose(self.config)
-        self._pipeline = lambda: bind(self._checkout, self.llm)
 
     async def initialize(self) -> None:
         if self._initialized:
@@ -94,7 +96,6 @@ class Bench:
         self.config = parsed_config.model_copy(update={"state_dir": self.config.state_dir,
                                                         "worktree_root": self.config.worktree_root})
         self._checkout = self._compose(self.config)
-        self._pipeline = lambda: bind(self._checkout, self.llm)
 
     def add_ticket(self, stem: str, text: str) -> None:
         self.fs.write(self.repo / "tickets" / stem / "ticket.md", text.encode())
@@ -104,9 +105,14 @@ class Bench:
             raise TypeError("script requires the default FakeLLM")
         self.llm.script.extend(items)
 
+    def _pipeline(self) -> Dispatch:
+        self._checkout = replace(self._checkout, control=build_control(self._checkout))
+        return bind(self._checkout, self.llm)
+
     async def drain(self) -> Report:
         await self.initialize()
-        self.report = await drain(self._checkout, self._pipeline(), reexec=SubprocessExec())
+        dispatch = self._pipeline()
+        self.report = await drain(self._checkout, dispatch, reexec=SubprocessExec())
         return self.report
 
     def segments(self):

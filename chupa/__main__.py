@@ -47,6 +47,9 @@ def build_daemon_core(
     prepare: Callable[[runner.Checkout], Awaitable[runner.Dispatch]] = runner.prepare_pipeline,
 ) -> DaemonCore:
     """Compose the production core without starting consumers or preparing a dispatch."""
+    consumer = build_control(checkout)
+    checkout = replace(checkout, control=consumer)
+
     def bind(snapshot: ConfigSnapshot) -> runner.Dispatch:
         local = replace(checkout, config=snapshot)
 
@@ -56,7 +59,6 @@ def build_daemon_core(
 
         return dispatch
 
-    consumer = build_control(checkout)
     return daemon_core(
         checkout.repo, journal=checkout.journal,
         load=lambda: load_config(config_path, cwd=checkout.repo), bind=bind, plan=plan, read=read,
@@ -130,6 +132,7 @@ def main(
             lines = asyncio.run(one_pass())
             print("\n".join(line for _, line in lines) if lines else "no pending suggestions")
             return 0
+        checkout = replace(checkout, control=build_control(checkout))
         dispatch = pipeline(checkout)
         if args.verb == "drain":
             # The handoff's own seam instance, never shared with active work (section 15).
@@ -156,7 +159,7 @@ async def _control(checkout: runner.Checkout, verb: str) -> int:
         except ValueError as exc:
             raise runner.Refusal("current control identity unavailable", str(exc)) from exc
         if verb == "resume" and hold is None:
-            raise runner.Refusal("no current pause identity",
+            raise runner.Refusal("no current hold identity",
                                  "read the running engine's current control identity and submit a new request")
         request = control.ControlRequest(uuid4().hex, lifecycle, verb, hold if verb == "resume" else None)
         control.publish_request(checkout.config.state_dir, request, checkout.fs)

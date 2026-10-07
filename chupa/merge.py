@@ -12,6 +12,10 @@ runner's (section 11.2).
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from chupa.daemon import PauseConsumer
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
@@ -35,12 +39,18 @@ from chupa.tickets import TICKETS_DIR, Ticket, TicketInvalid, ticket_path, valid
 MERGE_SPEC_VERSION = 1
 
 
-def compose_pipeline(ctx: StageContext, *, escalate: Callable[[Event], None]) -> "MergeQueue":
+def compose_pipeline(ctx: StageContext, *, escalate: Callable[[Event], None],
+                     control: "PauseConsumer | None") -> "MergeQueue":
     """Compose admission without running it; bootstrap dispatch still merges inline."""
     # The queue's priority helpers import drain, which imports runner and this module.
     from chupa.mergequeue import MergeQueue
 
-    return MergeQueue(ctx, escalate=escalate)
+    from chupa.runner import Refusal
+
+    if control is None:
+        raise Refusal("admission control consumer absent",
+                      "construct it with `build_control` at the composition root and supply it as `Checkout.control`")
+    return MergeQueue(ctx, escalate=escalate, control=control)
 
 
 class Candidate(BaseModel):
