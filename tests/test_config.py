@@ -228,3 +228,10 @@ def test_non_mapping_and_unparseable_yaml_are_refused(tmp_path):
 def test_unsafe_yaml_tags_are_refused(tmp_path):
     err = refusal(tmp_path, VALID + "notify: !!python/object/apply:os.system [echo hi]\n")
     assert "YAML" in str(err)
+
+
+def test_provider_backstop_never_undercuts_a_ticket_stuck_budget(tmp_path):
+    from chupa.runner import call_timeout
+    write(tmp_path, VALID)
+    cfg = load_config(None, cwd=tmp_path)
+    assert call_timeout(cfg) == cfg.drain.max_ticket_minutes * 60.0

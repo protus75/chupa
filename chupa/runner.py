@@ -39,7 +39,6 @@ EXIT_REFUSED = 2
 
 # Engine plane: the prompt specs ship with the engine, not the host checkout it runs against.
 SPECS_DIR = Path(__file__).resolve().parent.parent / "specs"
-CALL_TIMEOUT_S = 900.0
 HARVEST_TAIL_CHARS = 4_000
 IDENTICAL_K = 3
 SPEC_GAP_HOLD = "spec_gap_hold"
@@ -48,6 +47,12 @@ SPEC_GAP_HOLD = "spec_gap_hold"
 # terminal transition (section 11), and returns that terminal state.
 Dispatch = Callable[[Ticket], Awaitable[str]]
 
+
+
+# The provider backstop is the drain ceiling every ticket stuck budget fits under (section 9.7):
+# the ticket's own stuck budget is the bound the driver enforces, never a shorter per-call cap.
+def call_timeout(config: Config) -> float:
+    return config.drain.max_ticket_minutes * 60.0
 
 class Refusal(Exception):
     """An engine-plane refusal (exit 2): nothing was dispatched."""
@@ -82,7 +87,7 @@ def pipeline(checkout: Checkout) -> Dispatch:
 async def prepare_pipeline(checkout: Checkout) -> Dispatch:
     """Preflight this checkout's providers before constructing any stage consumers."""
     llm = ProviderLLM(checkout.config, exec_=checkout.exec_, fs=checkout.fs, env=checkout.env,
-                      cwd=checkout.repo, timeout=CALL_TIMEOUT_S)
+                      cwd=checkout.repo, timeout=call_timeout(checkout.config))
     if problems := await llm.preflight():
         raise Refusal("provider preflight failed: " + "; ".join(problems),
                       "fix each named provider, then run the same command again (section 6 provider preflight)")

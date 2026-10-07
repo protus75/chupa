@@ -107,7 +107,7 @@ def main(
                 lock.acquire()
                 try:
                     llm = ProviderLLM(config, exec_=exec_, fs=checkout.fs, env=env,
-                                      cwd=repo, timeout=runner.CALL_TIMEOUT_S)
+                                      cwd=repo, timeout=runner.call_timeout(config))
                     return await triage.triage_pass(checkout, llm)
                 finally:
                     lock.release()
