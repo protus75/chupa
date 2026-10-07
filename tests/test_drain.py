@@ -675,3 +675,193 @@ def test_render_over_bound_dispatches_rework_without_diagnosis(rework_repo, monk
         if action in {"escalate", "exhausted", "refusal", "publication"}:
             harvest = json.loads((repo / f"tickets/{STEM}/attempts/0/harvest.json").read_text())
             assert all(f["paved_road"] for f in harvest["findings"]) and len(harvest["findings"]) >= 2
+
+
+# --- dormant dispatch pause checkpoint ----------------------------------------------------------
+
+
+def pause_checkout(root):
+    from chupa.config import load_config
+    from chupa.runner import Checkout
+    process = SubprocessExec()
+    return Checkout(root, load_config(None, cwd=root), ENV, process,
+                    Git(process, env=ENV, timeout=30), journal(root), LocalFileSystem(), Clock())
+
+
+class Pause:
+    def __init__(self, at=2):
+        self.at = at
+        self.calls = 0
+        self.entered, self.release = asyncio.Event(), asyncio.Event()
+
+    async def __call__(self):
+        self.calls += 1
+        if self.calls == self.at:
+            self.entered.set()
+            await self.release.wait()
+
+
+async def paused_drain(root, script, checkpoint):
+    from chupa.drain import drain as run_drain
+    from tests.test_drain_reentry import NoChild
+    checkout = pause_checkout(root)
+    return await run_drain(checkout, script(checkout), reexec=NoChild(), before_dispatch=checkpoint)
+
+
+def prior_failure(root, *, terminal="gate_failed", extra=None):
+    blob = git_out(root, "rev-parse", "HEAD:tickets/work/ticket.md").strip()
+    j = journal(root)
+    j.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": blob}, ticket="work")
+    j.append(EventType.STATE_TRANSITION, {"to": terminal, **(extra or {})}, ticket="work")
+    return blob
+
+
+def offer_events(root):
+    return [e for e in journal(root).read() if e.type in {EventType.CAP_CONSUMED, EventType.STATE_TRANSITION}
+            or e.body.get("signal") == "reject_verdict"]
+
+
+@pytest.mark.asyncio
+async def test_pause_precedes_fresh_offer_accounting(root):
+    commit_ticket(root, "work", confirmed())
+    pause, script = Pause(), Script()
+    task = asyncio.create_task(paused_drain(root, script, pause))
+    await pause.entered.wait()
+    assert offer_events(root) == [] and script.calls == []
+    pause.release.set()
+    assert (await task).merged == ["work"]
+    blob = git_out(root, "rev-parse", "HEAD:tickets/work/ticket.md").strip()
+    events = offer_events(root)
+    assert [e.body for e in events] == [{"to": "running", "ticket_sha": blob}, {"to": "merged"}]
+    assert all(e.ticket == "work" and e.key is None for e in events)
+    assert script.lock_held == [True] and retry_draws(root, "work") == 0
+
+
+@pytest.mark.asyncio
+async def test_pause_precedes_retry_cap_draw(root):
+    commit_ticket(root, "work", confirmed())
+    rung = {"tier": "high", "effort": "max"}
+    blob = prior_failure(root, extra={"rung": rung})
+    before = offer_events(root)
+    pause, script = Pause(), Script()
+    task = asyncio.create_task(paused_drain(root, script, pause))
+    await pause.entered.wait()
+    assert offer_events(root) == before and script.calls == []
+    pause.release.set()
+    assert (await task).merged == ["work"]
+    draw, running, terminal = offer_events(root)[len(before):]
+    assert draw.type == EventType.CAP_CONSUMED
+    assert draw.ticket == "work" and draw.key is None
+    assert draw.body == {"cap": "retry", "ticket_sha": blob, "rung": rung}
+    assert running.body == {"to": "running", "ticket_sha": blob}
+    assert running.ticket == "work" and running.key is None and terminal.body == {"to": "merged"}
+    assert retry_draws(root, "work") == 1
+
+
+@pytest.mark.asyncio
+async def test_pause_precedes_machine_keep(root):
+    commit_ticket(root, "work", confirmed())
+    blob = prior_failure(root)
+    journal(root).append(EventType.SIGNAL, {"signal": "reject_arrival"}, ticket="work")
+    pause, script = Pause(), Script()
+    before = offer_events(root)
+    task = asyncio.create_task(paused_drain(root, script, pause))
+    await pause.entered.wait()
+    assert offer_events(root) == before and script.calls == []
+    pause.release.set()
+    assert (await task).merged == ["work"]
+    keep, draw, running, terminal = offer_events(root)[len(before):]
+    assert keep.type == EventType.SIGNAL and keep.ticket == "work" and keep.key is None
+    assert keep.body == {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}
+    assert draw.body == {"cap": "retry", "ticket_sha": blob}
+    assert running.body == {"to": "running", "ticket_sha": blob} and terminal.body == {"to": "merged"}
+    assert retry_draws(root, "work") == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("change", ["settled", "budget", "depends", "priority", "content"])
+async def test_pause_release_rechecks_eligibility_and_budget(root, change):
+    commit_ticket(root, "work", confirmed(priority="P1"))
+    if change == "budget":
+        prior_failure(root)
+    if change == "priority":
+        commit_ticket(root, "other", confirmed(priority="P2"))
+    pause, script = Pause(), Script()
+    task = asyncio.create_task(paused_drain(root, script, pause))
+    await pause.entered.wait()
+    assert script.calls == []
+    if change == "settled":
+        journal(root).append(EventType.STATE_TRANSITION, {"to": "already_satisfied"}, ticket="work")
+    elif change == "budget":
+        for _ in range(6):
+            journal(root).append(EventType.CAP_CONSUMED, {"cap": "retry", "ticket_sha": "prior"}, ticket="work")
+    elif change == "depends":
+        commit_ticket(root, "work", confirmed(depends="- missing"))
+    elif change == "priority":
+        commit_ticket(root, "other", confirmed(priority="P0"))
+    else:
+        commit_ticket(root, "work", confirmed().replace("`thing()` returns ok.", "`thing()` returns revised ok."))
+    pause.release.set()
+    await task
+    assert script.calls == (["other", "work"] if change == "priority" else ["work"] if change == "content" else [])
+    if change in {"settled", "budget", "depends"}:
+        assert not any(e.body.get("to") == "running" for e in offer_events(root)[2 if change == "budget" else 0:])
+    if change == "content":
+        [running] = [e for e in offer_events(root) if e.body.get("to") == "running"]
+        assert running.body["ticket_sha"] == git_out(root, "rev-parse", "HEAD:tickets/work/ticket.md").strip()
+    if change == "budget":
+        assert retry_draws(root, "work") == 6
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cancel", [False, True])
+async def test_pause_checkpoint_failure_spends_no_retry(root, cancel):
+    commit_ticket(root, "work", confirmed())
+    prior_failure(root)
+    before = journal(root).read()
+    pause, script = Pause(), Script()
+    async def checkpoint():
+        await pause()
+        if pause.calls == pause.at:
+            raise ValueError("checkpoint failed")
+    task = asyncio.create_task(paused_drain(root, script, checkpoint))
+    await pause.entered.wait()
+    if cancel:
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    else:
+        pause.release.set()
+        with pytest.raises(ValueError, match="checkpoint failed"):
+            await task
+    assert script.calls == [] and journal(root).read() == before and retry_draws(root, "work") == 0
+    lock = Lockfile(root / ".chupa/state", instance_id="after-cleanup", clock=Clock())
+    lock.acquire()
+    lock.release()
+    assert (await paused_drain(root, script, None)).merged == ["work"]
+    assert retry_draws(root, "work") == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["premise", "spec_gap", "spec_gap_premise"])
+async def test_pause_preserves_free_premise_and_spec_gap_reoffers(root, kind):
+    commit_ticket(root, "work", confirmed())
+    extra = {} if kind == "premise" else {"dispatch": "spec_gap_hold"}
+    prior_failure(root, terminal="premise_failed" if kind != "spec_gap" else "gate_failed", extra=extra)
+    if kind == "premise":
+        commit_ticket(root, "work", confirmed().replace("`thing()` returns ok.", "`thing()` returns revised ok."))
+    else:
+        journal(root).append(EventType.SIGNAL, {"signal": "spec_gap_hold", "awaits": ["hardening"],
+                                               "gaps": {"work": ["fact"]}}, ticket="work")
+        journal(root).append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="hardening")
+    before = offer_events(root)
+    pause, script = Pause(), Script()
+    task = asyncio.create_task(paused_drain(root, script, pause))
+    await pause.entered.wait()
+    assert offer_events(root) == before and script.calls == []
+    pause.release.set()
+    assert (await task).merged == ["work"]
+    assert retry_draws(root, "work") == 0
+    running, terminal = offer_events(root)[len(before):]
+    assert running.body == {"to": "running", "ticket_sha": git_out(root, "rev-parse", "HEAD:tickets/work/ticket.md").strip()}
+    assert terminal.body == {"to": "merged"}

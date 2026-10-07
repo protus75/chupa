@@ -176,8 +176,9 @@ def daemon_core(
     read: Callable[[str], str | None], clock: Clock, sleep: Sleep, debounce: float,
     quarantined: Callable[[], Set[str]], drought_parked: Callable[[], Set[str]],
     completed_unmerged: Callable[[], int], max_unmerged: int,
+    before_dispatch: Callable[[], Awaitable[None]] | None = None,
 ) -> DaemonCore:
-    admission = DaemonAdmission(snapshot_dispatch(load, bind))
+    admission = DaemonAdmission(snapshot_dispatch(load, bind), before_dispatch=before_dispatch)
     scheduler = Scheduler(
         journal, admission.dispatch, quarantined=quarantined, drought_parked=drought_parked,
         completed_unmerged=completed_unmerged, max_unmerged=max_unmerged,
@@ -200,14 +201,19 @@ def snapshot_dispatch(load: Callable[[], Config], bind: Callable[[ConfigSnapshot
 
 
 class DaemonAdmission:
-    def __init__(self, dispatch: Dispatch) -> None:
+    def __init__(self, dispatch: Dispatch, *,
+                 before_dispatch: Callable[[], Awaitable[None]] | None = None) -> None:
         self._dispatch = dispatch
+        self._before_dispatch = before_dispatch
         self._slot = asyncio.Lock()
         self.active: Ticket | None = None
         self.task: asyncio.Task[str] | None = None
 
     async def dispatch(self, ticket: Ticket) -> str:
         async with self._slot:
+            if self._before_dispatch is not None:
+                await self._before_dispatch()
+
             async def invoke() -> str:
                 return await self._dispatch(ticket)
 

@@ -12,7 +12,7 @@ a re-exec'd child running the upgraded checkout (section 18's HANDOFF), carrying
 argv. A `premise_failed` stem stays parked, across invocations, until its committed `ticket.md` content changes.
 """
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
 
@@ -149,6 +149,7 @@ class _Scan:
 
 async def drain(
     checkout: Checkout, dispatch: Dispatch, *, reexec: ProcessExec, parked: Iterable[str] = (),
+    before_dispatch: Callable[[], Awaitable[None]] | None = None,
 ) -> Report:
     """`reexec` is the handoff's own process seam (section 15): never the instance active work spawns through."""
     lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo),
@@ -159,7 +160,7 @@ async def drain(
         await reconcile(checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root,
                         lambda stem, attempt: harvest_orphan(checkout, stem, attempt))
         await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
-        run = _Drain(checkout, dispatch, frozenset(parked))
+        run = _Drain(checkout, dispatch, frozenset(parked), before_dispatch=before_dispatch)
         report = await run.run()
         if run.upgrade is None:
             return report
@@ -178,9 +179,11 @@ async def drain(
 
 
 class _Drain:
-    def __init__(self, checkout: Checkout, dispatch: Dispatch, carried: frozenset[str]) -> None:
+    def __init__(self, checkout: Checkout, dispatch: Dispatch, carried: frozenset[str], *,
+                 before_dispatch: Callable[[], Awaitable[None]] | None = None) -> None:
         self.c = checkout
         self.dispatch = dispatch
+        self.before_dispatch = before_dispatch
         self.carried = carried  # parked earlier in this invocation, by a parent that handed off
         self.upgrade: tuple[str, str] | None = None  # (stem, commit) of a self-upgrading admission
         self.deadline = checkout.clock() + timedelta(hours=checkout.config.drain.max_runtime_hours)
@@ -189,11 +192,22 @@ class _Drain:
 
     async def run(self) -> Report:
         while True:
+            if self.before_dispatch is not None:
+                await self.before_dispatch()
+            material = self._offer_material()
             scan = await self._scan()
+            shas = {s: await self._sha(s) for s in scan.tickets}
+            prepared_events = self.c.journal.read()
+            # A control wait may outlive this preparation. Compare ticket bytes again
+            # before using its SHAs; changed content must return through the git seam.
+            if self.before_dispatch is not None:
+                await self.before_dispatch()
             events = self.c.journal.read()
+            if material != self._offer_material() or events != prepared_events:
+                continue
             last = last_states(events)
             held = {s for s in scan.tickets
-                    if (last.get(s) == PREMISE and premise_parked(events, s, await self._sha(s)))
+                    if (last.get(s) == PREMISE and premise_parked(events, s, shas[s]))
                     or awaited_hardening(events, s)}
             pick, reoffer = self._select(scan, events, last, held)
             if pick is None:
@@ -201,9 +215,16 @@ class _Drain:
                 return self.report
             if self.c.clock() >= self.deadline:
                 return self._halt(scan, events, last, held)
-            await self._run_one(pick, reoffer, await self._sha(pick.stem))
+            await self._run_one(pick, reoffer, shas[pick.stem])
             if self.upgrade is not None:
                 return self.report
+
+    def _offer_material(self) -> dict[str, bytes]:
+        repo = self.c.repo
+        paths = list((repo / TICKETS_DIR).glob(f"*/{TICKET_FILE}"))
+        if (repo / PLAN_FILE).is_file():
+            paths.append(repo / PLAN_FILE)
+        return {p.relative_to(repo).as_posix(): p.read_bytes() for p in paths}
 
     async def _scan(self) -> _Scan:
         """Committed tickets only: a ticket file dirty in the working tree is not yet on the ticket plane."""
