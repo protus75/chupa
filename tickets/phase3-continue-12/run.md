@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The retry worktree lacked the prior test and activation seed; recovered the test, authored the missing seed, and preserved the approved continuation byte-for-byte.
+The retry worktree lacked the prior test and activation seed; recovered both verbatim and preserved the approved continuation byte-for-byte.
 
 ## Dead ends
 
@@ -17,7 +17,7 @@ none
 ## Resolved engine/model
 
 - provider: codex
-- model: gpt-6.1-sol
+- model: gpt-6-astra
 - spec: implement 1.1
 
 ## Predicted vs actual
