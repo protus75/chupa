@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "73d84a3e7dd250d9e251c66a8c29f975d1ede0b0",
+  "produced_at_sha": "7f35de86ddba04aad6183b3ccaf505d1930d7c86",
   "stem": "rework-activation",
-  "attempt": 4,
+  "attempt": 5,
   "terminal": "infra_error",
   "stage": "implement",
   "verdict": "reject",
   "lessons": [
-    "Criterion 4 (`uv run pytest -q` exits 0) cannot pass inside this fence. The run record shows both full-suite failures on untouched base 09e8c97: tests/test_seeded_phase3_06.py pins the old fence and Context, which lack this ticket's additions (for example tests/test_mergequeue.py).",
-    "Release path: fix the 19.P3.rework-activation plan entry first, then regenerate. Either add tests/test_seeded_phase3_06.py to this fence and migrate only its fence/Context pin (19.L rule 3), or migrate it in a ticket that this one lists in `depends`.",
-    "Next attempt: before implementing, run `uv run pytest -q` on the base commit. Any red test outside the fence then surfaces as premise_failed early, not after a 960s run.",
-    "The infra_error (TimeoutError) came after the agent had already reached premise_failed and restored its work. Treat the scope blocker as the cause; retrying or escalating at any capability will hit it again."
+    "Criterion 4 (`uv run pytest -q` exits 0) cannot pass inside this fence. The run record shows full-suite failures on untouched base 09e8c97: tests/test_seeded_phase3_06.py pins the old fence and Context.",
+    "Release: fix the 19.P3.rework-activation plan entry first, then regenerate. Add tests/test_seeded_phase3_06.py to the fence and migrate only its fence/Context pin (19.L rule 3), or migrate it in a ticket listed in `depends`.",
+    "Before implementing, run `uv run pytest -q` on the base commit. A red test outside the fence then surfaces as premise_failed early instead of after a long run.",
+    "The infra_error (TimeoutError) came after the agent reached premise_failed and restored its work. The scope blocker is the real cause, so a retry or escalation at any capability hits it again."
   ],
   "mechanical": null,
   "spec_version": "1.1",
