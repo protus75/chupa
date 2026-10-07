@@ -1,7 +1,6 @@
 """Segmented append-only JSONL journal (D3; CHUPA_PLAN.md section 6).
 
-Pre-daemon there is no roll trigger: the newest segment is the active one and
-simply grows. Rolling ships with the Phase 3 daemon.
+The newest segment rolls synchronously on append at the size or age boundary.
 """
 
 import json
@@ -15,6 +14,10 @@ from pathlib import Path
 from typing import Any
 
 from chupa.artifacts import OUTCOMES
+from chupa.seams import LocalFileSystem
+
+ROLL_BYTES = 64 * 1024 * 1024
+ROLL_AGE = timedelta(hours=24)
 
 
 class EventType(StrEnum):
@@ -75,6 +78,7 @@ class Journal:
     def __init__(self, state_dir: Path, clock: Callable[[], datetime]) -> None:
         self.dir = Path(state_dir) / "journal"
         self._clock = clock
+        self._fs = LocalFileSystem()
         self._tail_repaired = False
         self._closed = False
 
@@ -99,11 +103,17 @@ class Journal:
         event = Event(EVENT_VERSIONS[type], type, render_ts(self._clock()), ticket, key, body)
         data = (json.dumps(asdict(event), separators=(",", ":")) + "\n").encode()
 
-        segment = self._active_segment()
+        now = datetime.fromisoformat(event.ts)
+        segment = self._active_segment(now)
         if not self._tail_repaired:
             _truncate_torn_tail(segment)
             self._tail_repaired = True
-        fd = os.open(segment, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+        records = _parse_segment(segment, active=True)
+        if segment.stat().st_size >= ROLL_BYTES or (
+            records and now - datetime.fromisoformat(records[0].ts) >= ROLL_AGE
+        ):
+            segment = self._create_segment(int(segment.name[:6]) + 1, now)
+        fd = os.open(segment, os.O_WRONLY | os.O_APPEND)
         try:
             os.write(fd, data)
             os.fsync(fd)
@@ -144,14 +154,15 @@ class Journal:
             seen[seq] = path.name
         return paths
 
-    def _active_segment(self) -> Path:
+    def _active_segment(self, now: datetime) -> Path:
         segments = self._segments()
         if segments:
             return segments[-1]
-        self.dir.mkdir(parents=True, exist_ok=True)
-        segment = self.dir / f"000001-{self._clock().astimezone(UTC):%Y%m%d}.jsonl"
-        segment.touch()
-        _fsync_dir(self.dir)
+        return self._create_segment(1, now)
+
+    def _create_segment(self, sequence: int, now: datetime) -> Path:
+        segment = self.dir / f"{sequence:06d}-{now:%Y%m%d}.jsonl"
+        self._fs.publish(segment, b"")
         return segment
 
 
@@ -164,14 +175,6 @@ def _truncate_torn_tail(segment: Path) -> None:
         f.truncate(data.rfind(b"\n") + 1)
         f.flush()
         os.fsync(f.fileno())
-
-
-def _fsync_dir(path: Path) -> None:
-    fd = os.open(path, os.O_RDONLY)
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
 
 
 def _parse_segment(path: Path, *, active: bool) -> tuple[Event, ...]:
