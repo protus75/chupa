@@ -34,6 +34,51 @@ async def executor_abort(abort_current: Callable[[], Awaitable[None]]) -> None:
     await abort_current()
 
 
+async def _protected_cleanup(cleanup: asyncio.Future) -> None:
+    cancelled = None
+    while not cleanup.done():
+        try:
+            await asyncio.shield(cleanup)
+        except asyncio.CancelledError as exc:
+            cancelled = exc
+        except BaseException:
+            break
+    cleanup.result()
+    if cancelled is not None:
+        raise cancelled
+
+
+def _stop_workers(tasks: tuple[asyncio.Task, ...]) -> asyncio.Future:
+    for task in tasks:
+        if not task.done() and not task.cancelling():
+            task.cancel()
+    return asyncio.gather(*tasks, return_exceptions=True)
+
+
+class WorkerStop:
+    """Dormant stop owner for one supplied task set (19.P3.kill-worker-stop).
+
+    Construct a fresh boundary for a later task set. The lock holder supplies the
+    inbox's recovered projection and the predecessor executor-abort operation.
+    """
+
+    def __init__(self, *, lifecycle_id: str, abort: Callable[[], Awaitable[None]],
+                 workers: Iterable[asyncio.Task]) -> None:
+        self.lifecycle_id, self.abort = lifecycle_id, abort
+        self.workers = tuple(workers)
+        self._stop: asyncio.Task | None = None
+
+    async def stop(self, projection: ControlProjection) -> None:
+        if projection.lifecycle_id != self.lifecycle_id or not projection.kill_requested:
+            return
+        if self._stop is None:
+            async def stop() -> None:
+                await self.abort()
+                await _protected_cleanup(_stop_workers(self.workers))
+            self._stop = asyncio.create_task(stop())
+        await _protected_cleanup(self._stop)
+
+
 class PauseConsumer:
     """One serial inbox and desired pause state, owned by the engine's writer lock."""
 
@@ -111,20 +156,10 @@ class DaemonTasks:
             # Shield prevents owner cancellation from cancelling a consumer again during unwind.
             await asyncio.shield(asyncio.gather(*self.tasks))
         finally:
-            for task in self.tasks:
-                if not task.done():
-                    task.cancel()
-            cleanup = asyncio.gather(*self.tasks, return_exceptions=True)
-            cancelled = None
-            while not cleanup.done():
-                try:
-                    await asyncio.shield(cleanup)
-                except asyncio.CancelledError as exc:
-                    cancelled = exc
-            cleanup.result()
-            self.tasks = ()
-            if cancelled is not None:
-                raise cancelled
+            try:
+                await _protected_cleanup(_stop_workers(self.tasks))
+            finally:
+                self.tasks = ()
 
 
 async def apply_rework(ctx: StageContext, ticket: Ticket, findings: list[Finding], *, attempt: int,
