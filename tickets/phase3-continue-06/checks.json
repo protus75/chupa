@@ -1,13 +1,13 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "ef38c49ee40533f5c310c1d5a3bc9917956cfb27",
+  "produced_at_sha": "5ce57fc5944342ae806705f9c0b45c55aeeb53f8",
   "stem": "phase3-continue-06",
-  "passed": false,
+  "passed": true,
   "changed_files": [
     "tests/test_seeded_phase3_06.py"
   ],
-  "inserted_lines": 410,
+  "inserted_lines": 426,
   "bypassed": [],
   "reports": [
     {
@@ -36,25 +36,8 @@
     },
     {
       "code": "requisition_review",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "handoff_terminal_record",
-          "path": "chupa/daemon.py",
-          "line": null,
-          "message": "The new terminal paragraphs cover only two paths: the diagnosis-driven path and the mechanical over-bound path. The conflict-handoff path is a third Rework entry, and Observable and test_production_applies_reviewed_rework_orders require it. MergeQueue.process returns a ConflictHandoff, not a StageResult, so runner.drive's terminal writer never sees it. The plan does not say who writes that run's producing `state_transition`. It also does not give its `to`/`stage`/`reason`, or whether diagnosis or a diagnosis/retry cap draw precedes Rework. It does not give the `dispatch`/`routed`/`rung` for update, split, escalate (with a rung or exhausted) and failed Rework/publication. Yet the unit requires that terminal to be written before a split original's separate `to: rejected` retirement, and it forbids Rework from emitting a terminal. Without these facts the implementer must invent the handoff-path terminal record and its writer.",
-          "paved_road": "Harden 19.P3.rework-activation Records (section 11.4) to state the conflict-handoff path's producing terminal writer and its body for each Rework result and for failure, plus any diagnosis or cap draw before Rework. Alternatively, state that this path reuses the diagnosis-driven routing verbatim and name the existing writer that journals it. Then regenerate the ticket and name the assertions in test_production_applies_reviewed_rework_orders and test_production_refuses_failed_rework_publication.",
-          "kind": "spec_gap"
-        },
-        {
-          "code": "drain_seam_terminal_check",
-          "path": "chupa/drain.py",
-          "line": null,
-          "message": "The changed text says a successful split writes the producing terminal (e.g. `to: gate_failed`) and then a separate `to: rejected` retirement. Both are written under the held lock, inside the dispatch that drain._run_one awaits. It also says Rework does not turn the outcome into `rejected`, so drive returns the producing outcome. Merged drain._run_one requires the latest `state_transition` for the stem to equal the seam's return value ('the seam must journal the run's single terminal transition') and raises ValueError otherwise. A split under `drain` would therefore abort the drain. The plan does not say whether the seam returns `rejected` after retirement, or how drain's check identifies the producing terminal when a retirement follows it. Neither the ticket nor the unit names this drain invariant or a test for it.",
-          "paved_road": "Harden 19.P3.rework-activation (section 11.4) to state the dispatch seam's return value after a split retirement, and how drain._run_one's consistency check is amended (for example, compare against the run's producing terminal that precedes a retirement). Then add an assertion to test_rework_split_successors_release_original_dependents and test_render_over_bound_dispatches_rework_without_diagnosis that a split under `drain` completes without the seam-mismatch error.",
-          "kind": "spec_gap"
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false
     }
   ],
@@ -64,37 +47,20 @@
       "ticket_sha": "f6e1e4fc579614bef495347463fa8b117e5d577b",
       "verdict": "approve",
       "findings": [],
-      "mechanical": null
+      "mechanical": "approved earlier"
     },
     {
       "stem": "phase3-continue-07",
       "ticket_sha": "f405cce8d1e6f6ddc203e074a02514941296a558",
       "verdict": "approve",
       "findings": [],
-      "mechanical": null
+      "mechanical": "approved earlier"
     },
     {
       "stem": "rework-activation",
-      "ticket_sha": "bf18dd6f142ac7e5a145572992dfc33760348fc2",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "handoff_terminal_record",
-          "path": "chupa/daemon.py",
-          "line": null,
-          "message": "The new terminal paragraphs cover only two paths: the diagnosis-driven path and the mechanical over-bound path. The conflict-handoff path is a third Rework entry, and Observable and test_production_applies_reviewed_rework_orders require it. MergeQueue.process returns a ConflictHandoff, not a StageResult, so runner.drive's terminal writer never sees it. The plan does not say who writes that run's producing `state_transition`. It also does not give its `to`/`stage`/`reason`, or whether diagnosis or a diagnosis/retry cap draw precedes Rework. It does not give the `dispatch`/`routed`/`rung` for update, split, escalate (with a rung or exhausted) and failed Rework/publication. Yet the unit requires that terminal to be written before a split original's separate `to: rejected` retirement, and it forbids Rework from emitting a terminal. Without these facts the implementer must invent the handoff-path terminal record and its writer.",
-          "paved_road": "Harden 19.P3.rework-activation Records (section 11.4) to state the conflict-handoff path's producing terminal writer and its body for each Rework result and for failure, plus any diagnosis or cap draw before Rework. Alternatively, state that this path reuses the diagnosis-driven routing verbatim and name the existing writer that journals it. Then regenerate the ticket and name the assertions in test_production_applies_reviewed_rework_orders and test_production_refuses_failed_rework_publication.",
-          "kind": "spec_gap"
-        },
-        {
-          "code": "drain_seam_terminal_check",
-          "path": "chupa/drain.py",
-          "line": null,
-          "message": "The changed text says a successful split writes the producing terminal (e.g. `to: gate_failed`) and then a separate `to: rejected` retirement. Both are written under the held lock, inside the dispatch that drain._run_one awaits. It also says Rework does not turn the outcome into `rejected`, so drive returns the producing outcome. Merged drain._run_one requires the latest `state_transition` for the stem to equal the seam's return value ('the seam must journal the run's single terminal transition') and raises ValueError otherwise. A split under `drain` would therefore abort the drain. The plan does not say whether the seam returns `rejected` after retirement, or how drain's check identifies the producing terminal when a retirement follows it. Neither the ticket nor the unit names this drain invariant or a test for it.",
-          "paved_road": "Harden 19.P3.rework-activation (section 11.4) to state the dispatch seam's return value after a split retirement, and how drain._run_one's consistency check is amended (for example, compare against the run's producing terminal that precedes a retirement). Then add an assertion to test_rework_split_successors_release_original_dependents and test_render_over_bound_dispatches_rework_without_diagnosis that a split under `drain` completes without the seam-mismatch error.",
-          "kind": "spec_gap"
-        }
-      ],
+      "ticket_sha": "9b93ec2428df9b189b51dc1efd2a14ef0c2ceac3",
+      "verdict": "approve",
+      "findings": [],
       "mechanical": null
     }
   ],
@@ -108,7 +74,7 @@
         "tests/test_seeded_phase3_06.py"
       ],
       "rc": 0,
-      "tail": ".....................                                                    [100%]\n21 passed in 0.53s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": ".......................                                                  [100%]\n23 passed in 0.56s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -119,7 +85,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "........................................................................ [  6%]\n........................................................................ [ 13%]\n........................................................................ [ 20%]\n........................................................................ [ 27%]\n........................................................................ [ 34%]\n........................................................................ [ 40%]\n........................................................................ [ 47%]\n........................................................................ [ 54%]\n........................................................................ [ 61%]\n........................................................................ [ 68%]\n........................................................................ [ 74%]\n........................................................................ [ 81%]\n........................................................................ [ 88%]\n........................................................................ [ 95%]\n..................................................                       [100%]\n1058 passed in 86.38s (0:01:26)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................................ [  6%]\n........................................................................ [ 13%]\n........................................................................ [ 20%]\n........................................................................ [ 27%]\n........................................................................ [ 33%]\n........................................................................ [ 40%]\n........................................................................ [ 47%]\n........................................................................ [ 54%]\n........................................................................ [ 61%]\n........................................................................ [ 67%]\n........................................................................ [ 74%]\n........................................................................ [ 81%]\n........................................................................ [ 88%]\n........................................................................ [ 95%]\n....................................................                     [100%]\n1060 passed in 85.33s (0:01:25)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
