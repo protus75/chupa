@@ -16,7 +16,7 @@ import yaml
 from chupa.artifacts import Finding, Harvest, StageResult
 from chupa.box import BOX_DIR, Box
 from chupa.caps import capability, consume, next_rung, spent, spent_reason
-from chupa.config import Config
+from chupa.config import Config, ConfigSnapshot
 from chupa.driver import Driver
 from chupa.git import Git
 from chupa.journal import TERMINAL_STATES, EventType, Journal
@@ -61,7 +61,7 @@ class Checkout:
     """The composed seams one invocation runs against; the stage pipeline is built from it."""
 
     repo: Path
-    config: Config
+    config: Config | ConfigSnapshot
     env: Mapping[str, str]
     exec_: GroupExec
     git: Git
@@ -75,10 +75,15 @@ Pipeline = Callable[[Checkout], Dispatch]
 
 
 def pipeline(checkout: Checkout) -> Dispatch:
-    """The production stage-seam binding: the configured providers serve every call."""
+    """Prepare the bootstrap dispatch before its outer run/drain event loop starts."""
+    return asyncio.run(prepare_pipeline(checkout))
+
+
+async def prepare_pipeline(checkout: Checkout) -> Dispatch:
+    """Preflight this checkout's providers before constructing any stage consumers."""
     llm = ProviderLLM(checkout.config, exec_=checkout.exec_, fs=checkout.fs, env=checkout.env,
                       cwd=checkout.repo, timeout=CALL_TIMEOUT_S)
-    if problems := asyncio.run(llm.preflight()):
+    if problems := await llm.preflight():
         raise Refusal("provider preflight failed: " + "; ".join(problems),
                       "fix each named provider, then run the same command again (section 6 provider preflight)")
     return bind(checkout, llm)

@@ -7,25 +7,53 @@ import argparse
 import asyncio
 import os
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence, Set
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
 from chupa import drain, runner, triage
-from chupa.config import ConfigError, load_config
+from chupa.config import ConfigError, ConfigSnapshot, load_config
+from chupa.daemon import DaemonCore, daemon_core
 from chupa.git import Git
 from chupa.journal import Journal, JournalCorruption
 from chupa.lockfile import LockHeld, Lockfile
 from chupa.providers import ProviderLLM, ProviderSetupError, child_env
 from chupa.seams import Clock, ExecutableNotFound, LocalFileSystem, ProcessExec, SubprocessExec
 from chupa.status import project, render
-from chupa.tickets import IntakeRefused, TicketInvalid, stem_findings, template, ticket_path, validate_ticket
+from chupa.tickets import IntakeRefused, Ticket, TicketInvalid, stem_findings, template, ticket_path, validate_ticket
 
 GIT_TIMEOUT_S = 30.0
 
 
 def _clock() -> datetime:
     return datetime.now(UTC)
+
+
+def build_daemon_core(
+    checkout: runner.Checkout, *, config_path: Path | None = None, plan: str | None,
+    read: Callable[[str], str | None], debounce: float,
+    quarantined: Callable[[], Set[str]], drought_parked: Callable[[], Set[str]],
+    completed_unmerged: Callable[[], int],
+    prepare: Callable[[runner.Checkout], Awaitable[runner.Dispatch]] = runner.prepare_pipeline,
+) -> DaemonCore:
+    """Compose the production core without starting consumers or preparing a dispatch."""
+    def bind(snapshot: ConfigSnapshot) -> runner.Dispatch:
+        local = replace(checkout, config=snapshot)
+
+        async def dispatch(ticket: Ticket) -> str:
+            callback = await prepare(local)
+            return await callback(ticket)
+
+        return dispatch
+
+    return daemon_core(
+        checkout.repo, journal=checkout.journal,
+        load=lambda: load_config(config_path, cwd=checkout.repo), bind=bind, plan=plan, read=read,
+        clock=checkout.clock, sleep=checkout.sleep, debounce=debounce,
+        quarantined=quarantined, drought_parked=drought_parked,
+        completed_unmerged=completed_unmerged, max_unmerged=checkout.config.scheduler.max_unmerged,
+    )
 
 
 def _parser() -> argparse.ArgumentParser:

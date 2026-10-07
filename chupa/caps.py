@@ -2,7 +2,7 @@
 
 from collections.abc import Iterable
 
-from chupa.config import Caps, Config
+from chupa.config import Caps, Config, ConfigSnapshot
 from chupa.journal import Event, EventType, Journal
 from chupa.providers import ProviderSetupError, resolve
 from chupa.tickets import Ticket
@@ -33,12 +33,12 @@ def draws(events: Iterable[Event], stem: str, cap: str) -> int:
                for e in lineage(events, stem))
 
 
-def remaining(caps_config: Caps, events: Iterable[Event], stem: str, cap: str) -> int:
+def remaining(caps_config: Caps | ConfigSnapshot, events: Iterable[Event], stem: str, cap: str) -> int:
     _check(cap)
     return getattr(caps_config, cap) - draws(events, stem, cap)
 
 
-def spent(caps_config: Caps, events: Iterable[Event], stem: str) -> str | None:
+def spent(caps_config: Caps | ConfigSnapshot, events: Iterable[Event], stem: str) -> str | None:
     # Materialize once: callers may pass a journal iterator, not only a list.
     history = tuple(events)
     return next((cap for cap in CAPS if remaining(caps_config, history, stem, cap) <= 0), None)
@@ -65,7 +65,7 @@ def capability(ticket: Ticket, events: Iterable[Event]) -> tuple[str, str]:
     return rung["tier"], rung["effort"]
 
 
-def next_rung(config: Config, tier: str, effort: str) -> dict[str, str] | None:
+def next_rung(config: Config | ConfigSnapshot, tier: str, effort: str) -> dict[str, str] | None:
     """Move to the next distinct Implement model, then increase effort."""
     def model(level: str) -> tuple[str, str] | None:
         try:

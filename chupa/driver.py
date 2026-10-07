@@ -17,7 +17,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from chupa.artifacts import Cost, Finding, Outcome, StageResult
-from chupa.config import Config, Severity
+from chupa.config import Config, ConfigSnapshot, Severity
 from chupa.effects import Effects
 from chupa.enginelog import EngineLog
 from chupa.gates import Gate, GateReport, merge_severity, run_gates
@@ -107,7 +107,7 @@ class Driver:
     @classmethod
     def from_config(
         cls,
-        config: Config,
+        config: Config | ConfigSnapshot,
         *,
         llm: LLM,
         env: Mapping[str, str],

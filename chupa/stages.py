@@ -22,7 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 from chupa.artifacts import OUTCOMES, SHAKEOUT_REPORT, Artifact, Cost, Diagnosis, DiagnosisReply, Finding, Harvest, NonBlank, Outcome, ReviewVerdict, ShakeoutReport, StageResult
 from chupa.box import BOX_DIR, Box
 from chupa.caps import lineage
-from chupa.config import Config, Severity
+from chupa.config import Config, ConfigSnapshot, Severity
 from chupa.driver import Driver, LlmStage
 from chupa.gates import GateReport, run_gates
 from chupa.git import Git, GitError
@@ -171,7 +171,7 @@ class StageContext:
     """The seams one ticket run's stages share. `env` is the parent env; children get it minus secrets."""
 
     repo: Path
-    config: Config
+    config: Config | ConfigSnapshot
     env: Mapping[str, str]
     exec_: ProcessExec
     git: Git

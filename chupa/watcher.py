@@ -1,4 +1,4 @@
-"""Dormant debounced last-known-good ticket cache (CHUPA_PLAN.md 19.P3.daemon-scheduler)."""
+"""Debounced last-known-good ticket cache (CHUPA_PLAN.md 19.P3.daemon-scheduler)."""
 
 import asyncio
 from collections.abc import AsyncIterable, Callable

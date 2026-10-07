@@ -11,7 +11,7 @@ Writer-site checklist (extend in the same change that adds a writer of a capture
 
 from collections.abc import Mapping
 
-from chupa.config import Config
+from chupa.config import Config, ConfigSnapshot
 
 
 class Redactor:
@@ -20,7 +20,7 @@ class Redactor:
         self._secrets = sorted(((n, v) for n, v in secrets.items() if v), key=lambda nv: -len(nv[1]))
 
     @classmethod
-    def from_config(cls, config: Config, env: Mapping[str, str]) -> "Redactor":
+    def from_config(cls, config: Config | ConfigSnapshot, env: Mapping[str, str]) -> "Redactor":
         """Resolve each provider's `auth` env-var NAME to its value; unset names have nothing to leak."""
         return cls({p.auth: env[p.auth] for p in config.providers if p.auth and p.auth in env})
 

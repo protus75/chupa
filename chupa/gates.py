@@ -11,7 +11,7 @@ from typing import Literal, Protocol
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from chupa.artifacts import Finding
-from chupa.config import Config, Severity
+from chupa.config import Config, ConfigSnapshot, Severity
 
 ENGINE_GATE_CODES: frozenset[str] = frozenset(
     {
@@ -66,7 +66,7 @@ class GateRunResult:
         return [f for r in self.hard_failures + self.soft_failures for f in r.findings]
 
 
-def merge_severity(config: Config | None) -> dict[str, Severity]:
+def merge_severity(config: Config | ConfigSnapshot | None) -> dict[str, Severity]:
     """The merge-context severity map: shipped all-hard default overlaid by `review.gate_severity`."""
     overrides = config.review.gate_severity if config is not None else {}
     return {**DEFAULT_GATE_SEVERITY, **overrides}

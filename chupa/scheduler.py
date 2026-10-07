@@ -1,4 +1,4 @@
-"""Dormant single-flight dispatch projection (CHUPA_PLAN.md 19.P3.daemon-scheduler)."""
+"""Single-flight dispatch projection (CHUPA_PLAN.md 19.P3.daemon-scheduler)."""
 
 import asyncio
 from collections.abc import Awaitable, Callable, Set

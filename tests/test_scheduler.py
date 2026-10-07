@@ -1,4 +1,4 @@
-"""Direct component evidence; these components remain outside the CLI composition."""
+"""Component behavior and production CLI reachability evidence."""
 
 import ast
 import asyncio
@@ -389,20 +389,25 @@ def import_closure(sources):
     return reached
 
 
-def assert_dormant(sources):
-    assert not {"chupa.scheduler", "chupa.watcher"} & import_closure(sources)
+def assert_reachable(sources):
+    assert {"chupa.scheduler", "chupa.watcher"} <= import_closure(sources)
 
 
-def test_scheduler_and_watcher_are_dormant():
+def test_scheduler_and_watcher_are_dormant(tmp_path):
+    from tests.test_daemon_composition import CoreRig, assert_core_wiring, without_core_import
+
     root = Path(__file__).resolve().parents[1]
     sources = {".".join(p.relative_to(root).with_suffix("").parts): p.read_text()
                for p in (root / "chupa").rglob("*.py")}
     sources["chupa"] = sources.pop("chupa.__init__")
-    assert_dormant(sources)
-    for component in ("scheduler", "watcher"):
-        for statement in (f"import chupa.{component}", f"from chupa import {component}"):
-            changed = dict(sources)
-            # Add the edge transitively, away from the root, to discriminate a shallow scan.
-            changed["chupa.status"] += f"\n{statement}\n"
-            with pytest.raises(AssertionError):
-                assert_dormant(changed)
+    assert_reachable(sources)
+    removed = without_core_import(sources)
+    with pytest.raises(AssertionError):
+        assert_reachable(removed)
+    for statement in ("import chupa.daemon", "from chupa import daemon"):
+        changed = dict(removed)
+        changed["chupa.status"] += f"\n{statement}\n"
+        assert_reachable(changed)
+    rig = CoreRig(tmp_path)
+    assert_core_wiring(rig)
+    assert rig.exec.calls == [] and rig.core.admission.task is None

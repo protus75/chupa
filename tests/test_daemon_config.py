@@ -1,4 +1,4 @@
-"""Per-admission capture and discriminating evidence that construction stays dormant."""
+"""Per-admission capture, production core reachability, and bootstrap preservation."""
 
 import asyncio
 from collections.abc import Mapping
@@ -15,7 +15,7 @@ from chupa.journal import EventType
 from chupa.seams import LocalFileSystem
 from tests.test_cli import ENV, Clock, root, ticket, write
 from tests.test_config import VALID
-from tests.test_daemon_admission import assert_dormant, assert_idle, tickets, turn
+from tests.test_daemon_admission import assert_reachable, assert_idle, tickets, turn
 
 
 def put_config(directory, text=VALID):
@@ -394,9 +394,17 @@ def test_config_snapshot_is_dormant(root, monkeypatch, verb, operation):
     sources = {".".join(path.relative_to(repo).with_suffix("").parts): path.read_text()
                for path in (repo / "chupa").rglob("*.py")}
     sources["chupa"] = sources.pop("chupa.__init__")
-    assert_dormant(sources)
+    from tests.test_daemon_composition import CoreRig, assert_core_wiring, without_core_import
+
+    assert_reachable(sources)
+    removed = without_core_import(sources)
+    with pytest.raises(AssertionError):
+        assert_reachable(removed)
     for statement in ("import chupa.daemon", "from chupa import daemon"):
-        changed = dict(sources)
+        changed = dict(removed)
         changed["chupa.status"] += f"\n{statement}\n"
-        with pytest.raises(AssertionError):
-            assert_dormant(changed)
+        assert_reachable(changed)
+    monkeypatch.undo()
+    rig = CoreRig(root)
+    assert_core_wiring(rig)
+    assert_idle(rig.core.admission)

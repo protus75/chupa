@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from chupa.config import Config, Provider
+from chupa.config import Config, ConfigSnapshot, Provider
 from chupa.llm import AgentEffort, AgentTier, LLMRequest, LLMResult
 from chupa.redact import Redactor
 from chupa.seams import FileSystem, GroupExec
@@ -59,11 +59,14 @@ class ProviderCallError(Exception):
         self.paved_road = paved_road
 
 
-def secret_names(config: Config) -> frozenset[str]:
+def secret_names(config: Config | ConfigSnapshot) -> frozenset[str]:
     return frozenset(p.auth for p in config.providers if p.auth)
 
 
-def child_env(env: Mapping[str, str], config: Config, serving: Provider | None = None) -> dict[str, str]:
+def child_env(
+    env: Mapping[str, str], config: Config | ConfigSnapshot,
+    serving: Provider | ConfigSnapshot | None = None,
+) -> dict[str, str]:
     """INHERIT-MINUS-SECRETS: the full parent env minus every provider key, plus only the serving call's own.
 
     Every non-LLM child (checks, verification, replay) passes `serving=None` and gets no key at all.
@@ -80,11 +83,11 @@ def child_env(env: Mapping[str, str], config: Config, serving: Provider | None =
 
 @dataclass(frozen=True)
 class Served:
-    provider: Provider
+    provider: Provider | ConfigSnapshot
     model: str
 
 
-def resolve(config: Config, tier: AgentTier, surface: str) -> Served:
+def resolve(config: Config | ConfigSnapshot, tier: AgentTier, surface: str) -> Served:
     """The FIRST candidate of the (tier, surface) row; its model, else the provider's models_by_tier[tier]."""
     route = next((r for r in config.routing if r.tier == tier and r.surface == surface), None)
     if route is None and surface != "review":
@@ -122,9 +125,9 @@ class CliAdapter:
 
     def __init__(
         self,
-        provider: Provider,
+        provider: Provider | ConfigSnapshot,
         *,
-        config: Config,
+        config: Config | ConfigSnapshot,
         exec_: GroupExec,
         fs: FileSystem,
         redactor: Redactor,
@@ -348,7 +351,7 @@ class ProviderLLM:
 
     def __init__(
         self,
-        config: Config,
+        config: Config | ConfigSnapshot,
         *,
         exec_: GroupExec,
         fs: FileSystem,

@@ -1,4 +1,4 @@
-"""Direct ownership evidence and negative evidence over the real CLI composition."""
+"""Ownership, production core reachability, and bootstrap CLI preservation evidence."""
 
 import ast
 import asyncio
@@ -225,8 +225,8 @@ def import_closure(sources):
     return reached
 
 
-def assert_dormant(sources):
-    assert "chupa.daemon" not in import_closure(sources)
+def assert_reachable(sources):
+    assert "chupa.daemon" in import_closure(sources)
 
 
 @pytest.mark.parametrize("verb", ["run", "drain"])
@@ -264,9 +264,17 @@ def test_daemon_admission_is_dormant(root, monkeypatch, verb):
     sources = {".".join(path.relative_to(repo).with_suffix("").parts): path.read_text()
                for path in (repo / "chupa").rglob("*.py")}
     sources["chupa"] = sources.pop("chupa.__init__")
-    assert_dormant(sources)
+    from tests.test_daemon_composition import CoreRig, assert_core_wiring, without_core_import
+
+    assert_reachable(sources)
+    removed = without_core_import(sources)
+    with pytest.raises(AssertionError):
+        assert_reachable(removed)
     for statement in ("import chupa.daemon", "from chupa import daemon"):
-        changed = dict(sources)
+        changed = dict(removed)
         changed["chupa.status"] += f"\n{statement}\n"
-        with pytest.raises(AssertionError):
-            assert_dormant(changed)
+        assert_reachable(changed)
+    monkeypatch.undo()
+    rig = CoreRig(root)
+    assert_core_wiring(rig)
+    assert_idle(rig.core.admission)

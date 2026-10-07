@@ -1,11 +1,43 @@
-"""Dormant dispatch task ownership (CHUPA_PLAN.md 19.P3.dispatch-admission-boundary)."""
+"""Production daemon core and dispatch ownership (CHUPA_PLAN.md 19.P3.scheduler-activation)."""
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Set
+from dataclasses import dataclass
+from pathlib import Path
 
 from chupa.config import Config, ConfigSnapshot, snapshot_config
+from chupa.journal import Journal
 from chupa.runner import Dispatch
+from chupa.scheduler import Scheduler
+from chupa.seams import Clock, Sleep
 from chupa.tickets import Ticket
+from chupa.watcher import Watcher
+
+
+@dataclass(frozen=True)
+class DaemonCore:
+    admission: "DaemonAdmission"
+    scheduler: Scheduler
+    watcher: Watcher
+
+
+def daemon_core(
+    repo: Path, *, journal: Journal, load: Callable[[], Config],
+    bind: Callable[[ConfigSnapshot], Dispatch], plan: str | None,
+    read: Callable[[str], str | None], clock: Clock, sleep: Sleep, debounce: float,
+    quarantined: Callable[[], Set[str]], drought_parked: Callable[[], Set[str]],
+    completed_unmerged: Callable[[], int], max_unmerged: int,
+) -> DaemonCore:
+    admission = DaemonAdmission(snapshot_dispatch(load, bind))
+    scheduler = Scheduler(
+        journal, admission.dispatch, quarantined=quarantined, drought_parked=drought_parked,
+        completed_unmerged=completed_unmerged, max_unmerged=max_unmerged,
+    )
+    watcher = Watcher(
+        repo, journal=journal, plan=plan, read=read, publish=scheduler.update, remove=scheduler.remove,
+        clock=clock, sleep=sleep, debounce=debounce,
+    )
+    return DaemonCore(admission, scheduler, watcher)
 
 
 def snapshot_dispatch(load: Callable[[], Config], bind: Callable[[ConfigSnapshot], Dispatch]) -> Dispatch:
