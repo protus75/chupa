@@ -1,0 +1,136 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "da06333142144a0f1b6e06b4229a5eda409c2bcd",
+  "stem": "phase3-continue-03",
+  "passed": false,
+  "changed_files": [
+    "tests/test_seeded_phase3_03.py"
+  ],
+  "inserted_lines": 180,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "requisition_review",
+      "verdict": "fail",
+      "findings": [
+        {
+          "code": "successor_next_admission_units_missing",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "Earlier continuations set the pattern: each one cites and gap-checks the entry units of its successor's payload. phase3-continue-03 cited 19.P3.dispatch-admission-boundary and 19.P3.dispatch-config-snapshot for continue-04's payload, and this ticket cites 19.P3.scheduler-activation for continue-05's payload. So phase3-continue-05 must cite and describe the payload of phase3-continue-06, which is the registry admission [merge-queue-activation, rework-activation]. CHUPA_PLAN.md has no '### 19.P3.merge-queue-activation' unit and no '### 19.P3.rework-activation' unit (the 19.P3 entry units end at scheduler-activation). This ticket runs entry_unit_gap and resolve_plan_contract only on dispatch-admission-boundary, dispatch-config-snapshot and scheduler-activation. Two things are therefore unspecified: the exact 'next-admission/next-seeder citations' that tests/test_seeded_phase3_04.py must pin for the successor, and how continue-05 can cite or describe units that do not resolve (the grammar gate refuses ids that do not resolve). As written, the gap surfaces later or produces a successor that invents facts or fails grammar.",
+          "paved_road": "Add 19.P3.merge-queue-activation and 19.P3.rework-activation to this ticket's entry_unit_gap/resolve_plan_contract list. Name them explicitly in the citations phase3-continue-05 must carry (19.L, 19.I, 19.P3, section 13, 19.P3.scheduler-activation, 19.P3.merge-queue-activation, 19.P3.rework-activation), and pin that set in tests/test_seeded_phase3_04.py. Because both units are missing, the run then returns premise_failed naming them for section 11.4 hardening. The alternative is to harden those two units in the plan first (as harden-scheduler-activation-1 did) and then regenerate this ticket.",
+          "kind": "spec_gap"
+        },
+        {
+          "code": "open_primary_selection_undefined",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "19.P3.thresh-runtime defines spill only for a FULL primary (alternate free and closed, primary's supplied projected wait > 60s) and a refusal only when NO candidate is available. It never states what admission does when the first route candidate's breaker is OPEN but a later candidate's is closed. Admission could skip to that candidate, which overlaps the ordered failure-driven failover reserved for 19.P4. It could also refuse, which contradicts 'refuse only when no candidate is available'. If the closed later candidate is at its own cap, it is unstated whether the caller waits FIFO there and which projected wait governs, since the caller supplies one duration for the primary only. test_spill_requires_available_candidate_and_wait_over_sixty_seconds and test_open_route_refuses_without_effect_or_cap_draw cannot pin behavior the spec never states.",
+          "paved_road": "Harden 19.P3.thresh-runtime (section 11.4) with one rule. Either (a) admission skips breaker-open candidates in route order, the first closed candidate becomes the effective primary for the cap, wait and spill rules, and the supplied projected wait applies to it; or (b) an open first candidate yields the typed pre-call refusal regardless of later candidates, with skipping deferred to provider-cooldown-failover. Then name the case in test_spill_requires_available_candidate_and_wait_over_sixty_seconds or test_open_route_refuses_without_effect_or_cap_draw.",
+          "kind": "spec_gap"
+        },
+        {
+          "code": "head_recheck_outcome_undefined",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "The Observable requires 'Recheck availability when a waiter reaches the head' but never states the outcome when the recheck fails, i.e. the waited-on provider's breaker opened while the call was queued. The waiter could be refused with the typed pre-call refusal, re-run selection over the route (possibly spilling), or keep waiting until the deadline. The provider_cap_wait record's closed disposition vocabulary (admitted | cancelled) has no value for this exit either, so the record shape for this path is also missing.",
+          "paved_road": "Harden 19.P3.thresh-runtime to state the head-of-queue outcome when the provider is no longer available. Example: the waiter leaves the queue, its provider_cap_wait record carries a named disposition (extend the closed vocabulary, e.g. `refused`, or state that `cancelled` covers it), and admission returns the typed pre-call refusal or re-runs selection. Add the case to test_cap_wait_cancellation_and_call_unwind_release_slots or test_breaker_rebuilds_from_journal_and_releases_at_deadline.",
+          "kind": "spec_gap"
+        }
+      ],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [
+    {
+      "stem": "phase3-continue-04",
+      "ticket_sha": "5c1bf505fe1b35d258111de02b08e44c3288dfac",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "successor_next_admission_units_missing",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "Earlier continuations set the pattern: each one cites and gap-checks the entry units of its successor's payload. phase3-continue-03 cited 19.P3.dispatch-admission-boundary and 19.P3.dispatch-config-snapshot for continue-04's payload, and this ticket cites 19.P3.scheduler-activation for continue-05's payload. So phase3-continue-05 must cite and describe the payload of phase3-continue-06, which is the registry admission [merge-queue-activation, rework-activation]. CHUPA_PLAN.md has no '### 19.P3.merge-queue-activation' unit and no '### 19.P3.rework-activation' unit (the 19.P3 entry units end at scheduler-activation). This ticket runs entry_unit_gap and resolve_plan_contract only on dispatch-admission-boundary, dispatch-config-snapshot and scheduler-activation. Two things are therefore unspecified: the exact 'next-admission/next-seeder citations' that tests/test_seeded_phase3_04.py must pin for the successor, and how continue-05 can cite or describe units that do not resolve (the grammar gate refuses ids that do not resolve). As written, the gap surfaces later or produces a successor that invents facts or fails grammar.",
+          "paved_road": "Add 19.P3.merge-queue-activation and 19.P3.rework-activation to this ticket's entry_unit_gap/resolve_plan_contract list. Name them explicitly in the citations phase3-continue-05 must carry (19.L, 19.I, 19.P3, section 13, 19.P3.scheduler-activation, 19.P3.merge-queue-activation, 19.P3.rework-activation), and pin that set in tests/test_seeded_phase3_04.py. Because both units are missing, the run then returns premise_failed naming them for section 11.4 hardening. The alternative is to harden those two units in the plan first (as harden-scheduler-activation-1 did) and then regenerate this ticket.",
+          "kind": "spec_gap"
+        }
+      ],
+      "mechanical": null
+    },
+    {
+      "stem": "thresh-runtime",
+      "ticket_sha": "e8675fb0fb21f5418f16d825e4fac5d5a0a051ab",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "open_primary_selection_undefined",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "19.P3.thresh-runtime defines spill only for a FULL primary (alternate free and closed, primary's supplied projected wait > 60s) and a refusal only when NO candidate is available. It never states what admission does when the first route candidate's breaker is OPEN but a later candidate's is closed. Admission could skip to that candidate, which overlaps the ordered failure-driven failover reserved for 19.P4. It could also refuse, which contradicts 'refuse only when no candidate is available'. If the closed later candidate is at its own cap, it is unstated whether the caller waits FIFO there and which projected wait governs, since the caller supplies one duration for the primary only. test_spill_requires_available_candidate_and_wait_over_sixty_seconds and test_open_route_refuses_without_effect_or_cap_draw cannot pin behavior the spec never states.",
+          "paved_road": "Harden 19.P3.thresh-runtime (section 11.4) with one rule. Either (a) admission skips breaker-open candidates in route order, the first closed candidate becomes the effective primary for the cap, wait and spill rules, and the supplied projected wait applies to it; or (b) an open first candidate yields the typed pre-call refusal regardless of later candidates, with skipping deferred to provider-cooldown-failover. Then name the case in test_spill_requires_available_candidate_and_wait_over_sixty_seconds or test_open_route_refuses_without_effect_or_cap_draw.",
+          "kind": "spec_gap"
+        },
+        {
+          "code": "head_recheck_outcome_undefined",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "The Observable requires 'Recheck availability when a waiter reaches the head' but never states the outcome when the recheck fails, i.e. the waited-on provider's breaker opened while the call was queued. The waiter could be refused with the typed pre-call refusal, re-run selection over the route (possibly spilling), or keep waiting until the deadline. The provider_cap_wait record's closed disposition vocabulary (admitted | cancelled) has no value for this exit either, so the record shape for this path is also missing.",
+          "paved_road": "Harden 19.P3.thresh-runtime to state the head-of-queue outcome when the provider is no longer available. Example: the waiter leaves the queue, its provider_cap_wait record carries a named disposition (extend the closed vocabulary, e.g. `refused`, or state that `cancelled` covers it), and admission returns the typed pre-call refusal or re-runs selection. Add the case to test_cap_wait_cancellation_and_call_unwind_release_slots or test_breaker_rebuilds_from_journal_and_releases_at_deadline.",
+          "kind": "spec_gap"
+        }
+      ],
+      "mechanical": null
+    }
+  ],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_seeded_phase3_03.py"
+      ],
+      "rc": 0,
+      "tail": "...............                                                          [100%]\n15 passed in 0.38s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [  7%]\n........................................................................ [ 15%]\n........................................................................ [ 23%]\n........................................................................ [ 31%]\n........................................................................ [ 39%]\n........................................................................ [ 47%]\n........................................................................ [ 55%]\n........................................................................ [ 63%]\n........................................................................ [ 71%]\n........................................................................ [ 79%]\n........................................................................ [ 87%]\n........................................................................ [ 95%]\n........................................                                 [100%]\n904 passed in 78.99s (0:01:18)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
