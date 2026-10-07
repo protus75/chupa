@@ -1,7 +1,7 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "64ecc7a194a9fcc8b4c20bcafd0ca1fa4a30fd1f",
+  "produced_at_sha": "2f003adf933396b781a0922bedb69d2a882948f8",
   "stem": "rework-activation",
   "passed": true,
   "changed_files": [
@@ -19,7 +19,7 @@
     "tests/test_rework.py",
     "tests/test_scheduler.py"
   ],
-  "inserted_lines": 873,
+  "inserted_lines": 955,
   "bypassed": [],
   "reports": [
     {
@@ -66,7 +66,7 @@
         "tests/test_cli.py"
       ],
       "rc": 0,
-      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/rework-activation\nconfigfile: pyproject.toml\nplugins: asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 267 items\n\ntests/test_rework.py ................................................... [ 19%]\n.......                                                                  [ 21%]\ntests/test_daemon_composition.py ..................................      [ 34%]\ntests/test_mergequeue.py ............................................... [ 52%]\n.........                                                                [ 55%]\ntests/test_ladder.py ...............                                     [ 61%]\ntests/test_drain.py ..................................                   [ 73%]\ntests/test_scheduler.py ............                                     [ 78%]\ntests/test_reject_queue.py .........                                     [ 81%]\ntests/test_merge.py ...............                                      [ 87%]\ntests/test_diagnose.py .................                                 [ 93%]\ntests/test_cli.py .................                                      [100%]\n\n============================= 267 passed in 24.08s =============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/rework-activation\nconfigfile: pyproject.toml\nplugins: asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 280 items\n\ntests/test_rework.py ................................................... [ 18%]\n.......                                                                  [ 20%]\ntests/test_daemon_composition.py ....................................... [ 34%]\n.......                                                                  [ 37%]\ntests/test_mergequeue.py ............................................... [ 53%]\n.........                                                                [ 57%]\ntests/test_ladder.py ................                                    [ 62%]\ntests/test_drain.py ..................................                   [ 75%]\ntests/test_scheduler.py ............                                     [ 79%]\ntests/test_reject_queue.py .........                                     [ 82%]\ntests/test_merge.py ...............                                      [ 87%]\ntests/test_diagnose.py .................                                 [ 93%]\ntests/test_cli.py .................                                      [100%]\n\n============================= 280 passed in 26.50s =============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -77,7 +77,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "........................................................................ [  6%]\n........................................................................ [ 13%]\n........................................................................ [ 19%]\n........................................................................ [ 26%]\n........................................................................ [ 32%]\n........................................................................ [ 39%]\n........................................................................ [ 45%]\n........................................................................ [ 52%]\n........................................................................ [ 58%]\n........................................................................ [ 65%]\n........................................................................ [ 72%]\n........................................................................ [ 78%]\n........................................................................ [ 85%]\n........................................................................ [ 91%]\n........................................................................ [ 98%]\n....................                                                     [100%]\n1100 passed in 86.42s (0:01:26)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................................ [  6%]\n........................................................................ [ 12%]\n........................................................................ [ 19%]\n........................................................................ [ 25%]\n........................................................................ [ 32%]\n........................................................................ [ 38%]\n........................................................................ [ 45%]\n........................................................................ [ 51%]\n........................................................................ [ 58%]\n........................................................................ [ 64%]\n........................................................................ [ 71%]\n........................................................................ [ 77%]\n........................................................................ [ 84%]\n........................................................................ [ 90%]\n........................................................................ [ 97%]\n.................................                                        [100%]\n1113 passed in 89.35s (0:01:29)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
