@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from chupa.config import Config, ConfigSnapshot, snapshot_config
+from chupa.box import Box
+from chupa.flake import Flake
 from chupa.control import CONTROL_DECISION, ControlInbox, ControlProjection, write_active
 from chupa.journal import EventType, Journal
 from chupa import runner
@@ -23,6 +25,12 @@ from chupa.tickets import Ticket, parse_ticket, ticket_path
 from chupa.watcher import Watcher
 
 KILL_APPLIED = "kill_applied"
+
+
+def flake_detection(*, journal: Journal, box: Box, config: Config,
+                    escalate: Callable[[str], None]) -> Flake:
+    """Dormant boundary: the lock holder explicitly supplies its existing writers."""
+    return Flake(journal=journal, box=box, cap=config.caps.quarantine, escalate=escalate)
 
 
 class HeartbeatCycle:
