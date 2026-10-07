@@ -91,7 +91,7 @@ uv run pytest -q
 ```
 
 ## Definition of rejected
-Stop with premise_failed if a criterion forces a path outside the fence or the governing entry omits a needed fact; name the missing contract for section 11.4 hardening. Refuse replacement graphs, invented records, unreviewed proposals, early supersedes/retirement, reused code approvals, lock reacquisition or production behavior outside this activation.
+Stop with premise_failed if a criterion forces a path outside the fence or the governing entry omits a needed fact; name the missing contract for section 11.4 hardening. Refuse replacement graphs, invented records, unreviewed proposals, early supersedes/retirement, reused code approvals, lock reacquisition or production behavior outside this activation. Implement runs under this ticket's own stuck budget (section 9.7); a provider timeout shorter than it is an engine fault, not this ticket's.
 
 ## Time budget
 - expected: 60m
