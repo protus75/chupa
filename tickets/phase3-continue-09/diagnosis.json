@@ -1,21 +1,15 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "b5919c584fe19f27186e690cda3893691864ec3a",
+  "produced_at_sha": "3319bb637f259735c4664252c495aff241cb1f7e",
   "stem": "phase3-continue-09",
-  "attempt": 2,
-  "terminal": "gate_failed",
-  "stage": "check",
-  "verdict": "retry",
-  "lessons": [
-    "Trace the indirect closure, not just the direct compose_pipeline and write_active callers. drain() builds its consumer inside chupa/drain.py via build_control(checkout), and main() reaches compose_pipeline through runner.pipeline -> prepare_pipeline -> bind. Grep both chains.",
-    "Choose exactly one carrier that lets __main__ hand its one inbox to both 'the drain control factory and the pipeline factory' (19.P3.admission-holds-activation Owner). Adding a missing-inbox fallback to drain, bind or Checkout is forbidden, so don't.",
-    "If drain carries the inbox, fence chupa/drain.py and every direct drain() caller (tests/test_drain.py, eval/shakeout/bench.py, any others found) under 19.L CALLER CLOSURE. Record each path, its reason and its Context/On-demand partition in test_seeded_phase3_09.py.",
-    "If bind or Checkout carries it, fence every direct runner.bind caller or every positional Checkout(...) construction that the Check finding listed. Never leave an unfenced suite that must break or rely on a fallback to stay green.",
-    "If no carrier can be fenced without a fallback, or the plan's silence on the carrier counts as an omitted fact, return premise_failed naming 19.P3.admission-holds-activation for section 11.4 hardening. Don't invent a carrier."
-  ],
-  "mechanical": null,
+  "attempt": 3,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "abandon-human",
+  "lessons": [],
+  "mechanical": "premise_bounce cap spent",
   "spec_version": "1.1",
-  "provider": "claude",
-  "model": "claude-opus-5-5"
+  "provider": null,
+  "model": null
 }
