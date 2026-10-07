@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-No fence additions were earned; both seed renders fit authoring headroom.
+Caller closure also required tests/test_control.py alongside the two previously identified suites; all three earned additions are pinned.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60m expected budget; verification passed with 14 targeted tests and 1603 full-suite tests.
+Completed within the 60-minute expected budget; verification passed with 14 admission tests and 1,603 full-suite tests.
 
