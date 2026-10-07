@@ -72,7 +72,10 @@ FENCE_ADDITIONS = {'merge-queue-activation': {'chupa/runner.py': 'CALLER CLOSURE
                        'tests/test_diagnose.py': 'CONTRADICTED TESTS: over-bound case of '
                                                  'test_missing_workspace_and_no_call_short_circuits '
                                                  'pins no model call; migrate only that case to '
-                                                 'Rework without diagnosis.'},
+                                                 'Rework without diagnosis.',
+                       'tests/test_mergequeue.py': 'CONTRADICTED TESTS: '
+                                                   'test_merge_queue_is_reachable_from_production pins '
+                                                   'the predecessor dormancy this activation flips.'},
  'phase3-continue-07': {}}
 
 AUTHORING_HEAD = '661689030678216d264a65c68c02f75f40e758e8'
@@ -132,10 +135,10 @@ AUTHORED = {
         153635,
     ),
     'rework-activation': Authored(
-        22935,
+        23076,
         ('19.I', '19.P3.rework-activation'),
-        ('chupa/daemon.py', 'chupa/rework.py', 'chupa/mergequeue.py', 'tests/test_rework.py', 'tests/test_daemon_composition.py', 'chupa/runner.py', 'chupa/drain.py', 'chupa/scheduler.py', 'tests/test_ladder.py', 'tests/test_drain.py', 'tests/test_scheduler.py', 'tests/test_reject_queue.py', 'tests/test_diagnose.py'),
-        ('chupa/daemon.py', 'chupa/rework.py', 'chupa/mergequeue.py', 'tests/test_rework.py', 'tests/test_daemon_composition.py', 'chupa/runner.py', 'chupa/drain.py', 'chupa/scheduler.py', 'tests/test_ladder.py', 'tests/test_drain.py', 'tests/test_scheduler.py', 'tests/test_reject_queue.py', 'tests/test_diagnose.py'),
+        ('chupa/daemon.py', 'chupa/rework.py', 'chupa/mergequeue.py', 'tests/test_rework.py', 'tests/test_daemon_composition.py', 'chupa/runner.py', 'chupa/drain.py', 'chupa/scheduler.py', 'tests/test_ladder.py', 'tests/test_drain.py', 'tests/test_scheduler.py', 'tests/test_reject_queue.py', 'tests/test_diagnose.py', 'tests/test_mergequeue.py'),
+        ('chupa/daemon.py', 'chupa/rework.py', 'chupa/mergequeue.py', 'tests/test_rework.py', 'tests/test_daemon_composition.py', 'chupa/runner.py', 'chupa/drain.py', 'chupa/scheduler.py', 'tests/test_ladder.py', 'tests/test_drain.py', 'tests/test_scheduler.py', 'tests/test_reject_queue.py', 'tests/test_diagnose.py', 'tests/test_mergequeue.py'),
         255124,
     ),
     'phase3-continue-07': Authored(
