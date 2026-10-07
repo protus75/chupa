@@ -32,9 +32,11 @@ class Git:
         self._env = env
         self._timeout = timeout
 
-    async def _call(self, dir: Path, *args: str) -> tuple[list[str], int, str, str]:
+    async def _call(self, dir: Path, *args: str,
+                    env: Mapping[str, str] | None = None) -> tuple[list[str], int, str, str]:
         argv = ["git", "-C", str(dir), *args]
-        rc, out, err = await self._exec.run(argv, cwd=dir, env=self._env, timeout=self._timeout)
+        rc, out, err = await self._exec.run(argv, cwd=dir, env=self._env if env is None else env,
+                                          timeout=self._timeout)
         return argv, rc, out, err
 
     async def _run(self, dir: Path, *args: str) -> str:
@@ -108,6 +110,27 @@ class Git:
 
     async def restore(self, dir: Path, paths: Sequence[str], *, source: str) -> None:
         await self._run(dir, "restore", "--source", _ref(source), "--staged", "--worktree", "--", *paths)
+
+    async def rebase_stop_at_conflict(self, dir: Path, onto: str) -> None:
+        """Leave genuine conflicts for the queue; other refusals abort before returning."""
+        await self._rebase_step(dir, "rebase", _ref(onto))
+
+    async def conflicted_paths(self, dir: Path) -> list[str]:
+        out = await self._run(dir, "diff", "--name-only", "--diff-filter=U", "-z")
+        return sorted(set(out.rstrip("\0").split("\0"))) if out else []
+
+    async def rebase_continue(self, dir: Path) -> None:
+        # GIT_EDITOR overrides core.editor, including an inherited interactive editor.
+        await self._rebase_step(dir, "-c", "core.editor=true", "rebase", "--continue",
+                                env={**self._env, "GIT_EDITOR": "true"})
+
+    async def _rebase_step(self, dir: Path, *args: str, env: Mapping[str, str] | None = None) -> None:
+        argv, rc, out, err = await self._call(dir, *args, env=env)
+        if rc != 0:
+            if await self.conflicted_paths(dir):
+                raise GitError(argv, rc, out, err)
+            await self._call(dir, "rebase", "--abort")
+            raise RebaseRefused(argv, rc, out, err)
 
     async def merge_squash(self, dir: Path, branch: str) -> None:
         await self._run(dir, "merge", "--squash", _ref(branch))

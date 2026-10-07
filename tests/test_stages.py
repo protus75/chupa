@@ -508,3 +508,68 @@ def test_run_record_gate_requires_every_section_and_a_closed_outcome(tmp_path):
     bad = "## Outcome\n\nshipped\n\n## Dead ends\n\nnone\n"
     messages = [f.message for f in gate.check(evidence(run_record=bad), tmp_path).findings]
     assert len(messages) == 2 and "'shipped' is not an outcome" in messages[1]
+
+
+def test_gather_safety_evidence_runs_no_verification(repo, monkeypatch):
+    import dataclasses
+    from chupa import stages
+    from tests.test_merge import context
+    author(repo)
+    ctx = context(repo, [])
+    ticket = validate_ticket(STEM, (repo / "tickets" / STEM / "ticket.md").read_text(), repo)
+    ticket = dataclasses.replace(ticket, scope_fence=("chupa/thing.py", "CHUPA_PLAN.md#19.P3.row"))
+
+    async def scenario():
+        ctx.fs.write(repo / "CHUPA_PLAN.md", UNIT_MAIN.encode())
+        await ctx.git.add(repo, ["CHUPA_PLAN.md"])
+        await ctx.git.commit(repo, "plan")
+        ctx.fs.write(repo / "tickets" / STEM / "run.md", b"lifted run record")
+        await ctx.git.worktree_add(repo, ctx.worktree(STEM), STEM, "main")
+        (ctx.worktree(STEM) / "chupa/thing.py").write_text("ok\n")
+        ctx.fs.write(ctx.worktree(STEM) / "CHUPA_PLAN.md", UNIT_HEAD.encode())
+        await ctx.git.add(ctx.worktree(STEM), ["chupa/thing.py", "CHUPA_PLAN.md"])
+        await ctx.git.commit(ctx.worktree(STEM), "work")
+        original = ctx.exec_.run
+        calls = []
+        async def recording(argv, **kw):
+            calls.append((argv, kw))
+            return await original(argv, **kw)
+        monkeypatch.setattr(ctx.exec_, "run", recording)
+        safety = await stages.gather_safety_evidence(ctx, ticket, "ok")
+        assert safety.verification == []
+        assert safety.plan_main == UNIT_MAIN and safety.plan_head == UNIT_HEAD
+        assert safety.run_record == "lifted run record" and safety.inserted_lines > 0
+        assert all(argv[0] == "git" and "worktree" not in argv for argv, _ in calls)
+        full = await stages.gather_evidence(ctx, ticket, "ok", attempt=0)
+        assert full.model_copy(update={"verification": []}) == safety
+        assert len(full.verification) == len(ticket.verification)
+    asyncio.run(scenario())
+
+
+def test_full_gather_evidence_reuses_safety_gatherer(repo, monkeypatch):
+    from chupa import stages
+    from tests.test_merge import context
+    author(repo)
+    ctx = context(repo, [])
+    ticket = validate_ticket(STEM, (repo / "tickets" / STEM / "ticket.md").read_text(), repo)
+    original = stages.gather_safety_evidence
+    gathered = []
+    async def recording(*args):
+        evidence = await original(*args)
+        gathered.append(evidence)
+        return evidence
+    monkeypatch.setattr(stages, "gather_safety_evidence", recording)
+
+    async def scenario():
+        await ctx.git.worktree_add(repo, ctx.worktree(STEM), STEM, "main")
+        (ctx.worktree(STEM) / "chupa/thing.py").write_text("changed\n")
+        await ctx.git.add(ctx.worktree(STEM), ["chupa/thing.py"])
+        await ctx.git.commit(ctx.worktree(STEM), "work")
+        result = await stages.gather_evidence(ctx, ticket, "ok", attempt=4)
+        assert len(gathered) == 1
+        assert gathered[0] == result.model_copy(update={"verification": []})
+        assert result.verification[0].base_red
+        assert result.verification[1].rc == 0
+        assert (ctx.config.state_dir / "spools" / STEM / "4/check/verify-01-base.txt").is_file()
+        assert not (ctx.config.worktree_root / ".base" / STEM).exists()
+    asyncio.run(scenario())

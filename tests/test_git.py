@@ -364,3 +364,58 @@ def test_ticket_lifecycle_against_real_repo(tmp_path):
         assert (await g.describe(repo)).endswith("-dirty")
 
     run(scenario())
+
+
+def test_rebase_stop_at_conflict_preserves_conflicted_state(tmp_path):
+    repo, wt = tmp_path / "repo", tmp_path / "wt"
+    repo.mkdir()
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
+           "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    g = Git(SubprocessExec(), env=env, timeout=30)
+
+    async def scenario():
+        await g.init(repo, branch="main")
+        (repo / "file").write_text("base\n")
+        await g.add(repo, ["file"])
+        await g.commit(repo, "base")
+        await g.worktree_add(repo, wt, "ticket", "main")
+        (wt / "file").write_text("branch\n")
+        await g.commit(wt, "branch", only=["file"])
+        head = await g.rev_parse(wt, "HEAD")
+        (repo / "file").write_text("main\n")
+        await g.commit(repo, "main", only=["file"])
+        with pytest.raises(GitError):
+            await g.rebase_stop_at_conflict(wt, "main")
+        assert await g.conflicted_paths(wt) == ["file"]
+        assert "UU file" in await g.status_porcelain(wt)
+        await g._call(wt, "rebase", "--abort")
+        assert await g.rev_parse(wt, "HEAD") == head
+        # A non-conflict refusal still aborts.
+        (wt / "file").write_text("dirty\n")
+        with pytest.raises(RebaseRefused):
+            await g.rebase_stop_at_conflict(wt, "main")
+        assert await g.conflicted_paths(wt) == []
+    run(scenario())
+
+
+def test_conflicted_paths_argv_and_output():
+    g, exec_ = git((0, "z\0a b\0z\0", ""))
+    assert run(g.conflicted_paths(REPO)) == ["a b", "z"]
+    assert exec_.argvs == [["git", "-C", "/repo", "diff", "--name-only", "--diff-filter=U", "-z"]]
+
+
+def test_rebase_continue_is_noninteractive():
+    exec_ = FakeExec()
+    g = Git(exec_, env={**ENV, "GIT_EDITOR": "must-not-run"}, timeout=30.0)
+    run(g.rebase_continue(REPO))
+    assert exec_.argvs == [["git", "-C", "/repo", "-c", "core.editor=true", "rebase", "--continue"]]
+    assert exec_.calls[0][1:] == (REPO, {**ENV, "GIT_EDITOR": "true"}, 30.0)
+    g, exec_ = git((1, "", "conflict"), (0, "file\0", ""))
+    with pytest.raises(GitError):
+        run(g.rebase_continue(REPO))
+    assert not any(a[-1] == "--abort" for a in exec_.argvs)
+    g, exec_ = git((1, "", "refusal"), (0, "", ""))
+    with pytest.raises(RebaseRefused):
+        run(g.rebase_continue(REPO))
+    assert exec_.argvs[-1][-2:] == ["rebase", "--abort"]

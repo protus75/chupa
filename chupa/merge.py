@@ -177,12 +177,9 @@ def _refused(findings: list[Finding], cost: Cost) -> StageResult:
     return StageResult(outcome="gate_failed", artifact=None, findings=findings, cost=cost)
 
 
-async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResult:
-    """Admit one reviewed branch to main, or refuse it with findings and main untouched."""
+async def gather_seeds(ctx: StageContext, ticket: Ticket) -> tuple[list[SeedOnMain], str | None]:
+    """Pin seed approval custody to main's committed blobs before the admission rebase."""
     stem = ticket.stem
-    started = ctx.driver.clock()
-    worktree = ctx.worktree(stem)
-    reviewed = await ctx.git.rev_parse(ctx.repo, stem)
     seeded_stems = sorted({e.ticket for e in ctx.driver.journal.read()
                            if e.type == EventType.SIGNAL and e.ticket is not None
                            and e.body.get("signal") == "ticket_intake" and e.body.get("seeded_by") == stem})
@@ -202,6 +199,29 @@ async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResu
         except GitError:
             pass
 
+    return seeds, checks_text
+
+
+def read_candidate(ctx: StageContext, ticket: Ticket, reviewed: str, changed_files: list[str],
+                   seeds: list[SeedOnMain], checks_text: str | None) -> Candidate:
+    stem = ticket.stem
+    review_md = ctx.repo / TICKETS_DIR / stem / "review.md"
+    return Candidate(
+        stem=stem, reviewed_sha=reviewed, changed_files=changed_files,
+        ticket_text=(ctx.repo / ticket_path(stem)).read_text(),
+        review_text=review_md.read_text() if review_md.is_file() else None,
+        seeds=seeds, seed_checks_text=checks_text,
+    )
+
+
+async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResult:
+    """Admit one reviewed branch to main, or refuse it with findings and main untouched."""
+    stem = ticket.stem
+    started = ctx.driver.clock()
+    worktree = ctx.worktree(stem)
+    reviewed = await ctx.git.rev_parse(ctx.repo, stem)
+    seeds, checks_text = await gather_seeds(ctx, ticket)
+
     # Lifted outbox copies show as tracked deletions in a worktree born from a main that already held
     # them, and a dirty tree refuses the rebase. Restoring to the branch's committed ticket plane (which
     # the branch never changes) makes the rebase land it on main's content; restoring main's content
@@ -216,20 +236,25 @@ async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResu
                         cost)
 
     evidence = await gather_evidence(ctx, ticket, "ok", attempt=attempt, stage="merge")
-    review_md = ctx.repo / TICKETS_DIR / stem / "review.md"
-    candidate = Candidate(
-        stem=stem, reviewed_sha=reviewed, changed_files=evidence.changed_files,
-        ticket_text=(ctx.repo / ticket_path(stem)).read_text(),
-        review_text=review_md.read_text() if review_md.is_file() else None,
-        seeds=seeds, seed_checks_text=checks_text,
-    )
+    candidate = read_candidate(ctx, ticket, reviewed, evidence.changed_files, seeds, checks_text)
     severity = check_severity(ctx, ticket)
-    if seeds:
+    if candidate.seeds:
         severity["requisition_review"] = "hard"  # a seeded branch needs an exact committed approval
     gated = [run_gates(CHECK_GATES, evidence, worktree, severity=severity),
              run_gates(MERGE_GATES, candidate, ctx.repo, severity=severity)]
     if hard := [f for g in gated for r in g.hard_failures for f in r.findings]:
         return _refused(hard, Cost(seconds=(ctx.driver.clock() - started).total_seconds()))
+
+    admission = await write_squash(ctx, ticket, reviewed, attempt=attempt)
+    await retire(ctx, stem)
+    soft = [f for g in gated for f in g.findings]
+    return StageResult(outcome="ok", artifact=admission, findings=soft,
+                       cost=Cost(seconds=(ctx.driver.clock() - started).total_seconds()))
+
+
+async def write_squash(ctx: StageContext, ticket: Ticket, reviewed: str, *, attempt: int) -> Admission:
+    """The shared code-lane Effect and merged-terminal writer; retirement follows tree validation."""
+    stem = ticket.stem
 
     async def squash() -> dict:
         await ctx.git.merge_squash(ctx.repo, stem)
@@ -239,10 +264,10 @@ async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResu
     commit = (await ctx.driver.effects.run(squash, key="/".join(("merge", stem, str(attempt))), ticket=stem))["commit"]
     ctx.driver.journal.append(EventType.STATE_TRANSITION,
                               {"to": "merged", "commit": commit, "reviewed_sha": reviewed}, ticket=stem)
-    await ctx.git.worktree_remove(ctx.repo, worktree)
+    return Admission(produced_by_spec_version=MERGE_SPEC_VERSION, produced_at_sha=commit,
+                     stem=stem, commit=commit, reviewed_sha=reviewed)
+
+
+async def retire(ctx: StageContext, stem: str) -> None:
+    await ctx.git.worktree_remove(ctx.repo, ctx.worktree(stem))
     await ctx.git.branch_delete(ctx.repo, stem)
-    admission = Admission(produced_by_spec_version=MERGE_SPEC_VERSION, produced_at_sha=commit,
-                          stem=stem, commit=commit, reviewed_sha=reviewed)
-    soft = [f for g in gated for f in g.findings]
-    return StageResult(outcome="ok", artifact=admission, findings=soft,
-                       cost=Cost(seconds=(ctx.driver.clock() - started).total_seconds()))

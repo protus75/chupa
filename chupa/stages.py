@@ -585,6 +585,16 @@ async def gather_evidence(
                                     outcome="base_red", summary=summary)
         finally:
             await ctx.git.worktree_remove(ctx.repo, base_worktree)
+    evidence = await gather_safety_evidence(ctx, ticket, claimed)
+    return evidence.model_copy(update={"verification": results})
+
+
+async def gather_safety_evidence(
+    ctx: StageContext, ticket: Ticket, claimed: Literal["ok", "already_satisfied"],
+) -> Evidence:
+    """Gather the committed metadata once, without verification or base-worktree execution."""
+    stem = ticket.stem
+    worktree = ctx.worktree(stem)
     run_md = ctx.repo / TICKETS_DIR / stem / "run.md"
     changed = await ctx.git.diff_names(ctx.repo, MAIN, stem)
     anchored = PLAN_FILE in changed and any("#" in f for f in ticket.scope_fence)
@@ -595,7 +605,7 @@ async def gather_evidence(
         scope_fence=list(ticket.scope_fence),
         changed_files=changed,
         inserted_lines=_inserted(await ctx.git.diff(ctx.repo, MAIN, stem)),
-        verification=results,
+        verification=[],
         run_record=run_md.read_text() if run_md.is_file() else None,
         plan_main=(ctx.repo / PLAN_FILE).read_text() if anchored else None,
         plan_head=(worktree / PLAN_FILE).read_text() if anchored else None,
