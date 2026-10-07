@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The registry names both kill rows, but entry_unit_gap and resolve_plan_contract confirm their contracts are missing, also at base commit ba6644119856e4cd55143dd871c3d621cc3918a0.
+Previously missing kill contracts are now complete; activation earns only tests/test_control.py beyond its registry fence.
 
 ## Dead ends
 
-Stopped before authoring because the ticket forbids inventing missing contracts and plan edits are outside the scope fence.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during initial contract validation, well within the 60-minute expected budget.
+Completed within the 60-minute expected budget.
 
