@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "09c5273be714f9973e4c13b3cf8b59492297b491",
+  "produced_at_sha": "6b326bcf2a1468e957e14adef22f39fb513f4116",
   "stem": "phase3-continue-12",
-  "attempt": 1,
+  "attempt": 2,
   "terminal": "gate_failed",
   "stage": "check",
   "verdict": "retry",
   "lessons": [
-    "The implementation passed: tests/test_seeded_phase3_12.py had 14 tests pass and the full suite had 1498 pass. Check failed only because the requisition_review reply had a schema error (authoring_error). Re-run Check on the same seeds. Do not re-author anything the reply did not flag.",
-    "The requisition reviewer must reply with exactly one schema-valid requisition verdict object for each seed review. The stage log shows a fenced JSON object written right after another reply's closing brace. Emit one bare object per review, with no code fences and no second object.",
-    "Keep tickets/kill-cli-activation and tickets/phase3-continue-13 unchanged and uncommitted. Keep commit 09c5273 (tests/test_seeded_phase3_12.py) as it is. The ticket says re-author only snagged seeds, and no seed received a substantive finding.",
-    "The material does not say which field broke the schema. The harvest shows only '1 schema error(s)'. Check the reviewer's raw reply against the requisition verdict schema before replying, so that verdict, summary and findings match the required keys and types exactly."
+    "The failure was the review reply, not the authored work. The review approved the seed and both Verification commands passed (14 and 1498 tests). Leave tests/test_seeded_phase3_12.py (commit 6b326bc) and both seeds byte-for-byte unchanged.",
+    "Why the reply failed: the requisition reviewer wrote prose before its JSON. requisition.py:129 checks the reply with RequisitionReply.model_validate_json(unwrap_fence(text)), and unwrap_fence only removes one surrounding code fence, so any prose before the JSON breaks the parse.",
+    "Re-run only the requisition review and send back exactly one JSON object with nothing before or after it: verdict, summary and findings, no other keys (extra='forbid'). If the verdict is approve, findings must be [] (requisition.py:32).",
+    "Preserve approved seeds while their bytes still match ticket_sha. Do not re-author phase3-continue-13 (sha256 184e2b95...) or kill-cli-activation unless a review returns a real snag finding. A schema error says nothing about what the ticket contains.",
+    "Leave tickets/kill-cli-activation/ and tickets/phase3-continue-13/ uncommitted so Check can record both approvals in checks.json and lift them together in one chupa(phase3-continue-12): seeds commit."
   ],
   "mechanical": null,
   "spec_version": "1.1",
