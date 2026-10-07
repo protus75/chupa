@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "ec1305cae8d5c174dd42fca7794a525f6cee7015",
+  "stem": "harden-storm-producer-wiring-2",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Do not retry: the premise is false. On base ec1305c, the CHUPA_PLAN.md unit 19.P3.storm-notification-activation already gives caller fence treatment (line 2154) and the closed production arrival-site list (line 2158).",
+    "It also gives replay-stable id recipes at lines 2162-2167 for implement second problems, gather_evidence base-red, Flake.detect, and ingest_bootstrap/ingest_main_checkout. Criterion 2 calls these omitted, so writing it would add false plan text.",
+    "This ticket's gap was closed by the earlier commit ec1305c (harden-storm-notification-activation-2). Withdraw this stale ticket instead of editing the plan.",
+    "Any replacement ticket for 19.P3.storm-producer-wiring must name a gap that still exists against the current plan text in 19.P3.storm-notification-activation (lines 2154-2167) and check it on the current base before authoring."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
