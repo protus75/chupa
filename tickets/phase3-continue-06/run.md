@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The prior missing entry unit is now complete; all previous seed reviews were snagged, so no approved bytes required preservation.
+The hardened plan resolves both prior terminal findings; all fenced existing paths fit embedded Context.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60-minute expected and 90-minute stuck budgets.
+Completed within the 60-minute expected budget.
 
