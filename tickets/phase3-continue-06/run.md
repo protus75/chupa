@@ -1,10 +1,10 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-All fenced existing files fit embedded Context; 21 admission checks and 1,058 full-suite tests passed.
+All six explicitly named entry units pass gap checks and resolve; the missing successor citation was verified on base commit f7a2cdc13f8ccffb3a904fe287e981759529e908.
 
 ## Dead ends
 
@@ -12,7 +12,7 @@ none
 
 ## Second problems filed
 
-- box-000277-a3b1a71b: Base-commit verification confirmed missing later entry units 19.P3.admission-holds-activation, 19.P3.kill-signal-journal and 19.P3.kill-executor-abort, which need hardening before later admissions.
+none
 
 ## Resolved engine/model
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the expected 60-minute budget.
+Stopped during read-only premise validation, within the 60-minute expected budget.
 
