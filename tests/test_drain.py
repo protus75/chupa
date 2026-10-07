@@ -913,3 +913,25 @@ async def test_drain_uses_supplied_control(root, monkeypatch):
     with pytest.raises(Refusal, match="build_control.*Checkout.control"):
         await run_drain(replace(checkout, control=None), Script()(checkout), reexec=NoChild())
     assert trace == []
+
+
+def test_a_spec_gap_hold_releases_when_its_hardening_ticket_is_retired(root):
+    commit_ticket(root, "held", confirmed())
+    commit_ticket(root, "harden-held-1", confirmed().replace("state: confirmed", "state: draft"))
+    j = journal(root)
+    j.append(EventType.SIGNAL, {"signal": "spec_gap_hold", "awaits": ["harden-held-1"], "gaps": {}}, ticket="held")
+    j.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "stage": "check", "dispatch": "spec_gap_hold"},
+             ticket="held")
+    j.append(EventType.STATE_TRANSITION, {"to": "rejected"}, ticket="harden-held-1")
+    calls: list[str] = []
+
+    def pipeline(checkout):
+        async def dispatch(t):
+            calls.append(t.stem)
+            checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=t.stem)
+            return "merged"
+
+        return dispatch
+
+    assert drain(root, pipeline) == 0
+    assert calls == ["held"]
