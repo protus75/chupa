@@ -1,0 +1,136 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "208712efffe32e21b774a0bbf8d0fe4bc79faa2c",
+  "stem": "phase3-continue-09",
+  "passed": false,
+  "changed_files": [
+    "tests/test_seeded_phase3_09.py"
+  ],
+  "inserted_lines": 412,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "requisition_review",
+      "verdict": "fail",
+      "findings": [
+        {
+          "code": "scope_fence_caller_closure",
+          "path": "chupa/__main__.py",
+          "line": null,
+          "message": "The CLI root reaches the pipeline factory only through `main(pipeline: Callable[[Checkout], Dispatch])` -> `runner.bind(checkout, llm)` -> `compose_pipeline`. It reaches the drain control factory only through `drain(checkout, ...)` -> `build_control(checkout)`. Also, `main` calls `pipeline(checkout)` before drain builds its PauseConsumer, and PauseConsumer is what currently creates the inbox and binds its `apply`/`holds`. So getting one inbox to both places means changing `bind`'s signature, adding a `Checkout` field, or changing `drain`'s signature. The AUTHORING CLOSURE traced only direct `compose_pipeline` callers. It missed these: the `runner.bind(c, llm)` callers in tests/test_harvest.py, test_reject_queue.py, test_terminal.py, test_second_problems.py, test_seed_successor.py, test_diagnose.py, test_drain_reentry.py, test_caps.py, test_harvest_orphans.py, test_ladder.py and test_drain.py; the positional `Checkout(...)` constructions in test_drain.py (incl. `pause_checkout`, used by LiveDrain to call `drain()` directly), test_reject_queue.py and test_daemon_tasks.py; and the one-argument `build_control(checkout)` wrapper in tests/test_control_cli.py, which the ticket says stays unchanged. `uv run pytest -q` must stay green. Every route either breaks these unfenced files, or adds an optional field or parameter whose absence makes drain build its own consumer, which is the fallback construction the ticket forbids.",
+          "paved_road": "Name the exact threading route: a required or optional `Checkout` field, a new parameter on `bind`/`drain`/`build_control`, or a CLI-constructed PauseConsumer passed down. Name the construction order of inbox, PauseConsumer and queue in `main`. Then add every caller that route forces (the bind, Checkout and drain callers listed above, plus tests/test_control_cli.py if `build_control` changes) to the fence under 19.L CALLER CLOSURE, with each one's Context/on-demand partition. Or state that tests calling `drain()` without a CLI inbox keep a component-only path, and say how that path differs from the forbidden fallback.",
+          "kind": "authoring_error"
+        },
+        {
+          "code": "discovery_hold_identity_unspecified",
+          "path": "chupa/control.py",
+          "line": null,
+          "message": "The ticket requires `<state_dir>/control/active.json` `{lifecycle_id, hold_id}` to show the current releasable admission hold identity. But `write_active` (chupa/control.py, Context only, not fenced) writes `hold_id` from `ControlProjection.pause_id` alone, and the CLI `_control` resume submits only that one discovered hold. The ticket also requires that a pause and an admission hold can be live at the same time and are released independently. The plan contract (19.P3.admission-holds-activation) does not say which identity goes in the single `hold_id` slot when both are live, or how the slot is derived from the queue's hold. Without that, publishing the admission identity needs either an edit to control.py, which is outside the fence, or a precedence rule invented by daemon.py.",
+          "paved_road": "Harden 19.P3.admission-holds-activation through section 11.4. Say which identity active.json publishes when a pause and an admission hold are both live, and after one of them clears. Say which module computes the published projection: either fence chupa/control.py for `write_active`, or state that daemon.py composes the value from PauseConsumer's projection plus the queue's hold. Then regenerate the ticket with a named test obligation for that precedence.",
+          "kind": "spec_gap"
+        },
+        {
+          "code": "requisition_review",
+          "path": null,
+          "line": null,
+          "message": "invalid requisition review reply: 1 schema error(s)",
+          "paved_road": "reply with a schema-valid requisition verdict",
+          "kind": "authoring_error"
+        }
+      ],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [
+    {
+      "stem": "admission-holds-activation",
+      "ticket_sha": "5dbd8c152721e6cf2b5ed9da331722b649b30692",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "scope_fence_caller_closure",
+          "path": "chupa/__main__.py",
+          "line": null,
+          "message": "The CLI root reaches the pipeline factory only through `main(pipeline: Callable[[Checkout], Dispatch])` -> `runner.bind(checkout, llm)` -> `compose_pipeline`. It reaches the drain control factory only through `drain(checkout, ...)` -> `build_control(checkout)`. Also, `main` calls `pipeline(checkout)` before drain builds its PauseConsumer, and PauseConsumer is what currently creates the inbox and binds its `apply`/`holds`. So getting one inbox to both places means changing `bind`'s signature, adding a `Checkout` field, or changing `drain`'s signature. The AUTHORING CLOSURE traced only direct `compose_pipeline` callers. It missed these: the `runner.bind(c, llm)` callers in tests/test_harvest.py, test_reject_queue.py, test_terminal.py, test_second_problems.py, test_seed_successor.py, test_diagnose.py, test_drain_reentry.py, test_caps.py, test_harvest_orphans.py, test_ladder.py and test_drain.py; the positional `Checkout(...)` constructions in test_drain.py (incl. `pause_checkout`, used by LiveDrain to call `drain()` directly), test_reject_queue.py and test_daemon_tasks.py; and the one-argument `build_control(checkout)` wrapper in tests/test_control_cli.py, which the ticket says stays unchanged. `uv run pytest -q` must stay green. Every route either breaks these unfenced files, or adds an optional field or parameter whose absence makes drain build its own consumer, which is the fallback construction the ticket forbids.",
+          "paved_road": "Name the exact threading route: a required or optional `Checkout` field, a new parameter on `bind`/`drain`/`build_control`, or a CLI-constructed PauseConsumer passed down. Name the construction order of inbox, PauseConsumer and queue in `main`. Then add every caller that route forces (the bind, Checkout and drain callers listed above, plus tests/test_control_cli.py if `build_control` changes) to the fence under 19.L CALLER CLOSURE, with each one's Context/on-demand partition. Or state that tests calling `drain()` without a CLI inbox keep a component-only path, and say how that path differs from the forbidden fallback.",
+          "kind": "authoring_error"
+        },
+        {
+          "code": "discovery_hold_identity_unspecified",
+          "path": "chupa/control.py",
+          "line": null,
+          "message": "The ticket requires `<state_dir>/control/active.json` `{lifecycle_id, hold_id}` to show the current releasable admission hold identity. But `write_active` (chupa/control.py, Context only, not fenced) writes `hold_id` from `ControlProjection.pause_id` alone, and the CLI `_control` resume submits only that one discovered hold. The ticket also requires that a pause and an admission hold can be live at the same time and are released independently. The plan contract (19.P3.admission-holds-activation) does not say which identity goes in the single `hold_id` slot when both are live, or how the slot is derived from the queue's hold. Without that, publishing the admission identity needs either an edit to control.py, which is outside the fence, or a precedence rule invented by daemon.py.",
+          "paved_road": "Harden 19.P3.admission-holds-activation through section 11.4. Say which identity active.json publishes when a pause and an admission hold are both live, and after one of them clears. Say which module computes the published projection: either fence chupa/control.py for `write_active`, or state that daemon.py composes the value from PauseConsumer's projection plus the queue's hold. Then regenerate the ticket with a named test obligation for that precedence.",
+          "kind": "spec_gap"
+        }
+      ],
+      "mechanical": null
+    },
+    {
+      "stem": "phase3-continue-10",
+      "ticket_sha": "4b7db18e81ae0138efab97332ea289190aa21a9a",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "requisition_review",
+          "path": null,
+          "line": null,
+          "message": "invalid requisition review reply: 1 schema error(s)",
+          "paved_road": "reply with a schema-valid requisition verdict",
+          "kind": "authoring_error"
+        }
+      ],
+      "mechanical": "invalid reply"
+    }
+  ],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_seeded_phase3_09.py"
+      ],
+      "rc": 0,
+      "tail": "..............                                                           [100%]\n14 passed in 0.39s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [  5%]\n........................................................................ [ 10%]\n........................................................................ [ 16%]\n........................................................................ [ 21%]\n........................................................................ [ 27%]\n........................................................................ [ 32%]\n........................................................................ [ 38%]\n........................................................................ [ 43%]\n........................................................................ [ 49%]\n........................................................................ [ 54%]\n........................................................................ [ 60%]\n........................................................................ [ 65%]\n........................................................................ [ 70%]\n........................................................................ [ 76%]\n........................................................................ [ 81%]\n........................................................................ [ 87%]\n........................................................................ [ 92%]\n........................................................................ [ 98%]\n.......................                                                  [100%]\n1319 passed in 95.45s (0:01:35)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
