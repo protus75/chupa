@@ -1,10 +1,10 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-Idle pause/resume and discovery retirement are now specified; the approved dispatch-pause-boundary seed remains unchanged.
+Previously missing kill-worker contracts now resolve; the approved dispatch-pause-boundary seed remains byte-identical.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during contract validation, within the 60-minute expected budget.
+Completed within the expected 60m and stuck 90m budgets.
 
