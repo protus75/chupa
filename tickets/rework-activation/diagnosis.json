@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "da992ce7d15e6f06dcb12ce9032b90ecffdf7af7",
+  "stem": "rework-activation",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "The ticket's premise is false. tests/test_mergequeue.py::test_merge_queue_is_reachable_from_production (line 764) contradicts the production Rework reachability the ticket requires, but that file is outside the scope fence. Add it to the fence and Context before re-attempting.",
+    "Authorize migrating only the reachability assertion in test_merge_queue_is_reachable_from_production, because rework.py's existing ConflictHandoff import gives MergeQueue a second production path. Keep the prohibition on inline admission calls.",
+    "The caller-closure grep under 19.L missed this absence assertion. Before re-seeding, grep every import_closure/dormancy assertion that names chupa.mergequeue or chupa.rework at the authoring head, and record each one in the seeding test.",
+    "The base implementation was otherwise sound: 760 tests passed, and the only failures were this contradicted test and its paired rework reachability check. On re-attempt, keep the same activation approach and do not widen scope beyond the corrected fence."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
