@@ -24,6 +24,15 @@ WRITING_SURFACES = frozenset({"implement"})
 # Section 0: the value prompt 1 authors when the operator stated none; it must never reach a model.
 PLACEHOLDER = "OPERATOR-SETS-THIS"
 
+FailureClass = Literal["rate_limited", "quota_exhausted", "outage", "auth_error", "model_error", "unclassified"]
+
+FAILURE_MARKERS: tuple[tuple[FailureClass, tuple[str, ...]], ...] = (
+    ("quota_exhausted", ("quota exhausted", "usage limit reached", "out of extra usage")),
+    ("rate_limited", ("rate limit", "too many requests")),
+    ("outage", ("service unavailable", "internal server error", "stream disconnected", "at capacity")),
+    ("model_error", ("model unavailable", "model not found", "model is not supported")),
+)
+
 
 class ProviderSetupError(Exception):
     """A config/setup refusal raised before any call runs: nothing was metered."""
@@ -204,6 +213,33 @@ class CliAdapter:
 
     def _spawned(self, pgid: int) -> None:
         self._pgid = pgid
+
+    def classify_failure(self, message: str, *, rc: int, stderr_tail: str) -> ProviderCallError:
+        """Dormant Phase 3 classifier: only failed diagnostics, never successful output."""
+        message = self._redactor.scrub(message)
+        tail = stderr_tail[-2000:]
+        diagnostic = f"{tail}\n{message}".lower()
+        markers = (("auth_error", self.AUTH_MARKERS), *FAILURE_MARKERS)
+        failure = next((kind for kind, words in markers if any(w in diagnostic for w in words)), "unclassified")
+        road = None
+        if failure == "auth_error":
+            road = self.LOGIN_ROAD
+        elif failure == "model_error":
+            road = f"fix provider {self.provider.name!r}'s model route in config.yaml, then retry"
+        elif failure != "unclassified":
+            road = f"wait for provider {self.provider.name!r} to recover from {failure}, then retry"
+        return ProviderCallError(self.provider.name, message, rc=rc, stderr_tail=tail,
+                                 failure_class=failure, paved_road=road)
+
+    def parsed_failure(self, out: str, *, rc: int, stderr_tail: str) -> ProviderCallError | None:
+        """Direct construction seam; invoke retains its existing production error handling."""
+        try:
+            self.parse(out)
+        except ValueError as exc:
+            return self.classify_failure(str(exc), rc=rc, stderr_tail=stderr_tail)
+        if rc != 0:
+            return self.classify_failure("nonzero exit", rc=rc, stderr_tail=stderr_tail)
+        return None
 
     def _raise_call_error(self, message: str, *, rc: int, stderr_tail: str) -> None:
         auth = any(marker in f"{stderr_tail}\n{message}".lower() for marker in self.AUTH_MARKERS)

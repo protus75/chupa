@@ -1,6 +1,7 @@
 import asyncio
 import json
 import textwrap
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,8 @@ import pytest
 from chupa.config import ConfigError, load_config
 from chupa.llm import LLMRequest
 from chupa.providers import (
+    ADAPTERS,
+    CliAdapter,
     PLACEHOLDER,
     ProviderCallError,
     ProviderLLM,
@@ -15,6 +18,7 @@ from chupa.providers import (
     child_env,
     resolve,
 )
+from chupa.redact import Redactor
 from chupa.seams import GroupExec, LocalFileSystem
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -423,3 +427,179 @@ def test_preflight_refuses_a_model_the_login_cannot_serve(tmp_path):
 def test_cli_provider_must_declare_its_package(tmp_path):
     with pytest.raises(ConfigError, match="declares no `package`"):
         config(tmp_path, CONFIG.replace("    package: test-cli\n    auth: CODEX_KEY", "    auth: CODEX_KEY"))
+
+
+def classifier_adapter(cfg, name, tmp_path):
+    return ADAPTERS[name](next(p for p in cfg.providers if p.name == name), config=cfg,
+                          exec_=FakeExec(), fs=LocalFileSystem(), redactor=Redactor.from_config(cfg, ENV),
+                          env=ENV, cwd=tmp_path, capture_dir=cfg.state_dir / "spools", timeout=600)
+
+
+@pytest.mark.parametrize("name", ["claude", "codex"])
+def test_cli_failure_classifier_closed_vocabulary_and_precedence(tmp_path, name):
+    adapter = classifier_adapter(config(tmp_path), name, tmp_path)
+    # Spell the contractual literals independently of the implementation's marker table.
+    classes = [
+        ("auth_error", adapter.AUTH_MARKERS),
+        ("quota_exhausted", ("quota exhausted", "usage limit reached", "out of extra usage")),
+        ("rate_limited", ("rate limit", "too many requests")),
+        ("outage", ("service unavailable", "internal server error", "stream disconnected", "at capacity")),
+        ("model_error", ("model unavailable", "model not found", "model is not supported")),
+    ]
+    observed = set()
+    for index, (failure, markers) in enumerate(classes):
+        for marker in markers:
+            for message, tail in ((marker.upper(), ""), ("adapter failed", marker.upper())):
+                error = adapter.classify_failure(message, rc=1, stderr_tail=tail)
+                observed.add(error.failure_class)
+                assert error.failure_class == failure
+            lower_precedence = " ".join(words[0] for _, words in classes[index + 1:])
+            assert adapter.classify_failure(marker, rc=0, stderr_tail=lower_precedence).failure_class == failure
+    unknown = adapter.classify_failure("novel diagnostic", rc=37, stderr_tail="unknown")
+    observed.add(unknown.failure_class)
+    assert observed == {"auth_error", "quota_exhausted", "rate_limited", "outage", "model_error", "unclassified"}
+    assert unknown.rc == 37 and unknown.stderr_tail == "unknown" and unknown.paved_road is None
+
+
+@pytest.mark.parametrize("name", ["claude", "codex"])
+def test_cli_failure_classifier_handles_exit_zero_error_events(tmp_path, name, monkeypatch):
+    adapter = classifier_adapter(config(tmp_path), name, tmp_path)
+    out = (jsonl({"type": "result", "subtype": "error", "is_error": True, "result": "usage limit reached"})
+           if name == "claude" else jsonl({"type": "turn.failed", "error": {"message": "usage limit reached"}}))
+    error = adapter.parsed_failure(out, rc=0, stderr_tail="")
+    assert error.failure_class == "quota_exhausted" and error.rc == 0
+    out_error = adapter.parsed_failure(out, rc=1, stderr_tail="")
+    assert out_error.failure_class == "quota_exhausted" and out_error.rc == 1
+    seen = []
+    original = adapter.classify_failure
+
+    def probe(message, **kwargs):
+        seen.append(message)
+        return original(message, **kwargs)
+
+    monkeypatch.setattr(adapter, "classify_failure", probe)
+    success = (claude_ok if name == "claude" else codex_ok)("not logged in; rate limit; at capacity")
+    assert adapter.parsed_failure(success, rc=0, stderr_tail="service unavailable") is None
+    assert seen == []  # neither successful text nor incidental success stderr enters classification
+    error = adapter.parsed_failure(success, rc=9, stderr_tail="mystery")
+    assert error.failure_class == "unclassified" and seen == ["nonzero exit"]
+
+
+@pytest.mark.parametrize("name", ["claude", "codex"])
+def test_classified_error_preserves_scrubbed_evidence_and_login_road(tmp_path, name):
+    from chupa.driver import Driver, LlmStage
+    from chupa.llm import FakeLLM
+    from pydantic import BaseModel
+
+    cfg = config(tmp_path)
+    adapter = classifier_adapter(cfg, name, tmp_path)
+    redactor = Redactor.from_config(cfg, ENV)
+    tail = redactor.scrub("z" * 2100 + " sk-claude-secret sk-codex-secret")[-2000:]
+    errors = []
+    for marker, failure in ((adapter.AUTH_MARKERS[0], "auth_error"), ("rate limit", "rate_limited"),
+                            ("quota exhausted", "quota_exhausted"), ("at capacity", "outage"),
+                            ("model not found", "model_error"), ("new failure", "unclassified")):
+        # JSON escapes bypass raw-stream scrubbing; the decoded failure message must still be scrubbed.
+        message = marker + " sk-claude-secret sk-codex-secret"
+        out = (jsonl({"type": "result", "is_error": True, "subtype": "error", "result": message})
+               if name == "claude" else jsonl({"type": "turn.failed", "error": {"message": message}}))
+        out = out.replace("sk-", "sk\\u002d")
+        error = adapter.parsed_failure(redactor.scrub(out), rc=23, stderr_tail=tail)
+        assert (error.provider, error.rc, error.stderr_tail, error.failure_class) == (name, 23, tail, failure)
+        assert len(error.stderr_tail) == 2000 and "sk-" not in str(error)
+        assert "[REDACTED:CLAUDE_KEY]" in str(error) and "[REDACTED:CODEX_KEY]" in str(error)
+        if failure == "auth_error":
+            assert error.paved_road == adapter.LOGIN_ROAD
+        elif failure == "unclassified":
+            assert error.paved_road is None
+        else:
+            assert name in error.paved_road and "retry" in error.paved_road
+            assert ("route" if failure == "model_error" else "wait") in error.paved_road
+        errors.append(error)
+
+    class Reply(BaseModel):
+        text: str
+
+    async def sleep(_seconds):
+        await asyncio.Event().wait()
+
+    for index, error in enumerate(errors):
+        driver = Driver.from_config(cfg, llm=FakeLLM([error]), env=ENV,
+                                    clock=lambda: datetime(2026, 10, 6, tzinfo=UTC), sleep=sleep)
+        result = asyncio.run(driver.run(LlmStage(surface="review", emits=Reply, gates=[], render=lambda *_: "probe"),
+                                       None, ticket=f"classification-{index}", attempt=0, workspace=tmp_path,
+                                       tier="medium", effort="low", stuck_budget=600))
+        assert result.outcome == "infra_error"
+        if error.failure_class == "unclassified":
+            assert result.findings == []
+        else:
+            [finding] = result.findings
+            assert (finding.code, finding.message, finding.paved_road) == (error.failure_class, str(error), error.paved_road)
+
+
+def test_cli_failure_classifier_is_dormant(tmp_path, monkeypatch):
+    from chupa import __main__, runner
+    from chupa.driver import LlmStage
+    from pydantic import BaseModel
+
+    config(tmp_path)
+    hits, results = [], []
+    original = CliAdapter.classify_failure
+
+    def probe(self, message, **kwargs):
+        hits.append(self.provider.name)
+        return original(self, message, **kwargs)
+
+    monkeypatch.setattr(CliAdapter, "classify_failure", probe)
+
+    class Reply(BaseModel):
+        text: str
+
+    async def drive(ctx, _ticket):
+        for surface in ("implement", "review"):
+            result = await ctx.driver.run(LlmStage(surface=surface, emits=Reply, gates=[], render=lambda *_: "probe"),
+                                          None, ticket="dormancy", attempt=0, workspace=tmp_path,
+                                          tier="medium", effort="low", stuck_budget=600)
+            assert result.outcome == "infra_error"
+            results.append(result)
+        return "infra_error"
+
+    monkeypatch.setattr(runner, "drive", drive)  # stop before host work; retain the production composition
+
+    class CompositionExec(PreflightExec):
+        async def run(self, argv, **kwargs):
+            if kwargs.get("stdin_path") is not None and Path(kwargs["stdin_path"]).read_text() != "Reply with the single word ok.":
+                return 0, (jsonl({"type": "turn.failed", "error": {"message": "service unavailable"}})
+                           if argv[0] == "codex" else jsonl({"type": "result", "subtype": "error", "is_error": True,
+                                                            "result": "rate limit"})), ""
+            return await super().run(argv, **kwargs)
+
+    monkeypatch.setattr(__main__, "SubprocessExec", lambda: CompositionExec(CURRENT, "1.2.3"))
+
+    def run_ticket(_stem, checkout, dispatch):
+        async def run():
+            await dispatch(object())
+            return 0
+        return run()
+
+    monkeypatch.setattr(runner, "run_ticket", run_ticket)
+
+    def assert_dormant():
+        hits.clear()
+        results.clear()
+        # main's default pipeline is the real runner.pipeline; it builds ProviderLLM,
+        # performs preflight, and binds Driver + StageContext before this call runs.
+        assert __main__.main(["run", "dormancy"], cwd=tmp_path, env=ENV,
+                             clock=lambda: datetime(2026, 10, 6, tzinfo=UTC)) == 0
+        assert len(results) == 2
+        assert hits == []
+
+    assert_dormant()
+
+    def wired(self, message, **kwargs):
+        raise self.classify_failure(message, **kwargs)
+
+    monkeypatch.setattr(CliAdapter, "_raise_call_error", wired)
+    with pytest.raises(AssertionError):
+        assert_dormant()
+    assert hits == ["codex", "claude"]
