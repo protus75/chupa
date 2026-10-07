@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The caller-closure inventory missed tests/test_mergequeue.py::test_merge_queue_is_reachable_from_production.
+The corrected ticket conflicts with its unchanged seeding fixture in tests/test_seeded_phase3_06.py.
 
 ## Dead ends
 
-Implemented and exercised activation, then discarded it after verification exposed the unfenced assertion.
+Implemented activation and passed the targeted verification, then restored it after confirming both full-suite failures on untouched base commit 09e8c97.
 
 ## Second problems filed
 
