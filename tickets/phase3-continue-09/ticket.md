@@ -92,7 +92,7 @@ uv run pytest -q
 ```
 
 ## Definition of rejected
-Return premise_failed naming the missing or incomplete contract for section 11.4 hardening if a needed fact is omitted or the criteria force an unearned path outside the fence. Never invent records, replacement graphs or later production behavior.
+Return premise_failed naming the missing or incomplete contract for section 11.4 hardening if a needed fact is omitted or the criteria force an unearned path outside the fence. Never invent records, replacement graphs or later production behavior. A fact an entry unit omits or contradicts is named in premise_failed with its unit id, and the engine hardens it (section 11.4).
 
 ## Time budget
 - expected: 60m
