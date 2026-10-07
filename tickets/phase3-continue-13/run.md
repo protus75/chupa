@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The four explicitly named entry units validate, but admissions[16] lacks both entry units needed to carry the continuation contract forward; the same gaps were verified on committed HEAD.
+Previously missing journal-roll and storm-ledger contracts now validate; no fence additions were needed.
 
 ## Dead ends
 
-Stopped before authoring because entry_unit_gap reports both units missing and resolve_plan_contract finds zero matching headings.
+Corrected an intake-lint formatting refusal before verification.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during read-first validation, within the 60m expected budget; verification commands were not run.
+Completed within the 60m expected budget; verification passed with 14 targeted checks and 1554 full-suite tests.
 
