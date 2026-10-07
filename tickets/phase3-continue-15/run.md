@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The missing units were confirmed on base commit beb2788d7a7a078d57d5c857c7c88be9d01ffe8b; the worktree remains clean.
+Previously missing storm lookahead units now validate; no fence additions were earned.
 
 ## Dead ends
 
-Stopped before authoring because both required lookahead entries fail entry_unit_gap and resolve_plan_contract.
+Corrected an authoring scan that mistook test_id for a named invariant test.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during contract validation, within the 60-minute expected budget.
+Completed within the expected 60-minute budget.
 
