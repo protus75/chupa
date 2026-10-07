@@ -11,6 +11,7 @@ from chupa.journal import EventType, Journal
 from chupa import runner
 from chupa.artifacts import Cost, Finding, StageResult
 from chupa.caps import spent
+from chupa.heartbeat import Heartbeat
 from chupa.mergequeue import ConflictHandoff, MergeQueue
 from chupa.rework import ReworkOrder, record_supersedes, rework
 from chupa.runner import Dispatch
@@ -21,6 +22,24 @@ from chupa.tickets import Ticket, parse_ticket, ticket_path
 from chupa.watcher import Watcher
 
 KILL_APPLIED = "kill_applied"
+
+
+class HeartbeatCycle:
+    """Explicit main-loop boundary; task owners supply responsiveness (19.P3.heartbeat)."""
+
+    def __init__(self, *, heartbeat: Heartbeat, workers: Callable[[], bool],
+                 merge_queue: Callable[[], bool], box_consumer: Callable[[], bool],
+                 watcher: Callable[[], bool]) -> None:
+        self.heartbeat = heartbeat
+        self._health = (workers, merge_queue, box_consumer, watcher)
+
+    def cycle(self) -> bool:
+        # Evaluate every component even when an earlier one reports unhealthy.
+        health = tuple(probe() for probe in self._health)
+        if not all(health):
+            return False
+        self.heartbeat.refresh()
+        return True
 
 
 def control_inbox(*, journal: Journal, lifecycle_id: str, holds: Callable[[], Set[str]],
