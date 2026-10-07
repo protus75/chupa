@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-Activation, heartbeat and restart-timers units pass both checks, but validating the successor chain exposes missing flake entry units on base commit 7266e549cd19ffa7344a9440eb08ef3231cc7aa8.
+Previously missing flake contracts are complete; no additional fence paths were earned.
 
 ## Dead ends
 
-Stopped before authoring rather than inventing or omitting required successor contracts.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during read-first validation, within the 60-minute expected budget.
+Completed within the expected 60-minute budget.
 
