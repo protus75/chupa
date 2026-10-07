@@ -1,0 +1,73 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "563c3978981050d21af468e73cd16fc82002f50b",
+  "stem": "merge-queue",
+  "passed": true,
+  "changed_files": [
+    "chupa/git.py",
+    "chupa/merge.py",
+    "chupa/mergequeue.py",
+    "chupa/stages.py",
+    "tests/test_git.py",
+    "tests/test_mergequeue.py",
+    "tests/test_stages.py"
+  ],
+  "inserted_lines": 1273,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_mergequeue.py",
+        "tests/test_git.py",
+        "tests/test_stages.py",
+        "tests/test_merge.py"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 50%]\n........................................................................ [100%]\n144 passed in 15.98s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [  8%]\n........................................................................ [ 17%]\n........................................................................ [ 26%]\n........................................................................ [ 35%]\n........................................................................ [ 44%]\n........................................................................ [ 52%]\n........................................................................ [ 61%]\n........................................................................ [ 70%]\n........................................................................ [ 79%]\n........................................................................ [ 88%]\n........................................................................ [ 96%]\n..........................                                               [100%]\n818 passed in 75.63s (0:01:15)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
