@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-entry_unit_gap passes structural checks, but the complete unit lacks the required semantic facts; the activation unit is byte-identical on HEAD and the merge base.
+The hardened activation unit resolves the prior premise failure; closure greps earned no fence additions.
 
 ## Dead ends
 
-Stopped before authoring seeds or tests; preserved the approved storm-ledger seed byte-identically, committed nothing, and did not run Verification.
+An apparent journal-test contradiction disappeared after reading its event timestamps; no migration was needed.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Premise validation stopped work well within the 60-minute expected budget.
+Completed within the expected 60-minute budget; verification passed with 21 admission tests and 1750 total tests. All three seeds remain uncommitted for Check.
 
