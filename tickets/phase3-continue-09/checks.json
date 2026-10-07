@@ -1,13 +1,13 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "b5919c584fe19f27186e690cda3893691864ec3a",
+  "produced_at_sha": "95b5a38e7f698b4ddc931243cbb650fcdd3e9095",
   "stem": "phase3-continue-09",
   "passed": false,
   "changed_files": [
     "tests/test_seeded_phase3_09.py"
   ],
-  "inserted_lines": 445,
+  "inserted_lines": 424,
   "bypassed": [],
   "reports": [
     {
@@ -39,12 +39,20 @@
       "verdict": "fail",
       "findings": [
         {
-          "code": "scope_fence_caller_closure",
-          "path": "chupa/drain.py",
-          "line": 160,
-          "message": "Standing from the prior review, and made worse by removing chupa/drain.py from the fence. drain() builds its control consumer internally with `from chupa.__main__ import build_control; consumer = build_control(checkout)`, after acquiring the lock. Its only inputs are checkout, dispatch, reexec, parked and before_dispatch. main() calls `pipeline(checkout)` (runner.pipeline -> prepare_pipeline -> bind(checkout, llm) -> compose_pipeline) before drain builds that consumer. Today PauseConsumer constructs the inbox itself and binds its own apply and holds. So handing ONE __main__-built inbox to both the drain control factory and compose_pipeline needs one of three changes. (a) Change drain's signature or its build_control call. drain.py is unfenced. (b) Change bind's signature. That breaks the unfenced direct `runner.bind(checkout, llm)` callers in tests/test_harvest.py, test_ladder.py, test_caps.py, test_drain_reentry.py, test_seed_successor.py, test_diagnose.py, test_harvest_orphans.py, test_seeded_phase3_06.py, test_terminal.py, test_second_problems.py, test_reject_queue.py and test_drain.py. (c) Add a defaulted Checkout field. Then the positional `Checkout(...)` constructions in the unfenced test_drain.py (pause_checkout, which LiveDrain drives through drain() directly), test_reject_queue.py and test_daemon_tasks.py carry no inbox. Either bind/build_control constructs one when it is absent, which is the forbidden missing-inbox fallback, or those suites break, and `uv run pytest -q` must stay green. The AUTHORING CLOSURE greps only direct compose_pipeline and write_active callers. It does not trace the indirect bind/build_control/Checkout reference closure that the shared-instance requirement forces.",
-          "paved_road": "Pick the one carrier for the shared inbox and fence its full reference closure under 19.L CALLER CLOSURE. For example, if drain must receive the CLI-owned consumer/inbox, fence chupa/drain.py and every direct drain() caller (tests/test_drain.py, eval/shakeout/bench.py, etc.). If bind gains the inbox parameter, fence every direct runner.bind caller listed above. If Checkout gains a required field, fence every positional Checkout construction. If the contract cannot name a carrier without a fallback, return it for 19.P3.admission-holds-activation hardening so the plan states it.",
-          "kind": "authoring_error"
+          "code": "idle_control_lifecycle_allocation",
+          "path": "tests/test_control_cli.py",
+          "line": 110,
+          "message": "The ticket makes `Checkout.control_inbox` a required field and has `main` build the one lifecycle and inbox before pipeline preparation. But `main` builds `Checkout` before it routes pause/resume/confirm/reject/triage, so every verb would now call `uuid4` for a lifecycle and build an inbox. The predecessor contracts in tests/test_control_cli.py, which the ticket says to preserve, rule that out. At line 110 the idle pause/resume path patches `entry.uuid4` to fail with 'idle control allocated identity, constructed consumer or changed a record'. At line 39 the live path supplies exactly two ids, one per request, so an extra lifecycle `uuid4` call shifts the request ids and runs the iterator dry. The plan contract never says which verbs construct the inbox, or whether control and verdict verbs carry it, so the implementer must either break 'preserve idle/restart routing' or invent a lifecycle source.",
+          "paved_road": "Have the plan unit 19.P3.admission-holds-activation state where the CLI root builds the inbox relative to verb routing. One option: build it only on the run/drain path, after the control/verdict/triage branches, with those verbs' Checkout supplying a stated alternative. The other: if every verb allocates, state that and name the migration of test_control_cli's idle no-identity and two-id fixtures. Then re-author the ticket from the hardened unit.",
+          "kind": "spec_gap"
+        },
+        {
+          "code": "queue_inbox_binding_owner",
+          "path": "chupa/merge.py",
+          "line": 38,
+          "message": "`ControlInbox` takes `holds` and `apply` only at construction. The ticket has `main` construct the inbox before `bind` creates the queue (inside `compose_pipeline`) and before `drain` creates the PauseConsumer (inside `build_control(checkout)`). `build_control` has no reference to the factory-returned queue, yet the ticket says PauseConsumer binds 'live queue-hold callbacks'. The spec names no owner or mechanism for the edges that need it: queue hold_id into `inbox.holds`, accepted resume into queue release, and queue trip into daemon discovery refresh. The existing `escalate` in runner.bind is a no-op closure, and `build_daemon_core`'s bind creates a fresh queue per dispatch snapshot. Under 'Never invent ... replacement graphs', the implementer cannot pick these seams. That includes how a replaced queue from a later snapshot re-registers without leaving a second hold source.",
+          "paved_road": "Add to the plan unit, then the ticket, the exact binding seam. One option: `compose_pipeline` registers the queue's current-hold getter and release callback on the supplied inbox, with re-registration semantics for each snapshot-bound queue, and the queue notifies the consumer's discovery refresh after a journaled trip. The other: PauseConsumer receives the queue through a stated carrier. Name the attribute and method and their test obligations in test_production_shares_one_admission_control_inbox.",
+          "kind": "spec_gap"
         }
       ],
       "autofix_applied": false
@@ -53,23 +61,31 @@
   "seeds": [
     {
       "stem": "admission-holds-activation",
-      "ticket_sha": "c11715e70f63969ff8a3c16c0abcf7790622f96d",
+      "ticket_sha": "2d0afe9007248d7db4147323b4a9817280548700",
       "verdict": "snag",
       "findings": [
         {
-          "code": "scope_fence_caller_closure",
-          "path": "chupa/drain.py",
-          "line": 160,
-          "message": "Standing from the prior review, and made worse by removing chupa/drain.py from the fence. drain() builds its control consumer internally with `from chupa.__main__ import build_control; consumer = build_control(checkout)`, after acquiring the lock. Its only inputs are checkout, dispatch, reexec, parked and before_dispatch. main() calls `pipeline(checkout)` (runner.pipeline -> prepare_pipeline -> bind(checkout, llm) -> compose_pipeline) before drain builds that consumer. Today PauseConsumer constructs the inbox itself and binds its own apply and holds. So handing ONE __main__-built inbox to both the drain control factory and compose_pipeline needs one of three changes. (a) Change drain's signature or its build_control call. drain.py is unfenced. (b) Change bind's signature. That breaks the unfenced direct `runner.bind(checkout, llm)` callers in tests/test_harvest.py, test_ladder.py, test_caps.py, test_drain_reentry.py, test_seed_successor.py, test_diagnose.py, test_harvest_orphans.py, test_seeded_phase3_06.py, test_terminal.py, test_second_problems.py, test_reject_queue.py and test_drain.py. (c) Add a defaulted Checkout field. Then the positional `Checkout(...)` constructions in the unfenced test_drain.py (pause_checkout, which LiveDrain drives through drain() directly), test_reject_queue.py and test_daemon_tasks.py carry no inbox. Either bind/build_control constructs one when it is absent, which is the forbidden missing-inbox fallback, or those suites break, and `uv run pytest -q` must stay green. The AUTHORING CLOSURE greps only direct compose_pipeline and write_active callers. It does not trace the indirect bind/build_control/Checkout reference closure that the shared-instance requirement forces.",
-          "paved_road": "Pick the one carrier for the shared inbox and fence its full reference closure under 19.L CALLER CLOSURE. For example, if drain must receive the CLI-owned consumer/inbox, fence chupa/drain.py and every direct drain() caller (tests/test_drain.py, eval/shakeout/bench.py, etc.). If bind gains the inbox parameter, fence every direct runner.bind caller listed above. If Checkout gains a required field, fence every positional Checkout construction. If the contract cannot name a carrier without a fallback, return it for 19.P3.admission-holds-activation hardening so the plan states it.",
-          "kind": "authoring_error"
+          "code": "idle_control_lifecycle_allocation",
+          "path": "tests/test_control_cli.py",
+          "line": 110,
+          "message": "The ticket makes `Checkout.control_inbox` a required field and has `main` build the one lifecycle and inbox before pipeline preparation. But `main` builds `Checkout` before it routes pause/resume/confirm/reject/triage, so every verb would now call `uuid4` for a lifecycle and build an inbox. The predecessor contracts in tests/test_control_cli.py, which the ticket says to preserve, rule that out. At line 110 the idle pause/resume path patches `entry.uuid4` to fail with 'idle control allocated identity, constructed consumer or changed a record'. At line 39 the live path supplies exactly two ids, one per request, so an extra lifecycle `uuid4` call shifts the request ids and runs the iterator dry. The plan contract never says which verbs construct the inbox, or whether control and verdict verbs carry it, so the implementer must either break 'preserve idle/restart routing' or invent a lifecycle source.",
+          "paved_road": "Have the plan unit 19.P3.admission-holds-activation state where the CLI root builds the inbox relative to verb routing. One option: build it only on the run/drain path, after the control/verdict/triage branches, with those verbs' Checkout supplying a stated alternative. The other: if every verb allocates, state that and name the migration of test_control_cli's idle no-identity and two-id fixtures. Then re-author the ticket from the hardened unit.",
+          "kind": "spec_gap"
+        },
+        {
+          "code": "queue_inbox_binding_owner",
+          "path": "chupa/merge.py",
+          "line": 38,
+          "message": "`ControlInbox` takes `holds` and `apply` only at construction. The ticket has `main` construct the inbox before `bind` creates the queue (inside `compose_pipeline`) and before `drain` creates the PauseConsumer (inside `build_control(checkout)`). `build_control` has no reference to the factory-returned queue, yet the ticket says PauseConsumer binds 'live queue-hold callbacks'. The spec names no owner or mechanism for the edges that need it: queue hold_id into `inbox.holds`, accepted resume into queue release, and queue trip into daemon discovery refresh. The existing `escalate` in runner.bind is a no-op closure, and `build_daemon_core`'s bind creates a fresh queue per dispatch snapshot. Under 'Never invent ... replacement graphs', the implementer cannot pick these seams. That includes how a replaced queue from a later snapshot re-registers without leaving a second hold source.",
+          "paved_road": "Add to the plan unit, then the ticket, the exact binding seam. One option: `compose_pipeline` registers the queue's current-hold getter and release callback on the supplied inbox, with re-registration semantics for each snapshot-bound queue, and the queue notifies the consumer's discovery refresh after a journaled trip. The other: PauseConsumer receives the queue through a stated carrier. Name the attribute and method and their test obligations in test_production_shares_one_admission_control_inbox.",
+          "kind": "spec_gap"
         }
       ],
       "mechanical": null
     },
     {
       "stem": "phase3-continue-10",
-      "ticket_sha": "e0bae039412e905ae6042e8411340e6bb08a2d80",
+      "ticket_sha": "198733c3dc2d1041c6714424a610b19342ec7908",
       "verdict": "approve",
       "findings": [],
       "mechanical": null
@@ -85,7 +101,7 @@
         "tests/test_seeded_phase3_09.py"
       ],
       "rc": 0,
-      "tail": "..............                                                           [100%]\n14 passed in 0.43s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "..............                                                           [100%]\n14 passed in 0.40s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -96,7 +112,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "........................................................................ [  5%]\n........................................................................ [ 10%]\n........................................................................ [ 16%]\n........................................................................ [ 21%]\n........................................................................ [ 27%]\n........................................................................ [ 32%]\n........................................................................ [ 38%]\n........................................................................ [ 43%]\n........................................................................ [ 49%]\n........................................................................ [ 54%]\n........................................................................ [ 60%]\n........................................................................ [ 65%]\n........................................................................ [ 70%]\n........................................................................ [ 76%]\n........................................................................ [ 81%]\n........................................................................ [ 87%]\n........................................................................ [ 92%]\n........................................................................ [ 98%]\n.......................                                                  [100%]\n1319 passed in 97.57s (0:01:37)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................................ [  5%]\n........................................................................ [ 10%]\n........................................................................ [ 16%]\n........................................................................ [ 21%]\n........................................................................ [ 27%]\n........................................................................ [ 32%]\n........................................................................ [ 38%]\n........................................................................ [ 43%]\n........................................................................ [ 49%]\n........................................................................ [ 54%]\n........................................................................ [ 60%]\n........................................................................ [ 65%]\n........................................................................ [ 70%]\n........................................................................ [ 76%]\n........................................................................ [ 81%]\n........................................................................ [ 87%]\n........................................................................ [ 92%]\n........................................................................ [ 98%]\n........................                                                 [100%]\n1320 passed in 96.38s (0:01:36)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
