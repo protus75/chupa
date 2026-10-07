@@ -245,8 +245,12 @@ class _Drain:
                 raise Refusal(f"`## Depends on` cycle among committed tickets: {' -> '.join(cycle)}",
                               f"edit one ticket on the cycle to drop the edge that inverts the intended order,"
                               f" then `drain` again")
+        from chupa.rework import settled_dependencies, supersedes_maps
+
+        settled = settled_dependencies(events)
+        maps = supersedes_maps(events)
         authored = authored_at(events)
-        ready = sorted((t for t in open_.values() if all(last.get(d) in SETTLED for d in t.depends)),
+        ready = sorted((t for t in open_.values() if t.stem not in maps and set(t.depends) <= settled),
                        key=lambda t: sort_key(t, authored))
         awaiting = reject_queue(events)
         fresh, reoffers = [], []
@@ -312,6 +316,9 @@ class _Drain:
         return tuple(sorted(red | carried | set(self.over_budget)))
 
     def _settle(self, scan: _Scan, events: list[Event], last: Mapping[str, str], held: set[str]) -> None:
+        from chupa.rework import settled_dependencies
+
+        settled = settled_dependencies(events)
         awaiting = reject_queue(events)
         for stem in sorted(scan.tickets):
             if (last.get(stem) not in SETTLED | RETIRED | {None, "running"}
@@ -319,6 +326,8 @@ class _Drain:
                     and stem not in awaiting):
                 body = next(e.body for e in reversed(events)
                             if e.type == EventType.STATE_TRANSITION and e.ticket == stem)
+                if body.get("to") == PREMISE and "render_over_bound" in body.get("reason", "").split(","):
+                    continue
                 if body.get("routed") != "reject_queue":
                     self.c.journal.append(EventType.SIGNAL, {"signal": "reject_arrival"}, ticket=stem)
                     awaiting[stem] = body
@@ -327,7 +336,7 @@ class _Drain:
                 continue
             if stem in self.over_budget:
                 self.report.parked.append(self.over_budget[stem])
-            elif unmet := tuple(d for d in t.depends if last.get(d) not in SETTLED):
+            elif unmet := tuple(d for d in t.depends if d not in settled):
                 self.report.blocked.append((stem, unmet))
             elif (to := last.get(stem)) is None:
                 self.report.unadmitted.append(stem)
@@ -361,6 +370,10 @@ class _Drain:
 
     def _premise_road(self, t: Ticket) -> str:
         """`source`-keyed (section 18): the release is the same commit, only where the fix originates differs."""
+        body = next(e.body for e in reversed(self.c.journal.read())
+                    if e.type == EventType.STATE_TRANSITION and e.ticket == t.stem)
+        if "render_over_bound" in body.get("reason", "").split(","):
+            return "shrink or split the committed ticket text and rerun drain"
         rel = ticket_path(t.stem)
         if t.frontmatter.source == "seed":
             return (f"the verdict below names a false assumption in CHUPA_PLAN.md: fix it in the plan and commit that"

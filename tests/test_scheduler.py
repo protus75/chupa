@@ -411,3 +411,28 @@ def test_scheduler_and_watcher_are_dormant(tmp_path):
     rig = CoreRig(tmp_path)
     assert_core_wiring(rig)
     assert rig.exec.calls == [] and rig.core.admission.task is None
+
+
+@pytest.mark.asyncio
+async def test_superseded_dependencies_require_all_successor_leaves(tmp_path):
+    from tests.test_daemon_composition import CoreRig
+    calls = []
+    async def prepare(local):
+        async def dispatch(ticket):
+            calls.append(ticket.stem)
+            return "merged"
+        return dispatch
+    rig = CoreRig(tmp_path, prepare=prepare)
+    await rig.add("original")
+    child = await rig.add("dependent", depends="- original")
+    for stem, successors in [("original", ["one", "two"]), ("one", ["leaf-a", "leaf-b"])]:
+        rig.journal.append(EventType.SIGNAL, {"signal": "supersedes", "successors": successors}, ticket=stem)
+        rig.transition(stem, "rejected")
+    rig.transition("two", "merged")
+    rig.transition("leaf-a", "already_satisfied")
+    for state in ("running", "gate_failed", "timeout", "rejected", "abandoned"):
+        rig.transition("leaf-b", state)
+        assert await rig.core.scheduler.dispatch_next() is None
+    rig.transition("leaf-b", "already_satisfied")
+    assert await rig.core.scheduler.dispatch_next() is child
+    assert calls == ["dependent"] and "original" in rig.core.scheduler.pending

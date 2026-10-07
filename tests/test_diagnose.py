@@ -118,7 +118,6 @@ def test_invalid_verdict_reprompts_then_fails_closed_with_one_draw(repo):
 @pytest.mark.parametrize("outcome,findings,expected", [
     ("gate_failed", [], "workspace gone"),
     ("budget_exceeded", [], None),
-    ("premise_failed", [Finding(code="render_over_bound", message="too large", paved_road="shrink")], None),
 ])
 def test_missing_workspace_and_no_call_short_circuits(repo, monkeypatch, outcome, findings, expected):
     author(repo)
@@ -186,3 +185,37 @@ def test_no_lessons_keeps_raw_harvest_reason(repo):
     assert code == 0
     render = next(r.rendered for r in llm.requests if r.surface == "implement")
     assert f"> RuntimeError: {marker}" in render
+
+
+@pytest.mark.parametrize("workspace", [True, False])
+def test_render_over_bound_calls_rework_but_not_diagnosis(repo, monkeypatch, workspace):
+    from chupa import daemon
+    from tests.test_drain import mechanical_first
+    from tests.test_rework import order
+    author(repo)
+    mechanical_first(monkeypatch, STEM, workspace=workspace)
+    calls = []
+    apply = daemon.apply_rework
+    async def observed(ctx, ticket, findings, **kwargs):
+        calls.append((ctx, ticket, findings, kwargs))
+        return await apply(ctx, ticket, findings, **kwargs)
+    async def forbidden(*args, **kwargs):
+        pytest.fail("prompt arithmetic called diagnosis")
+    monkeypatch.setattr(daemon, "apply_rework", observed)
+    monkeypatch.setattr(runner, "diagnose", forbidden)
+    code, llm = invoke(repo, [order()] if workspace else [])
+    assert code == runner.EXIT_TICKET and len(calls) == 1
+    assert calls[0][2][0].code == "render_over_bound" and calls[0][3]["attempt"] == 0
+    assert [r.surface for r in llm.requests] == (["rework"] if workspace else [])
+    events = history(repo)
+    assert not any(e.type == EventType.CAP_CONSUMED for e in events)
+    assert events[-1].body == {"to": "premise_failed", "stage": "implement", "reason": "render_over_bound"}
+    if workspace:
+        record = json.loads((repo / f"tickets/{STEM}/attempts/0/harvest.json").read_text())
+        assert "shrink or split" in record["findings"][-1]["paved_road"]
+    else:
+        from chupa.box import Box
+        from chupa.seams import LocalFileSystem
+        messages = Box(repo / ".chupa/state/box", LocalFileSystem()).messages()
+        assert len(messages) == 1 and "no usable workspace" in messages[0].summary
+        assert "shrink or split" in messages[0].summary

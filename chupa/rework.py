@@ -1,4 +1,4 @@
-"""Dormant reviewed Rework orders and journal supersession (19.P3.rework-stage)."""
+"""Reviewed Rework orders and journal supersession (19.P3.rework-stage)."""
 
 import asyncio
 import json
@@ -10,7 +10,6 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from chupa.artifacts import Artifact, Cost, Finding, NonBlank, StageResult
-from chupa.drain import SETTLED
 from chupa.driver import LlmStage
 from chupa.gates import GateReport
 from chupa.git import GitError
@@ -189,6 +188,8 @@ def successor_leaves(stem: str, maps: Mapping[str, tuple[str, ...]]) -> frozense
 
 
 def settled_dependencies(events: Iterable[Event]) -> frozenset[str]:
+    from chupa.drain import SETTLED
+
     history = tuple(events)
     maps, states = supersedes_maps(history), last_states(history)
     return frozenset(stem for stem in states.keys() | maps.keys()

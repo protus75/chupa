@@ -7,10 +7,16 @@ from pathlib import Path
 
 from chupa.config import Config, ConfigSnapshot, snapshot_config
 from chupa.journal import Journal
+from chupa import runner
+from chupa.artifacts import Cost, Finding, StageResult
+from chupa.caps import spent
+from chupa.mergequeue import ConflictHandoff, MergeQueue
+from chupa.rework import ReworkOrder, record_supersedes, rework
 from chupa.runner import Dispatch
 from chupa.scheduler import Scheduler
 from chupa.seams import Clock, Sleep
-from chupa.tickets import Ticket
+from chupa.stages import StageContext
+from chupa.tickets import Ticket, parse_ticket, ticket_path
 from chupa.watcher import Watcher
 
 
@@ -19,6 +25,103 @@ class DaemonCore:
     admission: "DaemonAdmission"
     scheduler: Scheduler
     watcher: Watcher
+
+
+async def apply_rework(ctx: StageContext, ticket: Ticket, findings: list[Finding], *, attempt: int,
+                       handoff: ConflictHandoff | None = None) -> StageResult:
+    """Publish exact reviewed proposals on the ticket plane under the caller's writer lock."""
+    road = "shrink or split the committed ticket text and rerun drain"
+    workspace = ctx.worktree(ticket.stem)
+    if not workspace.exists():
+        return StageResult(outcome="gate_failed", artifact=None, cost=Cost(), findings=[Finding(
+            code="ticket_schema", message="Rework has no usable workspace", paved_road=road)])
+    try:
+        text = await ctx.git._run(ctx.repo, "show", f"HEAD:{ticket_path(ticket.stem)}")
+        original = parse_ticket(ticket.stem, text, ctx.repo,
+                                plan=(ctx.repo / "CHUPA_PLAN.md").read_text())
+        tier, effort = runner.capability(original, ctx.driver.journal.read())
+        result = await rework(ctx, original, text, findings, attempt=attempt, workspace=workspace,
+                              tier=tier, effort=effort, stuck_budget=original.stuck_minutes * 60,
+                              handoff=handoff)
+        if result.outcome != "ok":
+            return result
+        order = result.artifact
+        assert isinstance(order, ReworkOrder)
+        if order.action == "escalate":
+            return result
+        paths = [ticket_path(p.stem) for p in order.tickets]
+        before = await ctx.git.rev_parse(ctx.repo, "HEAD")
+
+        async def restore_publication() -> None:
+            # Restore also removes added successors from the index and worktree. Stage any
+            # files left by a write/add failure so they belong to that same restore lane.
+            written = [path for path in paths if (ctx.repo / path).is_file()]
+            if written:
+                await ctx.git.add(ctx.repo, written)
+            indexed = set(await ctx.git.ls_files(ctx.repo))
+            restorable = [path for path in paths if path in indexed]
+            if restorable:
+                await ctx.git.restore(ctx.repo, restorable, source=before)
+            # A commit can land before its caller fails or exact-byte verification refuses.
+            # Compensate only its proposal paths, preserving unrelated staged work.
+            committed = (await ctx.git._run(
+                ctx.repo, "diff", "--name-only", before, "HEAD", "--", *paths)).splitlines()
+            if committed:
+                await ctx.git.commit(ctx.repo, f"chupa({ticket.stem}): undo refused rework", only=committed)
+
+        async def publish() -> dict:
+            for proposal, path in zip(order.tickets, paths, strict=True):
+                ctx.fs.write(ctx.repo / path, proposal.ticket.encode())
+            await ctx.git.add(ctx.repo, paths)
+            await ctx.git.commit(ctx.repo, f"chupa({ticket.stem}): rework", only=paths)
+            for proposal, path in zip(order.tickets, paths, strict=True):
+                if await ctx.git._run(ctx.repo, "show", f"HEAD:{path}") != proposal.ticket:
+                    raise ValueError(f"committed {path} differs from the reviewed proposal")
+            return {"commit": await ctx.git.rev_parse(ctx.repo, "HEAD")}
+
+        try:
+            await ctx.driver.effects.run(publish, key=f"ticket-plane/{ticket.stem}/{attempt}/rework",
+                                         ticket=ticket.stem)
+            if errors := await record_supersedes(ctx, order):
+                await restore_publication()
+                return StageResult(outcome="gate_failed", artifact=None, cost=result.cost, findings=errors)
+        except BaseException:
+            cleanup = asyncio.create_task(restore_publication())
+            try:
+                await asyncio.shield(cleanup)
+            except asyncio.CancelledError:
+                await cleanup
+                raise
+            raise
+        return result
+    except Exception as exc:
+        return StageResult(outcome="gate_failed", artifact=None, cost=Cost(), findings=[Finding(
+            code="ticket_schema", message=ctx.driver.redactor.scrub(f"Rework publication refused: {exc}"),
+            paved_road="commit every exact reviewed proposal before supersession; " + road)])
+
+
+class TicketWriter:
+    """The composed ticket writer; queue handoffs are consumed only after admission unwinds."""
+
+    def __init__(self, ctx: StageContext, queue: MergeQueue) -> None:
+        self.ctx, self.queue = ctx, queue
+
+    async def __call__(self, ticket: Ticket) -> str:
+        return await runner.drive(self.ctx, ticket)
+
+    async def consume_handoff(self, ticket: Ticket, handoff: ConflictHandoff, *, attempt: int) -> str:
+        if self.queue.active is not None or self.queue._slot.locked():
+            raise ValueError("finish and await MergeQueue.process before consuming its handoff")
+        ctx = self.ctx
+        outcome = "gate_failed"
+        await runner.harvest_failure(ctx, ticket, attempt=attempt, stage="merge", outcome=outcome,
+                                     findings=handoff.findings, results=())
+        reply = None
+        if not spent(ctx.config.caps, ctx.driver.journal.read(), ticket.stem):
+            reply = await apply_rework(ctx, ticket, handoff.findings, attempt=attempt, handoff=handoff)
+        return await runner.failure_terminal(ctx, ticket, outcome=outcome, stage="merge",
+                                             findings=handoff.findings, attempt=attempt, reworked=reply,
+                                             rework_requested=True)
 
 
 def daemon_core(

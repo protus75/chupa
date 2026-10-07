@@ -947,7 +947,9 @@ def sources():
 def without_core_import(material):
     edge = "from chupa.daemon import DaemonCore, daemon_core"
     assert edge in material["chupa.__main__"]
-    return {**material, "chupa.__main__": material["chupa.__main__"].replace(edge, "")}
+    return {name: "\n".join(line[:len(line) - len(line.lstrip())] + "pass"
+            if line.lstrip().startswith("from chupa.daemon import") else line
+            for line in source.splitlines()) for name, source in material.items()}
 
 
 def assert_reachable(material):
@@ -963,3 +965,257 @@ def test_daemon_core_is_reachable_from_cli():
     for edge in ("import chupa.daemon", "from chupa import daemon"):
         restored = {**removed, "chupa.status": removed["chupa.status"] + "\n" + edge}
         assert_reachable(restored)
+
+
+def production_writer(source, script):
+    """Reuse the production bind and its queue with the disposable admission repository."""
+    checkout = runner.Checkout(source.repo, source.config, source.env, source.exec_, source.git,
+                               source.driver.journal, source.fs, source.driver.clock, source.driver.sleep)
+    writer = runner.bind(checkout, FakeLLM(script))
+    return checkout, writer
+
+
+@pytest.mark.asyncio
+async def test_production_composes_rework_without_running_it(tmp_path, monkeypatch):
+    rig = CoreRig(tmp_path)
+    def forbidden(*args, **kwargs):
+        pytest.fail("Rework composition performed work")
+    for owner, names in ((daemon, ("rework", "apply_rework")), (Git, ("_call",)),
+                         (Journal, ("append",)), (asyncio, ("create_task",)),
+                         (rig.fs, ("write", "replace"))):
+        for name in names:
+            monkeypatch.setattr(owner, name, forbidden)
+    before = asyncio.all_tasks()
+    writer = runner.bind(rig.checkout, FakeLLM([]))
+    assert isinstance(writer, daemon.TicketWriter) and writer.queue.ctx is writer.ctx
+    assert writer.ctx.driver.journal is rig.checkout.journal
+    assert writer.ctx.driver.effects._journal is rig.checkout.journal
+    assert writer.ctx.fs is rig.checkout.fs and writer.ctx.git is rig.checkout.git
+    assert writer.ctx.driver.clock is rig.checkout.clock and writer.ctx.driver.sleep is rig.checkout.sleep
+    assert before == asyncio.all_tasks() and rig.journal.read() == []
+    assert rig.fs.files == {} and rig.exec.calls == []
+
+
+@pytest.mark.asyncio
+async def test_production_consumes_conflict_handoff_after_unwind(admission_context, monkeypatch):
+    from chupa.mergequeue import ConflictHandoff
+    from tests.test_mergequeue import conflict
+    from tests.test_stages import agent, verdict
+    from tests.test_rework import order, requisition
+    source = admission_context
+    _, writer = production_writer(source, [])
+    ctx, queue = writer.ctx, writer.queue
+    ticket, path = await conflict(ctx)
+    ctx.config.merge.strategies = []
+    text = (ctx.repo / f"tickets/{ticket.stem}/ticket.md").read_text()
+    chronology = []
+    call = ctx.git._call
+    async def observe(root, *args, **kwargs):
+        value = await call(root, *args, **kwargs)
+        if args == ("rebase", "--abort"):
+            chronology.append("abort")
+        return value
+    monkeypatch.setattr(ctx.git, "_call", observe)
+    def forbid(*args, **kwargs):
+        pytest.fail("handoff reused code approval or called diagnosis")
+    monkeypatch.setattr(runner, "diagnose", forbid)
+    monkeypatch.setattr(ctx.git, "merge_squash", forbid)
+    queue.offer(ticket, attempt=0)
+    [handoff] = await queue.process()
+    assert isinstance(handoff, ConflictHandoff) and handoff.approval_invalidated
+    assert chronology == ["abort"] and not ctx.driver.llm.requests
+    assert queue.active is None and not queue._slot.locked()
+    def reply(req):
+        assert queue.active is None and not queue._slot.locked()
+        chronology.append("rework")
+        assert handoff.model_dump_json() in req.rendered
+        assert path in req.rendered and all(f.message in req.rendered for f in handoff.findings)
+        assert text in req.rendered
+        return order("update", [(ticket.stem, text.replace("holds the word ok", "holds the word ok after fresh review"))])
+    ctx.driver.llm = FakeLLM([reply, requisition()])
+    from chupa.drain import _Drain
+    from chupa.lockfile import Lockfile, LockHeld
+    checkout = runner.Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git,
+                               ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
+    lock = Lockfile(ctx.config.state_dir, instance_id="production", clock=ctx.driver.clock)
+    lock.acquire()
+    try:
+        async def consume(original):
+            contender = Lockfile(ctx.config.state_dir, instance_id="contender", clock=ctx.driver.clock)
+            with pytest.raises(LockHeld):
+                contender.acquire()
+            return await writer.consume_handoff(original, handoff, attempt=0)
+        await _Drain(checkout, consume, frozenset())._run_one(ticket, False, "blob")
+    finally:
+        lock.release()
+    assert chronology == ["abort", "rework"]
+    events = ctx.driver.journal.read()
+    [terminal] = [e.body for e in events if e.type == EventType.STATE_TRANSITION and e.body.get("to") != "running"]
+    assert terminal == {"to": "gate_failed", "stage": "merge",
+                        "reason": ",".join(sorted({f.code for f in handoff.findings})), "dispatch": "retry"}
+    assert not any(e.type == EventType.CAP_CONSUMED for e in events)
+    assert [r.surface for r in ctx.driver.llm.requests] == ["rework", "requisition_review"]
+    assert not ctx.worktree(ticket.stem).exists()
+    # Re-offer uses the ordinary Implement/Check/Review path, never the invalidated queue approval.
+    monkeypatch.undo()
+    ctx.driver.llm = FakeLLM([agent({"chupa/thing.py": "ok fresh\n"}),
+                             verdict()])
+    fresh = stages.validate_ticket(ticket.stem, (ctx.repo / f"tickets/{ticket.stem}/ticket.md").read_text(), ctx.repo)
+    await writer(fresh)
+    assert [r.surface for r in ctx.driver.llm.requests] == ["implement", "review"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", ["update", "split", "escalate", "exhausted"])
+async def test_production_applies_reviewed_rework_orders(admission_context, action):
+    from chupa.mergequeue import ConflictHandoff
+    from chupa.rework import SUPERSEDES, record_supersedes
+    from tests.test_rework import order, requisition, successors
+    checkout, writer = production_writer(admission_context, [])
+    ctx = writer.ctx
+    ticket = await ready(ctx)
+    text = (ctx.repo / f"tickets/{ticket.stem}/ticket.md").read_text()
+    if action == "exhausted":
+        from tests.test_mergequeue import commit
+        text = text.replace("kind: feature", "kind: feature\nagent_tier: max\nagent_effort: max")
+        ctx.fs.write(ctx.repo / f"tickets/{ticket.stem}/ticket.md", text.encode())
+        await commit(ctx, ctx.repo, [f"tickets/{ticket.stem}/ticket.md"])
+        ticket = stages.validate_ticket(ticket.stem, text, ctx.repo)
+    proposals = successors(text.strip()) if action == "split" else [(ticket.stem, text.strip().replace("holds the word ok", "holds ok after narrowing"))] if action == "update" else []
+    ctx.driver.llm = FakeLLM([order("escalate" if action == "exhausted" else action, proposals)]
+                            + [requisition() for _ in proposals])
+    finding = stages.Finding(code="post_rebase_regate", message="conflict", paved_road="fresh review")
+    handoff = ConflictHandoff(stem=ticket.stem, reviewed_sha=await ctx.git.rev_parse(ctx.repo, ticket.stem),
+                              conflicted_paths=["chupa/thing.py"], findings=[finding, finding])
+    from chupa.drain import _Drain
+    from chupa.lockfile import Lockfile
+    returned = []
+    async def consume(original):
+        result = await writer.consume_handoff(original, handoff, attempt=0)
+        returned.append(result)
+        return result
+    lock = Lockfile(ctx.config.state_dir, instance_id="production", clock=ctx.driver.clock)
+    lock.acquire()
+    try:
+        await _Drain(checkout, consume, frozenset())._run_one(
+            ticket, False, await ctx.git.rev_parse(ctx.repo, f"HEAD:tickets/{ticket.stem}/ticket.md"))
+    finally:
+        lock.release()
+    [result] = returned
+    events = ctx.driver.journal.read()
+    transitions = [e for e in events if e.type == EventType.STATE_TRANSITION and e.body.get("to") != "running"]
+    terminal = transitions[0].body
+    assert {k: terminal[k] for k in ("to", "stage", "reason")} == {
+        "to": "gate_failed", "stage": "merge", "reason": "post_rebase_regate"}
+    maps = [e for e in events if e.body.get("signal") == SUPERSEDES]
+    if action == "split":
+        assert result == "rejected" and transitions[-1].body == {"to": "rejected"}
+        assert terminal == {"to": "gate_failed", "stage": "merge", "reason": "post_rebase_regate"}
+        [mapping] = maps
+        assert events.index(mapping) < events.index(transitions[0]) < events.index(transitions[-1])
+        for stem, proposal in proposals:
+            assert await ctx.git._run(ctx.repo, "show", f"HEAD:tickets/{stem}/ticket.md") == proposal
+        assert "state: rejected" in (ctx.repo / f"tickets/{ticket.stem}/ticket.md").read_text()
+        from chupa.rework import ReworkOrder
+        replay = ReworkOrder(action="split", tickets=[{"stem": s, "ticket": t} for s, t in proposals],
+                             stem=ticket.stem, attempt=0, produced_by_spec_version=1, produced_at_sha="reviewed")
+        count = len(events)
+        assert await record_supersedes(ctx, replay) == [] and len(ctx.driver.journal.read()) == count
+    else:
+        assert result == "gate_failed" and maps == [] and len(transitions) == 1
+        if action == "update":
+            assert terminal["dispatch"] == "retry" and "routed" not in terminal and "rung" not in terminal
+            assert await ctx.git._run(ctx.repo, "show", f"HEAD:tickets/{ticket.stem}/ticket.md") == proposals[0][1]
+        elif action == "escalate":
+            assert terminal["dispatch"] == "escalate" and "rung" in terminal and "routed" not in terminal
+        else:
+            assert terminal["dispatch"] == terminal["routed"] == "reject_queue" and "rung" not in terminal
+        if action != "update":
+            assert (ctx.repo / f"tickets/{ticket.stem}/ticket.md").read_text() == text
+    assert not any(e.type == EventType.CAP_CONSUMED for e in events)
+    assert not ctx.worktree(ticket.stem).exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", ["split", "update"])
+@pytest.mark.parametrize("failure", ["validation", "review", "write", "add", "commit", "partial", "incomplete", "all-commits", "spent"])
+async def test_production_refuses_failed_rework_publication(admission_context, monkeypatch, failure, action):
+    from chupa.mergequeue import ConflictHandoff
+    from tests.test_rework import order, requisition, successors
+    checkout, writer = production_writer(admission_context, [])
+    ctx = writer.ctx
+    ticket = await ready(ctx)
+    text = (ctx.repo / f"tickets/{ticket.stem}/ticket.md").read_text()
+    proposals = (successors(text) if action == "split" else
+                 [(ticket.stem, text.replace("holds the word ok", "holds ok after narrowing"))])
+    ctx.driver.retry_cap = 0
+    script = [order(action, proposals), *[requisition() for _ in proposals]]
+    if failure == "validation":
+        script = [order("update", [(ticket.stem, "invalid ticket")])]
+    if failure == "review":
+        script = [order(action, proposals), requisition("rma")]
+    if failure == "write":
+        write = ctx.fs.write
+        def failed_write(path, data):
+            if path == ctx.repo / f"tickets/{proposals[-1][0]}/ticket.md":
+                raise RuntimeError("proposal write failed")
+            write(path, data)
+        monkeypatch.setattr(ctx.fs, "write", failed_write)
+    if failure == "add":
+        add = ctx.git.add
+        failed_once = False
+        async def failed_add(root, paths):
+            nonlocal failed_once
+            if root == ctx.repo and paths == [f"tickets/{s}/ticket.md" for s, _ in proposals] and not failed_once:
+                failed_once = True
+                raise RuntimeError("proposal add failed")
+            await add(root, paths)
+        monkeypatch.setattr(ctx.git, "add", failed_add)
+    if failure in {"commit", "partial", "incomplete", "all-commits"}:
+        commit = ctx.git.commit
+        async def failed(root, message, **kwargs):
+            if message.endswith(": rework") or failure == "all-commits":
+                if failure in {"partial", "incomplete"}:
+                    await commit(root, message, only=[f"tickets/{proposals[0][0]}/ticket.md"])
+                    if failure == "incomplete" and action == "split":
+                        return
+                raise RuntimeError("publication failed")
+            await commit(root, message, **kwargs)
+        monkeypatch.setattr(ctx.git, "commit", failed)
+    if failure == "spent":
+        for _ in range(ctx.config.caps.retry):
+            caps.consume(ctx.driver.journal, ticket.stem, "retry", "old")
+        script = []
+    ctx.driver.llm = FakeLLM(script)
+    handoff = ConflictHandoff(stem=ticket.stem, reviewed_sha="reviewed", conflicted_paths=[],
+                              findings=[stages.Finding(code="post_rebase_regate", message="conflict", paved_road="fresh review")])
+    assert await writer.consume_handoff(ticket, handoff, attempt=0) == "gate_failed"
+    events = ctx.driver.journal.read()
+    [terminal] = [e.body for e in events if e.type == EventType.STATE_TRANSITION]
+    assert terminal == {"to": "gate_failed", "stage": "merge", "reason": "post_rebase_regate",
+                        "dispatch": "reject_queue", "routed": "reject_queue"}
+    assert not any(e.body.get("signal") == "supersedes" for e in events)
+    assert (ctx.repo / f"tickets/{ticket.stem}/ticket.md").read_text() == text
+    assert await ctx.git._run(ctx.repo, "show", f"HEAD:tickets/{ticket.stem}/ticket.md") == text
+    assert not (ctx.repo / "tickets/piece-one/ticket.md").exists()
+    assert not (ctx.repo / "tickets/piece-two/ticket.md").exists()
+    assert caps.draws(events, ticket.stem, "diagnosis") == 0
+    assert caps.draws(events, ticket.stem, "retry") == (ctx.config.caps.retry if failure == "spent" else 0)
+    if failure == "spent":
+        assert ctx.driver.llm.requests == []
+    else:
+        artifact = json.loads((ctx.repo / f"tickets/{ticket.stem}/attempts/0/harvest.json").read_text())
+        assert len(artifact["findings"]) >= 2 and all(f["paved_road"] for f in artifact["findings"])
+    if failure != "all-commits":
+        assert await ctx.git.status_porcelain(ctx.repo) == ""
+        # A later ordinary drain must not intake a leaked machine proposal as human work.
+        from chupa.drain import drain
+        from tests.test_drain_reentry import NoChild
+        intake_before = [e for e in events if e.body.get("signal") == INTAKE_SIGNAL]
+        for _ in range(ctx.config.caps.retry - caps.draws(events, ticket.stem, "retry")):
+            caps.consume(ctx.driver.journal, ticket.stem, "retry", "old")
+        async def forbidden(ticket):
+            pytest.fail("following drain dispatched refused Rework output")
+        await drain(checkout, forbidden, reexec=NoChild())
+        assert [e for e in ctx.driver.journal.read() if e.body.get("signal") == INTAKE_SIGNAL] == intake_before
+        assert await ctx.git.status_porcelain(ctx.repo) == ""

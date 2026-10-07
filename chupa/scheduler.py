@@ -39,11 +39,15 @@ class Scheduler:
             held = set(reject_queue(events)) | self.quarantined() | self.drought_parked()
             if self.completed_unmerged() >= self.max_unmerged:
                 return None
+            from chupa.rework import settled_dependencies, supersedes_maps
+
+            settled = settled_dependencies(events)
+            maps = supersedes_maps(events)
             authored = authored_at(events)
             ready = [t for t in self.pending.values()
                      if t.frontmatter.state == "confirmed"
                      and last.get(t.stem) not in SETTLED | {"rejected", "running"}
-                     and t.stem not in held and all(last.get(d) in SETTLED for d in t.depends)]
+                     and t.stem not in held and t.stem not in maps and set(t.depends) <= settled]
             if not ready:
                 return None
             ticket = min(ready, key=lambda t: sort_key(t, authored))

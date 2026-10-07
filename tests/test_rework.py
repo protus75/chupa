@@ -456,17 +456,22 @@ def test_supersedes_dependency_folds(ctx, leaf_state):
     assert bool({"original"} & dead) == (leaf_state in {"rejected", "abandoned"})
 
 
-def test_rework_is_dormant(ctx, monkeypatch):
+def test_rework_is_reachable_from_production():
     root = Path(__file__).resolve().parents[1]
     sources = {"chupa." + p.stem: p.read_text() for p in (root / "chupa").glob("*.py")}
-    def dormant(material):
-        assert "chupa.rework" not in import_closure("chupa.__main__", material)
-        assert "chupa.rework" not in import_closure("chupa.mergequeue", material)
-    dormant(sources)
-    assert "chupa.runner" in import_closure("chupa.__main__", sources)
-    for owner in ["chupa.runner", "chupa.mergequeue"]:
-        for spelling in ["import chupa.rework as rework", "from chupa import rework as stage"]:
-            with pytest.raises(AssertionError): dormant({**sources, owner: sources[owner] + "\n" + spelling})
+    def reachable(material):
+        assert "chupa.rework" in import_closure("chupa.__main__", material)
+    reachable(sources)
+    removed = {name: "\n".join((line[:len(line) - len(line.lstrip())] + "pass")
+               if line.lstrip().startswith("from chupa.rework import") else line
+               for line in source.splitlines()) for name, source in sources.items()}
+    with pytest.raises(AssertionError):
+        reachable(removed)
+    for spelling in ["import chupa.rework as rework", "from chupa import rework as stage"]:
+        reachable({**removed, "chupa.runner": removed["chupa.runner"] + "\n" + spelling})
+
+
+def test_admission_never_invokes_rework_inline(ctx, monkeypatch):
     async def forbidden(*args, **kwargs):
         pytest.fail("admission must never invoke Rework inline")
     monkeypatch.setattr(module, "rework", forbidden)

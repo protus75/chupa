@@ -760,7 +760,9 @@ def test_merge_queue_is_reachable_from_production():
     assert "chupa.merge" in closure
     edge = "from chupa.mergequeue import MergeQueue"
     assert edge in sources["chupa.merge"]
-    removed = {**sources, "chupa.merge": sources["chupa.merge"].replace(edge, "pass")}
+    removed = {name: "\n".join(line[:len(line) - len(line.lstrip())] + "pass"
+               if line.lstrip().startswith("from chupa.mergequeue import") else line
+               for line in source.splitlines()) for name, source in sources.items()}
     with pytest.raises(AssertionError):
         assert_reachable(removed)
     for spelling in ["import chupa.mergequeue as queue", "from chupa import mergequeue as queue"]:

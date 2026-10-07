@@ -18,6 +18,7 @@ from chupa.box import BOX_DIR, Box
 from chupa.caps import capability, consume, next_rung, spent, spent_reason
 from chupa.config import Config, ConfigSnapshot
 from chupa.driver import Driver
+from chupa.effects import Effects
 from chupa.git import Git
 from chupa.journal import TERMINAL_STATES, Event, EventType, Journal
 from chupa.llm import LLM
@@ -97,6 +98,8 @@ async def prepare_pipeline(checkout: Checkout) -> Dispatch:
 def bind(checkout: Checkout, llm: LLM) -> Dispatch:
     driver = Driver.from_config(checkout.config, llm=llm, env=checkout.env, clock=checkout.clock,
                                 sleep=checkout.sleep, fs=checkout.fs)
+    driver.journal = checkout.journal
+    driver.effects = Effects(checkout.journal)
     ctx = StageContext(repo=checkout.repo, config=checkout.config, env=checkout.env, exec_=checkout.exec_,
                        git=checkout.git, fs=checkout.fs, driver=driver, specs_dir=SPECS_DIR)
 
@@ -104,8 +107,10 @@ def bind(checkout: Checkout, llm: LLM) -> Dispatch:
         # Queue signals are already journaled; notification transport lands in Phase 4.
         return None
 
-    compose_pipeline(ctx, escalate=escalate)
-    return lambda ticket: drive(ctx, ticket)
+    from chupa.daemon import TicketWriter
+
+    queue = compose_pipeline(ctx, escalate=escalate)
+    return TicketWriter(ctx, queue)
 
 
 async def drive(ctx: StageContext, ticket: Ticket) -> str:
@@ -119,15 +124,10 @@ async def drive(ctx: StageContext, ticket: Ticket) -> str:
         stage, result = "merge", await merge(ctx, ticket, attempt=run.attempt)
         if result.outcome == "ok":
             return "merged"
-    if ctx.worktree(ticket.stem).exists() and result.outcome != "already_satisfied":
-        try:
-            await harvest(ctx, ticket.stem, attempt=run.attempt, stage=stage, terminal=result.outcome,
-                          findings=result.findings, results=(*run.results.values(),)
-                          + ((result,) if stage == "merge" else ()))
-        except Exception as e:
-            ctx.driver.journal.append(EventType.SIGNAL,
-                                      {"signal": "harvest_failed", "error": f"{type(e).__name__}: {e}"},
-                                      ticket=ticket.stem)
+    if result.outcome != "already_satisfied":
+        await harvest_failure(ctx, ticket, attempt=run.attempt, stage=stage, outcome=result.outcome,
+                              findings=result.findings, results=(*run.results.values(),)
+                              + ((result,) if stage == "merge" else ()))
     if result.outcome in {"infra_error", "timeout"}:
         ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
         consume(ctx.driver.journal, ticket.stem, "infra", ticket_sha)
@@ -175,19 +175,77 @@ async def drive(ctx: StageContext, ticket: Ticket) -> str:
                                   {"signal": "diagnosis", "attempt": run.attempt, "verdict": verdict,
                                    "lessons": lessons, "mechanical": mechanical if diagnosis is None else diagnosis.mechanical},
                                   ticket=ticket.stem)
-    reason = ",".join(sorted({f.code for f in result.findings})) or result.outcome
-    terminal = {"to": result.outcome, "stage": stage, "reason": reason}
+    reworked = None
+    requested = over_bound or (diagnosed and verdict == "split")
+    if requested and (over_bound or not spent(ctx.config.caps, ctx.driver.journal.read(), ticket.stem)):
+        from chupa.daemon import apply_rework
+
+        reworked = await apply_rework(ctx, ticket, result.findings, attempt=run.attempt)
+    return await failure_terminal(ctx, ticket, outcome=result.outcome, stage=stage,
+                                  findings=result.findings, attempt=run.attempt, reworked=reworked,
+                                  rework_requested=requested, mechanical=over_bound,
+                                  verdict=verdict if diagnosed else None)
+
+
+async def harvest_failure(ctx: StageContext, ticket: Ticket, *, attempt: int, stage: str,
+                          outcome: str, findings: list[Finding], results: tuple[StageResult, ...]) -> None:
+    """A failed harvest never interrupts failure dispatch or the producing terminal."""
+    if ctx.worktree(ticket.stem).exists():
+        try:
+            await harvest(ctx, ticket.stem, attempt=attempt, stage=stage, terminal=outcome,
+                          findings=findings, results=results)
+        except Exception as exc:
+            ctx.driver.journal.append(EventType.SIGNAL,
+                                      {"signal": "harvest_failed", "error": ctx.driver.redactor.scrub(f"{type(exc).__name__}: {exc}")},
+                                      ticket=ticket.stem)
+
+
+async def failure_terminal(ctx: StageContext, ticket: Ticket, *, outcome: str, stage: str,
+                           findings: list[Finding], attempt: int, reworked: StageResult | None = None,
+                           rework_requested: bool = False, mechanical: bool = False,
+                           verdict: str | None = None) -> str:
+    """Preserve the producing terminal, then retire a published split before wiping and returning."""
+    from chupa.rework import ReworkOrder
+
+    reason = ",".join(sorted({f.code for f in findings})) or outcome
+    terminal = {"to": outcome, "stage": stage, "reason": reason}
     history = ctx.driver.journal.read()
-    if diagnosed:
+    tier, effort = capability(ticket, history)
+    split = False
+    if rework_requested:
+        if reworked is not None and reworked.outcome == "ok":
+            order = reworked.artifact
+            assert isinstance(order, ReworkOrder)
+            split = order.action == "split"
+            verdict = "retry" if order.action == "update" else order.action
+        else:
+            verdict = "reject"
+        if reworked is not None and (reworked.outcome != "ok" or (mechanical and verdict == "escalate")):
+            extra = reworked.findings or [Finding(code="render_over_bound", message="Rework did not shrink the ticket",
+                paved_road="shrink or split the committed ticket text and rerun drain")]
+            if ctx.worktree(ticket.stem).exists():
+                try:
+                    await harvest(ctx, ticket.stem, attempt=attempt, stage=stage, terminal=outcome,
+                                  findings=[*findings, *extra], results=(reworked,), kind="harvest-rework")
+                except Exception:
+                    Box(ctx.config.state_dir / BOX_DIR, ctx.fs).enqueue(
+                        message_class="failure_report", origin=ticket.stem, stage=stage, outcome=outcome,
+                        summary="; ".join(f"{f.message}; {f.paved_road}" for f in extra))
+            else:
+                Box(ctx.config.state_dir / BOX_DIR, ctx.fs).enqueue(
+                    message_class="failure_report", origin=ticket.stem, stage=stage, outcome=outcome,
+                    summary="; ".join(f"{f.message}; {f.paved_road}" for f in extra))
+    if not mechanical and not split and verdict is not None:
         previous = [e.body for e in history if e.type == EventType.STATE_TRANSITION
                     and e.ticket == ticket.stem and e.body.get("to") in TERMINAL_STATES]
         identical = (verdict == "retry" and bool(previous)
                      and previous[-1].get("dispatch") == "retry" and previous[-1].get("reason") == reason)
         identical = identical or (len(previous) >= IDENTICAL_K - 1 and all(
             e.get("reason") == reason for e in previous[-(IDENTICAL_K - 1):]))
-        if spent(ctx.config.caps, history, ticket.stem) or verdict in {"split", "reject", "abandon-human"}:
+        # Reviewed updates have an explicit retry decision; the identical-wall rule belongs to diagnosis.
+        if spent(ctx.config.caps, history, ticket.stem) or verdict in {"reject", "abandon-human"}:
             terminal["dispatch"] = "reject_queue"
-        elif verdict == "escalate" or identical:
+        elif verdict == "escalate" or (verdict is not None and identical and not rework_requested):
             rung = next_rung(ctx.config, tier, effort)
             if rung is None:
                 terminal["dispatch"] = "reject_queue"
@@ -196,14 +254,19 @@ async def drive(ctx: StageContext, ticket: Ticket) -> str:
                 terminal["rung"] = rung
         elif verdict == "retry":
             terminal["dispatch"] = "retry"
-        else:
+        elif verdict is not None:
             terminal["dispatch"] = "reject_queue"
-    if terminal.get("dispatch") == "reject_queue" or (not over_bound and spent(ctx.config.caps, history, ticket.stem)):
+    if not mechanical and not split and (
+            terminal.get("dispatch") == "reject_queue" or spent(ctx.config.caps, history, ticket.stem)):
         terminal["routed"] = "reject_queue"
     ctx.driver.journal.append(EventType.STATE_TRANSITION, terminal, ticket=ticket.stem)
+    if split:
+        checkout = Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git, ctx.driver.journal,
+                            ctx.fs, ctx.driver.clock, ctx.driver.sleep)
+        await reject_ticket(ticket.stem, checkout)
     if ctx.worktree(ticket.stem).exists():
         await ctx.git.worktree_remove(ctx.repo, ctx.worktree(ticket.stem))
-    return result.outcome
+    return "rejected" if split else outcome
 
 
 def spec_gaps(ctx: StageContext, stem: str) -> dict[str, list[str]]:
@@ -319,7 +382,7 @@ async def file_hardening(ctx: StageContext, seeding: str, row: str, row_entry: t
 
 async def harvest(
     ctx: StageContext, stem: str, *, attempt: int, stage: str | None, terminal: str,
-    findings: list[Finding], results: tuple[StageResult, ...],
+    findings: list[Finding], results: tuple[StageResult, ...], kind: str = "harvest",
 ) -> None:
     """Extract the allowlisted failed-run record and lift it through the one outbox lane."""
     spool = ctx.config.state_dir / "spools" / stem / str(attempt)
@@ -344,7 +407,7 @@ async def harvest(
     )
     path = ctx.worktree(stem) / "tickets" / stem / "attempts" / str(attempt) / "harvest.json"
     ctx.fs.write(path, (artifact.model_dump_json(indent=2) + "\n").encode())
-    await lift_outbox(ctx, stem, "harvest", attempt=attempt, only=f"attempts/{attempt}/harvest.json")
+    await lift_outbox(ctx, stem, kind, attempt=attempt, only=f"attempts/{attempt}/harvest.json")
 
 
 async def harvest_orphan(checkout: Checkout, stem: str, attempt: int) -> None:
@@ -399,19 +462,8 @@ async def verdict(stem: str, checkout: Checkout, *, kill: bool) -> int:
         if kill:
             if last in {"merged", "already_satisfied"}:
                 raise Refusal(f"{stem} is settled", "leave settled work in place")
-            if path.is_file() and _ticket_state(path) != "rejected":
-                checkout.fs.write(path, stamp(path.read_text(), "state", "rejected").encode())
-                await checkout.git.add(checkout.repo, [rel])
-                await checkout.git.commit(checkout.repo, f"chupa({stem}): rejected", only=[rel])
-            await _dead_dependents(stem, checkout)
-            if last != "rejected":
-                checkout.journal.append(EventType.SIGNAL,
-                                        {"signal": "reject_verdict", "verdict": "kill", "actor": "operator"},
-                                        ticket=stem)
-                checkout.journal.append(EventType.STATE_TRANSITION, {"to": "rejected"}, ticket=stem)
-                print(f"rejected {stem}")
-            else:
-                print(f"already rejected {stem}")
+            changed = await reject_ticket(stem, checkout)
+            print(f"rejected {stem}" if changed else f"already rejected {stem}")
             return EXIT_MERGED
         if path.is_file() and _ticket_state(path) == "draft":
             checkout.fs.write(path, stamp(path.read_text(), "state", "confirmed").encode())
@@ -440,6 +492,23 @@ async def verdict(stem: str, checkout: Checkout, *, kill: bool) -> int:
         lock.release()
 
 
+async def reject_ticket(stem: str, checkout: Checkout) -> bool:
+    """Reject mutation for a caller already holding the writer lock."""
+    rel = ticket_path(stem)
+    path = checkout.repo / rel
+    last = last_states(checkout.journal.read()).get(stem)
+    if path.is_file() and _ticket_state(path) != "rejected":
+        checkout.fs.write(path, stamp(path.read_text(), "state", "rejected").encode())
+        await checkout.git.add(checkout.repo, [rel])
+        await checkout.git.commit(checkout.repo, f"chupa({stem}): rejected", only=[rel])
+    if last != "rejected":
+        checkout.journal.append(EventType.SIGNAL,
+                                {"signal": "reject_verdict", "verdict": "kill", "actor": "operator"}, ticket=stem)
+        checkout.journal.append(EventType.STATE_TRANSITION, {"to": "rejected"}, ticket=stem)
+    await _dead_dependents(stem, checkout)
+    return last != "rejected"
+
+
 def _ticket_state(path: Path) -> str | None:
     split = split_frontmatter(path.read_text())
     return yaml.safe_load(split[0]).get("state") if split else None
@@ -447,7 +516,10 @@ def _ticket_state(path: Path) -> str | None:
 
 async def _dead_dependents(dead: str, checkout: Checkout) -> None:
     history = checkout.journal.read()
+    from chupa.rework import dead_dependencies
+
     last = last_states(history)
+    deaths = dead_dependencies(history)
     box = Box(checkout.config.state_dir / BOX_DIR, checkout.fs)
     for path in sorted((checkout.repo / "tickets").glob("*/ticket.md")):
         stem = path.parent.name
@@ -455,14 +527,13 @@ async def _dead_dependents(dead: str, checkout: Checkout) -> None:
             continue
         ticket = parse_ticket(stem, path.read_text(), checkout.repo,
                               plan=(checkout.repo / "CHUPA_PLAN.md").read_text())
-        if dead not in ticket.depends:
-            continue
-        if not any(e.type == EventType.SIGNAL and e.ticket == stem
-                   and e.body.get("signal") == "dead_dependency" and e.body.get("dead") == dead
-                   for e in history):
-            checkout.journal.append(EventType.SIGNAL, {"signal": "dead_dependency", "dead": dead}, ticket=stem)
-        box.enqueue(message_class="failure_report", origin=stem, stage="depends", outcome="rejected",
-                    summary=f"{stem} depends on {dead}, which was rejected; re-wire, re-scope, or reject it")
+        for dependency in sorted(set(ticket.depends) & deaths):
+            if not any(e.type == EventType.SIGNAL and e.ticket == stem
+                   and e.body.get("signal") == "dead_dependency" and e.body.get("dead") == dependency
+                       for e in history):
+                checkout.journal.append(EventType.SIGNAL, {"signal": "dead_dependency", "dead": dependency}, ticket=stem)
+                box.enqueue(message_class="failure_report", origin=stem, stage="depends", outcome="rejected",
+                            summary=f"{stem} depends on {dependency}, which was rejected or abandoned; re-wire, re-scope, or reject it")
 
 
 async def _admit(stem: str, checkout: Checkout) -> Ticket:
@@ -489,7 +560,10 @@ async def _admit(stem: str, checkout: Checkout) -> Ticket:
     if ticket.frontmatter.state != "confirmed":
         raise Refusal(f"{stem} is `state: {ticket.frontmatter.state}`, not confirmed",
                       f"set `state: confirmed` in {ticket_path(stem)} to dispatch it, or author a new stem")
-    if unmerged := [d for d in ticket.depends if last.get(d) != "merged"]:
+    from chupa.rework import settled_dependencies
+
+    settled = settled_dependencies(checkout.journal.read())
+    if unmerged := [d for d in ticket.depends if d not in settled]:
         raise Refusal(f"{stem} depends on unmerged {', '.join(unmerged)}",
                       " then ".join(f"`run {d}`" for d in unmerged) + f" first, then `run {stem}`")
     return ticket

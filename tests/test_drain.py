@@ -20,6 +20,7 @@ from chupa.lockfile import Lockfile, LockHeld
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.tickets import intake
 from tests.test_cli import CONFIG, ENV, PLAN, git_out, ticket, write
+from tests.test_terminal import repo as rework_repo
 
 START = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -443,3 +444,234 @@ def test_a_spec_gap_premise_releases_on_its_hardening_merge_without_a_ticket_edi
     assert drain(root, pipeline) == 0
     assert calls == ["held", "harden-held-1", "held"]
     assert tos(root, "held")[-1] == "merged"
+
+
+
+def mechanical_first(monkeypatch, stem, *, workspace=True):
+    from chupa import runner, stages
+    from chupa.artifacts import Cost, Finding, StageResult
+    original = runner.run_stages
+    called = []
+    async def first(ctx, ticket):
+        if ticket.stem == stem and not called:
+            called.append(ticket.stem)
+            if workspace:
+                await stages.prepare_worktree(ctx, ticket.stem)
+            return stages.StagesRun(attempt=0, results={"implement": StageResult(
+                outcome="premise_failed", artifact=None, cost=Cost(), findings=[Finding(
+                    code="render_over_bound", message="too large", paved_road="shrink or split and rerun drain")])})
+        return await original(ctx, ticket)
+    monkeypatch.setattr(runner, "run_stages", first)
+    return called
+
+
+@pytest.mark.parametrize("mechanical", [False, True])
+def test_rework_update_reenters_on_fresh_content(rework_repo, monkeypatch, mechanical):
+    import json
+    from chupa import runner
+    from chupa.caps import consume
+    from chupa.llm import FakeLLM
+    from tests.test_drain_reentry import NoChild
+    from tests.test_rework import order, requisition
+    from tests.test_stages import ENV, SNAG, STEM, agent, verdict
+    from tests.test_terminal import author, clock
+    repo = rework_repo
+    author(repo)
+    consume(Journal(repo / ".chupa/state", clock), STEM, "infra", "prior")
+    fresh = []
+    def update(req):
+        text = (repo / f"tickets/{STEM}/ticket.md").read_text().strip()
+        revised = text.replace("holds the word ok", "holds ok after reviewed narrowing")
+        fresh.append(revised)
+        return order("update", [(STEM, revised)])
+    if mechanical:
+        mechanical_first(monkeypatch, STEM)
+        script = []
+    else:
+        script = [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]),
+                  json.dumps({"verdict": "split", "lessons": ["Narrow the work."]})]
+    llm = FakeLLM([*script, update, requisition(), agent({"chupa/thing.py": "ok\n"}), verdict()])
+    assert main(["drain"], cwd=repo, env=ENV, clock=clock,
+                pipeline=lambda c: runner.bind(c, llm), reexec=NoChild()) == 0
+    events = Journal(repo / ".chupa/state", clock).read()
+    history = [e for e in events if e.ticket == STEM]
+    terminals = [e for e in history if e.type == EventType.STATE_TRANSITION and e.body.get("to") != "running"]
+    producing = terminals[0].body
+    assert producing == ({"to": "premise_failed", "stage": "implement", "reason": "render_over_bound"}
+                         if mechanical else {"to": "gate_failed", "stage": "review", "reason": "logic", "dispatch": "retry"})
+    rendered = [r for r in llm.requests if r.surface == "implement"][-1].rendered
+    assert "holds ok after reviewed narrowing" in rendered and "holds the word ok" not in rendered.split("## Prior attempts", 1)[0]
+    assert git_out(repo, "show", f"HEAD:tickets/{STEM}/ticket.md") == fresh[0]
+    assert draws(events, STEM, "retry") == (0 if mechanical else 1)
+    assert draws(events, STEM, "infra") == 1
+    assert draws(events, STEM, "diagnosis") == (0 if mechanical else 1)
+    if not mechanical:
+        draw = next(e for e in history if e.type == EventType.CAP_CONSUMED and e.body["cap"] == "retry")
+        assert draw.body == {"cap": "retry", "ticket_sha": git_out(repo, "rev-parse", f"HEAD:tickets/{STEM}/ticket.md").strip()}
+        runs = [e for e in history if e.body.get("to") == "running"]
+        assert history.index(terminals[0]) < history.index(draw) < history.index(runs[1])
+
+
+def test_rework_split_successors_release_original_dependents(root):
+    commit_ticket(root, "original", confirmed())
+    commit_ticket(root, "dependent", confirmed(depends="- original", priority="P0"))
+    def split(checkout):
+        for stem, deps in [("piece-one", "none"), ("piece-two", "none"),
+                           ("leaf-a", "none"), ("leaf-b", "none")]:
+            commit_ticket(root, stem, confirmed(deps))
+        for stem, successors in [("original", ["piece-one", "piece-two"]), ("piece-one", ["leaf-a", "leaf-b"])]:
+            checkout.journal.append(EventType.SIGNAL, {"signal": "supersedes", "successors": successors}, ticket=stem)
+        checkout.journal.append(EventType.STATE_TRANSITION, {"to": "rejected"}, ticket="piece-one")
+    script = Script({"original": ["rejected"], "leaf-a": ["already_satisfied"],
+                     "leaf-b": ["gate_failed", "already_satisfied"]}, {"original": split})
+    assert drain(root, script) == 0
+    assert script.calls == ["original", "leaf-a", "leaf-b", "piece-two", "leaf-b", "dependent"]
+    assert retry_draws(root, "original") == 0 and retry_draws(root, "leaf-b") == 1
+    assert "piece-one" not in script.calls and script.calls.count("original") == 1
+
+
+@pytest.mark.parametrize("mechanical", [False, True])
+def test_rework_split_preserves_dispatch_terminal_invariant(rework_repo, monkeypatch, mechanical):
+    import json
+    from chupa import runner
+    from chupa.llm import FakeLLM
+    from tests.test_rework import order, requisition, successors
+    from tests.test_stages import ENV, SNAG, STEM, agent, verdict
+    from tests.test_terminal import author, clock, diagnosis_reply
+    repo = rework_repo
+    (repo / "chupa/thing.py").write_text("ok base\n")
+    git_out(repo, "add", "chupa/thing.py")
+    git_out(repo, "commit", "-m", "green base")
+    author(repo)
+    author(repo, stem="dependent", depends=f"- {STEM}")
+    def split(req):
+        return order("split", successors((repo / f"tickets/{STEM}/ticket.md").read_text().strip()))
+    if mechanical:
+        mechanical_first(monkeypatch, STEM)
+        first = []
+    else:
+        first = [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]),
+                 json.dumps({"verdict": "split", "lessons": ["Split the work."]})]
+    llm = FakeLLM([*first, split, requisition(), requisition(),
+                  agent({}, outcome="already_satisfied"), diagnosis_reply(), agent({}, outcome="already_satisfied"), diagnosis_reply(), agent({}, outcome="already_satisfied"), diagnosis_reply()])
+    returns, held = [], []
+    def bind(checkout):
+        writer = runner.bind(checkout, llm)
+        async def dispatch(ticket):
+            value = await writer(ticket)
+            returns.append((ticket.stem, value))
+            contender = Lockfile(checkout.config.state_dir, instance_id="contender", clock=clock)
+            with pytest.raises(LockHeld):
+                contender.acquire()
+            held.append(ticket.stem)
+            assert not writer.ctx.worktree(ticket.stem).exists()
+            return value
+        return dispatch
+    assert main(["drain"], cwd=repo, env=ENV, clock=clock, pipeline=bind) == 0
+    assert returns == [(STEM, "rejected"), ("piece-one", "already_satisfied"),
+                       ("piece-two", "already_satisfied"), ("dependent", "already_satisfied")]
+    events = Journal(repo / ".chupa/state", clock).read()
+    history = [e for e in events if e.ticket == STEM]
+    producing = next(e for e in history if e.body.get("to") == ("premise_failed" if mechanical else "gate_failed"))
+    assert producing.body == ({"to": "premise_failed", "stage": "implement", "reason": "render_over_bound"}
+                              if mechanical else {"to": "gate_failed", "stage": "review", "reason": "logic"})
+    mapping = next(e for e in history if e.body.get("signal") == "supersedes")
+    retirement = next(e for e in history if e.body == {"to": "rejected"})
+    assert history.index(mapping) < history.index(producing) < history.index(retirement)
+    assert history[-1] == retirement and draws(events, STEM, "retry") == 0
+    assert held == [s for s, _ in returns]
+    # The unchanged seam still rejects a producing return after a later retirement.
+    from chupa.drain import _Drain
+    from chupa.config import load_config
+    from chupa.tickets import validate_ticket
+    checkout = runner.Checkout(repo, load_config(None, cwd=repo), ENV, SubprocessExec(),
+                               Git(SubprocessExec(), env=ENV, timeout=30), Journal(repo / ".chupa/state", clock),
+                               LocalFileSystem(), clock)
+    candidate = validate_ticket("dependent", (repo / "tickets/dependent/ticket.md").read_text(), repo)
+    async def mismatch(ticket):
+        checkout.journal.append(EventType.STATE_TRANSITION, {"to": "rejected"}, ticket=ticket.stem)
+        return "gate_failed"
+    with pytest.raises(ValueError, match="but journaled 'rejected'"):
+        asyncio.run(_Drain(checkout, mismatch, frozenset())._run_one(candidate, False, "blob"))
+
+
+@pytest.mark.parametrize("action", ["split", "update", "escalate", "exhausted", "refusal", "publication", "missing"])
+def test_render_over_bound_dispatches_rework_without_diagnosis(rework_repo, monkeypatch, action):
+    import json
+    from chupa import daemon, runner
+    from chupa.llm import FakeLLM
+    from chupa.status import reject_queue
+    from tests.test_rework import order, requisition, successors
+    from tests.test_stages import ENV, STEM, agent, verdict
+    from tests.test_terminal import author, clock, diagnosis_reply
+    repo = rework_repo
+    author(repo)
+    if action == "exhausted":
+        path = repo / f"tickets/{STEM}/ticket.md"
+        path.write_text(path.read_text().replace("kind: feature", "kind: feature\nagent_tier: max\nagent_effort: max"))
+    mechanical_first(monkeypatch, STEM, workspace=action != "missing")
+    calls = []
+    apply = daemon.apply_rework
+    async def observed(*args, **kwargs):
+        calls.append(kwargs)
+        return await apply(*args, **kwargs)
+    monkeypatch.setattr(daemon, "apply_rework", observed)
+    def reply(req):
+        text = (repo / f"tickets/{STEM}/ticket.md").read_text().strip()
+        if action in {"split", "publication"}:
+            return order("split", successors(text))
+        if action == "update":
+            return order("update", [(STEM, text.replace("holds the word ok", "holds ok after shrinking"))])
+        return order("escalate") if action != "refusal" else order("update", [(STEM, "invalid")])
+    if action == "publication":
+        commit = Git.commit
+        async def failed(self, root, message, **kwargs):
+            if message.endswith(": rework"):
+                raise RuntimeError("publication failed")
+            return await commit(self, root, message, **kwargs)
+        monkeypatch.setattr(Git, "commit", failed)
+    script = [] if action == "missing" else [reply]
+    if action in {"split", "publication"}:
+        script += [requisition(), requisition()]
+    if action == "update":
+        script += [requisition(), agent({"chupa/thing.py": "ok\n"}), verdict()]
+    if action == "split":
+        (repo / "chupa/thing.py").write_text("ok base\n")
+        git_out(repo, "add", "chupa/thing.py")
+        git_out(repo, "commit", "-m", "green base")
+        script += [agent({}, outcome="already_satisfied"), diagnosis_reply(), agent({}, outcome="already_satisfied"), diagnosis_reply()]
+    llm = FakeLLM(script)
+    returned = []
+    def bind(checkout):
+        writer = runner.bind(checkout, llm)
+        writer.ctx.driver.retry_cap = 0
+        async def dispatch(ticket):
+            value = await writer(ticket)
+            returned.append((ticket.stem, value))
+            return value
+        return dispatch
+    from tests.test_drain_reentry import NoChild
+    assert main(["drain"], cwd=repo, env=ENV, clock=clock, pipeline=bind, reexec=NoChild()) == 0
+    events = Journal(repo / ".chupa/state", clock).read()
+    original = [e for e in events if e.ticket == STEM]
+    producing = next(e for e in original if e.body.get("to") == "premise_failed")
+    assert producing.body == {"to": "premise_failed", "stage": "implement", "reason": "render_over_bound"}
+    assert len(calls) == 1 and calls[0]["attempt"] == 0
+    assert not any(e.type == EventType.CAP_CONSUMED for e in original)
+    assert not any(e.body.get("signal") in {"diagnosis", "reject_arrival"} for e in original)
+    assert STEM not in reject_queue(events)
+    assert returned[0] == (STEM, "rejected" if action == "split" else "premise_failed")
+    if action == "split":
+        assert original[-1].body == {"to": "rejected"}
+        assert original.index(producing) < len(original) - 1
+    elif action == "update":
+        assert [s for s, _ in returned] == [STEM, STEM]
+        assert [r.surface for r in llm.requests] == ["rework", "requisition_review", "implement", "review"]
+    else:
+        assert original[-1] == producing and not any(e.body.get("signal") == "supersedes" for e in original)
+        assert [s for s, _ in returned] == [STEM]
+        if action == "missing":
+            assert llm.requests == []
+        if action in {"escalate", "exhausted", "refusal", "publication"}:
+            harvest = json.loads((repo / f"tickets/{STEM}/attempts/0/harvest.json").read_text())
+            assert all(f["paved_road"] for f in harvest["findings"]) and len(harvest["findings"]) >= 2

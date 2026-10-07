@@ -1,5 +1,9 @@
 """Reject arrival, release verbs, and premise accounting through the CLI."""
 
+import asyncio
+
+import pytest
+
 from chupa import runner
 from chupa.artifacts import Cost, Finding, StageResult
 from chupa.__main__ import main
@@ -153,3 +157,35 @@ def test_dirless_ghost_can_be_kept(tmp_path):
                          {"to": "gate_failed", "stage": "check", "routed": "reject_queue"}, ticket="ghost")
     assert main(["confirm", "ghost"], cwd=root, env=ENV, clock=Clock()) == 0
     assert _events(root, "ghost")[-1].body["ticket_sha"] is None
+
+
+
+@pytest.mark.parametrize("leaf_state", ["rejected", "abandoned"])
+def test_dead_dependencies_resolve_through_supersedes(tmp_path, leaf_state):
+    from chupa.config import load_config
+    from chupa.git import Git
+    from chupa.seams import LocalFileSystem, SubprocessExec
+    root = make_root(tmp_path)
+    for stem, depends in [("original", "none"), ("one", "none"), ("two", "none"),
+                           ("leaf", "none"), ("leaf-other", "none"), ("dependent", "- original")]:
+        commit_ticket(root, stem, confirmed(depends))
+    j = journal(root)
+    for stem, successors in [("original", ["one", "two"]), ("one", ["leaf", "leaf-other"])]:
+        j.append(EventType.SIGNAL, {"signal": "supersedes", "successors": successors}, ticket=stem)
+    assert main(["reject", "original"], cwd=root, env=ENV, clock=Clock()) == 0
+    assert not any(e.body.get("signal") == "dead_dependency" for e in _events(root, "dependent"))
+    assert not list((root / ".chupa/state/box").glob("*.json"))
+    if leaf_state == "rejected":
+        assert main(["reject", "leaf"], cwd=root, env=ENV, clock=Clock()) == 0
+    else:
+        j.append(EventType.STATE_TRANSITION, {"to": "abandoned"}, ticket="leaf")
+        checkout = runner.Checkout(root, load_config(None, cwd=root), ENV, SubprocessExec(),
+                                   Git(SubprocessExec(), env=ENV, timeout=30), j, LocalFileSystem(), Clock())
+        asyncio.run(runner._dead_dependents("leaf", checkout))
+    [signal] = [e for e in _events(root, "dependent") if e.body.get("signal") == "dead_dependency"]
+    assert signal.body == {"signal": "dead_dependency", "dead": "original"}
+    boxes = list((root / ".chupa/state/box").glob("*.json"))
+    assert len(boxes) == 1 and "failure_report" in boxes[0].read_text()
+    before = len(j.read())
+    assert main(["reject", "original"], cwd=root, env=ENV, clock=Clock()) == 0
+    assert len(j.read()) == before and len(list((root / ".chupa/state/box").glob("*.json"))) == 1
