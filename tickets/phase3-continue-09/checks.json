@@ -1,13 +1,13 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "b9ab85e4b6c5980efb76980f02d5e2c3cdb5bcc1",
+  "produced_at_sha": "3cdc466dd5b4feca92b6100380a67769248dfaa7",
   "stem": "phase3-continue-09",
-  "passed": false,
+  "passed": true,
   "changed_files": [
     "tests/test_seeded_phase3_09.py"
   ],
-  "inserted_lines": 440,
+  "inserted_lines": 477,
   "bypassed": [],
   "reports": [
     {
@@ -36,35 +36,17 @@
     },
     {
       "code": "requisition_review",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "daemon_core_refusal_unreachable",
-          "path": "tests/test_daemon_composition.py",
-          "line": 96,
-          "message": "The rewritten Records text says `build_daemon_core` calls `build_control(checkout)` once per core and places that result on the checkout its `bind` closure snapshots. The same text says `build_daemon_core` refuses an absent consumer, and test_production_shares_one_admission_control_consumer must prove that refusal. The test text also requires `CoreRig` to stay unchanged and read `rig.core.control`. `CoreRig` (tests/test_daemon_composition.py:86-100) passes a positional `Checkout` without `control` to `build_daemon_core`. If `build_daemon_core` builds the consumer itself, it can never see an absent one, so the refusal cannot be tested. If it instead refuses a checkout whose `control` is None, the unchanged `CoreRig` is refused and every core-rig test breaks. The spec never says what 'absent' means for `build_daemon_core`: a None `checkout.control` on input, or something else. It also never says whether `build_daemon_core` constructs the consumer or requires the caller to supply it.",
-          "paved_road": "Harden 19.P3.admission-holds-activation to pick one rule. Option 1: `build_daemon_core` constructs the consumer with `build_control` and puts it on its local checkout; drop it from the absent-consumer refusal list and its test obligation. Option 2: `build_daemon_core` requires a caller-supplied `checkout.control` and refuses None; then fence the `CoreRig` migration and stop calling it unchanged. Regenerate the ticket from the hardened unit.",
-          "kind": "spec_gap"
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false
     }
   ],
   "seeds": [
     {
       "stem": "admission-holds-activation",
-      "ticket_sha": "3fba0413cc3063f4f41e63e0ef36039480bfb539",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "daemon_core_refusal_unreachable",
-          "path": "tests/test_daemon_composition.py",
-          "line": 96,
-          "message": "The rewritten Records text says `build_daemon_core` calls `build_control(checkout)` once per core and places that result on the checkout its `bind` closure snapshots. The same text says `build_daemon_core` refuses an absent consumer, and test_production_shares_one_admission_control_consumer must prove that refusal. The test text also requires `CoreRig` to stay unchanged and read `rig.core.control`. `CoreRig` (tests/test_daemon_composition.py:86-100) passes a positional `Checkout` without `control` to `build_daemon_core`. If `build_daemon_core` builds the consumer itself, it can never see an absent one, so the refusal cannot be tested. If it instead refuses a checkout whose `control` is None, the unchanged `CoreRig` is refused and every core-rig test breaks. The spec never says what 'absent' means for `build_daemon_core`: a None `checkout.control` on input, or something else. It also never says whether `build_daemon_core` constructs the consumer or requires the caller to supply it.",
-          "paved_road": "Harden 19.P3.admission-holds-activation to pick one rule. Option 1: `build_daemon_core` constructs the consumer with `build_control` and puts it on its local checkout; drop it from the absent-consumer refusal list and its test obligation. Option 2: `build_daemon_core` requires a caller-supplied `checkout.control` and refuses None; then fence the `CoreRig` migration and stop calling it unchanged. Regenerate the ticket from the hardened unit.",
-          "kind": "spec_gap"
-        }
-      ],
+      "ticket_sha": "871cc64ee3516325cd6f82c3fb23740675ab15fa",
+      "verdict": "approve",
+      "findings": [],
       "mechanical": null
     },
     {
@@ -85,7 +67,7 @@
         "tests/test_seeded_phase3_09.py"
       ],
       "rc": 0,
-      "tail": "..............                                                           [100%]\n14 passed in 0.38s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "..............                                                           [100%]\n14 passed in 0.43s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -96,7 +78,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "........................................................................ [  5%]\n........................................................................ [ 10%]\n........................................................................ [ 16%]\n........................................................................ [ 21%]\n........................................................................ [ 27%]\n........................................................................ [ 32%]\n........................................................................ [ 38%]\n........................................................................ [ 43%]\n........................................................................ [ 49%]\n........................................................................ [ 54%]\n........................................................................ [ 60%]\n........................................................................ [ 65%]\n........................................................................ [ 70%]\n........................................................................ [ 76%]\n........................................................................ [ 81%]\n........................................................................ [ 87%]\n........................................................................ [ 92%]\n........................................................................ [ 98%]\n........................                                                 [100%]\n1320 passed in 98.79s (0:01:38)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................................ [  5%]\n........................................................................ [ 10%]\n........................................................................ [ 16%]\n........................................................................ [ 21%]\n........................................................................ [ 27%]\n........................................................................ [ 32%]\n........................................................................ [ 38%]\n........................................................................ [ 43%]\n........................................................................ [ 49%]\n........................................................................ [ 54%]\n........................................................................ [ 60%]\n........................................................................ [ 65%]\n........................................................................ [ 70%]\n........................................................................ [ 76%]\n........................................................................ [ 81%]\n........................................................................ [ 87%]\n........................................................................ [ 92%]\n........................................................................ [ 98%]\n........................                                                 [100%]\n1320 passed in 96.31s (0:01:36)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
