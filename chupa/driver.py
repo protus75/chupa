@@ -22,7 +22,7 @@ from chupa.effects import Effects
 from chupa.enginelog import EngineLog
 from chupa.gates import Gate, GateReport, merge_severity, run_gates
 from chupa.journal import Journal, run_seq as journal_run_seq
-from chupa.llm import LLM, AgentEffort, AgentTier, LLMRequest, LLMResult
+from chupa.llm import LLM, AgentEffort, AgentTier, LLMAborted, LLMRequest, LLMResult
 from chupa.llmeffect import llm_call
 from chupa.providers import ProviderCallError, WRITING_SURFACES
 from chupa.redact import Redactor
@@ -79,6 +79,42 @@ class _Tally:
             self.tokens = (self.tokens or 0) + sum(used)
 
 
+@dataclass
+class _Race:
+    call: asyncio.Future
+    timer: asyncio.Future
+    cleanup: asyncio.Task | None = None
+    timer_stopping: bool = False
+
+    def cancel_timer(self) -> None:
+        if not self.timer_stopping:
+            self.timer_stopping = True
+            self.timer.cancel()
+
+
+@dataclass
+class _Invocation:
+    task: asyncio.Task
+    race: _Race | None = None
+    abort: asyncio.Task | None = None
+
+
+async def _observe(task: asyncio.Future) -> Any:
+    # A waiter's repeated cancellation cannot abandon the owned cleanup.
+    cancelled = None
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError as exc:
+            cancelled = exc
+        except BaseException:
+            break
+    result = task.result()
+    if cancelled is not None:
+        raise cancelled
+    return result
+
+
 class Driver:
     def __init__(
         self,
@@ -103,6 +139,7 @@ class Driver:
         self.sleep = sleep
         self.severity = severity
         self.retry_cap = retry_cap
+        self._active: _Invocation | None = None
 
     @classmethod
     def from_config(
@@ -141,6 +178,39 @@ class Driver:
         effort: AgentEffort,
         stuck_budget: float,
         run_seq: int | None = None,
+    ) -> StageResult:
+        if self._active is not None:
+            raise ValueError("await the active Driver.run or abort_current before another stage")
+        # Own the stage itself, never the pipeline/worker task that called run.
+        task = asyncio.create_task(self._run(
+            stage, consumed, ticket=ticket, attempt=attempt, workspace=workspace,
+            tier=tier, effort=effort, stuck_budget=stuck_budget, run_seq=run_seq,
+        ))
+        invocation = _Invocation(task)
+        self._active = invocation
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError as exc:
+            if invocation.abort is not None:
+                try:
+                    await _observe(invocation.abort)
+                except Exception:
+                    if task.cancelled():
+                        raise exc
+                    raise
+            elif self._active is invocation:
+                await _observe(self._abort(invocation))
+            raise
+        finally:
+            if self._active is invocation and (
+                invocation.abort is None or invocation.abort.done()
+            ):
+                self._active = None
+
+    async def _run(
+        self, stage: LlmStage, consumed: Any, *, ticket: str | None, attempt: int,
+        workspace: Path, tier: AgentTier, effort: AgentEffort, stuck_budget: float,
+        run_seq: int | None,
     ) -> StageResult:
         """Run one stage attempt; `attempt` is the run sequence (section 6), stuck_budget in seconds."""
         stem = ticket or stage.surface  # ticketless surfaces spool and key under their surface name
@@ -248,30 +318,86 @@ class Driver:
                 return done("ok", artifact)
         return done(outcome)
 
+    async def abort_current(self) -> None:
+        """Stop and observe only the currently owned stage; dormant until explicitly invoked."""
+        invocation = self._active
+        if invocation is not None:
+            await _observe(self._abort(invocation))
+
+    def _abort(self, invocation: _Invocation) -> asyncio.Task:
+        if invocation.abort is None:
+            async def abort() -> None:
+                try:
+                    cleanup = None
+                    if not invocation.task.done():
+                        if invocation.race is not None:
+                            cleanup = self._kill(invocation.race)
+                        else:
+                            self.llm.abort_current()
+                            cleanup = None
+                        invocation.task.cancel()
+                    # Even a cleanup failure must not skip observation of the stage.
+                    owned = [invocation.task] if cleanup is None else [cleanup, invocation.task]
+                    results = await asyncio.gather(*owned, return_exceptions=True)
+                    for result in results:
+                        if isinstance(result, BaseException) and not isinstance(
+                            result, (asyncio.CancelledError, LLMAborted)
+                        ):
+                            raise result
+                finally:
+                    if invocation.task.done() and self._active is invocation:
+                        self._active = None
+            invocation.abort = asyncio.create_task(abort())
+        return invocation.abort
+
     async def race(self, start: Callable[[], Awaitable[Any]], remaining: float) -> Any:
         if remaining <= 0:
             raise _StuckBudget
-        call = asyncio.ensure_future(start())
-        timer = asyncio.ensure_future(self.sleep(remaining))
+        race = _Race(asyncio.ensure_future(start()), asyncio.ensure_future(self.sleep(remaining)))
+        invocation = self._active
+        if invocation is not None and invocation.task is asyncio.current_task():
+            invocation.race = race
         try:
-            await asyncio.wait({call, timer}, return_when=asyncio.FIRST_COMPLETED)
-        except BaseException:
-            await self._kill(call, timer)
-            raise
-        if call.done():
-            timer.cancel()
-            return call.result()
-        await self._kill(call, timer)
-        raise _StuckBudget
+            try:
+                await asyncio.wait({race.call, race.timer}, return_when=asyncio.FIRST_COMPLETED)
+                if race.call.done():
+                    race.cancel_timer()
+                    await _observe(asyncio.gather(race.timer, return_exceptions=True))
+            except BaseException as exc:
+                try:
+                    await _observe(self._kill(race))
+                except Exception:
+                    if (isinstance(exc, asyncio.CancelledError) and invocation is not None
+                            and invocation.abort is not None):
+                        # The abort owner reports cleanup failure; the killed stage stays cancelled.
+                        raise exc
+                    raise
+                raise
+            if race.call.done():
+                return race.call.result()
+            await _observe(self._kill(race))
+            raise _StuckBudget
+        finally:
+            if invocation is not None and invocation.race is race:
+                invocation.race = None
 
-    async def _kill(self, call: asyncio.Future, timer: asyncio.Future) -> None:
-        # abort_current FIRST: cancelling alone leaves a hung writer's process group alive in the worktree.
-        self.llm.abort_current()
-        timer.cancel()
-        call.cancel()
-        await asyncio.wait({call, timer})
-        if not call.cancelled():
-            call.exception()  # retrieved: the aborted call's error is expected, not a leak
+    def _kill(self, race: _Race) -> asyncio.Task:
+        if race.cleanup is None:
+            # Stop the external writer before any cancellation, including stage cancellation.
+            self.llm.abort_current()
+            race.cancel_timer()
+            race.call.cancel()
+
+            async def cleanup() -> None:
+                results = await asyncio.gather(race.call, race.timer, return_exceptions=True)
+                for result in results:
+                    if isinstance(result, BaseException) and not isinstance(
+                        result, (asyncio.CancelledError, LLMAborted)
+                    ):
+                        raise result
+
+            race.cleanup = asyncio.create_task(cleanup())
+        return race.cleanup
 
 
 def _invalid(stage: LlmStage, e: ValidationError) -> Finding:

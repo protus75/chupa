@@ -29,6 +29,11 @@ def control_inbox(*, journal: Journal, lifecycle_id: str, holds: Callable[[], Se
                         apply=apply, files=files, read=read)
 
 
+async def executor_abort(abort_current: Callable[[], Awaitable[None]]) -> None:
+    """Dormant unwind boundary, supplied by the caller after durable kill acceptance."""
+    await abort_current()
+
+
 class PauseConsumer:
     """One serial inbox and desired pause state, owned by the engine's writer lock."""
 
