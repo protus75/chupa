@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "27f3f818c7137dc636dd374bf79c67e8ac57ed3e",
+  "stem": "phase3-continue-10",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "reject",
+  "lessons": [
+    "The ticket's Scope in tells seeds to carry Owner/Records/Observable/Tests bullets verbatim. 19.L SPEC DEPTH forbids copying unit text into a seed or seeding ticket. Regenerate the ticket so it cites the units instead of copying them.",
+    "Regenerated ticket: each seed cites its own entry unit through its Plan contract: 19.I, 19.P3.<stem>, section 20, plus section 6 for kill-executor-abort. Its prose adds only edges, starts, fence floors, earned closure paths and the Verification command.",
+    "phase3-continue-11 must not embed the kill-worker-stop or kill-failure-suppression contract blocks. It cites 19.P3.kill-worker-stop and 19.P3.kill-failure-suppression and carries the cite-don't-copy rule forward to phase3-continue-12.",
+    "tests/test_seeded_phase3_10.py should pin exact Plan contract citations, not copied contract text. Its render measurements must then drop the inlined unit bodies."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
