@@ -1,9 +1,21 @@
 """Dormant dispatch task ownership (CHUPA_PLAN.md 19.P3.dispatch-admission-boundary)."""
 
 import asyncio
+from collections.abc import Callable
 
+from chupa.config import Config, ConfigSnapshot, snapshot_config
 from chupa.runner import Dispatch
 from chupa.tickets import Ticket
+
+
+def snapshot_dispatch(load: Callable[[], Config], bind: Callable[[ConfigSnapshot], Dispatch]) -> Dispatch:
+    """Bind a fresh snapshot inside the admission-owned callback's lifetime, never while queued."""
+    async def dispatch(ticket: Ticket) -> str:
+        snapshot = snapshot_config(load())
+        callback = bind(snapshot)
+        return await callback(ticket)
+
+    return dispatch
 
 
 class DaemonAdmission:

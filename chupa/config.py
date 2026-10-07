@@ -5,7 +5,10 @@ explicit null anywhere is refused before validation, so `X | None` fields below 
 "unset", never "null was written".
 """
 
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import Annotated, Any, Literal
 
 import yaml
@@ -194,6 +197,35 @@ class Config(_Strict):
         if self.report_inbox is not None:
             self.report_inbox = base / self.report_inbox
         return self
+
+
+@dataclass(frozen=True, slots=True)
+class ConfigSnapshot:
+    """Detached field-attribute view of a validated config record (19.P3.dispatch-config-snapshot)."""
+
+    _fields: Mapping[str, Any]
+
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self._fields[name]
+        except KeyError:
+            raise AttributeError(name) from None
+
+
+def snapshot_config(config: Config) -> ConfigSnapshot:
+    """Capture every validated field without running parsing, defaults, or validators again."""
+    def freeze(value: Any) -> Any:
+        if isinstance(value, BaseModel):
+            return ConfigSnapshot(MappingProxyType({
+                name: freeze(getattr(value, name)) for name in type(value).model_fields
+            }))
+        if isinstance(value, dict):
+            return MappingProxyType({key: freeze(item) for key, item in value.items()})
+        if isinstance(value, list):
+            return tuple(freeze(item) for item in value)
+        return value
+
+    return freeze(config)
 
 
 def load_config(config_path: Path | None, *, cwd: Path) -> Config:
