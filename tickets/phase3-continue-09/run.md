@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-All five required entry units passed entry_unit_gap and resolve_plan_contract; the live plan now specifies the shared inbox carrier and caller migrations.
+Caller closure additionally requires tests/test_reject_queue.py and tests/test_daemon_tasks.py; measured headroom requires the composition suite on-demand. Check review and seed lifting remain engine-owned.
 
 ## Dead ends
 
-Stopped before authoring because preserving the mandatory verbatim block would produce contradictory seed obligations.
+Corrected invariant-name extraction that initially counted test filenames.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Read-first validation identified the contradiction within the expected 60-minute budget.
+Completed within the expected 60-minute budget; both verification commands exit 0.
 
