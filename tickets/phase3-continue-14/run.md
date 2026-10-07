@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Caller closure also required tests/test_control.py alongside the two previously identified suites; all three earned additions are pinned.
+The caller sweep also earned tests/test_control.py for checkpoint identity and calibration migration; the approved continuation remains byte-identical.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60-minute expected budget; verification passed with 14 admission tests and 1,603 full-suite tests.
+Completed within the expected 60-minute budget.
 
