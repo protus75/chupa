@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Previously missing dispatch entry units are complete; no fence additions were required.
+Recovered the missing prior test and Rework seed byte-identically; the approved continuation seed remained untouched.
 
 ## Dead ends
 
