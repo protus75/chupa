@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The prior missing kill-cli-activation contract is repaired; no fence additions were earned, and all renders fit headroom.
+Preserved both approved seeds byte-for-byte and left all three seeds uncommitted for Check; the successor cites entry units instead of copying their text.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60-minute expected budget.
+Completed within the 60-minute expected and 90-minute stuck budgets.
 
