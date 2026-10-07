@@ -10,6 +10,7 @@ A refusal leaves main untouched and the branch in place; journaling a non-ok ter
 runner's (section 11.2).
 """
 
+from collections.abc import Callable
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -17,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from chupa.artifacts import Artifact, Cost, Finding, NonBlank, StageResult
 from chupa.gates import GateReport, run_gates
 from chupa.git import GitError, RebaseRefused
-from chupa.journal import EventType
+from chupa.journal import Event, EventType
 from chupa.stages import (
     CHECK_GATES,
     MAIN,
@@ -32,6 +33,14 @@ from chupa.tickets import TICKETS_DIR, Ticket, TicketInvalid, ticket_path, valid
 
 # Versions the merge contract in the provenance slot, like the mechanical Check.
 MERGE_SPEC_VERSION = 1
+
+
+def compose_pipeline(ctx: StageContext, *, escalate: Callable[[Event], None]) -> "MergeQueue":
+    """Compose admission without running it; bootstrap dispatch still merges inline."""
+    # The queue's priority helpers import drain, which imports runner and this module.
+    from chupa.mergequeue import MergeQueue
+
+    return MergeQueue(ctx, escalate=escalate)
 
 
 class Candidate(BaseModel):

@@ -19,10 +19,10 @@ from chupa.caps import capability, consume, next_rung, spent, spent_reason
 from chupa.config import Config, ConfigSnapshot
 from chupa.driver import Driver
 from chupa.git import Git
-from chupa.journal import TERMINAL_STATES, EventType, Journal
+from chupa.journal import TERMINAL_STATES, Event, EventType, Journal
 from chupa.llm import LLM
 from chupa.lockfile import Lockfile
-from chupa.merge import merge
+from chupa.merge import compose_pipeline, merge
 from chupa.providers import ProviderLLM
 from chupa.reconcile import reconcile
 from chupa.seams import Clock, FileSystem, GroupExec, Sleep
@@ -94,6 +94,12 @@ def bind(checkout: Checkout, llm: LLM) -> Dispatch:
                                 sleep=checkout.sleep, fs=checkout.fs)
     ctx = StageContext(repo=checkout.repo, config=checkout.config, env=checkout.env, exec_=checkout.exec_,
                        git=checkout.git, fs=checkout.fs, driver=driver, specs_dir=SPECS_DIR)
+
+    def escalate(event: Event) -> None:
+        # Queue signals are already journaled; notification transport lands in Phase 4.
+        return None
+
+    compose_pipeline(ctx, escalate=escalate)
     return lambda ticket: drive(ctx, ticket)
 
 

@@ -7,12 +7,14 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-from chupa import __main__ as cli, caps, daemon, driver, providers, runner
+from chupa import __main__ as cli, caps, daemon, driver, merge, providers, runner, stages
 from chupa.config import ConfigError, ConfigSnapshot, load_config
 from chupa.daemon import DaemonAdmission
 from chupa.driver import Driver, LlmStage
 from chupa.git import Git
 from chupa.journal import EventType, Journal
+from chupa.llm import FakeLLM
+from chupa.mergequeue import CONFLICT_FACTS, MergeQueue
 from chupa.providers import ProviderLLM, child_env
 from chupa.redact import Redactor
 from chupa.scheduler import Scheduler
@@ -24,6 +26,7 @@ from tests.test_daemon_admission import assert_idle
 from tests.test_daemon_config import assert_detached, python_values
 from tests.test_providers import CONFIG, ENV, claude_ok, codex_ok
 from tests.test_scheduler import Time, import_closure, text, turn
+from tests.test_mergequeue import ctx as admission_context, ready
 
 
 class ScriptFS:
@@ -574,6 +577,15 @@ def observe_preparation(monkeypatch):
         trace.append("context")
         return ctx
 
+    compose = runner.compose_pipeline
+
+    def queue(ctx, *, escalate):
+        assert trace[-1] == "context" and ctx is contexts[-1]
+        value = compose(ctx, escalate=escalate)
+        assert value.ctx is ctx and value.escalate is escalate
+        trace.append("queue")
+        return value
+
     monkeypatch.setattr(daemon, "snapshot_config", snapshot)
     monkeypatch.setattr(ProviderLLM, "__init__", provider)
     monkeypatch.setattr(ProviderLLM, "preflight", probe)
@@ -582,6 +594,7 @@ def observe_preparation(monkeypatch):
     monkeypatch.setattr(Redactor, "from_config", classmethod(redacting))
     monkeypatch.setattr(driver, "merge_severity", merging)
     monkeypatch.setattr(runner, "StageContext", context)
+    monkeypatch.setattr(runner, "compose_pipeline", queue)
     return trace, snapshots, contexts
 
 
@@ -650,7 +663,7 @@ async def test_production_core_uses_real_snapshot_pipeline(tmp_path, monkeypatch
     assert await rig.core.scheduler.dispatch(ticket) == "original-terminal"
     assert called == [ticket] and len(snapshots) == len(contexts) == 1
     assert trace[:4] == ["capture", "provider", "redactor", "preflight-start"]
-    assert trace[4:] == ["preflight-end", "bind", "driver", "redactor", "severity", "context"]
+    assert trace[4:] == ["preflight-end", "bind", "driver", "redactor", "severity", "context", "queue"]
     assert set(reads) == {"env", "route"}
     model_calls = [call for call in rig.exec.calls if call[3] is not None]
     assert len(model_calls) == 6  # Five distinct probes, then one read-only driver call.
@@ -681,7 +694,7 @@ async def test_production_core_awaits_preflight_inside_admission(tmp_path, monke
             await release.wait()
 
     async def stop(ctx, ticket):
-        assert ctx.config is snapshots[-1] and trace[-1] == "context"
+        assert ctx.config is snapshots[-1] and trace[-1] == "queue"
         called.append(ticket)
         return "merged"
 
@@ -707,7 +720,7 @@ async def test_production_core_awaits_preflight_inside_admission(tmp_path, monke
     assert [s.providers[1].models_by_tier.medium for s in snapshots] == ["x-med", "x-edited"]
     assert [c.driver.llm._config for c in contexts] == snapshots
     assert contexts[0].driver.llm is not contexts[1].driver.llm
-    for step in ("capture", "provider", "preflight-start", "preflight-end", "bind", "driver", "context"):
+    for step in ("capture", "provider", "preflight-start", "preflight-end", "bind", "driver", "context", "queue"):
         assert trace.count(step) == 2
     probed = [argv[argv.index("-m") + 1] for argv, _, _, prompt, _ in rig.exec.calls
               if argv[0] == "codex" and prompt is not None]
@@ -809,6 +822,118 @@ def test_bootstrap_pipeline_prepares_before_dispatch(tmp_path, monkeypatch, refu
         assert bound == [rig.checkout] and called == []
         assert asyncio.run(callback(ticket)) == "merged" and called == [ticket]
     assert_idle(rig.core.admission)
+
+
+def capture_pipeline_queue(monkeypatch):
+    captured = []
+    compose = runner.compose_pipeline
+
+    def recording(ctx, *, escalate):
+        queue = compose(ctx, escalate=escalate)
+        captured.append((ctx, escalate, queue))
+        return queue
+
+    monkeypatch.setattr(runner, "compose_pipeline", recording)
+    return captured
+
+
+@pytest.mark.asyncio
+async def test_production_pipeline_composes_merge_queue(tmp_path, monkeypatch):
+    captured = capture_pipeline_queue(monkeypatch)
+    rig = CoreRig(tmp_path)
+    assert captured == []
+    callback = runner.bind(rig.checkout, FakeLLM([]))
+    [(ctx, consumer, queue)] = captured
+    assert isinstance(queue, MergeQueue) and queue.ctx is ctx and queue.escalate is consumer
+    for field in ("repo", "config", "env", "exec_", "git", "fs"):
+        assert getattr(ctx, field) is getattr(rig.checkout, field)
+    assert ctx.driver.clock is rig.checkout.clock and ctx.driver.sleep is rig.checkout.sleep
+    assert ctx.driver.effects._journal is ctx.driver.journal
+    assert ctx.driver.spool._fs is ctx.fs
+    assert queue.pending == {} and queue.active is None and not queue.paused and queue.red_stems == []
+    seen = []
+
+    async def dispatch(context, ticket):
+        assert context is ctx
+        seen.append(ticket)
+        return "merged"
+
+    monkeypatch.setattr(runner, "drive", dispatch)
+    ticket = await rig.add("work")
+    assert await callback(ticket) == "merged" and seen == [ticket]
+    event = rig.journal.append(EventType.SIGNAL, {"kind": "merge_red_streak", "stems": ["work"], "limit": 3},
+                               ticket="work")
+    before = ctx.driver.journal.read()
+    assert consumer(event) is None
+    assert ctx.driver.journal.read() == before and rig.exec.calls == [] and rig.fs.files == {}
+    recorded = []
+    supplied = recorded.append
+    direct = merge.compose_pipeline(ctx, escalate=supplied)
+    assert direct.ctx is ctx and direct.escalate is supplied
+    direct.escalate(event)
+    assert recorded == [event] and ctx.driver.journal.read() == before
+    with pytest.raises(TypeError):
+        merge.compose_pipeline(ctx)
+
+
+@pytest.mark.asyncio
+async def test_merge_queue_composition_has_no_side_effects(tmp_path, monkeypatch):
+    rig = CoreRig(tmp_path)
+    captured = capture_pipeline_queue(monkeypatch)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("composition performed admission or an external effect")
+
+    for owner, names in ((MergeQueue, ("offer", "process", "_signal")),
+                         (Git, ("_call",)), (stages, ("gather_evidence", "gather_safety_evidence")),
+                         (Journal, ("append",)), (asyncio, ("create_task",)),
+                         (rig.exec, ("run",)), (rig.fs, ("write", "replace"))):
+        for name in names:
+            monkeypatch.setattr(owner, name, forbidden)
+    tasks = asyncio.all_tasks()
+    callback = runner.bind(rig.checkout, FakeLLM([]))
+    [(ctx, _, queue)] = captured
+    assert callable(callback) and queue.ctx is ctx
+    direct = merge.compose_pipeline(ctx, escalate=forbidden)
+    assert direct.ctx is ctx
+    assert asyncio.all_tasks() == tasks and rig.journal.read() == []
+    assert rig.exec.calls == [] and rig.fs.files == {}
+
+
+@pytest.mark.asyncio
+async def test_composed_merge_queue_admits_reviewed_candidate(admission_context, monkeypatch):
+    source = admission_context
+    checkout = runner.Checkout(source.repo, source.config, source.env, source.exec_, source.git,
+                               source.driver.journal, source.fs, source.driver.clock, source.driver.sleep)
+    captured = capture_pipeline_queue(monkeypatch)
+    callback = runner.bind(checkout, FakeLLM([]))
+    [(ctx, consumer, queue)] = captured
+    assert callable(callback) and queue.ctx is ctx and queue.escalate is consumer
+    ticket = await ready(ctx, verification=(("grep", "-q", "ok", "chupa/thing.py"),))
+    reviewed = await ctx.git.rev_parse(ctx.repo, ticket.stem)
+    queue.offer(ticket, attempt=7)
+    assert queue.pending == {ticket.stem: (ticket, 7)}
+    [result] = await queue.process()
+    assert result.outcome == "ok", result.findings
+    artifact = result.artifact
+    assert isinstance(artifact, merge.Admission)
+    assert artifact.stem == ticket.stem and artifact.reviewed_sha == reviewed
+    assert artifact.commit == await ctx.git.rev_parse(ctx.repo, "main")
+    assert artifact.produced_at_sha == artifact.commit and artifact.produced_by_spec_version == merge.MERGE_SPEC_VERSION
+    events = ctx.driver.journal.read()
+    [merged] = [e for e in events if e.type == EventType.STATE_TRANSITION]
+    assert merged.ticket == ticket.stem and merged.key is None
+    assert merged.body == {"to": "merged", "commit": artifact.commit, "reviewed_sha": reviewed}
+    [completion] = [e for e in events if e.type == EventType.EFFECT_COMPLETION]
+    assert completion.key == f"merge/{ticket.stem}/7"
+    [facts] = [e for e in events if e.type == EventType.SIGNAL]
+    assert facts.ticket == ticket.stem and facts.key is None
+    assert facts.body == {"kind": CONFLICT_FACTS, "conflicted_paths": [], "resolving_rung": "none",
+                          "strategy_paths": [], "integration_red_paths": []}
+    assert (ctx.config.state_dir / "spools" / ticket.stem / "7/merge-integration/verify-01.txt").is_file()
+    assert not ctx.worktree(ticket.stem).exists()
+    assert await ctx.git._run(ctx.repo, "branch", "--list", ticket.stem) == ""
+    assert queue.pending == {} and queue.active is None
 
 
 def sources():

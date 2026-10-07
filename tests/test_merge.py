@@ -15,6 +15,8 @@ from chupa.git import Git
 from chupa.journal import EventType
 from chupa.llm import FakeLLM
 from chupa.merge import Admission, Candidate, PostRebaseGate, merge
+from chupa.mergequeue import CONFLICT_FACTS, MergeQueue
+from chupa import runner
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.stages import StageContext, run_stages
 from chupa.tickets import validate_ticket
@@ -107,6 +109,36 @@ def test_a_passing_ticket_squash_merges_with_trailers_and_journals_merged(repo):
     assert not ctx.worktree(STEM).exists()
     assert git(repo, "branch", "--list", STEM) == ""
     assert git(repo, "status", "--porcelain") == ""
+
+
+def test_bootstrap_pipeline_keeps_inline_admission(repo, monkeypatch):
+    author(repo)
+    source = context(repo, [])
+    checkout = runner.Checkout(repo, source.config, source.env, source.exec_, source.git,
+                               source.driver.journal, source.fs, source.driver.clock, source.driver.sleep)
+    llm = FakeLLM([agent({"chupa/thing.py": "ok\n"}), verdict()])
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("bootstrap dispatch used the composed queue")
+
+    monkeypatch.setattr(MergeQueue, "offer", forbidden)
+    monkeypatch.setattr(MergeQueue, "process", forbidden)
+    calls = []
+    original = runner.merge
+
+    async def inline(ctx, ticket, *, attempt):
+        calls.append((ctx, ticket, attempt))
+        return await original(ctx, ticket, attempt=attempt)
+
+    monkeypatch.setattr(runner, "merge", inline)
+    dispatch = runner.bind(checkout, llm)
+    ticket = validate_ticket(STEM, (repo / "tickets" / STEM / "ticket.md").read_text(), repo)
+    assert asyncio.run(dispatch(ticket)) == "merged"
+    [(ctx, original_ticket, attempt)] = calls
+    assert original_ticket.stem == ticket.stem and attempt == 0
+    assert len(merged_events(ctx)) == 1
+    assert not any(e.body.get("kind") == CONFLICT_FACTS for e in ctx.driver.journal.read())
+    assert (repo / "chupa/thing.py").read_text() == "ok\n" and not ctx.worktree(STEM).exists()
 
 
 def test_approval_carries_across_a_clean_rebase_onto_a_moved_main(repo):

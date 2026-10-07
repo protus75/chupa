@@ -1,4 +1,4 @@
-"""Direct dormant admission with injected seams and disposable real repositories."""
+"""Queue admission with injected seams and disposable real repositories."""
 
 import ast
 import asyncio
@@ -748,20 +748,26 @@ def import_closure(root, sources):
     return reached
 
 
-def assert_dormant(sources):
-    assert "chupa.mergequeue" not in import_closure("chupa.__main__", sources)
+def assert_reachable(sources):
+    assert "chupa.mergequeue" in import_closure("chupa.__main__", sources)
 
 
-def test_merge_queue_is_dormant(ctx):
+def test_merge_queue_is_reachable_from_production():
     root = Path(__file__).resolve().parents[1]
     sources = {"chupa." + p.stem: p.read_text() for p in (root / "chupa").glob("*.py")}
-    assert_dormant(sources)
+    assert_reachable(sources)
     closure = import_closure("chupa.__main__", sources)
     assert "chupa.merge" in closure
+    edge = "from chupa.mergequeue import MergeQueue"
+    assert edge in sources["chupa.merge"]
+    removed = {**sources, "chupa.merge": sources["chupa.merge"].replace(edge, "pass")}
+    with pytest.raises(AssertionError):
+        assert_reachable(removed)
     for spelling in ["import chupa.mergequeue as queue", "from chupa import mergequeue as queue"]:
-        reached = {**sources, "chupa.merge": sources["chupa.merge"] + "\n" + spelling}
-        with pytest.raises(AssertionError):
-            assert_dormant(reached)
+        assert_reachable({**removed, "chupa.merge": removed["chupa.merge"] + "\n" + spelling})
+
+
+def test_inline_admission_does_not_use_merge_queue(ctx):
     async def scenario():
         ticket = await ready(ctx)
         result = await merge.merge(ctx, ticket, attempt=0)
