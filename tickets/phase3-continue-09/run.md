@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-Four earned caller-closure additions were required; all Context files fit headroom, and Check retains review and lift responsibility.
+All five required entry units passed entry_unit_gap and resolve_plan_contract; the approved phase3-continue-10 seed remains untouched.
 
 ## Dead ends
 
-none
+Tracing main -> pipeline -> prepare_pipeline -> bind and drain -> build_control found separate construction paths with no inbox carrier; signature or Checkout changes require callers that the contract declares preservation-only.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60-minute expected budget.
+Stopped during read-first contract validation, before implementation.
 
