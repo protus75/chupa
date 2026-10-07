@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "3c5baa57c3afd8df2f8a7afe5de626708492b5ba",
+  "produced_at_sha": "1011749601787c5be55b9e33cbf7260ebe0d150f",
   "stem": "phase3-continue-14",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "gate_failed",
   "stage": "check",
   "verdict": "retry",
   "lessons": [
-    "Grep _before_dispatch across tests/ before authoring restart-timers. test_daemon_composition.py:1261 and test_daemon_pause.py:201 pin it to the checkpoint. Fence both as earned 19.L closure paths, give the reason, and add test_daemon_pause.py to Verification.",
-    "Or state in restart-timers Scope a composition route that keeps admission._before_dispatch identical to the pause checkpoint, and name the test proving startup precedes the first snapshot_dispatch. Do not keep claiming no fence additions were earned.",
-    "tests/test_daemon_composition.py:956 pins the exact line 'from chupa.daemon import DaemonCore, PauseConsumer, daemon_core' in chupa/__main__.py. Scope must keep it byte-identical with new owners on separate import lines, or fence that test as a migrated pin.",
-    "Pin every earned fence addition in tests/test_seeded_phase3_14.py with its path, its reason and its Context/On-demand partition, as 19.L closure rules 2-5 require. Then re-author only the snagged restart-timers seed and keep any approved seed verbatim."
+    "Keep the approved phase3-continue-15 seed byte-for-byte, since an approve holds while bytes match its ticket_sha. Re-author only the restart-timers seed.",
+    "In restart-timers Scope, earn the migration of tests/test_daemon_composition.py test_production_core_preserves_eligibility_order_and_backpressure (line 323) under 19.L closure rules 2-5. Its bare `running` plant becomes a restart orphan once startup runs on the first admission.",
+    "Name the migration in restart-timers Scope: await the composed startup before planting `running`, or rewrite the exclusion case to cover the reap. Keep its other eligibility, order and backpressure assertions unchanged.",
+    "Before authoring, grep every CoreRig and build_daemon_core caller in tests/ for open `running` or unmatched effect_intent records planted before the first admission. Earn each one found. test_scheduler.py:433 is already shown safe.",
+    "In tests/test_seeded_phase3_14.py, pin the new earned path with its reason and its Context partition, and update the recorded size snapshots to match. Rerun both Verification commands."
   ],
   "mechanical": null,
   "spec_version": "1.1",
