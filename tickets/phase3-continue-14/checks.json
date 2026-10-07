@@ -1,13 +1,13 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "1011749601787c5be55b9e33cbf7260ebe0d150f",
+  "produced_at_sha": "8e69c7a2fa9adf16be39f4d762540112f79e2044",
   "stem": "phase3-continue-14",
-  "passed": false,
+  "passed": true,
   "changed_files": [
     "tests/test_seeded_phase3_14.py"
   ],
-  "inserted_lines": 424,
+  "inserted_lines": 389,
   "bypassed": [],
   "reports": [
     {
@@ -36,17 +36,8 @@
     },
     {
       "code": "requisition_review",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "unmigrated_orphan_planting_test",
-          "path": "tests/test_daemon_composition.py",
-          "line": 323,
-          "message": "test_production_core_preserves_eligibility_order_and_backpressure writes a bare `running` transition for stem `running` (line 323) and then dispatches `child` through the real CoreRig admission. The ticket now requires startup to run on that first admission. Startup reaps `running` with reconcile, which calls git worktree_prune through CoreRig's ScriptExec. ScriptExec asserts that argv[0] is claude or codex, so the dispatch raises AssertionError. Even without that crash, the stem becomes `abandoned`, which changes the later `dispatch_next() is None` eligibility assertions. This file is fenced, but the Scope text allows migrating 'only the predecessor _before_dispatch == checkpoint identity assertions'. Criterion 1 runs this file, so it cannot pass without an edit the ticket forbids.",
-          "paved_road": "Add this test to the earned predecessor migrations in Scope in. Either start the daemon (await the composed startup) before planting the `running` transition, so it stays a live-run eligibility fact rather than a restart orphan, or rewrite its `running` exclusion case to cover the reap. Keep its other eligibility, order and backpressure assertions unchanged. Re-sweep CoreRig and build_daemon_core callers for open `running` or unmatched effect_intent records planted before the first admission. The same grep found test_scheduler.py:433 (safe: later terminals close the run before dispatch), and test_heartbeat.py, test_kill_worker_stop.py, test_daemon_config.py and test_daemon_pause.py plant none.",
-          "kind": "authoring_error"
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false
     }
   ],
@@ -60,18 +51,9 @@
     },
     {
       "stem": "restart-timers",
-      "ticket_sha": "7b36b451e2b7d72d39228bb466dda61b9f347d3a",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "unmigrated_orphan_planting_test",
-          "path": "tests/test_daemon_composition.py",
-          "line": 323,
-          "message": "test_production_core_preserves_eligibility_order_and_backpressure writes a bare `running` transition for stem `running` (line 323) and then dispatches `child` through the real CoreRig admission. The ticket now requires startup to run on that first admission. Startup reaps `running` with reconcile, which calls git worktree_prune through CoreRig's ScriptExec. ScriptExec asserts that argv[0] is claude or codex, so the dispatch raises AssertionError. Even without that crash, the stem becomes `abandoned`, which changes the later `dispatch_next() is None` eligibility assertions. This file is fenced, but the Scope text allows migrating 'only the predecessor _before_dispatch == checkpoint identity assertions'. Criterion 1 runs this file, so it cannot pass without an edit the ticket forbids.",
-          "paved_road": "Add this test to the earned predecessor migrations in Scope in. Either start the daemon (await the composed startup) before planting the `running` transition, so it stays a live-run eligibility fact rather than a restart orphan, or rewrite its `running` exclusion case to cover the reap. Keep its other eligibility, order and backpressure assertions unchanged. Re-sweep CoreRig and build_daemon_core callers for open `running` or unmatched effect_intent records planted before the first admission. The same grep found test_scheduler.py:433 (safe: later terminals close the run before dispatch), and test_heartbeat.py, test_kill_worker_stop.py, test_daemon_config.py and test_daemon_pause.py plant none.",
-          "kind": "authoring_error"
-        }
-      ],
+      "ticket_sha": "9678812cd65c71f19e143f1f6f922278c6fea9d7",
+      "verdict": "approve",
+      "findings": [],
       "mechanical": null
     }
   ],
@@ -96,7 +78,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": ".................. [  4%]\n........................................................................ [  8%]\n........................................................................ [ 13%]\n........................................................................ [ 17%]\n........................................................................ [ 22%]\n........................................................................ [ 26%]\n........................................................................ [ 31%]\n........................................................................ [ 35%]\n........................................................................ [ 40%]\n........................................................................ [ 44%]\n........................................................................ [ 49%]\n........................................................................ [ 53%]\n........................................................................ [ 58%]\n........................................................................ [ 62%]\n........................................................................ [ 67%]\n........................................................................ [ 71%]\n........................................................................ [ 76%]\n........................................................................ [ 80%]\n........................................................................ [ 85%]\n........................................................................ [ 89%]\n........................................................................ [ 94%]\n........................................................................ [ 98%]\n...................                                                      [100%]\n1603 passed in 121.52s (0:02:01)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": ".................. [  4%]\n........................................................................ [  8%]\n........................................................................ [ 13%]\n........................................................................ [ 17%]\n........................................................................ [ 22%]\n........................................................................ [ 26%]\n........................................................................ [ 31%]\n........................................................................ [ 35%]\n........................................................................ [ 40%]\n........................................................................ [ 44%]\n........................................................................ [ 49%]\n........................................................................ [ 53%]\n........................................................................ [ 58%]\n........................................................................ [ 62%]\n........................................................................ [ 67%]\n........................................................................ [ 71%]\n........................................................................ [ 76%]\n........................................................................ [ 80%]\n........................................................................ [ 85%]\n........................................................................ [ 89%]\n........................................................................ [ 94%]\n........................................................................ [ 98%]\n...................                                                      [100%]\n1603 passed in 119.46s (0:01:59)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
