@@ -79,6 +79,43 @@ class WorkerStop:
         await _protected_cleanup(self._stop)
 
 
+class WorkerFailureObserver:
+    """Dormant notification boundary for WorkerStop's supplied workers (19.P3.kill-failure-suppression).
+
+    The lock holder supplies its current, durably folded projection. Observation
+    never stops workers or replaces their owner's exception propagation.
+    """
+
+    def __init__(self, *, lifecycle_id: str, workers: Iterable[asyncio.Task],
+                 projection: Callable[[], ControlProjection],
+                 failure: Callable[[BaseException], None]) -> None:
+        self.lifecycle_id, self.workers = lifecycle_id, tuple(workers)
+        self.projection, self.failure = projection, failure
+        self._observation: asyncio.Task | None = None
+
+    async def observe(self) -> None:
+        if self._observation is None:
+            async def worker(task: asyncio.Task) -> None:
+                try:
+                    await task
+                except BaseException as exc:
+                    projection = self.projection()
+                    if (projection.lifecycle_id != self.lifecycle_id
+                            or not projection.kill_requested):
+                        self.failure(exc)
+
+            async def observe() -> None:
+                # A notification failure must not abandon another worker's cleanup.
+                results = await asyncio.gather(*(worker(task) for task in self.workers),
+                                               return_exceptions=True)
+                for result in results:
+                    if isinstance(result, BaseException):
+                        raise result
+
+            self._observation = asyncio.create_task(observe())
+        await _protected_cleanup(self._observation)
+
+
 class PauseConsumer:
     """One serial inbox and desired pause state, owned by the engine's writer lock."""
 
