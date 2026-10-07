@@ -129,7 +129,7 @@ AUTHORED = {'dispatch-pause-boundary': {'chars': 9337,
                                                  'tests/test_control.py'),
                              'created': ('tests/test_daemon_pause.py', 'tests/test_control_cli.py'),
                              'measured_render': 164780},
- 'phase3-continue-09': {'chars': 30437,
+ 'phase3-continue-09': {'chars': 33332,
                         'plan': ('19.L',
                                  '19.I',
                                  '19.P3',
@@ -148,7 +148,7 @@ AUTHORED = {'dispatch-pause-boundary': {'chars': 9337,
 OWN_ENTRY_SHA256 = {'dispatch-pause-boundary': '80d05b5f62a957eba027a0b79e92f18397abfc8be877664b2c56893b9f7e8d74',
  'pause-resume-activation': '347fd54abc3e6ee90e08596806cb86467ccebce5cb0cd0fc8ce58161c71ee628'}
 
-NEXT_ENTRY_SHA256 = {'admission-holds-activation': 'df2616f68659f113e0a67af170600873ca6fb9395130a6e3f83575da3c7b2ac2',
+NEXT_ENTRY_SHA256 = {'admission-holds-activation': '2022f0953f6bc07727967196ce23fbe9535391a7431614207bdd64b58536dc18',
  'kill-signal-journal': '016e237e308a72535b7191936032f9fbf0c3da7b51818056a3046c860677f106',
  'kill-executor-abort': 'bb6a9c45541b8018cfee67e3dde7360a814b2c0d8ed7e8865f73ba4fa869dfe8'}
 
