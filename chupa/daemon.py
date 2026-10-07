@@ -1,11 +1,12 @@
 """Production daemon core and dispatch ownership (CHUPA_PLAN.md 19.P3.scheduler-activation)."""
 
 import asyncio
-from collections.abc import Awaitable, Callable, Set
+from collections.abc import Awaitable, Callable, Iterable, Set
 from dataclasses import dataclass
 from pathlib import Path
 
 from chupa.config import Config, ConfigSnapshot, snapshot_config
+from chupa.control import ControlInbox, ControlProjection
 from chupa.journal import Journal
 from chupa import runner
 from chupa.artifacts import Cost, Finding, StageResult
@@ -18,6 +19,14 @@ from chupa.seams import Clock, Sleep
 from chupa.stages import StageContext
 from chupa.tickets import Ticket, parse_ticket, ticket_path
 from chupa.watcher import Watcher
+
+
+def control_inbox(*, journal: Journal, lifecycle_id: str, holds: Callable[[], Set[str]],
+                  apply: Callable[[ControlProjection], None],
+                  files: Callable[[], Iterable[Path]], read: Callable[[Path], bytes]) -> ControlInbox:
+    """Dormant boundary: explicitly supplied by the lock holder, never a second writer."""
+    return ControlInbox(journal=journal, lifecycle_id=lifecycle_id, holds=holds,
+                        apply=apply, files=files, read=read)
 
 
 @dataclass(frozen=True)

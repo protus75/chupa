@@ -42,6 +42,9 @@ class FakeFS:
     def replace(self, src: Path, dst: Path) -> None:
         raise AssertionError("not used")
 
+    def publish(self, path: Path, data: bytes) -> None:
+        raise AssertionError("not used")
+
 
 class Crash(BaseException):
     """Stands in for the process dying at a chosen point."""

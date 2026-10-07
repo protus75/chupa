@@ -5,6 +5,7 @@ import os
 import shutil
 import signal
 import subprocess
+import tempfile
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
@@ -109,6 +110,10 @@ async def _kill_and_wait(proc: asyncio.subprocess.Process) -> None:
 
 @runtime_checkable
 class FileSystem(Protocol):
+    def publish(self, path: Path, data: bytes) -> None:
+        """Durable atomic publication; an existing destination is never overwritten."""
+        ...
+
     def write(self, path: Path, data: bytes) -> None:
         """Atomic: temp file, fsync, rename."""
         ...
@@ -117,6 +122,33 @@ class FileSystem(Protocol):
 
 
 class LocalFileSystem:
+    def publish(self, path: Path, data: bytes) -> None:
+        # Sync every ancestor edge, including directories another publisher just created.
+        path.parent.mkdir(parents=True, exist_ok=True)
+        for directory in (path.parent, *path.parent.parents):
+            self._sync_directory(directory)
+        fd, name = tempfile.mkstemp(prefix=".control-", suffix=".tmp", dir=path.parent)
+        temporary = Path(name)
+        try:
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(data)
+                stream.flush()
+                os.fsync(stream.fileno())
+            # link is atomic and refuses an existing name, unlike rename/replace.
+            os.link(temporary, path)
+            temporary.unlink()
+            self._sync_directory(path.parent)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    @staticmethod
+    def _sync_directory(path: Path) -> None:
+        fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
     def write(self, path: Path, data: bytes) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_name(f".{path.name}.tmp")
