@@ -1,15 +1,21 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "da1d25457792ecf486083713b8b15dbde8a2fa15",
+  "produced_at_sha": "64ecc7a194a9fcc8b4c20bcafd0ca1fa4a30fd1f",
   "stem": "rework-activation",
-  "attempt": 7,
-  "terminal": "infra_error",
-  "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "infra cap spent",
+  "attempt": 8,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Make publication all-or-nothing, as the 19.P3 rule 'failed or partial publication writes no map and does not retire the original' requires. On any failure in daemon.py publish(), restore every proposal path before returning the paved gate_failed/reject_queue refusal.",
+    "Use only the git.py verbs that are already merged, since git.py is outside the fence. Call restore(dir, paths, source='HEAD') to put back the original ticket and unstage it. Delete new successor files through the fs seam, and check that the index entry is also cleared. Do not add a revert verb.",
+    "Avoid partial commits: publish every proposal path in one commit(dir, msg, only=[...all paths]), so nothing else that is staged gets swept in. If the plan gives no way to undo a commit that did land, say that fact is missing rather than inventing one.",
+    "Extend the 'commit' and 'partial' failure cases in test_production_refuses_failed_rework_publication and test_split_dispatches_reviewed_rework. Assert status_porcelain is empty after the refusal, and that a following drain/tickets.intake commits no successor and stamps nothing source: human.",
+    "Keep the rest of the reviewed diff as it is. Review raised only this rollback issue, and the full suite passed 1100 tests. Don't widen scope beyond the publish-failure cleanup and its tests."
+  ],
+  "mechanical": null,
   "spec_version": "1.1",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
