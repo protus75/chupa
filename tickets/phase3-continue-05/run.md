@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-All three activation entry units pass gap checks; both further required units fail entry_unit_gap and resolve_plan_contract on the unchanged base commit 18e2b97e75afe80c25e42e58e0680f3a68138026.
+Previously missing successor entry units now pass gap checks and resolution; both seed renders fit headroom.
 
 ## Dead ends
 
-Stopped before generation as required by the missing-entry-unit rule; verification commands were not run.
+An authoring helper counted predecessor test names alongside the eight harness obligations; corrected before creating the test.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during initial contract validation, well within the 60-minute expected budget.
+Completed within the expected 60-minute budget.
 
