@@ -1,10 +1,10 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-Previously missing kill contracts are now complete; activation earns only tests/test_control.py beyond its registry fence.
+Idle pause/resume and discovery retirement are now specified; the approved dispatch-pause-boundary seed remains unchanged.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60-minute expected budget.
+Stopped during contract validation, within the 60-minute expected budget.
 
