@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-All five entry units pass entry_unit_gap and resolve_plan_contract; structural completeness does not resolve these substantive gaps. The approved successor remains untouched.
+Approved phase3-continue-10 stayed byte-identical; measured render headroom requires the composition suite On-demand.
 
 ## Dead ends
 
-No seed authored: carrying the required contract verbatim would reproduce the prior review findings.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during read-first validation within the 60-minute expected budget; the untouched predecessor control CLI suite passes all 21 tests.
+Completed within the 60-minute expected budget; verification passed with 14 seeding checks and 1,320 full-suite tests.
 
