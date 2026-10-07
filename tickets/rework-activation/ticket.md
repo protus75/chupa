@@ -26,6 +26,9 @@ state: confirmed
 - tests/test_reject_queue.py
 - tests/test_diagnose.py
 
+## On-demand
+- tests/test_mergequeue.py
+
 ## Plan contract
 - 19.I
 - 19.P3.rework-activation
@@ -75,6 +78,7 @@ Out: other Phase 3 machinery, background consumer startup, daemon admission rout
 - tests/test_scheduler.py
 - tests/test_reject_queue.py
 - tests/test_diagnose.py
+- tests/test_mergequeue.py
 
 ## Acceptance criteria
 1. `uv run pytest tests/test_rework.py tests/test_daemon_composition.py tests/test_mergequeue.py tests/test_ladder.py tests/test_drain.py tests/test_scheduler.py tests/test_reject_queue.py tests/test_merge.py tests/test_diagnose.py tests/test_cli.py` exits 0 with the complete own-entry named invariant tests above, proving real composition, post-unwind handoff consumption, exact reviewed publication/refusal, fresh approvals, record custody, caps, terminal/retirement order and transitive dependency folds.
