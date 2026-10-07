@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-Previously missing successor entry units now pass gap checks and resolution; both seed renders fit headroom.
+The scheduler production-binding contract is now explicit, but the missing successor entry units remain unresolved.
 
 ## Dead ends
 
-An authoring helper counted predecessor test names alongside the eight harness obligations; corrected before creating the test.
+Stopped before authoring seeds after entry_unit_gap and resolve_plan_contract confirmed the missing units on the untouched base commit.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the expected 60-minute budget.
+Premise validation stopped the work within minutes of the expected 60-minute budget.
 
