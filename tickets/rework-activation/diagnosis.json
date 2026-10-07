@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "b448c36e6579134dc409f1b5a96700786a51de81",
+  "produced_at_sha": "73d84a3e7dd250d9e251c66a8c29f975d1ede0b0",
   "stem": "rework-activation",
-  "attempt": 3,
+  "attempt": 4,
   "terminal": "infra_error",
   "stage": "implement",
   "verdict": "reject",
   "lessons": [
-    "Criterion 4 (`uv run pytest -q` exits 0) can't pass inside this fence. On untouched base 09e8c97, tests/test_seeded_phase3_06.py still pins the old fence and Context, which lack tests/test_mergequeue.py. Fix the ticket or plan; a retry won't help.",
-    "Release path: update the 19.P3.rework-activation seeding entry so the phase3-06 seeding fixture matches the corrected ticket. Either fence that fixture and migrate it here (19.L rule 3), or migrate it first in a ticket this one `depends` on.",
-    "Next attempt: run `uv run pytest -q` on the base commit before starting the long implementation, so any red outside the fence shows up early. The run record says the activation already passed targeted verification before it was restored.",
-    "The infra_error terminal (TimeoutError after about 963s) came after the agent had already returned premise_failed. Treat the scope-blocker as the real cause and its paved road as the fix; don't retry it at the same capability as an infra fault."
+    "Criterion 4 (`uv run pytest -q` exits 0) cannot pass inside this fence. The run record shows both full-suite failures on untouched base 09e8c97: tests/test_seeded_phase3_06.py pins the old fence and Context, which lack this ticket's additions (for example tests/test_mergequeue.py).",
+    "Release path: fix the 19.P3.rework-activation plan entry first, then regenerate. Either add tests/test_seeded_phase3_06.py to this fence and migrate only its fence/Context pin (19.L rule 3), or migrate it in a ticket that this one lists in `depends`.",
+    "Next attempt: before implementing, run `uv run pytest -q` on the base commit. Any red test outside the fence then surfaces as premise_failed early, not after a 960s run.",
+    "The infra_error (TimeoutError) came after the agent had already reached premise_failed and restored its work. Treat the scope blocker as the cause; retrying or escalating at any capability will hit it again."
   ],
   "mechanical": null,
   "spec_version": "1.1",
