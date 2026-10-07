@@ -1,13 +1,13 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "59cd5ab6ff3b6227304dafe1f8e58c2b50ee2d18",
+  "produced_at_sha": "c8eb6bf65f272599818f1c1101413a65f675a31b",
   "stem": "phase3-continue-16",
-  "passed": false,
+  "passed": true,
   "changed_files": [
     "tests/test_seeded_phase3_16.py"
   ],
-  "inserted_lines": 448,
+  "inserted_lines": 414,
   "bypassed": [],
   "reports": [
     {
@@ -36,59 +36,24 @@
     },
     {
       "code": "requisition_review",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "requisition_review",
-          "path": null,
-          "line": null,
-          "message": "invalid requisition review reply: 1 schema error(s)",
-          "paved_road": "reply with a schema-valid requisition verdict",
-          "kind": "authoring_error"
-        },
-        {
-          "code": "occurrence-id-supply-unspecified",
-          "path": "CHUPA_PLAN.md",
-          "line": null,
-          "message": "19.P3.storm-producer-wiring requires a nonblank occurrence id from the producer whenever a Box has the arrival callback. The id must be stable on replay and must not come from queue seq, signature, message id, wall time or invocation count. That unit hands id supply to the later activation. But 19.P3.storm-notification-activation never names the production arrival sites or gives an id recipe for any of them. Merged code builds Box and calls enqueue at chupa/runner.py:239,243,537-549, chupa/stages.py:488-490,569-587, chupa/flake.py:164 and chupa/box.py:190 (bootstrap ingest). None of these is in the activation row's fence floor. So the seed would have to make up a durable record value (each producer's occurrence_id), and possibly its fence additions. This ticket's own Scope tells the implementer to earn this from code reads, but code reads cannot supply a missing record recipe. Under 19.L SPEC DEPTH that makes it a spec_gap.",
-          "paved_road": "Harden 19.P3.storm-notification-activation through section 11.4 before seeding. Under Records, add: (1) the closed list of production enqueue call sites that receive the arrival callback (runner harvest/dependency failure, stages second-problem/failure report, flake quarantine, bootstrap ingest, and any others); (2) the stable occurrence_id recipe for each, built from run-scoped or attempt-scoped identity that survives replay; (3) whether those caller files join the row's fence under 19.L rule 5. If the registry row's fence must change, make that a plan edit. Then re-author this seeding ticket so it cites the hardened unit.",
-          "kind": "spec_gap"
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false
     }
   ],
   "seeds": [
     {
       "stem": "journal-roll",
-      "ticket_sha": "0359bf0dae5e47f2d7c73171464f5148ae893f86",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "requisition_review",
-          "path": null,
-          "line": null,
-          "message": "invalid requisition review reply: 1 schema error(s)",
-          "paved_road": "reply with a schema-valid requisition verdict",
-          "kind": "authoring_error"
-        }
-      ],
-      "mechanical": "invalid reply"
+      "ticket_sha": "9244269e2454c3f353f3b83975e3007a4e46bad5",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
     },
     {
       "stem": "phase3-continue-17",
-      "ticket_sha": "768b0f77a14db21a715baeba0530d1a8cfab6896",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "occurrence-id-supply-unspecified",
-          "path": "CHUPA_PLAN.md",
-          "line": null,
-          "message": "19.P3.storm-producer-wiring requires a nonblank occurrence id from the producer whenever a Box has the arrival callback. The id must be stable on replay and must not come from queue seq, signature, message id, wall time or invocation count. That unit hands id supply to the later activation. But 19.P3.storm-notification-activation never names the production arrival sites or gives an id recipe for any of them. Merged code builds Box and calls enqueue at chupa/runner.py:239,243,537-549, chupa/stages.py:488-490,569-587, chupa/flake.py:164 and chupa/box.py:190 (bootstrap ingest). None of these is in the activation row's fence floor. So the seed would have to make up a durable record value (each producer's occurrence_id), and possibly its fence additions. This ticket's own Scope tells the implementer to earn this from code reads, but code reads cannot supply a missing record recipe. Under 19.L SPEC DEPTH that makes it a spec_gap.",
-          "paved_road": "Harden 19.P3.storm-notification-activation through section 11.4 before seeding. Under Records, add: (1) the closed list of production enqueue call sites that receive the arrival callback (runner harvest/dependency failure, stages second-problem/failure report, flake quarantine, bootstrap ingest, and any others); (2) the stable occurrence_id recipe for each, built from run-scoped or attempt-scoped identity that survives replay; (3) whether those caller files join the row's fence under 19.L rule 5. If the registry row's fence must change, make that a plan edit. Then re-author this seeding ticket so it cites the hardened unit.",
-          "kind": "spec_gap"
-        }
-      ],
+      "ticket_sha": "42e8a2b18c4ccdbf0f1547bc77af02ffa6a1f5b7",
+      "verdict": "approve",
+      "findings": [],
       "mechanical": null
     },
     {
@@ -96,7 +61,7 @@
       "ticket_sha": "cb134ca3222d30f5e5d57daedfaadb51f598ebdc",
       "verdict": "approve",
       "findings": [],
-      "mechanical": null
+      "mechanical": "approved earlier"
     }
   ],
   "verification": [
@@ -109,7 +74,7 @@
         "tests/test_seeded_phase3_16.py"
       ],
       "rc": 0,
-      "tail": ".....................                                                    [100%]\n21 passed in 0.65s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": ".....................                                                    [100%]\n21 passed in 0.66s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -120,7 +85,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": ".................. [ 12%]\n........................................................................ [ 16%]\n........................................................................ [ 20%]\n........................................................................ [ 24%]\n........................................................................ [ 28%]\n........................................................................ [ 32%]\n........................................................................ [ 37%]\n........................................................................ [ 41%]\n........................................................................ [ 45%]\n........................................................................ [ 49%]\n........................................................................ [ 53%]\n........................................................................ [ 57%]\n........................................................................ [ 61%]\n........................................................................ [ 65%]\n........................................................................ [ 69%]\n........................................................................ [ 74%]\n........................................................................ [ 78%]\n........................................................................ [ 82%]\n........................................................................ [ 86%]\n........................................................................ [ 90%]\n........................................................................ [ 94%]\n........................................................................ [ 98%]\n.....................                                                    [100%]\n1749 passed in 122.68s (0:02:02)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": ".................. [ 12%]\n........................................................................ [ 16%]\n........................................................................ [ 20%]\n........................................................................ [ 24%]\n........................................................................ [ 28%]\n........................................................................ [ 32%]\n........................................................................ [ 37%]\n........................................................................ [ 41%]\n........................................................................ [ 45%]\n........................................................................ [ 49%]\n........................................................................ [ 53%]\n........................................................................ [ 57%]\n........................................................................ [ 61%]\n........................................................................ [ 65%]\n........................................................................ [ 69%]\n........................................................................ [ 74%]\n........................................................................ [ 78%]\n........................................................................ [ 82%]\n........................................................................ [ 86%]\n........................................................................ [ 90%]\n........................................................................ [ 94%]\n........................................................................ [ 98%]\n......................                                                   [100%]\n1750 passed in 125.28s (0:02:05)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
