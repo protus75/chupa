@@ -1,0 +1,119 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "3c5baa57c3afd8df2f8a7afe5de626708492b5ba",
+  "stem": "phase3-continue-14",
+  "passed": false,
+  "changed_files": [
+    "tests/test_seeded_phase3_14.py"
+  ],
+  "inserted_lines": 411,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "requisition_review",
+      "verdict": "fail",
+      "findings": [
+        {
+          "code": "unfenced_composition_pin",
+          "path": "tests/test_daemon_composition.py",
+          "line": 1261,
+          "message": "The unit requires the CLI daemon composition to await startup through its admission boundary before the first snapshot_dispatch. The only pre-snapshot hook on DaemonAdmission is before_dispatch, which daemon_core fills from build_daemon_core's consumer.checkpoint. Two merged tests assert that exact identity: tests/test_daemon_composition.py:1261 (`rig.core.admission._before_dispatch == consumer.checkpoint`) and tests/test_daemon_pause.py:201 (`rig.core.admission._before_dispatch == rig.core.control.checkpoint`). With callable signatures frozen, the implementer can only wrap or replace that hook, which breaks both tests. Neither file is fenced, test_daemon_pause.py is not in the targeted Verification list (it runs only under `pytest -q`), and the Scope text says the composition harness stays unchanged. The ticket's claim that authoring found no earned additions under closure rules 2-5 is therefore wrong.",
+          "paved_road": "Choose one. (a) Fence tests/test_daemon_composition.py and tests/test_daemon_pause.py, name the two `_before_dispatch == checkpoint` pins as predecessor composition assertions this change migrates (to a composed startup-then-checkpoint hook), and add tests/test_daemon_pause.py to Verification. (b) State in Scope the exact composition route that keeps `_before_dispatch` identical to the pause checkpoint, and name the test that proves startup still precedes snapshot_dispatch.",
+          "kind": "authoring_error"
+        },
+        {
+          "code": "unnamed_import_edge_pin",
+          "path": "tests/test_daemon_composition.py",
+          "line": 956,
+          "message": "tests/test_daemon_composition.py:956 (`without_core_import`) asserts that the exact line `from chupa.daemon import DaemonCore, PauseConsumer, daemon_core` appears in chupa/__main__.py. If __main__ composes startup by adding a daemon-owned name to that import, test_daemon_core_is_reachable_from_cli fails, and the test sits in an unfenced, supposedly unchanged suite. The ticket neither states this constraint nor fences the test.",
+          "paved_road": "Either state in Scope that __main__ imports the restart/timers owners on separate import lines and leaves the pinned chupa.daemon import line byte-identical, or fence tests/test_daemon_composition.py and name the import-edge pin as a migrated predecessor assertion.",
+          "kind": "authoring_error"
+        }
+      ],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [
+    {
+      "stem": "phase3-continue-15",
+      "ticket_sha": "81ef37da4831ac77d8caca8f8a7debb8533dc815",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
+    },
+    {
+      "stem": "restart-timers",
+      "ticket_sha": "b7c44e380ab475d245c6d1c14a68d3f795a67b74",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "unfenced_composition_pin",
+          "path": "tests/test_daemon_composition.py",
+          "line": 1261,
+          "message": "The unit requires the CLI daemon composition to await startup through its admission boundary before the first snapshot_dispatch. The only pre-snapshot hook on DaemonAdmission is before_dispatch, which daemon_core fills from build_daemon_core's consumer.checkpoint. Two merged tests assert that exact identity: tests/test_daemon_composition.py:1261 (`rig.core.admission._before_dispatch == consumer.checkpoint`) and tests/test_daemon_pause.py:201 (`rig.core.admission._before_dispatch == rig.core.control.checkpoint`). With callable signatures frozen, the implementer can only wrap or replace that hook, which breaks both tests. Neither file is fenced, test_daemon_pause.py is not in the targeted Verification list (it runs only under `pytest -q`), and the Scope text says the composition harness stays unchanged. The ticket's claim that authoring found no earned additions under closure rules 2-5 is therefore wrong.",
+          "paved_road": "Choose one. (a) Fence tests/test_daemon_composition.py and tests/test_daemon_pause.py, name the two `_before_dispatch == checkpoint` pins as predecessor composition assertions this change migrates (to a composed startup-then-checkpoint hook), and add tests/test_daemon_pause.py to Verification. (b) State in Scope the exact composition route that keeps `_before_dispatch` identical to the pause checkpoint, and name the test that proves startup still precedes snapshot_dispatch.",
+          "kind": "authoring_error"
+        },
+        {
+          "code": "unnamed_import_edge_pin",
+          "path": "tests/test_daemon_composition.py",
+          "line": 956,
+          "message": "tests/test_daemon_composition.py:956 (`without_core_import`) asserts that the exact line `from chupa.daemon import DaemonCore, PauseConsumer, daemon_core` appears in chupa/__main__.py. If __main__ composes startup by adding a daemon-owned name to that import, test_daemon_core_is_reachable_from_cli fails, and the test sits in an unfenced, supposedly unchanged suite. The ticket neither states this constraint nor fences the test.",
+          "paved_road": "Either state in Scope that __main__ imports the restart/timers owners on separate import lines and leaves the pinned chupa.daemon import line byte-identical, or fence tests/test_daemon_composition.py and name the import-edge pin as a migrated predecessor assertion.",
+          "kind": "authoring_error"
+        }
+      ],
+      "mechanical": null
+    }
+  ],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_seeded_phase3_14.py"
+      ],
+      "rc": 0,
+      "tail": "..............                                                           [100%]\n14 passed in 0.46s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": ".................. [  4%]\n........................................................................ [  8%]\n........................................................................ [ 13%]\n........................................................................ [ 17%]\n........................................................................ [ 22%]\n........................................................................ [ 26%]\n........................................................................ [ 31%]\n........................................................................ [ 35%]\n........................................................................ [ 40%]\n........................................................................ [ 44%]\n........................................................................ [ 49%]\n........................................................................ [ 53%]\n........................................................................ [ 58%]\n........................................................................ [ 62%]\n........................................................................ [ 67%]\n........................................................................ [ 71%]\n........................................................................ [ 76%]\n........................................................................ [ 80%]\n........................................................................ [ 85%]\n........................................................................ [ 89%]\n........................................................................ [ 94%]\n........................................................................ [ 98%]\n...................                                                      [100%]\n1603 passed in 118.76s (0:01:58)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
