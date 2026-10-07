@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-All three kill entry units passed entry_unit_gap and resolve_plan_contract, but the further successor entries failed both operations; the worktree remains clean.
+The live plan now contains complete heartbeat and restart-timers units, clearing the prior blocker; no fence additions were earned.
 
 ## Dead ends
 
-Stopped before authoring seeds or tests because the ticket explicitly requires missing entry units to be hardened before regeneration.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during contract validation, within the 60-minute expected budget.
+Completed within the 60-minute expected budget; verification passed with 21 admission tests and 1,448 full-suite tests.
 
