@@ -1,13 +1,13 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "27f3f818c7137dc636dd374bf79c67e8ac57ed3e",
+  "produced_at_sha": "42a6cf339a6984ec6df83d27b222a68d48edbf9d",
   "stem": "phase3-continue-10",
-  "passed": false,
+  "passed": true,
   "changed_files": [
     "tests/test_seeded_phase3_10.py"
   ],
-  "inserted_lines": 296,
+  "inserted_lines": 341,
   "bypassed": [],
   "reports": [
     {
@@ -36,25 +36,8 @@
     },
     {
       "code": "requisition_review",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "unit_text_copied_into_seeding_ticket",
-          "path": "tickets/phase3-continue-11/ticket.md",
-          "line": null,
-          "message": "19.L SPEC DEPTH says a seeding ticket cites each entry unit its seeds need and never copies unit text into a seed or into its own ticket, because a copy goes stale at the unit's next hardening. This ticket's Scope in has two blocks, 'Carry this complete kill-worker-stop contract verbatim:' and 'Carry this complete kill-failure-suppression contract verbatim:', and each reproduces the unit's full Owner/Records/Observable/Tests bullets. Its Plan contract already cites 19.P3.kill-worker-stop and 19.P3.kill-failure-suppression, so the renderer injects that text anyway. The copies duplicate it and will diverge from the plan the next time either unit is hardened.",
-          "paved_road": "Delete both verbatim contract blocks from Scope in. Point the implementer to the cited entry units 19.P3.kill-worker-stop and 19.P3.kill-failure-suppression in the Plan contract as the governing text, and keep only ticket-specific instructions such as edges, starts, fence floors and closure greps.",
-          "kind": "authoring_error"
-        },
-        {
-          "code": "seeds_instructed_to_copy_unit_text",
-          "path": "tickets/phase3-continue-11/ticket.md",
-          "line": null,
-          "message": "Scope in says 'Carry every own-entry Owner, Records, Observable and Tests bullet verbatim' into the implementing seeds. 19.L forbids copying unit text into a seed. Each seed already cites its own entry unit (19.I, 19.P3.<stem>, section 20), and the renderer resolves that citation verbatim, so a copied body is a stale duplicate. It also inflates every seed's render. The successor phase3-continue-12 is told to carry the same instruction forward, so the violation would continue down the chain.",
-          "paved_road": "Replace the 'carry verbatim' instruction with one that has each seed cite its own entry unit through its Plan contract and add only seed-specific prose: edges, fence, earned closure paths and the Verification command. Have tests/test_seeded_phase3_11.py pin the exact citations instead of copied contract text. Have phase3-continue-12 carry the cite-don't-copy rule forward instead of the verbatim-carry rule.",
-          "kind": "authoring_error"
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false
     }
   ],
@@ -64,37 +47,20 @@
       "ticket_sha": "c4df61d0998d0bb3902a1dd76edd6a194acc5526",
       "verdict": "approve",
       "findings": [],
-      "mechanical": null
+      "mechanical": "approved earlier"
     },
     {
       "stem": "kill-signal-journal",
       "ticket_sha": "7844891eb401867d53d29c012fdb1ffb09e90549",
       "verdict": "approve",
       "findings": [],
-      "mechanical": null
+      "mechanical": "approved earlier"
     },
     {
       "stem": "phase3-continue-11",
-      "ticket_sha": "6bb9e52fe1b02a589d937ae500030af7b84942df",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "unit_text_copied_into_seeding_ticket",
-          "path": "tickets/phase3-continue-11/ticket.md",
-          "line": null,
-          "message": "19.L SPEC DEPTH says a seeding ticket cites each entry unit its seeds need and never copies unit text into a seed or into its own ticket, because a copy goes stale at the unit's next hardening. This ticket's Scope in has two blocks, 'Carry this complete kill-worker-stop contract verbatim:' and 'Carry this complete kill-failure-suppression contract verbatim:', and each reproduces the unit's full Owner/Records/Observable/Tests bullets. Its Plan contract already cites 19.P3.kill-worker-stop and 19.P3.kill-failure-suppression, so the renderer injects that text anyway. The copies duplicate it and will diverge from the plan the next time either unit is hardened.",
-          "paved_road": "Delete both verbatim contract blocks from Scope in. Point the implementer to the cited entry units 19.P3.kill-worker-stop and 19.P3.kill-failure-suppression in the Plan contract as the governing text, and keep only ticket-specific instructions such as edges, starts, fence floors and closure greps.",
-          "kind": "authoring_error"
-        },
-        {
-          "code": "seeds_instructed_to_copy_unit_text",
-          "path": "tickets/phase3-continue-11/ticket.md",
-          "line": null,
-          "message": "Scope in says 'Carry every own-entry Owner, Records, Observable and Tests bullet verbatim' into the implementing seeds. 19.L forbids copying unit text into a seed. Each seed already cites its own entry unit (19.I, 19.P3.<stem>, section 20), and the renderer resolves that citation verbatim, so a copied body is a stale duplicate. It also inflates every seed's render. The successor phase3-continue-12 is told to carry the same instruction forward, so the violation would continue down the chain.",
-          "paved_road": "Replace the 'carry verbatim' instruction with one that has each seed cite its own entry unit through its Plan contract and add only seed-specific prose: edges, fence, earned closure paths and the Verification command. Have tests/test_seeded_phase3_11.py pin the exact citations instead of copied contract text. Have phase3-continue-12 carry the cite-don't-copy rule forward instead of the verbatim-carry rule.",
-          "kind": "authoring_error"
-        }
-      ],
+      "ticket_sha": "0742d1e7ad302d81af74a113712f9f484166298b",
+      "verdict": "approve",
+      "findings": [],
       "mechanical": null
     }
   ],
@@ -108,7 +74,7 @@
         "tests/test_seeded_phase3_10.py"
       ],
       "rc": 0,
-      "tail": ".....................                                                    [100%]\n21 passed in 0.62s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": ".....................                                                    [100%]\n21 passed in 0.75s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -119,7 +85,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "........................................................................ [  5%]\n........................................................................ [ 10%]\n........................................................................ [ 15%]\n........................................................................ [ 21%]\n........................................................................ [ 26%]\n........................................................................ [ 31%]\n........................................................................ [ 37%]\n........................................................................ [ 42%]\n........................................................................ [ 47%]\n........................................................................ [ 53%]\n........................................................................ [ 58%]\n........................................................................ [ 63%]\n........................................................................ [ 68%]\n........................................................................ [ 74%]\n........................................................................ [ 79%]\n........................................................................ [ 84%]\n........................................................................ [ 90%]\n........................................................................ [ 95%]\n.............................................................            [100%]\n1357 passed in 97.46s (0:01:37)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................................ [  5%]\n........................................................................ [ 10%]\n........................................................................ [ 15%]\n........................................................................ [ 21%]\n........................................................................ [ 26%]\n........................................................................ [ 31%]\n........................................................................ [ 37%]\n........................................................................ [ 42%]\n........................................................................ [ 47%]\n........................................................................ [ 53%]\n........................................................................ [ 58%]\n........................................................................ [ 63%]\n........................................................................ [ 68%]\n........................................................................ [ 74%]\n........................................................................ [ 79%]\n........................................................................ [ 84%]\n........................................................................ [ 90%]\n........................................................................ [ 95%]\n.............................................................            [100%]\n1357 passed in 105.79s (0:01:45)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
