@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-All five required entry units passed entry_unit_gap and resolve_plan_contract; the approved phase3-continue-10 seed remains untouched.
+All five required entry units passed entry_unit_gap and resolve_plan_contract, but 19.P3.admission-holds-activation retains the unchanged-drain-suite requirement.
 
 ## Dead ends
 
-Tracing main -> pipeline -> prepare_pipeline -> bind and drain -> build_control found separate construction paths with no inbox carrier; signature or Checkout changes require callers that the contract declares preservation-only.
+Traced main → pipeline → prepare_pipeline → bind and drain → build_control; carrying one inbox through drain, bind, or Checkout requires migrating direct callers in tests/test_drain.py, which the contract declares unchanged.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during read-first contract validation, before implementation.
+Stopped during read-first validation, before authoring or Verification, well within the 60-minute expected budget.
 
