@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from chupa.config import Config, ConfigSnapshot, snapshot_config
-from chupa.control import ControlInbox, ControlProjection, write_active
-from chupa.journal import Journal
+from chupa.control import CONTROL_DECISION, ControlInbox, ControlProjection, write_active
+from chupa.journal import EventType, Journal
 from chupa import runner
 from chupa.artifacts import Cost, Finding, StageResult
 from chupa.caps import spent
@@ -20,6 +20,8 @@ from chupa.stages import StageContext
 from chupa.tickets import Ticket, parse_ticket, ticket_path
 from chupa.watcher import Watcher
 
+KILL_APPLIED = "kill_applied"
+
 
 def control_inbox(*, journal: Journal, lifecycle_id: str, holds: Callable[[], Set[str]],
                   apply: Callable[[ControlProjection], None],
@@ -30,7 +32,7 @@ def control_inbox(*, journal: Journal, lifecycle_id: str, holds: Callable[[], Se
 
 
 async def executor_abort(abort_current: Callable[[], Awaitable[None]]) -> None:
-    """Dormant unwind boundary, supplied by the caller after durable kill acceptance."""
+    """Unwind the composed executor after durable kill acceptance."""
     await abort_current()
 
 
@@ -125,6 +127,7 @@ class PauseConsumer:
         self.state_dir, self.fs, self.sleep = state_dir, fs, sleep
         self.projection = ControlProjection(lifecycle_id)
         self._published = False
+        self._stop: asyncio.Task | None = None
         self.admission: str | None = None
         self.inbox = control_inbox(journal=journal, lifecycle_id=lifecycle_id,
                                    holds=lambda: {self.admission} if self.admission is not None else set(),
@@ -159,9 +162,48 @@ class PauseConsumer:
     async def checkpoint(self) -> None:
         while True:
             self.inbox.consume()
-            if self.projection.pause_id is None:
+            if self.projection.kill_requested or self.projection.pause_id is None:
                 return
             await self.sleep(0.1)
+
+    async def apply_kill(self, abort: Callable[[], Awaitable[None]],
+                         dispatch: asyncio.Task | None = None) -> None:
+        if (self.projection.lifecycle_id != self.inbox.lifecycle_id
+                or not self.projection.kill_requested):
+            return
+        if self._stop is None:
+            async def stop() -> None:
+                await executor_abort(abort)
+                if dispatch is not None:
+                    if not dispatch.done() and not dispatch.cancelling():
+                        dispatch.cancel()
+                    [result] = await asyncio.gather(dispatch, return_exceptions=True)
+                    if isinstance(result, BaseException) and not isinstance(result, asyncio.CancelledError):
+                        raise result
+            self._stop = asyncio.create_task(stop())
+        await _protected_cleanup(self._stop)
+        # Requests arriving during unwind share that same stop. The journal fold,
+        # rather than file deletion or memory, owns completion across reconstruction.
+        self.inbox.consume()
+        decided, accepted, applied = set(), [], set()
+        for event in self.inbox.journal.read():
+            body = event.body
+            if event.type != EventType.SIGNAL:
+                continue
+            if (body.get("kind") == KILL_APPLIED
+                    and body.get("lifecycle_id") == self.inbox.lifecycle_id):
+                applied.add(body["request_id"])
+            if body.get("kind") != CONTROL_DECISION or body["request_id"] in decided:
+                continue
+            decided.add(body["request_id"])
+            if (body["decision"] == "accepted" and body["verb"] == "kill"
+                    and body["lifecycle_id"] == self.inbox.lifecycle_id):
+                accepted.append(body["request_id"])
+        for request_id in accepted:
+            if request_id not in applied:
+                self.inbox.journal.append(EventType.SIGNAL, {
+                    "kind": KILL_APPLIED, "request_id": request_id,
+                    "lifecycle_id": self.inbox.lifecycle_id}, ticket=None, key=None)
 
 
 @dataclass(frozen=True)
@@ -280,6 +322,9 @@ class TicketWriter:
 
     async def __call__(self, ticket: Ticket) -> str:
         return await runner.drive(self.ctx, ticket)
+
+    async def abort_current(self) -> None:
+        await self.ctx.abort_current()
 
     async def consume_handoff(self, ticket: Ticket, handoff: ConflictHandoff, *, attempt: int) -> str:
         if self.queue.active is not None or self.queue._slot.locked():

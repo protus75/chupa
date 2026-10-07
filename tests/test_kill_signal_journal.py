@@ -1,4 +1,4 @@
-"""Dormant kill decisions use the lock holder's existing inbox and journal fold."""
+"""Kill decisions use the lock holder's inbox and journal fold, including live drain activation."""
 
 import asyncio
 import json
@@ -9,12 +9,9 @@ import pytest
 
 from chupa import control, daemon
 from chupa.control import ControlProjection, ControlRequest, publish_request
-from chupa.llm import FakeLLM
-from chupa.providers import ProviderLLM
 from chupa.journal import EventType, Journal
 from chupa.seams import LocalFileSystem
-from tests.test_cli import Stages, cli, journal, root, ticket, write
-from tests.test_daemon_composition import CoreRig, LiveDrain, assert_core_wiring
+from tests.test_cli import root
 from tests.test_effects import Crash, FakeClock
 
 
@@ -229,74 +226,10 @@ def test_kill_projection_stays_latched(tmp_path):
     assert rig.projection == before
 
 
-def test_kill_signal_journal_is_dormant(root, tmp_path, monkeypatch):
-    bound = []
-    factory = daemon.control_inbox
-    def kill_application(projection):
-        raise AssertionError("kill application invoked")
-    def external_abort(*args, **kwargs):
-        raise AssertionError("external abort invoked")
-    monkeypatch.setattr(FakeLLM, "abort_current", external_abort)
-    monkeypatch.setattr(ProviderLLM, "abort_current", external_abort)
-
-    # Both explicit kill wiring probes must raise before checking ordinary callers.
-    calibration = Rig(tmp_path / "calibration")
-    calibration.publish("kill")
-    with pytest.raises(AssertionError, match="kill application invoked"):
-        calibration.reconstruct(kill_application).consume()
-    assert calibration.decisions() == [decision("kill")]
-    with pytest.raises(AssertionError, match="external abort invoked"):
-        calibration.reconstruct(lambda projection: FakeLLM([]).abort_current()).recover()
-    assert calibration.decisions() == [decision("kill")]
-
-    def supplied(**kwargs):
-        # The real production callback owns desired pause state, never kill execution.
-        apply = kwargs["apply"]
-        assert isinstance(apply.__self__, daemon.PauseConsumer)
-        assert apply.__func__ is daemon.PauseConsumer._apply
-        inbox = factory(**kwargs)
-        bound.append(inbox)
-        def guarded(projection):
-            if projection.kill_requested:
-                kill_application(projection)
-            apply(projection)
-        inbox.apply = guarded
-        return inbox
-    monkeypatch.setattr(daemon, "control_inbox", supplied)
-    for verb in ("run", "drain"):
-        stem = "work-" + verb
-        write(root, stem, ticket())
-        stages = Stages()
-        assert cli(root, verb, *([stem] if verb == "run" else []), stages=stages) == 0
-        assert stages.calls == [stem] and stages.lock_held == [True]
-        assert not any(e.body.get("kind") == control.CONTROL_DECISION for e in journal(root).read())
-
-    async def production():
-        tasks = asyncio.all_tasks()
-        directory = tmp_path / "production"
-        directory.mkdir()
-        async def prepare(local):
-            assert local.control is rig.core.control
-            async def dispatch(ticket):
-                assert not local.control.projection.kill_requested
-                return "merged"
-            return dispatch
-        rig = CoreRig(directory, prepare=prepare)
-        assert_core_wiring(rig)
-        consumer = rig.core.control
-        assert bound[-1] is consumer.inbox and consumer.inbox.journal is rig.journal
-        assert rig.core.admission._before_dispatch == consumer.checkpoint
-        assert asyncio.all_tasks() == tasks and rig.journal.read() == []
-        assert rig.fs.files == {} and rig.exec.calls == []
-        await rig.add("composed")
-        await rig.drain()
-        assert not consumer.projection.kill_requested and asyncio.all_tasks() == tasks
-        assert not any(e.body.get("kind") == control.CONTROL_DECISION for e in rig.journal.read())
-        with monkeypatch.context() as patch:
-            live = LiveDrain(root, patch, pause=False)
-            assert (await live.run()).merged == []
-            assert not live.consumer.projection.kill_requested
-            assert asyncio.all_tasks() == tasks
-            assert not any(e.body.get("kind") == control.CONTROL_DECISION
-                           for e in live.checkout.journal.read())
-    asyncio.run(production())
+def test_kill_signal_journal_is_active_in_drain(root, tmp_path, monkeypatch):
+    from tests.test_kill_cli_activation import applications, exercise_live_cli_kill
+    checkout, writer = exercise_live_cli_kill(root, monkeypatch)
+    assert writer.ctx.driver.journal is checkout.control.inbox.journal is checkout.journal
+    [application] = applications(checkout.journal)
+    accepted = next(e for e in checkout.journal.read() if e.body.get("kind") == control.CONTROL_DECISION)
+    assert accepted.body == decision(application["request_id"], life=application["lifecycle_id"])

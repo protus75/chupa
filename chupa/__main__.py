@@ -76,6 +76,7 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("status", help="project current state from the journal (read-only)")
     for verb in ("pause", "resume"):
         sub.add_parser(verb, help=f"submit {verb} to the running engine, or do nothing under the idle lock")
+    sub.add_parser("kill", help="submit kill to the running drain; refuse when nothing is running")
     sub.add_parser("triage", help="make one sequential pass over pending suggestions under the lock")
     new = sub.add_parser("new", help="template tickets/<stem>/ticket.md and lint it")
     new.add_argument("stem")
@@ -114,7 +115,7 @@ def main(
             git=Git(exec_, env=child_env(env, config), timeout=GIT_TIMEOUT_S),
             journal=Journal(config.state_dir, clock), fs=LocalFileSystem(), clock=clock,
         )
-        if args.verb in {"pause", "resume"}:
+        if args.verb in {"pause", "resume", "kill"}:
             return asyncio.run(_control(checkout, args.verb))
         if args.verb in {"confirm", "reject"}:
             return asyncio.run(runner.verdict(args.stem, checkout, kill=args.verb == "reject"))
@@ -166,6 +167,9 @@ async def _control(checkout: runner.Checkout, verb: str) -> int:
         print(f"{verb} submitted: {request.request_id}")
     else:
         try:
+            if verb == "kill":
+                raise runner.Refusal("nothing running to kill",
+                                     "start a drain before submitting kill")
             print(f"nothing running to {verb}")
         finally:
             lock.release()

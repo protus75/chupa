@@ -12,6 +12,7 @@ a re-exec'd child running the upgraded checkout (section 18's HANDOFF), carrying
 argv. A `premise_failed` stem stays parked, across invocations, until its committed `ticket.md` content changes.
 """
 
+import asyncio
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -108,19 +109,22 @@ class Report:
     drafts: list[str] = field(default_factory=list)
     halted: str | None = None
     handoff: int | None = None  # the re-exec'd child's exit code: the child reports, the parent stays silent
+    killed: bool = False
 
     @property
     def exit_code(self) -> int:
         if self.handoff is not None:
             return self.handoff
         # Section 18: quiescence is 0 whatever it parked; a ceiling halt is a non-quiescent stop.
-        return EXIT_TICKET if self.halted else EXIT_MERGED
+        return EXIT_TICKET if self.halted or self.killed else EXIT_MERGED
 
     def render(self) -> str:
         def block(name: str, lines: Iterable[str]) -> str:
             return f"{name}:\n" + ("\n".join(f"- {line}" for line in lines) or "(none)")
 
-        if self.halted:
+        if self.killed:
+            head = "drain stopped by kill -- NOT quiescent. Continue with `uv run python -m chupa drain`."
+        elif self.halted:
             head = (f"drain HALTED by the {CEILING} ceiling ({self.halted}) -- NOT quiescent; no new ticket was"
                     " admitted. Continue with `uv run python -m chupa drain`.")
         elif not (self.merged or self.parked or self.blocked):
@@ -164,6 +168,9 @@ async def drain(
 
         async def checkpoint() -> None:
             await consumer.checkpoint()
+            if (consumer.projection.lifecycle_id == consumer.inbox.lifecycle_id
+                    and consumer.projection.kill_requested):
+                return
             if before_dispatch is not None:
                 await before_dispatch()
             # An injected preparation wait can allow a new request to arrive.
@@ -175,6 +182,13 @@ async def drain(
         await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
         run = _Drain(checkout, dispatch, frozenset(parked), before_dispatch=checkpoint)
         report = await run.run()
+        # A pending self-upgrade is still an offer boundary, never permission to
+        # launch a child after a kill accepted during the final preparation.
+        await consumer.checkpoint()
+        if run._stopping():
+            await consumer.apply_kill(dispatch.abort_current)
+            report.killed = True
+            return report
         if run.upgrade is None:
             return report
         stem, commit = run.upgrade
@@ -210,6 +224,8 @@ class _Drain:
         while True:
             if self.before_dispatch is not None:
                 await self.before_dispatch()
+            if self._stopping():
+                return self.report
             material = self._offer_material()
             scan = await self._scan()
             shas = {s: await self._sha(s) for s in scan.tickets}
@@ -218,6 +234,8 @@ class _Drain:
             # before using its SHAs; changed content must return through the git seam.
             if self.before_dispatch is not None:
                 await self.before_dispatch()
+            if self._stopping():
+                return self.report
             events = self.c.journal.read()
             if material != self._offer_material() or events != prepared_events:
                 continue
@@ -232,8 +250,13 @@ class _Drain:
             if self.c.clock() >= self.deadline:
                 return self._halt(scan, events, last, held)
             await self._run_one(pick, reoffer, shas[pick.stem])
-            if self.upgrade is not None:
+            if self._stopping() or self.upgrade is not None:
                 return self.report
+
+    def _stopping(self) -> bool:
+        consumer = self.c.control
+        return (consumer is not None and consumer.projection.lifecycle_id == consumer.inbox.lifecycle_id
+                and consumer.projection.kill_requested)
 
     def _offer_material(self) -> dict[str, bytes]:
         repo = self.c.repo
@@ -318,6 +341,10 @@ class _Drain:
         return None, False
 
     async def _run_one(self, ticket: Ticket, reoffer: bool, sha: str) -> None:
+        from chupa.daemon import _protected_cleanup
+
+        if self._stopping():
+            return
         stem = ticket.stem
         if reoffer and last_states(self.c.journal.read()).get(stem) != PREMISE:
             body = next(e.body for e in reversed(self.c.journal.read())
@@ -329,7 +356,53 @@ class _Drain:
                 caps.consume(self.c.journal, stem, "retry", sha, rung=body.get("rung"))
         # The `ticket.md` the run answers: a `premise_failed` verdict parks the stem until this changes.
         self.c.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": sha}, ticket=stem)
-        terminal = await self.dispatch(ticket)
+        consumer = self.c.control
+        task = asyncio.create_task(self.dispatch(ticket))
+
+        async def control() -> None:
+            while not task.done():
+                await consumer.sleep(0.1)
+                consumer.inbox.consume()
+                if self._stopping():
+                    await consumer.apply_kill(self.dispatch.abort_current, task)
+                    return
+
+        monitor = asyncio.create_task(control()) if consumer is not None else None
+        owned = (task, monitor) if monitor is not None else (task,)
+        try:
+            await asyncio.wait(owned, return_when=asyncio.FIRST_COMPLETED)
+            if monitor is not None and self._stopping():
+                await asyncio.shield(monitor)
+                self.report.killed = True
+                return
+            if monitor is not None and monitor.done():
+                monitor.result()
+            terminal = task.result()
+        finally:
+            async def cleanup() -> None:
+                failed_stop = False
+                try:
+                    if self._stopping():
+                        try:
+                            await consumer.apply_kill(self.dispatch.abort_current, task)
+                        except BaseException:
+                            failed_stop = True
+                            raise
+                finally:
+                    failed_control = failed_stop or (monitor is not None and monitor.done()
+                        and not monitor.cancelled() and monitor.exception() is not None)
+                    for pending in owned:
+                        # Neither a failed decision nor a failed abort authorizes
+                        # dispatch cancellation. Observe its ordinary cleanup instead.
+                        if pending is task and failed_control:
+                            continue
+                        if not pending.done() and not pending.cancelling():
+                            pending.cancel()
+                    results = await asyncio.gather(*owned, return_exceptions=True)
+                    for result in results:
+                        if isinstance(result, BaseException) and not isinstance(result, asyncio.CancelledError):
+                            raise result
+            await _protected_cleanup(asyncio.create_task(cleanup()))
         if terminal not in TERMINAL_STATES:
             raise ValueError(f"stage seam returned {terminal!r}, not a terminal state {sorted(TERMINAL_STATES)}")
         body = next(e.body for e in reversed(self.c.journal.read())

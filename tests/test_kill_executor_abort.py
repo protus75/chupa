@@ -1,4 +1,4 @@
-"""Explicit executor unwind, with no production kill activation."""
+"""Executor unwind ordering and its activation through the production drain."""
 
 import asyncio
 from dataclasses import replace
@@ -6,11 +6,9 @@ from dataclasses import replace
 import pytest
 
 from chupa import daemon
-from chupa.driver import Driver
 from chupa.llm import FakeLLM, LLMAborted
 from tests.test_driver import ECHO, Stub, build, echo_json, log_events, spool
-from tests.test_cli import Stages, cli, journal, root, ticket, write
-from tests.test_daemon_composition import CoreRig, LiveDrain, assert_core_wiring
+from tests.test_cli import root
 from tests.test_kill_signal_journal import Rig, decision
 
 
@@ -249,46 +247,12 @@ async def test_executor_abort_failure_propagates(tmp_path):
     await cancelled(task)
 
 
-def test_executor_abort_is_dormant(root, tmp_path, monkeypatch):
-    async def probe(*args, **kwargs):
-        raise AssertionError("external abort invoked")
-    monkeypatch.setattr(Driver, "abort_current", probe)
-    with pytest.raises(AssertionError, match="external abort invoked"):
-        asyncio.run(daemon.executor_abort(Driver.abort_current))
-    monkeypatch.setattr(daemon, "executor_abort", probe)
-    with pytest.raises(AssertionError, match="external abort invoked"):
-        asyncio.run(daemon.executor_abort(probe))
-    for verb in ("run", "drain"):
-        stem = "work-" + verb
-        write(root, stem, ticket())
-        stages = Stages()
-        assert cli(root, verb, *([stem] if verb == "run" else []), stages=stages) == 0
-        assert stages.calls == [stem] and stages.lock_held == [True]
-        assert not any(e.body.get("kind") == "control_decision" for e in journal(root).read())
-
-    async def production():
-        tasks = asyncio.all_tasks()
-        directory = tmp_path / "production"
-        directory.mkdir()
-        async def prepare(local):
-            assert local.control is rig.core.control
-            async def dispatch(ticket):
-                return "merged"
-            return dispatch
-        rig = CoreRig(directory, prepare=prepare)
-        assert_core_wiring(rig)
-        assert rig.core.admission._before_dispatch == rig.core.control.checkpoint
-        assert asyncio.all_tasks() == tasks and rig.journal.read() == []
-        assert rig.fs.files == {} and rig.exec.calls == []
-        await rig.add("composed")
-        await rig.drain()
-        assert asyncio.all_tasks() == tasks
-        with monkeypatch.context() as patch:
-            live = LiveDrain(root, patch, pause=False)
-            assert (await live.run()).merged == []
-            assert not live.consumer.projection.kill_requested
-            assert asyncio.all_tasks() == tasks
-    asyncio.run(production())
+def test_executor_abort_is_active_in_drain(root, tmp_path, monkeypatch):
+    from tests.test_kill_cli_activation import exercise_live_cli_kill
+    checkout, writer = exercise_live_cli_kill(root, monkeypatch)
+    assert writer.ctx.driver._active is None
+    assert writer.ctx.driver.llm.aborts == 1
+    assert writer.ctx.driver.journal is checkout.control.inbox.journal
 
 
 @pytest.mark.asyncio

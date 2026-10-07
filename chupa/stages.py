@@ -183,6 +183,9 @@ class StageContext:
         assert self.config.worktree_root is not None  # resolved at config load
         return self.config.worktree_root / stem
 
+    async def abort_current(self) -> None:
+        await self.driver.abort_current()
+
 
 class ArtifactInvalid(Exception):
     def __init__(self, path: Path, error: Exception) -> None:
