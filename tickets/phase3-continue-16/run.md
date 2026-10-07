@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-Previously missing lookahead units now validate; closure greps earned no fence additions.
+entry_unit_gap passes structural checks, but the complete unit lacks the required semantic facts; the activation unit is byte-identical on HEAD and the merge base.
 
 ## Dead ends
 
-none
+Stopped before authoring seeds or tests; preserved the approved storm-ledger seed byte-identically, committed nothing, and did not run Verification.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60-minute expected and 90-minute stuck budgets.
+Premise validation stopped work well within the 60-minute expected budget.
 
