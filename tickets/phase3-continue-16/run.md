@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The four explicitly named entry units passed validation, but further required lookahead failed on untouched HEAD f48fc6ee75a9f123edac84d1fad62a8a33e7e6d7.
+Previously missing lookahead units now validate; closure greps earned no fence additions.
 
 ## Dead ends
 
-Seed authoring stopped before writing because required governing contracts cannot resolve.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during prerequisite validation, within the 60-minute expected budget.
+Completed within the 60-minute expected and 90-minute stuck budgets.
 
