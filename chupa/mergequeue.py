@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import Callable, Sequence
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from chupa import merge, stages
 from chupa.artifacts import Cost, Finding, StageResult
@@ -31,6 +31,13 @@ class ConflictHandoff(BaseModel):
     conflicted_paths: list[str]
     findings: list[Finding]
     approval_invalidated: Literal[True] = True
+
+    @field_validator("conflicted_paths")
+    @classmethod
+    def _ordered_paths(cls, paths: list[str]) -> list[str]:
+        if paths != sorted(set(paths)):
+            raise ValueError("conflicted_paths must be sorted and unique")
+        return paths
 
 
 class TreeMismatch(RuntimeError):
