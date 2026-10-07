@@ -403,6 +403,20 @@ def test_premise_naming_a_missing_entry_unit_files_a_hardening_ticket_not_a_park
     assert [r.surface for r in llm.requests] == ["implement"]
 
 
+def test_premise_naming_a_fact_a_complete_entry_unit_omits_files_hardening(repo):
+    add_registry_row(repo)
+    plan = repo / "CHUPA_PLAN.md"
+    plan.write_text(plan.read_text() + "\n### 19.P3.gamma-seed Gamma\n\n- **Owner:** o\n- **Records:** r\n"
+                    "- **Observable:** b\n- **Tests:** t\n")
+    git(repo, "commit", "-am", "complete entry unit")
+    premise = {"code": "premise", "message": "19.P3.gamma-seed omits which carrier hands the inbox to both factories",
+               "paved_road": "state the carrier in the unit"}
+    outcome, ctx, _ = run(repo, [implement_reply("premise_failed", [premise])])
+    assert outcome == "premise_failed"
+    assert terminal_body(ctx)["dispatch"] == "spec_gap_hold"
+    assert "omits which carrier" in (repo / "tickets/harden-gamma-seed-1/ticket.md").read_text()
+
+
 def test_premise_without_an_entry_unit_gap_keeps_the_ordinary_park(repo):
     premise = {"code": "premise", "message": "criterion 2 contradicts merged behavior", "paved_road": "fix it"}
     outcome, ctx, _ = run(repo, [implement_reply("premise_failed", [premise]), diagnosis_reply()])

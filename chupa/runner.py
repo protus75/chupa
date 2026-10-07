@@ -299,13 +299,19 @@ def spec_gaps(ctx: StageContext, stem: str) -> dict[str, list[str]]:
 
 
 def premise_spec_gaps(ctx: StageContext, findings: list[Finding]) -> dict[str, list[str]]:
-    """Section 11.4: a `premise_failed` naming entry units that are missing or thin is a spec gap of each."""
+    """Section 11.4: a `premise_failed` naming an entry unit is a spec gap of it -- the unit is missing or thin,
+    or the finding names a fact it omits or contradicts."""
     plan = (ctx.repo / PLAN_FILE).read_text()
+    rows = registry_rows(plan)
     gaps: dict[str, list[str]] = {}
     for finding in findings:
         for m in re.finditer(r"19\.P[0-6]\.([a-z0-9][a-z0-9-]*[a-z0-9])", f"{finding.message} {finding.paved_road}"):
-            if (gap := entry_unit_gap(plan, m.group(1))) is not None and gap not in gaps.get(m.group(1), []):
-                gaps.setdefault(m.group(1), []).append(gap)
+            row = m.group(1)
+            if row not in rows or rows[row][1].get("exit"):
+                continue
+            gap = entry_unit_gap(plan, row) or finding.message
+            if gap not in gaps.get(row, []):
+                gaps.setdefault(row, []).append(gap)
     return gaps
 
 
