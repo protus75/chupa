@@ -1,10 +1,10 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-All six explicitly named entry units pass gap checks and resolve; the missing successor citation was verified on base commit f7a2cdc13f8ccffb3a904fe287e981759529e908.
+The prior missing entry unit is now complete; all previous seed reviews were snagged, so no approved bytes required preservation.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during read-only premise validation, within the 60-minute expected budget.
+Completed within the 60-minute expected and 90-minute stuck budgets.
 
