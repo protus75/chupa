@@ -135,7 +135,7 @@ AUTHORED = {
         153635,
     ),
     'rework-activation': Authored(
-        23076,
+        23217,
         ('19.I', '19.P3.rework-activation'),
         ('chupa/daemon.py', 'chupa/rework.py', 'chupa/mergequeue.py', 'tests/test_rework.py', 'tests/test_daemon_composition.py', 'chupa/runner.py', 'chupa/drain.py', 'chupa/scheduler.py', 'tests/test_ladder.py', 'tests/test_drain.py', 'tests/test_scheduler.py', 'tests/test_reject_queue.py', 'tests/test_diagnose.py', 'tests/test_mergequeue.py'),
         ('chupa/daemon.py', 'chupa/rework.py', 'chupa/mergequeue.py', 'tests/test_rework.py', 'tests/test_daemon_composition.py', 'chupa/runner.py', 'chupa/drain.py', 'chupa/scheduler.py', 'tests/test_ladder.py', 'tests/test_drain.py', 'tests/test_scheduler.py', 'tests/test_reject_queue.py', 'tests/test_diagnose.py', 'tests/test_mergequeue.py'),
