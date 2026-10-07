@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The scheduler production-binding contract is now explicit, but the missing successor entry units remain unresolved.
+Previously missing pause entry units now pass gap checks; the scheduler seed includes all eleven current named test obligations.
 
 ## Dead ends
 
-Stopped before authoring seeds after entry_unit_gap and resolve_plan_contract confirmed the missing units on the untouched base commit.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Premise validation stopped the work within minutes of the expected 60-minute budget.
+Completed within the expected 60-minute budget.
 
