@@ -15,6 +15,7 @@ from chupa.heartbeat import Heartbeat
 from chupa.mergequeue import ConflictHandoff, MergeQueue
 from chupa.rework import ReworkOrder, record_supersedes, rework
 from chupa.runner import Dispatch
+from chupa.restart import Restart
 from chupa.scheduler import Scheduler
 from chupa.seams import Clock, FileSystem, Sleep
 from chupa.stages import StageContext
@@ -232,6 +233,36 @@ class DaemonCore:
     watcher: Watcher
     control: PauseConsumer | None = None
 
+    @property
+    def restart(self) -> Restart | None:
+        return self.admission.restart
+
+    async def startup(self) -> None:
+        """Explicit startup under the caller's writer lock, also used by first admission."""
+        async with self.admission._slot:
+            if self.restart is not None:
+                await self.restart.startup()
+
+    async def sweep_orphans(self) -> list[str]:
+        """Skip live dispatch, cleanup or admission; serialize the idle boundary with offers."""
+        if self.admission._slot.locked():
+            return []
+        async with self.admission._slot:
+            if self.restart is None:
+                return []
+            return await self.restart.sweep_orphans()
+
+
+class StartupBoundary:
+    """Admission awaits recovery before the existing pause checkpoint and snapshot."""
+
+    def __init__(self, restart: Restart, pause: PauseConsumer) -> None:
+        self.restart, self.pause = restart, pause
+
+    async def checkpoint(self) -> None:
+        await self.restart.startup()
+        await self.pause.checkpoint()
+
 
 class DaemonTasks:
     """Explicit lifetime owner for dormant background consumers (19.P3.background-consumers)."""
@@ -396,6 +427,7 @@ class DaemonAdmission:
                  before_dispatch: Callable[[], Awaitable[None]] | None = None) -> None:
         self._dispatch = dispatch
         self._before_dispatch = before_dispatch
+        self.restart: Restart | None = None
         self._slot = asyncio.Lock()
         self.active: Ticket | None = None
         self.task: asyncio.Task[str] | None = None

@@ -14,7 +14,7 @@ from chupa.control import ControlProjection, ControlRequest, publish_request, va
 from chupa.journal import EventType, Journal
 from chupa.seams import FileSystem, LocalFileSystem
 from tests.test_cli import Stages, cli, journal, root, ticket, write
-from tests.test_daemon_composition import CoreRig
+from tests.test_daemon_composition import CoreRig, assert_startup_pause_wiring
 from tests.test_effects import Crash, FakeClock
 
 
@@ -383,12 +383,12 @@ def test_control_inbox_is_active(root, tmp_path, monkeypatch):
     directory.mkdir()
     production = CoreRig(directory)
     assert production.core.control.inbox.journal is production.journal
-    assert production.core.admission._before_dispatch == production.core.control.checkpoint
+    assert_startup_pause_wiring(production.core)
     assert production.journal.read() == [] and production.fs.files == {}
 
     # Removing the actual production binding must defeat the positive observable.
     def assert_bound(core):
-        assert core.admission._before_dispatch == core.control.checkpoint
+        assert_startup_pause_wiring(core)
     assert_bound(production.core)
     with monkeypatch.context() as patch:
         patch.setattr(production.core.admission, "_before_dispatch", None)

@@ -16,12 +16,15 @@ from uuid import uuid4
 from chupa import control, drain, runner, triage
 from chupa.config import ConfigError, ConfigSnapshot, load_config
 from chupa.daemon import DaemonCore, PauseConsumer, daemon_core
+from chupa.daemon import StartupBoundary
 from chupa.git import Git
 from chupa.journal import Journal, JournalCorruption
 from chupa.lockfile import LockHeld, Lockfile
 from chupa.providers import ProviderLLM, ProviderSetupError, child_env
+from chupa.restart import Restart
 from chupa.seams import Clock, ExecutableNotFound, LocalFileSystem, ProcessExec, SubprocessExec
 from chupa.status import project, render
+from chupa.timers import Timers
 from chupa.tickets import IntakeRefused, Ticket, TicketInvalid, stem_findings, template, ticket_path, validate_ticket
 
 GIT_TIMEOUT_S = 30.0
@@ -59,7 +62,7 @@ def build_daemon_core(
 
         return dispatch
 
-    return daemon_core(
+    core = daemon_core(
         checkout.repo, journal=checkout.journal,
         load=lambda: load_config(config_path, cwd=checkout.repo), bind=bind, plan=plan, read=read,
         clock=checkout.clock, sleep=checkout.sleep, debounce=debounce,
@@ -67,6 +70,12 @@ def build_daemon_core(
         completed_unmerged=completed_unmerged, max_unmerged=checkout.config.scheduler.max_unmerged,
         before_dispatch=consumer.checkpoint, control=consumer,
     )
+    timers = Timers(journal=checkout.journal, clock=checkout.clock, sleep=checkout.sleep)
+    restart = Restart(checkout, timers=timers,
+                      owned=lambda: core.admission.active is not None or core.admission.task is not None)
+    core.admission.restart = restart
+    core.admission._before_dispatch = StartupBoundary(restart, consumer).checkpoint
+    return core
 
 
 def _parser() -> argparse.ArgumentParser:

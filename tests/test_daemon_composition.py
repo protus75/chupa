@@ -146,6 +146,15 @@ def assert_core_wiring(rig):
     assert core.scheduler.max_unmerged == rig.checkout.config.scheduler.max_unmerged
 
 
+def assert_startup_pause_wiring(core):
+    boundary = core.admission._before_dispatch
+    assert boundary is not None
+    assert isinstance(boundary.__self__, daemon.StartupBoundary)
+    assert boundary == boundary.__self__.checkpoint
+    assert boundary.__self__.restart is core.restart
+    assert boundary.__self__.pause is core.control
+
+
 @pytest.fixture
 def rig(tmp_path):
     async def prepare(local):
@@ -310,6 +319,7 @@ async def test_production_core_preserves_eligibility_order_and_backpressure(tmp_
         return callback
 
     rig = CoreRig(tmp_path, prepare=prepare)
+    await rig.core.startup()
     for state in ("draft", "rejected", "merged"):
         await rig.add(state, state=state)
     await rig.add("parent", state="merged")
@@ -1258,7 +1268,7 @@ async def test_production_composes_one_pause_consumer(tmp_path, monkeypatch):
     assert consumer.state_dir == rig.checkout.config.state_dir
     assert consumer.projection.lifecycle_id == consumer.inbox.lifecycle_id
     assert consumer.projection.pause_id is None
-    assert rig.core.admission._before_dispatch == consumer.checkpoint
+    assert_startup_pause_wiring(rig.core)
     assert tasks == asyncio.all_tasks() and rig.journal.read() == []
     assert rig.fs.files == {} and rig.exec.calls == []
 

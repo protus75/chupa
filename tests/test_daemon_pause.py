@@ -11,7 +11,7 @@ from chupa.daemon import DaemonAdmission, snapshot_dispatch
 from tests.test_cli import CONFIG, ENV, Clock, root, ticket, write
 from tests.test_control import Rig
 from tests.test_daemon_admission import assert_idle, tickets, turn
-from tests.test_daemon_composition import CoreRig, assert_core_wiring
+from tests.test_daemon_composition import CoreRig, assert_core_wiring, assert_startup_pause_wiring
 from tests.test_drain import Script, journal
 
 
@@ -198,7 +198,7 @@ def test_dispatch_pause_boundary_is_active(root, tmp_path, monkeypatch):
         rig = CoreRig(directory, prepare=prepare)
         assert_core_wiring(rig)
         candidate = await rig.add("work")
-        assert rig.core.admission._before_dispatch == rig.core.control.checkpoint
+        assert_startup_pause_wiring(rig.core)
         with monkeypatch.context() as patch:
             patch.setattr(control.ControlInbox, "consume", forbidden)
             with pytest.raises(AssertionError, match="control consumption"):
