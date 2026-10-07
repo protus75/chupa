@@ -11,10 +11,11 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence, Set
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
-from chupa import drain, runner, triage
+from chupa import control, drain, runner, triage
 from chupa.config import ConfigError, ConfigSnapshot, load_config
-from chupa.daemon import DaemonCore, daemon_core
+from chupa.daemon import DaemonCore, PauseConsumer, daemon_core
 from chupa.git import Git
 from chupa.journal import Journal, JournalCorruption
 from chupa.lockfile import LockHeld, Lockfile
@@ -28,6 +29,14 @@ GIT_TIMEOUT_S = 30.0
 
 def _clock() -> datetime:
     return datetime.now(UTC)
+
+
+def build_control(checkout: runner.Checkout) -> PauseConsumer:
+    """Compose without reading requests, publishing discovery, or starting tasks."""
+    return PauseConsumer(journal=checkout.journal, lifecycle_id=uuid4().hex,
+                         state_dir=checkout.config.state_dir, fs=checkout.fs, sleep=checkout.sleep,
+                         files=lambda: (checkout.config.state_dir / "control/inbox").glob("*"),
+                         read=Path.read_bytes)
 
 
 def build_daemon_core(
@@ -47,12 +56,14 @@ def build_daemon_core(
 
         return dispatch
 
+    consumer = build_control(checkout)
     return daemon_core(
         checkout.repo, journal=checkout.journal,
         load=lambda: load_config(config_path, cwd=checkout.repo), bind=bind, plan=plan, read=read,
         clock=checkout.clock, sleep=checkout.sleep, debounce=debounce,
         quarantined=quarantined, drought_parked=drought_parked,
         completed_unmerged=completed_unmerged, max_unmerged=checkout.config.scheduler.max_unmerged,
+        before_dispatch=consumer.checkpoint, control=consumer,
     )
 
 
@@ -61,6 +72,8 @@ def _parser() -> argparse.ArgumentParser:
     ap.add_argument("--config", type=Path, help="config path (default: config.yaml at the checkout root)")
     sub = ap.add_subparsers(dest="verb", required=True)
     sub.add_parser("status", help="project current state from the journal (read-only)")
+    for verb in ("pause", "resume"):
+        sub.add_parser(verb, help=f"submit {verb} to the running engine, or do nothing under the idle lock")
     sub.add_parser("triage", help="make one sequential pass over pending suggestions under the lock")
     new = sub.add_parser("new", help="template tickets/<stem>/ticket.md and lint it")
     new.add_argument("stem")
@@ -99,6 +112,8 @@ def main(
             git=Git(exec_, env=child_env(env, config), timeout=GIT_TIMEOUT_S),
             journal=Journal(config.state_dir, clock), fs=LocalFileSystem(), clock=clock,
         )
+        if args.verb in {"pause", "resume"}:
+            return asyncio.run(_control(checkout, args.verb))
         if args.verb in {"confirm", "reject"}:
             return asyncio.run(runner.verdict(args.stem, checkout, kill=args.verb == "reject"))
         if args.verb == "triage":
@@ -128,6 +143,30 @@ def main(
             ExecutableNotFound) as e:
         print(f"chupa {args.verb}: {e}", file=sys.stderr)
         return runner.EXIT_REFUSED
+
+
+async def _control(checkout: runner.Checkout, verb: str) -> int:
+    lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo),
+                    clock=checkout.clock)
+    try:
+        lock.acquire()
+    except LockHeld:
+        try:
+            lifecycle, hold = control.read_active(checkout.config.state_dir, Path.read_bytes)
+        except ValueError as exc:
+            raise runner.Refusal("current control identity unavailable", str(exc)) from exc
+        if verb == "resume" and hold is None:
+            raise runner.Refusal("no current pause identity",
+                                 "read the running engine's current control identity and submit a new request")
+        request = control.ControlRequest(uuid4().hex, lifecycle, verb, hold if verb == "resume" else None)
+        control.publish_request(checkout.config.state_dir, request, checkout.fs)
+        print(f"{verb} submitted: {request.request_id}")
+    else:
+        try:
+            print(f"nothing running to {verb}")
+        finally:
+            lock.release()
+    return 0
 
 
 def _new(repo: Path, stem: str) -> int:

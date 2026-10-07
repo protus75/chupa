@@ -155,12 +155,24 @@ async def drain(
     lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo),
                     clock=checkout.clock)
     lock.acquire()
+    consumer = None
     try:
+        from chupa.__main__ import build_control
+        consumer = build_control(checkout)
+        consumer.publish()
+
+        async def checkpoint() -> None:
+            await consumer.checkpoint()
+            if before_dispatch is not None:
+                await before_dispatch()
+            # An injected preparation wait can allow a new request to arrive.
+            await consumer.checkpoint()
+
         assert checkout.config.worktree_root is not None  # resolved at config load
         await reconcile(checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root,
                         lambda stem, attempt: harvest_orphan(checkout, stem, attempt))
         await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
-        run = _Drain(checkout, dispatch, frozenset(parked), before_dispatch=before_dispatch)
+        run = _Drain(checkout, dispatch, frozenset(parked), before_dispatch=checkpoint)
         report = await run.run()
         if run.upgrade is None:
             return report
@@ -171,7 +183,11 @@ async def drain(
                                 ticket=stem)
         checkout.journal.close()
     finally:
-        lock.release()
+        try:
+            if consumer is not None:
+                consumer.retire()
+        finally:
+            lock.release()
     # The fixed HANDOFF order (section 18): journaled, journal closed, lock free -- the child is the only writer,
     # and the parent does nothing after the spawn but exit with its code.
     report.handoff, _, _ = await reexec.run(reexec_argv(carried), cwd=checkout.repo, env=checkout.env, timeout=None)

@@ -375,60 +375,41 @@ def test_current_kill_is_only_an_idempotent_projection(tmp_path):
     assert rig.decisions()[0]["decision"] == "accepted"
 
 
-def test_control_inbox_is_dormant(root, tmp_path, monkeypatch):
+def test_control_inbox_is_active(root, tmp_path, monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("control boundary touched")
-    # Each production-facing probe is calibrated by deliberately invoking its real boundary.
-    rig = Rig(tmp_path / "control-rig")
-    with monkeypatch.context() as patch:
-        patch.setattr(control.ControlInbox, "consume", forbidden)
-        with pytest.raises(AssertionError, match="control boundary"):
-            rig.inbox.consume()
-        patch.setattr(control.ControlInbox, "recover", forbidden)
-        with pytest.raises(AssertionError, match="control boundary"):
-            rig.inbox.recover()
-        patch.setattr(control.ControlInbox, "__init__", forbidden)
-        with pytest.raises(AssertionError, match="control boundary"):
-            rig.reconstruct()
-        patch.setattr(daemon, "control_inbox", forbidden)
-        with pytest.raises(AssertionError, match="control boundary"):
-            rig.reconstruct()
-        patch.setattr(control, "publish_request", forbidden)
-        with pytest.raises(AssertionError, match="control boundary"):
-            control.publish_request(root, ControlRequest("id", "life", "pause", None), LocalFileSystem())
-        patch.setattr(LocalFileSystem, "publish", forbidden)
-        with pytest.raises(AssertionError, match="control boundary"):
-            publish_request(root, ControlRequest("id", "life", "pause", None), LocalFileSystem())
 
-        async def construct():
-            before = asyncio.all_tasks()
-            production = CoreRig(tmp_path / "production")
-            assert asyncio.all_tasks() == before and production.journal.read() == []
-            assert production.fs.files == {} and production.exec.calls == []
-            assert not hasattr(production.core, "control")
-        (tmp_path / "production").mkdir()
-        # Deliberate wiring into the actual composition harness must trip the probe.
-        original_build = cli_root.build_daemon_core
-        def wired(checkout, **kwargs):
-            core = original_build(checkout, **kwargs)
-            daemon.control_inbox(journal=checkout.journal, lifecycle_id="deliberate",
-                                 holds=lambda: set(), apply=rig.apply, files=lambda: [], read=Path.read_bytes)
-            return core
-        with monkeypatch.context() as wiring:
-            wiring.setattr(cli_root, "build_daemon_core", wired)
-            with pytest.raises(AssertionError, match="control boundary"):
-                asyncio.run(construct())
-        asyncio.run(construct())
-        for verb in ("run", "drain"):
-            stem = "work-" + verb
-            write(root, stem, ticket())
-            def wired_pipeline(checkout):
-                rig.inbox.consume()
-                return Stages()(checkout)
-            with pytest.raises(AssertionError, match="control boundary"):
-                cli(root, verb, *([stem] if verb == "run" else []), stages=wired_pipeline)
-            stages = Stages()
-            assert cli(root, verb, *([stem] if verb == "run" else []), stages=stages) == 0
+    directory = tmp_path / "production"
+    directory.mkdir()
+    production = CoreRig(directory)
+    assert production.core.control.inbox.journal is production.journal
+    assert production.core.admission._before_dispatch == production.core.control.checkpoint
+    assert production.journal.read() == [] and production.fs.files == {}
+
+    # Removing the actual production binding must defeat the positive observable.
+    def assert_bound(core):
+        assert core.admission._before_dispatch == core.control.checkpoint
+    assert_bound(production.core)
+    with monkeypatch.context() as patch:
+        patch.setattr(production.core.admission, "_before_dispatch", None)
+        with pytest.raises(AssertionError):
+            assert_bound(production.core)
+
+    for verb in ("run", "drain"):
+        stem = "work-" + verb
+        write(root, stem, ticket())
+        stages = Stages()
+        with monkeypatch.context() as patch:
+            patch.setattr(control.ControlInbox, "consume", forbidden)
+            if verb == "drain":
+                with pytest.raises(AssertionError, match="control boundary"):
+                    cli(root, verb, stages=stages)
+                assert stages.calls == []
+            else:
+                assert cli(root, verb, stem, stages=stages) == 0
+                assert stages.calls == [stem] and stages.lock_held == [True]
+        if verb == "drain":
+            assert cli(root, verb, stages=stages) == 0
             assert stages.calls == [stem] and stages.lock_held == [True]
-        assert not (root / ".chupa/state/control").exists()
-        assert not any(e.body.get("kind") == control.CONTROL_DECISION for e in journal(root).read())
+    assert (root / ".chupa/state/control/active.json").read_bytes() == b"null\n"
+    assert not any(e.body.get("kind") == control.CONTROL_DECISION for e in journal(root).read())

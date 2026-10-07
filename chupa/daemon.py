@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from chupa.config import Config, ConfigSnapshot, snapshot_config
-from chupa.control import ControlInbox, ControlProjection
+from chupa.control import ControlInbox, ControlProjection, write_active
 from chupa.journal import Journal
 from chupa import runner
 from chupa.artifacts import Cost, Finding, StageResult
@@ -15,7 +15,7 @@ from chupa.mergequeue import ConflictHandoff, MergeQueue
 from chupa.rework import ReworkOrder, record_supersedes, rework
 from chupa.runner import Dispatch
 from chupa.scheduler import Scheduler
-from chupa.seams import Clock, Sleep
+from chupa.seams import Clock, FileSystem, Sleep
 from chupa.stages import StageContext
 from chupa.tickets import Ticket, parse_ticket, ticket_path
 from chupa.watcher import Watcher
@@ -24,9 +24,43 @@ from chupa.watcher import Watcher
 def control_inbox(*, journal: Journal, lifecycle_id: str, holds: Callable[[], Set[str]],
                   apply: Callable[[ControlProjection], None],
                   files: Callable[[], Iterable[Path]], read: Callable[[Path], bytes]) -> ControlInbox:
-    """Dormant boundary: explicitly supplied by the lock holder, never a second writer."""
+    """Explicitly supplied by the lock holder, never a second writer."""
     return ControlInbox(journal=journal, lifecycle_id=lifecycle_id, holds=holds,
                         apply=apply, files=files, read=read)
+
+
+class PauseConsumer:
+    """One serial inbox and desired pause state, owned by the engine's writer lock."""
+
+    def __init__(self, *, journal: Journal, lifecycle_id: str, state_dir: Path,
+                 fs: FileSystem, sleep: Sleep, files: Callable[[], Iterable[Path]],
+                 read: Callable[[Path], bytes]) -> None:
+        self.state_dir, self.fs, self.sleep = state_dir, fs, sleep
+        self.projection = ControlProjection(lifecycle_id)
+        self._published = False
+        self.inbox = control_inbox(journal=journal, lifecycle_id=lifecycle_id,
+                                   holds=lambda: set(), apply=self._apply, files=files, read=read)
+
+    def _apply(self, projection: ControlProjection) -> None:
+        # The inbox has already fsynced the decision; discovery is only its projection.
+        self.projection = projection
+        if self._published:
+            write_active(self.state_dir, projection, self.fs)
+
+    def publish(self) -> None:
+        self._published = True
+        write_active(self.state_dir, self.projection, self.fs)
+
+    def retire(self) -> None:
+        write_active(self.state_dir, None, self.fs)
+        self._published = False
+
+    async def checkpoint(self) -> None:
+        while True:
+            self.inbox.consume()
+            if self.projection.pause_id is None:
+                return
+            await self.sleep(0.1)
 
 
 @dataclass(frozen=True)
@@ -34,6 +68,7 @@ class DaemonCore:
     admission: "DaemonAdmission"
     scheduler: Scheduler
     watcher: Watcher
+    control: PauseConsumer | None = None
 
 
 class DaemonTasks:
@@ -177,6 +212,7 @@ def daemon_core(
     quarantined: Callable[[], Set[str]], drought_parked: Callable[[], Set[str]],
     completed_unmerged: Callable[[], int], max_unmerged: int,
     before_dispatch: Callable[[], Awaitable[None]] | None = None,
+    control: PauseConsumer | None = None,
 ) -> DaemonCore:
     admission = DaemonAdmission(snapshot_dispatch(load, bind), before_dispatch=before_dispatch)
     scheduler = Scheduler(
@@ -187,7 +223,7 @@ def daemon_core(
         repo, journal=journal, plan=plan, read=read, publish=scheduler.update, remove=scheduler.remove,
         clock=clock, sleep=sleep, debounce=debounce,
     )
-    return DaemonCore(admission, scheduler, watcher)
+    return DaemonCore(admission, scheduler, watcher, control)
 
 
 def snapshot_dispatch(load: Callable[[], Config], bind: Callable[[ConfigSnapshot], Dispatch]) -> Dispatch:

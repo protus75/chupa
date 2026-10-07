@@ -1,4 +1,4 @@
-"""Dormant identity-bound control requests (CHUPA_PLAN.md 19.P3.control-inbox)."""
+"""Identity-bound control requests (CHUPA_PLAN.md 19.P3.control-inbox)."""
 
 import json
 import re
@@ -156,3 +156,26 @@ class ControlInbox:
             decided.add(path.stem)
             if body["decision"] == "accepted":
                 projection = self.recover()
+
+
+_DISCOVERY_ROAD = ("retry after the running engine publishes its current control identity; "
+                   "read that identity and submit a new request")
+
+
+def write_active(state_dir: Path, projection: ControlProjection | None, fs: FileSystem) -> None:
+    value = (None if projection is None else
+             {"lifecycle_id": projection.lifecycle_id, "hold_id": projection.pause_id})
+    fs.write(state_dir / "control/active.json", (json.dumps(value) + "\n").encode())
+
+
+def read_active(state_dir: Path, read: Callable[[Path], bytes]) -> tuple[str, str | None]:
+    try:
+        value = json.loads(read(state_dir / "control/active.json"), object_pairs_hook=_object)
+        if (not isinstance(value, dict) or set(value) != {"lifecycle_id", "hold_id"}
+                or not isinstance(value["lifecycle_id"], str) or not value["lifecycle_id"]
+                or (value["hold_id"] is not None and
+                    (not isinstance(value["hold_id"], str) or not value["hold_id"]))):
+            raise ValueError
+    except (OSError, ValueError, UnicodeError) as exc:
+        raise ValueError(_DISCOVERY_ROAD) from exc
+    return value["lifecycle_id"], value["hold_id"]

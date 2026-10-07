@@ -1,4 +1,4 @@
-"""Explicit pause checkpoints and their dormant production composition."""
+"""Explicit pause checkpoints and their active production composition."""
 
 import asyncio
 
@@ -174,32 +174,19 @@ async def test_checkpoint_failure_and_cancellation_leave_no_dispatch(tickets):
     assert calls == [tickets[1]]
 
 
-def test_dispatch_pause_boundary_is_dormant(root, tmp_path, monkeypatch):
-    async def probe():
-        raise AssertionError("pause checkpoint touched")
-
-    pending = Rig(root / ".chupa/state")
-    request = pending.publish("dormant-pause")
+def test_dispatch_pause_boundary_is_active(root, tmp_path, monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("control consumption touched")
-    monkeypatch.setattr(control.ControlInbox, "consume", forbidden)
-    monkeypatch.setattr(control.ControlInbox, "recover", forbidden)
-    for callback in (pending.inbox.consume, pending.inbox.recover):
-        with pytest.raises(AssertionError, match="control consumption"):
-            callback()
 
-    for verb in ("run", "drain"):
-        stem = "work-" + verb
-        write(root, stem, ticket())
-        argv = [verb, stem] if verb == "run" else [verb]
-        script = Script()
-        def wired(checkout):
-            return DaemonAdmission(script(checkout), before_dispatch=probe).dispatch
-        with pytest.raises(AssertionError, match="pause checkpoint"):
-            main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=wired)
-        assert script.calls == []
-        assert main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=script) == 0
-        assert script.calls == [stem]
+    write(root, "work", ticket())
+    script = Script()
+    with monkeypatch.context() as patch:
+        patch.setattr(control.ControlInbox, "consume", forbidden)
+        with pytest.raises(AssertionError, match="control consumption"):
+            main(["drain"], cwd=root, env=ENV, clock=Clock(), pipeline=script)
+    assert script.calls == []
+    assert main(["drain"], cwd=root, env=ENV, clock=Clock(), pipeline=script) == 0
+    assert script.calls == ["work"]
 
     async def composition():
         directory = tmp_path / "composition"
@@ -208,27 +195,15 @@ def test_dispatch_pause_boundary_is_dormant(root, tmp_path, monkeypatch):
             async def dispatch(ticket):
                 return "merged"
             return dispatch
-        original = daemon.daemon_core
-        def wired(*args, **kwargs):
-            return original(*args, **kwargs, before_dispatch=probe)
-        with monkeypatch.context() as patch:
-            patch.setattr("chupa.__main__.daemon_core", wired)
-            rig = CoreRig(directory, prepare=prepare)
-            candidate = await rig.add("work")
-            with pytest.raises(AssertionError, match="pause checkpoint"):
-                await rig.core.admission.dispatch(candidate)
-            assert rig.exec.calls == [] and rig.fs.files == {}
-        def forbidden(*args, **kwargs):
-            raise AssertionError("control consumption touched")
+        rig = CoreRig(directory, prepare=prepare)
+        assert_core_wiring(rig)
+        candidate = await rig.add("work")
+        assert rig.core.admission._before_dispatch == rig.core.control.checkpoint
         with monkeypatch.context() as patch:
             patch.setattr(control.ControlInbox, "consume", forbidden)
-            patch.setattr(control.ControlInbox, "recover", forbidden)
-            rig = CoreRig(directory, prepare=prepare)
-            assert_core_wiring(rig)
-            candidate = await rig.add("work")
-            assert await rig.core.admission.dispatch(candidate) == "merged"
-            assert rig.core.admission._before_dispatch is None
-            assert not any(e.body.get("kind") == control.CONTROL_DECISION for e in rig.journal.read())
+            with pytest.raises(AssertionError, match="control consumption"):
+                await rig.core.admission.dispatch(candidate)
+            assert rig.exec.calls == [] and rig.fs.files == {}
+        assert await rig.core.admission.dispatch(candidate) == "merged"
+        assert not any(e.body.get("kind") == control.CONTROL_DECISION for e in rig.journal.read())
     asyncio.run(composition())
-    assert request.exists()
-    assert not any(e.body.get("kind") == control.CONTROL_DECISION for e in journal(root).read())

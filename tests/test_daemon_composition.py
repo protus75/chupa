@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -21,7 +22,7 @@ from chupa.scheduler import Scheduler
 from chupa.stages import StageContext
 from chupa.tickets import INTAKE_SIGNAL
 from chupa.watcher import WATCHER_PARSE_FAILURE, Watcher
-from tests.test_cli import PLAN, write
+from tests.test_cli import PLAN, root, write
 from tests.test_daemon_admission import assert_idle
 from tests.test_daemon_config import assert_detached, python_values
 from tests.test_providers import CONFIG, ENV, claude_ok, codex_ok
@@ -945,7 +946,7 @@ def sources():
 
 
 def without_core_import(material):
-    edge = "from chupa.daemon import DaemonCore, daemon_core"
+    edge = "from chupa.daemon import DaemonCore, PauseConsumer, daemon_core"
     assert edge in material["chupa.__main__"]
     return {name: "\n".join(line[:len(line) - len(line.lstrip())] + "pass"
             if line.lstrip().startswith("from chupa.daemon import") else line
@@ -1219,3 +1220,422 @@ async def test_production_refuses_failed_rework_publication(admission_context, m
         await drain(checkout, forbidden, reexec=NoChild())
         assert [e for e in ctx.driver.journal.read() if e.body.get("signal") == INTAKE_SIGNAL] == intake_before
         assert await ctx.git.status_porcelain(ctx.repo) == ""
+
+
+@pytest.mark.asyncio
+async def test_production_composes_one_pause_consumer(tmp_path, monkeypatch):
+    from chupa.control import ControlInbox
+    from chupa.daemon import PauseConsumer
+    constructed = []
+    original = daemon.control_inbox
+    def construct(**kwargs):
+        inbox = original(**kwargs)
+        constructed.append(inbox)
+        return inbox
+    def forbidden(*args, **kwargs):
+        pytest.fail("control composition read or applied a request or started work")
+    monkeypatch.setattr(daemon, "control_inbox", construct)
+    for owner, names in ((ControlInbox, ("consume", "recover")), (Journal, ("append",)),
+                         (asyncio, ("create_task",))):
+        for name in names:
+            monkeypatch.setattr(owner, name, forbidden)
+    tasks = asyncio.all_tasks()
+    rig = CoreRig(tmp_path)
+    consumer = rig.core.control
+    assert isinstance(consumer, PauseConsumer)
+    assert constructed == [consumer.inbox]
+    assert consumer.inbox.journal is rig.checkout.journal
+    assert consumer.fs is rig.checkout.fs and consumer.sleep is rig.checkout.sleep
+    assert consumer.inbox.journal._clock is rig.checkout.clock
+    assert consumer.state_dir == rig.checkout.config.state_dir
+    assert consumer.projection.lifecycle_id == consumer.inbox.lifecycle_id
+    assert consumer.projection.pause_id is None
+    assert rig.core.admission._before_dispatch == consumer.checkpoint
+    assert tasks == asyncio.all_tasks() and rig.journal.read() == []
+    assert rig.fs.files == {} and rig.exec.calls == []
+
+
+class LiveDrain:
+    """The real drain and CLI control factory, with filesystem traces and barrier wakeups."""
+
+    def __init__(self, root, monkeypatch, *, pause=True):
+        from chupa.control import ControlRequest, publish_request
+        from chupa.lockfile import Lockfile, LockHeld
+        from chupa.seams import LocalFileSystem
+        from tests.test_drain import pause_checkout
+        self.checkout = pause_checkout(root)
+        self.trace, self.consumers, self.calls = [], [], []
+        self.pause = pause
+        self.held = asyncio.Queue()
+        self.wake = asyncio.Queue()
+        original_acquire, original_release = Lockfile.acquire, Lockfile.release
+        def acquire(lock):
+            original_acquire(lock)
+            self.trace.append("lock")
+        def release(lock):
+            self.trace.append("unlock")
+            original_release(lock)
+        monkeypatch.setattr(Lockfile, "acquire", acquire)
+        monkeypatch.setattr(Lockfile, "release", release)
+        original = cli.build_control
+        def build(checkout):
+            assert checkout is self.checkout
+            consumer = original(checkout)
+            self.consumers.append(consumer)
+            consume = consumer.inbox.consume
+            def consumed():
+                self.trace.append("consume")
+                consume()
+            consumer.inbox.consume = consumed
+            return consumer
+        monkeypatch.setattr(cli, "build_control", build)
+        append = self.checkout.journal.append
+        def appended(*args, **kwargs):
+            event = append(*args, **kwargs)
+            if event.body.get("kind") == "control_decision":
+                self.trace.append(("decision", event.body.copy()))
+            return event
+        monkeypatch.setattr(self.checkout.journal, "append", appended)
+        rig = self
+        class Files(LocalFileSystem):
+            def write(self, path, data):
+                if path == rig.checkout.config.state_dir / "control/active.json":
+                    contender = Lockfile(rig.checkout.config.state_dir, instance_id="trace", clock=rig.checkout.clock)
+                    with pytest.raises(LockHeld):
+                        contender.acquire()
+                    assert rig.trace[0] == "lock" and "unlock" not in rig.trace
+                    rig.trace.append(("discovery", json.loads(data)))
+                    if data != b"null\n":
+                        value = json.loads(data)
+                        if value["hold_id"] is not None:
+                            assert any(e.body.get("request_id") == value["hold_id"] and
+                                       e.body.get("decision") == "accepted" for e in rig.checkout.journal.read())
+                super().write(path, data)
+                if (path.name == "active.json" and data != b"null\n" and rig.pause):
+                    rig.pause = False
+                    publish_request(rig.checkout.config.state_dir,
+                                    ControlRequest("10-pause", json.loads(data)["lifecycle_id"], "pause", None), self)
+        async def sleep(delay):
+            assert delay > 0
+            await self.held.put(self.consumer.projection)
+            await self.wake.get()
+        self.checkout = replace(self.checkout, fs=Files(), sleep=sleep)
+
+    @property
+    def consumer(self):
+        return self.consumers[-1]
+
+    def request(self, id, verb, hold=None, life=None):
+        from chupa.control import ControlRequest, publish_request
+        publish_request(self.checkout.config.state_dir,
+                        ControlRequest(id, life or self.consumer.inbox.lifecycle_id, verb, hold), self.checkout.fs)
+        self.wake.put_nowait(None)
+
+    async def resume(self):
+        self.request("90-resume", "resume", self.consumer.projection.pause_id)
+
+    async def run(self, dispatch=None, reexec=None, before_dispatch=None):
+        from chupa.drain import drain
+        from tests.test_drain_reentry import NoChild
+        async def callback(ticket):
+            self.calls.append(ticket.stem)
+            self.trace.append("dispatch")
+            self.checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=ticket.stem)
+            return "merged"
+        return await drain(self.checkout, dispatch or callback, reexec=reexec or NoChild(),
+                           before_dispatch=before_dispatch)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["fresh", "retry", "machine-keep", "empty"])
+async def test_live_drain_pause_blocks_all_offer_accounting(root, monkeypatch, kind):
+    from tests.test_drain import confirmed, offer_events
+    from chupa.control import CONTROL_DECISION
+    live = LiveDrain(root, monkeypatch)
+    c = live.checkout
+    if kind != "empty":
+        write(root, "work", confirmed())
+        await c.git.add(root, ["tickets/work/ticket.md"])
+        await c.git.commit(root, "ticket")
+    if kind in {"retry", "machine-keep"}:
+        c.journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed"}, ticket="work")
+    if kind == "machine-keep":
+        c.journal.append(EventType.SIGNAL, {"signal": "reject_arrival"}, ticket="work")
+    before = offer_events(root)
+    task = asyncio.create_task(live.run())
+    assert (await live.held.get()).pause_id == "10-pause"
+    assert offer_events(root) == before and live.calls == [] and not task.done()
+    for id, hold, life in (("20-premature", "future", None), ("30-wrong", "wrong", None),
+                           ("40-old", "10-pause", "previous")):
+        live.request(id, "resume", hold, life)
+        assert (await live.held.get()).pause_id == "10-pause"
+        assert offer_events(root) == before and live.calls == [] and not task.done()
+    await live.resume()
+    report = await task
+    assert report.merged == ([] if kind == "empty" else ["work"])
+    events = c.journal.read()
+    decisions = [e for e in events if e.body.get("kind") == CONTROL_DECISION]
+    assert [e.body["decision"] for e in decisions] == ["accepted", "stale", "stale", "stale", "accepted"]
+    after = offer_events(root)[len(before):]
+    if kind == "machine-keep":
+        keep = after.pop(0)
+        assert keep.body == {"signal": "reject_verdict", "actor": "machine", "verdict": "keep"}
+    if kind in {"retry", "machine-keep"}:
+        draw = after.pop(0)
+        assert draw.type == EventType.CAP_CONSUMED and draw.body["cap"] == "retry"
+        assert events.index(decisions[-1]) < events.index(draw)
+    if kind != "empty":
+        assert [e.body["to"] for e in after] == ["running", "merged"]
+        assert events.index(decisions[-1]) < events.index(after[0])
+    assert live.trace[-2:] == [("discovery", None), "unlock"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("change", ["caps", "retire", "priority", "retry", "premise", "spec-gap"])
+async def test_live_drain_resume_rechecks_selection_and_caps(root, monkeypatch, change):
+    from chupa.runner import SPEC_GAP_HOLD
+    from tests.test_drain import confirmed, offer_events
+    live = LiveDrain(root, monkeypatch, pause=False)
+    c = live.checkout
+    write(root, "work", confirmed())
+    await c.git.add(root, ["tickets/work/ticket.md"])
+    await c.git.commit(root, "ticket")
+    blob = await c.git.rev_parse(root, "HEAD:tickets/work/ticket.md")
+    if change in {"retry", "caps", "premise", "spec-gap"}:
+        c.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": "old"}, ticket="work")
+        if change == "spec-gap":
+            c.journal.append(EventType.SIGNAL, {"signal": SPEC_GAP_HOLD, "awaits": ["hardening"]}, ticket="work")
+            c.journal.append(EventType.STATE_TRANSITION, {"to": "premise_failed", "dispatch": SPEC_GAP_HOLD}, ticket="work")
+        else:
+            c.journal.append(EventType.STATE_TRANSITION, {"to": "premise_failed" if change == "premise" else "gate_failed",
+                                                        "rung": {"tier": "high", "effort": "max"}}, ticket="work")
+    checkpoints = 0
+    async def pause_after_preparation():
+        nonlocal checkpoints
+        from chupa.control import ControlRequest, publish_request
+        checkpoints += 1
+        if checkpoints == 2:
+            publish_request(c.config.state_dir,
+                            ControlRequest("10-pause", live.consumer.inbox.lifecycle_id, "pause", None), c.fs)
+    task = asyncio.create_task(live.run(before_dispatch=pause_after_preparation))
+    await live.held.get()
+    if change == "caps":
+        for _ in range(c.config.caps.retry):
+            caps.consume(c.journal, "work", "retry", blob)
+    elif change == "retire":
+        c.journal.append(EventType.STATE_TRANSITION, {"to": "rejected"}, ticket="work")
+    elif change == "priority":
+        write(root, "urgent", confirmed(priority="P0"))
+        await c.git.add(root, ["tickets/urgent/ticket.md"])
+        await c.git.commit(root, "new urgent")
+    elif change == "spec-gap":
+        c.journal.append(EventType.STATE_TRANSITION, {"to": "already_satisfied"}, ticket="hardening")
+    before = offer_events(root)
+    await live.resume()
+    report = await task
+    assert live.calls == ([] if change in {"caps", "retire"} else ["urgent", "work"] if change == "priority" else ["work"])
+    assert report.merged == live.calls
+    after = offer_events(root)[len(before):]
+    draws = [e for e in after if e.type == EventType.CAP_CONSUMED]
+    if change == "retry":
+        assert len(draws) == 1
+        assert draws[0].body == {"cap": "retry", "ticket_sha": blob, "rung": {"tier": "high", "effort": "max"}}
+        assert after[0] is draws[0] and after[1].body == {"to": "running", "ticket_sha": blob}
+    else:
+        assert draws == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("exit", ["normal", "failure", "cancel", "cancel-held", "handoff"])
+async def test_control_lifecycle_cleanup_on_exit_and_handoff(root, monkeypatch, exit):
+    from chupa.lockfile import Lockfile
+    from tests.test_drain import confirmed
+    live = LiveDrain(root, monkeypatch)
+    c = live.checkout
+    write(root, "work", confirmed())
+    await c.git.add(root, ["tickets/work/ticket.md"])
+    await c.git.commit(root, "ticket")
+    entered, finish = asyncio.Event(), asyncio.Event()
+    async def dispatch(ticket):
+        live.calls.append(ticket.stem)
+        if exit == "failure":
+            raise ValueError("stage failure")
+        if exit == "cancel":
+            entered.set()
+            await finish.wait()
+        body = {"to": "merged"}
+        if exit == "handoff":
+            c.fs.write(root / "chupa/thing.py", b"upgrade")
+            await c.git.add(root, ["chupa/thing.py"])
+            await c.git.commit(root, "upgrade")
+            body["commit"] = await c.git.rev_parse(root, "HEAD")
+        c.journal.append(EventType.STATE_TRANSITION, body, ticket=ticket.stem)
+        return "merged"
+    class Child:
+        async def run(self, argv, **kwargs):
+            assert live.trace[-2:] == [("discovery", None), "unlock"]
+            assert (c.config.state_dir / "control/active.json").read_bytes() == b"null\n"
+            lock = Lockfile(c.config.state_dir, instance_id="child", clock=c.clock)
+            lock.acquire()
+            lock.release()
+            live.trace.append("child")
+            return 0, "", ""
+    task = asyncio.create_task(live.run(dispatch, Child()))
+    await live.held.get()
+    life = live.consumer.inbox.lifecycle_id
+    if exit != "cancel-held":
+        await live.resume()
+    if exit == "cancel-held":
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    elif exit == "failure":
+        with pytest.raises(ValueError, match="stage failure"):
+            await task
+    elif exit == "cancel":
+        await entered.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    else:
+        await task
+    trace = live.trace
+    assert trace[0] == "lock"
+    discoveries = [i for i, item in enumerate(trace) if isinstance(item, tuple) and item[0] == "discovery"]
+    assert trace[discoveries[0]] == ("discovery", {"lifecycle_id": life, "hold_id": None})
+    refreshes = [("10-pause", "pause")] + ([] if exit == "cancel-held" else [(None, "resume")])
+    for hold, verb in refreshes:
+        decision = next(i for i, item in enumerate(trace) if isinstance(item, tuple) and item[0] == "decision" and item[1]["verb"] == verb)
+        refresh = next(i for i in discoveries[1:] if trace[i][1] == {"lifecycle_id": life, "hold_id": hold})
+        assert decision < refresh
+    retirement = discoveries[-1]
+    assert trace[retirement:retirement + 2] == [("discovery", None), "unlock"]
+    if exit == "handoff":
+        assert trace.index("child") > retirement
+    # Retired discovery refuses a publisher that has established contention.
+    from tests.test_control_cli import invoke
+    lock = Lockfile(c.config.state_dir, instance_id="unpublished-replacement", clock=c.clock)
+    lock.acquire()
+    try:
+        assert await asyncio.to_thread(invoke, root, "pause") == 2
+    finally:
+        lock.release()
+    # The replacement uses a fresh lifecycle and overwrites retirement, never recovering the old hold.
+    live.trace.clear()
+    c = live.checkout = replace(c, journal=Journal(c.config.state_dir, c.clock))
+    if exit in {"failure", "cancel", "cancel-held"}:
+        c.journal.append(EventType.STATE_TRANSITION, {"to": "already_satisfied"}, ticket="work")
+    await live.run()
+    assert live.consumer.inbox.lifecycle_id != life and live.consumer.projection.pause_id is None
+    assert live.trace[0] == "lock"
+    assert live.trace[1] == ("discovery", {"lifecycle_id": live.consumer.inbox.lifecycle_id, "hold_id": None})
+    assert live.trace[-2:] == [("discovery", None), "unlock"]
+
+
+@pytest.mark.asyncio
+async def test_production_pause_defers_snapshot_and_effects_without_preempting(tmp_path, monkeypatch):
+    from chupa.control import ControlRequest, publish_request
+    from chupa.seams import LocalFileSystem
+    started, finish, held, wake = (asyncio.Event() for _ in range(4))
+    snapshots, prepared, completed, effects = [], [], [], []
+    original = daemon.snapshot_config
+    def capture(config):
+        snapshots.append(config)
+        return original(config)
+    async def prepare(local):
+        prepared.append(local)
+        async def callback(ticket):
+            if ticket.stem == "first":
+                started.set()
+                await finish.wait()
+            effects.append(ticket.stem)
+            local.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=ticket.stem)
+            completed.append(ticket.stem)
+            return "merged"
+        return callback
+    rig = CoreRig(tmp_path, prepare=prepare)
+    monkeypatch.setattr(daemon, "snapshot_config", capture)
+    async def sleep(_):
+        held.set()
+        await wake.wait()
+        wake.clear()
+    rig.core.control.sleep = sleep
+    first, second = await rig.add("first"), await rig.add("second")
+    active = asyncio.create_task(rig.core.admission.dispatch(first))
+    await started.wait()
+    owned = rig.core.admission.task
+    state, life = rig.core.control.state_dir, rig.core.control.inbox.lifecycle_id
+    publish_request(state, ControlRequest("10-pause", life, "pause", None), LocalFileSystem())
+    waiting = asyncio.create_task(rig.core.admission.dispatch(second))
+    await turn()
+    assert not owned.cancelling() and completed == []
+    finish.set()
+    assert await active == "merged" and not owned.cancelled()
+    await held.wait()
+    assert completed == effects == ["first"] and len(snapshots) == len(prepared) == 1
+    assert_idle(rig.core.admission)
+    assert not waiting.done()
+    rig.put_config(CONFIG.replace("x-med", "edited-after-release"))
+    publish_request(state, ControlRequest("90-resume", life, "resume", "10-pause"), LocalFileSystem())
+    wake.set()
+    assert await waiting == "merged"
+    assert completed == effects == ["first", "second"] and len(snapshots) == len(prepared) == 2
+    assert prepared[-1].config.providers[1].models_by_tier.medium == "edited-after-release"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("binding", ["checkpoint", "publication", "refresh", "retirement", "decision-order"])
+async def test_pause_activation_observables_detect_removed_bindings(root, monkeypatch, binding):
+    """Calibrate positive production assertions by breaking their actual binding."""
+    from chupa.control import ControlProjection
+    from tests.test_drain import confirmed
+    live = LiveDrain(root, monkeypatch)
+    c = live.checkout
+    write(root, "work", confirmed())
+    await c.git.add(root, ["tickets/work/ticket.md"])
+    await c.git.commit(root, "ticket")
+    async def noop(_):
+        pass
+    if binding == "checkpoint":
+        monkeypatch.setattr(daemon.PauseConsumer, "checkpoint", noop)
+    elif binding == "publication":
+        monkeypatch.setattr(daemon.PauseConsumer, "publish", lambda _: None)
+    elif binding == "refresh":
+        def apply(consumer, projection):
+            consumer.projection = projection
+        monkeypatch.setattr(daemon.PauseConsumer, "_apply", apply)
+    elif binding == "retirement":
+        monkeypatch.setattr(daemon.PauseConsumer, "retire", lambda _: None)
+    else:
+        original_append = c.journal.append
+        def append(type, body, **kwargs):
+            if body.get("kind") == "control_decision" and body["verb"] == "pause":
+                live.consumer._apply(ControlProjection(body["lifecycle_id"], body["request_id"]))
+            return original_append(type, body, **kwargs)
+        monkeypatch.setattr(c.journal, "append", append)
+    task = asyncio.create_task(live.run())
+    waiter = asyncio.create_task(live.held.get())
+    try:
+        await asyncio.wait((task, waiter), return_when=asyncio.FIRST_COMPLETED)
+        if binding in {"checkpoint", "publication"}:
+            await task
+            with pytest.raises(AssertionError):
+                assert waiter.done(), "production pause checkpoint never held the offer"
+        elif binding == "decision-order":
+            with pytest.raises(AssertionError):
+                await task
+        else:
+            assert await waiter
+            if binding == "refresh":
+                with pytest.raises(AssertionError):
+                    assert json.loads((c.config.state_dir / "control/active.json").read_bytes())["hold_id"] == "10-pause"
+            await live.resume()
+            await task
+            if binding == "retirement":
+                with pytest.raises(AssertionError):
+                    assert live.trace[-2:] == [("discovery", None), "unlock"]
+    finally:
+        for pending in (waiter, task):
+            if not pending.done():
+                pending.cancel()
+        await asyncio.gather(waiter, task, return_exceptions=True)
