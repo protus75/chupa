@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Previously missing flake contracts are complete; no additional fence paths were earned.
+The retry worktree lacked the prior test and activation seed; recovered the test, authored the missing seed, and preserved the approved continuation byte-for-byte.
 
 ## Dead ends
 
