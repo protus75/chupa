@@ -1,15 +1,20 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "09e8c97c303ce1153996c7e168c523069f5bbc29",
+  "produced_at_sha": "ecac5862f418bdec15d0ea7780c0fa76f3a90b17",
   "stem": "rework-activation",
-  "attempt": 1,
-  "terminal": "premise_failed",
+  "attempt": 2,
+  "terminal": "infra_error",
   "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "premise_bounce cap spent",
+  "verdict": "reject",
+  "lessons": [
+    "Criterion 4 cannot pass inside this fence: `uv run pytest -q` fails on untouched base 09e8c97 because tests/test_seeded_phase3_06.py still pins the old fence and Context, which lack tests/test_mergequeue.py. A ticket or plan change must fix this, not a retry.",
+    "Release path: update the 19.P3.rework-activation seeding entry so the phase3-06 seeding fixture (lines ~318 and ~393) matches the corrected ticket. Either fence and migrate that fixture here, or land the migration first as a `depends` ticket.",
+    "Next attempt: the activation already passed targeted verification before restore. Rebuild it once the fixture is fixed. Run `uv run pytest -q` on the base before the long implementation, so an out-of-fence red is found early.",
+    "The terminal was infra_error (timeout at about 962s) after the agent returned premise_failed. Keep the scope-blocker finding as the paved road. Don't read it as an infra fault to retry at the same capability."
+  ],
+  "mechanical": null,
   "spec_version": "1.1",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
