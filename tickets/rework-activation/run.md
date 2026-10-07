@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The previously reported seeding-fixture blocker is fixed on the current base.
+Reused the prior reviewed implementation; cleanup uses existing Git restore and path-limited compensating commits without extending the fence.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the ticket’s 60-minute expected budget.
+Completed within the 60-minute expected budget.
 
