@@ -6,6 +6,7 @@ Exit codes (section 18): 0 merged, 1 a non-ok ticket terminal, 2 an engine-plane
 
 import asyncio
 import re
+import sys
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -89,7 +90,10 @@ async def prepare_pipeline(checkout: Checkout) -> Dispatch:
     """Preflight this checkout's providers before constructing any stage consumers."""
     llm = ProviderLLM(checkout.config, exec_=checkout.exec_, fs=checkout.fs, env=checkout.env,
                       cwd=checkout.repo, timeout=call_timeout(checkout.config))
-    if problems := await llm.preflight():
+    problems = await llm.preflight()
+    for notice in llm.preflight_notices:
+        print(f"chupa: provider preflight notice: {notice}", file=sys.stderr)
+    if problems:
         raise Refusal("provider preflight failed: " + "; ".join(problems),
                       "fix each named provider, then run the same command again (section 6 provider preflight)")
     return bind(checkout, llm)

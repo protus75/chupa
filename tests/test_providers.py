@@ -414,9 +414,11 @@ def test_preflight_passes_with_current_clis_and_every_routed_model_answering(tmp
     assert sorted(exec_.probed) == ["c-high", "c-max", "c-med", "x-low", "x-med"]  # each routed pair once
 
 
-def test_preflight_refuses_a_stale_cli_with_its_upgrade_road(tmp_path):
-    [problem] = preflight(tmp_path, PreflightExec({**CURRENT, "codex": "codex-cli 1.2.0"}, "1.2.3"))
-    assert "codex 1.2.0 is not the latest release 1.2.3" in problem and "pnpm add -g test-cli@latest" in problem
+def test_preflight_reports_a_stale_cli_without_refusing_the_run(tmp_path):
+    llm_ = llm(config(tmp_path), PreflightExec({**CURRENT, "codex": "codex-cli 1.2.0"}, "1.2.3"), tmp_path)
+    assert asyncio.run(llm_.preflight()) == []
+    [notice] = llm_.preflight_notices
+    assert "codex 1.2.0 is not the latest release 1.2.3" in notice and "pnpm add -g test-cli@latest" in notice
 
 
 def test_preflight_refuses_a_model_the_login_cannot_serve(tmp_path):

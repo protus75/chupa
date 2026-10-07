@@ -361,6 +361,7 @@ class ProviderLLM:
     ) -> None:
         self._config = config
         self._exec, self._env, self._cwd = exec_, env, cwd
+        self.preflight_notices: list[str] = []
         redactor = Redactor.from_config(config, env)
         self._adapters: dict[str, CliAdapter] = {}
         for p in config.providers:
@@ -382,11 +383,13 @@ class ProviderLLM:
         self._active: CliAdapter | None = None
 
     async def preflight(self) -> list[str]:
-        """Section 6.11: every cli provider at its latest pnpm release, every routed (provider, model) answering.
+        """Section 6.11: every routed (provider, model) answering a probe; each cli compared with its latest release.
 
-        Returns each refusal reason with its paved road; empty means the run may dispatch.
+        Returns each refusal (a failing probe) with its paved road; a stale cli whose probes pass is only a
+        notice, left on `preflight_notices` (a newer release can lag its platform build).
         """
         problems: list[str] = []
+        notices = self.preflight_notices = []
         for adapter in self._adapters.values():
             package = adapter.provider.package
             _, out, err = await self._exec.run([adapter.binary, "--version"], cwd=self._cwd, env=self._env,
@@ -395,7 +398,7 @@ class ProviderLLM:
                                                 env=self._env, timeout=PREFLIGHT_TIMEOUT_S)
             installed = re.search(r"\d+\.\d+\.\d+", out + err)
             if not latest.strip() or installed is None or installed.group(0) != latest.strip():
-                problems.append(f"{adapter.binary} {installed.group(0) if installed else '(unknown)'} is not the"
+                notices.append(f"{adapter.binary} {installed.group(0) if installed else '(unknown)'} is not the"
                                 f" latest release {latest.strip() or '(unreadable)'} -- run: pnpm add -g {package}@latest")
         probed: set[tuple[str, str]] = set()
         for route in self._config.routing:
@@ -410,8 +413,8 @@ class ProviderLLM:
                 try:
                     await adapter.invoke(req, model)
                 except Exception as e:
-                    problems.append(f"{cand.provider} model {model!r} failed its probe: {e} -- install the latest"
-                                    f" {adapter.binary} or route a model this login serves in config.yaml")
+                    problems.append(f"{cand.provider} model {model!r} failed its probe: {e} -- run: pnpm add -g"
+                                    f" {adapter.provider.package}@latest, or route a model this login serves in config.yaml")
         return problems
 
     async def call(self, req: LLMRequest) -> LLMResult:

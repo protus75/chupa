@@ -25,7 +25,7 @@ from chupa.watcher import WATCHER_PARSE_FAILURE, Watcher
 from tests.test_cli import PLAN, root, write
 from tests.test_daemon_admission import assert_idle
 from tests.test_daemon_config import assert_detached, python_values
-from tests.test_providers import CONFIG, ENV, claude_ok, codex_ok
+from tests.test_providers import CONFIG, ENV, claude_ok, codex_ok, jsonl
 from tests.test_scheduler import Time, import_closure, text, turn
 from tests.test_mergequeue import ctx as admission_context, ready
 
@@ -48,6 +48,7 @@ class ScriptExec:
         self.hook = None
         self.latest = "1.2.3"
         self.reply = "ok"
+        self.refuse_probe = False
 
     async def run(self, argv, *, cwd, env, timeout, stdin_path=None, on_spawn=None):
         prompt = self.fs.files[stdin_path].decode() if stdin_path else None
@@ -61,6 +62,8 @@ class ScriptExec:
         assert argv[0] in {"claude", "codex"} and prompt is not None
         if on_spawn is not None:
             on_spawn(123)
+        if self.refuse_probe and prompt == providers.PROBE_PROMPT:
+            return 1, jsonl({"type": "turn.failed", "error": {"message": "model not supported"}}), ""
         reply = "ok" if prompt == providers.PROBE_PROMPT else self.reply
         return 0, (claude_ok(reply) if argv[0] == "claude" else codex_ok(reply)), ""
 
@@ -756,7 +759,7 @@ async def test_production_core_unwinds_preflight_refusal_and_cancellation(tmp_pa
         return "merged"
 
     rig.exec.hook = hook
-    rig.exec.latest = "9.9.9" if failure == "refusal" else "1.2.3"
+    rig.exec.refuse_probe = failure == "refusal"
     monkeypatch.setattr(runner, "drive", stop)
     if failure == "cancel":
         first = asyncio.create_task(rig.core.admission.dispatch(first_ticket))
@@ -779,14 +782,14 @@ async def test_production_core_unwinds_preflight_refusal_and_cancellation(tmp_pa
             await rig.core.admission.dispatch(first_ticket)
         if failure == "refusal":
             message = str(caught.value)
-            assert "provider preflight failed" in message and "latest release 9.9.9" in message
+            assert "provider preflight failed" in message and "failed its probe" in message
             assert "pnpm add -g test-cli@latest" in message
             assert "fix each named provider, then run the same command again" in message
         else:
             assert caught.value is error
         assert not contexts and not called and "bind" not in trace
         assert_idle(rig.core.admission)
-        rig.exec.hook, rig.exec.latest = None, "1.2.3"
+        rig.exec.hook, rig.exec.refuse_probe = None, False
         assert await rig.core.admission.dispatch(second_ticket) == "merged"
     assert called == [second_ticket] and len(contexts) == 1 and len(snapshots) == 2
     assert trace.count("bind") == trace.count("context") == 1
@@ -813,7 +816,7 @@ def test_bootstrap_pipeline_prepares_before_dispatch(tmp_path, monkeypatch, refu
 
     monkeypatch.setattr(runner, "bind", bind)
     monkeypatch.setattr(runner, "drive", stop)
-    rig.exec.latest = "9.9.9" if refuse else "1.2.3"
+    rig.exec.refuse_probe = refuse
     if refuse:
         with pytest.raises(runner.Refusal, match="provider preflight failed"):
             runner.pipeline(rig.checkout)
