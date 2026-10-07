@@ -3,6 +3,7 @@
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 
 from chupa.box import Box
 from chupa.journal import EventType, Journal
@@ -33,6 +34,19 @@ class FlakeIdentity:
     box_id: str
 
 
+@dataclass(frozen=True)
+class GreenRerunEvidence:
+    """Caller observation, never a durable record or a request to execute checks."""
+
+    test_id: str
+    fix_stem: str
+    observed_at: datetime
+    result: str
+    observed: bool
+    same_workspace: bool
+    unchanged_code: bool
+
+
 @dataclass
 class Quarantine:
     detected: dict[str, FlakeIdentity]
@@ -51,7 +65,7 @@ class Flake:
         self.journal, self.box, self.cap, self.escalate = journal, box, cap, escalate
 
     def quarantine(self) -> Quarantine:
-        detected, active = {}, {}
+        detected, active, released = {}, {}, {}
         road = "repair the flake evidence against its original detection identity; never overwrite history"
         for event in self.journal.read():
             body = event.body
@@ -83,8 +97,59 @@ class Flake:
             else:
                 if detected.get(box_id) != identity:
                     raise FlakeError(f"release has no matching detection identity; {road}")
+                if box_id in released and released[box_id] != body["fix_stem"]:
+                    raise FlakeError(f"conflicting release fix identity; {road}")
+                released[box_id] = body["fix_stem"]
                 active.pop(box_id, None)
         return Quarantine(detected, active)
+
+    def release(self, *, box_id: str, evidence: GreenRerunEvidence | None = None) -> Quarantine:
+        """Resolve the report to its fix ticket, merge it, then supply its named green rerun.
+
+        Pending and non-ticket resolutions are idle; insufficient observations refuse
+        with that same road. Recorded releases replay without fresh observations.
+        """
+        projection = self.quarantine()
+        road = "resolve the report to its fix ticket, merge that fix, and supply the named test's green rerun"
+        identity = projection.detected.get(box_id)
+        if identity is None:
+            raise FlakeError("unknown detection identity; repair the source detection evidence")
+        message = self.box.get(identity.box_id)
+        if ((message.id, message.signature, message.origin) !=
+                (identity.box_id, identity.signature, identity.test_id)
+                or (message.message_class, message.stage, message.outcome) !=
+                ("failure_report", "check", "gate_failed")):
+            raise FlakeError("Box identity mismatch; repair the source report against its detection evidence")
+        events = self.journal.read()
+        resolution = message.resolution
+        fix = (resolution.link if message.status == "resolved" and resolution is not None
+               and resolution.kind == "ticket" else None)
+        if box_id not in projection.active:
+            recorded = next(event.body["fix_stem"] for event in events
+                            if event.type == EventType.SIGNAL
+                            and event.body.get("kind") == "flake_released"
+                            and event.body.get("box_id") == box_id)
+            if fix != recorded:
+                raise FlakeError("conflicting release resolution; repair the source Box resolution evidence")
+            return projection
+        if fix is None:
+            return projection
+        merges = [datetime.fromisoformat(event.ts) for event in events
+                  if event.type == EventType.STATE_TRANSITION and event.ticket == fix
+                  and event.body.get("to") == "merged"]
+        if (not _nonblank(fix) or not merges or not isinstance(evidence, GreenRerunEvidence)
+                or evidence.test_id != identity.test_id or evidence.fix_stem != fix
+                or evidence.result != "pass" or evidence.observed is not True
+                or evidence.same_workspace is not True or evidence.unchanged_code is not True
+                or not isinstance(evidence.observed_at, datetime)
+                or evidence.observed_at.utcoffset() is None
+                or evidence.observed_at < max(merges)):
+            raise FlakeError(f"insufficient release evidence; {road}")
+        self.journal.append(EventType.SIGNAL, {
+            "kind": "flake_released", "test_id": identity.test_id,
+            "signature": identity.signature, "box_id": identity.box_id, "fix_stem": fix,
+        }, ticket=None, key=f"flake-release/{identity.box_id}/{fix}")
+        return self.quarantine()
 
     def detect(self, *, test_id: str, evidence: RerunEvidence,
                summary: str, reason: str) -> Quarantine:

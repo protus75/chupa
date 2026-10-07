@@ -29,7 +29,7 @@ KILL_APPLIED = "kill_applied"
 
 def flake_detection(*, journal: Journal, box: Box, config: Config,
                     escalate: Callable[[str], None]) -> Flake:
-    """Dormant boundary: the lock holder explicitly supplies its existing writers."""
+    """Dormant detection/release boundary supplied with the lock holder's existing writers."""
     return Flake(journal=journal, box=box, cap=config.caps.quarantine, escalate=escalate)
 
 

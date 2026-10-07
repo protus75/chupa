@@ -2,14 +2,15 @@
 
 import asyncio
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
 
 from chupa import __main__ as cli, daemon
-from chupa.box import Box, Message, signature
+from chupa.box import Box, BoxError, Message, Resolution, signature
 from chupa.config import Caps
-from chupa.flake import Flake, FlakeError, RerunEvidence
+from chupa.flake import Flake, FlakeError, GreenRerunEvidence, RerunEvidence
 from chupa.journal import EventType, Journal
 from chupa.seams import LocalFileSystem
 from tests.test_cli import Clock, ENV, Stages, root, ticket, write
@@ -343,3 +344,287 @@ def test_flake_detection_is_dormant(root, tmp_path, monkeypatch, verb, trip):
     else:
         exercise_cli()
         asyncio.run(exercise_core())
+
+
+@pytest.mark.parametrize("verb", ["run", "drain"])
+@pytest.mark.parametrize("trip", [None, "construction", "invocation"])
+def test_flake_release_is_dormant(root, tmp_path, monkeypatch, verb, trip):
+    dormant = Flake(journal=Journal(root / ".chupa/state", Clock()),
+                    box=Box(root / ".chupa/state/box", LocalFileSystem()),
+                    cap=5, escalate=lambda message: None)
+
+    def forbid_construct(*args, **kwargs):
+        raise AssertionError("production constructed flake hook")
+
+    def forbid_invoke(*args, **kwargs):
+        raise AssertionError("production invoked flake release")
+
+    monkeypatch.setattr(daemon, "flake_detection", forbid_construct)
+    monkeypatch.setattr(Flake, "__init__", forbid_construct)
+    monkeypatch.setattr(Flake, "release", forbid_invoke)
+    monkeypatch.setattr(Flake, "quarantine", forbid_invoke)
+    # Calibrate both probes by injecting wiring at real production boundaries.
+    control = cli.build_control
+
+    def wired_control(checkout):
+        if trip == "construction":
+            daemon.flake_detection(journal=checkout.journal, box=dormant.box,
+                                   config=checkout.config, escalate=dormant.escalate)
+        elif trip == "invocation":
+            dormant.release(box_id="box-probe")
+        return control(checkout)
+
+    monkeypatch.setattr(cli, "build_control", wired_control)
+    write(root, "work", ticket())
+    stages = Stages()
+
+    def exercise_cli():
+        assert cli.main([verb, "work"] if verb == "run" else [verb], cwd=root,
+                        env=ENV, clock=Clock(), pipeline=stages) == 0
+        assert stages.calls == ["work"] and stages.lock_held == [True]
+        assert not Box(root / ".chupa/state/box", LocalFileSystem()).messages()
+        assert not any(e.body.get("kind") in {"flake_detected", "flake_released"}
+                       for e in stages.checkout.journal.read())
+
+    async def exercise_core():
+        calls = []
+
+        async def prepare(local):
+            async def dispatch(t):
+                calls.append(t.stem)
+                return "merged"
+            return dispatch
+
+        directory = tmp_path / "core"
+        directory.mkdir()
+        composed = CoreRig(directory, prepare=prepare)
+        assert_startup_pause_wiring(composed.core)
+        t = await composed.add("work")
+        assert await composed.core.admission.dispatch(t) == "merged"
+        assert calls == ["work"] and composed.core.restart.ready
+        assert composed.journal.read() == []
+        assert not Box(directory / "box", LocalFileSystem()).messages()
+
+    if trip:
+        with pytest.raises(AssertionError, match="production .* flake"):
+            exercise_cli()
+        with pytest.raises(AssertionError, match="production .* flake"):
+            asyncio.run(exercise_core())
+    else:
+        exercise_cli()
+        asyncio.run(exercise_core())
+
+
+def green(identity, fix="fix-flake", **changes):
+    value = GreenRerunEvidence(identity.test_id, fix, Clock()() + timedelta(seconds=1),
+                              "pass", True, True, True)
+    return replace(value, **changes)
+
+
+def resolved(rig, identity, fix="fix-flake", *, merge=True):
+    rig.box.resolve(identity.box_id, Resolution(kind="ticket", link=fix))
+    if merge:
+        rig.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=fix)
+
+
+@pytest.mark.asyncio
+async def test_release_construction_is_idle(monkeypatch):
+    await test_flake_construction_is_idle(monkeypatch)
+
+
+@pytest.mark.parametrize("resolution", [None, "tombstone", "decision", "ticket"])
+def test_release_resolves_exact_box_identity(rig, resolution, monkeypatch):
+    identity, = detect(rig).active.values()
+    # A merge whose name resembles the report and summary supplies no resolution.
+    rig.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="fix-flake")
+    if resolution:
+        rig.box.resolve(identity.box_id, Resolution(kind=resolution, link="fix-flake"))
+    before = rig.journal.read()
+    get = rig.box.get
+    calls = []
+
+    def exact(box_id):
+        calls.append(box_id)
+        return get(box_id)
+
+    monkeypatch.setattr(rig.box, "get", exact)
+    result = rig.flake.release(box_id=identity.box_id, evidence=green(identity))
+    assert calls == [identity.box_id]
+    assert result.tests == (set() if resolution == "ticket" else {identity.test_id})
+    assert rig.journal.read() == before if resolution != "ticket" else len(rig.journal.read()) == len(before) + 1
+    assert get(identity.box_id).status == ("resolved" if resolution else "pending")
+
+
+@pytest.mark.parametrize("fault", ["missing", "id", "signature", "origin", "message_class", "stage", "outcome"])
+def test_release_box_identity_refusal(rig, monkeypatch, fault):
+    identity, = detect(rig).active.values()
+    resolved(rig, identity)
+    before = rig.journal.read()
+    original = rig.box.get
+
+    def broken(box_id):
+        assert box_id == identity.box_id
+        if fault == "missing":
+            raise BoxError("unknown box id; restore the source report")
+        value = "a" * 64 if fault == "signature" else "other"
+        return original(box_id).model_copy(update={fault: value})
+
+    monkeypatch.setattr(rig.box, "get", broken)
+    with pytest.raises((BoxError, FlakeError), match="source"):
+        rig.flake.release(box_id=identity.box_id, evidence=green(identity))
+    assert rig.journal.read() == before and rig.flake.quarantine().tests == {identity.test_id}
+
+
+@pytest.mark.parametrize("fault", [
+    "valid", "another_merge", "ok", "unmerged", "pre_merge", "another_test", "another_fix",
+    "failed", "absent", "unnamed", "unobserved", "workspace", "code", "naive", "not_boolean",
+])
+def test_release_requires_matching_merge_and_named_green_rerun(rig, fault):
+    identity, = detect(rig).active.values()
+    resolved(rig, identity, merge=fault not in {"another_merge", "ok", "unmerged"})
+    if fault == "another_merge":
+        rig.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="another-fix")
+    elif fault == "ok":
+        rig.journal.append(EventType.STATE_TRANSITION, {"to": "ok"}, ticket="fix-flake")
+    changes = {
+        "pre_merge": {"observed_at": Clock()() - timedelta(seconds=1)},
+        "another_test": {"test_id": "other"}, "another_fix": {"fix_stem": "other"},
+        "failed": {"result": "fail"}, "unnamed": {"test_id": ""},
+        "unobserved": {"observed": False}, "workspace": {"same_workspace": False},
+        "code": {"unchanged_code": False}, "naive": {"observed_at": datetime(2026, 1, 1)},
+        "not_boolean": {"observed": 1},
+    }
+    observation = None if fault == "absent" else green(identity, **changes.get(fault, {}))
+    before = rig.journal.read()
+    if fault == "valid":
+        assert not rig.flake.release(box_id=identity.box_id, evidence=observation).tests
+    else:
+        with pytest.raises(FlakeError, match="resolve the report.*merge.*named test"):
+            rig.flake.release(box_id=identity.box_id, evidence=observation)
+        assert rig.journal.read() == before and rig.flake.quarantine().tests == {identity.test_id}
+
+
+@pytest.mark.parametrize("fail_append", [False, True])
+def test_release_signal_is_write_ahead(rig, monkeypatch, fail_append):
+    identity, = detect(rig).active.values()
+    resolved(rig, identity)
+    append = rig.journal.append
+    order = []
+
+    def durable(type_, body, **envelope):
+        assert rig.flake.quarantine().tests == {identity.test_id}
+        assert type_ == EventType.SIGNAL
+        assert envelope == {"ticket": None, "key": f"flake-release/{identity.box_id}/fix-flake"}
+        assert body == dict(kind="flake_released", test_id=identity.test_id,
+                            signature=identity.signature, box_id=identity.box_id, fix_stem="fix-flake")
+        order.append("append")
+        if fail_append:
+            raise OSError("append failure")
+        result = append(type_, body, **envelope)
+        order.append("durable")
+        return result
+
+    monkeypatch.setattr(rig.journal, "append", durable)
+    before = rig.journal.read()
+    if fail_append:
+        with pytest.raises(OSError, match="append failure"):
+            rig.flake.release(box_id=identity.box_id, evidence=green(identity))
+        assert rig.journal.read() == before and rig.flake.quarantine().tests == {identity.test_id}
+        assert order == ["append"]
+    else:
+        assert not rig.flake.release(box_id=identity.box_id, evidence=green(identity)).tests
+        order.append("visible")
+        assert order == ["append", "durable", "visible"]
+
+
+@pytest.mark.parametrize("crash", ["before", "after", None])
+def test_release_replay_and_restart(rig, monkeypatch, crash):
+    identity, = detect(rig).active.values()
+    (rig.journal.dir / "000002-20260102.jsonl").touch()
+    resolved(rig, identity)
+    append = rig.journal.append
+
+    def interrupted(*args, **kwargs):
+        if crash == "after":
+            append(*args, **kwargs)
+        raise RuntimeError("crash")
+
+    if crash:
+        with monkeypatch.context() as probe:
+            probe.setattr(rig.journal, "append", interrupted)
+            with pytest.raises(RuntimeError, match="crash"):
+                rig.flake.release(box_id=identity.box_id, evidence=green(identity))
+    else:
+        rig.flake.release(box_id=identity.box_id, evidence=green(identity))
+    rig.flake = daemon.flake_detection(journal=Journal(rig.journal.dir.parent, Clock()), box=rig.box,
+                                       config=SimpleNamespace(caps=Caps()), escalate=rig.escalations.append)
+    assert rig.flake.quarantine().tests == ({identity.test_id} if crash == "before" else set())
+    if crash == "before":
+        rig.flake.release(box_id=identity.box_id, evidence=green(identity))
+    before = rig.journal.read()
+    assert not rig.flake.release(box_id=identity.box_id).tests
+    assert rig.journal.read() == before
+    assert sum(e.body.get("kind") == "flake_released" for e in before) == 1
+    assert len(list(rig.journal.read_segments())) == 2
+
+
+def test_release_preserves_other_quarantines(rig):
+    first, = detect(rig).active.values()
+    second = detect(rig, reason="different failure").active
+    other = detect(rig, "unrelated").active
+    resolved(rig, first)
+    projection = rig.flake.release(box_id=first.box_id, evidence=green(first))
+    assert projection.tests == {first.test_id, "unrelated"}
+    assert set(projection.active) == set(other) - {first.box_id}
+    assert len(second) == 2
+    original = rig.journal.read()[0]
+    rig.journal.append(original.type, original.body, key=original.key)
+    assert rig.flake.quarantine() == projection
+    assert detect(rig) == projection
+    before = rig.journal.read()
+    assert rig.flake.release(box_id=first.box_id) == projection
+    assert rig.journal.read() == before
+
+
+@pytest.mark.parametrize("fault", ["malformed", "unmatched", "conflicting", "resolution"])
+def test_release_refuses_conflicting_history(rig, fault, monkeypatch):
+    identity, = detect(rig).active.values()
+    resolved(rig, identity)
+    rig.flake.release(box_id=identity.box_id, evidence=green(identity))
+    if fault == "resolution":
+        get = rig.box.get
+        monkeypatch.setattr(rig.box, "get", lambda id: get(id).model_copy(update={
+            "resolution": Resolution(kind="ticket", link="other-fix")}))
+    else:
+        if fault == "conflicting":
+            release(rig, identity, "other-fix")
+        elif fault == "unmatched":
+            release(rig, replace(identity, box_id="unknown"))
+        else:
+            release(rig, replace(identity, signature="BAD"))
+    before = rig.journal.read()
+    with pytest.raises(FlakeError, match="repair"):
+        rig.flake.release(box_id=identity.box_id)
+    assert rig.journal.read() == before
+
+
+@pytest.mark.parametrize("fault", ["read", "corrupt", "box"])
+def test_release_read_failures_propagate(rig, monkeypatch, fault):
+    identity, = detect(rig).active.values()
+    resolved(rig, identity)
+    before = rig.journal.read()
+    if fault == "corrupt":
+        from chupa.journal import JournalCorruption
+        segment, = rig.journal.dir.glob("*.jsonl")
+        segment.write_bytes(segment.read_bytes() + b"corrupt\n")
+        error = JournalCorruption
+    else:
+        def fail(*args):
+            raise OSError("source read failure")
+        monkeypatch.setattr(rig.journal if fault == "read" else rig.box,
+                            "read" if fault == "read" else "get", fail)
+        error = OSError
+    with pytest.raises(error):
+        rig.flake.release(box_id=identity.box_id, evidence=green(identity))
+    if fault == "box":
+        assert rig.journal.read() == before and rig.flake.quarantine().tests == {identity.test_id}
