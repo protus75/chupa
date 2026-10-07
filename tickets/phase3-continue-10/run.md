@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-All four named dormant kill entry units validate, but admissions[12:] begins with kill-cli-activation, whose entry unit is absent on the untouched base commit a5028854d10f38cfaea048e3dec009e09cc16fab.
+The prior missing kill-cli-activation contract is repaired; no fence additions were earned, and all renders fit headroom.
 
 ## Dead ends
 
-Stopped before authoring: entry_unit_gap reports the missing unit and resolve_plan_contract finds zero matching headings.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during read-first validation, within the 60-minute expected budget.
+Completed within the 60-minute expected budget.
 
