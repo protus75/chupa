@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-Earned fence additions cover runner.py, daemon.py and drain.py; both measured renders fit the authoring headroom.
+All five required entry units passed entry_unit_gap and resolve_plan_contract; the discovery hardening exists, but this ticket still carries the earlier contract.
 
 ## Dead ends
 
-none
+Stopped before authoring seeds because preserving the mandatory old contract would carry contradictory suite obligations.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60-minute expected budget; full verification took 98 seconds.
+Stopped during read-first validation, within the 60-minute expected budget; verification was not run.
 
