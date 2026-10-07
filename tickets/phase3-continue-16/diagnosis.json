@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "59cd5ab6ff3b6227304dafe1f8e58c2b50ee2d18",
+  "stem": "phase3-continue-16",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "reject",
+  "lessons": [
+    "Premise false: 19.P3.storm-notification-activation names no production arrival call sites and no occurrence_id recipe, yet 19.P3.storm-producer-wiring hands id supply to it. Harden that unit via section 11.4 before regenerating this seeder.",
+    "The hardened unit must state, under Records: the closed list of production enqueue sites that get the arrival callback, a replay-stable occurrence_id recipe for each, and whether those caller files join the row fence under 19.L rule 5. A fence change is a plan edit.",
+    "Do not derive occurrence ids or fence additions from code reads (runner.py, stages.py, flake.py, box.py ingest). The ticket's Scope forbids invented records. Return premise_failed naming 19.P3.storm-notification-activation instead.",
+    "On regeneration, keep any journal-roll and storm-ledger seeds that Check approved byte-identical (the approve holds while ticket_sha matches). Re-author only phase3-continue-17 so it cites the hardened unit.",
+    "One requisition_review reply failed schema validation, which is a reviewer-side artifact error. The retry should still record a schema-valid verdict for every seed in tickets/phase3-continue-16/checks.json."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
