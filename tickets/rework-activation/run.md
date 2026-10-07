@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The corrected ticket conflicts with its unchanged seeding fixture in tests/test_seeded_phase3_06.py.
+The previously reported seeding-fixture blocker is fixed on the current base.
 
 ## Dead ends
 
-Implemented activation and passed the targeted verification, then restored it after confirming both full-suite failures on untouched base commit 09e8c97.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped before completion because of the scope blocker.
+Completed within the ticket’s 60-minute expected budget.
 
