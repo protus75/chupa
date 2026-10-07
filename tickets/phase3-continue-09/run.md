@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-Approved phase3-continue-10 stayed byte-identical; measured render headroom requires the composition suite On-demand.
+All five required entry units pass entry_unit_gap and resolve_plan_contract, but those structural checks do not detect this semantic contradiction; the relevant artifacts match the base commit.
 
 ## Dead ends
 
-none
+Stopped before authoring seeds or tests because resolving the contradiction requires plan hardening outside the scope fence.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60-minute expected budget; verification passed with 14 seeding checks and 1,320 full-suite tests.
+Stopped during read-first validation, within the 60-minute expected budget; verification suites were not run.
 
