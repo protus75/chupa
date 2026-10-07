@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "7f35de86ddba04aad6183b3ccaf505d1930d7c86",
+  "produced_at_sha": "5e07e2388e194d583e47ea5863845b2035b423f3",
   "stem": "rework-activation",
-  "attempt": 5,
+  "attempt": 6,
   "terminal": "infra_error",
   "stage": "implement",
   "verdict": "reject",
   "lessons": [
-    "Criterion 4 (`uv run pytest -q` exits 0) cannot pass inside this fence. The run record shows full-suite failures on untouched base 09e8c97: tests/test_seeded_phase3_06.py pins the old fence and Context.",
-    "Release: fix the 19.P3.rework-activation plan entry first, then regenerate. Add tests/test_seeded_phase3_06.py to the fence and migrate only its fence/Context pin (19.L rule 3), or migrate it in a ticket listed in `depends`.",
-    "Before implementing, run `uv run pytest -q` on the base commit. A red test outside the fence then surfaces as premise_failed early instead of after a long run.",
-    "The infra_error (TimeoutError) came after the agent reached premise_failed and restored its work. The scope blocker is the real cause, so a retry or escalation at any capability hits it again."
+    "Criterion 4 (`uv run pytest -q` exits 0) can't pass inside this fence. On base 09e8c97, tests/test_seeded_phase3_06.py pins the old rework-activation entry (OWN_ENTRY_SHA256, PLAN_CHARS, Authored size, Context). The corrected ticket breaks those pins.",
+    "Release: fix 19.P3.rework-activation in the plan, then rerun the seeding deliverable so tests/test_seeded_phase3_06.py records the corrected entry. Alternatively, add that file to the fence and migrate only its pins (19.L rule 3).",
+    "Before implementing, run `uv run pytest -q` on the base commit. A red test outside the fence should stop the attempt as premise_failed in minutes, not after a 900s+ run that ends in a TimeoutError.",
+    "The infra_error (TimeoutError) came after the agent had already reached premise_failed and restored its work. The cause is the stale seeding fixture, so a retry or escalation at any capability hits it again."
   ],
   "mechanical": null,
   "spec_version": "1.1",
