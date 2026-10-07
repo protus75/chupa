@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-All five required entry units passed entry_unit_gap and resolve_plan_contract, but 19.P3.admission-holds-activation retains the unchanged-drain-suite requirement.
+All five required entry units passed entry_unit_gap and resolve_plan_contract; the live plan now specifies the shared inbox carrier and caller migrations.
 
 ## Dead ends
 
-Traced main → pipeline → prepare_pipeline → bind and drain → build_control; carrying one inbox through drain, bind, or Checkout requires migrating direct callers in tests/test_drain.py, which the contract declares unchanged.
+Stopped before authoring because preserving the mandatory verbatim block would produce contradictory seed obligations.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during read-first validation, before authoring or Verification, well within the 60-minute expected budget.
+Read-first validation identified the contradiction within the expected 60-minute budget.
 
