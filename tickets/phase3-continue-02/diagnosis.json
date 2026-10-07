@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "0aabbb238514a0a7091a33f10d372456164fd527",
+  "stem": "phase3-continue-02",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "retry",
+  "lessons": [
+    "Every gate except requisition_review passed (checks.json): scope_fence, verification, run_record and diff_budget. Keep tests/test_seeded_phase3_02.py and both seed files byte-identical. Do not re-author them.",
+    "phase3-continue-03 already has requisition_review approve (ticket_sha 4e2e40f). Its approval holds on retry only while its bytes match, so leave tickets/phase3-continue-03/ticket.md untouched.",
+    "rework-stage got 'snag' with mechanical 'invalid reply', which is a reply-shape failure. The stage log shows the reviewer put prose before its JSON, and its content said approve with no findings. The seed itself carries no content finding to fix.",
+    "Leave both seeds uncommitted, as the ticket requires (criterion 3). Do not change the fence, the cites or the closure additions to work around a reviewer-shape error. A rework-stage re-review then needs a reply that is exactly one schema-valid JSON object."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
