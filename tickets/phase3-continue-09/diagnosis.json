@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "dd78441156e1fe5912c6609514a24355e5915228",
+  "produced_at_sha": "b5919c584fe19f27186e690cda3893691864ec3a",
   "stem": "phase3-continue-09",
-  "attempt": 1,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "reject",
+  "attempt": 2,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "retry",
   "lessons": [
-    "Regenerate phase3-continue-09 from the current 19.P3.admission-holds-activation entry. Do not retry this ticket's verbatim block: it still calls the control CLI suite unchanged, which the hardened entry contradicts.",
-    "Copy the admission contract from CHUPA_PLAN.md at authoring time, not from a ticket. The plan now says: 'The control CLI suite is therefore an edited caller suite for this activation, not a preservation-only suite.'",
-    "In the regenerated seed, put tests/test_control_cli.py in the fence and Context as an edited caller suite: update its write_active callers and add test_resume_publishes_selected_hold_identity. Keep tests/test_cli.py preservation-only.",
-    "Have the regenerated ticket's own 'preservation suites unchanged' wording come from the plan entry's Verification line. Otherwise the conflict between fencing and preservation comes back.",
-    "Keep the rest of the scope: author only admission-holds-activation and phase3-continue-10. The read-first checks passed for all five units (entry_unit_gap, resolve_plan_contract), so no further plan hardening is indicated."
+    "Trace the indirect closure, not just the direct compose_pipeline and write_active callers. drain() builds its consumer inside chupa/drain.py via build_control(checkout), and main() reaches compose_pipeline through runner.pipeline -> prepare_pipeline -> bind. Grep both chains.",
+    "Choose exactly one carrier that lets __main__ hand its one inbox to both 'the drain control factory and the pipeline factory' (19.P3.admission-holds-activation Owner). Adding a missing-inbox fallback to drain, bind or Checkout is forbidden, so don't.",
+    "If drain carries the inbox, fence chupa/drain.py and every direct drain() caller (tests/test_drain.py, eval/shakeout/bench.py, any others found) under 19.L CALLER CLOSURE. Record each path, its reason and its Context/On-demand partition in test_seeded_phase3_09.py.",
+    "If bind or Checkout carries it, fence every direct runner.bind caller or every positional Checkout(...) construction that the Check finding listed. Never leave an unfenced suite that must break or rely on a fallback to stay green.",
+    "If no carrier can be fenced without a fallback, or the plan's silence on the carrier counts as an omitted fact, return premise_failed naming 19.P3.admission-holds-activation for section 11.4 hardening. Don't invent a carrier."
   ],
   "mechanical": null,
   "spec_version": "1.1",
