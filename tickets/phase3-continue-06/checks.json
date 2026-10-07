@@ -1,0 +1,176 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "35bb10e2647f7814f83004e4c9ca6b5695b2bab6",
+  "stem": "phase3-continue-06",
+  "passed": false,
+  "changed_files": [
+    "tests/test_seeded_phase3_06.py"
+  ],
+  "inserted_lines": 419,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "requisition_review",
+      "verdict": "fail",
+      "findings": [
+        {
+          "code": "escalation_consumer_source",
+          "path": "chupa/runner.py",
+          "line": null,
+          "message": "Owner/Observable require `compose_pipeline` to build `MergeQueue(ctx, *, escalate)` with the 'supplied escalation consumer', reached through `runner.bind`, and the test `test_production_pipeline_composes_merge_queue` asserts that injected consumer. Neither the plan unit 19.P3.merge-queue-activation nor the ticket names where it comes from. `bind(checkout, llm)` and `pipeline(checkout)` may not change signature, `Checkout` has no escalation field, and section 13 defers notify transport to the 19.P4 notify-transport stem: until then escalations exist only as journaled signals, which `MergeQueue._signal` already writes. The missing facts are: which consumer production passes (for example a no-op, since the journal already carries the record), who builds it (bind, the CLI root, or a new Checkout field), and whether `compose_pipeline` takes it as a required keyword. Registry row admission-holds-activation (plan line 1760) later says every direct `compose_pipeline` caller supplies a shared inbox, so this ticket's choice has to fit that.",
+          "paved_road": "Harden 19.P3.merge-queue-activation Owner/Records to state `compose_pipeline`'s signature (e.g. `compose_pipeline(ctx, *, escalate) -> MergeQueue`), the production escalation consumer `bind` passes until notify-transport and admission-holds-activation land, and its constructor (inside bind, with no Checkout/bind signature change). Then regenerate the ticket so the test names that consumer.",
+          "kind": "spec_gap"
+        },
+        {
+          "code": "queue_exposure_surface",
+          "path": "chupa/merge.py",
+          "line": null,
+          "message": "Observable says the production harness 'obtains the queue from this binding' and Owner says the factory 'exposes that queue to its consumers'. But `bind` returns the `Dispatch` lambda `Callable[[Ticket], Awaitable[str]]` with its contract preserved, and `build_daemon_core`/`prepare` hand out only that callable. The spec never names how the composed queue becomes observable without a second test-only queue: an attribute on the returned callable, a return value from compose_pipeline captured by wrapping `merge.compose_pipeline`, or a StageContext/driver slot. Implementers would have to invent this, and the three daemon-composition tests depend on it.",
+          "paved_road": "Have the plan unit name the exposure surface, e.g. 'tests obtain the queue by wrapping `merge.compose_pipeline` and capturing its return during `runner.bind`' (no production attribute), or a named field. Then restate it in the ticket's Observable and in each test obligation.",
+          "kind": "spec_gap"
+        },
+        {
+          "code": "construction-told-to-extend-composition",
+          "path": "tickets/phase3-continue-07/ticket.md",
+          "line": null,
+          "message": "Scope in tells the payloads to 'Extend the same production root and tests/test_daemon_composition.py harness from scheduler-activation and the merged queue/Rework activations'. That sentence was carried over from phase3-continue-06, whose payloads were activations. background-consumers and control-inbox are construction rows. 19.P3.background-consumers says 'Construction changes only chupa/daemon.py and the new tests/test_daemon_tasks.py' and lists tests/test_daemon_composition.py as an unchanged preservation suite. 19.P3.control-inbox requires tests/test_daemon_composition.py to stay 'unchanged once merged', and its fence floor does not include chupa/__main__.py. An author following this sentence would either fence the harness and root, which is an unearned widening, or write a seed whose criteria contradict its own entry unit and Verification.",
+          "paved_road": "Replace the sentence with: both construction payloads leave chupa/__main__.py and tests/test_daemon_composition.py unedited. Each one proves behavioral dormancy in its own new test file (test_background_consumers_are_dormant, test_control_inbox_is_dormant) by building the existing production composition harness or the real CLI run/drain root, and runs tests/test_daemon_composition.py unchanged in Verification as a preservation suite.",
+          "kind": "authoring_error"
+        },
+        {
+          "code": "successor-cites-missing-entry-unit",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "The ticket requires phase3-continue-08 to cite the complete entry units its successor needs, parsed from admissions[9:] and naming admission-holds-activation. CHUPA_PLAN.md has no '### 19.P3.admission-holds-activation' unit; the 19.P3 entry units stop at 19.P3.pause-resume-activation. The kill-signal-journal and kill-executor-abort units are also absent. The plan contract id would not resolve at the grammar gate, and the ticket's own gap check would force premise_failed on every run until the unit is hardened. A second problem: the parenthetical 'and the following kill pair as required by that successor's contract' leaves 08's exact cite set undefined. By the chain pattern (07 cites 08's payload units), 08 needs only 09's payload unit, admission-holds-activation. The kill pair is 10's payload and is cited by 09. test_successor_cites_next_admission_and_embeds_merged_earlier_idiom cannot pin an exact set while that clause stands.",
+          "paved_road": "Harden 19.P3.admission-holds-activation under section 11.4 (Owner, Records, Observable and Tests bullets) before this seed runs. Then rewrite the successor clause to name an exact cite list for phase3-continue-08: 19.L, 19.I, 19.P3, section 13, section 20, 19.P3.dispatch-pause-boundary, 19.P3.pause-resume-activation and 19.P3.admission-holds-activation. Drop the conditional kill-pair wording, since the kill units belong to phase3-continue-09's citations.",
+          "kind": "spec_gap"
+        },
+        {
+          "code": "terminal_dispatch_record",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "19.P3.rework-activation removes the `dispatch: reject_queue` / `routed: reject_queue` marker for diagnosis `split` while budget remains, and it activates the 11.3 mechanical over-bound route. It also requires the producing run terminal to be written before the separate retirement transition. Neither it nor sections 11.2-11.4 says what that terminal `state_transition` body records for a Rework-routed run. Today runner.drive only writes `dispatch` values of retry, escalate, reject_queue or spec_gap_hold, and the over-bound terminal carries no `dispatch` at all. Four facts are missing: (1) the `dispatch` value, if any, when Rework returns `split` and publication succeeds, and when it returns `update`; (2) whether a Rework `escalate` reply maps to the existing `dispatch: escalate` + `rung` from `next_rung`, and what an exhausted ladder routes to on the over-bound path, which promises no cap draw; (3) whether a failed Rework or failed publication terminal carries `routed: reject_queue` or what other paved routing; (4) whether the next dispatch of an updated original is a drain re-offer that draws a `retry` cap_consumed unit, or a 'fresh dispatch' that draws none. The unit also forbids any new constant, so a value such as `dispatch: rework` cannot be invented. These facts are asserted by test_split_dispatches_reviewed_rework ('one terminal after application, no split Reject marker'), test_rework_update_reenters_on_fresh_content, and test_render_over_bound_dispatches_rework_without_diagnosis.",
+          "paved_road": "Harden 19.P3.rework-activation's Records part with the exact terminal body for each Rework outcome on both routes (diagnosis split and mechanical over-bound): update, split, escalate, and failed Rework or publication. Give the `dispatch`/`routed` values, or state explicitly that none is written. Say whether re-entry after an update draws a retry unit, and how the drain's 'latest transition equals returned terminal' check treats the separate `rejected` retirement. Then regenerate this ticket from the hardened unit.",
+          "kind": "spec_gap"
+        }
+      ],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [
+    {
+      "stem": "merge-queue-activation",
+      "ticket_sha": "ec3fe1fd5329bbf6a4ff83eeeb64da0b4e4d4eea",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "escalation_consumer_source",
+          "path": "chupa/runner.py",
+          "line": null,
+          "message": "Owner/Observable require `compose_pipeline` to build `MergeQueue(ctx, *, escalate)` with the 'supplied escalation consumer', reached through `runner.bind`, and the test `test_production_pipeline_composes_merge_queue` asserts that injected consumer. Neither the plan unit 19.P3.merge-queue-activation nor the ticket names where it comes from. `bind(checkout, llm)` and `pipeline(checkout)` may not change signature, `Checkout` has no escalation field, and section 13 defers notify transport to the 19.P4 notify-transport stem: until then escalations exist only as journaled signals, which `MergeQueue._signal` already writes. The missing facts are: which consumer production passes (for example a no-op, since the journal already carries the record), who builds it (bind, the CLI root, or a new Checkout field), and whether `compose_pipeline` takes it as a required keyword. Registry row admission-holds-activation (plan line 1760) later says every direct `compose_pipeline` caller supplies a shared inbox, so this ticket's choice has to fit that.",
+          "paved_road": "Harden 19.P3.merge-queue-activation Owner/Records to state `compose_pipeline`'s signature (e.g. `compose_pipeline(ctx, *, escalate) -> MergeQueue`), the production escalation consumer `bind` passes until notify-transport and admission-holds-activation land, and its constructor (inside bind, with no Checkout/bind signature change). Then regenerate the ticket so the test names that consumer.",
+          "kind": "spec_gap"
+        },
+        {
+          "code": "queue_exposure_surface",
+          "path": "chupa/merge.py",
+          "line": null,
+          "message": "Observable says the production harness 'obtains the queue from this binding' and Owner says the factory 'exposes that queue to its consumers'. But `bind` returns the `Dispatch` lambda `Callable[[Ticket], Awaitable[str]]` with its contract preserved, and `build_daemon_core`/`prepare` hand out only that callable. The spec never names how the composed queue becomes observable without a second test-only queue: an attribute on the returned callable, a return value from compose_pipeline captured by wrapping `merge.compose_pipeline`, or a StageContext/driver slot. Implementers would have to invent this, and the three daemon-composition tests depend on it.",
+          "paved_road": "Have the plan unit name the exposure surface, e.g. 'tests obtain the queue by wrapping `merge.compose_pipeline` and capturing its return during `runner.bind`' (no production attribute), or a named field. Then restate it in the ticket's Observable and in each test obligation.",
+          "kind": "spec_gap"
+        }
+      ],
+      "mechanical": null
+    },
+    {
+      "stem": "phase3-continue-07",
+      "ticket_sha": "31f1239611e4d273cced36d3d7dbba495811ae53",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "construction-told-to-extend-composition",
+          "path": "tickets/phase3-continue-07/ticket.md",
+          "line": null,
+          "message": "Scope in tells the payloads to 'Extend the same production root and tests/test_daemon_composition.py harness from scheduler-activation and the merged queue/Rework activations'. That sentence was carried over from phase3-continue-06, whose payloads were activations. background-consumers and control-inbox are construction rows. 19.P3.background-consumers says 'Construction changes only chupa/daemon.py and the new tests/test_daemon_tasks.py' and lists tests/test_daemon_composition.py as an unchanged preservation suite. 19.P3.control-inbox requires tests/test_daemon_composition.py to stay 'unchanged once merged', and its fence floor does not include chupa/__main__.py. An author following this sentence would either fence the harness and root, which is an unearned widening, or write a seed whose criteria contradict its own entry unit and Verification.",
+          "paved_road": "Replace the sentence with: both construction payloads leave chupa/__main__.py and tests/test_daemon_composition.py unedited. Each one proves behavioral dormancy in its own new test file (test_background_consumers_are_dormant, test_control_inbox_is_dormant) by building the existing production composition harness or the real CLI run/drain root, and runs tests/test_daemon_composition.py unchanged in Verification as a preservation suite.",
+          "kind": "authoring_error"
+        },
+        {
+          "code": "successor-cites-missing-entry-unit",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "The ticket requires phase3-continue-08 to cite the complete entry units its successor needs, parsed from admissions[9:] and naming admission-holds-activation. CHUPA_PLAN.md has no '### 19.P3.admission-holds-activation' unit; the 19.P3 entry units stop at 19.P3.pause-resume-activation. The kill-signal-journal and kill-executor-abort units are also absent. The plan contract id would not resolve at the grammar gate, and the ticket's own gap check would force premise_failed on every run until the unit is hardened. A second problem: the parenthetical 'and the following kill pair as required by that successor's contract' leaves 08's exact cite set undefined. By the chain pattern (07 cites 08's payload units), 08 needs only 09's payload unit, admission-holds-activation. The kill pair is 10's payload and is cited by 09. test_successor_cites_next_admission_and_embeds_merged_earlier_idiom cannot pin an exact set while that clause stands.",
+          "paved_road": "Harden 19.P3.admission-holds-activation under section 11.4 (Owner, Records, Observable and Tests bullets) before this seed runs. Then rewrite the successor clause to name an exact cite list for phase3-continue-08: 19.L, 19.I, 19.P3, section 13, section 20, 19.P3.dispatch-pause-boundary, 19.P3.pause-resume-activation and 19.P3.admission-holds-activation. Drop the conditional kill-pair wording, since the kill units belong to phase3-continue-09's citations.",
+          "kind": "spec_gap"
+        }
+      ],
+      "mechanical": null
+    },
+    {
+      "stem": "rework-activation",
+      "ticket_sha": "019a884b0c1bf8255ec54723a0c0477280f3ceeb",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "terminal_dispatch_record",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "19.P3.rework-activation removes the `dispatch: reject_queue` / `routed: reject_queue` marker for diagnosis `split` while budget remains, and it activates the 11.3 mechanical over-bound route. It also requires the producing run terminal to be written before the separate retirement transition. Neither it nor sections 11.2-11.4 says what that terminal `state_transition` body records for a Rework-routed run. Today runner.drive only writes `dispatch` values of retry, escalate, reject_queue or spec_gap_hold, and the over-bound terminal carries no `dispatch` at all. Four facts are missing: (1) the `dispatch` value, if any, when Rework returns `split` and publication succeeds, and when it returns `update`; (2) whether a Rework `escalate` reply maps to the existing `dispatch: escalate` + `rung` from `next_rung`, and what an exhausted ladder routes to on the over-bound path, which promises no cap draw; (3) whether a failed Rework or failed publication terminal carries `routed: reject_queue` or what other paved routing; (4) whether the next dispatch of an updated original is a drain re-offer that draws a `retry` cap_consumed unit, or a 'fresh dispatch' that draws none. The unit also forbids any new constant, so a value such as `dispatch: rework` cannot be invented. These facts are asserted by test_split_dispatches_reviewed_rework ('one terminal after application, no split Reject marker'), test_rework_update_reenters_on_fresh_content, and test_render_over_bound_dispatches_rework_without_diagnosis.",
+          "paved_road": "Harden 19.P3.rework-activation's Records part with the exact terminal body for each Rework outcome on both routes (diagnosis split and mechanical over-bound): update, split, escalate, and failed Rework or publication. Give the `dispatch`/`routed` values, or state explicitly that none is written. Say whether re-entry after an update draws a retry unit, and how the drain's 'latest transition equals returned terminal' check treats the separate `rejected` retirement. Then regenerate this ticket from the hardened unit.",
+          "kind": "spec_gap"
+        }
+      ],
+      "mechanical": null
+    }
+  ],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_seeded_phase3_06.py"
+      ],
+      "rc": 0,
+      "tail": ".....................                                                    [100%]\n21 passed in 0.59s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [  6%]\n........................................................................ [ 13%]\n........................................................................ [ 20%]\n........................................................................ [ 27%]\n........................................................................ [ 34%]\n........................................................................ [ 40%]\n........................................................................ [ 47%]\n........................................................................ [ 54%]\n........................................................................ [ 61%]\n........................................................................ [ 68%]\n........................................................................ [ 74%]\n........................................................................ [ 81%]\n........................................................................ [ 88%]\n........................................................................ [ 95%]\n..................................................                       [100%]\n1058 passed in 83.07s (0:01:23)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
