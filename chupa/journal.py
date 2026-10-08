@@ -38,7 +38,7 @@ SIGNAL_NAMES: frozenset[str] = frozenset({
     "diagnose_eval_start", "diagnosis", "draft_confirmed", "drain_halted", "drain_handoff",
     "flake_detected", "flake_released", "hardening_round", "harvest_failed", "kill_applied",
     "merge_conflict_facts", "merge_red_streak", "merge_tree_mismatch", "provider_call_outcome",
-    "provider_cap_wait", "reject_arrival", "reject_verdict", "requisition_verdict", "review_baseline",
+    "provider_cap_wait", "recovery_alert", "reject_arrival", "reject_verdict", "requisition_verdict", "review_baseline",
     "rework_order", "storm_breaker_trip", "storm_occurrence", "supersedes", "ticket_intake",
     "triage_pass", "watcher_parse_failure",
 })

@@ -9,14 +9,14 @@ from pathlib import Path
 
 import pytest
 
-from chupa import __main__ as cli, daemon, reconcile, runner
+from chupa import __main__ as cli, daemon, reconcile, runner, serve
 from chupa.audit import audit_journal
 from chupa.journal import EventType, Journal, JournalCorruption, render_ts, run_seq
 from chupa.lockfile import Lockfile, LockHeld
 from chupa.restart import Restart
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.timers import Timers
-from tests.test_cli import ENV, root
+from tests.test_cli import ENV, PLAN, root
 from tests.test_daemon_composition import CoreRig, assert_startup_pause_wiring
 from tests.test_providers import CONFIG
 from tests.test_scheduler import Time, turn
@@ -138,13 +138,22 @@ async def test_restart_reuses_orphan_reconciliation(root, monkeypatch):
             assert artifact.read_text() == await checkout.git._run(root, "show", f"HEAD:{artifact.relative_to(root)}")
 
         def appended(type, body, **kwargs):
+            event = append(type, body, **kwargs)
             if type == EventType.STATE_TRANSITION:
                 trace.append((kwargs["ticket"], body["to"]))
-            return append(type, body, **kwargs)
+            elif body.get("kind") == reconcile.RECOVERY_ALERT:
+                assert rig.journal.read()[-1] == event
+                trace.append((kwargs["ticket"], "recovery_alert"))
+            return event
 
         async def removed(repo, path):
             trace.append((path.name, "remove"))
-            assert rig.journal.read()[-1].body == {"to": "abandoned"}
+            terminal, alert = rig.journal.read()[-2:]
+            assert terminal.type == EventType.STATE_TRANSITION and terminal.ticket == path.name
+            assert terminal.body == {"to": "abandoned"} and terminal.key is None
+            assert alert.type == EventType.SIGNAL and alert.ticket == path.name and alert.key is None
+            assert alert.body == {"kind": "recovery_alert", "disposition": "alert", "outcome": "abandoned",
+                                  "reason": "orphaned run", "run_seq": run_seq(rig.journal.read(), path.name) - 1}
             await remove(repo, path)
 
         async def pruned(repo):
@@ -162,7 +171,8 @@ async def test_restart_reuses_orphan_reconciliation(root, monkeypatch):
         events = rig.journal.read()
         assert events[:len(prior)] == prior
         for stem in ("running", "intent", "bad-harvest"):
-            assert trace.index((stem, "harvest")) < trace.index((stem, "abandoned")) < trace.index((stem, "remove"))
+            assert (trace.index((stem, "harvest")) < trace.index((stem, "abandoned"))
+                    < trace.index((stem, "recovery_alert")) < trace.index((stem, "remove")))
             assert trace[trace.index((stem, "remove")) + 1] == (None, "prune")
         assert ("missing", "harvest") not in trace and ("missing", "remove") not in trace
         assert trace[-1] == (None, "prune")
@@ -173,8 +183,12 @@ async def test_restart_reuses_orphan_reconciliation(root, monkeypatch):
             [terminal] = [e for e in events if e.ticket == stem and e.type == EventType.STATE_TRANSITION
                           and e.body["to"] == "abandoned"]
             assert terminal.key is None and terminal.body == {"to": "abandoned"}
+            [alert] = [e for e in events if e.ticket == stem and e.body.get("kind") == reconcile.RECOVERY_ALERT]
+            assert alert.type == EventType.SIGNAL and alert.key is None
+            assert alert.body == {"kind": "recovery_alert", "disposition": "alert", "outcome": "abandoned",
+                                  "reason": "orphaned run", "run_seq": 0}
+            assert events.index(terminal) + 1 == events.index(alert)
             assert run_seq(events, stem) == 1
-        assert not any(e.body.get("signal") == "recovery_alert" for e in events)
         # The preserved intent-only recovery has no running transition; the existing
         # auditor reports that absent witness. Audit the actual evidence without repair.
         violations = audit_journal(rig.journal)
@@ -190,8 +204,53 @@ async def test_restart_reuses_orphan_reconciliation(root, monkeypatch):
         assert await rig.core.sweep_orphans() == ["running"]
         assert (root / "tickets/running/attempts/1/harvest.json").is_file()
         assert run_seq(rig.journal.read(), "running") == 2
+        assert [e.body["run_seq"] for e in rig.journal.read()
+                if e.ticket == "running" and e.body.get("kind") == reconcile.RECOVERY_ALERT] == [0, 1]
     finally:
         lock.release()
+
+
+@pytest.mark.asyncio
+async def test_recovery_alert_through_serve_entrypoint(root, monkeypatch):
+    rig = await repository(root, monkeypatch)
+    dead = await orphan(rig, "dead")
+    entered, release = asyncio.Event(), asyncio.Event()
+    original = runner.harvest_orphan
+    calls = []
+
+    async def harvest(checkout, stem, attempt):
+        assert checkout.journal is rig.journal and attempt == 0
+        entered.set()
+        await release.wait()
+        await original(checkout, stem, attempt)
+
+    def signals(stop):
+        terminal, alert = rig.journal.read()[-2:]
+        assert terminal.body == {"to": "abandoned"} and terminal.ticket == "dead"
+        assert alert.ticket == "dead" and alert.key is None and alert.type == EventType.SIGNAL
+        assert alert.body == {"kind": "recovery_alert", "disposition": "alert", "outcome": "abandoned",
+                              "reason": "orphaned run", "run_seq": 0}
+        assert not dead.exists()
+        calls.append("ready")
+        stop()
+        return lambda: calls.append("retired")
+
+    monkeypatch.setattr(runner, "harvest_orphan", harvest)
+    baseline = asyncio.all_tasks()
+    task = asyncio.create_task(serve.serve(rig.checkout, plan=PLAN, signals=signals))
+    try:
+        await entered.wait()
+        assert calls == [] and dead.exists()
+        assert not any(e.body.get("kind") == reconcile.RECOVERY_ALERT for e in rig.journal.read())
+        release.set()
+        assert await task == 0 and calls == ["ready", "retired"]
+        assert rig.exec.calls == [] and asyncio.all_tasks() == baseline
+        green(rig.journal)
+    finally:
+        release.set()
+        if not task.done():
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
 
 
 @pytest.mark.asyncio

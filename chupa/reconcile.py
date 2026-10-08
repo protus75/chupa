@@ -1,7 +1,7 @@
 """Reconcile-on-entry (CHUPA_PLAN.md sections 6, 11, 18): reap orphaned in-flight runs before dispatch.
 
-Called only by a scaffold verb holding the sole writer lock with no daemon alive, so a run still open
-in the journal is provably dead. Harvest precedes the `abandoned` terminal and worktree removal.
+Called under the sole writer lock with no live run ownership, so an open run is provably dead.
+Harvest precedes the `abandoned` terminal, recovery evidence and worktree removal.
 """
 
 from collections.abc import Awaitable, Callable, Iterable
@@ -11,6 +11,7 @@ from chupa.git import Git
 from chupa.journal import TERMINAL_STATES, Event, EventType, Journal, run_seq
 
 OrphanHarvest = Callable[[str, int], Awaitable[None]]
+RECOVERY_ALERT = "recovery_alert"
 
 
 def orphans(events: Iterable[Event]) -> list[str]:
@@ -38,15 +39,19 @@ async def reconcile(journal: Journal, git: Git, repo: Path, worktree_root: Path,
     """Reap every orphan to `abandoned` and remove its worktree; return the reaped stems (empty: a no-op)."""
     reaped = orphans(journal.read())
     for stem in reaped:
+        sequence = run_seq(journal.read(), stem)
         path = worktree_root / stem
         if path.exists():
             try:
-                await harvest(stem, run_seq(journal.read(), stem))
+                await harvest(stem, sequence)
             except Exception as e:
                 journal.append(EventType.SIGNAL,
                                {"signal": "harvest_failed", "error": f"{type(e).__name__}: {e}"},
                                ticket=stem)
         journal.append(EventType.STATE_TRANSITION, {"to": "abandoned"}, ticket=stem)
+        journal.append(EventType.SIGNAL,
+                       {"kind": RECOVERY_ALERT, "disposition": "alert", "outcome": "abandoned",
+                        "reason": "orphaned run", "run_seq": sequence}, ticket=stem)
         # Journal before wipe: a wipe that fails leaves a leftover the next run's teardown-and-create removes.
         if path.exists():
             await git.worktree_remove(repo, path)

@@ -10,7 +10,7 @@ from chupa import __main__ as main, daemon, runner, stages
 from chupa.control import ControlProjection
 from chupa.journal import EventType, run_seq
 from chupa.llm import FakeLLM
-from chupa.reconcile import orphans, reconcile
+from chupa.reconcile import RECOVERY_ALERT, orphans, reconcile
 from tests.test_cli import ENV, Clock, Stages, root, ticket, write
 from tests.test_daemon_composition import CoreRig, LiveDrain, assert_core_wiring
 from tests.test_driver import ECHO, Stub, build
@@ -324,8 +324,12 @@ async def test_kill_suppression_preserves_run_and_abort_failures(admission_conte
     reaped = await reconcile(journal, ctx.git, ctx.repo, ctx.config.worktree_root,
                             lambda stem, attempt: runner.harvest_orphan(checkout, stem, attempt))
     assert reaped == [work.stem] and not ctx.worktree(work.stem).exists()
-    assert journal.read()[-1].body == {"to": "abandoned"}
-    assert journal.read()[-1].ticket == work.stem
+    terminal, alert = journal.read()[-2:]
+    assert terminal.type == EventType.STATE_TRANSITION and terminal.body == {"to": "abandoned"}
+    assert terminal.ticket == alert.ticket == work.stem and terminal.key is alert.key is None
+    assert alert.type == EventType.SIGNAL
+    assert alert.body == {"kind": RECOVERY_ALERT, "disposition": "alert", "outcome": "abandoned",
+                          "reason": "orphaned run", "run_seq": orphan_attempt}
     orphan_harvest = ctx.repo / f"tickets/{work.stem}/attempts/{orphan_attempt}/harvest.json"
     assert json.loads(orphan_harvest.read_bytes())["terminal"] == "abandoned"
     assert harvest_path.read_bytes() == harvest
