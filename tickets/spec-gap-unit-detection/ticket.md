@@ -18,6 +18,7 @@ state: confirmed
 - chupa/runner.py
 - tests/test_seed_path.py
 - tests/test_requisition.py
+- tests/test_hardening.py
 
 ## Plan contract
 - section 5
@@ -31,6 +32,7 @@ Spec gaps are detected from structured, validated fields and never from prose. A
 Why: section 11.4 DETECTION reads codes and records only, and section 5 makes `unit` a validated field never parsed from prose. Today `chupa/runner.py` `premise_spec_gaps` regex-matches `19.P<n>.<row>` in a premise's message and paved road. Any premise that mentions a unit id files a hardener, including code/seam contradictions a plan edit cannot fix. `spec_gaps` re-reads `tickets/<stem>/checks.json` from main instead of this run's Check result, files every seed `spec_gap` against the seed's OWN row whichever unit gapped, and treats changing finding wording over three passes as a spec gap. `chupa/stages.py` checks only the seed's own row unit, so a cited unit that is missing fails as an unresolvable `Plan contract` id (an `authoring_error`).
 
 ## Scope in / Scope out
+- In (CONTRADICTED TESTS): `tests/test_hardening.py::test_a_hardener_is_never_hardened` monkeypatches the deleted `runner.spec_gaps` and `runner.premise_spec_gaps`; migrate it to inject each gap through this run's StageResult findings (`{kind: spec_gap, unit}`), keeping all four cases (gate_failed and premise_failed, hardener and non-hardener) as behavioral coverage.
 - In: `chupa/artifacts.py` `Finding` gains `unit: str | None = None`. A validator refuses a non-null `unit` unless `kind == "spec_gap"`.
 - In: `chupa/specs.py` gains `hardenable_units(plan, stem, plan_contract) -> tuple[str, ...]`: the stem's own entry unit when it is a non-exit registry row, plus every cited id that names an entry unit of a registry row. `entry_unit_gap` takes a unit id. Every caller is updated in place.
 - In: `chupa/stages.py` `_review_one` runs the SPEC DEPTH check over every hardenable unit before `validate_ticket`. It reads the seed's `## Plan contract` bullets without resolving them. Each missing unit or part yields a snag finding `{code: requisition_review, kind: spec_gap, unit: <uid>}` with mechanical `entry unit gap`. The seed's hardenable units reach `review_ticket`.
@@ -50,6 +52,7 @@ Why: section 11.4 DETECTION reads codes and records only, and section 5 makes `u
 - tests/test_seed_path.py
 - tests/test_requisition.py
 - tests/test_specs.py
+- tests/test_hardening.py
 
 ## Acceptance criteria
 1. `uv run pytest -q tests/test_seed_path.py` exits 0. In it, `test_review_that_never_converges_is_a_spec_gap` is deleted. A new `test_premise_mentioning_a_unit_id_in_prose_is_an_ordinary_premise` writes a premise whose message names `19.P3.gamma-seed` but carries no `kind`. It asserts the ordinary premise park: a `premise_bounce` draw, no `hardening_round` record, and no `plan-gap-*` ticket. A new `test_structured_premise_spec_gap_files_a_round_for_its_unit` makes the seeding ticket's `## Plan contract` cite `19.P3.gamma-seed`, writes a premise `{kind: spec_gap, unit: 19.P3.gamma-seed}`, and asserts that the round's `units` hold exactly that unit. A new `test_cited_missing_unit_is_a_spec_gap_not_a_grammar_refusal` gives a seed whose `## Plan contract` cites `19.P3.gamma-seed`, a registry row with no entry-unit heading. It asserts a snag finding with `kind: spec_gap` and that `unit`, and no `requisition_review` call.
