@@ -63,7 +63,7 @@ uv run pytest tests/test_merge.py tests/test_mergequeue.py tests/test_serve.py t
 ```
 
 ## Definition of rejected
-A governing entry lacks a required fact or contradicts merged behavior, or a criteria-forced edit cannot be earned under the fence: return premise_failed naming the unit for section 11.4 hardening. Never invent missing facts.
+A governing entry lacks a required fact or contradicts merged behavior, or a criteria-forced edit cannot be earned under the fence: return premise_failed naming the unit for section 11.4 hardening. Never invent missing facts. Snapshot-configured queue commands record list argv once the `mergequeue-snapshot-argv` fix is on main; activation evidence runs through that real path, never a fixture.
 
 ## Time budget
 - expected: 60m
