@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "e2bdaf4f765a17f39ea2f3098ff1389103a86624",
+  "stem": "serve-merge-admission",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Fix the blocker before activation. merged chupa/mergequeue.py:132 passes argv straight into CommandResult(argv=argv). The finding reproduced on e2bdaf4 that snapshot_config gives tuples and CommandResult rejects them as list_type, even for ['true']. mergequeue.py is outside this ticket's fence.",
+    "Fix 19.P3.serve-merge-admission in the plan. Either list chupa/mergequeue.py in the entry's owner closure, earned by the argv-at-boundary conversion in MergeQueue._command, or file a prerequisite entry that repairs it, then regenerate this ticket with that prerequisite in depends.",
+    "Also exercise production snapshot_config output in tests/test_mergequeue.py so the tuple argv path fails there. The untouched Verification suite passed all 400 tests and never reached it. Only the new serve activation test using real config snapshots exposed it.",
+    "Don't fake it with ready fixtures. The ticket forbids using predecessor ready-fixture offers as activation evidence. Keep the real-CLI/composed-queue route and run it only once MergeQueue._command accepts snapshot argv."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
