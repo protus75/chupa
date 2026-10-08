@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Bootstrap cancellation required activating stage task ownership only in serve.
+Recovered and revised the prior reviewed implementation; callback suppression remains confined to serve.
 
 ## Dead ends
 
-Discarded unconditional stage task ownership because it changed bootstrap cancellation behavior.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60 minutes; actual approximately 76 minutes.
+Completed within the expected 60-minute budget by reusing the prior implementation.
 
