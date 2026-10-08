@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "f8516976e2d635e3e17f15132048176382cbff5b",
+  "stem": "phase3-continue-21",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "The premise is false as written. The registry row outbox-only-admission (deep, cite [\"19.L\", 10]) is admissions[23], but entry unit 19.P3.outbox-only-admission has no heading in CHUPA_PLAN.md. Under 19.L SPEC DEPTH and section 11.4, a missing unit is a spec_gap and needs hardening.",
+    "Before regenerating, harden 19.P3.outbox-only-admission after its phase's last unit. It needs Owner, Records, Observable and Tests bullets that pass plan lint, and its facts must come from the 19.L run-lane admission rule and section 10, not invented ones.",
+    "Keep worker-recovery-disposition as phase3-continue-22's payload; it resolves cleanly (5589 chars). Do not author outbox-only-admission or phase3-continue-23 in this batch. They are named only as the lookahead that phase3-continue-22 cites.",
+    "After the plan repair, rerun entry_unit_gap and resolve_plan_contract on all three units at the new main head: serve-merge-admission, worker-recovery-disposition and outbox-only-admission. Then author both seeds and tests/test_seeded_phase3_21.py, recording that head as the authoring snapshot."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
