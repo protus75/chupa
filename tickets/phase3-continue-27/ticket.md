@@ -57,7 +57,7 @@ uv run pytest -q
 ```
 
 ## Definition of rejected
-A missing needed contract fact returns premise_failed, kind: spec_gap, naming its governing cited hardenable unit for section 11.4 hardening. A forced path beyond an earned fence returns premise_failed; never invent or widen the contract.
+A missing needed contract fact returns premise_failed, kind: spec_gap, naming its governing cited hardenable unit for section 11.4 hardening. A forced path beyond an earned fence returns premise_failed; never invent or widen the contract. Only the seeds' own and cited entry units must exist at Check; an uncited next-phase row is the later continuation's to harden (section 11.4 REQUIRED units).
 
 ## Time budget
 - expected: 60m
