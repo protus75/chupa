@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Updated a fenced test that pinned the superseded round-refiling behavior; uncommitted plan edits do not release arrivals.
+The prior-attempt implementation was absent; the existing seed test expected repeated hardening of unchanged units and needed updating.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 90 minutes; took approximately 11 minutes.
+Completed within the expected 90-minute budget.
 
