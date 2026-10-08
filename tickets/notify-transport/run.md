@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Notification effects use ticket=null because recovery treats ticket-owned incomplete effects as open runs; ownership remains in the notification key.
+Notification intents use ticket=null so failed delivery cannot trigger orphan-run recovery.
 
 ## Dead ends
 
@@ -12,7 +12,7 @@ none
 
 ## Second problems filed
 
-none
+- box-000280-e6a2823c: The existing CLI status projection omits tree-mismatch escalation evidence, verified on the base commit and left outside this transport diff.
 
 ## Resolved engine/model
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60-minute expected budget.
+Completed within the expected 60-minute budget.
 
