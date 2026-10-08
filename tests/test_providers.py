@@ -388,11 +388,14 @@ class PreflightExec:
     def __init__(self, versions: dict[str, str], latest: str, refused: frozenset[str] = frozenset()) -> None:
         self.versions, self.latest, self.refused = versions, latest, refused
         self.probed: list[str] = []
+        self.version_envs: list[dict[str, str]] = []
 
     async def run(self, argv, *, cwd, env, timeout, stdin_path=None, on_spawn=None):
         if argv[1:] == ["--version"]:
+            self.version_envs.append(dict(env))
             return 0, self.versions[argv[0]], ""
         if argv[0] == "pnpm":
+            self.version_envs.append(dict(env))
             return 0, self.latest + "\n", ""
         model = argv[argv.index("--model" if argv[0] == "claude" else "-m") + 1]
         self.probed.append(model)
@@ -412,6 +415,17 @@ def test_preflight_passes_with_current_clis_and_every_routed_model_answering(tmp
     exec_ = PreflightExec(CURRENT, "1.2.3")
     assert preflight(tmp_path, exec_) == []
     assert sorted(exec_.probed) == ["c-high", "c-max", "c-med", "x-low", "x-med"]  # each routed pair once
+
+
+def test_preflight_version_children_carry_no_provider_key(tmp_path):
+    exec_ = PreflightExec(CURRENT, "1.2.3")
+    assert preflight(tmp_path, exec_) == []
+    assert len(exec_.version_envs) == 4
+    for env in exec_.version_envs:
+        assert "CLAUDE_KEY" not in env
+        assert "CODEX_KEY" not in env
+        assert env["PATH"] == ENV["PATH"]
+        assert env["HOME"] == ENV["HOME"]
 
 
 def test_preflight_reports_a_stale_cli_without_refusing_the_run(tmp_path):

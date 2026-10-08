@@ -392,10 +392,11 @@ class ProviderLLM:
         notices = self.preflight_notices = []
         for adapter in self._adapters.values():
             package = adapter.provider.package
-            _, out, err = await self._exec.run([adapter.binary, "--version"], cwd=self._cwd, env=self._env,
+            _, out, err = await self._exec.run([adapter.binary, "--version"], cwd=self._cwd,
+                                               env=child_env(self._env, self._config),
                                                timeout=PREFLIGHT_TIMEOUT_S)
             _, latest, _ = await self._exec.run(["pnpm", "view", str(package), "version"], cwd=self._cwd,
-                                                env=self._env, timeout=PREFLIGHT_TIMEOUT_S)
+                                                env=child_env(self._env, self._config), timeout=PREFLIGHT_TIMEOUT_S)
             installed = re.search(r"\d+\.\d+\.\d+", out + err)
             if not latest.strip() or installed is None or installed.group(0) != latest.strip():
                 notices.append(f"{adapter.binary} {installed.group(0) if installed else '(unknown)'} is not the"
