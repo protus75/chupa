@@ -29,10 +29,16 @@ state: confirmed
 - chupa/watcher.py
 - chupa/restart.py
 - chupa/timers.py
+- chupa/scheduler.py
 
 ## On-demand
 - tests/test_daemon_composition.py
 - chupa/driver.py
+- chupa/stages.py
+- chupa/storm.py
+- tests/test_stages.py
+- tests/test_daemon_admission.py
+- tests/test_daemon_config.py
 
 ## Plan contract
 - 19.I
@@ -61,6 +67,12 @@ Unfenced Verification suites stay unchanged preservation suites, neither fenced 
 - chupa/triage.py
 - chupa/driver.py
 - chupa/runner.py
+- chupa/stages.py
+- chupa/scheduler.py
+- chupa/storm.py
+- tests/test_stages.py
+- tests/test_daemon_admission.py
+- tests/test_daemon_config.py
 - tests/test_serve.py
 - tests/test_daemon_composition.py
 - tests/test_daemon_tasks.py
@@ -72,13 +84,13 @@ Unfenced Verification suites stay unchanged preservation suites, neither fenced 
 - tests/test_checkpoint.py
 
 ## Acceptance criteria
-1. `uv run pytest tests/test_serve.py tests/test_daemon_composition.py tests/test_daemon_tasks.py tests/test_kill_worker_stop.py tests/test_kill_failure_suppression.py tests/test_heartbeat.py tests/test_storm.py tests/test_checkpoint.py tests/test_restart_timers.py tests/test_control.py tests/test_control_cli.py tests/test_kill_cli_activation.py tests/test_scheduler.py tests/test_mergequeue.py tests/test_triage.py tests/test_cli.py tests/test_drain.py tests/test_audit.py` exits 0 proving the full cited 19.P3.serve-activation Owner/Records/Observable/Tests contract, with these named obligations: `test_serve_cli_uses_production_composition`, `test_serve_holds_lock_through_cleanup`, `test_serve_startup_precedes_all_work`, `test_serve_waits_at_quiescence_and_discovers_work`, `test_serve_consumers_use_existing_writers`, `test_serve_control_precedes_offer_accounting`, `test_serve_kill_unwinds_executor_before_workers`, `test_serve_worker_failure_and_kill_suppression`, `test_serve_signal_stop_and_restart_recovery`, `test_serve_recurring_maintenance_uses_injected_time`, `test_serve_heartbeat_requires_responsive_components`, `test_serve_storm_hold_and_resume`, `test_production_serve_graph_is_reachable`.
+1. `uv run pytest tests/test_serve.py tests/test_daemon_composition.py tests/test_daemon_tasks.py tests/test_kill_worker_stop.py tests/test_kill_failure_suppression.py tests/test_heartbeat.py tests/test_storm.py tests/test_checkpoint.py tests/test_restart_timers.py tests/test_stages.py tests/test_daemon_admission.py tests/test_daemon_config.py tests/test_control.py tests/test_control_cli.py tests/test_kill_cli_activation.py tests/test_scheduler.py tests/test_mergequeue.py tests/test_triage.py tests/test_cli.py tests/test_drain.py tests/test_audit.py` exits 0 proving the full cited 19.P3.serve-activation Owner/Records/Observable/Tests contract, with these named obligations: `test_serve_cli_uses_production_composition`, `test_serve_holds_lock_through_cleanup`, `test_serve_startup_precedes_all_work`, `test_serve_waits_at_quiescence_and_discovers_work`, `test_serve_consumers_use_existing_writers`, `test_serve_control_precedes_offer_accounting`, `test_serve_kill_unwinds_executor_before_workers`, `test_serve_worker_failure_and_kill_suppression`, `test_serve_signal_stop_and_restart_recovery`, `test_serve_recurring_maintenance_uses_injected_time`, `test_serve_heartbeat_requires_responsive_components`, `test_serve_storm_hold_and_resume`, `test_production_serve_graph_is_reachable`.
 2. The same `uv run pytest tests/test_serve.py tests/test_daemon_composition.py tests/test_daemon_tasks.py tests/test_kill_worker_stop.py tests/test_kill_failure_suppression.py tests/test_heartbeat.py tests/test_storm.py tests/test_checkpoint.py tests/test_restart_timers.py tests/test_control.py tests/test_control_cli.py tests/test_kill_cli_activation.py tests/test_scheduler.py tests/test_mergequeue.py tests/test_triage.py tests/test_cli.py tests/test_drain.py tests/test_audit.py` exits 0 after the governing predecessor migrations, including `test_background_consumers_are_dormant`, `test_kill_worker_stop_is_dormant`, `test_kill_failure_suppression_is_dormant`, `test_heartbeat_is_dormant`, `test_checkpoint_boundary_is_dormant`, `test_restart_construction_is_idle` and positive `test_storm_ledger_is_reachable`; run/drain and component invariants remain green.
 3. `uv run pytest tests/test_serve.py tests/test_daemon_composition.py tests/test_daemon_tasks.py tests/test_kill_worker_stop.py tests/test_kill_failure_suppression.py tests/test_heartbeat.py tests/test_storm.py tests/test_checkpoint.py tests/test_restart_timers.py tests/test_control.py tests/test_control_cli.py tests/test_kill_cli_activation.py tests/test_scheduler.py tests/test_mergequeue.py tests/test_triage.py tests/test_cli.py tests/test_drain.py tests/test_audit.py` exits 0 with every named invariant and record custody proved through the exact governing citations, using the production graph and existing writers; preservation suites remain unchanged.
 
 ## Verification
 ```
-uv run pytest tests/test_serve.py tests/test_daemon_composition.py tests/test_daemon_tasks.py tests/test_kill_worker_stop.py tests/test_kill_failure_suppression.py tests/test_heartbeat.py tests/test_storm.py tests/test_checkpoint.py tests/test_restart_timers.py tests/test_control.py tests/test_control_cli.py tests/test_kill_cli_activation.py tests/test_scheduler.py tests/test_mergequeue.py tests/test_triage.py tests/test_cli.py tests/test_drain.py tests/test_audit.py
+uv run pytest tests/test_serve.py tests/test_daemon_composition.py tests/test_daemon_tasks.py tests/test_kill_worker_stop.py tests/test_kill_failure_suppression.py tests/test_heartbeat.py tests/test_storm.py tests/test_checkpoint.py tests/test_restart_timers.py tests/test_stages.py tests/test_daemon_admission.py tests/test_daemon_config.py tests/test_control.py tests/test_control_cli.py tests/test_kill_cli_activation.py tests/test_scheduler.py tests/test_mergequeue.py tests/test_triage.py tests/test_cli.py tests/test_drain.py tests/test_audit.py
 ```
 
 ## Definition of rejected
