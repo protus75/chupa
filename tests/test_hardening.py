@@ -117,13 +117,13 @@ def test_one_open_round_engine_wide(repo):
     git(repo, "commit", "-m", "second registry row")
     first = ticket(repo)
     second = replace(first, stem="existing-a")
-    gaps = {"gamma-seed": ["missing fact"]}
+    gaps = {"19.P3.gamma-seed": ["missing fact"]}
     asyncio.run(hold_on_hardening(ctx, first, gaps, attempt=0))
     # Deleting the hardener's directory cannot change the journaled round identity.
     path = repo / "tickets/plan-gap-1/ticket.md"
     path.unlink()
     path.parent.rmdir()
-    asyncio.run(hold_on_hardening(ctx, second, {"delta-seed": ["different fact"]}, attempt=7))
+    asyncio.run(hold_on_hardening(ctx, second, {"19.P3.delta-seed": ["different fact"]}, attempt=7))
     assert len(rounds(ctx.driver.journal.read())) == 1
     assert terminal_body(ctx)["round"] == 1
     other = [e.body for e in ctx.driver.journal.read() if e.ticket == second.stem
@@ -133,7 +133,7 @@ def test_one_open_round_engine_wide(repo):
     assert rounds(ctx.driver.journal.read())[0].units == {"19.P3.gamma-seed": "absent"}
     assert not (repo / "tickets/plan-gap-2/ticket.md").exists()
     ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="plan-gap-1")
-    asyncio.run(hold_on_hardening(ctx, second, {"delta-seed": ["different fact"]}, attempt=8))
+    asyncio.run(hold_on_hardening(ctx, second, {"19.P3.delta-seed": ["different fact"]}, attempt=8))
     assert [r.number for r in rounds(ctx.driver.journal.read())] == [1, 2]
     assert open_round(ctx.driver.journal.read()).number == 2
     assert open_round(ctx.driver.journal.read()).units == {"19.P3.delta-seed": "absent"}
@@ -142,8 +142,8 @@ def test_one_open_round_engine_wide(repo):
 
 
 @pytest.mark.parametrize("outcome", ["premise_failed", "gate_failed"])
-@pytest.mark.parametrize("closed", [False, True])
-def test_a_hardener_is_never_hardened(repo, outcome, closed, monkeypatch):
+@pytest.mark.parametrize("hardener", [False, True])
+def test_a_hardener_is_never_hardened(repo, outcome, hardener, monkeypatch):
     import asyncio
     from chupa import runner
     from chupa.artifacts import Cost, Finding, StageResult
@@ -151,19 +151,16 @@ def test_a_hardener_is_never_hardened(repo, outcome, closed, monkeypatch):
     from tests.test_stages import STEM
     add_registry_row(repo)
     ctx, _ = context(repo, [])
-    record(ctx.driver.journal, hardener=STEM)
-    if closed:
-        ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=STEM)
+    if hardener:
+        record(ctx.driver.journal, hardener=STEM)
     async def stage(ctx, ticket):
         return StagesRun(attempt=1, results={"implement" if outcome == "premise_failed" else "check":
             StageResult(outcome=outcome, artifact=None, cost=Cost(), findings=[Finding(
-                code="premise", message="19.P3.gamma-seed missing", paved_road="state the fact")])})
-    def gaps(*args):
-        pytest.fail("a recorded hardener never enters gap detection")
+                code="premise" if outcome == "premise_failed" else "requisition_review",
+                message="missing fact", paved_road="state the fact",
+                kind="spec_gap", unit="19.P3.gamma-seed")])})
     monkeypatch.setattr(runner, "run_stages", stage)
-    monkeypatch.setattr(runner, "spec_gaps", gaps)
-    monkeypatch.setattr(runner, "premise_spec_gaps", gaps)
     assert asyncio.run(runner.drive(ctx, ticket(repo))) == outcome
-    assert terminal_body(ctx).get("dispatch") != "spec_gap_hold"
+    assert (terminal_body(ctx).get("dispatch") == "spec_gap_hold") == (not hardener)
     assert len(rounds(ctx.driver.journal.read())) == 1
-    assert not any(e.body.get("cap") == "hardening" for e in ctx.driver.journal.read())
+    assert any(e.body.get("cap") == "hardening" for e in ctx.driver.journal.read()) == (not hardener)

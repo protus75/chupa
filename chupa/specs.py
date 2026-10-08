@@ -342,12 +342,17 @@ def without_unit(plan: str, uid: str) -> str:
     return plan.replace(slices[0], "", 1) if len(slices) == 1 else plan
 
 
-def entry_unit_gap(plan: str, stem: str) -> str | None:
+def hardenable_units(plan: str, stem: str, plan_contract: Iterable[str]) -> tuple[str, ...]:
+    """Own non-exit registry entry plus cited registry entries, even when their headings are absent."""
+    entries = {f"19.P{phase}.{name}" for name, (phase, row) in registry_rows(plan).items()
+               if not row.get("exit")}
+    own = next((uid for uid in entries if uid.rsplit(".", 1)[1] == stem), None)
+    return tuple(dict.fromkeys([*([own] if own is not None else []),
+                               *(uid for uid in plan_contract if uid in entries)]))
+
+
+def entry_unit_gap(plan: str, uid: str) -> str | None:
     """Why a registry row's entry unit cannot govern its seed (missing or lacking a SPEC DEPTH part); None when it can."""
-    row = registry_rows(plan).get(stem)
-    if row is None or row[1].get("exit"):
-        return None
-    uid = f"19.P{row[0]}.{stem}"
     slices = _units(plan)[0].get(uid, [])
     if len(slices) != 1:
         return f"entry unit {uid} is missing"

@@ -5,7 +5,7 @@ emits: {approve: requisition-approval, snag: requisition-snag, rma: requisition-
 tier: high
 effort: high
 gates: [requisition_review]
-version: "2.0"
+version: "2.1"
 ---
 ## Role
 
@@ -27,7 +27,9 @@ ticket can be implemented as written. Reply `snag` for a ticket defect its autho
 Give every finding a `kind`. `spec_gap`: the ticket's governing spec (its plan contract and entry
 unit) omits a fact the work needs, such as a record, its writer, an edge case, or an owner; name the
 missing fact and never invent it. `authoring_error`: the ticket contradicts what the plan or merged
-code states, or is malformed.
+code states, or is malformed. Every `spec_gap` finding names its `unit`: the ticket's
+own non-exit registry entry unit or a registry entry unit cited in `## Plan contract`.
+If the ticket has no such units, `unit` is null; every `authoring_error` has `unit: null`.
 
 When a prior review is given, first rule each of its findings `cleared` or `standing` in your
 summary. Raise a NEW finding only against text the diff shows changed since that review.
@@ -81,11 +83,13 @@ Reply with ONLY one JSON object, no prose before or after:
  "summary": "<non-blank sentence>",
  "findings": [{"code": "<non-blank>", "message": "<non-blank>",
                "paved_road": "<non-blank repair instruction>",
-               "kind": "spec_gap" | "authoring_error",
+               "kind": "spec_gap" | "authoring_error", "unit": "<unit id or null>",
                "path": "<file or null>", "line": <integer >= 1 or null>}]}
 
 Every Finding requires `code`, `message`, `paved_road`, and `kind`; `path` and `line` are optional,
-respectively a string or null and an integer >= 1 or null. No other keys are allowed.
+respectively a string or null and an integer >= 1 or null. `unit` is required on a
+`spec_gap` when the ticket has hardenable units and names one of them; otherwise it is null.
+No other keys are allowed.
 `findings` is empty exactly for `approve`; `snag` and `rma` each need at least one finding.
 
 ## On-failure

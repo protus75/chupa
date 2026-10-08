@@ -12,12 +12,49 @@ from chupa.specs import (
     SpecError,
     data_close,
     data_open,
+    entry_unit_gap,
+    hardenable_units,
     lint_spec,
     load_spec,
     render,
     resolve_plan_contract,
     validate_data_blocks,
 )
+
+
+def test_hardenable_units_are_own_row_plus_cited_entry_units():
+    plan = """### 19.P3 Phase 3
+```yaml
+# BEGIN_REGISTRY_P3
+seeds:
+  own: {}
+  cited: {}
+  exit: {exit: true}
+# END_REGISTRY_P3
+```
+### 19.P3.cited Cited
+- **Owner:** o
+- **Records:** r
+- **Observable:** b
+- **Tests:** t
+### 19.P3.orphan Orphan
+"""
+    cites = ("19.P3.cited", "19.P3.own", "19.P3.cited", "19.P3.exit", "19.P3.orphan", "19.P4.cited", "19.L")
+    assert hardenable_units(plan, "own", cites) == ("19.P3.own", "19.P3.cited")
+    assert hardenable_units(plan, "exit", cites) == ("19.P3.cited", "19.P3.own")
+    assert hardenable_units(plan, "unregistered", ()) == ()
+    assert entry_unit_gap(plan, "19.P3.own") == "entry unit 19.P3.own is missing"
+    assert entry_unit_gap(plan, "19.P3.cited") is None
+    assert "Tests" in entry_unit_gap(plan.replace("- **Tests:** t", "- **Tests:**"), "19.P3.cited")
+
+
+def test_spec_lint_accepts_the_implement_and_requisition_specs():
+    specs = Path(__file__).resolve().parent.parent / "specs"
+    for name, version in (("implement", "1.2"), ("requisition_review", "2.1")):
+        text = (specs / f"{name}.md").read_text()
+        assert lint_spec(text) == []
+        assert load_spec(text).meta.version == version
+
 
 FRONT = """---
 llm_surface: implement

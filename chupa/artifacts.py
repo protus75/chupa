@@ -35,6 +35,13 @@ class Finding(_Strict):
     paved_road: NonBlank  # required: a finding that cannot say what to do instead fails gate-lint
     # Section 7: a requisition_review finding names whether the spec or the authoring is at fault.
     kind: Literal["spec_gap", "authoring_error"] | None = None
+    unit: str | None = None
+
+    @model_validator(mode="after")
+    def _unit_only_for_spec_gap(self) -> "Finding":
+        if self.unit is not None and self.kind != "spec_gap":
+            raise ValueError("unit is non-null only for kind spec_gap")
+        return self
 
 
 class Harvest(_Strict):

@@ -30,8 +30,8 @@ from chupa.git import Git, GitError
 from chupa.journal import TERMINAL_STATES, EventType, run_seq
 from chupa.providers import child_env
 from chupa.seams import ExecutableNotFound, FileSystem, ProcessExec
-from chupa.specs import RenderOverBound, Spec, entry_unit_gap, load_spec, render, resolve_plan_contract, without_unit
-from chupa.tickets import _HEADING, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, TicketInvalid, ticket_path, validate_ticket
+from chupa.specs import PlanContractError, RenderOverBound, Spec, entry_unit_gap, hardenable_units, load_spec, plan_id, render, resolve_plan_contract, without_unit
+from chupa.tickets import _HEADING, _bullets, _sections, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, TicketInvalid, ticket_path, validate_ticket
 
 MAIN = "main"
 KNOWN_ARTIFACTS: Mapping[str, type[BaseModel]] = {SHAKEOUT_REPORT: ShakeoutReport}
@@ -434,8 +434,18 @@ def _in_criteria_position(ticket_text: str, block: str) -> str:
 
 def implement_stage(ctx: StageContext, ticket: Ticket, worktree: Path,
                     kept: Sequence[str] = ()) -> tuple[LlmStage, Spec]:
+    from chupa.requisition import validate_finding_units
+
     spec = _spec(ctx, "implement")
-    plan = (ctx.repo / PLAN_FILE).read_text() if ticket.plan_contract else ""
+    plan = (ctx.repo / PLAN_FILE).read_text() if (ctx.repo / PLAN_FILE).is_file() else ""
+    units = hardenable_units(plan, ticket.stem, ticket.plan_contract)
+
+    class TicketImplementReply(ImplementReply):
+        @model_validator(mode="after")
+        def _finding_units(self) -> "TicketImplementReply":
+            validate_finding_units(self.findings, units)
+            return self
+
     ticket_text = (ctx.repo / ticket_path(ticket.stem)).read_text()
     if (prior := prior_attempts(ctx, ticket.stem)) is not None:
         ticket_text = _in_criteria_position(ticket_text, prior)
@@ -448,7 +458,7 @@ def implement_stage(ctx: StageContext, ticket: Ticket, worktree: Path,
     def render_ticket(_: Ticket, findings: list[Finding]) -> str:
         return render(spec, {**inputs, "retry_findings": findings_text(findings)})
 
-    return LlmStage(surface="implement", emits=ImplementReply, gates=[], render=render_ticket), spec
+    return LlmStage(surface="implement", emits=TicketImplementReply, gates=[], render=render_ticket), spec
 
 
 def run_record(reply: ImplementReply, cost: Cost, spec: Spec, second_problem_ids: Sequence[str]) -> str:
@@ -859,9 +869,23 @@ async def _review_one(ctx: StageContext, ticket: Ticket, seed_stem: str, rel: st
     if main_sha is not None and main_sha != sha:
         return snag(f"{rel} already exists on main", "a seeding run only creates new stems; use a fresh stem",
                     "existing stem")
-    if (gap := entry_unit_gap(plan, seed_stem)) is not None:
-        return snag(gap, "harden the entry unit through section 11.4; never invent its facts in the seed",
-                    "entry unit gap", kind="spec_gap")
+    # Read citations without resolving them: a missing registry entry must gap before grammar refuses it.
+    sections, _ = _sections(data.decode(errors="replace"), rel)
+    bullets, _ = _bullets(sections.get("Plan contract", ""), "Plan contract", rel)
+    citations = []
+    for bullet in bullets:
+        try:
+            citations.append(plan_id(bullet))
+        except PlanContractError:
+            pass  # Grammar reports malformed ids after the SPEC DEPTH check.
+    units = hardenable_units(plan, seed_stem, citations)
+    gaps = [Finding(code="requisition_review", path=rel, message=gap,
+                    paved_road="harden the entry unit through section 11.4; never invent its facts in the seed",
+                    kind="spec_gap", unit=uid)
+            for uid in units if (gap := entry_unit_gap(plan, uid)) is not None]
+    if gaps:
+        return SeedReview(stem=seed_stem, ticket_sha=sha, verdict="snag", findings=gaps,
+                          mechanical="entry unit gap")
     try:
         parsed = validate_ticket(seed_stem, data.decode(), ctx.repo, siblings)
     except UnicodeDecodeError:

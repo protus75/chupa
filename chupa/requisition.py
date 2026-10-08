@@ -6,18 +6,26 @@ from collections.abc import Collection
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, ValidationInfo, model_validator
 
 from chupa.artifacts import Artifact, Finding, NonBlank
 from chupa.driver import Driver, _StuckBudget, unwrap_fence
 from chupa.gates import GateReport
 from chupa.llm import AgentTier, LLMRequest, LLMResult
 from chupa.llmeffect import llm_call
-from chupa.specs import REQ_RENDER_HEADROOM, RENDER_BOUND_CHARS, RenderOverBound, load_spec, render
+from chupa.specs import REQ_RENDER_HEADROOM, RENDER_BOUND_CHARS, RenderOverBound, hardenable_units, load_spec, render
 from chupa.stages import implement_inputs
 from chupa.tickets import Ticket, validate_ticket
 
 REQUISITION_STUCK_S = 600.0
+
+
+def validate_finding_units(findings: list[Finding], units: Collection[str]) -> None:
+    """Surface schema rule: a spec gap names one of the judged ticket's hardenable units."""
+    for finding in findings:
+        if finding.kind == "spec_gap" and (finding.unit not in units if units else finding.unit is not None):
+            raise ValueError(f"spec_gap unit must be one of {sorted(units)}" if units
+                             else "spec_gap unit must be null when the ticket has no hardenable units")
 
 
 class RequisitionReply(BaseModel):
@@ -28,11 +36,12 @@ class RequisitionReply(BaseModel):
     findings: list[Finding]
 
     @model_validator(mode="after")
-    def _findings_match_verdict(self) -> "RequisitionReply":
+    def _findings_match_verdict(self, info: ValidationInfo) -> "RequisitionReply":
         if bool(self.findings) == (self.verdict == "approve"):
             raise ValueError("findings must be empty exactly for approve")
         if any(f.kind is None for f in self.findings):
             raise ValueError("every finding needs a kind: spec_gap or authoring_error")
+        validate_finding_units(self.findings, (info.context or {}).get("hardenable_units", ()))
         return self
 
 
@@ -74,6 +83,7 @@ async def review_ticket(driver: Driver, *, repo: Path, plan: str, stem: str, tex
                         attempt: int, call_seq: int, prior: str = "none",
                         siblings: Collection[str] = ()) -> RequisitionVerdict:
     ticket = review_target(repo, stem, text, siblings)
+    units = hardenable_units(plan, stem, ticket.plan_contract)
     spec = load_spec((specs_dir / "requisition_review.md").read_text())
     ticket_bytes = text.encode()
     sha = hashlib.sha1(f"blob {len(ticket_bytes)}\0".encode() + ticket_bytes).hexdigest()
@@ -126,7 +136,8 @@ async def review_ticket(driver: Driver, *, repo: Path, plan: str, stem: str, tex
     result = LLMResult(**recorded)
     driver.spool.write(spool_stem, attempt, f"{name}/output.txt", result.text)
     try:
-        reply = RequisitionReply.model_validate_json(unwrap_fence(result.text))
+        reply = RequisitionReply.model_validate_json(unwrap_fence(result.text),
+                                                    context={"hardenable_units": units})
     except ValidationError as exc:
         message = f"invalid requisition review reply: {exc.error_count()} schema error(s)"
         return RequisitionVerdict(**common, verdict="snag", summary=message,

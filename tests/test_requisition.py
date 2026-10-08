@@ -104,7 +104,88 @@ def test_spec_loads_and_names_finding_keys():
     spec = load_spec(source)
     assert spec.meta.llm_surface == "requisition_review"
     assert spec.inputs == ("ticket", "plan_contract", "context", "render", "prior_review", "retry_findings")
-    assert all(key in source for key in ("`code`", "`message`", "`paved_road`", "`kind`"))
+    assert all(key in source for key in ("`code`", "`message`", "`paved_road`", "`kind`", "`unit`"))
+
+
+@pytest.mark.parametrize("unit,valid", [(None, False), ("19.P3.other", False), ("19.P3.governing", True)])
+def test_spec_gap_finding_unit_is_validated(tmp_path, unit, valid):
+    finding = {**FINDING, "kind": "spec_gap"}
+    if unit is not None:
+        finding["unit"] = unit
+    repo, driver, _ = setup(tmp_path, [reply("snag", [finding])])
+    plan = """### 19.P3 Phase 3
+```yaml
+# BEGIN_REGISTRY_P3
+seeds:
+  governing: {}
+  other: {}
+# END_REGISTRY_P3
+```
+### 19.P3.governing Governing
+- **Owner:** o
+- **Records:** r
+- **Observable:** b
+- **Tests:** t
+"""
+    (repo / "CHUPA_PLAN.md").write_text(plan)
+    text = TICKET.replace("## Goal / Why", "## Plan contract\n- 19.P3.governing\n\n## Goal / Why")
+    verdict = asyncio.run(review_ticket(driver, repo=repo, plan=plan, stem="one-thing", text=text,
+                                       specs_dir=SPECS, tier="high", stem_slot="s", run_seq=0,
+                                       attempt=1, call_seq=1))
+    assert verdict.mechanical == (None if valid else "invalid reply")
+    if valid:
+        assert verdict.findings == [Finding(**finding)]
+
+
+@pytest.mark.parametrize("unit,valid", [(None, True), ("19.P3.governing", False)])
+def test_spec_gap_without_hardenable_units_requires_null(tmp_path, unit, valid):
+    repo, driver, _ = setup(tmp_path, [reply("snag", [{**FINDING, "kind": "spec_gap", "unit": unit}])])
+    assert run(driver, repo).mechanical == (None if valid else "invalid reply")
+
+
+@pytest.mark.parametrize("kind", [None, "authoring_error"])
+def test_a_unit_requires_spec_gap_kind(kind):
+    with pytest.raises(ValueError, match="unit is non-null only for kind spec_gap"):
+        Finding(**{**FINDING, "kind": kind, "unit": "19.P3.governing"})
+
+
+@pytest.mark.parametrize("unit", [None, "19.P3.other"])
+def test_invalid_implement_spec_gap_unit_is_reprompted(tmp_path, unit):
+    from tests.test_stages import implement_reply
+
+    valid = {"code": "premise", "message": "missing governing fact", "paved_road": "state it",
+             "kind": "spec_gap", "unit": "19.P3.governing"}
+    repo, driver, llm = setup(tmp_path, [implement_reply("premise_failed", [{**valid, "unit": unit}]),
+                                       implement_reply("premise_failed", [valid])])
+    plan = """### 19.P3 Phase 3
+```yaml
+# BEGIN_REGISTRY_P3
+seeds:
+  governing: {}
+  other: {}
+# END_REGISTRY_P3
+```
+### 19.P3.governing Governing
+- **Owner:** o
+- **Records:** r
+- **Observable:** b
+- **Tests:** t
+"""
+    (repo / "CHUPA_PLAN.md").write_text(plan)
+    text = TICKET.replace("## Goal / Why", "## Plan contract\n- 19.P3.governing\n\n## Goal / Why")
+    path = repo / "tickets/one-thing/ticket.md"
+    path.parent.mkdir(parents=True)
+    path.write_text(text)
+    ticket = review_target(repo, "one-thing", text)
+    ctx = StageContext(repo=repo, config=load_config(None, cwd=repo), env={}, exec_=None,
+                       git=None, fs=None, driver=driver, specs_dir=SPECS)
+    stage, _ = implement_stage(ctx, ticket, repo)
+    result = asyncio.run(driver.run(stage, ticket, ticket=ticket.stem, attempt=0, workspace=repo,
+                                   tier="high", effort="high", stuck_budget=60))
+    assert result.outcome == "ok"
+    assert result.artifact.findings == [Finding(**valid)]
+    assert len(llm.requests) == 2
+    assert "spec_gap unit must be one of" in llm.requests[1].rendered
 
 
 def test_approve_and_effect_key(tmp_path):

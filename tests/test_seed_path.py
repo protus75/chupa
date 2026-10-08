@@ -338,6 +338,7 @@ def test_row_seed_without_its_entry_unit_files_a_hardening_ticket_and_holds(repo
     assert outcome == "gate_failed"
     [seed] = invoice(repo).seeds
     assert (seed.verdict, seed.mechanical) == ("snag", "entry unit gap")
+    assert seed.findings[0].unit == "19.P3.gamma-seed"
     assert seed.findings[0].kind == "spec_gap" and "19.P3.gamma-seed is missing" in seed.findings[0].message
     assert [r.surface for r in llm.requests] == ["implement"]  # no review call, no diagnosis
     hardening = validate_ticket("plan-gap-1",
@@ -372,7 +373,7 @@ def test_spent_hardening_cap_routes_the_stem_to_the_reject_queue(repo):
     for _ in range(ctx.config.caps.hardening):
         consume(ctx.driver.journal, STEM, "hardening", "earlier-ticket-blob")
     history = ctx.driver.journal.read()
-    asyncio.run(hold_on_hardening(ctx, ticket(repo), {"gamma-seed": ["still missing"]}, attempt=0))
+    asyncio.run(hold_on_hardening(ctx, ticket(repo), {"19.P3.gamma-seed": ["still missing"]}, attempt=0))
     assert terminal_body(ctx) == {"to": "gate_failed", "stage": "check", "reason": "hardening cap spent",
                                   "dispatch": "reject_queue", "routed": "reject_queue",
                                   "plan_units": {"19.P3.gamma-seed": "absent"}}
@@ -387,7 +388,7 @@ def test_already_satisfied_or_rejected_hardener_never_re_holds_forever(repo, ter
 
     add_registry_row(repo)
     ctx, _ = context(repo, [])
-    gaps = {"gamma-seed": ["still missing"]}
+    gaps = {"19.P3.gamma-seed": ["still missing"]}
 
     def hold(attempt):
         asyncio.run(hold_on_hardening(ctx, ticket(repo), gaps, attempt=attempt))
@@ -422,53 +423,89 @@ def test_already_satisfied_or_rejected_hardener_never_re_holds_forever(repo, ter
     assert ctx.driver.journal.read()[len(history):] == [ctx.driver.journal.read()[-1]]
 
 
-def test_review_that_never_converges_is_a_spec_gap(repo):
-    from chupa.runner import spec_gaps
-    from chupa.stages import SeedReview
+def test_premise_mentioning_a_unit_id_in_prose_is_an_ordinary_premise(repo):
     add_registry_row(repo)
-    ctx, _ = context(repo, [])
-    finding = {"code": "scope", "message": "m", "paved_road": "r", "kind": "authoring_error"}
-    for messages in (["a", "b"], ["b", "c"], ["c", "d"]):  # each pass clears one and raises a new one
-        ctx.driver.journal.append(EventType.SIGNAL, {
-            "signal": "requisition_verdict", "seeding": STEM, "verdict": "snag", "ticket_sha": "x", "text": "t",
-            "findings": [{**finding, "message": m} for m in messages]}, ticket="gamma-seed")
-    snag = SeedReview(stem="gamma-seed", ticket_sha="x", verdict="snag", mechanical=None,
-                      findings=[Finding(**{**finding, "message": "d"})])
-    Path(repo / "tickets" / STEM / "checks.json").write_text(Invoice(
-        produced_by_spec_version=1, produced_at_sha="x", stem=STEM, passed=False, changed_files=[],
-        inserted_lines=0, bypassed=[], reports=[], seeds=[snag], verification=[]).model_dump_json())
-    assert list(spec_gaps(ctx, STEM)) == ["gamma-seed"]
-    ctx.driver.journal.append(EventType.SIGNAL, {  # a pass that raises nothing new is not divergence
-        "signal": "requisition_verdict", "seeding": STEM, "verdict": "snag", "ticket_sha": "x", "text": "t",
-        "findings": [{**finding, "message": "d"}]}, ticket="gamma-seed")
-    assert spec_gaps(ctx, STEM) == {}
+    premise = {"code": "premise", "message": "19.P3.gamma-seed contradicts merged behavior",
+               "paved_road": "repair the ticket that mentions 19.P3.gamma-seed"}
+    outcome, ctx, _ = run(repo, [implement_reply("premise_failed", [premise]), diagnosis_reply()])
+
+    assert outcome == "premise_failed"
+    assert terminal_body(ctx).get("dispatch") != "spec_gap_hold"
+    assert any(e.body.get("cap") == "premise_bounce" for e in ctx.driver.journal.read())
+    assert not any(e.body.get("signal") == "hardening_round" for e in ctx.driver.journal.read())
+    assert not list((repo / "tickets").glob("plan-gap-*"))
 
 
-def test_premise_naming_a_missing_entry_unit_files_a_hardening_ticket_not_a_park(repo):
+def cite_gamma(repo: Path) -> None:
+    path = repo / "tickets" / STEM / "ticket.md"
+    path.write_text(path.read_text().replace("- 19.P2\n", "- 19.P2\n- 19.P3.gamma-seed\n"))
+    git(repo, "add", str(path.relative_to(repo)))
+    git(repo, "commit", "-m", "cite the governing entry unit")
+
+
+def complete_gamma(repo: Path) -> None:
+    plan = repo / "CHUPA_PLAN.md"
+    plan.write_text(plan.read_text() + "\n### 19.P3.gamma-seed Gamma\n\n- **Owner:** o\n- **Records:** r\n"
+                    "- **Observable:** b\n- **Tests:** t\n")
+    git(repo, "commit", "-am", "complete entry unit")
+
+
+def test_structured_premise_spec_gap_files_a_round_for_its_unit(repo):
     add_registry_row(repo)
-    premise = {"code": "premise", "message": "19.P3.gamma-seed has no entry unit, so the seed cannot cite it",
-               "paved_road": "harden 19.P3.gamma-seed through section 11.4"}
+    complete_gamma(repo)
+    cite_gamma(repo)
+    premise = {"code": "premise", "message": "the governing unit omits a needed fact",
+               "paved_road": "state the fact", "kind": "spec_gap", "unit": "19.P3.gamma-seed"}
     outcome, ctx, llm = run(repo, [implement_reply("premise_failed", [premise])])
 
     assert outcome == "premise_failed"
-    assert (repo / "tickets/plan-gap-1/ticket.md").is_file()
-    assert terminal_body(ctx) == {"to": "premise_failed", "stage": "implement", "reason": "spec_gap",
-                                  "dispatch": "spec_gap_hold", "round": 1,
-                                  "plan_units": {"19.P3.gamma-seed": "absent"}}
-    sha = git(repo, "rev-parse", f"HEAD:tickets/{STEM}/ticket.md").strip()
-    assert [e.body for e in ctx.driver.journal.read() if e.type == EventType.CAP_CONSUMED] == [
-        {"cap": "hardening", "ticket_sha": sha}]  # no premise_bounce
+    [record] = [e for e in ctx.driver.journal.read() if e.body.get("signal") == "hardening_round"]
+    assert set(record.body["units"]) == {"19.P3.gamma-seed"}
+    assert terminal_body(ctx)["dispatch"] == "spec_gap_hold"
+    assert [e.body["cap"] for e in ctx.driver.journal.read() if e.type == EventType.CAP_CONSUMED] == ["hardening"]
+    assert [r.surface for r in llm.requests] == ["implement"]
+
+
+def test_cited_missing_unit_is_a_spec_gap_not_a_grammar_refusal(repo):
+    add_registry_row(repo)
+    seed = seed_text("alpha-seed").replace("- 19.P2\n", "- 19.P2\n- 19.P3.gamma-seed\n")
+    outcome, ctx, llm = run(repo, [write_seeds({"alpha-seed": seed})])
+
+    assert outcome == "gate_failed"
+    [review] = invoice(repo).seeds
+    assert (review.verdict, review.mechanical) == ("snag", "entry unit gap")
+    [finding] = review.findings
+    assert (finding.kind, finding.unit) == ("spec_gap", "19.P3.gamma-seed")
+    assert finding.code == "requisition_review"
+    assert not any(r.surface == "requisition_review" for r in llm.requests)
+    [record] = [e for e in ctx.driver.journal.read() if e.body.get("signal") == "hardening_round"]
+    assert record.body["units"] == {"19.P3.gamma-seed": "absent"}
+
+
+def test_spec_depth_checks_every_own_and_cited_unit_before_grammar(repo):
+    add_registry_row(repo)
+    plan = repo / "CHUPA_PLAN.md"
+    plan.write_text(plan.read_text().replace("seeds:\n  gamma-seed:",
+                                            "seeds:\n  alpha-seed: {}\n  gamma-seed:")
+                    + "\n### 19.P3.gamma-seed Gamma\n\n- **Owner:** o\n- **Records:** r\n")
+    git(repo, "commit", "-am", "own missing unit and thin cited unit")
+    seed = seed_text("alpha-seed").replace("- 19.P2\n", "- 19.P2\n- 19.P3.gamma-seed\n")
+    outcome, _, llm = run(repo, [write_seeds({"alpha-seed": seed})])
+    assert outcome == "gate_failed"
+    [review] = invoice(repo).seeds
+    assert review.mechanical == "entry unit gap"
+    assert [(f.kind, f.unit) for f in review.findings] == [
+        ("spec_gap", "19.P3.alpha-seed"), ("spec_gap", "19.P3.gamma-seed")]
+    assert "Observable, Tests" in review.findings[1].message
     assert [r.surface for r in llm.requests] == ["implement"]
 
 
 def test_premise_naming_a_fact_a_complete_entry_unit_omits_files_hardening(repo):
     add_registry_row(repo)
-    plan = repo / "CHUPA_PLAN.md"
-    plan.write_text(plan.read_text() + "\n### 19.P3.gamma-seed Gamma\n\n- **Owner:** o\n- **Records:** r\n"
-                    "- **Observable:** b\n- **Tests:** t\n")
-    git(repo, "commit", "-am", "complete entry unit")
+    complete_gamma(repo)
+    cite_gamma(repo)
     premise = {"code": "premise", "message": "19.P3.gamma-seed omits which carrier hands the inbox to both factories",
-               "paved_road": "state the carrier in the unit"}
+               "paved_road": "state the carrier in the unit", "kind": "spec_gap", "unit": "19.P3.gamma-seed"}
     outcome, ctx, _ = run(repo, [implement_reply("premise_failed", [premise])])
     assert outcome == "premise_failed"
     assert terminal_body(ctx)["dispatch"] == "spec_gap_hold"
@@ -511,12 +548,12 @@ def test_reaped_filer_replays_its_round_commit(repo, monkeypatch, crash_signal):
         return original(type, body, **kwargs)
     monkeypatch.setattr(ctx.driver.journal, "append", crash)
     with pytest.raises(RuntimeError, match="filer died"):
-        asyncio.run(file_hardening(ctx, ticket(repo), {"gamma-seed": ["original fact"]}, 1, plan=plan))
+        asyncio.run(file_hardening(ctx, ticket(repo), {"19.P3.gamma-seed": ["original fact"]}, 1, plan=plan))
     monkeypatch.setattr(ctx.driver.journal, "append", original)
     original(EventType.STATE_TRANSITION, {"to": "abandoned"}, ticket=STEM)
     ctx.driver.effects = Effects(ctx.driver.journal)
     # Recovery may detect different facts; replay must retain the completed filing's data.
-    asyncio.run(file_hardening(ctx, ticket(repo), {"gamma-seed": ["different fact"]}, 1, plan=plan + "changed"))
+    asyncio.run(file_hardening(ctx, ticket(repo), {"19.P3.gamma-seed": ["different fact"]}, 1, plan=plan + "changed"))
     subjects = git(repo, "log", "--format=%s").splitlines()
     assert subjects.count(f"chupa({STEM}): hardening round 1") == 1
     events = ctx.driver.journal.read()
@@ -547,7 +584,7 @@ def test_round_ticket_covers_all_gaps_with_the_filers_priority_and_deep_capabili
     ctx, _ = context(repo, [])
     filer = ticket(repo)
     filer = replace(filer, frontmatter=filer.frontmatter.model_copy(update={"priority": "P0"}))
-    gaps = {"gamma-seed": ["missing fact", "another fact"], "delta-seed": ["needed carrier"]}
+    gaps = {"19.P3.gamma-seed": ["missing fact", "another fact"], "19.P4.delta-seed": ["needed carrier"]}
     asyncio.run(hold_on_hardening(ctx, filer, gaps, attempt=0))
     text = (repo / "tickets/plan-gap-1/ticket.md").read_text()
     hardener = validate_ticket("plan-gap-1", text, repo)

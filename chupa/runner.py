@@ -5,7 +5,6 @@ Exit codes (section 18): 0 merged, 1 a non-ok ticket terminal, 2 an engine-plane
 """
 
 import asyncio
-import re
 import sys
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, replace
@@ -33,8 +32,8 @@ from chupa.merge import compose_pipeline, merge
 from chupa.providers import ProviderLLM
 from chupa.reconcile import reconcile
 from chupa.seams import Clock, FileSystem, GroupExec, Sleep
-from chupa.specs import entry_unit_gap, registry_rows, unit_sha
-from chupa.stages import (VERDICT_SIGNAL, DiagnosisMaterial, Invoice, StageContext, diagnose, lift_outbox,
+from chupa.specs import registry_rows, unit_sha
+from chupa.stages import (DiagnosisMaterial, StageContext, diagnose, lift_outbox,
                           run_stages, write_diagnosis)
 from chupa.status import last_states, reject_queue
 from chupa.tickets import (INTAKE_SIGNAL, PLAN_FILE, TICKETS_DIR, Ticket, TicketInvalid, intake,
@@ -141,9 +140,13 @@ async def drive(ctx: StageContext, ticket: Ticket) -> str:
     if result.outcome in {"infra_error", "timeout"}:
         ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
         consume(ctx.driver.journal, ticket.stem, "infra", ticket_sha)
-    if (hardener_round(ctx.driver.journal.read(), ticket.stem) is None
-            and ((result.outcome == "gate_failed" and stage == "check" and (gaps := spec_gaps(ctx, ticket.stem)))
-                 or (result.outcome == "premise_failed" and (gaps := premise_spec_gaps(ctx, result.findings))))):
+    gaps: dict[str, list[str]] = {}
+    if ((stage == "check" and result.outcome == "gate_failed")
+            or (stage == "implement" and result.outcome == "premise_failed")):
+        for finding in result.findings:
+            if finding.kind == "spec_gap" and finding.unit is not None:
+                gaps.setdefault(finding.unit, []).append(finding.message)
+    if gaps and hardener_round(ctx.driver.journal.read(), ticket.stem) is None:
         await hold_on_hardening(ctx, ticket, gaps, attempt=run.attempt, to=result.outcome, stage=stage)
         if ctx.worktree(ticket.stem).exists():
             await ctx.git.worktree_remove(ctx.repo, ctx.worktree(ticket.stem))
@@ -285,56 +288,12 @@ async def failure_terminal(ctx: StageContext, ticket: Ticket, *, outcome: str, s
     return "rejected" if split else outcome
 
 
-def spec_gaps(ctx: StageContext, stem: str) -> dict[str, list[str]]:
-    """Section 11.4: each registry row whose seed this Check snagged on a `spec_gap`, or that review
-    did not converge on (each of the last K passes cleared findings yet raised new ones), with its gap facts."""
-    path = ctx.repo / TICKETS_DIR / stem / "checks.json"
-    if not path.is_file():
-        return {}
-    rows = registry_rows((ctx.repo / PLAN_FILE).read_text())
-    gaps: dict[str, list[str]] = {}
-    for seed in Invoice.model_validate_json(path.read_text()).seeds:
-        if seed.verdict == "approve" or seed.stem not in rows or rows[seed.stem][1].get("exit"):
-            continue
-        if facts := [f.message for f in seed.findings if f.kind == "spec_gap"]:
-            gaps[seed.stem] = facts
-            continue
-        passes = [e.body for e in ctx.driver.journal.read()
-                  if e.type == EventType.SIGNAL and e.ticket == seed.stem
-                  and e.body.get("signal") == VERDICT_SIGNAL and e.body.get("seeding") == stem][-IDENTICAL_K:]
-        messages = [{f["message"] for f in p.get("findings", [])} for p in passes]
-        if (len(passes) == IDENTICAL_K and all(p["verdict"] != "approve" for p in passes)
-                and all(now - before and before - now for before, now in zip(messages, messages[1:]))):
-            gaps[seed.stem] = [f"requisition_review did not converge over {IDENTICAL_K} passes; standing: {m}"
-                               for m in sorted(messages[-1])]
-    return gaps
-
-
-def premise_spec_gaps(ctx: StageContext, findings: list[Finding]) -> dict[str, list[str]]:
-    """Section 11.4: a `premise_failed` naming an entry unit is a spec gap of it -- the unit is missing or thin,
-    or the finding names a fact it omits or contradicts."""
-    plan = (ctx.repo / PLAN_FILE).read_text()
-    rows = registry_rows(plan)
-    gaps: dict[str, list[str]] = {}
-    for finding in findings:
-        for m in re.finditer(r"19\.P[0-6]\.([a-z0-9][a-z0-9-]*[a-z0-9])", f"{finding.message} {finding.paved_road}"):
-            row = m.group(1)
-            if row not in rows or rows[row][1].get("exit"):
-                continue
-            gap = entry_unit_gap(plan, row) or finding.message
-            if gap not in gaps.get(row, []):
-                gaps.setdefault(row, []).append(gap)
-    return gaps
-
-
 async def hold_on_hardening(ctx: StageContext, ticket: Ticket, gaps: dict[str, list[str]], *, attempt: int,
                             to: str = "gate_failed", stage: str | None = "check") -> None:
     """Join the engine's open round or file one covering this terminal's gapped units."""
     history = ctx.driver.journal.read()
     plan = (ctx.repo / PLAN_FILE).read_text()
-    rows = registry_rows(plan)
-    plan_units = {f"19.P{rows[row][0]}.{row}": unit_sha(plan, f"19.P{rows[row][0]}.{row}")
-                  for row in sorted(gaps)}
+    plan_units = {uid: unit_sha(plan, uid) for uid in sorted(gaps)}
     if remaining(ctx.config.caps, history, ticket.stem, "hardening") <= 0:
         ctx.driver.journal.append(EventType.STATE_TRANSITION,
                                   {"to": to, "stage": stage, "reason": "hardening cap spent",
@@ -354,13 +313,12 @@ async def hold_on_hardening(ctx: StageContext, ticket: Ticket, gaps: dict[str, l
 
 def hardening_text(ticket: Ticket, gaps: dict[str, list[str]], *, plan: str) -> str:
     rows = registry_rows(plan)
-    tier = "high" if any(rows[row][1].get("deep") for row in gaps) else "medium"
+    tier = "high" if any(rows[uid.rsplit(".", 1)[1]][1].get("deep") for uid in gaps) else "medium"
     contract = ["19.L"]
     units = []
     criteria = []
-    for row, facts in sorted(gaps.items()):
-        phase, row_spec = rows[row]
-        uid = f"19.P{phase}.{row}"
+    for uid, facts in sorted(gaps.items()):
+        phase, row_spec = rows[uid.rsplit(".", 1)[1]]
         units.append(uid)
         contract.append(f"19.P{phase}")
         if unit_sha(plan, uid) != "absent":
@@ -390,13 +348,11 @@ def hardening_text(ticket: Ticket, gaps: dict[str, list[str]], *, plan: str) -> 
 async def file_hardening(ctx: StageContext, ticket: Ticket, gaps: dict[str, list[str]], n: int, *, plan: str) -> str:
     """Commit once per round, then publish its identity from the durable Effect result."""
     async def commit() -> dict:
-        rows = registry_rows(plan)
         stem = f"plan-gap-{n}"
         rel = ticket_path(stem)
-        units = {f"19.P{rows[row][0]}.{row}": unit_sha(plan, f"19.P{rows[row][0]}.{row}")
-                 for row in sorted(gaps)}
-        facts = [{"unit": f"19.P{rows[row][0]}.{row}", "message": fact}
-                 for row, messages in sorted(gaps.items()) for fact in messages]
+        units = {uid: unit_sha(plan, uid) for uid in sorted(gaps)}
+        facts = [{"unit": uid, "message": fact}
+                 for uid, messages in sorted(gaps.items()) for fact in messages]
         ctx.fs.write(ctx.repo / rel, hardening_text(ticket, gaps, plan=plan).encode())
         await ctx.git.add(ctx.repo, [rel])
         await ctx.git.commit(ctx.repo, f"chupa({ticket.stem}): hardening round {n}", only=[rel])
