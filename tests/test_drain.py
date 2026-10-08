@@ -923,9 +923,9 @@ async def test_drain_uses_supplied_control(root, monkeypatch):
     assert trace == []
 
 
-def round_record(j, hardener):
+def round_record(j, hardener, units=None):
     j.append(EventType.SIGNAL, {"signal": "hardening_round", "round": 1,
-             "units": {"19.P3.held": "absent"}, "filed_by": "held",
+             "units": units if units is not None else {"19.P3.held": "absent"}, "filed_by": "held",
              "gaps": [{"unit": "19.P3.held", "message": "fact"}]}, ticket=hardener)
 
 
@@ -938,3 +938,162 @@ def test_legacy_spec_gap_hold_without_round_is_released(root):
     script = Script()
     assert drain(root, script) == 0
     assert script.calls == ["held"] and retry_draws(root, "held") == 0
+
+
+def commit_plan(root, text):
+    (root / "CHUPA_PLAN.md").write_text(text)
+    g = Git(SubprocessExec(), env=ENV, timeout=30)
+    async def commit():
+        await g.add(root, ["CHUPA_PLAN.md"])
+        await g.commit(root, "fix bound unit", only=["CHUPA_PLAN.md"])
+    asyncio.run(commit())
+
+
+def bound_arrival(root, *, to="gate_failed", extra=None):
+    from chupa.specs import unit_sha
+    commit_ticket(root, "held", confirmed())
+    j = journal(root)
+    units = {"19.P3.held": unit_sha((root / "CHUPA_PLAN.md").read_text(), "19.P3.held")}
+    round_record(j, "hardener", units)
+    j.append(EventType.STATE_TRANSITION, {"to": "already_satisfied"}, ticket="hardener")
+    blob = git_out(root, "rev-parse", "HEAD:tickets/held/ticket.md").strip()
+    j.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": blob}, ticket="held")
+    j.append(EventType.STATE_TRANSITION, {"to": to, "stage": "check", "reason": "spec_gap_unresolved",
+        "dispatch": "reject_queue", "routed": "reject_queue", "plan_units": units,
+        **(extra or {})}, ticket="held")
+    return blob
+
+
+def machine_keeps(root, stem="held"):
+    return [e for e in journal(root).read() if e.ticket == stem
+            and e.body == {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}]
+
+
+def test_plan_bound_arrival_is_never_auto_kept_and_releases_on_a_unit_change(root, capsys):
+    blob = bound_arrival(root)
+    before = journal(root).read()
+    script = Script()
+    assert drain(root, script) == 0
+    assert script.calls == [] and journal(root).read() == before
+    out = capsys.readouterr().out
+    assert "spec_gap_unresolved" in out and "19.P3.held" in out
+    assert "round 1" in out and "hardener: already_satisfied" in out
+    assert "fix 19.P3.held in CHUPA_PLAN.md, commit it, then uv run python -m chupa drain" in out
+    assert "confirm held" in out and "reject held" in out
+
+    # Neither unrelated committed bytes nor an uncommitted/staged unit fixes the judged input.
+    plan = (root / "CHUPA_PLAN.md").read_text()
+    commit_plan(root, plan + "\n### 19.P3.other Other\nUnrelated fact.\n")
+    fixed = (root / "CHUPA_PLAN.md").read_text() + "\n### 19.P3.held Held\nThe missing fact.\n"
+    (root / "CHUPA_PLAN.md").write_text(fixed)
+    assert drain(root, script) == 0 and script.calls == []
+    asyncio.run(Git(SubprocessExec(), env=ENV, timeout=30).add(root, ["CHUPA_PLAN.md"]))
+    # Intake refuses staged non-ticket paths; exercise the release scan itself for staged bytes.
+    from chupa.drain import _Drain
+    checkout = pause_checkout(root)
+    scan = asyncio.run(_Drain(checkout, script(checkout), frozenset())._scan())
+    assert scan.plan_changed == frozenset()
+    assert machine_keeps(root) == [] and retry_draws(root, "held") == 0
+    commit_plan(root, fixed)
+    assert drain(root, script) == 0 and script.calls == ["held"]
+    assert len(machine_keeps(root)) == retry_draws(root, "held") == 1
+    keep, draw, running, terminal = [e for e in journal(root).read()[len(before):] if e.ticket == "held"]
+    assert keep == machine_keeps(root)[0]
+    assert draw.body == {"cap": "retry", "ticket_sha": blob}
+    assert running.body == {"to": "running", "ticket_sha": blob} and terminal.body == {"to": "merged"}
+
+
+def test_plan_bound_premise_is_not_premise_parked(root):
+    from chupa.drain import premise_parked
+    blob = bound_arrival(root, to="premise_failed")
+    assert not premise_parked(journal(root).read(), "held", blob)
+    script = Script()
+    assert drain(root, script) == 0 and script.calls == []
+    commit_plan(root, (root / "CHUPA_PLAN.md").read_text() + "\n### 19.P3.held Held\nFixed fact.\n")
+    assert drain(root, script) == 0 and script.calls == ["held"]
+    assert git_out(root, "rev-parse", "HEAD:tickets/held/ticket.md").strip() == blob
+    assert len(machine_keeps(root)) == retry_draws(root, "held") == 1
+
+
+def test_existing_bound_unit_releases_only_on_its_committed_bytes_change(root):
+    plan = PLAN + "\n### 19.P3.held Held\nOriginal fact.\n\n### 19.P3.other Other\nOther fact.\n"
+    commit_plan(root, plan)
+    bound_arrival(root)
+    script = Script()
+    assert drain(root, script) == 0 and script.calls == []
+    unrelated = plan.replace("Other fact.", "Other corrected fact.")
+    commit_plan(root, unrelated)
+    assert drain(root, script) == 0 and script.calls == []
+    fixed = unrelated.replace("Original fact.", "Corrected fact.")
+    (root / "CHUPA_PLAN.md").write_text(fixed)
+    assert drain(root, script) == 0 and script.calls == []
+    commit_plan(root, fixed)
+    assert drain(root, script) == 0 and script.calls == ["held"]
+    assert len(machine_keeps(root)) == retry_draws(root, "held") == 1
+
+
+def test_retired_hardener_is_never_dispatched(root):
+    commit_ticket(root, "hardener", confirmed())
+    j = journal(root)
+    round_record(j, "hardener")
+    j.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "routed": "reject_queue"}, ticket="hardener")
+    before = j.read()
+    script = Script()
+    assert drain(root, script) == 0 and script.calls == [] and j.read() == before
+    # A later operator keep and non-closing terminal cannot revive the hardener.
+    j.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "operator"},
+             ticket="hardener")
+    j.append(EventType.STATE_TRANSITION, {"to": "gate_failed"}, ticket="hardener")
+    assert drain(root, script) == 0 and script.calls == []
+    assert machine_keeps(root, "hardener") == [] and retry_draws(root, "hardener") == 0
+
+
+def test_plan_bound_legacy_hold_release_draws_retry_despite_spent_diagnosis(tmp_path):
+    root = make_root(tmp_path, "caps: {diagnosis: 1, retry: 1}\n")
+    bound_arrival(root, extra={"dispatch": "spec_gap_hold", "round": 1, "routed": None})
+    journal(root).append(EventType.CAP_CONSUMED, {"cap": "diagnosis"}, ticket="held")
+    script = Script()
+    assert drain(root, script) == 0 and script.calls == []
+    assert any(e.body.get("signal") == "reject_arrival" for e in journal(root).read())
+    commit_plan(root, (root / "CHUPA_PLAN.md").read_text() + "\n### 19.P3.held Held\nFixed fact.\n")
+    assert drain(root, script) == 0 and script.calls == ["held"]
+    assert len(machine_keeps(root)) == retry_draws(root, "held") == 1
+
+
+def test_plan_bound_change_does_not_release_a_spent_retry(tmp_path):
+    root = make_root(tmp_path, "caps: {retry: 1}\n")
+    bound_arrival(root)
+    journal(root).append(EventType.CAP_CONSUMED, {"cap": "retry"}, ticket="held")
+    commit_plan(root, (root / "CHUPA_PLAN.md").read_text() + "\n### 19.P3.held Held\nFixed fact.\n")
+    script = Script()
+    assert drain(root, script) == 0 and script.calls == [] and machine_keeps(root) == []
+
+
+def test_non_plan_bound_premise_reoffer_after_ticket_edit_draws_no_retry(root):
+    commit_ticket(root, "work", confirmed())
+    prior_failure(root, terminal="premise_failed", extra={"routed": "reject_queue"})
+    commit_ticket(root, "work", confirmed().replace("returns ok.", "returns revised ok."))
+    script = Script()
+    assert drain(root, script) == 0 and script.calls == ["work"]
+    assert len(machine_keeps(root, "work")) == 1 and retry_draws(root, "work") == 0
+
+
+@pytest.mark.parametrize("bound", [False, True])
+def test_plan_in_worktree_but_not_head_does_not_abort_drain(root, bound, monkeypatch):
+    if bound:
+        bound_arrival(root)
+    g = Git(SubprocessExec(), env=ENV, timeout=30)
+    async def untrack():
+        await g._run(root, "rm", "--cached", "CHUPA_PLAN.md")
+        await g.commit(root, "untrack plan")
+    asyncio.run(untrack())
+    (root / "CHUPA_PLAN.md").write_text(PLAN + "\n### 19.P3.held Held\nUncommitted fact.\n")
+    original = Git._run
+    async def observed(self, repo, *args):
+        if args == ("show", "HEAD:CHUPA_PLAN.md") and not bound:
+            pytest.fail("a drain without a plan-bound arrival read the committed plan")
+        return await original(self, repo, *args)
+    monkeypatch.setattr(Git, "_run", observed)
+    script = Script()
+    assert drain(root, script) == 0 and script.calls == []
+    assert machine_keeps(root) == []

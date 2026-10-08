@@ -19,11 +19,11 @@ import yaml
 from chupa.artifacts import Finding, Harvest, StageResult
 from chupa.box import BOX_DIR
 from chupa.storm import arrival_id
-from chupa.caps import capability, consume, next_rung, remaining, spent, spent_reason
+from chupa.caps import capability, consume, lineage, next_rung, remaining, spent, spent_reason
 from chupa.config import Config, ConfigSnapshot
 from chupa.driver import Driver
 from chupa.effects import Effects
-from chupa.git import Git
+from chupa.git import Git, GitError
 from chupa.hardening import ROUND_SIGNAL, hardener_round, open_round, rounds
 from chupa.journal import TERMINAL_STATES, Event, EventType, Journal
 from chupa.llm import LLM
@@ -294,6 +294,20 @@ async def hold_on_hardening(ctx: StageContext, ticket: Ticket, gaps: dict[str, l
     history = ctx.driver.journal.read()
     plan = (ctx.repo / PLAN_FILE).read_text()
     plan_units = {uid: unit_sha(plan, uid) for uid in sorted(gaps)}
+    # Round-less Reject terminals must not erase the last round's unchanged coverage.
+    prior = next((e.body for e in reversed(lineage(history, ticket.stem))
+                  if e.type == EventType.STATE_TRANSITION and e.ticket == ticket.stem
+                  and e.body.get("to") in TERMINAL_STATES and "round" in e.body
+                  and "plan_units" in e.body), None)
+    covered = next((r.units for r in rounds(history) if prior is not None and r.number == prior["round"]), {})
+    unchanged = {uid for uid, sha in (prior["plan_units"] if prior else {}).items()
+                 if uid in covered and unit_sha(plan, uid) == sha}
+    if set(gaps) <= unchanged:
+        ctx.driver.journal.append(EventType.STATE_TRANSITION,
+                                  {"to": to, "stage": stage, "reason": "spec_gap_unresolved",
+                                   "dispatch": "reject_queue", "routed": "reject_queue",
+                                   "plan_units": plan_units}, ticket=ticket.stem)
+        return
     if remaining(ctx.config.caps, history, ticket.stem, "hardening") <= 0:
         ctx.driver.journal.append(EventType.STATE_TRANSITION,
                                   {"to": to, "stage": stage, "reason": "hardening cap spent",
@@ -305,7 +319,8 @@ async def hold_on_hardening(ctx: StageContext, ticket: Ticket, gaps: dict[str, l
     record = open_round(history)
     number = record.number if record is not None else len(rounds(history)) + 1
     if record is None:
-        await file_hardening(ctx, ticket, gaps, number, plan=plan)
+        await file_hardening(ctx, ticket, {uid: facts for uid, facts in gaps.items() if uid not in unchanged},
+                             number, plan=plan)
     ctx.driver.journal.append(EventType.STATE_TRANSITION,
                               {"to": to, "stage": stage, "reason": "spec_gap", "dispatch": SPEC_GAP_HOLD,
                                "round": number, "plan_units": plan_units}, ticket=ticket.stem)
@@ -476,8 +491,18 @@ async def verdict(stem: str, checkout: Checkout, *, kill: bool) -> int:
                            and e.body.get("signal") == "reject_verdict" and e.body.get("verdict") == "keep"
                            and e.body.get("actor") == "operator"), None)
         if prior_keep is not None and prior_keep.body.get("ticket_sha") == ticket_sha:
-            raise Refusal(f"{stem} was already kept at this ticket content",
-                          "edit the ticket (or fix the plan and regenerate it) before re-enqueueing")
+            terminal = next((e.body for e in reversed(history) if e.type == EventType.STATE_TRANSITION
+                             and e.ticket == stem and e.body.get("to") in TERMINAL_STATES), {})
+            changed = False
+            if "plan_units" in terminal:
+                try:
+                    plan = await checkout.git._run(checkout.repo, "show", f"HEAD:{PLAN_FILE}")
+                except GitError:
+                    plan = ""
+                changed = any(unit_sha(plan, uid) != sha for uid, sha in terminal["plan_units"].items())
+            if not changed:
+                raise Refusal(f"{stem} was already kept at this ticket content",
+                              "edit the ticket (or fix the plan and regenerate it) before re-enqueueing")
         if stem not in reject_queue(history):
             raise Refusal(f"{stem} is neither a draft nor in the Reject queue",
                           "run `status` to list the Reject queue")

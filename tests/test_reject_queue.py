@@ -15,6 +15,7 @@ from chupa.status import reject_queue
 from chupa.stages import StagesRun
 from tests.test_cli import ENV, git_out
 from tests.test_drain import Clock, Script, commit_ticket, confirmed, drain, journal, make_root
+from tests.test_drain import bound_arrival, commit_plan
 from tests.test_terminal import author, clock, diagnosis_reply, implement_reply, repo
 from tests.test_stages import STEM
 
@@ -157,6 +158,29 @@ def test_dirless_ghost_can_be_kept(tmp_path):
                          {"to": "gate_failed", "stage": "check", "routed": "reject_queue"}, ticket="ghost")
     assert main(["confirm", "ghost"], cwd=root, env=ENV, clock=Clock()) == 0
     assert _events(root, "ghost")[-1].body["ticket_sha"] is None
+
+
+def test_confirm_after_a_plan_fix_of_a_bound_unit_is_not_a_double_confirm(tmp_path, capsys):
+    from chupa.specs import unit_sha
+    root = make_root(tmp_path)
+    blob = bound_arrival(root)
+    body = _events(root, "held")[-1].body
+    assert main(["confirm", "held"], cwd=root, env=ENV, clock=Clock()) == 0
+    journal(root).append(EventType.STATE_TRANSITION, body, ticket="held")
+    assert main(["confirm", "held"], cwd=root, env=ENV, clock=Clock()) == 2
+    assert "edit the ticket" in capsys.readouterr().err
+    plan = (root / "CHUPA_PLAN.md").read_text()
+    commit_plan(root, plan + "\n### 19.P3.other Other\nUnrelated fact.\n")
+    assert main(["confirm", "held"], cwd=root, env=ENV, clock=Clock()) == 2
+    fixed = (root / "CHUPA_PLAN.md").read_text() + "\n### 19.P3.held Held\nFixed fact.\n"
+    commit_plan(root, fixed)
+    assert main(["confirm", "held"], cwd=root, env=ENV, clock=Clock()) == 0
+    assert _events(root, "held")[-1].body["ticket_sha"] == blob
+    assert "held" not in reject_queue(journal(root).read())
+    # A fresh terminal binds the fixed input, so another unchanged confirm is refused.
+    journal(root).append(EventType.STATE_TRANSITION,
+                         {**body, "plan_units": {"19.P3.held": unit_sha(fixed, "19.P3.held")}}, ticket="held")
+    assert main(["confirm", "held"], cwd=root, env=ENV, clock=Clock()) == 2
 
 
 

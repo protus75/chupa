@@ -9,7 +9,8 @@ is visible to the very next pick. This is the eligibility sort's owner (section 
 
 An admission touching `chupa/**` or `specs/**` is a SELF-UPGRADE: before the next dispatch the drain hands off to
 a re-exec'd child running the upgraded checkout (section 18's HANDOFF), carrying the invocation's parked set in
-argv. A `premise_failed` stem stays parked, across invocations, until its committed `ticket.md` content changes.
+argv. An ordinary `premise_failed` stem stays parked until its committed `ticket.md` changes; spec gaps
+release through their hardening round or bound plan units instead.
 """
 
 import asyncio
@@ -18,12 +19,14 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 
 from chupa import caps
-from chupa.hardening import rounds, round_state
+from chupa.git import GitError
+from chupa.hardening import ROUND_STATES, rounds, round_state
 from chupa.journal import TERMINAL_STATES, Event, EventType
 from chupa.lockfile import Lockfile
 from chupa.reconcile import reconcile
 from chupa.runner import EXIT_MERGED, EXIT_TICKET, SPEC_GAP_HOLD, Checkout, Dispatch, Refusal, harvest_orphan
 from chupa.seams import ProcessExec
+from chupa.specs import unit_sha
 from chupa.status import last_states, reject_queue
 from chupa.tickets import (
     INTAKE_SIGNAL, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, TicketInvalid, _porcelain, depends_cycle, intake,
@@ -65,14 +68,16 @@ def premise_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:
     """The premise park (section 18): the stem's last run ended `premise_failed` against this same `ticket.md`."""
     last: str | None = None
     ran_sha: str | None = None
-    dispatch: str | None = None
+    body: Mapping = {}
     for e in events:
         if e.type == EventType.STATE_TRANSITION and e.ticket == stem:
-            last, dispatch = e.body.get("to"), e.body.get("dispatch")
+            body = e.body
+            last = body.get("to")
             if last == "running":
                 ran_sha = e.body.get("ticket_sha")
     # A spec-gap premise waits on its hardening tickets instead (section 11.4), never on a ticket edit.
-    return last == PREMISE and ran_sha == ticket_sha and dispatch != SPEC_GAP_HOLD
+    return (last == PREMISE and ran_sha == ticket_sha and body.get("dispatch") != SPEC_GAP_HOLD
+            and "round" not in body and "plan_units" not in body)
 
 
 def authored_at(events: Iterable[Event]) -> dict[str, str]:
@@ -148,6 +153,7 @@ class _Scan:
     tickets: dict[str, Ticket]
     invalid: dict[str, str]
     drafts: tuple[str, ...]
+    plan_changed: frozenset[str]
 
 
 async def drain(
@@ -292,7 +298,18 @@ class _Drain:
             if ticket.frontmatter.state == "draft":
                 drafts.append(stem)
             tickets[stem] = ticket
-        return _Scan(tickets, invalid, tuple(drafts))
+        bound = {s: body["plan_units"] for s, body in reject_queue(self.c.journal.read()).items()
+                 if "plan_units" in body}
+        changed: set[str] = set()
+        if bound:
+            # Release answers committed bytes only. Hosts without a committed plan have absent units.
+            try:
+                committed_plan = await self.c.git._run(repo, "show", f"HEAD:{PLAN_FILE}")
+            except GitError:
+                committed_plan = ""
+            changed = {s for s, units in bound.items()
+                       if any(unit_sha(committed_plan, uid) != sha for uid, sha in units.items())}
+        return _Scan(tickets, invalid, tuple(drafts), frozenset(changed))
 
     async def _sha(self, stem: str) -> str:
         """The committed `ticket.md` blob: the content identity a premise park and a retry draw are keyed to."""
@@ -302,8 +319,10 @@ class _Drain:
         self, scan: _Scan, events: list[Event], last: Mapping[str, str], held: set[str],
     ) -> tuple[Ticket | None, bool]:
         """The next dispatch: fresh eligible work first, then re-offers, each in (priority, age) order."""
+        retired_hardeners = {r.hardener for r in rounds(events) if round_state(events, r.number) == "closed"}
         open_ = {s: t for s, t in scan.tickets.items()
-                 if t.frontmatter.state == "confirmed" and last.get(s) not in SETTLED | RETIRED}
+                 if t.frontmatter.state == "confirmed" and last.get(s) not in SETTLED | RETIRED
+                 and s not in retired_hardeners}
         edges = {s: list(t.depends) for s, t in open_.items()}
         for stem in sorted(open_):
             if cycle := depends_cycle(stem, edges):
@@ -322,19 +341,20 @@ class _Drain:
         storm_held = set(self.c.control.storm_holds().values()) if self.c.control is not None else set()
         self.storm_waiting = False
         for t in ready:
+            bound = t.stem in awaiting and "plan_units" in awaiting[t.stem]
+            if bound and (t.stem not in scan.plan_changed
+                          or caps.remaining(self.c.config.caps, events, t.stem, "retry") <= 0):
+                continue
+            budget = bound or caps.spent(self.c.config.caps, events, t.stem) is None
             if t.stem in storm_held:
                 if (t.stem not in self.over_budget
                         and t.stuck_minutes <= self.c.config.drain.max_ticket_minutes
                         and (last.get(t.stem) is None or (t.stem not in held
-                             and caps.spent(self.c.config.caps, events, t.stem) is None))):
+                             and budget))):
                     self.storm_waiting = True
                 continue
-            if t.stem in awaiting:
-                if caps.spent(self.c.config.caps, events, t.stem) is not None:
-                    continue
-                self.c.journal.append(EventType.SIGNAL,
-                                      {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"},
-                                      ticket=t.stem)
+            if t.stem in awaiting and not budget:
+                continue
             if t.stem in self.over_budget:
                 continue
             if t.stuck_minutes > self.c.config.drain.max_ticket_minutes:
@@ -346,7 +366,7 @@ class _Drain:
                 continue
             if last.get(t.stem) is None:
                 fresh.append(t)
-            elif t.stem not in held and caps.spent(self.c.config.caps, events, t.stem) is None:
+            elif t.stem not in held and budget:
                 reoffers.append(t)
         if fresh:
             return fresh[0], False
@@ -360,13 +380,19 @@ class _Drain:
         if self._stopping():
             return
         stem = ticket.stem
-        if reoffer and last_states(self.c.journal.read()).get(stem) != PREMISE:
-            body = next(e.body for e in reversed(self.c.journal.read())
+        if reoffer:
+            history = self.c.journal.read()
+            queued = reject_queue(history)
+            bound = stem in queued and "plan_units" in queued[stem]
+            if stem in queued:
+                self.c.journal.append(EventType.SIGNAL,
+                                      {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"},
+                                      ticket=stem)
+            body = next(e.body for e in reversed(history)
                         if e.type == EventType.STATE_TRANSITION and e.ticket == stem
                         and e.body.get("to") in TERMINAL_STATES)
-            # The draw precedes the dispatch: a crash mid-run never hands the stem a free attempt. A released
-            # spec-gap hold re-runs free: the gap was the plan's, not the attempt's (section 11.4).
-            if body.get("dispatch") != SPEC_GAP_HOLD:
+            # A hold releases free until it arrives in Reject; a plan-bound machine keep always draws retry.
+            if bound or (body.get("to") != PREMISE and body.get("dispatch") != SPEC_GAP_HOLD):
                 caps.consume(self.c.journal, stem, "retry", sha, rung=body.get("rung"))
         # The `ticket.md` the run answers: a `premise_failed` verdict parks the stem until this changes.
         self.c.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": sha}, ticket=stem)
@@ -485,9 +511,31 @@ class _Drain:
                                  " ticket if provably not the plan's) and author a successor stem -- a"
                                  " `ticket.md` edit never re-arms the cap")
                 if stem in awaiting:
-                    road = (f"edit {ticket_path(stem)} (or fix the plan and regenerate it), then "
-                            f"uv run python -m chupa confirm {stem}; or retire it with "
-                            f"uv run python -m chupa reject {stem}")
+                    if "plan_units" in awaiting[stem]:
+                        units = awaiting[stem]["plan_units"]
+                        coverage = []
+                        for uid in units:
+                            for record in rounds(events):
+                                if uid not in record.units:
+                                    continue
+                                terminal = next((e.body["to"] for e in events[record.position + 1:]
+                                    if e.type == EventType.STATE_TRANSITION and e.ticket == record.hardener
+                                    and e.body.get("to") in TERMINAL_STATES
+                                    and (ROUND_STATES[e.body["to"]] == "closed"
+                                         or e.body.get("routed") == "reject_queue")), "pending")
+                                coverage.append(f"{uid}: round {record.number} ({record.hardener}: {terminal})")
+                        why = (f"{to}{where}; {body.get('reason', to)}; units: {', '.join(units)}"
+                               + (f"; {'; '.join(coverage)}" if coverage else ""))
+                        if caps.remaining(self.c.config.caps, events, stem, "retry") <= 0:
+                            why += f"; retry cap spent ({caps.draws(events, stem, 'retry')}/{self.c.config.caps.retry})"
+                        road = (f"fix {', '.join(units)} in CHUPA_PLAN.md, commit it, then "
+                                "uv run python -m chupa drain; in the daemon era, "
+                                f"uv run python -m chupa confirm {stem}; or retire it with "
+                                f"uv run python -m chupa reject {stem}")
+                    else:
+                        road = (f"edit {ticket_path(stem)} (or fix the plan and regenerate it), then "
+                                f"uv run python -m chupa confirm {stem}; or retire it with "
+                                f"uv run python -m chupa reject {stem}")
                 self.report.parked.append(Parked(stem, why, road, self._findings(stem)))
         self.report.invalid = sorted(scan.invalid.items())
         self.report.drafts = list(scan.drafts)

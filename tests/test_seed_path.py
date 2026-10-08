@@ -382,7 +382,7 @@ def test_spent_hardening_cap_routes_the_stem_to_the_reject_queue(repo):
 
 
 @pytest.mark.parametrize("terminal", ["already_satisfied", "rejected"])
-def test_already_satisfied_or_rejected_hardener_never_re_holds_forever(repo, terminal):
+def test_unchanged_units_after_a_closed_round_route_spec_gap_unresolved(repo, terminal):
     from chupa.drain import awaited_hardening
     from chupa.runner import hold_on_hardening
 
@@ -397,29 +397,12 @@ def test_already_satisfied_or_rejected_hardener_never_re_holds_forever(repo, ter
     assert awaited_hardening(ctx.driver.journal.read(), STEM) == ("plan-gap-1",)
     ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": terminal}, ticket="plan-gap-1")
     assert awaited_hardening(ctx.driver.journal.read(), STEM) == ()
-    hold(1)
-    assert (repo / "tickets/plan-gap-2/ticket.md").is_file()
-    assert awaited_hardening(ctx.driver.journal.read(), STEM) == ("plan-gap-2",)
-
-    # Awaiting an open round costs the same unit as filing a new one.
-    for attempt in range(2, ctx.config.caps.hardening):
-        hold(attempt)
     history = ctx.driver.journal.read()
-    draws = [e for e in history if e.type == EventType.CAP_CONSUMED and e.ticket == STEM]
-    sha = git(repo, "rev-parse", f"HEAD:tickets/{STEM}/ticket.md").strip()
-    assert [e.body for e in draws] == [{"cap": "hardening", "ticket_sha": sha}] * ctx.config.caps.hardening
-    accounting = [e for e in history if e.ticket == STEM
-                  and e.type in {EventType.CAP_CONSUMED, EventType.STATE_TRANSITION}]
-    assert [e.type for e in accounting] == [EventType.CAP_CONSUMED, EventType.STATE_TRANSITION] * len(draws)
-    assert all(e.body.get("dispatch") == "spec_gap_hold"
-               for e in accounting if e.type == EventType.STATE_TRANSITION)
-
-    files = sorted((repo / "tickets").glob("plan-gap-*/ticket.md"))
-    hold(ctx.config.caps.hardening)
-    assert terminal_body(ctx) == {"to": "gate_failed", "stage": "check", "reason": "hardening cap spent",
+    hold(1)
+    assert terminal_body(ctx) == {"to": "gate_failed", "stage": "check", "reason": "spec_gap_unresolved",
                                   "dispatch": "reject_queue", "routed": "reject_queue",
                                   "plan_units": {"19.P3.gamma-seed": "absent"}}
-    assert sorted((repo / "tickets").glob("plan-gap-*/ticket.md")) == files
+    assert not (repo / "tickets/plan-gap-2/ticket.md").exists()
     assert ctx.driver.journal.read()[len(history):] == [ctx.driver.journal.read()[-1]]
 
 
@@ -599,3 +582,80 @@ def test_round_ticket_covers_all_gaps_with_the_filers_priority_and_deep_capabili
     [record] = [e for e in ctx.driver.journal.read() if e.body.get("signal") == "hardening_round"]
     assert record.body["units"] == terminal_body(ctx)["plan_units"] == {
         "19.P3.gamma-seed": "absent", "19.P4.delta-seed": unit_sha(plan, "19.P4.delta-seed")}
+
+
+def two_gap_context(repo):
+    add_registry_row(repo)
+    path = repo / "CHUPA_PLAN.md"
+    path.write_text(path.read_text().replace("  gamma-seed:", "  delta-seed: {}\n  gamma-seed:"))
+    git(repo, "add", "CHUPA_PLAN.md")
+    git(repo, "commit", "-m", "two hardenable units")
+    return context(repo, [])[0]
+
+
+def test_roundless_unresolved_terminal_does_not_erase_unchanged_round_coverage(repo):
+    from chupa.__main__ import main
+    from chupa.caps import draws
+    from chupa.runner import hold_on_hardening
+    from chupa.hardening import rounds
+    ctx = two_gap_context(repo)
+    gaps = {"19.P3.gamma-seed": ["fact A"], "19.P3.delta-seed": ["fact B"]}
+    def hold(gaps, attempt):
+        asyncio.run(hold_on_hardening(ctx, ticket(repo), gaps, attempt=attempt))
+    hold(gaps, 0)
+    ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "already_satisfied"}, ticket="plan-gap-1")
+    hold(gaps, 1)
+    assert terminal_body(ctx)["reason"] == "spec_gap_unresolved"
+    # Fix only A: the re-detection of unchanged B must still use round 1's coverage.
+    complete_gamma(repo)
+    before = ctx.driver.journal.read()
+    calls = []
+    def reentry(checkout):
+        async def dispatch(t):
+            calls.append(t.stem)
+            if t.stem == STEM:
+                await hold_on_hardening(ctx, t, {"19.P3.delta-seed": gaps["19.P3.delta-seed"]}, attempt=2)
+                return "gate_failed"
+            checkout.journal.append(EventType.STATE_TRANSITION, {"to": "already_satisfied"}, ticket=t.stem)
+            return "already_satisfied"
+        return dispatch
+    assert main(["drain"], cwd=repo, env=ENV, clock=ctx.driver.clock, pipeline=reentry) == 0
+    assert calls.count(STEM) == 1 and "plan-gap-1" not in calls
+    assert terminal_body(ctx) == {"to": "gate_failed", "stage": "check", "reason": "spec_gap_unresolved",
+        "dispatch": "reject_queue", "routed": "reject_queue", "plan_units": {"19.P3.delta-seed": "absent"}}
+    new = [e for e in ctx.driver.journal.read()[len(before):] if e.ticket == STEM]
+    assert [e.body.get("signal") or e.body.get("cap") or e.body.get("to") for e in new] == [
+        "reject_verdict", "retry", "running", "gate_failed"]
+    assert new[0].body == {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}
+    assert draws(ctx.driver.journal.read(), STEM, "hardening") == 1
+    assert len(rounds(ctx.driver.journal.read())) == 1
+    assert not (repo / "tickets/plan-gap-2/ticket.md").exists()
+
+
+def test_new_round_covers_only_gaps_not_unchanged_in_the_prior_round(repo):
+    from chupa.hardening import rounds
+    from chupa.runner import hold_on_hardening
+    ctx = two_gap_context(repo)
+    gaps = {"19.P3.gamma-seed": ["fact A"], "19.P3.delta-seed": ["fact B"]}
+    asyncio.run(hold_on_hardening(ctx, ticket(repo), gaps, attempt=0))
+    ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "already_satisfied"}, ticket="plan-gap-1")
+    complete_gamma(repo)
+    asyncio.run(hold_on_hardening(ctx, ticket(repo), gaps, attempt=1))
+    assert terminal_body(ctx)["round"] == 2
+    assert set(terminal_body(ctx)["plan_units"]) == set(gaps)
+    assert set(rounds(ctx.driver.journal.read())[-1].units) == {"19.P3.gamma-seed"}
+    assert "CHUPA_PLAN.md#19.P3.delta-seed" not in (repo / "tickets/plan-gap-2/ticket.md").read_text()
+
+
+def test_operator_keep_starts_a_new_hardening_lineage(repo):
+    from chupa.hardening import rounds
+    from chupa.runner import hold_on_hardening
+    add_registry_row(repo)
+    ctx, _ = context(repo, [])
+    gaps = {"19.P3.gamma-seed": ["fact"]}
+    asyncio.run(hold_on_hardening(ctx, ticket(repo), gaps, attempt=0))
+    ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "already_satisfied"}, ticket="plan-gap-1")
+    ctx.driver.journal.append(EventType.SIGNAL,
+        {"signal": "reject_verdict", "verdict": "keep", "actor": "operator"}, ticket=STEM)
+    asyncio.run(hold_on_hardening(ctx, ticket(repo), gaps, attempt=1))
+    assert len(rounds(ctx.driver.journal.read())) == 2 and terminal_body(ctx)["round"] == 2
