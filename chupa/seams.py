@@ -58,6 +58,37 @@ class ExecutableNotFound(Exception):
         self.binary = binary
 
 
+@runtime_checkable
+class Notifications(Protocol):
+    async def notify(self, argv: Sequence[str]) -> dict[str, str | int]: ...
+
+
+class NotificationFailed(Exception):
+    """Delivery did not complete; repair the command and retry the pending evidence."""
+
+
+class CommandNotifications:
+    def __init__(self, exec_: ProcessExec, *, cwd: Path, env: Mapping[str, str],
+                 timeout: float, scrub: Callable[[str], str]) -> None:
+        self.exec_, self.cwd, self.env = exec_, cwd, env
+        self.timeout, self.scrub = timeout, scrub
+
+    async def notify(self, argv: Sequence[str]) -> dict[str, str | int]:
+        if (not argv or isinstance(argv, str) or any(not isinstance(p, str) or "\0" in p for p in argv)
+                or not argv[0].strip()):
+            raise ValueError("notify needs a nonempty argv list with a nonblank executable and no NULs")
+        try:
+            rc, out, err = await self.exec_.run(list(argv), cwd=self.cwd, env=self.env, timeout=self.timeout)
+        except (ExecutableNotFound, TimeoutError, OSError) as exc:
+            raise NotificationFailed(self.scrub(f"notify failed: {exc}; install/fix notify argv or PATH "
+                                                "and retry pending evidence")) from None
+        out, err = self.scrub(out), self.scrub(err)
+        if rc != 0:
+            raise NotificationFailed(f"notify exited {rc}: {out[-2000:]} {err[-2000:]}; "
+                                     "make notify exit 0 and retry pending evidence")
+        return {"rc": rc, "stdout": out, "stderr": err}
+
+
 class SubprocessExec:
     """Real process-exec seam: every child in its own process group, every kill a group kill."""
 

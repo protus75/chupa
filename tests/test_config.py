@@ -235,3 +235,9 @@ def test_provider_backstop_never_undercuts_a_ticket_stuck_budget(tmp_path):
     write(tmp_path, VALID)
     cfg = load_config(None, cwd=tmp_path)
     assert call_timeout(cfg) == cfg.drain.max_ticket_minutes * 60.0
+
+
+@pytest.mark.parametrize("argv", ['[]', 'notify-send', '[3]', '[true]', '[{}]', '[""]',
+                                 '["   "]', '[notify, "\\0"]'])
+def test_notify_refuses_malformed_argv(tmp_path, argv):
+    assert refusal(tmp_path, VALID + f"notify: {argv}\n").key.startswith("notify")

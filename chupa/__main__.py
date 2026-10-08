@@ -21,9 +21,12 @@ from chupa.daemon import StartupBoundary
 from chupa.git import Git
 from chupa.journal import Journal, JournalCorruption
 from chupa.lockfile import LockHeld, Lockfile
+from chupa.notify import NOTIFY_TIMEOUT_S, NotificationReconciler
 from chupa.providers import ProviderLLM, ProviderSetupError, child_env
+from chupa.redact import Redactor
 from chupa.restart import Restart
 from chupa.seams import Clock, ExecutableNotFound, LocalFileSystem, ProcessExec, SubprocessExec
+from chupa.seams import CommandNotifications
 from chupa.status import project, render
 from chupa.storm import StormLedger
 from chupa.timers import Timers
@@ -94,6 +97,17 @@ def build_serve(checkout: runner.Checkout, *, config_path=None, plan=None, read=
     return serve.Serve(checkout, config_path=config_path, plan=plan, read=read or read_ticket,
         stems=stems or (lambda: (p.parent.name for p in (checkout.repo / "tickets").glob("*/ticket.md"))),
         prepare=prepare, signals=signals, failure=failure)
+
+
+def build_notifications(checkout: runner.Checkout, *, config_path: Path | None, log) -> NotificationReconciler:
+    executor = SubprocessExec()  # Never alias active work or the self-upgrade handoff.
+    def compose(config):
+        return CommandNotifications(executor, cwd=checkout.repo,
+            env=child_env(checkout.env, config, serving=None), timeout=NOTIFY_TIMEOUT_S,
+            scrub=Redactor.from_config(config, checkout.env).scrub)
+    return NotificationReconciler(journal=checkout.journal, clock=checkout.clock,
+        config_path=config_path or checkout.repo / "config.yaml",
+        load=lambda: load_config(config_path, cwd=checkout.repo), compose=compose, log=log)
 
 
 def _parser() -> argparse.ArgumentParser:

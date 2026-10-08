@@ -78,7 +78,7 @@ class Serve:
                  stems: Callable[[], Iterable[str]],
                  prepare=runner.prepare_pipeline, signals: Callable | None = None,
                  failure: Callable[[BaseException], None] | None = None) -> None:
-        from chupa.__main__ import build_daemon_core
+        from chupa.__main__ import build_daemon_core, build_notifications
 
         self.read, self.stems, self.signals = read, stems, signals
         self.writers: dict[str, TicketWriter] = {}
@@ -96,6 +96,7 @@ class Serve:
         self.log = EngineLog(checkout.config.state_dir / "engine.log",
                              Redactor.from_config(checkout.config, checkout.env), checkout.clock)
         self.failure = failure or (lambda exc: self.log.event("worker_failure", error=str(exc)))
+        self.notifications = build_notifications(checkout, config_path=config_path, log=self.log)
 
         async def prepared(local):
             callback = await prepare(local)
@@ -287,6 +288,7 @@ class Serve:
         finally:
             # Even a failed abort has unwound before worker cleanup. It cannot earn kill_applied.
             await _protected_cleanup(_stop_workers(self.workers))
+            await _protected_cleanup(asyncio.create_task(self.notifications.close()))
         results = await asyncio.gather(self.background, self.observation, return_exceptions=True)
         errors = [task.exception() for task in self.workers if not task.cancelled()]
         errors += [r for r in results if isinstance(r, BaseException)]
@@ -311,6 +313,7 @@ class Serve:
                 self.box.recover()
                 await self.checkpoint.poll()
         self.heartbeat.cycle()
+        self.notifications.poll()
 
     async def run(self) -> int:
         c = self.checkout
@@ -321,6 +324,7 @@ class Serve:
         try:
             try:
                 await self.core.startup()
+                self.notifications.poll(startup=True)
             except Exception as exc:
                 raise runner.Refusal(f"serve startup recovery refused: {exc}",
                                      "repair the recovery evidence and start serve again") from exc
@@ -406,10 +410,13 @@ class Serve:
             return code
         finally:
             try:
-                self.control.retire()
+                await _protected_cleanup(asyncio.create_task(self.notifications.close()))
             finally:
-                restore()
-                lock.release()
+                try:
+                    self.control.retire()
+                finally:
+                    restore()
+                    lock.release()
 
 
 async def serve(checkout: runner.Checkout, *, config_path: Path | None = None,

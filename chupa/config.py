@@ -184,6 +184,13 @@ class Config(_Strict):
     report_inbox: PathField | None = None
     context_files: list[PathField] = []
 
+    @field_validator("notify")
+    @classmethod
+    def _notify_argv(cls, argv: list[str] | None) -> list[str] | None:
+        if argv is not None and (not argv[0].strip() or any("\0" in part for part in argv)):
+            raise ValueError("notify needs a nonblank executable and NUL-free argv strings; set an argv list")
+        return argv
+
     @field_validator("box_policy")
     @classmethod
     def _box_policy_defaults(cls, rows: dict[str, StartState]) -> dict[str, StartState]:
