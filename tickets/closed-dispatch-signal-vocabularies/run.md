@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-tests/test_journal.py asserts the exact unlisted signal name confirm, so changing only its append fixture cannot preserve the assertion.
+A dynamically mutated storm fixture also needed its unlisted kind migrated; its assertions remain unchanged.
 
 ## Dead ends
 
-Migrated the round-trip fixture to drain_handoff; its unchanged equality assertion failed. Restored the clean base commit and verified the original test passes.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60 minutes; stopped after approximately 8 minutes upon reproducing the contradiction.
+Completed within the expected 60-minute budget.
 
