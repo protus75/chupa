@@ -59,7 +59,7 @@ def awaited_hardening(events: Iterable[Event], stem: str) -> tuple[str, ...]:
     hold = next(e.body for e in reversed(history) if e.type == EventType.SIGNAL
                 and e.ticket == stem and e.body.get("signal") == SPEC_GAP_HOLD)
     last = last_states(history)
-    return tuple(s for s in hold["awaits"] if last.get(s) not in SETTLED | RETIRED)
+    return tuple(s for s in hold["awaits"] if last.get(s) not in SETTLED)
 
 
 def premise_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:
