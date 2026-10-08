@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "80001844790080873f5e70b417dc0ababe2650db",
+  "stem": "notify-transport",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Don't call reconcile_notifications on every 0.1s serve poll. A notify command that keeps failing then writes an EFFECT_INTENT each poll, and section 6 says the journal is the record, never a debug log. Retry pending keys at startup, then only after a clock-seam backoff.",
+    "Track failed or timed-out keys in memory for the serve lifetime and skip them until their backoff expires. Keep pending keys unrecorded so a restart still replays them. Cover this with a test: a persistently failing command must not write a new intent on every maintenance call.",
+    "Notify delivery must not block Serve.maintenance. Limit each poll to a bounded number of delivery attempts so control.poll, timers, sweep_orphans, Box recover/checkpoint and heartbeat.cycle keep running while a notify command hangs for up to NOTIFY_TIMEOUT_S.",
+    "Startup reconciliation must not hold back the ready flag for timeout x pending-count. Bound startup delivery the same way. If the plan's 19.P4.notify-transport entry requires blocking startup delivery, return premise_failed (spec_gap) instead.",
+    "Don't reload config.yaml and refold the whole journal on every poll. Recompute pending keys only at startup, when the backoff expires, or when the journal or config changes. Keep the six named tests and the three preservation suites passing unchanged."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
