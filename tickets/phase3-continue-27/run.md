@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-Both missing units are valid spec_gap targets under the ticket's cited 19.P4 contract and the current reply validator.
+Both immediate Phase 4 core contracts resolve and all nine batch tests passed, but base Check code mechanically demands five missing later-phase entry units.
 
 ## Dead ends
 
-Stopped before writing the seed or batch test because entry_unit_gap and resolve_plan_contract reject both required core units.
+Abandoned the lint-valid seed and snapshot test after reproducing Check's refusal against unchanged base code and plan; stopped full-suite verification after 727 passing tests.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Contract validation established the blocker within minutes, before the 60m expected budget; verification commands were not run.
+Stopped within the 60-minute expected budget upon proving the admission blocker.
 
