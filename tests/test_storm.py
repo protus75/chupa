@@ -1,6 +1,5 @@
 from dataclasses import asdict
 from datetime import timedelta, timezone
-from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -11,7 +10,6 @@ from chupa.journal import EventType, Journal, JournalCorruption
 from chupa.seams import LocalFileSystem
 from chupa.storm import STORM_WINDOW, StormLedger
 from tests.test_journal import FakeClock, T0
-from tests.test_scheduler import import_closure
 
 SIG = signature("failure_report", "one", "implement", "gate_failed", reason="failed path/one 123")
 OTHER = "b" * 64
@@ -264,22 +262,8 @@ def test_ledger_has_no_trip_side_effects(tmp_path, monkeypatch):
     assert Box(tmp_path / "box", LocalFileSystem()).messages() == []
 
 
-def test_storm_ledger_is_dormant():
-    root = Path(__file__).resolve().parents[1]
-    sources = {}
-    for path in (root / "chupa").rglob("*.py"):
-        parts = path.relative_to(root).with_suffix("").parts
-        sources[".".join(parts[:-1] if parts[-1] == "__init__" else parts)] = path.read_text()
+def test_storm_ledger_is_dormant(tmp_path, monkeypatch):
+    # The reachable daemon hook migrates import absence to production behavior (19.I).
+    from tests.test_storm_producer import assert_production_dormant
 
-    def assert_dormant(material):
-        reached = import_closure(material)
-        assert {"chupa", "chupa.runner", "chupa.daemon", "chupa.journal"} <= reached
-        assert "chupa.storm" not in reached
-
-    assert_dormant(sources)
-    for statement in ("import chupa.storm", "from chupa import storm",
-                      "from chupa.storm import StormLedger"):
-        for owner in ("chupa.__main__", "chupa.runner", "chupa"):
-            wired = {**sources, owner: sources[owner] + "\n" + statement}
-            with pytest.raises(AssertionError):
-                assert_dormant(wired)
+    assert_production_dormant(tmp_path, monkeypatch)

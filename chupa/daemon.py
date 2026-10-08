@@ -21,10 +21,16 @@ from chupa.restart import Restart
 from chupa.scheduler import Scheduler
 from chupa.seams import Clock, FileSystem, Sleep
 from chupa.stages import StageContext
+from chupa.storm import StormLedger
 from chupa.tickets import Ticket, parse_ticket, ticket_path
 from chupa.watcher import Watcher
 
 KILL_APPLIED = "kill_applied"
+
+
+def storm_producer(*, root: Path, fs: FileSystem, journal: Journal, clock: Clock) -> Box:
+    """Dormant arrival boundary using the lock holder's existing writer (19.P3.storm-producer-wiring)."""
+    return Box(root, fs, arrival=StormLedger(journal=journal, clock=clock).record)
 
 
 def flake_detection(*, journal: Journal, box: Box, config: Config,

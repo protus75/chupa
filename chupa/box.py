@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Literal, get_args
 
@@ -82,9 +83,11 @@ class Message(_Strict):
 
 
 class Box:
-    def __init__(self, root: Path, fs: FileSystem) -> None:
+    def __init__(self, root: Path, fs: FileSystem, *,
+                 arrival: Callable[..., object] | None = None) -> None:
         self.root = root
         self.fs = fs
+        self._arrival = arrival
 
     def messages(self) -> list[Message]:
         result = []
@@ -114,7 +117,11 @@ class Box:
         self, *, message_class: MessageClass, origin: str, summary: str,
         stage: str | None = None, outcome: str | None = None, reason: str | None = None,
         bug_origin: Literal["self_diagnosed", "player"] | None = None, has_repro: bool | None = None,
+        occurrence_id: str | None = None,
     ) -> tuple[str, bool]:
+        if self._arrival is not None and (not isinstance(occurrence_id, str) or not occurrence_id.strip()):
+            raise BoxError("occurrence_id must be a nonblank producer-supplied string; "
+                           "supply a fresh id for a distinct arrival and reuse it on retry")
         if (stage is None) != (outcome is None):
             raise BoxError("stage and outcome must both be set or both be null")
         fields = (message_class, origin) if stage is None else (message_class, origin, stage, outcome)
@@ -128,6 +135,9 @@ class Box:
         except ValidationError as exc:
             raise BoxError(f"invalid box message: {exc}") from exc
         existing = self.messages()
+        if self._arrival is not None:
+            self._arrival(signature=digest, occurrence_id=occurrence_id,
+                          emitting_stage=stage, emitting_origin=origin)
         for prior in existing:
             if prior.signature == digest:
                 return prior.id, False
