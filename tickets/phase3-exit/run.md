@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-The storm no-notify test covers run/drain, so it remains an unchanged preservation suite; Check owns seed approval and lift.
+The prior invalid review reply masked substantive findings against phase4-continue. Both approved seeds remain byte-identical. Missing contracts were verified on unchanged base 50e0c767f4bedbb9c90b12badedfec17a06d6392.
 
 ## Dead ends
 
-Removed an unnecessary embedded journal reference after measuring render headroom.
+The prior continuation omits required entry citations; restoring it unchanged would preserve the defect. Adding those citations fails plan resolution.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60m expected budget.
+Stopped during read-first validation, before implementation or Verification; budget was 60m expected / 90m stuck.
 
