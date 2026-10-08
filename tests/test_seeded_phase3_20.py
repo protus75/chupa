@@ -98,7 +98,7 @@ FILE_CHARS = {'chupa/daemon.py': 23259,
 
 STANDING_CONTEXT = ()
 
-AUTHORED = {'serve-activation': {'chars': 7592,
+AUTHORED = {'serve-activation': {'chars': 7719,
                       'plan': ('19.I', '19.P3.serve-activation', '18', '20'),
                       'context': ('chupa/daemon.py',
                                   'chupa/__main__.py',
