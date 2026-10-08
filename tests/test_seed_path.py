@@ -348,23 +348,65 @@ def test_row_seed_without_its_entry_unit_files_a_hardening_ticket_and_holds(repo
                                   "dispatch": "spec_gap_hold"}
     [hold] = [e.body for e in ctx.driver.journal.read() if e.body.get("signal") == "spec_gap_hold"]
     assert hold["awaits"] == ["harden-gamma-seed-1"]
-    assert not any(e.type == EventType.CAP_CONSUMED for e in ctx.driver.journal.read())
+    sha = git(repo, "rev-parse", f"HEAD:tickets/{STEM}/ticket.md").strip()
+    assert [e.body for e in ctx.driver.journal.read() if e.type == EventType.CAP_CONSUMED] == [
+        {"cap": "hardening", "ticket_sha": sha}]
 
 
 def test_spent_hardening_cap_routes_the_stem_to_the_reject_queue(repo):
+    from chupa.caps import consume
     from chupa.runner import hold_on_hardening
     add_registry_row(repo)
-    for n in (1, 2, 3):
-        path = repo / f"tickets/harden-gamma-seed-{n}/ticket.md"
-        path.parent.mkdir(parents=True)
-        path.write_text("earlier round\n")
     ctx, _ = context(repo, [])
-    for n in (1, 2, 3):
-        ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=f"harden-gamma-seed-{n}")
+    for _ in range(ctx.config.caps.hardening):
+        consume(ctx.driver.journal, STEM, "hardening", "earlier-ticket-blob")
+    history = ctx.driver.journal.read()
     asyncio.run(hold_on_hardening(ctx, ticket(repo), {"gamma-seed": ["still missing"]}, attempt=0))
-    assert terminal_body(ctx) == {"to": "gate_failed", "stage": "check", "reason": "spec_gap",
+    assert terminal_body(ctx) == {"to": "gate_failed", "stage": "check", "reason": "hardening cap spent",
                                   "dispatch": "reject_queue", "routed": "reject_queue"}
-    assert not (repo / "tickets/harden-gamma-seed-4").exists()
+    assert not list((repo / "tickets").glob("harden-*"))
+    assert ctx.driver.journal.read()[len(history):] == [ctx.driver.journal.read()[-1]]
+
+
+@pytest.mark.parametrize("terminal", ["already_satisfied", "rejected"])
+def test_already_satisfied_or_rejected_hardener_never_re_holds_forever(repo, terminal):
+    from chupa.drain import awaited_hardening
+    from chupa.runner import hold_on_hardening
+
+    add_registry_row(repo)
+    ctx, _ = context(repo, [])
+    gaps = {"gamma-seed": ["still missing"]}
+
+    def hold(attempt):
+        asyncio.run(hold_on_hardening(ctx, ticket(repo), gaps, attempt=attempt))
+
+    hold(0)
+    assert awaited_hardening(ctx.driver.journal.read(), STEM) == ("harden-gamma-seed-1",)
+    ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": terminal}, ticket="harden-gamma-seed-1")
+    assert awaited_hardening(ctx.driver.journal.read(), STEM) == ()
+    hold(1)
+    assert (repo / "tickets/harden-gamma-seed-2/ticket.md").is_file()
+    assert awaited_hardening(ctx.driver.journal.read(), STEM) == ("harden-gamma-seed-2",)
+
+    # Awaiting an open round costs the same unit as filing a new one.
+    for attempt in range(2, ctx.config.caps.hardening):
+        hold(attempt)
+    history = ctx.driver.journal.read()
+    draws = [e for e in history if e.type == EventType.CAP_CONSUMED and e.ticket == STEM]
+    sha = git(repo, "rev-parse", f"HEAD:tickets/{STEM}/ticket.md").strip()
+    assert [e.body for e in draws] == [{"cap": "hardening", "ticket_sha": sha}] * ctx.config.caps.hardening
+    accounting = [e for e in history if e.ticket == STEM
+                  and e.type in {EventType.CAP_CONSUMED, EventType.STATE_TRANSITION}]
+    assert [e.type for e in accounting] == [EventType.CAP_CONSUMED, EventType.STATE_TRANSITION] * len(draws)
+    assert all(e.body.get("dispatch") == "spec_gap_hold"
+               for e in accounting if e.type == EventType.STATE_TRANSITION)
+
+    files = sorted((repo / "tickets").glob("harden-*/ticket.md"))
+    hold(ctx.config.caps.hardening)
+    assert terminal_body(ctx) == {"to": "gate_failed", "stage": "check", "reason": "hardening cap spent",
+                                  "dispatch": "reject_queue", "routed": "reject_queue"}
+    assert sorted((repo / "tickets").glob("harden-*/ticket.md")) == files
+    assert ctx.driver.journal.read()[len(history):] == [ctx.driver.journal.read()[-1]]
 
 
 def test_review_that_never_converges_is_a_spec_gap(repo):
@@ -399,7 +441,9 @@ def test_premise_naming_a_missing_entry_unit_files_a_hardening_ticket_not_a_park
     assert (repo / "tickets/harden-gamma-seed-1/ticket.md").is_file()
     assert terminal_body(ctx) == {"to": "premise_failed", "stage": "implement", "reason": "spec_gap",
                                   "dispatch": "spec_gap_hold"}
-    assert not any(e.type == EventType.CAP_CONSUMED for e in ctx.driver.journal.read())  # no premise_bounce
+    sha = git(repo, "rev-parse", f"HEAD:tickets/{STEM}/ticket.md").strip()
+    assert [e.body for e in ctx.driver.journal.read() if e.type == EventType.CAP_CONSUMED] == [
+        {"cap": "hardening", "ticket_sha": sha}]  # no premise_bounce
     assert [r.surface for r in llm.requests] == ["implement"]
 
 
@@ -415,6 +459,9 @@ def test_premise_naming_a_fact_a_complete_entry_unit_omits_files_hardening(repo)
     assert outcome == "premise_failed"
     assert terminal_body(ctx)["dispatch"] == "spec_gap_hold"
     assert "omits which carrier" in (repo / "tickets/harden-gamma-seed-1/ticket.md").read_text()
+    sha = git(repo, "rev-parse", f"HEAD:tickets/{STEM}/ticket.md").strip()
+    assert [e.body for e in ctx.driver.journal.read() if e.type == EventType.CAP_CONSUMED] == [
+        {"cap": "hardening", "ticket_sha": sha}]
 
 
 def test_premise_without_an_entry_unit_gap_keeps_the_ordinary_park(repo):

@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 
 from chupa import caps
+from chupa.hardening import round_state
 from chupa.journal import TERMINAL_STATES, Event, EventType
 from chupa.lockfile import Lockfile
 from chupa.reconcile import reconcile
@@ -58,8 +59,7 @@ def awaited_hardening(events: Iterable[Event], stem: str) -> tuple[str, ...]:
         return ()
     hold = next(e.body for e in reversed(history) if e.type == EventType.SIGNAL
                 and e.ticket == stem and e.body.get("signal") == SPEC_GAP_HOLD)
-    last = last_states(history)
-    return tuple(s for s in hold["awaits"] if last.get(s) not in SETTLED)
+    return tuple(s for s in hold["awaits"] if round_state(history, s) == "open")
 
 
 def premise_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:

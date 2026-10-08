@@ -4,7 +4,7 @@ import re
 from collections.abc import Collection, Iterable
 from dataclasses import dataclass, field
 
-from chupa.caps import CAPS
+from chupa.caps import DECLARED_CAPS
 from chupa.journal import Event, EventType, Journal, TERMINAL_STATES
 
 
@@ -34,7 +34,7 @@ class _Run:
     completions: set[str | None] = field(default_factory=set)
 
 
-def audit(segments: Iterable[tuple[Event, ...]], caps: Collection[str] = CAPS) -> list[Violation]:
+def audit(segments: Iterable[tuple[Event, ...]], caps: Collection[str] = DECLARED_CAPS) -> list[Violation]:
     """Fold the journal's ordered segments, returning every invariant violation."""
     violations: list[Violation] = []
     runs: dict[str, _Run] = {}
@@ -115,6 +115,6 @@ def audit(segments: Iterable[tuple[Event, ...]], caps: Collection[str] = CAPS) -
     return violations
 
 
-def audit_journal(journal: Journal, caps: Collection[str] = CAPS) -> list[Violation]:
+def audit_journal(journal: Journal, caps: Collection[str] = DECLARED_CAPS) -> list[Violation]:
     """Audit through the journal's one parser."""
     return audit(journal.read_segments(), caps)

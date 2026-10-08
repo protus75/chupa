@@ -20,11 +20,12 @@ import yaml
 from chupa.artifacts import Finding, Harvest, StageResult
 from chupa.box import BOX_DIR
 from chupa.storm import arrival_id
-from chupa.caps import capability, consume, next_rung, spent, spent_reason
+from chupa.caps import capability, consume, next_rung, remaining, spent, spent_reason
 from chupa.config import Config, ConfigSnapshot
 from chupa.driver import Driver
 from chupa.effects import Effects
 from chupa.git import Git
+from chupa.hardening import round_state
 from chupa.journal import TERMINAL_STATES, Event, EventType, Journal
 from chupa.llm import LLM
 from chupa.lockfile import Lockfile
@@ -328,31 +329,32 @@ def premise_spec_gaps(ctx: StageContext, findings: list[Finding]) -> dict[str, l
 async def hold_on_hardening(ctx: StageContext, ticket: Ticket, gaps: dict[str, list[str]], *, attempt: int,
                             to: str = "gate_failed", stage: str | None = "check") -> None:
     """File one hardening ticket per gapped entry unit (or await its open one) and hold the stem on them;
-    past the hardening cap the stem routes to the Reject queue. No diagnosis, no cap draw (section 11.4)."""
+    each held terminal draws one lineage hardening unit, with no diagnosis (section 11.4)."""
+    history = ctx.driver.journal.read()
+    if remaining(ctx.config.caps, history, ticket.stem, "hardening") <= 0:
+        ctx.driver.journal.append(EventType.STATE_TRANSITION,
+                                  {"to": to, "stage": stage, "reason": "hardening cap spent",
+                                   "dispatch": "reject_queue", "routed": "reject_queue"}, ticket=ticket.stem)
+        return
+    ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
+    consume(ctx.driver.journal, ticket.stem, "hardening", ticket_sha)
     plan = (ctx.repo / PLAN_FILE).read_text()
     rows = registry_rows(plan)
-    states = last_states(ctx.driver.journal.read())
     awaits: list[str] = []
-    capped: list[str] = []
     for row, facts in sorted(gaps.items()):
         rounds = sorted((int(m.group(2)), p.parent.name) for p in (ctx.repo / TICKETS_DIR).glob("harden-*/ticket.md")
                         if (m := HARDENING_STEM.fullmatch(p.parent.name)) and m.group(1) == row)
-        if rounds and states.get(rounds[-1][1]) != "merged":
+        if rounds and round_state(history, rounds[-1][1]) == "open":
             awaits.append(rounds[-1][1])
-        elif len(rounds) >= ctx.config.caps.hardening:
-            capped.append(row)
         else:
             awaits.append(await file_hardening(ctx, ticket.stem, row, rows[row], facts, len(rounds) + 1,
                                                plan=plan, attempt=attempt))
-    terminal: dict = {"to": to, "stage": stage, "reason": "spec_gap"}
-    if capped:
-        terminal.update(dispatch="reject_queue", routed="reject_queue")
-    else:
-        ctx.driver.journal.append(EventType.SIGNAL, {"signal": SPEC_GAP_HOLD, "awaits": awaits,
-                                                     "gaps": {r: f for r, f in sorted(gaps.items())}},
-                                  ticket=ticket.stem)
-        terminal["dispatch"] = SPEC_GAP_HOLD
-    ctx.driver.journal.append(EventType.STATE_TRANSITION, terminal, ticket=ticket.stem)
+    ctx.driver.journal.append(EventType.SIGNAL, {"signal": SPEC_GAP_HOLD, "awaits": awaits,
+                                                 "gaps": {r: f for r, f in sorted(gaps.items())}},
+                              ticket=ticket.stem)
+    ctx.driver.journal.append(EventType.STATE_TRANSITION,
+                              {"to": to, "stage": stage, "reason": "spec_gap", "dispatch": SPEC_GAP_HOLD},
+                              ticket=ticket.stem)
 
 
 def hardening_text(seeding: str, row: str, phase: int, row_spec: Mapping, facts: list[str], unit_exists: bool) -> str:
