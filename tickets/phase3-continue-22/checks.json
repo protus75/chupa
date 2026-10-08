@@ -1,13 +1,13 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "2ed4f20bcdf15c1c0508276e8d26355abb3afc08",
+  "produced_at_sha": "9c97eac2cea5027c3cded02f8e793b6bde58fbca",
   "stem": "phase3-continue-22",
-  "passed": false,
+  "passed": true,
   "changed_files": [
     "tests/test_seeded_phase3_22.py"
   ],
-  "inserted_lines": 333,
+  "inserted_lines": 305,
   "bypassed": [],
   "reports": [
     {
@@ -36,81 +36,25 @@
     },
     {
       "code": "requisition_review",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "requisition_review",
-          "path": "tickets/phase3-continue-23/ticket.md",
-          "line": null,
-          "message": "entry unit 19.P3.daemon-soak is missing",
-          "paved_road": "harden the entry unit through section 11.4; never invent its facts in the seed",
-          "kind": "spec_gap",
-          "unit": "19.P3.daemon-soak"
-        },
-        {
-          "code": "requisition_review",
-          "path": "tickets/phase3-continue-23/ticket.md",
-          "line": null,
-          "message": "entry unit 19.P3.daemon-soak-runner is missing",
-          "paved_road": "harden the entry unit through section 11.4; never invent its facts in the seed",
-          "kind": "spec_gap",
-          "unit": "19.P3.daemon-soak-runner"
-        },
-        {
-          "code": "requisition_review",
-          "path": "tickets/phase3-continue-23/ticket.md",
-          "line": null,
-          "message": "entry unit 19.P3.soak-run is missing",
-          "paved_road": "harden the entry unit through section 11.4; never invent its facts in the seed",
-          "kind": "spec_gap",
-          "unit": "19.P3.soak-run"
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false
     }
   ],
   "seeds": [
     {
       "stem": "phase3-continue-23",
-      "ticket_sha": "8fc3062b06adf98110c06cbc1842a2405ef95878",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "requisition_review",
-          "path": "tickets/phase3-continue-23/ticket.md",
-          "line": null,
-          "message": "entry unit 19.P3.daemon-soak is missing",
-          "paved_road": "harden the entry unit through section 11.4; never invent its facts in the seed",
-          "kind": "spec_gap",
-          "unit": "19.P3.daemon-soak"
-        },
-        {
-          "code": "requisition_review",
-          "path": "tickets/phase3-continue-23/ticket.md",
-          "line": null,
-          "message": "entry unit 19.P3.daemon-soak-runner is missing",
-          "paved_road": "harden the entry unit through section 11.4; never invent its facts in the seed",
-          "kind": "spec_gap",
-          "unit": "19.P3.daemon-soak-runner"
-        },
-        {
-          "code": "requisition_review",
-          "path": "tickets/phase3-continue-23/ticket.md",
-          "line": null,
-          "message": "entry unit 19.P3.soak-run is missing",
-          "paved_road": "harden the entry unit through section 11.4; never invent its facts in the seed",
-          "kind": "spec_gap",
-          "unit": "19.P3.soak-run"
-        }
-      ],
-      "mechanical": "entry unit gap"
+      "ticket_sha": "5f04c7292d31d548af5d76a4c2ebc20a29c863c2",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
     },
     {
       "stem": "worker-recovery-disposition",
       "ticket_sha": "df4ba30e4f7f796b60851fdd266beb12d33fea74",
       "verdict": "approve",
       "findings": [],
-      "mechanical": null
+      "mechanical": "approved earlier"
     }
   ],
   "verification": [
@@ -123,7 +67,7 @@
         "tests/test_seeded_phase3_22.py"
       ],
       "rc": 0,
-      "tail": "..............                                                           [100%]\n14 passed in 0.53s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "..............                                                           [100%]\n14 passed in 0.54s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -134,7 +78,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": ".................. [ 31%]\n........................................................................ [ 34%]\n........................................................................ [ 38%]\n........................................................................ [ 41%]\n........................................................................ [ 44%]\n........................................................................ [ 47%]\n........................................................................ [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 57%]\n........................................................................ [ 60%]\n........................................................................ [ 63%]\n........................................................................ [ 66%]\n........................................................................ [ 69%]\n........................................................................ [ 72%]\n........................................................................ [ 76%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 95%]\n........................................................................ [ 98%]\n.......................................                                  [100%]\n2271 passed in 186.18s (0:03:06)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": ".................. [ 31%]\n........................................................................ [ 34%]\n........................................................................ [ 38%]\n........................................................................ [ 41%]\n........................................................................ [ 44%]\n........................................................................ [ 47%]\n........................................................................ [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 57%]\n........................................................................ [ 60%]\n........................................................................ [ 63%]\n........................................................................ [ 66%]\n........................................................................ [ 69%]\n........................................................................ [ 72%]\n........................................................................ [ 76%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 95%]\n........................................................................ [ 98%]\n.......................................                                  [100%]\n2271 passed in 184.24s (0:03:04)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
