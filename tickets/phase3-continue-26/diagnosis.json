@@ -1,0 +1,19 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "691bd0b33a9f04aca2468e1b26885c2de35a35f1",
+  "stem": "phase3-continue-26",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "retry",
+  "lessons": [
+    "The implementation passed: the commit held only tests/test_seeded_phase3_26.py, and both Verification commands passed (14 and 2473 tests). Check failed only because the requisition review reply had 1 schema error. Keep the approach and both seeds unchanged.",
+    "Do not re-author soak-run or phase3-continue-27 to fix this finding. The finding is about the requisition review reply's shape, not seed content. Per the ticket, keep approved seeds verbatim and re-author only snagged ones.",
+    "The harvest does not say which requisition review field failed the schema. If the error happens again, a human should read the Check reviewer's raw reply and the requisition verdict schema in merged code to find the field."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
