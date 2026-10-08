@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Staged-plan coverage exercises _scan directly because intake intentionally refuses unrelated staged files.
+Round-less Reject terminals retain prior round coverage; ordinary premise re-offers remain free.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 90-minute expected budget.
+Expected 90 minutes; completed in approximately 11 minutes.
 
