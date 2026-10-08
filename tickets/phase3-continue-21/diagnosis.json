@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "f8516976e2d635e3e17f15132048176382cbff5b",
+  "produced_at_sha": "c68ba7de5bb00b350b367164d618dbbde2c5e78d",
   "stem": "phase3-continue-21",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "reject",
+  "verdict": "retry",
   "lessons": [
-    "The premise is false as written. The registry row outbox-only-admission (deep, cite [\"19.L\", 10]) is admissions[23], but entry unit 19.P3.outbox-only-admission has no heading in CHUPA_PLAN.md. Under 19.L SPEC DEPTH and section 11.4, a missing unit is a spec_gap and needs hardening.",
-    "Before regenerating, harden 19.P3.outbox-only-admission after its phase's last unit. It needs Owner, Records, Observable and Tests bullets that pass plan lint, and its facts must come from the 19.L run-lane admission rule and section 10, not invented ones.",
-    "Keep worker-recovery-disposition as phase3-continue-22's payload; it resolves cleanly (5589 chars). Do not author outbox-only-admission or phase3-continue-23 in this batch. They are named only as the lookahead that phase3-continue-22 cites.",
-    "After the plan repair, rerun entry_unit_gap and resolve_plan_contract on all three units at the new main head: serve-merge-admission, worker-recovery-disposition and outbox-only-admission. Then author both seeds and tests/test_seeded_phase3_21.py, recording that head as the authoring snapshot."
+    "Validate only the units this ticket names: 19.P3.serve-merge-admission (payload) and 19.P3.worker-recovery-disposition (next-seeder lookahead). Scope says 'The next-seeder lookahead is 19.P3.worker-recovery-disposition'. Both passed entry_unit_gap and resolve_plan_contract in attempt 1.",
+    "Do not validate admissions[23] outbox-only-admission here. It is phase3-continue-23's payload. phase3-continue-22 validates it when it runs, so its missing entry unit does not block authoring this batch.",
+    "phase3-continue-22's Plan contract is exactly 19.L, 19.I, 19.P3, section 13, 19.P3.worker-recovery-disposition, section 6, section 15. Its body names phase3-continue-23 starting at admissions[23:] without citing 19.P3.outbox-only-admission.",
+    "Then author serve-merge-admission (depends phase3-continue-21, high/high, cites 19.I, 19.P3.serve-merge-admission, section 9), phase3-continue-22 and tests/test_seeded_phase3_21.py with the nine named tests. Leave both seeds uncommitted and commit only the test."
   ],
   "mechanical": null,
   "spec_version": "1.1",
