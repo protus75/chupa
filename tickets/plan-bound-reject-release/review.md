@@ -1,10 +1,10 @@
 # Review: snag
 
-The plan-bound release path works for `reject_queue`-routed terminals, but a spec-gap hold terminal that became a Reject arrival is released by a machine keep and re-runs without drawing a `retry` unit.
+The plan-bound hold and release logic matches the ticket, but `_scan` now reads the plan from HEAD on every drain whenever a working-tree CHUPA_PLAN.md exists, so the drain crashes when that file is not committed.
 
 ## Findings
 
-- [logic] chupa/drain.py:382 A spec-gap hold terminal carries `plan_units` along with `dispatch: spec_gap_hold`. When any cap is spent, `_settle` journals a `reject_arrival` for it, which makes it a plan-bound Reject arrival. Example: `diagnosis` is spent, `retry` is not, and the hardener's merge changed a bound unit. `_select` then releases the stem and `_dispatch` journals the machine-actor keep. The draw is still skipped because `body.get("dispatch") == SPEC_GAP_HOLD`. The stem re-runs from the Reject queue for free, despite a spent cap. The ticket's Definition of rejected forbids this: a machine release that draws no `retry` unit. (do instead: Let the free re-run apply only to a released hold that was not taken out of the Reject queue. Set a flag when `_dispatch` journals the machine keep (the stem is in `reject_queue`) and always draw one `retry` unit in that case, whatever `dispatch` says. Add a drain test with a spent non-retry cap on a `spec_gap_hold` terminal whose bound unit changes, and assert exactly one `retry` draw.)
+- [logic] chupa/drain.py:301 `committed_plan` runs `git show HEAD:CHUPA_PLAN.md` whenever `plan is not None`, even when no plan-bound arrival exists. If CHUPA_PLAN.md is in the working tree but not in HEAD (untracked, only staged, or deleted from HEAD), `Git._run` raises GitError. That aborts every drain scan, including drains that have nothing to do with a plan-bound arrival. The merge base read only the working-tree file and tolerated this state. (do instead: Read the committed plan only when `plan_bound` is true, and treat a missing `HEAD:CHUPA_PLAN.md` as an empty plan (every unit `absent`) instead of letting GitError escape `_scan`.)
 
 ## Record
 
@@ -12,17 +12,17 @@ The plan-bound release path works for `reject_queue`-routed terminals, but a spe
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "3d8cb44cb9214ee89880f133b734da8f07df82c5",
+  "produced_at_sha": "0cfe3556ea209b2a12b23586b39fd6d573e17e9d",
   "stem": "plan-bound-reject-release",
-  "reviewed_sha": "3d8cb44cb9214ee89880f133b734da8f07df82c5",
-  "summary": "The plan-bound release path works for `reject_queue`-routed terminals, but a spec-gap hold terminal that became a Reject arrival is released by a machine keep and re-runs without drawing a `retry` unit.",
+  "reviewed_sha": "0cfe3556ea209b2a12b23586b39fd6d573e17e9d",
+  "summary": "The plan-bound hold and release logic matches the ticket, but `_scan` now reads the plan from HEAD on every drain whenever a working-tree CHUPA_PLAN.md exists, so the drain crashes when that file is not committed.",
   "findings": [
     {
       "code": "logic",
       "path": "chupa/drain.py",
-      "line": 382,
-      "message": "A spec-gap hold terminal carries `plan_units` along with `dispatch: spec_gap_hold`. When any cap is spent, `_settle` journals a `reject_arrival` for it, which makes it a plan-bound Reject arrival. Example: `diagnosis` is spent, `retry` is not, and the hardener's merge changed a bound unit. `_select` then releases the stem and `_dispatch` journals the machine-actor keep. The draw is still skipped because `body.get(\"dispatch\") == SPEC_GAP_HOLD`. The stem re-runs from the Reject queue for free, despite a spent cap. The ticket's Definition of rejected forbids this: a machine release that draws no `retry` unit.",
-      "paved_road": "Let the free re-run apply only to a released hold that was not taken out of the Reject queue. Set a flag when `_dispatch` journals the machine keep (the stem is in `reject_queue`) and always draw one `retry` unit in that case, whatever `dispatch` says. Add a drain test with a spent non-retry cap on a `spec_gap_hold` terminal whose bound unit changes, and assert exactly one `retry` draw.",
+      "line": 301,
+      "message": "`committed_plan` runs `git show HEAD:CHUPA_PLAN.md` whenever `plan is not None`, even when no plan-bound arrival exists. If CHUPA_PLAN.md is in the working tree but not in HEAD (untracked, only staged, or deleted from HEAD), `Git._run` raises GitError. That aborts every drain scan, including drains that have nothing to do with a plan-bound arrival. The merge base read only the working-tree file and tolerated this state.",
+      "paved_road": "Read the committed plan only when `plan_bound` is true, and treat a missing `HEAD:CHUPA_PLAN.md` as an empty plan (every unit `absent`) instead of letting GitError escape `_scan`.",
       "kind": null,
       "unit": null
     }
