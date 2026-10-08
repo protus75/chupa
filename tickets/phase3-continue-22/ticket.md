@@ -63,7 +63,7 @@ uv run pytest -q
 ```
 
 ## Definition of rejected
-A governing entry lacks a required fact or contradicts merged behavior, or a criteria-forced edit cannot be earned under the fence: return premise_failed naming the unit for section 11.4 hardening. Never invent missing facts.
+A governing entry lacks a required fact or contradicts merged behavior, or a criteria-forced edit cannot be earned under the fence: return premise_failed naming the unit for section 11.4 hardening. Never invent missing facts. A payload or lookahead entry unit that is missing or lacks a SPEC DEPTH part is reported as a `premise` finding with `kind: spec_gap` and that `unit` (any row of this phase is hardenable, section 11.4), so the engine hardens it.
 
 ## Time budget
 - expected: 60m
