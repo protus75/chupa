@@ -1,20 +1,15 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "c68ba7de5bb00b350b367164d618dbbde2c5e78d",
+  "produced_at_sha": "d7aee8f6cfa2a0fc3f4ae2cb45d0b30cb5fcc8ff",
   "stem": "phase3-continue-21",
-  "attempt": 1,
+  "attempt": 2,
   "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "retry",
-  "lessons": [
-    "Validate only the units this ticket names: 19.P3.serve-merge-admission (payload) and 19.P3.worker-recovery-disposition (next-seeder lookahead). Scope says 'The next-seeder lookahead is 19.P3.worker-recovery-disposition'. Both passed entry_unit_gap and resolve_plan_contract in attempt 1.",
-    "Do not validate admissions[23] outbox-only-admission here. It is phase3-continue-23's payload. phase3-continue-22 validates it when it runs, so its missing entry unit does not block authoring this batch.",
-    "phase3-continue-22's Plan contract is exactly 19.L, 19.I, 19.P3, section 13, 19.P3.worker-recovery-disposition, section 6, section 15. Its body names phase3-continue-23 starting at admissions[23:] without citing 19.P3.outbox-only-admission.",
-    "Then author serve-merge-admission (depends phase3-continue-21, high/high, cites 19.I, 19.P3.serve-merge-admission, section 9), phase3-continue-22 and tests/test_seeded_phase3_21.py with the nine named tests. Leave both seeds uncommitted and commit only the test."
-  ],
-  "mechanical": null,
+  "verdict": "abandon-human",
+  "lessons": [],
+  "mechanical": "premise_bounce cap spent",
   "spec_version": "1.1",
-  "provider": "claude",
-  "model": "claude-opus-5-5"
+  "provider": null,
+  "model": null
 }
