@@ -32,6 +32,7 @@ state: confirmed
 
 ## On-demand
 - tests/test_daemon_composition.py
+- chupa/driver.py
 
 ## Plan contract
 - 19.I
@@ -57,6 +58,8 @@ Unfenced Verification suites stay unchanged preservation suites, neither fenced 
 - chupa/serve.py
 - chupa/daemon.py
 - chupa/__main__.py
+- chupa/triage.py
+- chupa/driver.py
 - tests/test_serve.py
 - tests/test_daemon_composition.py
 - tests/test_daemon_tasks.py
