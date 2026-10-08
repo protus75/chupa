@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "72fa20ab317b8c5f29919b3756fcdfc97af1a836",
+  "stem": "phase3-exit",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "retry",
+  "lessons": [
+    "The implementation itself passed: all four Verification commands exit 0, and commit 72fa20a contains only tests/test_phase3_exit.py and tests/test_seeded_phase4_core.py. Keep that diff and seed layout. Only Check's requisition_review reply failed, on its schema (chupa/requisition.py:138-147).",
+    "Leave tests and seeds unchanged to clear this finding. RequisitionReply (chupa/requisition.py:31-45) is strict and extra=forbid. It needs findings empty exactly when verdict is approve, a kind on every finding, and spec_gap units limited to the ticket's hardenable_units.",
+    "Read the spooled requisition_review/call-NN/output.txt for the failing seed. The material does not say which of the three seeds (watchdog-event-stream, notify-transport, phase4-continue) got the invalid reply. A snag or rma verdict with findings [] would trip the validator at line 40.",
+    "If a spec_gap finding caused the error, the seed's Plan contract must cite the owning unit so hardenable_units includes it (validate_finding_units, requisition.py:25-28). Do not invent a unit name the plan does not state."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
