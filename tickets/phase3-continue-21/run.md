@@ -1,10 +1,10 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-Both governing units validated and the new snapshot suite passed 14 tests; the full suite reported 2223 passed and one failure. Prepared seeds and test remain uncommitted.
+Recovery lookahead also earns chupa/journal.py because SIGNAL_NAMES currently refuses recovery_alert; the successor carries this closure.
 
 ## Dead ends
 
@@ -12,7 +12,7 @@ none
 
 ## Second problems filed
 
-- box-000279-a929595c: The provider dormancy fixture passes object() to TicketWriter, which requires ticket.stem; reproduced on base d7aee8f6cfa2a0fc3f4ae2cb45d0b30cb5fcc8ff.
+none
 
 ## Resolved engine/model
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped within the expected budget on a verified pre-existing failure.
+Completed within the 60-minute expected budget.
 
