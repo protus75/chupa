@@ -556,6 +556,7 @@ def test_classified_error_preserves_scrubbed_evidence_and_login_road(tmp_path, n
 def test_cli_failure_classifier_is_dormant(tmp_path, monkeypatch):
     from chupa import __main__, runner
     from chupa.driver import LlmStage
+    from chupa.tickets import validate_ticket
     from pydantic import BaseModel
 
     config(tmp_path)
@@ -592,9 +593,39 @@ def test_cli_failure_classifier_is_dormant(tmp_path, monkeypatch):
 
     monkeypatch.setattr(__main__, "SubprocessExec", lambda: CompositionExec(CURRENT, "1.2.3"))
 
-    def run_ticket(_stem, checkout, dispatch):
+    def run_ticket(stem, checkout, dispatch):
+        ticket = validate_ticket(stem, textwrap.dedent("""\
+            ---
+            priority: P2
+            kind: chore
+            source: human
+            state: confirmed
+            ---
+            ## Depends on
+            none
+            ## Context
+            - config.yaml
+            ## Goal / Why
+            Exercise provider classifier dormancy through production composition.
+            ## Scope in / Scope out
+            In: provider calls. Out: host work.
+            ## Scope fence
+            - config.yaml
+            ## Acceptance criteria
+            1. `uv run pytest -q tests/test_providers.py` exits 0.
+            ## Verification
+            ```
+            uv run pytest -q tests/test_providers.py
+            ```
+            ## Definition of rejected
+            Provider failure classification runs in the default composition.
+            ## Time budget
+            - expected: 20m
+            - stuck: 60m
+            """), checkout.repo)
+
         async def run():
-            await dispatch(object())
+            await dispatch(ticket)
             return 0
         return run()
 
