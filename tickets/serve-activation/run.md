@@ -4,7 +4,7 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The exact Verification command exited 4 because tests/test_serve.py does not yet exist; creating it belongs to this ticket, so its absence is not a second problem.
+The previous triage/Driver fence blocker is cleared. Verification exits 4 because tests/test_serve.py does not yet exist; creating it belongs to this ticket and is not a second problem.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during initial inspection, before the expected 60-minute implementation budget.
+Stopped during initial inspection, within the expected 60-minute budget.
 
