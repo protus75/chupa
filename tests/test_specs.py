@@ -48,6 +48,60 @@ seeds:
     assert "Tests" in entry_unit_gap(plan.replace("- **Tests:** t", "- **Tests:**"), "19.P3.cited")
 
 
+def test_phase_citing_ticket_hardens_every_row_of_its_phase():
+    from pydantic import ValidationError
+    from chupa.requisition import RequisitionReply
+
+    plan = """### 19.P3 Phase 3
+```yaml
+# BEGIN_REGISTRY_P3
+seeds:
+  payload: {}
+  own: {}
+  present: {}
+  lookahead: {}
+  exit: {exit: true}
+# END_REGISTRY_P3
+```
+### 19.P3.present Present
+- **Owner:** o
+- **Records:** r
+- **Observable:** b
+- **Tests:** t
+### 19.P4 Phase 4
+```yaml
+# BEGIN_REGISTRY_P4
+seeds:
+  other: {}
+  other-exit: {exit: true}
+# END_REGISTRY_P4
+```
+"""
+    cites = ("19.P3.present", "19.P3", "19.P3.own", "19.P3", "19.P3.exit", "19.L")
+    units = hardenable_units(plan, "own", iter(cites))
+    assert units == ("19.P3.own", "19.P3.present", "19.P3.payload", "19.P3.lookahead")
+    assert hardenable_units(plan, "exit", ("19.P3",)) == (
+        "19.P3.payload", "19.P3.own", "19.P3.present", "19.P3.lookahead")
+    assert hardenable_units(plan, "unregistered", ("19.P4", "19.P3")) == (
+        "19.P4.other", "19.P3.payload", "19.P3.own", "19.P3.present", "19.P3.lookahead")
+    without_phase = hardenable_units(plan, "own", ("19.P3.present", "19.L"))
+    assert without_phase == ("19.P3.own", "19.P3.present")
+    assert hardenable_units(plan, "unregistered", ("19.L",)) == ()
+    for uid in ("19.P3.payload", "19.P3.lookahead"):
+        assert entry_unit_gap(plan, uid) == f"entry unit {uid} is missing"
+        reply = {"verdict": "snag", "summary": "Missing phase entry", "findings": [{
+            "code": "plan_entry", "message": "Entry is missing", "paved_road": "State the entry contract",
+            "kind": "spec_gap", "unit": uid,
+        }]}
+        assert RequisitionReply.model_validate(reply, context={"hardenable_units": units}).findings[0].unit == uid
+        with pytest.raises(ValidationError, match="spec_gap unit must be one of"):
+            RequisitionReply.model_validate(reply, context={"hardenable_units": without_phase})
+    for uid in ("19.P3.exit", "19.P4.other"):
+        reply["findings"][0]["unit"] = uid
+        with pytest.raises(ValidationError, match="spec_gap unit must be one of"):
+            RequisitionReply.model_validate(reply, context={"hardenable_units": units})
+
+
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parent.parent / "specs"
     for name, version in (("implement", "1.2"), ("requisition_review", "2.1")):
