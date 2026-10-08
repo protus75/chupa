@@ -88,6 +88,7 @@ def test_every_call_is_dir_pinned_and_passes_env_and_timeout():
             ["restore", "--source", "main", "--staged", "--worktree", "--", "tickets"],
         ),
         (lambda g: g.merge_squash(REPO, "t-1"), ["merge", "--squash", "t-1"]),
+        (lambda g: g.push(REPO, "origin", "main"), ["push", "origin", "main"]),
         (lambda g: g.describe(REPO), ["describe", "--tags", "--always", "--dirty"]),
     ],
 )
@@ -95,6 +96,13 @@ def test_op_argv(call, argv):
     g, exec_ = git()
     run(call(g))
     assert exec_.argvs == [["git", "-C", "/repo", *argv]]
+    assert exec_.calls[0][1:] == (REPO, ENV, 30.0)
+    if argv[0] == "push":
+        g, exec_ = git((1, "output", "refused"))
+        with pytest.raises(GitError) as error:
+            run(call(g))
+        assert error.value.argv == ["git", "-C", "/repo", *argv]
+        assert (error.value.rc, error.value.out, error.value.err) == (1, "output", "refused")
 
 
 def test_rev_parse_and_describe_strip_output():
@@ -185,6 +193,10 @@ def test_option_shaped_or_empty_refs_are_refused_before_exec(ref):
         run(g.merge_base(REPO, "main", ref))
     with pytest.raises(ValueError):
         run(g.worktree_add_detached(REPO, Path("/wt/base"), ref))
+    with pytest.raises(ValueError):
+        run(g.push(REPO, ref, "main"))
+    with pytest.raises(ValueError):
+        run(g.push(REPO, "origin", ref))
     assert exec_.calls == []
 
 

@@ -135,6 +135,9 @@ class Git:
     async def merge_squash(self, dir: Path, branch: str) -> None:
         await self._run(dir, "merge", "--squash", _ref(branch))
 
+    async def push(self, dir: Path, remote: str, branch: str) -> None:
+        await self._run(dir, "push", _ref(remote), _ref(branch))
+
     async def describe(self, dir: Path) -> str:
         """Diagnostics only: derives the lockfile instance_id for an untagged dev instance (section 6)."""
         return (await self._run(dir, "describe", "--tags", "--always", "--dirty")).strip()

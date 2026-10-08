@@ -7,6 +7,11 @@ from pathlib import Path
 
 from chupa.config import Config, ConfigSnapshot, snapshot_config
 from chupa.box import Box
+from chupa.checkpoint import Checkpoint
+from chupa.effects import Effects
+from chupa.enginelog import EngineLog
+from chupa.git import Git
+from chupa.timers import Timers
 from chupa.flake import Flake
 from chupa.control import CONTROL_DECISION, ControlInbox, ControlProjection, write_active
 from chupa.journal import EventType, Journal
@@ -26,6 +31,13 @@ from chupa.tickets import Ticket, parse_ticket, ticket_path
 from chupa.watcher import Watcher
 
 KILL_APPLIED = "kill_applied"
+
+
+def checkpoint_push(repo: Path, *, journal: Journal, effects: Effects, timers: Timers,
+                    git: Git, box: Box, clock: Clock, log: EngineLog) -> Checkpoint:
+    """Dormant boundary using the lock holder's existing writers; invoke poll explicitly."""
+    return Checkpoint(repo, journal=journal, effects=effects, timers=timers,
+                      git=git, box=box, clock=clock, log=log)
 
 
 def storm_producer(*, root: Path, fs: FileSystem, journal: Journal, clock: Clock) -> Box:
