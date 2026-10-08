@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "a0ec02b3d516814c0052ae2fcab1330f65bd00fd",
+  "stem": "phase3-continue-22",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Do not rerun until 19.P3.outbox-only-admission exists in CHUPA_PLAN.md. Live admissions[23] names it, but entry_unit_gap reports it missing and resolve_plan_contract finds 0 headings at base a0ec02b. The ticket requires validating this lookahead first.",
+    "After the plan repair is committed, rerun entry_unit_gap and resolve_plan_contract on 19.P3.outbox-only-admission at the new authoring head before authoring phase3-continue-23. Never guess its Owner, Records, Observable or Tests (Definition of rejected: never invent missing facts).",
+    "The worker payload 19.P3.worker-recovery-disposition passed validation. Once the lookahead resolves, author both seeds as scoped and keep the verbatim worker citations: 19.I, 19.P3.worker-recovery-disposition, section 6 and section 15.",
+    "The reply schema allowed spec_gap only for the payload unit, so the lookahead gap was reported with kind and unit null. A fact is missing: the plan does not say whether a lookahead unit may be named in spec_gap replies for section 11.4 hardening. Report it to a human rather than assuming."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
