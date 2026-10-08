@@ -1,7 +1,7 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "ff92996a5ba66eba19288bfb2a9c5c66db143e5f",
+  "produced_at_sha": "622cf9736724a5036aef7882bc71e5be233cccdd",
   "stem": "serve-activation",
   "passed": true,
   "changed_files": [
@@ -22,7 +22,7 @@
     "tests/test_restart_timers.py",
     "tests/test_serve.py"
   ],
-  "inserted_lines": 1394,
+  "inserted_lines": 1435,
   "bypassed": [],
   "reports": [
     {
@@ -80,7 +80,7 @@
         "tests/test_audit.py"
       ],
       "rc": 0,
-      "tail": "stop.py ................                          [ 21%]\ntests/test_kill_failure_suppression.py ......................            [ 24%]\ntests/test_heartbeat.py ....................................             [ 29%]\ntests/test_storm.py ......................................               [ 35%]\ntests/test_checkpoint.py ..........................................      [ 42%]\ntests/test_restart_timers.py .....................                       [ 45%]\ntests/test_stages.py ...............................                     [ 49%]\ntests/test_daemon_admission.py .........                                 [ 51%]\ntests/test_daemon_config.py ......................                       [ 54%]\ntests/test_control.py .................................................. [ 62%]\n........................                                                 [ 65%]\ntests/test_control_cli.py ......................                         [ 69%]\ntests/test_kill_cli_activation.py ...................................... [ 74%]\n....                                                                     [ 75%]\ntests/test_scheduler.py ............                                     [ 77%]\ntests/test_mergequeue.py ............................................... [ 84%]\n................                                                         [ 86%]\ntests/test_triage.py ........                                            [ 88%]\ntests/test_cli.py .................                                      [ 90%]\ntests/test_drain.py .................................................... [ 98%]\n......                                                                   [ 99%]\ntests/test_audit.py ....                                                 [100%]\n\n============================= 661 passed in 46.02s =============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "stop.py ................                          [ 21%]\ntests/test_kill_failure_suppression.py ......................            [ 24%]\ntests/test_heartbeat.py ....................................             [ 30%]\ntests/test_storm.py ......................................               [ 35%]\ntests/test_checkpoint.py ..........................................      [ 42%]\ntests/test_restart_timers.py .....................                       [ 45%]\ntests/test_stages.py ...............................                     [ 50%]\ntests/test_daemon_admission.py .........                                 [ 51%]\ntests/test_daemon_config.py ......................                       [ 54%]\ntests/test_control.py .................................................. [ 62%]\n........................                                                 [ 65%]\ntests/test_control_cli.py ......................                         [ 69%]\ntests/test_kill_cli_activation.py ...................................... [ 74%]\n....                                                                     [ 75%]\ntests/test_scheduler.py ............                                     [ 77%]\ntests/test_mergequeue.py ............................................... [ 84%]\n................                                                         [ 86%]\ntests/test_triage.py ........                                            [ 88%]\ntests/test_cli.py .................                                      [ 90%]\ntests/test_drain.py .................................................... [ 98%]\n......                                                                   [ 99%]\ntests/test_audit.py ....                                                 [100%]\n\n============================= 663 passed in 47.19s =============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
