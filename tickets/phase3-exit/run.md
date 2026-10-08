@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The prior invalid review reply masked substantive findings against phase4-continue. Both approved seeds remain byte-identical. Missing contracts were verified on unchanged base 50e0c767f4bedbb9c90b12badedfec17a06d6392.
+The repaired plan resolves the prior contract gaps; phase4-continue now cites them. Both approved seeds remain byte-identical, and all three seeds remain uncommitted for Check’s review and lift.
 
 ## Dead ends
 
-The prior continuation omits required entry citations; restoring it unchanged would preserve the defect. Adding those citations fails plan resolution.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during read-first validation, before implementation or Verification; budget was 60m expected / 90m stuck.
+Completed within the 60m expected and 90m stuck budgets; Verification finished in about 30 seconds.
 
