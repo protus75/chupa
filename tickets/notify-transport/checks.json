@@ -1,0 +1,84 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "80001844790080873f5e70b417dc0ababe2650db",
+  "stem": "notify-transport",
+  "passed": true,
+  "changed_files": [
+    "chupa/__main__.py",
+    "chupa/config.py",
+    "chupa/notify.py",
+    "chupa/seams.py",
+    "chupa/serve.py",
+    "tests/test_config.py",
+    "tests/test_notify.py",
+    "tests/test_serve.py"
+  ],
+  "inserted_lines": 380,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "tests/test_notify.py",
+        "tests/test_config.py",
+        "tests/test_serve.py"
+      ],
+      "rc": 0,
+      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/notify-transport\nconfigfile: pyproject.toml\nplugins: asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 95 items\n\ntests/test_notify.py ....                                                [  4%]\ntests/test_config.py .....................................               [ 43%]\ntests/test_serve.py .................................................... [ 97%]\n..                                                                       [100%]\n\n============================= 95 passed in 21.60s ==============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "tests/test_storm_notification_activation.py"
+      ],
+      "rc": 0,
+      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/notify-transport\nconfigfile: pyproject.toml\nplugins: asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 106 items\n\ntests/test_storm_notification_activation.py ............................ [ 26%]\n........................................................................ [ 94%]\n......                                                                   [100%]\n\n============================= 106 passed in 6.92s ==============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "tests/test_effects.py",
+        "tests/test_daemon_composition.py"
+      ],
+      "rc": 0,
+      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/notify-transport\nconfigfile: pyproject.toml\nplugins: asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 88 items\n\ntests/test_effects.py .............                                      [ 14%]\ntests/test_daemon_composition.py ....................................... [ 59%]\n....................................                                     [100%]\n\n============================== 88 passed in 8.06s ==============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
