@@ -159,7 +159,7 @@ def test_invalid_arrivals_and_callback_failures_do_not_publish(tmp_path, monkeyp
         journal.append(EventType.SIGNAL, dict(kind="storm_occurrence"))
         expected = ValueError
     elif damage == "journal":
-        journal.append(EventType.SIGNAL, dict(kind="other"))
+        journal.append(EventType.SIGNAL, dict(kind="drain_handoff"))
         next(journal.dir.glob("*.jsonl")).write_bytes(b"{}\n")
         expected = JournalCorruption
     else:

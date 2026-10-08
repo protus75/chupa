@@ -268,5 +268,5 @@ def test_a_closed_journal_handle_refuses_writes(tmp_path):
     j.append(EventType.SIGNAL, {"signal": HANDOFF_SIGNAL})
     j.close()
     with pytest.raises(RuntimeError, match="closed"):
-        j.append(EventType.SIGNAL, {"signal": "late"})
+        j.append(EventType.SIGNAL, {"signal": "drain_handoff"})
     assert len(j.read()) == 1

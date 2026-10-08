@@ -216,7 +216,7 @@ def test_storm_trip_evidence_fails_closed(tmp_path, damage):
     else:
         field = {"id": "trip_id", "stage": "emitting_stage", "origin": "emitting_origin",
                  "first": "first_occurrence_id", "crossing": "crossing_occurrence_id"}.get(damage, damage)
-        body[field] = "wrong"
+        body[field] = "drain_handoff" if field == "kind" else "wrong"
     journal.append(type, body, key=key, ticket=ticket)
     before = snapshot(tmp_path)
     for operation in (box.recover, lambda: box.enqueue(**ARRIVAL, occurrence_id="new")):

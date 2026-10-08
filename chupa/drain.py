@@ -17,14 +17,15 @@ import asyncio
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
+from typing import assert_never
 
 from chupa import caps
 from chupa.git import GitError
 from chupa.hardening import ROUND_STATES, rounds, round_state
-from chupa.journal import TERMINAL_STATES, Event, EventType
+from chupa.journal import TERMINAL_STATES, Event, EventType, dispatch_of
 from chupa.lockfile import Lockfile
 from chupa.reconcile import reconcile
-from chupa.runner import EXIT_MERGED, EXIT_TICKET, SPEC_GAP_HOLD, Checkout, Dispatch, Refusal, harvest_orphan
+from chupa.runner import EXIT_MERGED, EXIT_TICKET, Checkout, Dispatch, Refusal, harvest_orphan
 from chupa.seams import ProcessExec
 from chupa.specs import unit_sha
 from chupa.status import last_states, reject_queue
@@ -58,8 +59,16 @@ def awaited_hardening(events: Iterable[Event], stem: str) -> tuple[str, ...]:
     history = list(events)
     terminal = next((e.body for e in reversed(history) if e.type == EventType.STATE_TRANSITION
                      and e.ticket == stem and e.body.get("to") in TERMINAL_STATES), None)
-    if terminal is None or terminal.get("dispatch") != SPEC_GAP_HOLD or "round" not in terminal:
+    if terminal is None:
         return ()
+    match dispatch := dispatch_of(terminal):
+        case "spec_gap_hold":
+            if "round" not in terminal:
+                return ()
+        case "retry" | "escalate" | "reject_queue" | None:
+            return ()
+        case _:
+            assert_never(dispatch)
     record = next(r for r in rounds(history) if r.number == terminal["round"])
     return (record.hardener,) if round_state(history, record.number) == "open" else ()
 
@@ -76,8 +85,14 @@ def premise_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:
             if last == "running":
                 ran_sha = e.body.get("ticket_sha")
     # A spec-gap premise waits on its hardening tickets instead (section 11.4), never on a ticket edit.
-    return (last == PREMISE and ran_sha == ticket_sha and body.get("dispatch") != SPEC_GAP_HOLD
-            and "round" not in body and "plan_units" not in body)
+    match dispatch := dispatch_of(body):
+        case "spec_gap_hold":
+            return False
+        case "retry" | "escalate" | "reject_queue" | None:
+            return (last == PREMISE and ran_sha == ticket_sha
+                    and "round" not in body and "plan_units" not in body)
+        case _:
+            assert_never(dispatch)
 
 
 def authored_at(events: Iterable[Event]) -> dict[str, str]:
@@ -392,7 +407,14 @@ class _Drain:
                         if e.type == EventType.STATE_TRANSITION and e.ticket == stem
                         and e.body.get("to") in TERMINAL_STATES)
             # A hold releases free until it arrives in Reject; a plan-bound machine keep always draws retry.
-            if bound or (body.get("to") != PREMISE and body.get("dispatch") != SPEC_GAP_HOLD):
+            match dispatch := dispatch_of(body):
+                case "spec_gap_hold":
+                    draw_retry = bound
+                case "retry" | "escalate" | "reject_queue" | None:
+                    draw_retry = bound or body.get("to") != PREMISE
+                case _:
+                    assert_never(dispatch)
+            if draw_retry:
                 caps.consume(self.c.journal, stem, "retry", sha, rung=body.get("rung"))
         # The `ticket.md` the run answers: a `premise_failed` verdict parks the stem until this changes.
         self.c.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": sha}, ticket=stem)

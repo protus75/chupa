@@ -9,7 +9,7 @@ import sys
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, assert_never, cast
 
 if TYPE_CHECKING:
     from chupa.daemon import PauseConsumer
@@ -25,7 +25,7 @@ from chupa.driver import Driver
 from chupa.effects import Effects
 from chupa.git import Git, GitError
 from chupa.hardening import ROUND_SIGNAL, hardener_round, open_round, rounds
-from chupa.journal import TERMINAL_STATES, Event, EventType, Journal
+from chupa.journal import TERMINAL_STATES, Dispatch as JournalDispatch, Event, EventType, Journal, dispatch_of
 from chupa.llm import LLM
 from chupa.lockfile import Lockfile
 from chupa.merge import compose_pipeline, merge
@@ -47,7 +47,7 @@ EXIT_REFUSED = 2
 SPECS_DIR = Path(__file__).resolve().parent.parent / "specs"
 HARVEST_TAIL_CHARS = 4_000
 IDENTICAL_K = 3
-SPEC_GAP_HOLD = "spec_gap_hold"
+SPEC_GAP_HOLD: JournalDispatch = "spec_gap_hold"
 
 # The stage seam: drives the validated ticket through the stages and merge, journals the run's single
 # terminal transition (section 11), and returns that terminal state.
@@ -227,6 +227,7 @@ async def failure_terminal(ctx: StageContext, ticket: Ticket, *, outcome: str, s
     history = ctx.driver.journal.read()
     tier, effort = capability(ticket, history)
     split = False
+    dispatch: JournalDispatch | None = None
     if rework_requested:
         if reworked is not None and reworked.outcome == "ok":
             order = reworked.artifact
@@ -257,26 +258,39 @@ async def failure_terminal(ctx: StageContext, ticket: Ticket, *, outcome: str, s
     if not mechanical and not split and verdict is not None:
         previous = [e.body for e in history if e.type == EventType.STATE_TRANSITION
                     and e.ticket == ticket.stem and e.body.get("to") in TERMINAL_STATES]
-        identical = (verdict == "retry" and bool(previous)
-                     and previous[-1].get("dispatch") == "retry" and previous[-1].get("reason") == reason)
+        match prior_dispatch := dispatch_of(previous[-1]) if previous else None:
+            case "retry":
+                identical = verdict == "retry" and previous[-1].get("reason") == reason
+            case "escalate" | "reject_queue" | "spec_gap_hold" | None:
+                identical = False
+            case _:
+                assert_never(prior_dispatch)
         identical = identical or (len(previous) >= IDENTICAL_K - 1 and all(
             e.get("reason") == reason for e in previous[-(IDENTICAL_K - 1):]))
         # Reviewed updates have an explicit retry decision; the identical-wall rule belongs to diagnosis.
         if spent(ctx.config.caps, history, ticket.stem) or verdict in {"reject", "abandon-human"}:
-            terminal["dispatch"] = "reject_queue"
+            dispatch = "reject_queue"
         elif verdict == "escalate" or (verdict is not None and identical and not rework_requested):
             rung = next_rung(ctx.config, tier, effort)
             if rung is None:
-                terminal["dispatch"] = "reject_queue"
+                dispatch = "reject_queue"
             else:
-                terminal["dispatch"] = "escalate"
+                dispatch = "escalate"
                 terminal["rung"] = rung
         elif verdict == "retry":
-            terminal["dispatch"] = "retry"
+            dispatch = "retry"
         elif verdict is not None:
-            terminal["dispatch"] = "reject_queue"
-    if not mechanical and not split and (
-            terminal.get("dispatch") == "reject_queue" or spent(ctx.config.caps, history, ticket.stem)):
+            dispatch = "reject_queue"
+    if dispatch is not None:
+        terminal["dispatch"] = dispatch
+    match terminal_dispatch := dispatch_of(terminal):
+        case "reject_queue":
+            routed = True
+        case "retry" | "escalate" | "spec_gap_hold" | None:
+            routed = bool(spent(ctx.config.caps, history, ticket.stem))
+        case _:
+            assert_never(terminal_dispatch)
+    if not mechanical and not split and routed:
         terminal["routed"] = "reject_queue"
     ctx.driver.journal.append(EventType.STATE_TRANSITION, terminal, ticket=ticket.stem)
     if split:
@@ -302,16 +316,17 @@ async def hold_on_hardening(ctx: StageContext, ticket: Ticket, gaps: dict[str, l
     covered = next((r.units for r in rounds(history) if prior is not None and r.number == prior["round"]), {})
     unchanged = {uid for uid, sha in (prior["plan_units"] if prior else {}).items()
                  if uid in covered and unit_sha(plan, uid) == sha}
+    reject_dispatch: JournalDispatch = "reject_queue"
     if set(gaps) <= unchanged:
         ctx.driver.journal.append(EventType.STATE_TRANSITION,
                                   {"to": to, "stage": stage, "reason": "spec_gap_unresolved",
-                                   "dispatch": "reject_queue", "routed": "reject_queue",
+                                   "dispatch": reject_dispatch, "routed": "reject_queue",
                                    "plan_units": plan_units}, ticket=ticket.stem)
         return
     if remaining(ctx.config.caps, history, ticket.stem, "hardening") <= 0:
         ctx.driver.journal.append(EventType.STATE_TRANSITION,
                                   {"to": to, "stage": stage, "reason": "hardening cap spent",
-                                   "dispatch": "reject_queue", "routed": "reject_queue",
+                                   "dispatch": reject_dispatch, "routed": "reject_queue",
                                    "plan_units": plan_units}, ticket=ticket.stem)
         return
     ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")

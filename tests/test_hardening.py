@@ -32,7 +32,7 @@ def test_round_state_closes_per_section_11_4(tmp_path, terminal, expected):
     j = journal(tmp_path)
     record(j)
     j.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="other")
-    j.append(EventType.SIGNAL, {"to": "merged", "routed": "reject_queue"}, ticket="hardener")
+    j.append(EventType.SIGNAL, {"signal": "drain_handoff", "to": "merged", "routed": "reject_queue"}, ticket="hardener")
     j.append(EventType.STATE_TRANSITION, {"to": "running", "routed": "reject_queue"}, ticket="hardener")
     assert round_state(j.read(), 1) == "open"
     j.append(EventType.STATE_TRANSITION, {"to": terminal}, ticket="hardener")

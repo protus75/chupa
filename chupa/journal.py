@@ -6,12 +6,12 @@ The newest segment rolls synchronously on append at the size or age boundary.
 import json
 import os
 import re
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast, get_args
 
 from chupa.artifacts import OUTCOMES
 from chupa.seams import LocalFileSystem
@@ -29,6 +29,29 @@ class EventType(StrEnum):
     CAP_CONSUMED = "cap_consumed"
     STATE_TRANSITION = "state_transition"
     CHECKPOINT = "checkpoint"
+
+
+Dispatch = Literal["retry", "escalate", "reject_queue", "spec_gap_hold"]
+
+SIGNAL_NAMES: frozenset[str] = frozenset({
+    "author_invoked", "checkpoint_push_failed", "control_decision", "dead_dependency",
+    "diagnose_eval_start", "diagnosis", "draft_confirmed", "drain_halted", "drain_handoff",
+    "flake_detected", "flake_released", "hardening_round", "harvest_failed", "kill_applied",
+    "merge_conflict_facts", "merge_red_streak", "merge_tree_mismatch", "provider_call_outcome",
+    "provider_cap_wait", "reject_arrival", "reject_verdict", "requisition_verdict", "review_baseline",
+    "rework_order", "storm_breaker_trip", "storm_occurrence", "supersedes", "ticket_intake",
+    "triage_pass", "watcher_parse_failure",
+})
+
+
+def dispatch_of(body: Mapping[str, Any]) -> Dispatch | None:
+    """Read the promoted terminal field without silently classifying unknown dispatches."""
+    if "dispatch" not in body:
+        return None
+    value = body["dispatch"]
+    if not isinstance(value, str) or value not in get_args(Dispatch):
+        raise ValueError(f"unknown dispatch {value!r}; use one of {get_args(Dispatch)} or omit dispatch")
+    return cast(Dispatch, value)
 
 
 # Current event-schema version per type; readers refuse newer.
@@ -100,6 +123,11 @@ class Journal:
         for field, value in (("ticket", ticket), ("key", key)):
             if value is not None and not isinstance(value, str):
                 raise ValueError(f"{field} must be a string or None, got {value.__class__.__name__}")
+        if type == EventType.SIGNAL:
+            names = [body[field] for field in ("signal", "kind") if field in body]
+            if len(names) != 1 or not isinstance(names[0], str) or names[0] not in SIGNAL_NAMES:
+                raise ValueError("signal body must carry exactly one of signal or kind naming a member "
+                                 "of SIGNAL_NAMES; use a listed name or add the name with its consumer")
         event = Event(EVENT_VERSIONS[type], type, render_ts(self._clock()), ticket, key, body)
         data = (json.dumps(asdict(event), separators=(",", ":")) + "\n").encode()
 

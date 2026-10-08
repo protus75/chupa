@@ -290,7 +290,7 @@ async def test_kill_stops_before_all_offer_accounting(root, monkeypatch, kind):
         c.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": "older"}, ticket="work")
         body = {"to": "premise_failed" if kind in {"premise", "spec-gap"} else "gate_failed"}
         if kind == "spec-gap":
-            c.journal.append(EventType.SIGNAL, {"signal": runner.SPEC_GAP_HOLD, "awaits": []}, ticket="work")
+            c.journal.append(EventType.SIGNAL, {"signal": "drain_handoff", "awaits": []}, ticket="work")
             body["dispatch"] = runner.SPEC_GAP_HOLD
         c.journal.append(EventType.STATE_TRANSITION, body, ticket="work")
     if kind == "machine-keep":

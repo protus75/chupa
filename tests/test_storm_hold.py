@@ -665,7 +665,7 @@ async def test_corrupt_release_evidence_refuses_without_dispatch(live, damage, m
         body["decision"] = []
     else:
         monkeypatch.setattr(journal_module, "ROLL_BYTES", 1)
-        live.c.journal.append(EventType.SIGNAL, {"kind": "unrelated"})
+        live.c.journal.append(EventType.SIGNAL, {"kind": "drain_handoff"})
         path = sorted(live.c.journal.dir.glob("*.jsonl"))[0]
         path.write_bytes(path.read_bytes() + b"{torn")
     if damage != "rolled":
