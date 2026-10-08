@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "0cfe3556ea209b2a12b23586b39fd6d573e17e9d",
+  "produced_at_sha": "9e267976598b8ccc837722c051dabe713ff2b335",
   "stem": "plan-bound-reject-release",
-  "attempt": 1,
+  "attempt": 2,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "In chupa/drain.py `_scan`, read `HEAD:CHUPA_PLAN.md` only when a plan-bound arrival exists, meaning a Reject arrival whose terminal carries `plan_units` (ticket Scope in). Drains with no plan-bound arrival must keep the merge-base behavior and must not call git for the plan.",
-    "When `git show HEAD:CHUPA_PLAN.md` fails because the plan is untracked, only staged, or deleted from HEAD, catch the GitError inside `_scan` and treat the committed plan as empty, so every bound unit is `absent` (review paved_road). Never let GitError abort the drain scan.",
-    "Add a test in tests/test_drain.py where CHUPA_PLAN.md exists in the working tree but not in HEAD. With no plan-bound arrival, the drain reaches quiescence with no error. With a plan-bound arrival, it treats the units as absent and does not crash.",
-    "Keep the rest of the attempt-1 diff. The reviewer said the hold and release logic matches the ticket, and all 2150 tests passed. Change only the committed-plan read path and its tests, then rerun the full Verification block."
+    "In chupa/runner.py step (1), choose P as the latest lineage spec-gap terminal that carries a `round` record, not any terminal with `plan_units`; round-less `spec_gap_unresolved` or cap-spent terminals leave D empty and refile covered units.",
+    "Add a test: round covers {A,B}, closes already_satisfied; stem ends spec_gap_unresolved {A,B}; a commit changes only A; the re-run gaps B and must route spec_gap_unresolved with no hardening draw and no new round.",
+    "In chupa/drain.py, draw `retry` unconditionally only for plan-bound re-offers (Reject terminal carries `plan_units`); keep the existing PREMISE and SPEC_GAP_HOLD exemptions for every other re-offer, per the ticket scope.",
+    "Add a test that a non-plan-bound premise_failed arrival re-offered after a ticket.md edit draws no `retry` unit, so the accounting matches the merge base."
   ],
   "mechanical": null,
   "spec_version": "1.1",
