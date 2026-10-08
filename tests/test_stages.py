@@ -586,3 +586,108 @@ def test_scope_fence_admits_a_plan_edit_confined_to_all_anchored_units(tmp_path)
     inserted = main.replace("### 19.P4 Next", "### 19.P3.missing Missing\n\nadded\n\n### 19.P4 Next")
     anchored["scope_fence"].append("CHUPA_PLAN.md#19.P3.missing")
     assert gate.check(evidence(**anchored, plan_head=inserted.replace("old\n", "new\n")), tmp_path).verdict == "pass"
+
+
+async def report_context(repo, *, verification=None, source=None, script=None):
+    """A disposable producer whose report is written by real Verification, never by its agent."""
+    from tests.test_merge import context
+    ctx = context(repo, script if script is not None else [agent({}), verdict()])
+    ctx.fs.write(repo / "chupa/thing.py", b"ok\n")
+    ctx.fs.write(repo / "source.json", (source if source is not None else _report_bytes()).encode())
+    command = verification if verification is not None else f"cp source.json tickets/{STEM}/{SHAKEOUT_REPORT}"
+    raw = TICKET.format(bypass="").replace("grep -q ok chupa/thing.py\nenv", command)
+    ctx.fs.write(repo / f"tickets/{STEM}/ticket.md", raw.encode())
+    await ctx.git.add(repo, ["chupa/thing.py", "source.json", f"tickets/{STEM}/ticket.md"])
+    await ctx.git.commit(repo, "producer fixture")
+    ticket = validate_ticket(STEM, raw, repo)
+    return ctx, ticket
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("nested", [False, True])
+async def test_outbox_only_check_accepts_registered_report(repo, nested):
+    from chupa.journal import EventType
+    name = f"nested/{SHAKEOUT_REPORT}" if nested else SHAKEOUT_REPORT
+    commands = (f"mkdir -p tickets/{STEM}/nested\n" if nested else "") + f"cp source.json tickets/{STEM}/{name}"
+    ctx, ticket = await report_context(repo, verification=commands)
+    run = await run_stages(ctx, ticket)
+    assert outcomes(run) == {"implement": "ok", "check": "ok", "review": "ok"}
+    assert await ctx.git.diff_names(repo, "main", STEM) == []
+    assert run.results["check"].artifact.changed_files == []
+    assert run.results["review"].artifact.reviewed_sha == run.results["implement"].artifact.produced_at_sha
+    completions = [e for e in ctx.driver.journal.read() if e.type == EventType.EFFECT_COMPLETION]
+    [checks] = [e for e in completions if e.key == f"ticket-plane/{STEM}/0/checks"]
+    rel = f"tickets/{STEM}/{name}"
+    assert checks.body["result"]["paths"] == [f"tickets/{STEM}/checks.json", rel]
+    assert checks.body["result"]["kind"] == "checks"
+    data = await ctx.git._run(repo, "show", f"{checks.body['result']['commit']}:{rel}")
+    assert ShakeoutReport.model_validate_json(data).model_dump_json() == _report_bytes()
+    assert all(rel not in e.body["result"].get("paths", []) for e in completions if e is not checks)
+    assert not (ctx.worktree(STEM) / rel).exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", ["none", "records", "unknown", "foreign", "malformed", "implement",
+                                  "inherited", "equal-copy", "dirty-tracked", "dirty-untracked"])
+async def test_outbox_only_check_requires_current_report(repo, case):
+    commands = {
+        "records": f"cp source.json tickets/{STEM}/review.md",
+        "unknown": f"cp source.json tickets/{STEM}/unknown.json",
+        "foreign": f"mkdir -p tickets/foreign\ncp source.json tickets/foreign/{SHAKEOUT_REPORT}",
+        "malformed": f"cp source.json tickets/{STEM}/{SHAKEOUT_REPORT}",
+        "equal-copy": f"cp source.json tickets/{STEM}/{SHAKEOUT_REPORT}",
+        "dirty-tracked": f"cp source.json tickets/{STEM}/{SHAKEOUT_REPORT}",
+        "dirty-untracked": f"cp source.json tickets/{STEM}/{SHAKEOUT_REPORT}",
+    }
+    def act(req):
+        if case == "implement":
+            (req.worktree / f"tickets/{STEM}/{SHAKEOUT_REPORT}").write_text(_report_bytes())
+        if case.startswith("dirty"):
+            path = "chupa/thing.py" if case == "dirty-tracked" else "chupa/untracked.py"
+            (req.worktree / path).write_text("uncommitted\n")
+        return implement_reply()
+    ctx, ticket = await report_context(repo, verification=commands.get(case, "true"), script=[act],
+                                       source='{"invalid":true}' if case == "malformed" else None)
+    if case in {"inherited", "equal-copy"}:
+        rel = f"tickets/{STEM}/{SHAKEOUT_REPORT}"
+        ctx.fs.write(repo / rel, _report_bytes().encode())
+        await ctx.git.add(repo, [rel])
+        await ctx.git.commit(repo, "inherited report rejection fixture")
+    run = await run_stages(ctx, ticket)
+    assert outcomes(run) == {"implement": "ok", "check": "gate_failed"}
+    assert not run.results["check"].artifact.passed
+    assert run.last[1].findings and all(f.paved_road for f in run.last[1].findings)
+    assert len(ctx.driver.llm.requests) == 1
+    if case in {"implement", "inherited"}:
+        assert not list((ctx.worktree(STEM) / f"tickets/{STEM}").rglob(SHAKEOUT_REPORT))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["red", "missing", "invalid", "lift"])
+async def test_outbox_only_check_failure_never_admits(repo, monkeypatch, failure):
+    from chupa.git import GitError
+    from chupa.journal import EventType
+    commands = f"cp source.json tickets/{STEM}/{SHAKEOUT_REPORT}"
+    if failure == "red":
+        commands += "\nfalse"
+    elif failure == "missing":
+        commands = f"true --out=tickets/{STEM}/{SHAKEOUT_REPORT}"
+    ctx, ticket = await report_context(repo, verification=commands, script=[agent({})],
+                                      source='{"invalid":true}' if failure == "invalid" else None)
+    if failure == "lift":
+        commit = ctx.git.commit
+        async def failing(root, message, **kwargs):
+            if message == f"chupa({STEM}): checks":
+                raise GitError(["git", "commit"], 1, "", "injected checks failure")
+            await commit(root, message, **kwargs)
+        monkeypatch.setattr(ctx.git, "commit", failing)
+    run = await run_stages(ctx, ticket)
+    assert outcomes(run) == {"implement": "ok", "check": "gate_failed"}
+    assert not run.last[1].artifact.passed
+    assert all(f.code == "verification" and f.paved_road for f in run.last[1].findings)
+    events = ctx.driver.journal.read()
+    assert not any(e.type == EventType.STATE_TRANSITION and e.body.get("to") == "merged" for e in events)
+    assert not any((e.key or "").startswith("merge/") for e in events)
+    if failure in {"invalid", "lift"}:
+        assert not any(e.type == EventType.EFFECT_COMPLETION and e.key == f"ticket-plane/{STEM}/0/checks"
+                       for e in events)

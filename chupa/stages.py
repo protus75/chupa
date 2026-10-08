@@ -225,6 +225,41 @@ def _registered_files(outbox: Path) -> list[Path]:
     return [p for p in outbox.rglob("*") if p.is_file() and p.name in KNOWN_ARTIFACTS]
 
 
+def _lift_files(ctx: StageContext, stem: str, kind: str, only: str | None = None) -> list[Path]:
+    outbox = ctx.worktree(stem) / TICKETS_DIR / stem
+    canonical = ctx.repo / TICKETS_DIR / stem
+    return sorted(p for p in outbox.rglob("*") if p.is_file()
+                  and p.relative_to(outbox) != Path(TICKET_FILE)
+                  and (only is None or p.relative_to(outbox).as_posix() == only)
+                  and (p.name not in KNOWN_ARTIFACTS or kind == "checks")
+                  and not ((c := canonical / p.relative_to(outbox)).is_file()
+                           and c.read_bytes() == p.read_bytes()))
+
+
+def _validate_reports(paths: Sequence[Path]) -> None:
+    for path in paths:
+        if path.name in KNOWN_ARTIFACTS:
+            try:
+                KNOWN_ARTIFACTS[path.name].model_validate_json(path.read_bytes())
+            except Exception as error:
+                raise ArtifactInvalid(path, error) from error
+
+
+async def dirty_code(ctx: StageContext, stem: str) -> list[str]:
+    # NUL records preserve filenames and include both sides of a staged rename.
+    records = iter((await ctx.git._run(ctx.worktree(stem), "status", "--porcelain",
+                                      "--untracked-files=all", "-z")).rstrip("\0").split("\0"))
+    paths = []
+    for record in records:
+        if not record:
+            continue
+        paths.append(record[3:])
+        if "R" in record[:2] or "C" in record[:2]:
+            paths.append(next(records))
+    outbox = f"{TICKETS_DIR}/{stem}/"
+    return [p for p in paths if not p.startswith(outbox) or p == outbox + TICKET_FILE]
+
+
 def _spec(ctx: StageContext, surface: str) -> Spec:
     return load_spec((ctx.specs_dir / f"{surface}.md").read_text())
 
@@ -325,23 +360,10 @@ async def lift_outbox(ctx: StageContext, stem: str, kind: str, *, attempt: int,
     run's artifact the worktree inherited from main, not this stage's output: it is never lifted.
     """
     outbox = ctx.worktree(stem) / TICKETS_DIR / stem
-    canonical = ctx.repo / TICKETS_DIR / stem
-
-    def written(p: Path) -> bool:
-        rel = p.relative_to(outbox)
-        return (rel != Path(TICKET_FILE) and (only is None or rel.as_posix() == only)
-                and not ((c := canonical / rel).is_file() and c.read_bytes() == p.read_bytes()))
-
-    files = sorted(p for p in outbox.rglob("*") if p.is_file() and written(p)
-                   and (p.name not in KNOWN_ARTIFACTS or kind == "checks"))
+    files = _lift_files(ctx, stem, kind, only)
     if not files:
         return None
-    for path in files:
-        if path.name in KNOWN_ARTIFACTS:
-            try:
-                KNOWN_ARTIFACTS[path.name].model_validate_json(path.read_bytes())
-            except Exception as error:
-                raise ArtifactInvalid(path, error) from error
+    _validate_reports(files)
 
     async def commit() -> dict:
         rels = []
@@ -569,6 +591,8 @@ class Evidence(_Strict):
     # Main's and the branch's plan, gathered only when a `CHUPA_PLAN.md#<unit>` fence entry may admit a plan edit.
     plan_main: str | None = None
     plan_head: str | None = None
+    report_paths: list[str] = []
+    report_findings: list[Finding] = []
 
 
 def _inserted(diff: str) -> int:
@@ -581,6 +605,9 @@ async def gather_evidence(
 ) -> Evidence:
     stem = ticket.stem
     worktree = ctx.worktree(stem)
+    outbox = worktree / TICKETS_DIR / stem
+    for path in _registered_files(outbox):
+        path.unlink()
     env = child_env(ctx.env, ctx.config)  # verification never inherits a provider key (section 6)
     results = []
     red: list[tuple[int, list[str]]] = []
@@ -634,7 +661,34 @@ async def gather_evidence(
         finally:
             await ctx.git.worktree_remove(ctx.repo, base_worktree)
     evidence = await gather_safety_evidence(ctx, ticket, claimed)
-    return evidence.model_copy(update={"verification": results})
+    reports, findings = [], []
+    try:
+        _validate_reports(_registered_files(outbox))
+        if stage == "check":
+            reports = [p.relative_to(worktree).as_posix() for p in _lift_files(ctx, stem, "checks")
+                       if p.name in KNOWN_ARTIFACTS and p.name != "run.md"]
+        elif not evidence.changed_files:
+            from chupa.merge import lifted_report_paths
+
+            reports = await lifted_report_paths(ctx, stem, attempt)
+    except ArtifactInvalid as error:
+        findings.append(Finding(code="verification", path=str(error.path.relative_to(worktree)),
+                                message=f"invalid registered artifact: {error.error}",
+                                paved_road="produce a schema-valid registered report through Verification"))
+    if stage != "check":
+        findings.extend(Finding(
+            code="verification", path=f"{TICKETS_DIR}/{stem}/{name}",
+            message=f"Verification named {name} but left no report in the outbox",
+            paved_road="make the named Verification command exit 0 and write its registered report",
+        ) for name in KNOWN_ARTIFACTS
+            if any(f"{TICKETS_DIR}/{stem}/{name}" in arg for argv in ticket.verification for arg in argv)
+            and not (outbox / name).is_file())
+    if not evidence.changed_files and claimed == "ok":
+        findings.extend(Finding(code="verification", path=p, message="uncommitted code in a report-only run",
+                                paved_road="commit code on the branch and rerun Check, or remove the edit")
+                        for p in await dirty_code(ctx, stem))
+    return evidence.model_copy(update={"verification": results, "report_paths": reports,
+                                       "report_findings": findings})
 
 
 async def gather_safety_evidence(
@@ -704,22 +758,24 @@ class ScopeFenceGate:
 class VerificationGate:
     """The ticket's own `## Verification` commands, with base-red failures attributed to main.
 
-    An EMPTY committed diff fails here unless Implement claimed `already_satisfied` (section 11).
+    An empty `ok` diff needs current checks-lift report custody (19.P3.outbox-only-admission).
     """
 
     code = "verification"
 
     def check(self, artifact: Evidence, workspace: Path) -> GateReport:
-        findings = [
+        findings = [*artifact.report_findings, *[
             Finding(code=self.code, message=f"`{' '.join(r.argv)}` exited {r.rc}: {r.tail.strip() or '(no output)'}",
                     paved_road=f"make `{' '.join(r.argv)}` exit 0 on the branch and commit the fix")
             for r in artifact.verification if r.rc != 0 and not r.base_red
-        ]
+        ]]
         empty = not artifact.changed_files
-        if empty and artifact.claimed == "ok":
+        if empty and artifact.claimed == "ok" and (not artifact.report_paths or
+                                                   any(r.rc != 0 for r in artifact.verification)):
             findings.append(Finding(code=self.code, message="the branch carries no committed change",
-                                    paved_road="commit the work on the branch, or reply already_satisfied if every"
-                                               " criterion already holds"))
+                                    paved_road="commit code on the branch, produce a registered report through"
+                                               " Verification and leave it uncommitted for the checks lift, or"
+                                               " reply already_satisfied if every criterion already holds"))
         if not empty and artifact.claimed == "already_satisfied":
             findings.append(Finding(code=self.code, message="already_satisfied was claimed but the branch carries a"
                                     f" diff: {', '.join(artifact.changed_files)}",
@@ -991,8 +1047,6 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
     stem = ticket.stem
     started = ctx.driver.clock()
     outbox = ctx.worktree(stem) / TICKETS_DIR / stem
-    for path in _registered_files(outbox):
-        path.unlink()
     evidence = await gather_evidence(ctx, ticket, slip.outcome, attempt=attempt)
     gated = run_gates(CHECK_GATES, evidence, ctx.worktree(stem), severity=check_severity(ctx, ticket))
     required = [name for name in KNOWN_ARTIFACTS
@@ -1035,6 +1089,11 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
                           paved_road="produce the report only through eval.shakeout.run")
         return StageResult(outcome="gate_failed", artifact=invoice.model_copy(update={"passed": False}), findings=[finding],
                            cost=Cost(seconds=(ctx.driver.clock() - started).total_seconds()))
+    except GitError as error:
+        finding = Finding(code="verification", message=f"checks lift failed: {error}",
+                          paved_road="repair the ticket-plane Git failure and rerun Check")
+        return StageResult(outcome="gate_failed", artifact=invoice.model_copy(update={"passed": False}),
+                           findings=[finding], cost=Cost(seconds=(ctx.driver.clock() - started).total_seconds()))
     if passed:
         await lift_seeds(ctx, stem, new_paths, attempt=attempt)
     cost = Cost(seconds=(ctx.driver.clock() - started).total_seconds())

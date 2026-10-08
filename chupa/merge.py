@@ -28,11 +28,13 @@ from chupa.journal import Event, EventType
 from chupa.stages import (
     CHECK_GATES,
     MAIN,
+    KNOWN_ARTIFACTS,
     ApprovedInvoice,
     Invoice,
     StageContext,
     check_severity,
     gather_evidence,
+    dirty_code,
     read_review,
 )
 from chupa.tickets import TICKETS_DIR, Ticket, TicketInvalid, ticket_path, validate_ticket
@@ -80,10 +82,10 @@ class SeedOnMain(BaseModel):
 
 
 class Admission(Artifact):
-    """Merge's artifact: the squash commit on main and the approval it carried."""
+    """The admitted code commit (null for a report producer) and its pinned approval."""
 
     stem: NonBlank
-    commit: NonBlank
+    commit: NonBlank | None
     reviewed_sha: NonBlank
 
 
@@ -323,19 +325,62 @@ async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResu
 
 
 async def write_squash(ctx: StageContext, ticket: Ticket, reviewed: str, *, attempt: int) -> Admission:
-    """The shared code-lane Effect and merged-terminal writer; retirement follows tree validation."""
+    """The shared admission Effect and sole merged terminal; retirement follows tree validation."""
     stem = ticket.stem
 
     async def squash() -> dict:
+        if not await ctx.git.diff_names(ctx.repo, MAIN, stem):
+            if not await lifted_report_paths(ctx, stem, attempt) or await dirty_code(ctx, stem):
+                raise ValueError("report admission requires current checks-lift custody and a clean code tree;"
+                                 " rerun Check with a registered Verification report")
+            return {"commit": None}
         await ctx.git.merge_squash(ctx.repo, stem)
         await ctx.git.commit(ctx.repo, squash_message(ticket, reviewed))
         return {"commit": await ctx.git.rev_parse(ctx.repo, MAIN)}
 
     commit = (await ctx.driver.effects.run(squash, key="/".join(("merge", stem, str(attempt))), ticket=stem))["commit"]
-    ctx.driver.journal.append(EventType.STATE_TRANSITION,
-                              {"to": "merged", "commit": commit, "reviewed_sha": reviewed}, ticket=stem)
-    return Admission(produced_by_spec_version=MERGE_SPEC_VERSION, produced_at_sha=commit,
+    body = {"to": "merged", "commit": commit, "reviewed_sha": reviewed}
+    if not any(e.type == EventType.STATE_TRANSITION and e.ticket == stem and e.body == body
+               for e in ctx.driver.journal.read()):
+        ctx.driver.journal.append(EventType.STATE_TRANSITION, body, ticket=stem)
+    return Admission(produced_by_spec_version=MERGE_SPEC_VERSION,
+                     produced_at_sha=commit or await ctx.git.rev_parse(ctx.repo, MAIN),
                      stem=stem, commit=commit, reviewed_sha=reviewed)
+
+
+async def lifted_report_paths(ctx: StageContext, stem: str, attempt: int) -> list[str]:
+    """Read this run's checks completion and matching committed blobs, never checkout copies."""
+    key = f"ticket-plane/{stem}/{attempt}/checks"
+    completed = [e for e in ctx.driver.journal.read()
+                 if e.type == EventType.EFFECT_COMPLETION and e.key == key and e.ticket == stem]
+    if not completed:
+        return []
+    result = completed[-1].body.get("result")
+    if (not isinstance(result, dict) or result.get("kind") != "checks"
+            or not isinstance(result.get("commit"), str) or not result["commit"].strip()
+            or not isinstance(result.get("paths"), list)):
+        return []
+    paths = []
+    try:
+        if await ctx.git.merge_base(ctx.repo, MAIN, result["commit"]) != result["commit"]:
+            return []
+        for rel in result["paths"]:
+            if not isinstance(rel, str):
+                continue
+            path = Path(rel)
+            if (path.as_posix() != rel or ".." in path.parts
+                    or not rel.startswith(f"{TICKETS_DIR}/{stem}/")
+                    or path.name == "run.md" or path.name not in KNOWN_ARTIFACTS):
+                continue
+            lifted = await ctx.git.rev_parse(ctx.repo, f"{result['commit']}:{rel}")
+            if await ctx.git.rev_parse(ctx.repo, f"{MAIN}:{rel}") != lifted:
+                continue
+            text = await ctx.git._run(ctx.repo, "show", f"{MAIN}:{rel}")
+            KNOWN_ARTIFACTS[path.name].model_validate_json(text)
+            paths.append(rel)
+    except (GitError, ValidationError):
+        return []
+    return paths
 
 
 async def retire(ctx: StageContext, stem: str) -> None:
