@@ -60,6 +60,7 @@ Unfenced Verification suites stay unchanged preservation suites, neither fenced 
 - chupa/__main__.py
 - chupa/triage.py
 - chupa/driver.py
+- chupa/runner.py
 - tests/test_serve.py
 - tests/test_daemon_composition.py
 - tests/test_daemon_tasks.py
