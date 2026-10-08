@@ -78,7 +78,7 @@ uv run pytest tests/test_serve.py tests/test_daemon_composition.py tests/test_da
 ```
 
 ## Definition of rejected
-Return premise_failed naming a missing or contradictory fact in 19.P3.serve-activation for section 11.4 hardening, or a criteria-forced file outside the earned fence; never invent records or widen scope.
+Return premise_failed naming a missing or contradictory fact in 19.P3.serve-activation for section 11.4 hardening, or a criteria-forced file outside the earned fence; never invent records or widen scope. A fact the entry unit omits or contradicts is reported as a `spec_gap` finding naming its unit (section 11.4), never invented.
 
 ## Time budget
 - expected: 60m
