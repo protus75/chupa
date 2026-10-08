@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "78bddfeb440861c27d9e1c14086077fb9c57b3ed",
+  "stem": "closed-dispatch-signal-vocabularies",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Criteria contradict: tests/test_hardening.py:35 appends EventType.SIGNAL body {\"to\": \"merged\", \"routed\": \"reject_queue\"} with neither signal nor kind, which the required append validation refuses, yet criterion 3 requires that file to pass unchanged and it is outside the scope fence.",
+    "Re-author: add tests/test_hardening.py to the scope fence and the fixture-migration list, drop it from the 'exits 0 unchanged' criterion, and require that the migrated fixture keep every round_state assertion at lines 37-46.",
+    "Before re-authoring, grep every tests/ file for EventType.SIGNAL bodies with no signal or kind key, or with an unlisted name. Fence and migrate them all so no other unchanged-test criterion breaks the same way.",
+    "The implementer reported that the vocabulary tests and the 330 in-fence fixture tests passed on the first attempt. Next attempt: keep that approach and change only the newly fenced hardening fixture."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
