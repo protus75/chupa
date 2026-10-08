@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The previous missing serve-merge-admission entry is repaired; entry_unit_gap passes, but checkpoint's Records still omits a required producer fact.
+The prior checkpoint contract gap is repaired; successor closure includes the restart-timers serve-absence assertion. Seed approvals and lifting remain Check-owned.
 
 ## Dead ends
 
-Stopped before authoring rather than inventing an occurrence identity or bypassing the supplied production Box.
+Corrected intake wording and new-test assertions during validation.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Read-first validation stopped within the 60-minute expected budget.
+Completed within the 60-minute expected budget.
 
