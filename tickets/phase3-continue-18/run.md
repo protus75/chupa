@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-Hold and checkpoint entry units validate; the missing serve-activation unit also occurs on untouched HEAD 9a1bc63edcb3e35060c53ab6c8ccef106e27d9fe. No files changed or committed.
+The previously missing serve-activation entry now validates; 14 admission checks and all 1,973 suite tests passed.
 
 ## Dead ends
 
-Stopped before authoring rather than inventing the successor's governing contract.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during preflight, within the 60-minute expected budget.
+Completed within the expected 60-minute budget.
 
