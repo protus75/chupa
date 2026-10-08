@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "281e0c66cf53aa2b83425ee70348944ef2099a03",
+  "stem": "phase3-continue-27",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Premise is false: CHUPA_PLAN.md 19.P4 (line 2364) registry rows name watchdog-event-stream and notify-transport (lines 2380-2382), but no 19.P4.watchdog-event-stream or 19.P4.notify-transport unit heading exists, so the terminal's seeder role cannot be authored.",
+    "Harden the plan first under section 11.4: add both 19.P4 core entry units with Owner, Records, Observable and Tests, commit them, then regenerate this admission. Do not invent their facts in the seed or test.",
+    "When this admission is regenerated, add 19.P4.watchdog-event-stream and 19.P4.notify-transport to the Plan contract. The reply schema accepts spec_gap units only from cited contracts, so the last finding was emitted with kind and unit set to null.",
+    "On rerun, stop at contract validation again if entry_unit_gap or resolve_plan_contract still refuses either unit. Write no seed or tests/test_seeded_phase3_27.py until both resolve on the base commit."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
