@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The outbox lookahead now validates; closure grep additionally earned tests/test_kill_failure_suppression.py for its contradictory last-record assertion.
+Previously missing soak units now resolve; the approved worker seed remained byte-identical.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60-minute expected and 90-minute stuck budgets; full-suite verification took 184 seconds.
+Completed within the 60m expected and 90m stuck budgets; 14 targeted cases and all 2271 tests passed, with the full suite taking 186.93 seconds.
 
