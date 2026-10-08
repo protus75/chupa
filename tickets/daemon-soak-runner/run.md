@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-Reproduced both missing Box reports on base commit 8905bb261f7029c2fa0832acc9520eadfdb6d3f3. Required Verification exited 4 because tests/test_daemon_soak_runner.py was not created after identifying the contract gap. The worktree is clean.
+The canonical writer, schema, registration, and engine algorithms remain intact; 111 additional custody tests passed.
 
 ## Dead ends
 
-A provisional production-serve harness demonstrated successful Rework recovery and real semantic integration refusal, but failed closed on missing member-local Box evidence.
+Adjusted the semantic fixture after its initial configuration caught the fault in safety checks before integration Verification.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during implementation after reproducing the blocker on the base commit.
+The 60-minute expected budget was sufficient for implementation, verification, and commit.
 
