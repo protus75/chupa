@@ -100,7 +100,7 @@ AUTHORED = {'serve-merge-admission': {'chars': 7824,
                            'created': (),
                            'measured_render': 257193,
                            'birth_sha256': 'c785a1edb5d69076fda33c0b860df3e8fef0503d6e26065d000c36efb4173e80'},
- 'phase3-continue-22': {'chars': 9393,
+ 'phase3-continue-22': {'chars': 9622,
                         'plan': ('19.L',
                                  '19.I',
                                  '19.P3',
@@ -113,7 +113,7 @@ AUTHORED = {'serve-merge-admission': {'chars': 7824,
                         'fenced_existing': (),
                         'created': ('tickets', 'tests/test_seeded_phase3_22.py'),
                         'measured_render': 139933,
-                        'birth_sha256': '557dd13b821527b4fc75dae5b7b8b45fbd6b82ea4a90d631d8979b44b56c0ff6'}}
+                        'birth_sha256': 'c66ab8b7dcf9525d0efa52beebba8d6e63da4b947d387bded36bffe7e63c01a7'}}
 
 VALIDATED_ENTRIES = ('19.P3.serve-merge-admission', '19.P3.worker-recovery-disposition')
 
