@@ -1,6 +1,9 @@
 import asyncio
 import json
+import os
+import sys
 import textwrap
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -19,7 +22,8 @@ from chupa.providers import (
     resolve,
 )
 from chupa.redact import Redactor
-from chupa.seams import GroupExec, LocalFileSystem
+from chupa.seams import GroupExec, LocalFileSystem, SubprocessExec
+from chupa.watchdog import EventConsumer
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -650,3 +654,133 @@ def test_cli_failure_classifier_is_dormant(tmp_path, monkeypatch):
     with pytest.raises(AssertionError):
         assert_dormant()
     assert hits == ["codex", "claude"]
+
+
+class PythonProviderExec(SubprocessExec):
+    """Replace only the CLI binary with a scripted Python child; retain real group/pipe execution."""
+
+    def __init__(self, script):
+        self.script = script
+        self.calls = []
+        self.pgids = []
+
+    async def run(self, argv, **kwargs):
+        self.calls.append((list(argv), kwargs))
+        spawn = kwargs.get("on_spawn")
+
+        def spawned(pgid):
+            self.pgids.append(pgid)
+            if spawn is not None:
+                spawn(pgid)
+
+        return await super().run([sys.executable, "-c", self.script], **{**kwargs, "on_spawn": spawned})
+
+
+def python_client(cfg, process, tmp_path, *, timeout=10, env=None):
+    return ProviderLLM(cfg, exec_=process, fs=LocalFileSystem(),
+                       env=env or {**os.environ, **ENV, "PATH": os.environ["PATH"]},
+                       cwd=tmp_path, timeout=timeout)
+
+
+def provider_request(name, tmp_path, **kwargs):
+    return req("implement", tier="high" if name == "claude" else "medium", worktree=tmp_path, **kwargs)
+
+
+@pytest.mark.parametrize("name", ["claude", "codex"])
+def test_inflight_events_are_scrubbed_and_capture_is_preserved(tmp_path, name):
+    cfg = config(tmp_path)
+    # Resolve secrets via the actual client construction, including escaped and nested strings.
+    env = {**os.environ, **ENV, "PATH": os.environ["PATH"], "CODEX_KEY": "secret\n雪"}
+    leak = env["CODEX_KEY"] + " sk-claude-secret"
+    event = {"type": "tool", "payload": [{leak: leak}, 4, None, True]}
+    terminal = (claude_ok if name == "claude" else codex_ok)(leak).rstrip("\n")
+    out = "warning\n{broken\n[]\nnull\n42\n" + jsonl(event) + terminal
+    err = "e" * 300000 + leak
+    # Byte-sized writes fragment JSON escapes and UTF-8 without relying on read chunk boundaries.
+    script = (
+        "import os, sys, threading\n"
+        "assert sys.stdin.read() == 'prompt [REDACTED:CLAUDE_KEY]'\n"
+        f"data = {out.encode()!r}\n"
+        f"thread = threading.Thread(target=lambda: os.write(2, b'e' * 300000 + {leak.encode()!r}))\n"
+        "thread.start()\n"
+        "for byte in data: os.write(1, bytes([byte]))\n"
+        "thread.join()\n"
+    )
+    process = PythonProviderExec(script)
+    client = python_client(cfg, process, tmp_path, env=env)
+    events = []
+    request = provider_request(name, tmp_path, rendered="prompt sk-claude-secret")
+    watched = asyncio.run(client.call(request, consumer=EventConsumer(events.append)))
+    ordinary = asyncio.run(client.call(request))
+    assert watched == ordinary
+    assert watched.text == "[REDACTED:CODEX_KEY] [REDACTED:CLAUDE_KEY]"
+    assert events[0] == {"type": "tool", "payload": [
+        {"[REDACTED:CODEX_KEY] [REDACTED:CLAUDE_KEY]": "[REDACTED:CODEX_KEY] [REDACTED:CLAUDE_KEY]"}, 4, None, True]}
+    assert len(events) == 1 + len([json.loads(line) for line in terminal.splitlines()])
+    assert events[-1]["type"] == ("result" if name == "claude" else "turn.completed")
+    decoded_events = json.dumps(events, ensure_ascii=False)
+    assert env["CODEX_KEY"] not in decoded_events and env["CLAUDE_KEY"] not in decoded_events
+    redactor = Redactor.from_config(cfg, env)
+    captures = sorted((cfg.state_dir / "spools/providers/t-1").iterdir())
+    assert len(captures) == 2
+    for capture in captures:
+        assert {p.name for p in capture.iterdir()} == {"prompt.md", "events.jsonl", "stderr.txt"}
+        assert (capture / "events.jsonl").read_bytes() == redactor.scrub(out).encode()
+        assert (capture / "stderr.txt").read_bytes() == redactor.scrub(err).encode()
+        assert (capture / "prompt.md").read_text() == "prompt [REDACTED:CLAUDE_KEY]"
+    assert "on_stdout_line" in process.calls[0][1]
+    assert "on_stdout_line" not in process.calls[1][1]
+    assert client._active is None and client._adapters[name]._pgid is None
+
+
+@pytest.mark.parametrize("name", ["claude", "codex"])
+@pytest.mark.parametrize("unwind", ["timeout", "cancel", "callback", "abort"])
+def test_event_callback_unwind_kills_group(tmp_path, name, unwind):
+    marker = tmp_path / "grandchild-wrote"
+    grandchild = "import time; time.sleep(0.5); open(" + repr(str(marker)) + ", 'w').close(); time.sleep(30)"
+    script = (
+        "import os, subprocess, sys, time\n"
+        f"subprocess.Popen([sys.executable, '-c', {grandchild!r}])\n"
+        "print('{\"type\": \"tool\"}', flush=True)\n"
+        # Fill both pipes: exceptional cleanup must drain even if the callback reader failed.
+        "os.write(1, b'x' * 300000)\n"
+        "os.write(2, b'e' * 300000)\n"
+        "time.sleep(30)\n"
+    )
+    process = PythonProviderExec(script)
+    client = python_client(config(tmp_path), process, tmp_path, timeout=0.15 if unwind == "timeout" else 10)
+    error = RuntimeError("consumer failed")
+
+    async def scenario():
+        before = set(asyncio.all_tasks())
+        received = asyncio.Event()
+
+        def consume(event):
+            assert event == {"type": "tool"}
+            assert client._active is client._adapters[name]
+            assert client._active._pgid == process.pgids[-1]
+            received.set()
+            if unwind == "callback":
+                raise error
+
+        task = asyncio.create_task(client.call(provider_request(name, tmp_path), consumer=EventConsumer(consume)))
+        await asyncio.wait_for(received.wait(), 5)
+        if unwind == "cancel":
+            task.cancel()
+        elif unwind == "abort":
+            client.abort_current()
+        expected = {"timeout": TimeoutError, "cancel": asyncio.CancelledError,
+                    "callback": RuntimeError, "abort": ProviderCallError}[unwind]
+        with pytest.raises(expected) as caught:
+            await asyncio.wait_for(task, 5)
+        if unwind == "callback":
+            assert caught.value is error
+        assert set(asyncio.all_tasks()) == before
+        assert client._active is None and client._adapters[name]._pgid is None
+        client.abort_current()
+        with pytest.raises(ProcessLookupError):
+            os.kill(process.pgids[-1], 0)  # The direct child was reaped.
+
+    asyncio.run(scenario())
+    time.sleep(0.6)
+    assert not marker.exists()  # A direct-child-only kill would leave the grandchild writing.

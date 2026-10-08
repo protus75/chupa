@@ -31,7 +31,7 @@ class ProcessExec(Protocol):
 
 @runtime_checkable
 class GroupExec(ProcessExec, Protocol):
-    """Process exec that publishes each child's process group, for a synchronous kill (`abort_current`)."""
+    """Publish spawn groups and optionally deliver stdout lines synchronously, including the EOF tail."""
 
     async def run(
         self,
@@ -42,6 +42,7 @@ class GroupExec(ProcessExec, Protocol):
         timeout: float | None,
         stdin_path: Path | None = None,
         on_spawn: Callable[[int], None] | None = None,
+        on_stdout_line: Callable[[str], None] | None = None,
     ) -> tuple[int, str, str]: ...
 
     def kill_group(self, pgid: int) -> None:
@@ -69,6 +70,7 @@ class SubprocessExec:
         timeout: float | None,
         stdin_path: Path | None = None,
         on_spawn: Callable[[int], None] | None = None,
+        on_stdout_line: Callable[[str], None] | None = None,
     ) -> tuple[int, str, str]:
         if shutil.which(argv[0], path=env.get("PATH", "")) is None:
             raise ExecutableNotFound(argv[0])
@@ -85,13 +87,23 @@ class SubprocessExec:
                 stderr=stream,
                 start_new_session=True,
             )
-            if on_spawn is not None:
-                on_spawn(proc.pid)  # start_new_session: the child's pid IS its pgid
+            readers: list[asyncio.Task] = []
             try:
+                if on_spawn is not None:
+                    on_spawn(proc.pid)  # start_new_session: the child's pid IS its pgid
                 async with asyncio.timeout(timeout):
-                    out, err = await proc.communicate()
+                    if stream is None:
+                        out, err = await proc.communicate()
+                    else:
+                        readers = [asyncio.create_task(_read_pipe(proc.stdout, on_stdout_line)),
+                                   asyncio.create_task(_read_pipe(proc.stderr)),
+                                   asyncio.create_task(proc.wait())]
+                        out, err, _ = await asyncio.gather(*readers)
             except BaseException:
                 # Timeout and outer cancellation alike: grandchildren must not outlive the call.
+                for reader in readers:
+                    reader.cancel()
+                await asyncio.gather(*readers, return_exceptions=True)
                 await _kill_and_wait(proc)
                 raise
         return proc.returncode or 0, (out or b"").decode(errors="replace"), (err or b"").decode(errors="replace")
@@ -105,7 +117,27 @@ class SubprocessExec:
 
 async def _kill_and_wait(proc: asyncio.subprocess.Process) -> None:
     SubprocessExec().kill_group(proc.pid)
-    await proc.wait()
+    # Drain after failed/cancelled readers: wait alone can hang on a full pipe transport.
+    await proc.communicate()
+
+
+async def _read_pipe(
+    pipe: asyncio.StreamReader,
+    on_line: Callable[[str], None] | None = None,
+) -> bytes:
+    captured = bytearray()
+    pending = bytearray()
+    while chunk := await pipe.read(65536):
+        captured.extend(chunk)
+        if on_line is not None:
+            pending.extend(chunk)
+            while (end := pending.find(b"\n")) >= 0:
+                line = bytes(pending[:end + 1])
+                del pending[:end + 1]
+                on_line(line.decode(errors="replace"))
+    if pending and on_line is not None:
+        on_line(pending.decode(errors="replace"))
+    return bytes(captured)
 
 
 @runtime_checkable

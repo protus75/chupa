@@ -11,12 +11,15 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from chupa.config import Config, ConfigSnapshot, Provider
 from chupa.llm import AgentEffort, AgentTier, LLMRequest, LLMResult
 from chupa.redact import Redactor
 from chupa.seams import FileSystem, GroupExec
+
+if TYPE_CHECKING:
+    from chupa.watchdog import EventConsumer
 
 # Closed allowlist of tree-writing surfaces: every other surface is called read-only.
 WRITING_SURFACES = frozenset({"implement"})
@@ -160,7 +163,7 @@ class CliAdapter:
         """Raise `ValueError` naming the failure when the stream carries no successful result."""
         raise NotImplementedError
 
-    async def invoke(self, req: LLMRequest, model: str) -> LLMResult:
+    async def invoke(self, req: LLMRequest, model: str, *, consumer: "EventConsumer | None" = None) -> LLMResult:
         writes = req.surface in WRITING_SURFACES
         if writes and req.worktree is None:
             raise ProviderSetupError(f"surface {req.surface!r} writes the tree but the request carries no worktree")
@@ -177,6 +180,7 @@ class CliAdapter:
                 timeout=self._timeout,
                 stdin_path=prompt,
                 on_spawn=self._spawned,
+                **({"on_stdout_line": lambda line: self._forward(line, consumer)} if consumer is not None else {}),
             )
         finally:
             self._pgid = None
@@ -216,6 +220,20 @@ class CliAdapter:
 
     def _spawned(self, pgid: int) -> None:
         self._pgid = pgid
+
+    def _forward(self, line: str, consumer: "EventConsumer") -> None:
+        for event in _events(line):
+            # Scrub decoded strings too: JSON escaping can hide a configured secret in the raw line.
+            consumer.consume(self._scrub_event(event))
+
+    def _scrub_event(self, value):
+        if isinstance(value, str):
+            return self._redactor.scrub(value)
+        if isinstance(value, dict):
+            return {self._redactor.scrub(k): self._scrub_event(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [self._scrub_event(v) for v in value]
+        return value
 
     def classify_failure(self, message: str, *, rc: int, stderr_tail: str) -> ProviderCallError:
         """Dormant Phase 3 classifier: only failed diagnostics, never successful output."""
@@ -418,11 +436,11 @@ class ProviderLLM:
                                     f" {adapter.provider.package}@latest, or route a model this login serves in config.yaml")
         return problems
 
-    async def call(self, req: LLMRequest) -> LLMResult:
+    async def call(self, req: LLMRequest, *, consumer: "EventConsumer | None" = None) -> LLMResult:
         served = resolve(self._config, req.tier, req.surface)
         self._active = self._adapters[served.provider.name]
         try:
-            return await self._active.invoke(req, served.model)
+            return await self._active.invoke(req, served.model, **({"consumer": consumer} if consumer is not None else {}))
         finally:
             self._active = None
 
