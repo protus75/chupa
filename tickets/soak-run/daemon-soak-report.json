@@ -1,0 +1,37 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "71ee8e6e76fdf7ebb0e2261db0226ac14c5b3333",
+  "entries": [
+    {
+      "member": "worker_killed_mid_run",
+      "planted_fault": "Interrupt the first Implement worker with unfinished work in its checkout",
+      "expected": "abandoned_alerted_then_merged",
+      "observed": "abandoned_alerted_then_merged",
+      "disposition": "alert",
+      "producing_run": "worker/0",
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "conflict_resolution_rungs",
+      "planted_fault": "Append-only mechanical conflict and an undeclared conflict requiring reviewed Rework",
+      "expected": "mechanical_and_rework_main_green",
+      "observed": "mechanical_and_rework_main_green",
+      "disposition": "resolved",
+      "producing_run": "unresolved/1",
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "semantic_conflict_integration_red",
+      "planted_fault": "Candidate and moved main each set one input; their rebased sum fails Verification",
+      "expected": "integration_red_main_green",
+      "observed": "integration_red_main_green",
+      "disposition": "refused",
+      "producing_run": "semantic/0",
+      "auditor": [],
+      "green": true
+    }
+  ]
+}
