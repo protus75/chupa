@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Delimiter-bearing runner excluded from Context; both seeds remain uncommitted for Check’s requisition review and lift.
+Restored the successor verbatim from journal evidence and preserved the approved soak-run bytes; requisition approval and seed lifting remain engine-owned Check work.
 
 ## Dead ends
 
-Corrected test-name extraction and restarted the full suite after stopping its stale run.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60m expected and 90m stuck budgets.
+Completed within the 60-minute expected and 90-minute stuck budgets; 14 batch tests and 2473 full-suite tests passed.
 
