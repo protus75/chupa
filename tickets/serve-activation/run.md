@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The previous triage/Driver fence blocker is cleared. Verification exits 4 because tests/test_serve.py does not yet exist; creating it belongs to this ticket and is not a second problem.
+The untouched base passes all 560 existing verification tests, including all 21 restart/timer tests; the exact Verification command exits 4 because tests/test_serve.py does not yet exist.
 
 ## Dead ends
 
-none
+Whole-ticket storm filtering would apply the bootstrap exception to serve; copying stage orchestration into a fenced module would violate owner reuse.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during initial inspection, within the expected 60-minute budget.
+60m expected; stopped during read-only contract review, with no source changes or commits.
 
