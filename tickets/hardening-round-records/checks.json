@@ -1,0 +1,137 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "1fe603699162a0d1fb1a270b9585ff53998673b5",
+  "stem": "hardening-round-records",
+  "passed": true,
+  "changed_files": [
+    "chupa/drain.py",
+    "chupa/hardening.py",
+    "chupa/runner.py",
+    "chupa/specs.py",
+    "chupa/stages.py",
+    "chupa/tickets.py",
+    "tests/test_daemon_composition.py",
+    "tests/test_drain.py",
+    "tests/test_hardening.py",
+    "tests/test_seed_path.py",
+    "tests/test_specs.py",
+    "tests/test_stages.py"
+  ],
+  "inserted_lines": 397,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_hardening.py"
+      ],
+      "rc": 0,
+      "tail": ".............................                                            [100%]\n29 passed in 1.11s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_seed_path.py"
+      ],
+      "rc": 0,
+      "tail": "........................                                                 [100%]\n24 passed in 4.02s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_drain.py",
+        "tests/test_daemon_composition.py"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 58%]\n...................................................                      [100%]\n123 passed in 13.84s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_specs.py"
+      ],
+      "rc": 0,
+      "tail": "........................................                                 [100%]\n40 passed in 0.08s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_stages.py"
+      ],
+      "rc": 0,
+      "tail": "...............................                                          [100%]\n31 passed in 2.62s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_tickets.py",
+        "tests/test_kill_cli_activation.py"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 96%]\n...                                                                      [100%]\n75 passed in 4.77s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": ".................. [ 27%]\n........................................................................ [ 30%]\n........................................................................ [ 33%]\n........................................................................ [ 37%]\n........................................................................ [ 40%]\n........................................................................ [ 44%]\n........................................................................ [ 47%]\n........................................................................ [ 50%]\n........................................................................ [ 54%]\n........................................................................ [ 57%]\n........................................................................ [ 60%]\n........................................................................ [ 64%]\n........................................................................ [ 67%]\n........................................................................ [ 71%]\n........................................................................ [ 74%]\n........................................................................ [ 77%]\n........................................................................ [ 81%]\n........................................................................ [ 84%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 98%]\n.......................................                                  [100%]\n2127 passed in 145.08s (0:02:25)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
