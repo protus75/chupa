@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "5b9373af6637bf901d551345662c4f8ab9f60acc",
+  "produced_at_sha": "89ad60584e61a7be95500b70ad210b8ae99720e1",
   "stem": "closed-dispatch-signal-vocabularies",
-  "attempt": 1,
+  "attempt": 2,
   "terminal": "premise_failed",
   "stage": "implement",
   "verdict": "reject",
   "lessons": [
-    "The ticket contradicts itself: Scope in says the `tests` fence admits only the signal-fixture migration, and criterion 3 limits every edit under tests/ to naming a fixture's SIGNAL body. Criterion 1 and Regression require creating tests/test_vocabularies.py. Amend the ticket before retrying.",
-    "Re-author the CONTRADICTED TESTS bullet and criterion 3 so they exempt the new file tests/test_vocabularies.py by name. Keep the no-assertion-change rule for existing fixtures only. That way the three named tests in criterion 1 can be created.",
-    "The Regression block and Definition of rejected require the regression test to fail on the merge base, and tests/test_vocabularies.py is absent there. So the new file must be explicitly in scope. State that once in the fence prose rather than leaving it implicit.",
-    "After the ticket is amended, keep the rest of the scope unchanged: Dispatch Literal and dispatch_of in chupa/journal.py, match plus assert_never at every dispatch consumer, and SIGNAL_NAMES enforced in Journal.append. Section 6.2 still governs them."
+    "Acceptance criteria 3 and the ticket's Scope both forbid changing any fixture assertion. But tests/test_journal.py:39 test_append_round_trips_envelope appends and asserts body={\"kind\":\"confirm\"} as a literal, and no engine code writes 'confirm'.",
+    "With 'confirm' outside SIGNAL_NAMES, the new append validation refuses that fixture. Renaming only the appended body breaks the unchanged equality assertion. The attempt reproduced this: migrating to drain_handoff made the test fail.",
+    "Re-author the ticket so a migration may change an assertion's expected signal name to match the migrated append, and nothing else. Or have the fixture compare against the same variable it appends, so the name lives in one place.",
+    "Before re-authoring, grep every EventType.SIGNAL append under tests/ for assertions that repeat a literal unlisted name ('unrelated', 'late', 'unknown', 'spec_gap_hold', {}, {\"n\":...}). That way the allowance covers every such case, not just test_journal."
   ],
   "mechanical": null,
   "spec_version": "1.1",
