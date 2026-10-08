@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "fa738d1d0add909408f2373fc9a59e4cb2d1b909",
+  "stem": "spec-gap-unit-detection",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "As written, the ticket contradicts itself. Scope requires deleting runner.spec_gaps and premise_spec_gaps. tests/test_hardening.py:164 (test_a_hardener_is_never_hardened) monkeypatches both, so AC5 (`uv run pytest -q` exits 0) needs an edit to a file outside the Scope fence.",
+    "Revise the ticket: add tests/test_hardening.py to both Scope fence and Context. In Scope in, require migrating test_a_hardener_is_never_hardened to drive the hardener exclusion from this run's StageResult findings ({kind: spec_gap, unit}), not by monkeypatching the deleted functions.",
+    "Before re-issuing, find every reference to spec_gaps, premise_spec_gaps and the non-convergence fold across tests/ and chupa/. Fence every file that names them, so a deletion the ticket requires never breaks an unfenced file.",
+    "On the next attempt, keep the four test_a_hardener_is_never_hardened cases (False/True x premise_failed/gate_failed) as behavioral coverage. Only how a gap is injected changes: through StageResult findings, not by monkeypatching runner functions."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
