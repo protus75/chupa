@@ -79,7 +79,7 @@ FILE_CHARS = {'chupa/merge.py': 13596,
 
 STANDING_CONTEXT = ()
 
-AUTHORED = {'serve-merge-admission': {'chars': 7654,
+AUTHORED = {'serve-merge-admission': {'chars': 7824,
                            'plan': ('19.I', '19.P3.serve-merge-admission', '9'),
                            'context': ('chupa/merge.py',
                                        'chupa/serve.py',
