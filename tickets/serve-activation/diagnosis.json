@@ -1,20 +1,15 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "845e4d55c295ebc0d8ba95c72e6923757fc5790d",
+  "produced_at_sha": "03c65dcffc77c3a17073f6431fcf2cc08008a4a5",
   "stem": "serve-activation",
-  "attempt": 335,
+  "attempt": 336,
   "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "reject",
-  "lessons": [
-    "19.P3.serve-activation (CHUPA_PLAN.md:2256) requires triage/Author Driver and Effects to use checkout.journal. The fence omits chupa/triage.py and chupa/driver.py, so the seed must be re-authored under 19.L with them inside its fence and caller closure.",
-    "Merged chupa/runner.py:108-111 already binds Driver.journal and Effects to checkout.journal after Driver.from_config. Follow that pattern in triage_pass and keep Driver.from_config's signature and its other callers unchanged.",
-    "triage_pass is called from chupa/__main__.py:144. On merged HEAD it builds its own Journal through Driver.from_config (chupa/driver.py:159). That would make a second durable writer, which conflicts with the Records contract making Journal the sole durable event writer.",
-    "Create tests/test_serve.py yourself. The Verification command exits 4 on the base commit only because that file does not exist yet. This is not a pre-existing failure, so do not file it as a second problem."
-  ],
-  "mechanical": null,
+  "verdict": "abandon-human",
+  "lessons": [],
+  "mechanical": "premise_bounce cap spent",
   "spec_version": "1.1",
-  "provider": "claude",
-  "model": "claude-opus-5-5"
+  "provider": null,
+  "model": null
 }
