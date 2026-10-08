@@ -1,0 +1,52 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "1f86a779355a64b814167e6b09f85a40a49bbb6e",
+  "stem": "plan-gap-3",
+  "passed": true,
+  "changed_files": [
+    "CHUPA_PLAN.md"
+  ],
+  "inserted_lines": 19,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "tests/test_plan_lint.py"
+      ],
+      "rc": 0,
+      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/plan-gap-3\nconfigfile: pyproject.toml\nplugins: asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 28 items\n\ntests/test_plan_lint.py ............................                     [100%]\n\n============================== 28 passed in 0.18s ==============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
