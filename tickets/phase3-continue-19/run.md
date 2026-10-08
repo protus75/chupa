@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The registry includes serve-merge-admission at admissions[21], but its entry unit is absent; both validation failures also reproduce on base commit c6c4a51e3ad39a21bf93826f00b2902db6bde5de.
+The previous missing serve-merge-admission entry is repaired; entry_unit_gap passes, but checkpoint's Records still omits a required producer fact.
 
 ## Dead ends
 
-none
+Stopped before authoring rather than inventing an occurrence identity or bypassing the supplied production Box.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during read-first validation, well within the 60-minute expected budget.
+Read-first validation stopped within the 60-minute expected budget.
 
