@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "281e0c66cf53aa2b83425ee70348944ef2099a03",
+  "produced_at_sha": "80d401a8c9aa14ac1806ada10a61d5341cb4808a",
   "stem": "phase3-continue-27",
-  "attempt": 0,
-  "terminal": "premise_failed",
+  "attempt": 2,
+  "terminal": "infra_error",
   "stage": "implement",
-  "verdict": "reject",
+  "verdict": "retry",
   "lessons": [
-    "Premise is false: CHUPA_PLAN.md 19.P4 (line 2364) registry rows name watchdog-event-stream and notify-transport (lines 2380-2382), but no 19.P4.watchdog-event-stream or 19.P4.notify-transport unit heading exists, so the terminal's seeder role cannot be authored.",
-    "Harden the plan first under section 11.4: add both 19.P4 core entry units with Owner, Records, Observable and Tests, commit them, then regenerate this admission. Do not invent their facts in the seed or test.",
-    "When this admission is regenerated, add 19.P4.watchdog-event-stream and 19.P4.notify-transport to the Plan contract. The reply schema accepts spec_gap units only from cited contracts, so the last finding was emitted with kind and unit set to null.",
-    "On rerun, stop at contract validation again if entry_unit_gap or resolve_plan_contract still refuses either unit. Write no seed or tests/test_seeded_phase3_27.py until both resolve on the base commit."
+    "This was a codex provider 503 'Reconnecting' error event, not a ticket defect. Attempt 2 had already passed both Verification commands (9 batch tests, 2,482 full-suite tests), so repeat the same approach at the same capability.",
+    "Rerun entry_unit_gap and resolve_plan_contract on the live CHUPA_PLAN.md before authoring. Attempt 1's run.md reports premise_failed on the core units; attempt 2 found they now resolve. If a gap comes back, return premise_failed with kind: spec_gap and name the owning cited unit.",
+    "As Scope requires, commit only tests/test_seeded_phase3_27.py and leave tickets/phase3-exit/ untracked so Check can run requisition_review and record approve in tickets/phase3-continue-27/checks.json before the seeds lift.",
+    "Start from a fresh workspace. Do not rely on attempt 2's commit 80d401a8, because a failed attempt's commit is not merged state. Re-author phase3-exit and the batch test, then run Verification again before committing.",
+    "Send the final outcome JSON right after the commit and run no extra commands, so less time is spent waiting on the provider after the work is done."
   ],
   "mechanical": null,
   "spec_version": "1.1",
