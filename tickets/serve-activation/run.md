@@ -4,7 +4,7 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The exact Verification command exited 4 on untouched HEAD 845e4d55c295ebc0d8ba95c72e6923757fc5790d because tests/test_serve.py does not exist.
+The exact Verification command exited 4 because tests/test_serve.py does not yet exist; creating it belongs to this ticket, so its absence is not a second problem.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60 minutes; scope contradiction confirmed in approximately 3 minutes.
+Stopped during initial inspection, before the expected 60-minute implementation budget.
 
