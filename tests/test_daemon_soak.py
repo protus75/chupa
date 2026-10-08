@@ -5,9 +5,12 @@ never the phase exit artifact.
 """
 
 import importlib
+import asyncio
 import json
+import os
 from copy import deepcopy
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -331,3 +334,42 @@ async def test_daemon_soak_uses_registered_checks_lift(root, monkeypatch, case):
     assert await ctx.git.diff_names(root, "main", STEM) == []
     assert not (root / "tickets/soak-run" / DAEMON_SOAK_REPORT).exists()
     await ctx.git.worktree_remove(root, worktree)
+
+
+def test_daemon_soak_command_writes_report_only_on_green(tmp_path, monkeypatch, capsys):
+    destination = tmp_path / DAEMON_SOAK_REPORT
+    calls = []
+    writer = daemon_soak.write_report
+    def written(path, report, fs):
+        calls.append((path, report))
+        writer(path, report, fs)
+    monkeypatch.setattr(daemon_soak, "write_report", written)
+    assert daemon_soak.main(["--out", str(destination)]) == 0
+    [(path, produced)] = calls
+    assert path == destination and all(e.green for e in produced.entries)
+    git = Git(SubprocessExec(), env=os.environ, timeout=30)
+    assert produced.produced_at_sha == asyncio.run(git.rev_parse(Path.cwd(), "HEAD"))
+    assert destination.read_bytes() == (produced.model_dump_json(indent=2) + "\n").encode()
+    original_bytes = destination.read_bytes()
+    observe = daemon_soak._observe
+    async def missing(member):
+        if member.name == "conflict_resolution_rungs":
+            # Remove a required report from the member's own Box, after genuine production runs.
+            message = next(m for m in member.owner.box.messages() if m.origin == "unresolved")
+            member.owner.box._path(message).unlink()
+        return await observe(member)
+    monkeypatch.setattr(daemon_soak, "_observe", missing)
+    for output in (destination, tmp_path / "absent" / DAEMON_SOAK_REPORT):
+        assert daemon_soak.main(["--out", str(output)]) != 0
+        error = capsys.readouterr().err
+        assert "conflict_resolution_rungs" in error and "repair" in error and "--out <path>" in error
+        assert len(calls) == 1
+    assert destination.read_bytes() == original_bytes
+    assert not (tmp_path / "absent").exists()
+    monkeypatch.setattr(daemon_soak, "_observe", observe)
+    command_out = tmp_path / "command" / DAEMON_SOAK_REPORT
+    rc, out, err = asyncio.run(SubprocessExec().run(
+        ["uv", "run", "python", "-m", "eval.daemon_soak", "--out", str(command_out)],
+        cwd=Path.cwd(), env=os.environ, timeout=120))
+    assert rc == 0, out + err
+    assert command_out.read_bytes() == original_bytes
