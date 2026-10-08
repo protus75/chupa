@@ -4,15 +4,15 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The reply schema permits spec_gap units only for serve-merge-admission and worker-recovery-disposition; neither is missing, so this finding reports the required out-of-fence plan repair without misidentifying either unit.
+Both governing units validated and the new snapshot suite passed 14 tests; the full suite reported 2223 passed and one failure. Prepared seeds and test remain uncommitted.
 
 ## Dead ends
 
-Parsed admissions[21:] directly from the live registry and ran entry_unit_gap and resolve_plan_contract: both earlier entries pass, but outbox-only-admission reports missing and resolves to zero headings. No files changed or commits made.
+none
 
 ## Second problems filed
 
-none
+- box-000279-a929595c: The provider dormancy fixture passes object() to TicketWriter, which requires ticket.stem; reproduced on base d7aee8f6cfa2a0fc3f4ae2cb45d0b30cb5fcc8ff.
 
 ## Resolved engine/model
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during prerequisite validation, before implementation or Verification.
+Stopped within the expected budget on a verified pre-existing failure.
 
