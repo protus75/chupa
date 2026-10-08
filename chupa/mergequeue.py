@@ -129,7 +129,7 @@ class MergeQueue:
         self.ctx.driver.spool.write(ticket.stem, attempt, name,
                                     f"$ {' '.join(argv)}\n[exit {rc}]\n--- stdout\n{out}\n--- stderr\n{err}")
         tail = self.ctx.driver.redactor.scrub((out + err)[-stages.OUTPUT_TAIL_CHARS:])
-        result = CommandResult(argv=argv, rc=rc, tail=tail, base_red=False)
+        result = CommandResult(argv=list(argv), rc=rc, tail=tail, base_red=False)
         findings = [] if rc == 0 else [self._finding(
             f"{argv!r} exited {rc}: {tail.strip() or '(no output)'}", road, code=code)]
         return result, GateReport(code=code, verdict="fail" if findings else "pass", findings=findings)

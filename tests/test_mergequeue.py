@@ -13,7 +13,7 @@ from chupa import control, merge, stages
 from chupa.daemon import PauseConsumer
 from chupa.artifacts import StageResult
 from chupa.box import BOX_DIR, Box
-from chupa.config import MechanicalCheck, RegenerateStrategy, UnionStrategy, load_config
+from chupa.config import MechanicalCheck, RegenerateStrategy, UnionStrategy, load_config, snapshot_config
 from chupa.driver import Driver
 from chupa.git import Git
 from chupa.journal import EventType
@@ -21,7 +21,7 @@ from chupa.llm import FakeLLM
 from chupa.mergequeue import CONFLICT_FACTS, RED_STREAK, TREE_MISMATCH, ConflictHandoff, MergeQueue, TreeMismatch
 from chupa.providers import child_env
 from chupa.seams import ExecutableNotFound, LocalFileSystem, SubprocessExec
-from chupa.stages import ApprovedInvoice, Invoice, SeedReview, StageContext, render_review
+from chupa.stages import ApprovedInvoice, CommandResult, Invoice, SeedReview, StageContext, render_review
 from chupa.tickets import validate_ticket
 from tests.test_stages import CONFIG, ENV, SECRET, SPECS, STEM, TICKET
 
@@ -293,6 +293,24 @@ def test_always_hard_host_checks_run_before_squash(ctx, monkeypatch):
         assert sorted(p.relative_to(spools).as_posix() for p in spools.rglob("host-*")) == [
             "merge-integration/host-01.txt", "merge-integration/host-03.txt",
             "merge-safety/host-01.txt", "merge-safety/host-03.txt"]
+    run(scenario())
+
+
+@pytest.mark.parametrize("safety", [True, False])
+@pytest.mark.parametrize("argv,rc", [(["true"], 0), (["false"], 1)])
+def test_snapshot_configured_command_records_list_argv(ctx, safety, argv, rc):
+    async def scenario():
+        ticket = await ready(ctx)
+        ctx.config.review.mechanical = [host("configured", argv=argv)]
+        ctx.config.merge.safety_checks = ["configured"]
+        snapshot = snapshot_config(ctx.config)
+        assert isinstance(snapshot.review.mechanical[0].argv, tuple)
+        queue = MergeQueue(dataclasses.replace(ctx, config=snapshot), escalate=lambda _: None)
+        [result], [report] = await queue.host_checks(ticket, attempt=0, safety=safety)
+        assert isinstance(result, CommandResult)
+        assert isinstance(result.argv, list) and result.argv == argv
+        assert result.rc == rc
+        assert report.verdict == ("pass" if rc == 0 else "fail")
     run(scenario())
 
 
