@@ -1,13 +1,13 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "7979479fea61ddeb1fa1dc98c4c6aee1889d2815",
+  "produced_at_sha": "f3e23cc600375e57990b84dd006ab4a35cb99fe8",
   "stem": "phase3-continue-21",
-  "passed": false,
+  "passed": true,
   "changed_files": [
     "tests/test_seeded_phase3_21.py"
   ],
-  "inserted_lines": 403,
+  "inserted_lines": 407,
   "bypassed": [],
   "reports": [
     {
@@ -36,64 +36,25 @@
     },
     {
       "code": "requisition_review",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "unearned_fence_widening",
-          "path": "chupa/journal.py",
-          "line": 36,
-          "message": "Merged `chupa/journal.py` (lines 36-44) lists `SIGNAL_NAMES` without `recovery_alert`, and its append seam rejects any name outside that set (lines 128-130). So the `{kind: recovery_alert, ...}` signal that `19.P3.worker-recovery-disposition` requires `reconcile.py` to append can only work if `journal.py` is edited. The payload's registry floor is only `chupa/reconcile.py` and `tests/test_reconcile.py`. The entry unit's Owner bullet keeps `run_seq`, `TERMINAL_STATES`, the envelope and durable append with `journal.py`, but never mentions registering the signal name or adding `journal.py` to the fence. Its Tests bullet earns only `tests/test_restart_timers.py`. 19.L allows a seeding ticket to widen a fence only for paths found by mechanical rules 2-5; any other widening is a plan edit. Sibling entry units that needed a seam-owner addition say so explicitly (for example `19.P3.merge-queue` and `19.P3.serve-merge-admission`: 'Under 19.L ... closure, the implementing seed adds ...'). This unit has no such statement, so the ticket's own claim that `chupa/journal.py` is earned is seeding-time invention. Without that edit, the seed's criteria cannot be met inside its floor fence.",
-          "paved_road": "Harden `19.P3.worker-recovery-disposition` under section 11.4. Its Owner/Records bullets should state that `chupa/journal.py`'s `SIGNAL_NAMES` gains `recovery_alert` with `reconcile.py` as its emitting consumer, and that under 19.L seam-owner closure the implementing seed adds `chupa/journal.py` to its fence and Context partition. Its Tests/Verification bullets should name `tests/test_vocabularies.py` (whose dynamically derived equality covers the new name) as a preservation suite. Then regenerate this seeding ticket so it cites the hardened unit rather than asserting the closure in its own prose.",
-          "kind": "spec_gap",
-          "unit": "19.P3.worker-recovery-disposition"
-        },
-        {
-          "code": "requisition_review",
-          "path": null,
-          "line": null,
-          "message": "invalid requisition review reply: 1 schema error(s)",
-          "paved_road": "reply with a schema-valid requisition verdict",
-          "kind": "authoring_error",
-          "unit": null
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false
     }
   ],
   "seeds": [
     {
       "stem": "phase3-continue-22",
-      "ticket_sha": "eeb1620d54af19689c7f468fc61826d4df631100",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "unearned_fence_widening",
-          "path": "chupa/journal.py",
-          "line": 36,
-          "message": "Merged `chupa/journal.py` (lines 36-44) lists `SIGNAL_NAMES` without `recovery_alert`, and its append seam rejects any name outside that set (lines 128-130). So the `{kind: recovery_alert, ...}` signal that `19.P3.worker-recovery-disposition` requires `reconcile.py` to append can only work if `journal.py` is edited. The payload's registry floor is only `chupa/reconcile.py` and `tests/test_reconcile.py`. The entry unit's Owner bullet keeps `run_seq`, `TERMINAL_STATES`, the envelope and durable append with `journal.py`, but never mentions registering the signal name or adding `journal.py` to the fence. Its Tests bullet earns only `tests/test_restart_timers.py`. 19.L allows a seeding ticket to widen a fence only for paths found by mechanical rules 2-5; any other widening is a plan edit. Sibling entry units that needed a seam-owner addition say so explicitly (for example `19.P3.merge-queue` and `19.P3.serve-merge-admission`: 'Under 19.L ... closure, the implementing seed adds ...'). This unit has no such statement, so the ticket's own claim that `chupa/journal.py` is earned is seeding-time invention. Without that edit, the seed's criteria cannot be met inside its floor fence.",
-          "paved_road": "Harden `19.P3.worker-recovery-disposition` under section 11.4. Its Owner/Records bullets should state that `chupa/journal.py`'s `SIGNAL_NAMES` gains `recovery_alert` with `reconcile.py` as its emitting consumer, and that under 19.L seam-owner closure the implementing seed adds `chupa/journal.py` to its fence and Context partition. Its Tests/Verification bullets should name `tests/test_vocabularies.py` (whose dynamically derived equality covers the new name) as a preservation suite. Then regenerate this seeding ticket so it cites the hardened unit rather than asserting the closure in its own prose.",
-          "kind": "spec_gap",
-          "unit": "19.P3.worker-recovery-disposition"
-        }
-      ],
+      "ticket_sha": "feb2ab4e8e8f0001ba03168c051f88ee803cb896",
+      "verdict": "approve",
+      "findings": [],
       "mechanical": null
     },
     {
       "stem": "serve-merge-admission",
-      "ticket_sha": "5e2d6cf50c771458bbff20d797eb5dbbecf846a8",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "requisition_review",
-          "path": null,
-          "line": null,
-          "message": "invalid requisition review reply: 1 schema error(s)",
-          "paved_road": "reply with a schema-valid requisition verdict",
-          "kind": "authoring_error",
-          "unit": null
-        }
-      ],
-      "mechanical": "invalid reply"
+      "ticket_sha": "adfa250e1d7ffc0c931e164b68da98e5d141a363",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
     }
   ],
   "verification": [
@@ -106,7 +67,7 @@
         "tests/test_seeded_phase3_21.py"
       ],
       "rc": 0,
-      "tail": "..............                                                           [100%]\n14 passed in 0.97s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "..............                                                           [100%]\n14 passed in 0.48s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -117,7 +78,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": ".................. [ 29%]\n........................................................................ [ 32%]\n........................................................................ [ 35%]\n........................................................................ [ 38%]\n........................................................................ [ 42%]\n........................................................................ [ 45%]\n........................................................................ [ 48%]\n........................................................................ [ 51%]\n........................................................................ [ 55%]\n........................................................................ [ 58%]\n........................................................................ [ 61%]\n........................................................................ [ 64%]\n........................................................................ [ 67%]\n........................................................................ [ 71%]\n........................................................................ [ 74%]\n........................................................................ [ 77%]\n........................................................................ [ 80%]\n........................................................................ [ 84%]\n........................................................................ [ 87%]\n........................................................................ [ 90%]\n........................................................................ [ 93%]\n........................................................................ [ 97%]\n................................................................         [100%]\n2224 passed in 156.96s (0:02:36)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": ".................. [ 29%]\n........................................................................ [ 32%]\n........................................................................ [ 35%]\n........................................................................ [ 38%]\n........................................................................ [ 42%]\n........................................................................ [ 45%]\n........................................................................ [ 48%]\n........................................................................ [ 51%]\n........................................................................ [ 55%]\n........................................................................ [ 58%]\n........................................................................ [ 61%]\n........................................................................ [ 64%]\n........................................................................ [ 67%]\n........................................................................ [ 71%]\n........................................................................ [ 74%]\n........................................................................ [ 77%]\n........................................................................ [ 80%]\n........................................................................ [ 84%]\n........................................................................ [ 87%]\n........................................................................ [ 90%]\n........................................................................ [ 93%]\n........................................................................ [ 97%]\n................................................................         [100%]\n2224 passed in 157.05s (0:02:37)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
