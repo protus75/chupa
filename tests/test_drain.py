@@ -267,11 +267,18 @@ def test_drain_merges_without_scanning_the_box(root, monkeypatch):
     write(root, "work", ticket())
     requests = []
     monkeypatch.setattr("chupa.triage.triage_pass", lambda *args: requests.append(args))
-    script = Script()
+    from chupa.daemon import storm_producer
+    def arrival(checkout):
+        producer = storm_producer(root=box.root, fs=box.fs, journal=checkout.journal, clock=checkout.clock)
+        producer.enqueue(message_class="suggestion", origin="test", summary="pending observation",
+                         occurrence_id="drain-observation")
+    script = Script(hooks={"work": arrival})
     assert drain(root, script) == 0
     assert script.calls == ["work"]
     assert requests == []
     assert box.get(id).status == "pending"
+    assert box.get(id).verdict is box.get(id).resolution is None
+    assert any(e.body.get("kind") == "storm_occurrence" for e in journal(root).read())
     assert not any(e.type == EventType.SIGNAL and e.body.get("signal") == "triage_pass"
                    for e in journal(root).read())
 

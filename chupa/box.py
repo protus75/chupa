@@ -14,7 +14,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 
 from chupa.config import load_config
 from chupa.git import Git
-from chupa.seams import FileSystem, LocalFileSystem, SubprocessExec
+from chupa.journal import Journal
+from chupa.seams import Clock, FileSystem, LocalFileSystem, SubprocessExec
 
 BOX_DIR = "box"
 MessageClass = Literal["suggestion", "failure_report", "override_report", "retro_finding", "bug_report"]
@@ -84,10 +85,12 @@ class Message(_Strict):
 
 class Box:
     def __init__(self, root: Path, fs: FileSystem, *,
-                 arrival: Callable[..., object] | None = None) -> None:
+                 arrival: Callable[..., object] | None = None,
+                 recover: Callable[[], None] | None = None) -> None:
         self.root = root
         self.fs = fs
         self._arrival = arrival
+        self._recover = recover
 
     def messages(self) -> list[Message]:
         result = []
@@ -138,6 +141,8 @@ class Box:
         if self._arrival is not None:
             self._arrival(signature=digest, occurrence_id=occurrence_id,
                           emitting_stage=stage, emitting_origin=origin)
+            # An arrival may publish its trip report before this source message.
+            existing = self.messages()
         for prior in existing:
             if prior.signature == digest:
                 return prior.id, False
@@ -146,6 +151,19 @@ class Box:
         message = message.model_copy(update={"id": id, "seq": seq})
         self._write(message)
         return id, True
+
+    def recover(self) -> None:
+        if self._recover is not None:
+            self._recover()
+
+    def publish_storm_report(self, body: dict, count: int) -> tuple[str, bool]:
+        return self.enqueue(
+            message_class="failure_report", origin="storm-breaker/" + body["trip_id"],
+            summary=(f"P0 storm breaker trip: signature {body['signature']}; trip {body['trip_id']}; "
+                     f"{count} occurrences in one-hour window; emitting stage "
+                     f"{body['emitting_stage']!r}, origin {body['emitting_origin']!r}"),
+            reason="storm breaker trip", occurrence_id="storm-report/" + body["trip_id"],
+        )
 
     def record_verdict(self, id: str, verdict: Verdict) -> None:
         message = self.get(id)
@@ -196,19 +214,32 @@ def read_registry(repo: Path) -> list[tuple[DecisionRecord, str]]:
 
 
 def ingest_bootstrap(box: Box, text: str) -> list[str]:
+    from chupa.storm import arrival_id
+
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
     return [
-        box.enqueue(message_class="suggestion", origin=BOOTSTRAP_ORIGIN, summary=line.strip())[0]
-        for line in text.splitlines() if line.strip()
+        box.enqueue(message_class="suggestion", origin=BOOTSTRAP_ORIGIN, summary=line.strip(),
+                    occurrence_id=arrival_id("bootstrap-ingest", digest, n))[0]
+        for n, line in enumerate(text.splitlines(), 1) if line.strip()
     ]
 
 
-async def ingest_main_checkout(cwd: Path, git: Git, fs: FileSystem) -> int:
+async def ingest_main_checkout(cwd: Path, git: Git, fs: FileSystem, *,
+                               journal: Journal | None = None, clock: Clock | None = None) -> int:
     root = (await git.git_common_dir(cwd)).parent
     config = load_config(None, cwd=root)
     source = root / BOOTSTRAP_FILE
     if not source.exists():
         return 0
-    box = Box(config.state_dir / BOX_DIR, fs)
+    if journal is None:
+        box = Box(config.state_dir / BOX_DIR, fs)
+    else:
+        from chupa.daemon import storm_producer
+
+        if clock is None:
+            raise BoxError("journal-holding ingest requires the checkout clock; supply its injected clock")
+        box = storm_producer(root=config.state_dir / BOX_DIR, fs=fs, journal=journal, clock=clock)
+        box.recover()
     before = len(box.messages())
     ingest_bootstrap(box, source.read_text())
     return len(box.messages()) - before

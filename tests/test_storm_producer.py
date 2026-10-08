@@ -233,58 +233,42 @@ def test_box_operations_without_arrivals_are_idle(tmp_path, monkeypatch):
     clock.assert_not_called()
 
 
-def assert_production_dormant(tmp_path, monkeypatch):
+def assert_production_reachable(tmp_path, monkeypatch):
     hook = Mock(wraps=daemon.storm_producer)
-    callback = Mock(wraps=StormLedger.record)
     monkeypatch.setattr(daemon, "storm_producer", hook)
-    monkeypatch.setattr(StormLedger, "record", callback)
     rig = CoreRig(tmp_path)
-    hook.assert_not_called()
-    callback.assert_not_called()
+    hook.assert_called_once()
     assert rig.journal.read() == [] and rig.exec.calls == []
-    return hook, callback
+    return hook
 
 
 @pytest.mark.parametrize("verb", ["run", "drain"])
-def test_storm_producer_hook_is_dormant(tmp_path, monkeypatch, admission_context, verb):
+def test_storm_producer_hook_is_active(tmp_path, monkeypatch, admission_context, verb):
     composition = tmp_path / "composition"
     composition.mkdir()
-    with monkeypatch.context() as patch:
-        hook, callback = assert_production_dormant(composition, patch)
-        source = admission_context
-        source.fs.write(source.repo / f"tickets/{STEM}/ticket.md", TICKET.format(bypass="").encode())
-        implement = agent({"chupa/thing.py": "ok\n"})
+    hook = assert_production_reachable(composition, monkeypatch)
+    source = admission_context
+    source.fs.write(source.repo / f"tickets/{STEM}/ticket.md", TICKET.format(bypass="").encode())
+    implement = agent({"chupa/thing.py": "ok\n"})
 
-        def report(request):
-            reply = json.loads(implement(request).removeprefix("```json\n").removesuffix("\n```"))
-            reply["second_problems"] = [{"summary": "ordinary production arrival"}]
-            return "```json\n" + json.dumps(reply) + "\n```"
+    def report(request):
+        reply = json.loads(implement(request).removeprefix("```json\n").removesuffix("\n```"))
+        reply["second_problems"] = [{"summary": "ordinary production arrival"}]
+        return "```json\n" + json.dumps(reply) + "\n```"
 
-        llm = FakeLLM([report, verdict()])
-        assert cli.main([verb, STEM] if verb == "run" else [verb], cwd=source.repo, env=source.env,
-                        clock=source.driver.clock, pipeline=lambda c: runner.bind(c, llm), reexec=NoChild()) == 0
-        messages = Box(source.config.state_dir / "box", source.fs).messages()
-        assert len(messages) == 1 and messages[0].summary == "ordinary production arrival"
-        assert not any(e.body.get("kind") == "storm_occurrence" for e in source.driver.journal.read())
-        hook.assert_not_called()
-        callback.assert_not_called()
-    # Calibrate the same assertion against an activated production composition root.
-    build = cli.build_daemon_core
-
-    def activated(checkout, **kwargs):
-        daemon.storm_producer(root=checkout.config.state_dir / "box", fs=checkout.fs,
-                              journal=checkout.journal, clock=checkout.clock)
-        return build(checkout, **kwargs)
-
-    with monkeypatch.context() as patch:
-        patch.setattr(cli, "build_daemon_core", activated)
-        calibrated = tmp_path / "calibrated"
-        calibrated.mkdir()
-        with pytest.raises(AssertionError):
-            assert_production_dormant(calibrated, patch)
+    llm = FakeLLM([report, verdict()])
+    assert cli.main([verb, STEM] if verb == "run" else [verb], cwd=source.repo, env=source.env,
+                    clock=source.driver.clock, pipeline=lambda c: runner.bind(c, llm), reexec=NoChild()) == 0
+    messages = Box(source.config.state_dir / "box", source.fs).messages()
+    assert len(messages) == 1 and messages[0].summary == "ordinary production arrival"
+    occurrences = [e for e in source.driver.journal.read() if e.body.get("kind") == "storm_occurrence"]
+    assert len(occurrences) == 1
+    assert occurrences[0].body["emitting_stage"] == "implement"
+    assert occurrences[0].body["emitting_origin"] == STEM
+    assert hook.call_count > 1
 
     def forbidden(*args, **kwargs):
-        pytest.fail("arrival producer invoked a trip/report/notify/dispatch side effect")
+        pytest.fail("arrival producer invoked notify/dispatch/hold")
 
     monkeypatch.setattr(Effects, "run", forbidden)
     monkeypatch.setattr(control, "publish_request", forbidden)
@@ -293,7 +277,7 @@ def test_storm_producer_hook_is_dormant(tmp_path, monkeypatch, admission_context
     box, journal, clock = compose(tmp_path / "direct")
     for n in range(12):
         box.enqueue(**ARRIVAL, occurrence_id=str(n))
-    assert len(box.messages()) == 1 and StormLedger(journal=journal, clock=clock).count(SIG) == 12
-    assert len(journal.read()) == 12
-    assert all(e.type == EventType.SIGNAL and e.body["kind"] == "storm_occurrence" for e in journal.read())
+    assert len(box.messages()) == 2 and StormLedger(journal=journal, clock=clock).count(SIG) == 12
+    assert len([e for e in journal.read() if e.body.get("kind") == "storm_breaker_trip"]) == 1
+    assert len([e for e in journal.read() if e.body.get("kind") == "storm_occurrence"]) == 13
     assert set(p.name for p in (tmp_path / "direct").iterdir()) == {"box", "journal"}

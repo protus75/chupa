@@ -20,7 +20,8 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 from chupa.artifacts import OUTCOMES, SHAKEOUT_REPORT, Artifact, Cost, Diagnosis, DiagnosisReply, Finding, Harvest, NonBlank, Outcome, ReviewVerdict, ShakeoutReport, StageResult
-from chupa.box import BOX_DIR, Box
+from chupa.box import BOX_DIR
+from chupa.storm import arrival_id
 from chupa.caps import lineage
 from chupa.config import Config, ConfigSnapshot, Severity
 from chupa.driver import Driver, LlmStage
@@ -485,11 +486,15 @@ async def implement(ctx: StageContext, ticket: Ticket, *, attempt: int) -> Stage
         return result
     reply = result.artifact
     assert isinstance(reply, ImplementReply)
-    box = Box(ctx.config.state_dir / BOX_DIR, ctx.fs)
+    from chupa.daemon import storm_producer
+
+    box = storm_producer(root=ctx.config.state_dir / BOX_DIR, fs=ctx.fs,
+                         journal=ctx.driver.journal, clock=ctx.driver.clock)
     second_problem_ids = [
         box.enqueue(message_class="suggestion", origin=stem, stage="implement",
-                    outcome=reply.outcome, summary=problem.summary)[0]
-        for problem in reply.second_problems
+                    outcome=reply.outcome, summary=problem.summary,
+                    occurrence_id=arrival_id("second-problem", stem, attempt, index))[0]
+        for index, problem in enumerate(reply.second_problems)
     ]
     record = f"{TICKETS_DIR}/{stem}/run.md"
     ctx.fs.write(worktree / record, run_record(reply, result.cost, spec, second_problem_ids).encode())
@@ -566,7 +571,10 @@ async def gather_evidence(
         base_worktree.parent.mkdir(parents=True, exist_ok=True)
         await ctx.git.worktree_add_detached(ctx.repo, base_worktree, base)
         try:
-            box = Box(ctx.config.state_dir / BOX_DIR, ctx.fs)
+            from chupa.daemon import storm_producer
+
+            box = storm_producer(root=ctx.config.state_dir / BOX_DIR, fs=ctx.fs,
+                                 journal=ctx.driver.journal, clock=ctx.driver.clock)
             for n, argv in red:
                 try:
                     rc, out, err = await ctx.exec_.run(argv, cwd=base_worktree, env=env, timeout=timeout)
@@ -585,7 +593,8 @@ async def gather_evidence(
                                and m.summary.startswith(f"`{' '.join(argv)}` fails on the merge base ")
                                for m in box.messages()):
                         box.enqueue(message_class="failure_report", origin=stem, stage=stage,
-                                    outcome="base_red", summary=summary)
+                                    outcome="base_red", summary=summary,
+                                    occurrence_id=arrival_id("base-red", stem, attempt, stage, n))
         finally:
             await ctx.git.worktree_remove(ctx.repo, base_worktree)
     evidence = await gather_safety_evidence(ctx, ticket, claimed)

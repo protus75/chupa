@@ -152,7 +152,7 @@ class Flake:
         return self.quarantine()
 
     def detect(self, *, test_id: str, evidence: RerunEvidence,
-               summary: str, reason: str) -> Quarantine:
+               summary: str, reason: str, occurrence_id: str | None = None) -> Quarantine:
         if (not _nonblank(test_id) or not isinstance(evidence, RerunEvidence)
                 or evidence.test_id != test_id or evidence.first_result != "fail"
                 or evidence.rerun_result != "pass" or evidence.bare_rerun is not True
@@ -162,7 +162,8 @@ class Flake:
                              "fail-then-pass observation on a bare rerun, description and failure reason")
         projection = self.quarantine()
         box_id, _ = self.box.enqueue(message_class="failure_report", origin=test_id, stage="check",
-                                     outcome="gate_failed", summary=summary, reason=reason)
+                                     outcome="gate_failed", summary=summary, reason=reason,
+                                     occurrence_id=occurrence_id)
         identity = FlakeIdentity(test_id, self.box.get(box_id).signature, box_id)
         if box_id in projection.detected:
             if projection.detected[box_id] != identity:

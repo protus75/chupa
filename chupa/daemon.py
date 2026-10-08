@@ -21,7 +21,7 @@ from chupa.restart import Restart
 from chupa.scheduler import Scheduler
 from chupa.seams import Clock, FileSystem, Sleep
 from chupa.stages import StageContext
-from chupa.storm import StormLedger
+from chupa.storm import StormBreaker
 from chupa.tickets import Ticket, parse_ticket, ticket_path
 from chupa.watcher import Watcher
 
@@ -29,8 +29,11 @@ KILL_APPLIED = "kill_applied"
 
 
 def storm_producer(*, root: Path, fs: FileSystem, journal: Journal, clock: Clock) -> Box:
-    """Dormant arrival boundary using the lock holder's existing writer (19.P3.storm-producer-wiring)."""
-    return Box(root, fs, arrival=StormLedger(journal=journal, clock=clock).record)
+    """Compose without effects; recovery and arrivals run under the caller's writer lock."""
+    storm = StormBreaker(journal=journal, clock=clock,
+                         publish=lambda body, count: box.publish_storm_report(body, count))
+    box = Box(root, fs, arrival=storm.record, recover=storm.recover)
+    return box
 
 
 def flake_detection(*, journal: Journal, box: Box, config: Config,
@@ -157,7 +160,8 @@ class PauseConsumer:
 
     def __init__(self, *, journal: Journal, lifecycle_id: str, state_dir: Path,
                  fs: FileSystem, sleep: Sleep, files: Callable[[], Iterable[Path]],
-                 read: Callable[[Path], bytes]) -> None:
+                 read: Callable[[Path], bytes], recover: Callable[[], None] | None = None) -> None:
+        self._recover = recover
         self.state_dir, self.fs, self.sleep = state_dir, fs, sleep
         self.projection = ControlProjection(lifecycle_id)
         self._published = False
@@ -194,6 +198,8 @@ class PauseConsumer:
         self._published = False
 
     async def checkpoint(self) -> None:
+        if self._recover is not None:
+            self._recover()
         while True:
             self.inbox.consume()
             if self.projection.kill_requested or self.projection.pause_id is None:
@@ -256,6 +262,8 @@ class DaemonCore:
         async with self.admission._slot:
             if self.restart is not None:
                 await self.restart.startup()
+            if self.control is not None and self.control._recover is not None:
+                self.control._recover()
 
     async def sweep_orphans(self) -> list[str]:
         """Skip live dispatch, cleanup or admission; serialize the idle boundary with offers."""

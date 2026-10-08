@@ -1,6 +1,9 @@
-"""Dormant journal-backed storm occurrences (CHUPA_PLAN.md 19.P3.storm-ledger)."""
+"""Journal-backed storm occurrences and escalation (19.P3.storm-notification-activation)."""
 
 import re
+import hashlib
+import json
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -8,6 +11,8 @@ from chupa.journal import Event, EventType, Journal, render_ts
 from chupa.seams import Clock
 
 STORM_WINDOW = timedelta(hours=1)
+STORM_THRESHOLD = 5
+STORM_TRIP = "storm_breaker_trip"
 _PREFIX = "storm-occurrence/"
 _FIELDS = {"kind", "signature", "occurrence_id", "emitting_stage", "emitting_origin"}
 
@@ -81,3 +86,81 @@ class StormLedger:
 
     def count(self, signature: str) -> int:
         return len(self.occurrences(signature))
+
+
+def arrival_id(*parts: str | int) -> str:
+    return "storm-arrival/" + _digest(list(parts))
+
+
+def _digest(parts: list) -> str:
+    return hashlib.sha256(json.dumps(parts, separators=(",", ":"), ensure_ascii=True)
+                          .encode("utf-8")).hexdigest()
+
+
+class StormBreaker(StormLedger):
+    """Recover the write-ahead escalation through the existing Box publisher."""
+
+    def __init__(self, *, journal: Journal, clock: Clock,
+                 publish: Callable[[dict[str, Any], int], object]) -> None:
+        super().__init__(journal=journal, clock=clock)
+        self.publish = publish
+        self._recovering = False
+
+    def _evidence(self) -> tuple[dict[str, tuple[dict[str, Any], int]], set[str]]:
+        occurrences = self._history()
+        now_limit = datetime.fromisoformat(render_ts(self.clock()))
+        live_history: list[Event] = []
+        expected: dict[str, tuple[dict[str, Any], int]] = {}
+        recorded: set[str] = set()
+        seen: set[str] = set()
+        for event in self.journal.read():
+            if event.key in occurrences and event == occurrences[event.key] and event.key not in seen:
+                seen.add(event.key)
+                live_history.append(event)
+                signature = event.body["signature"]
+                now = datetime.fromisoformat(event.ts)
+                live = [item for item in live_history if item.body["signature"] == signature
+                        and now - STORM_WINDOW < datetime.fromisoformat(item.ts) <= now]
+                if (now <= now_limit and len(live) > STORM_THRESHOLD
+                        and signature not in expected):
+                    first, crossing = live[0].body["occurrence_id"], event.body["occurrence_id"]
+                    stage, origin = event.body["emitting_stage"], event.body["emitting_origin"]
+                    body = dict(kind=STORM_TRIP, signature=signature,
+                                trip_id=_digest([signature, first, crossing]),
+                                first_occurrence_id=first, crossing_occurrence_id=crossing,
+                                emitting_stage=stage, emitting_origin=origin,
+                                held=(dict(emitting_stage=stage, emitting_origin=origin)
+                                      if stage in {"implement", "check", "review"} else None))
+                    expected[signature] = body, len(live)
+            reserved = event.key is not None and event.key.startswith("storm-trip/")
+            if event.body.get("kind") != STORM_TRIP and not reserved:
+                continue
+            candidate = expected.get(event.body.get("signature")) if isinstance(event.body.get("signature"), str) else None
+            if (candidate is None or event.type != EventType.SIGNAL or event.ticket is not None
+                    or event.body != candidate[0]
+                    or event.key != "storm-trip/" + candidate[0]["trip_id"]):
+                raise _invalid("malformed or conflicting storm trip evidence")
+            recorded.add(candidate[0]["trip_id"])
+        return expected, recorded
+
+    def recover(self) -> None:
+        if self._recovering:
+            return
+        expected, recorded = self._evidence()
+        self._recovering = True
+        try:
+            for body, count in expected.values():
+                if body["trip_id"] not in recorded:
+                    self.journal.append(EventType.SIGNAL, body, ticket=None,
+                                        key="storm-trip/" + body["trip_id"])
+                self.publish(body, count)
+        finally:
+            self._recovering = False
+
+    def record(self, **arrival: Any) -> Event:
+        # Refuse corrupt trip evidence before adding even an otherwise valid arrival.
+        _key(dict(kind="storm_occurrence", **arrival))
+        self._evidence()
+        event = super().record(**arrival)
+        self.recover()
+        return event

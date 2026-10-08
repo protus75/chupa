@@ -18,7 +18,8 @@ if TYPE_CHECKING:
 import yaml
 
 from chupa.artifacts import Finding, Harvest, StageResult
-from chupa.box import BOX_DIR, Box
+from chupa.box import BOX_DIR
+from chupa.storm import arrival_id
 from chupa.caps import capability, consume, next_rung, spent, spent_reason
 from chupa.config import Config, ConfigSnapshot
 from chupa.driver import Driver
@@ -214,6 +215,7 @@ async def failure_terminal(ctx: StageContext, ticket: Ticket, *, outcome: str, s
                            verdict: str | None = None) -> str:
     """Preserve the producing terminal, then retire a published split before wiping and returning."""
     from chupa.rework import ReworkOrder
+    from chupa.daemon import storm_producer
 
     reason = ",".join(sorted({f.code for f in findings})) or outcome
     terminal = {"to": outcome, "stage": stage, "reason": reason}
@@ -236,13 +238,17 @@ async def failure_terminal(ctx: StageContext, ticket: Ticket, *, outcome: str, s
                     await harvest(ctx, ticket.stem, attempt=attempt, stage=stage, terminal=outcome,
                                   findings=[*findings, *extra], results=(reworked,), kind="harvest-rework")
                 except Exception:
-                    Box(ctx.config.state_dir / BOX_DIR, ctx.fs).enqueue(
+                    storm_producer(root=ctx.config.state_dir / BOX_DIR, fs=ctx.fs,
+                               journal=ctx.driver.journal, clock=ctx.driver.clock).enqueue(
                         message_class="failure_report", origin=ticket.stem, stage=stage, outcome=outcome,
-                        summary="; ".join(f"{f.message}; {f.paved_road}" for f in extra))
+                        summary="; ".join(f"{f.message}; {f.paved_road}" for f in extra),
+                        occurrence_id=arrival_id("rework-failure", ticket.stem, attempt, stage, outcome))
             else:
-                Box(ctx.config.state_dir / BOX_DIR, ctx.fs).enqueue(
+                storm_producer(root=ctx.config.state_dir / BOX_DIR, fs=ctx.fs,
+                               journal=ctx.driver.journal, clock=ctx.driver.clock).enqueue(
                     message_class="failure_report", origin=ticket.stem, stage=stage, outcome=outcome,
-                    summary="; ".join(f"{f.message}; {f.paved_road}" for f in extra))
+                    summary="; ".join(f"{f.message}; {f.paved_road}" for f in extra),
+                        occurrence_id=arrival_id("rework-failure", ticket.stem, attempt, stage, outcome))
     if not mechanical and not split and verdict is not None:
         previous = [e.body for e in history if e.type == EventType.STATE_TRANSITION
                     and e.ticket == ticket.stem and e.body.get("to") in TERMINAL_STATES]
@@ -443,6 +449,10 @@ async def run_ticket(stem: str, checkout: Checkout, dispatch: Dispatch) -> int:
         assert checkout.config.worktree_root is not None  # resolved at config load
         await reconcile(checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root,
                         lambda orphan, attempt: harvest_orphan(checkout, orphan, attempt))
+        from chupa.daemon import storm_producer
+
+        storm_producer(root=checkout.config.state_dir / BOX_DIR, fs=checkout.fs,
+                       journal=checkout.journal, clock=checkout.clock).recover()
         ticket = await _admit(stem, checkout)
         checkout.journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket=stem)
         terminal = await dispatch(ticket)
@@ -534,7 +544,10 @@ async def _dead_dependents(dead: str, checkout: Checkout) -> None:
 
     last = last_states(history)
     deaths = dead_dependencies(history)
-    box = Box(checkout.config.state_dir / BOX_DIR, checkout.fs)
+    from chupa.daemon import storm_producer
+
+    box = storm_producer(root=checkout.config.state_dir / BOX_DIR, fs=checkout.fs,
+                         journal=checkout.journal, clock=checkout.clock)
     for path in sorted((checkout.repo / "tickets").glob("*/ticket.md")):
         stem = path.parent.name
         if stem == dead or _ticket_state(path) != "confirmed" or last.get(stem) in {"merged", "already_satisfied", "rejected"}:
@@ -545,9 +558,10 @@ async def _dead_dependents(dead: str, checkout: Checkout) -> None:
             if not any(e.type == EventType.SIGNAL and e.ticket == stem
                    and e.body.get("signal") == "dead_dependency" and e.body.get("dead") == dependency
                        for e in history):
-                checkout.journal.append(EventType.SIGNAL, {"signal": "dead_dependency", "dead": dependency}, ticket=stem)
                 box.enqueue(message_class="failure_report", origin=stem, stage="depends", outcome="rejected",
-                            summary=f"{stem} depends on {dependency}, which was rejected or abandoned; re-wire, re-scope, or reject it")
+                            summary=f"{stem} depends on {dependency}, which was rejected or abandoned; re-wire, re-scope, or reject it",
+                            occurrence_id=arrival_id("dead-dependency", stem, dependency))
+                checkout.journal.append(EventType.SIGNAL, {"signal": "dead_dependency", "dead": dependency}, ticket=stem)
 
 
 async def _admit(stem: str, checkout: Checkout) -> Ticket:

@@ -241,29 +241,29 @@ def test_occurrence_append_failures_and_crash_replay(tmp_path, monkeypatch, when
     assert snapshot(tmp_path) == before
 
 
-def test_ledger_has_no_trip_side_effects(tmp_path, monkeypatch):
+def test_ledger_trip_uses_only_journal_and_box(tmp_path, monkeypatch):
     from chupa import control, daemon
     from chupa.effects import Effects
 
     def forbidden(*args, **kwargs):
-        pytest.fail("occurrence ledger invoked an external side effect")
+        pytest.fail("storm invoked an external side effect")
 
-    monkeypatch.setattr(Box, "enqueue", forbidden)
     monkeypatch.setattr(Effects, "run", forbidden)
     monkeypatch.setattr(control, "publish_request", forbidden)
     monkeypatch.setattr(daemon.DaemonAdmission, "dispatch", forbidden)
-    storm, journal, _ = ledger(tmp_path)
-    events = tuple(record(storm, str(n)) for n in range(12))
-    assert storm.count(SIG) == 12 and storm.occurrences(SIG) == events
-    assert tuple(journal.read()) == events
-    assert all(event.type == EventType.SIGNAL and event.body["kind"] == "storm_occurrence"
-               for event in events)
-    assert list(tmp_path.iterdir()) == [journal.dir]
-    assert Box(tmp_path / "box", LocalFileSystem()).messages() == []
+    monkeypatch.setattr(daemon.PauseConsumer, "hold", forbidden)
+    storm, journal, clock = ledger(tmp_path)
+    box = daemon.storm_producer(root=tmp_path / "box", fs=LocalFileSystem(),
+                                journal=journal, clock=clock)
+    for n in range(12):
+        box.enqueue(message_class="failure_report", origin="one", summary="failed path/one 123",
+                    stage="implement", outcome="gate_failed", occurrence_id=str(n))
+    assert storm.count(SIG) == 12
+    assert len([e for e in journal.read() if e.body.get("kind") == "storm_breaker_trip"]) == 1
+    assert len(box.messages()) == 2
 
 
-def test_storm_ledger_is_dormant(tmp_path, monkeypatch):
-    # The reachable daemon hook migrates import absence to production behavior (19.I).
-    from tests.test_storm_producer import assert_production_dormant
+def test_storm_ledger_is_reachable(tmp_path, monkeypatch):
+    from tests.test_storm_producer import assert_production_reachable
 
-    assert_production_dormant(tmp_path, monkeypatch)
+    assert_production_reachable(tmp_path, monkeypatch)

@@ -36,10 +36,14 @@ def _clock() -> datetime:
 
 def build_control(checkout: runner.Checkout) -> PauseConsumer:
     """Compose without reading requests, publishing discovery, or starting tasks."""
+    from chupa.daemon import storm_producer
+
+    box = storm_producer(root=checkout.config.state_dir / "box", fs=checkout.fs,
+                         journal=checkout.journal, clock=checkout.clock)
     return PauseConsumer(journal=checkout.journal, lifecycle_id=uuid4().hex,
                          state_dir=checkout.config.state_dir, fs=checkout.fs, sleep=checkout.sleep,
                          files=lambda: (checkout.config.state_dir / "control/inbox").glob("*"),
-                         read=Path.read_bytes)
+                         read=Path.read_bytes, recover=box.recover)
 
 
 def build_daemon_core(
