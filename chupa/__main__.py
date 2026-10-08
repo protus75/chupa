@@ -6,6 +6,7 @@ The composition root: the only place real seams are constructed. Exit 2 is an en
 import argparse
 import asyncio
 import os
+import signal
 import sys
 from collections.abc import Awaitable, Callable, Mapping, Sequence, Set
 from dataclasses import replace
@@ -13,7 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from chupa import control, drain, runner, triage
+from chupa import control, drain, runner, serve, triage
 from chupa.config import ConfigError, ConfigSnapshot, load_config
 from chupa.daemon import DaemonCore, PauseConsumer, daemon_core
 from chupa.daemon import StartupBoundary
@@ -84,6 +85,17 @@ def build_daemon_core(
     return core
 
 
+def build_serve(checkout: runner.Checkout, *, config_path=None, plan=None, read=None,
+                stems=None, prepare=runner.prepare_pipeline, signals=None, failure=None) -> serve.Serve:
+    """Compose filesystem delivery at the same root as every other real seam."""
+    def read_ticket(stem):
+        path = checkout.repo / ticket_path(stem)
+        return path.read_text() if path.is_file() else None
+    return serve.Serve(checkout, config_path=config_path, plan=plan, read=read or read_ticket,
+        stems=stems or (lambda: (p.parent.name for p in (checkout.repo / "tickets").glob("*/ticket.md"))),
+        prepare=prepare, signals=signals, failure=failure)
+
+
 def _parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="python -m chupa")
     ap.add_argument("--config", type=Path, help="config path (default: config.yaml at the checkout root)")
@@ -91,7 +103,7 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("status", help="project current state from the journal (read-only)")
     for verb in ("pause", "resume"):
         sub.add_parser(verb, help=f"submit {verb} to the running engine, or do nothing under the idle lock")
-    sub.add_parser("kill", help="submit kill to the running drain; refuse when nothing is running")
+    sub.add_parser("kill", help="submit kill to the running engine; refuse when nothing is running")
     sub.add_parser("triage", help="make one sequential pass over pending suggestions under the lock")
     new = sub.add_parser("new", help="template tickets/<stem>/ticket.md and lint it")
     new.add_argument("stem")
@@ -102,6 +114,7 @@ def _parser() -> argparse.ArgumentParser:
     dr = sub.add_parser("drain", help="run every eligible ticket to quiescence under the lock")
     dr.add_argument("--parked", action="append", default=[], metavar="STEM",
                     help="a stem the handing-off parent drain parked (set by the self-upgrade re-exec)")
+    sub.add_parser("serve", help="run the foreground daemon until kill or a signal stops it")
     return ap
 
 
@@ -148,6 +161,10 @@ def main(
             lines = asyncio.run(one_pass())
             print("\n".join(line for _, line in lines) if lines else "no pending suggestions")
             return 0
+        if args.verb == "serve":
+            plan_path = repo / "CHUPA_PLAN.md"
+            return asyncio.run(serve.serve(checkout, config_path=args.config,
+                plan=plan_path.read_text() if plan_path.is_file() else None, signals=_serve_signals))
         checkout = replace(checkout, control=build_control(checkout))
         dispatch = pipeline(checkout)
         if args.verb == "drain":
@@ -162,6 +179,19 @@ def main(
             ExecutableNotFound) as e:
         print(f"chupa {args.verb}: {e}", file=sys.stderr)
         return runner.EXIT_REFUSED
+
+
+def _serve_signals(stop: Callable[[], None]) -> Callable[[], None]:
+    """Real signal delivery is composed here, alongside the other operating-system seams."""
+    loop = asyncio.get_running_loop()
+    previous = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
+    for sig in previous:
+        loop.add_signal_handler(sig, stop)
+    def restore() -> None:
+        for sig, handler in previous.items():
+            loop.remove_signal_handler(sig)
+            signal.signal(sig, handler)
+    return restore
 
 
 async def _control(checkout: runner.Checkout, verb: str) -> int:

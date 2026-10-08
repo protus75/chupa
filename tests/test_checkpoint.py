@@ -575,3 +575,11 @@ async def test_push_failure_preserves_production_admission(root, monkeypatch):
     assert rig.core.control.projection.pause_id is None
     assert not any(e.type == EventType.EFFECT_COMPLETION and e.key == "checkpoint-push/0"
                    for e in rig.journal.read())
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_is_active_in_serve(root, monkeypatch):
+    from tests.test_serve import activated_graph
+    rig = await activated_graph(root, monkeypatch)
+    assert rig.owner.checkpoint.timers is rig.owner.core.restart.timers
+    assert "checkpoint-push/0" in rig.owner.checkpoint.timers.pending

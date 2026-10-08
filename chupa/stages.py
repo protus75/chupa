@@ -8,11 +8,12 @@ lift moves it to the canonical tickets dir as ONE ticket-plane commit `chupa(<st
 The run's terminal `state_transition` is not written here: that is the runner's (section 11.2).
 """
 
+import asyncio
 import difflib
 import hashlib
 import json
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Annotated, Literal
@@ -167,6 +168,17 @@ def read_review(text: str) -> ApprovedInvoice | SnagList | Rma:
 # --- context ------------------------------------------------------------------------------------
 
 
+@dataclass
+class StageBoundary:
+    """Memory-only selection supplied by the lifetime; bootstrap has no suspension policy."""
+
+    select: Callable[[Ticket, StageName], bool] | None = None
+    run: "StagesRun | None" = None
+    ticket: Ticket | None = None
+    next_stage: StageName | None = None
+    active: asyncio.Task | None = None
+
+
 @dataclass(frozen=True)
 class StageContext:
     """The seams one ticket run's stages share. `env` is the parent env; children get it minus secrets."""
@@ -179,13 +191,27 @@ class StageContext:
     fs: FileSystem
     driver: Driver
     specs_dir: Path
+    boundary: StageBoundary = field(default_factory=StageBoundary, init=False, compare=False)
 
     def worktree(self, stem: str) -> Path:
         assert self.config.worktree_root is not None  # resolved at config load
         return self.config.worktree_root / stem
 
     async def abort_current(self) -> None:
-        await self.driver.abort_current()
+        from chupa.daemon import _protected_cleanup
+
+        try:
+            await self.driver.abort_current()
+        finally:
+            task = self.boundary.active
+            if task is not None:
+                if not task.done() and not task.cancelling():
+                    task.cancel()
+                cleanup = asyncio.gather(task, return_exceptions=True)
+                await _protected_cleanup(cleanup)
+                [result] = cleanup.result()
+                if isinstance(result, BaseException) and not isinstance(result, asyncio.CancelledError):
+                    raise result
 
 
 class ArtifactInvalid(Exception):
@@ -1093,14 +1119,39 @@ async def run_stages(ctx: StageContext, ticket: Ticket) -> StagesRun:
     `already_satisfied`, proven by Check's green verification on an empty diff, stops before Review:
     there is no diff to review and the ticket settles as a no-op (section 5 invariant 4).
     """
-    run = StagesRun(attempt=run_seq(ctx.driver.journal.read(), ticket.stem))
-    implemented = run.results["implement"] = await implement(ctx, ticket, attempt=run.attempt)
-    if implemented.outcome != "ok":
-        return run
-    assert isinstance(implemented.artifact, PackingSlip)
-    checked = run.results["check"] = await check(ctx, ticket, implemented.artifact, attempt=run.attempt)
-    if checked.outcome != "ok":
-        return run
-    assert isinstance(checked.artifact, Invoice)
-    run.results["review"] = await review(ctx, ticket, checked.artifact, attempt=run.attempt)
+    boundary = ctx.boundary
+    run = boundary.run or StagesRun(attempt=run_seq(ctx.driver.journal.read(), ticket.stem))
+    boundary.ticket, boundary.next_stage = ticket, None
+    for stage in ("implement", "check", "review"):
+        if stage in run.results:
+            if run.results[stage].outcome != "ok":
+                return run
+            continue
+        if boundary.select is not None and not boundary.select(ticket, stage):
+            boundary.run, boundary.next_stage = run, stage
+            return run
+        if stage == "implement":
+            operation = implement(ctx, ticket, attempt=run.attempt)
+        elif stage == "check":
+            slip = run.results["implement"].artifact
+            assert isinstance(slip, PackingSlip)
+            operation = check(ctx, ticket, slip, attempt=run.attempt)
+        else:
+            invoice = run.results["check"].artifact
+            assert isinstance(invoice, Invoice)
+            operation = review(ctx, ticket, invoice, attempt=run.attempt)
+        if boundary.select is None:
+            result = await operation
+        else:
+            boundary.active = asyncio.create_task(operation)
+            try:
+                result = await asyncio.shield(boundary.active)
+            except asyncio.CancelledError:
+                await ctx.abort_current()
+                raise
+            finally:
+                boundary.active = None
+        run.results[stage] = result
+        if result.outcome != "ok":
+            break
     return run

@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from chupa.box import BOX_DIR, Box, DecisionRecord, Resolution, Verdict, read_registry, record_path, render_record
 from chupa.author import author, failure_decision
 from chupa.driver import Driver, LlmStage
+from chupa.effects import Effects
 from chupa.git import GitError
 from chupa.journal import EventType
 from chupa.llm import LLM
@@ -96,6 +97,18 @@ async def triage_pass(checkout: Checkout, llm: LLM) -> list[tuple[str, str]]:
     spec = load_spec((SPECS_DIR / "triage.md").read_text())
     driver = Driver.from_config(checkout.config, llm=llm, env=checkout.env, clock=checkout.clock,
                                 sleep=checkout.sleep, fs=checkout.fs)
+    driver.journal = checkout.journal
+    driver.effects = Effects(checkout.journal)
+    if checkout.control is not None:
+        checkout.control.author_driver = driver
+    try:
+        return await _settle_pass(checkout, driver, box, spec, history, pass_no)
+    finally:
+        if checkout.control is not None:
+            checkout.control.author_driver = None
+
+
+async def _settle_pass(checkout, driver, box, spec, history, pass_no):
     states = last_states(history)
     merged = sorted(stem for stem, state in states.items() if state == "merged")
     lines: list[tuple[str, str]] = []

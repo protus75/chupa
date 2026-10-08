@@ -1,7 +1,7 @@
 """Single-flight dispatch projection (CHUPA_PLAN.md 19.P3.daemon-scheduler)."""
 
 import asyncio
-from collections.abc import Awaitable, Callable, Set
+from collections.abc import Awaitable, Callable, Iterable, Set
 
 from chupa.drain import SETTLED, authored_at, sort_key
 from chupa.journal import Journal
@@ -24,6 +24,9 @@ class Scheduler:
         self.pending: dict[str, Ticket] = {}
         self.active: Ticket | None = None
         self._slot = asyncio.Lock()
+        self.continuations: Callable[[], Iterable[Ticket]] = lambda: ()
+        self.next_stage: Callable[[Ticket], str] = lambda _: "implement"
+        self.select: Callable[[Ticket, str], bool] = lambda _ticket, _stage: True
 
     def update(self, ticket: Ticket) -> None:
         self.pending[ticket.stem] = ticket
@@ -44,10 +47,14 @@ class Scheduler:
             settled = settled_dependencies(events)
             maps = supersedes_maps(events)
             authored = authored_at(events)
-            ready = [t for t in self.pending.values()
+            retained = {t.stem: t for t in self.continuations()}
+            candidates = {**self.pending, **retained}
+            ready = [t for t in candidates.values()
                      if t.frontmatter.state == "confirmed"
-                     and last.get(t.stem) not in SETTLED | {"rejected", "running"}
-                     and t.stem not in held and t.stem not in maps and set(t.depends) <= settled]
+                     and last.get(t.stem) not in SETTLED | {"rejected"}
+                     and (last.get(t.stem) != "running" or t.stem in retained)
+                     and t.stem not in held and t.stem not in maps and set(t.depends) <= settled
+                     and self.select(t, self.next_stage(t))]
             if not ready:
                 return None
             ticket = min(ready, key=lambda t: sort_key(t, authored))

@@ -368,3 +368,11 @@ def test_kill_worker_stop_is_dormant(root, tmp_path, monkeypatch, verb):
             assert (await live.run()).merged == []
             assert asyncio.all_tasks() == before
     asyncio.run(production())
+
+
+@pytest.mark.asyncio
+async def test_worker_stop_is_active_in_serve(root, monkeypatch):
+    from tests.test_serve import activated_graph
+    rig = await activated_graph(root, monkeypatch)
+    assert rig.owner.stopper.workers == rig.owner.workers
+    assert rig.owner.stopper._stop.done()

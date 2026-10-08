@@ -1,4 +1,4 @@
-"""Explicit worker notification suppression, with production callers still dormant."""
+"""Worker notification suppression and preserved bootstrap dormancy."""
 
 import asyncio
 import json
@@ -388,3 +388,11 @@ def test_kill_failure_suppression_is_dormant(root, tmp_path, monkeypatch, verb):
             assert (await live.run()).merged == []
             assert asyncio.all_tasks() == baseline
     asyncio.run(production())
+
+
+@pytest.mark.asyncio
+async def test_failure_observation_is_active_in_serve(root, monkeypatch):
+    from tests.test_serve import activated_graph
+    rig = await activated_graph(root, monkeypatch)
+    assert rig.owner.observer.workers == rig.owner.workers
+    assert rig.owner.observer._observation.done()

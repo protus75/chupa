@@ -124,10 +124,13 @@ def bind(checkout: Checkout, llm: LLM) -> Dispatch:
 
 async def drive(ctx: StageContext, ticket: Ticket) -> str:
     """Implement -> Check -> Review -> Merge; harvest, dispatch, journal, then wipe a non-ok run."""
-    tier, effort = capability(ticket, ctx.driver.journal.read())
-    ticket = replace(ticket, frontmatter=ticket.frontmatter.model_copy(
-        update={"agent_tier": tier, "agent_effort": effort}))
+    if ctx.boundary.run is None:
+        tier, effort = capability(ticket, ctx.driver.journal.read())
+        ticket = replace(ticket, frontmatter=ticket.frontmatter.model_copy(
+            update={"agent_tier": tier, "agent_effort": effort}))
     run = await run_stages(ctx, ticket)
+    if ctx.boundary.next_stage is not None:
+        return "running"
     stage, result = run.last
     if stage == "review" and result.outcome == "ok":
         stage, result = "merge", await merge(ctx, ticket, attempt=run.attempt)
@@ -438,6 +441,8 @@ async def harvest_orphan(checkout: Checkout, stem: str, attempt: int) -> None:
     """Use the run-terminal harvest with an effects context; an orphan makes no model call."""
     driver = Driver.from_config(checkout.config, llm=cast(LLM, None), env=checkout.env,
                                 clock=checkout.clock, sleep=checkout.sleep, fs=checkout.fs)
+    driver.journal = checkout.journal
+    driver.effects = Effects(checkout.journal)
     ctx = StageContext(repo=checkout.repo, config=checkout.config, env=checkout.env, exec_=checkout.exec_,
                        git=checkout.git, fs=checkout.fs, driver=driver, specs_dir=SPECS_DIR)
     await harvest(ctx, stem, attempt=attempt, stage=None, terminal="abandoned", findings=[], results=())

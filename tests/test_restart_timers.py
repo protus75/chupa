@@ -98,7 +98,7 @@ async def test_restart_construction_is_idle(tmp_path, monkeypatch):
     assert asyncio.all_tasks() == before
     assert rig.exec.calls == [] and rig.fs.files == {}
     assert not (tmp_path / "state").exists()
-    assert "serve" not in cli._parser()._subparsers._group_actions[0].choices
+    assert "serve" in cli._parser()._subparsers._group_actions[0].choices
 
 
 @pytest.mark.asyncio

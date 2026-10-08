@@ -1,4 +1,4 @@
-"""Consumer lifetime ownership and calibrated production dormancy evidence."""
+"""Consumer ownership, serve activation, and preserved bootstrap dormancy."""
 
 import asyncio
 import gc
@@ -367,3 +367,10 @@ def test_background_consumers_are_dormant(root, monkeypatch, verb):
     assert not any(e.body.get("signal") == "triage_pass" for e in stages.checkout.journal.read())
     assert any(e.type == EventType.STATE_TRANSITION and e.body.get("to") == "merged"
                for e in stages.checkout.journal.read())
+
+
+@pytest.mark.asyncio
+async def test_background_consumers_are_active_in_serve(root, monkeypatch):
+    from tests.test_serve import activated_graph
+    rig = await activated_graph(root, monkeypatch)
+    assert len(rig.owner.workers) == 4 and rig.owner.tasks.tasks == ()

@@ -1890,3 +1890,25 @@ async def test_admission_control_binding_probe(root, tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "compose_pipeline", unbound)
     with pytest.raises(AssertionError):
         await test_production_shares_one_admission_control_consumer(root, tmp_path, monkeypatch)
+
+
+@pytest.mark.asyncio
+async def test_production_serve_graph_is_reachable(root, monkeypatch):
+    from chupa.serve import Serve
+    from tests.test_serve import graph, until, finish
+    rig = await graph(root, monkeypatch)
+    before = asyncio.all_tasks()
+    owner = Serve(rig.checkout, plan=PLAN, read=rig.owner.read, stems=rig.owner.stems)
+    assert asyncio.all_tasks() == before and owner.tasks.tasks == ()
+    assert rig.journal.read() == [] and owner.core.restart.timers.journal is rig.journal
+    rig.owner = owner
+    run = asyncio.create_task(owner.run())
+    try:
+        await until(rig, owner.ready.is_set)
+        assert owner.stopper.workers == owner.observer.workers == owner.workers
+        assert len(owner.tasks.tasks) == 3 and len(owner.workers) == 4
+        assert owner.checkpoint.journal is owner.checkpoint.effects._journal is rig.journal
+        assert owner.checkpoint.timers is owner.core.restart.timers
+        assert "chupa.serve" in import_closure(sources())
+    finally:
+        await finish(rig, run)

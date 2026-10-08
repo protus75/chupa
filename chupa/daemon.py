@@ -25,7 +25,7 @@ from chupa.runner import Dispatch
 from chupa.restart import Restart
 from chupa.scheduler import Scheduler
 from chupa.seams import Clock, FileSystem, Sleep
-from chupa.stages import StageContext
+from chupa.stages import StageContext, StageName, StagesRun
 from chupa.storm import StormBreaker
 from chupa.tickets import Ticket, parse_ticket, ticket_path
 from chupa.watcher import Watcher
@@ -35,7 +35,7 @@ KILL_APPLIED = "kill_applied"
 
 def checkpoint_push(repo: Path, *, journal: Journal, effects: Effects, timers: Timers,
                     git: Git, box: Box, clock: Clock, log: EngineLog) -> Checkpoint:
-    """Dormant boundary using the lock holder's existing writers; invoke poll explicitly."""
+    """Idle boundary using the lock holder's existing writers; invoke poll explicitly."""
     return Checkpoint(repo, journal=journal, effects=effects, timers=timers,
                       git=git, box=box, clock=clock, log=log)
 
@@ -107,7 +107,7 @@ def _stop_workers(tasks: tuple[asyncio.Task, ...]) -> asyncio.Future:
 
 
 class WorkerStop:
-    """Dormant stop owner for one supplied task set (19.P3.kill-worker-stop).
+    """Stop owner for one supplied task set (19.P3.kill-worker-stop).
 
     Construct a fresh boundary for a later task set. The lock holder supplies the
     inbox's recovered projection and the predecessor executor-abort operation.
@@ -131,7 +131,7 @@ class WorkerStop:
 
 
 class WorkerFailureObserver:
-    """Dormant notification boundary for WorkerStop's supplied workers (19.P3.kill-failure-suppression).
+    """Notification boundary for WorkerStop's supplied workers (19.P3.kill-failure-suppression).
 
     The lock holder supplies its current, durably folded projection. Observation
     never stops workers or replaces their owner's exception propagation.
@@ -182,6 +182,7 @@ class PauseConsumer:
         self._advertised: tuple[str, str | None] | None = None
         self._stop: asyncio.Task | None = None
         self.admission: str | None = None
+        self.author_driver = None
         self.inbox = control_inbox(journal=journal, lifecycle_id=lifecycle_id,
                                    holds=self._holds,
                                    apply=self._apply, files=files, read=read)
@@ -228,15 +229,19 @@ class PauseConsumer:
         self._advertised = None
 
     async def checkpoint(self) -> None:
-        if self._recover is not None:
-            self._recover()
         while True:
-            if self._published:
-                self._refresh(self.projection)
-            self.inbox.consume()
+            self.poll()
             if self.projection.kill_requested or self.projection.pause_id is None:
                 return
             await self.sleep(0.1)
+
+    def poll(self) -> None:
+        """Consume control without occupying a paused offer's callback."""
+        if self._recover is not None:
+            self._recover()
+        if self._published:
+            self._refresh(self.projection)
+        self.inbox.consume()
 
     async def apply_kill(self, abort: Callable[[], Awaitable[None]],
                          dispatch: asyncio.Task | None = None) -> None:
@@ -319,13 +324,14 @@ class StartupBoundary:
 
 
 class DaemonTasks:
-    """Explicit lifetime owner for dormant background consumers (19.P3.background-consumers)."""
+    """Explicit lifetime owner for background consumers (19.P3.background-consumers)."""
 
     def __init__(self, *, watcher: Callable[[], Awaitable[object]],
                  merge_queue: Callable[[], Awaitable[object]],
                  box_consumer: Callable[[], Awaitable[object]]) -> None:
         self._consumers = (watcher, merge_queue, box_consumer)
         self.tasks: tuple[asyncio.Task, ...] = ()
+        self.started: Callable[[tuple[asyncio.Task, ...]], None] = lambda _: None
 
     async def run(self) -> None:
         if self.tasks:
@@ -335,6 +341,7 @@ class DaemonTasks:
             await callback()
 
         self.tasks = tuple(asyncio.create_task(invoke(callback)) for callback in self._consumers)
+        self.started(self.tasks)
         try:
             # Shield prevents owner cancellation from cancelling a consumer again during unwind.
             await asyncio.shield(asyncio.gather(*self.tasks))
@@ -418,14 +425,37 @@ async def apply_rework(ctx: StageContext, ticket: Ticket, findings: list[Finding
             paved_road="commit every exact reviewed proposal before supersession; " + road)])
 
 
+@dataclass(frozen=True)
+class Continuation:
+    ticket: Ticket
+    ctx: StageContext
+    run: StagesRun
+    next_stage: StageName
+
+
 class TicketWriter:
     """The composed ticket writer; queue handoffs are consumed only after admission unwinds."""
 
     def __init__(self, ctx: StageContext, queue: MergeQueue) -> None:
         self.ctx, self.queue = ctx, queue
+        self.continuations: dict[str, Continuation] = {}
 
     async def __call__(self, ticket: Ticket) -> str:
-        return await runner.drive(self.ctx, ticket)
+        boundary = self.ctx.boundary
+        prior = self.continuations.get(ticket.stem)
+        if prior is not None:
+            ticket, boundary.run = prior.ticket, prior.run
+        try:
+            result = await runner.drive(self.ctx, ticket)
+            if boundary.next_stage is not None:
+                assert boundary.run is not None and boundary.ticket is not None
+                self.continuations[ticket.stem] = Continuation(
+                    boundary.ticket, self.ctx, boundary.run, boundary.next_stage)
+            else:
+                self.continuations.pop(ticket.stem, None)
+            return result
+        finally:
+            boundary.run, boundary.ticket, boundary.next_stage = None, None, None
 
     async def abort_current(self) -> None:
         await self.ctx.abort_current()
@@ -485,6 +515,7 @@ class DaemonAdmission:
         self._slot = asyncio.Lock()
         self.active: Ticket | None = None
         self.task: asyncio.Task[str] | None = None
+        self.resume: Callable[[Ticket], Dispatch | None] = lambda _: None
 
     async def dispatch(self, ticket: Ticket) -> str:
         async with self._slot:
@@ -492,7 +523,8 @@ class DaemonAdmission:
                 await self._before_dispatch()
 
             async def invoke() -> str:
-                return await self._dispatch(ticket)
+                callback = self.resume(ticket) or self._dispatch
+                return await callback(ticket)
 
             task = asyncio.create_task(invoke())
             self.active, self.task = ticket, task

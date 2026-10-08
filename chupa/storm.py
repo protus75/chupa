@@ -153,6 +153,11 @@ class StormLedger:
                 and isinstance(expected[identity][0]["emitting_origin"], str)
                 and not stem_findings(expected[identity][0]["emitting_origin"])}
 
+    def held_stages(self) -> dict[str, dict[str, str]]:
+        """Preserve each trip's exact stage and ticket target for continuous selection."""
+        expected, _, _ = self._evidence()
+        return {identity: expected[identity][0]["held"] for identity in self.holds()}
+
 
 def arrival_id(*parts: str | int) -> str:
     return "storm-arrival/" + _digest(list(parts))
