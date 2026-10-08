@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Recovery lookahead also earns chupa/journal.py because SIGNAL_NAMES currently refuses recovery_alert; the successor carries this closure.
+The hardened recovery unit explicitly earns journal.py registration and vocabulary preservation.
 
 ## Dead ends
 
-none
+The first full run loaded a snapshot before its final update; rerunning against the final bytes passed.
 
 ## Second problems filed
 
