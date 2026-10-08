@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "b12f3f427f9c70bd5f8b2ed0a7e4393d6f33d17e",
+  "stem": "harden-serve-activation-3",
+  "attempt": 0,
+  "terminal": "already_satisfied",
+  "stage": "check",
+  "verdict": "reject",
+  "lessons": [
+    "Premise is false: CHUPA_PLAN.md:2237 in unit 19.P3.serve-activation already says the triage/Author Driver and Effects must use checkout.journal. It also says triage_pass builds its own Driver.from_config Journal with no binding seam, and that the fence omits chupa/triage.py and chupa/driver.py.",
+    "CHUPA_PLAN.md:2237 also already says to correct the implementing seed's fence and caller closure under 19.L before implementation. It already prohibits copying triage and replacing its writer with runtime monkeypatching. Re-authoring this ticket gives the same no-diff already_satisfied result.",
+    "Do not retry this ticket. The open work is the fence correction in the serve-activation seed (adding chupa/triage.py and chupa/driver.py under 19.L), which the plan already states. File that as the next step instead of another plan-clarification chore.",
+    "If a plan edit is still needed, cite the specific missing fact the triage-custody finding requires. Text that repeats line 2237 adds nothing, and the scope fence allows no other plan bytes."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
