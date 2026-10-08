@@ -65,7 +65,7 @@ uv run pytest -q
 ```
 
 ## Definition of rejected
-Return premise_failed naming a missing or contradictory entry-unit fact for section 11.4 hardening, or a criteria-forced path that cannot be earned inside this fence; never invent records or widen scope. Validate only this batch's payload unit and the next-seeder lookahead unit; a later admission's unit is validated by the continuation that authors it. A required unit that is missing or lacks a SPEC DEPTH part is reported as a `premise` finding with `kind: spec_gap` and its `unit`, so section 11.4 hardens it.
+Return premise_failed naming a missing or contradictory entry-unit fact for section 11.4 hardening, or a criteria-forced path that cannot be earned inside this fence; never invent records or widen scope. Validate only this batch's payload unit and the next-seeder lookahead unit; a later admission's unit is validated by the continuation that authors it. A required unit that is missing or lacks a SPEC DEPTH part is reported as a `premise` finding with `kind: spec_gap` and its `unit`, so section 11.4 hardens it. A full-suite failure that also fails on the merge base is main's (section 7 base-red attribution), never this ticket's premise.
 
 ## Time budget
 - expected: 60m
