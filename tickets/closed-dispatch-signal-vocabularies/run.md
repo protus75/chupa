@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The vocabulary tests and 330 scoped fixture tests passed, but the third verification command failed in 10 hardening cases; those cases passed after restoring the base files.
+tests/test_vocabularies.py does not exist on the untouched branch.
 
 ## Dead ends
 
-Implemented the scoped changes, then restored all edits when verification exposed the fence contradiction; no commit was created and the worktree is clean.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60 minutes; stopped after approximately 10 minutes.
+Stopped within minutes against the expected 60-minute budget.
 
