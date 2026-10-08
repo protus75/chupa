@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The four hardener-exclusion cases pass on the untouched merge base; deleting spec_gaps and premise_spec_gaps in memory makes all four fail with AttributeError.
+The three targeted suites passed, and the prose-only regression failed on the merge base as required; the preservation suite failed on its version assertion.
 
 ## Dead ends
 
-none
+Restored the uncommitted implementation after discovering the scope conflict; stopped the full suite.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during read-first investigation, before implementation; expected budget was 90 minutes.
+Stopped before the 90-minute expected budget because the ticket requires an out-of-fence test change.
 
