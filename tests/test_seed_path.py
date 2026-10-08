@@ -187,6 +187,69 @@ def test_lint_failure_is_a_recorded_snag_without_a_requisition_call(repo):
     assert not intake_events(ctx)
 
 
+@pytest.mark.parametrize("length", [60, 100])
+def test_seed_copying_a_cited_unit_line_is_snagged_without_a_review_call(repo, length):
+    line = ("Seeds cite the governing unit and leave its contract in the plan. " * 2)[:length - 1] + "."
+    assert len(line) == length
+    plan = repo / "CHUPA_PLAN.md"
+    plan.write_text(plan.read_text().replace("Seed law.", "  " + line.replace(" ", "\t  ") + "  "))
+    git(repo, "add", "CHUPA_PLAN.md")
+    git(repo, "commit", "-m", "provide a cited unit line")
+    text = seed_text("alpha-seed").replace("## Goal / Why\n", "## Goal / Why\n" + line.replace(" ", " \n ") + "\n")
+    outcome, ctx, llm = run(repo, [write_seeds({"alpha-seed": text}), diagnosis_reply()])
+
+    assert outcome == "gate_failed"
+    [seed] = invoice(repo).seeds
+    assert (seed.verdict, seed.mechanical) == ("snag", "unit text copied")
+    [finding] = seed.findings
+    assert (finding.code, finding.kind, finding.path) == (
+        "requisition_review", "authoring_error", "tickets/alpha-seed/ticket.md")
+    assert finding.paved_road == "cite the unit in `## Plan contract`; never copy its text"
+    assert "19.L" in finding.message and f'"{line[:80]}"' in finding.message
+    assert [r.surface for r in llm.requests] == ["implement", "diagnose"]
+    assert not intake_events(ctx)
+    assert not (repo / "tickets/alpha-seed/ticket.md").exists()
+
+
+@pytest.mark.parametrize("cited", [True, False])
+def test_short_or_uncited_overlap_is_not_a_copy(repo, cited):
+    length = 59 if cited else 100
+    line = ("A shared line must be long enough and belong to a cited unit. " * 2)[:length - 1] + "."
+    plan = repo / "CHUPA_PLAN.md"
+    if cited:
+        assert len(line) == 59
+        plan.write_text(plan.read_text().replace("Seed law.", "  " + line.replace(" ", "\t  ") + "  "))
+    else:
+        plan.write_text(plan.read_text() + "\n### 19.I Implementation laws\n" + line + "\n")
+    git(repo, "add", "CHUPA_PLAN.md")
+    git(repo, "commit", "-m", "provide permitted overlap")
+    text = seed_text("alpha-seed").replace("## Goal / Why\n", "## Goal / Why\n" + line + "\n")
+    outcome, ctx, llm = run(repo, [write_seeds({"alpha-seed": text}), requisition("approve"), verdict()])
+
+    assert outcome == "merged"
+    [seed] = invoice(repo).seeds
+    assert seed.verdict == "approve" and not seed.findings
+    assert [r.surface for r in llm.requests] == ["implement", "requisition_review", "review"]
+    assert len(intake_events(ctx)) == 1
+
+
+@pytest.mark.parametrize("location", ["Plan contract", "Goal / Why"])
+def test_copy_check_excludes_plan_contract_and_skips_unresolvable_ids(repo, location):
+    line = "A cited unit line stays in the plan rather than being copied into a seed's prose."
+    plan = repo / "CHUPA_PLAN.md"
+    plan.write_text(plan.read_text().replace("Seed law.", line))
+    git(repo, "add", "CHUPA_PLAN.md")
+    git(repo, "commit", "-m", "provide copy comparison text")
+    text = seed_text("alpha-seed").replace("- 19.L\n", "- 19.I\n- 19.L\n")
+    text = text.replace(f"## {location}\n", f"## {location}\n{line}\n")
+    outcome, _, llm = run(repo, [write_seeds({"alpha-seed": text}), diagnosis_reply()])
+
+    assert outcome == "gate_failed"
+    [seed] = invoice(repo).seeds
+    assert seed.mechanical == ("ticket lint failed" if location == "Plan contract" else "unit text copied")
+    assert [r.surface for r in llm.requests] == ["implement", "diagnose"]
+
+
 @pytest.mark.parametrize("section", ["Context", "On-demand"])
 def test_seed_context_must_exist_on_main(repo, section):
     own = repo / "tickets" / STEM / "ticket.md"

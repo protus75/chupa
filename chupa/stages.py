@@ -886,6 +886,26 @@ async def _review_one(ctx: StageContext, ticket: Ticket, seed_stem: str, rel: st
     if gaps:
         return SeedReview(stem=seed_stem, ticket_sha=sha, verdict="snag", findings=gaps,
                           mechanical="entry unit gap")
+    outside_contract = []
+    fence = in_contract = False
+    for line in data.decode(errors="replace").splitlines():
+        if line.lstrip().startswith("```"):
+            fence = not fence
+        if not fence and (heading := _HEADING.match(line)):
+            in_contract = heading.group(1) == "Plan contract"
+        if not in_contract:
+            outside_contract.append(line)
+    seed_body = _one_line("\n".join(outside_contract))
+    for uid in citations:
+        try:
+            resolved = resolve_plan_contract(plan, [uid])
+        except PlanContractError:
+            continue  # Grammar reports ids that do not resolve.
+        for line in resolved.splitlines():
+            normalized = _one_line(line)
+            if len(normalized) >= 60 and normalized in seed_body:
+                return snag(f'cited unit {uid} text copied: "{normalized[:80]}"',
+                            "cite the unit in `## Plan contract`; never copy its text", "unit text copied")
     try:
         parsed = validate_ticket(seed_stem, data.decode(), ctx.repo, siblings)
     except UnicodeDecodeError:
