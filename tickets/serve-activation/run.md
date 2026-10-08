@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-On untouched HEAD, all 560 existing verification tests and 62 additional stage/admission/config tests pass; the exact Verification command exits 4 because tests/test_serve.py does not yet exist.
+Bootstrap cancellation required activating stage task ownership only in serve.
 
 ## Dead ends
 
-none
+Discarded unconditional stage task ownership because it changed bootstrap cancellation behavior.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-60m expected; stopped during read-only scope validation and base verification before implementation.
+Expected 60 minutes; actual approximately 76 minutes.
 
