@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-tests/test_vocabularies.py does not exist on the untouched branch.
+tests/test_journal.py asserts the exact unlisted signal name confirm, so changing only its append fixture cannot preserve the assertion.
 
 ## Dead ends
 
-none
+Migrated the round-trip fixture to drain_handoff; its unchanged equality assertion failed. Restored the clean base commit and verified the original test passes.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped within minutes against the expected 60-minute budget.
+Expected 60 minutes; stopped after approximately 8 minutes upon reproducing the contradiction.
 
