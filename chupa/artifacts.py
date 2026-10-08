@@ -129,6 +129,57 @@ class ShakeoutReport(Artifact):
         return self
 
 
+DAEMON_SOAK_REPORT = "daemon-soak-report.json"
+DAEMON_SOAK_SPEC_VERSION = 1
+DAEMON_SOAK_MEMBERS = (
+    "worker_killed_mid_run",
+    "conflict_resolution_rungs",
+    "semantic_conflict_integration_red",
+)
+_DAEMON_SOAK_EXPECTED = {
+    "worker_killed_mid_run": ("abandoned_alerted_then_merged", "alert"),
+    "conflict_resolution_rungs": ("mechanical_and_rework_main_green", "resolved"),
+    "semantic_conflict_integration_red": ("integration_red_main_green", "refused"),
+}
+
+
+class DaemonSoakEntry(_Strict):
+    """One closed member's observation (CHUPA_PLAN.md 19.P3.daemon-soak)."""
+
+    member: Literal["worker_killed_mid_run", "conflict_resolution_rungs",
+                    "semantic_conflict_integration_red"]
+    planted_fault: NonBlank
+    expected: NonBlank
+    observed: NonBlank
+    disposition: Literal["alert", "resolved", "refused"]
+    producing_run: str
+    auditor: list[NonBlank]
+    green: bool
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "DaemonSoakEntry":
+        from chupa.tickets import stem_findings
+
+        stem, separator, sequence = self.producing_run.rpartition("/")
+        if not separator or not re.fullmatch(r"[0-9]+", sequence) or stem_findings(stem):
+            raise ValueError("producing_run must be <ticket stem>/<nonnegative run sequence>")
+        if (self.expected, self.disposition) != _DAEMON_SOAK_EXPECTED[self.member]:
+            raise ValueError(f"{self.member} requires expected/disposition {_DAEMON_SOAK_EXPECTED[self.member]}")
+        if self.green != (self.observed == self.expected and not self.auditor):
+            raise ValueError("green must match the observation and empty auditor")
+        return self
+
+
+class DaemonSoakReport(Artifact):
+    entries: list[DaemonSoakEntry]
+
+    @model_validator(mode="after")
+    def _ordered_members(self) -> "DaemonSoakReport":
+        if tuple(entry.member for entry in self.entries) != DAEMON_SOAK_MEMBERS:
+            raise ValueError(f"entries must contain exactly {DAEMON_SOAK_MEMBERS}, in order")
+        return self
+
+
 @dataclass(frozen=True)
 class Cost:
     tokens: int | None = None  # None when a cli stream reports no usage
