@@ -5,6 +5,7 @@ input as a lone `{{name}}` line inside a delimited data block, and the renderer 
 delimiter occurrence in a payload before the rendered prompt's data blocks are validated.
 """
 
+import hashlib
 import re
 from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass
@@ -326,6 +327,13 @@ def resolve_plan_contract(plan: str, ids: Iterable[str]) -> str:
             raise PlanContractError(_f("plan_contract", f"section {pid.split('.')[0]} is cited with its own"
                                        f" subsection {pid}", "cite the whole section or its subsections, not both"))
     return "".join(found[pid][0] for pid in seen)
+
+
+def unit_sha(plan: str, uid: str) -> str:
+    """Hash exactly the slice the Plan contract resolver injects; missing units are nameable."""
+    if uid not in _units(plan)[0]:
+        return "absent"
+    return hashlib.sha256(resolve_plan_contract(plan, [uid]).encode()).hexdigest()
 
 
 def without_unit(plan: str, uid: str) -> str:

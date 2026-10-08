@@ -655,11 +655,14 @@ class ScopeFenceGate:
 
     @staticmethod
     def _unit_confined(artifact: Evidence) -> bool:
-        """A plan diff is admitted only when everything outside one anchored unit is unchanged."""
+        """A plan diff is admitted only when everything outside all anchored units is unchanged."""
         if artifact.plan_main is None or artifact.plan_head is None:
             return False
         units = [f.partition("#")[2] for f in artifact.scope_fence if f.startswith(PLAN_FILE + "#")]
-        return any(without_unit(artifact.plan_main, u) == without_unit(artifact.plan_head, u) for u in units)
+        main, head = artifact.plan_main, artifact.plan_head
+        for unit in units:
+            main, head = without_unit(main, unit), without_unit(head, unit)
+        return bool(units) and main == head
 
 
 class VerificationGate:

@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 
 from chupa import caps
-from chupa.hardening import round_state
+from chupa.hardening import rounds, round_state
 from chupa.journal import TERMINAL_STATES, Event, EventType
 from chupa.lockfile import Lockfile
 from chupa.reconcile import reconcile
@@ -55,11 +55,10 @@ def awaited_hardening(events: Iterable[Event], stem: str) -> tuple[str, ...]:
     history = list(events)
     terminal = next((e.body for e in reversed(history) if e.type == EventType.STATE_TRANSITION
                      and e.ticket == stem and e.body.get("to") in TERMINAL_STATES), None)
-    if terminal is None or terminal.get("dispatch") != SPEC_GAP_HOLD:
+    if terminal is None or terminal.get("dispatch") != SPEC_GAP_HOLD or "round" not in terminal:
         return ()
-    hold = next(e.body for e in reversed(history) if e.type == EventType.SIGNAL
-                and e.ticket == stem and e.body.get("signal") == SPEC_GAP_HOLD)
-    return tuple(s for s in hold["awaits"] if round_state(history, s) == "open")
+    record = next(r for r in rounds(history) if r.number == terminal["round"])
+    return (record.hardener,) if round_state(history, record.number) == "open" else ()
 
 
 def premise_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:
@@ -473,7 +472,7 @@ class _Drain:
                 drawn = caps.draws(events, stem, spent_cap or "retry")
                 cap_limit = getattr(self.c.config.caps, spent_cap or "retry")
                 if awaits := awaited_hardening(events, stem):
-                    why, road = (f"{to}{where}; spec gap held on {', '.join(awaits)}",
+                    why, road = (f"{to}{where}; spec gap held on round {body['round']} ({', '.join(awaits)})",
                                  "the drain runs the hardening tickets first, then re-runs this stem free")
                 elif stem in held:
                     why, road = f"{to}{where}; parked until its committed ticket.md changes", self._premise_road(t)

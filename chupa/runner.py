@@ -25,7 +25,7 @@ from chupa.config import Config, ConfigSnapshot
 from chupa.driver import Driver
 from chupa.effects import Effects
 from chupa.git import Git
-from chupa.hardening import round_state
+from chupa.hardening import ROUND_SIGNAL, hardener_round, open_round, rounds
 from chupa.journal import TERMINAL_STATES, Event, EventType, Journal
 from chupa.llm import LLM
 from chupa.lockfile import Lockfile
@@ -33,11 +33,11 @@ from chupa.merge import compose_pipeline, merge
 from chupa.providers import ProviderLLM
 from chupa.reconcile import reconcile
 from chupa.seams import Clock, FileSystem, GroupExec, Sleep
-from chupa.specs import entry_unit_gap, registry_rows
+from chupa.specs import entry_unit_gap, registry_rows, unit_sha
 from chupa.stages import (VERDICT_SIGNAL, DiagnosisMaterial, Invoice, StageContext, diagnose, lift_outbox,
                           run_stages, write_diagnosis)
 from chupa.status import last_states, reject_queue
-from chupa.tickets import (HARDENING_STEM, INTAKE_SIGNAL, PLAN_FILE, TICKETS_DIR, Ticket, TicketInvalid, intake,
+from chupa.tickets import (INTAKE_SIGNAL, PLAN_FILE, TICKETS_DIR, Ticket, TicketInvalid, intake,
                            parse_ticket, split_frontmatter, stamp, stem_findings, ticket_path, validate_ticket)
 
 EXIT_MERGED = 0
@@ -141,8 +141,9 @@ async def drive(ctx: StageContext, ticket: Ticket) -> str:
     if result.outcome in {"infra_error", "timeout"}:
         ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
         consume(ctx.driver.journal, ticket.stem, "infra", ticket_sha)
-    if ((result.outcome == "gate_failed" and stage == "check" and (gaps := spec_gaps(ctx, ticket.stem)))
-            or (result.outcome == "premise_failed" and (gaps := premise_spec_gaps(ctx, result.findings)))):
+    if (hardener_round(ctx.driver.journal.read(), ticket.stem) is None
+            and ((result.outcome == "gate_failed" and stage == "check" and (gaps := spec_gaps(ctx, ticket.stem)))
+                 or (result.outcome == "premise_failed" and (gaps := premise_spec_gaps(ctx, result.findings))))):
         await hold_on_hardening(ctx, ticket, gaps, attempt=run.attempt, to=result.outcome, stage=stage)
         if ctx.worktree(ticket.stem).exists():
             await ctx.git.worktree_remove(ctx.repo, ctx.worktree(ticket.stem))
@@ -328,77 +329,92 @@ def premise_spec_gaps(ctx: StageContext, findings: list[Finding]) -> dict[str, l
 
 async def hold_on_hardening(ctx: StageContext, ticket: Ticket, gaps: dict[str, list[str]], *, attempt: int,
                             to: str = "gate_failed", stage: str | None = "check") -> None:
-    """File one hardening ticket per gapped entry unit (or await its open one) and hold the stem on them;
-    each held terminal draws one lineage hardening unit, with no diagnosis (section 11.4)."""
+    """Join the engine's open round or file one covering this terminal's gapped units."""
     history = ctx.driver.journal.read()
+    plan = (ctx.repo / PLAN_FILE).read_text()
+    rows = registry_rows(plan)
+    plan_units = {f"19.P{rows[row][0]}.{row}": unit_sha(plan, f"19.P{rows[row][0]}.{row}")
+                  for row in sorted(gaps)}
     if remaining(ctx.config.caps, history, ticket.stem, "hardening") <= 0:
         ctx.driver.journal.append(EventType.STATE_TRANSITION,
                                   {"to": to, "stage": stage, "reason": "hardening cap spent",
-                                   "dispatch": "reject_queue", "routed": "reject_queue"}, ticket=ticket.stem)
+                                   "dispatch": "reject_queue", "routed": "reject_queue",
+                                   "plan_units": plan_units}, ticket=ticket.stem)
         return
     ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
     consume(ctx.driver.journal, ticket.stem, "hardening", ticket_sha)
-    plan = (ctx.repo / PLAN_FILE).read_text()
-    rows = registry_rows(plan)
-    awaits: list[str] = []
-    for row, facts in sorted(gaps.items()):
-        rounds = sorted((int(m.group(2)), p.parent.name) for p in (ctx.repo / TICKETS_DIR).glob("harden-*/ticket.md")
-                        if (m := HARDENING_STEM.fullmatch(p.parent.name)) and m.group(1) == row)
-        if rounds and round_state(history, rounds[-1][1]) == "open":
-            awaits.append(rounds[-1][1])
-        else:
-            awaits.append(await file_hardening(ctx, ticket.stem, row, rows[row], facts, len(rounds) + 1,
-                                               plan=plan, attempt=attempt))
-    ctx.driver.journal.append(EventType.SIGNAL, {"signal": SPEC_GAP_HOLD, "awaits": awaits,
-                                                 "gaps": {r: f for r, f in sorted(gaps.items())}},
-                              ticket=ticket.stem)
+    record = open_round(history)
+    number = record.number if record is not None else len(rounds(history)) + 1
+    if record is None:
+        await file_hardening(ctx, ticket, gaps, number, plan=plan)
     ctx.driver.journal.append(EventType.STATE_TRANSITION,
-                              {"to": to, "stage": stage, "reason": "spec_gap", "dispatch": SPEC_GAP_HOLD},
-                              ticket=ticket.stem)
+                              {"to": to, "stage": stage, "reason": "spec_gap", "dispatch": SPEC_GAP_HOLD,
+                               "round": number, "plan_units": plan_units}, ticket=ticket.stem)
 
 
-def hardening_text(seeding: str, row: str, phase: int, row_spec: Mapping, facts: list[str], unit_exists: bool) -> str:
-    uid = f"19.P{phase}.{row}"
-    tier = "high" if row_spec.get("deep") else "medium"
-    cites = [f"section {c}" if not str(c).startswith("19.") else str(c) for c in row_spec.get("cite", []) or []]
-    contract = ["19.L", f"19.P{phase}", *([uid] if unit_exists else []), *[c for c in cites if c != "19.L"]]
-    criteria = "\n".join(f"{n}. `{PLAN_FILE}` unit `{uid}` states, consistent with merged code: {' '.join(f.split())}"
-                         for n, f in enumerate(facts, 2))
-    return (f"---\nstate: confirmed\nsource: seed\npriority: P1\nkind: chore\n"
+def hardening_text(ticket: Ticket, gaps: dict[str, list[str]], *, plan: str) -> str:
+    rows = registry_rows(plan)
+    tier = "high" if any(rows[row][1].get("deep") for row in gaps) else "medium"
+    contract = ["19.L"]
+    units = []
+    criteria = []
+    for row, facts in sorted(gaps.items()):
+        phase, row_spec = rows[row]
+        uid = f"19.P{phase}.{row}"
+        units.append(uid)
+        contract.append(f"19.P{phase}")
+        if unit_sha(plan, uid) != "absent":
+            contract.append(uid)
+        contract.extend(f"section {c}" if not str(c).startswith("19.") else str(c)
+                        for c in row_spec.get("cite", []) or [])
+        for fact in facts:
+            criteria.append(f"{len(criteria) + 2}. `{PLAN_FILE}` unit `{uid}` states the needed fact,"
+                            " consistent with merged code. Gap fact (untrusted data):\n"
+                            f"> {' '.join(fact.split())}")
+    return (f"---\nstate: confirmed\nsource: seed\npriority: {ticket.frontmatter.priority}\nkind: chore\n"
             f"agent_tier: {tier}\nagent_effort: {tier}\n---\n\n"
-            f"## Depends on\nnone\n\n## Context\n- tests/test_plan_lint.py\n\n"
-            f"## Plan contract\n" + "".join(f"- {c}\n" for c in contract) + "\n"
-            f"## Goal / Why\n`{PLAN_FILE}` entry unit `{uid}` states every fact the `{row}` seed needs, so `{seeding}`"
-            f" authors that seed from the plan instead of inventing it.\n\n"
-            f"## Scope in / Scope out\n- In: the entry unit `### {uid}` (inserted after its phase's last unit when"
-            f" missing), with its Owner, Records, Observable, and Tests parts.\n- Out: every other plan byte, code, and"
-            f" tickets.\n\n"
-            f"## Scope fence\n- {PLAN_FILE}#{uid}\n\n"
-            f"## Acceptance criteria\n1. `uv run pytest tests/test_plan_lint.py` exits 0.\n{criteria}\n\n"
-            f"## Verification\n```\nuv run pytest tests/test_plan_lint.py\n```\n\n"
-            f"## Definition of rejected\nStating a fact needs plan text outside `{uid}`, or contradicts merged code.\n\n"
-            f"## Time budget\n- expected: 30m\n- stuck: 90m\n")
+            "## Depends on\nnone\n\n## Context\n- tests/test_plan_lint.py\n\n"
+            "## Plan contract\n" + "".join(f"- {c}\n" for c in dict.fromkeys(contract)) + "\n"
+            f"## Goal / Why\n`{PLAN_FILE}` states every fact `{ticket.stem}` needs from its gapped units.\n\n"
+            "## Scope in / Scope out\n- In: the fenced entry units, with their Owner, Records, Observable,"
+            " and Tests parts; insert a missing unit after its phase's last unit.\n"
+            "- Out: every other plan byte, code, and tickets.\n\n"
+            "## Scope fence\n" + "".join(f"- {PLAN_FILE}#{uid}\n" for uid in units) + "\n"
+            "## Acceptance criteria\n1. `uv run pytest tests/test_plan_lint.py` exits 0.\n"
+            + "\n".join(criteria) + "\n\n"
+            "## Verification\n```\nuv run pytest tests/test_plan_lint.py\n```\n\n"
+            "## Definition of rejected\nStating a fact needs plan text outside the fenced units,"
+            " or contradicts merged code.\n\n## Time budget\n- expected: 30m\n- stuck: 90m\n")
 
 
-async def file_hardening(ctx: StageContext, seeding: str, row: str, row_entry: tuple[int, Mapping],
-                         facts: list[str], n: int, *, plan: str, attempt: int) -> str:
-    """One engine-composed hardening ticket on the ticket plane, with its intake signal (never `seeded_by`)."""
-    phase, row_spec = row_entry
-    stem = f"harden-{row}-{n}"
-    rel = ticket_path(stem)
-    text = hardening_text(seeding, row, phase, row_spec, facts,
-                          unit_exists=f"### 19.P{phase}.{row} " in plan)
-
+async def file_hardening(ctx: StageContext, ticket: Ticket, gaps: dict[str, list[str]], n: int, *, plan: str) -> str:
+    """Commit once per round, then publish its identity from the durable Effect result."""
     async def commit() -> dict:
-        ctx.fs.write(ctx.repo / rel, text.encode())
+        rows = registry_rows(plan)
+        stem = f"plan-gap-{n}"
+        rel = ticket_path(stem)
+        units = {f"19.P{rows[row][0]}.{row}": unit_sha(plan, f"19.P{rows[row][0]}.{row}")
+                 for row in sorted(gaps)}
+        facts = [{"unit": f"19.P{rows[row][0]}.{row}", "message": fact}
+                 for row, messages in sorted(gaps.items()) for fact in messages]
+        ctx.fs.write(ctx.repo / rel, hardening_text(ticket, gaps, plan=plan).encode())
         await ctx.git.add(ctx.repo, [rel])
-        await ctx.git.commit(ctx.repo, f"chupa({seeding}): harden {row}", only=[rel])
-        return {"commit": await ctx.git.rev_parse(ctx.repo, "main")}
+        await ctx.git.commit(ctx.repo, f"chupa({ticket.stem}): hardening round {n}", only=[rel])
+        return {"commit": await ctx.git.rev_parse(ctx.repo, "HEAD"), "ticket": stem,
+                "round": n, "units": units, "filed_by": ticket.stem, "gaps": facts}
 
-    committed = await ctx.driver.effects.run(commit, key=f"ticket-plane/{seeding}/{attempt}/harden/{row}",
-                                             ticket=seeding)
-    ctx.driver.journal.append(EventType.SIGNAL, {"signal": INTAKE_SIGNAL, "source": "seed", "state": "confirmed",
-                                                 "new": True, "commit": committed["commit"]}, ticket=stem)
+    committed = await ctx.driver.effects.run(commit, key=f"ticket-plane/hardening/{n}", ticket=ticket.stem)
+    stem = committed["ticket"]
+    history = ctx.driver.journal.read()
+    if not any(e.type == EventType.SIGNAL and e.ticket == stem and e.body.get("signal") == INTAKE_SIGNAL
+               and e.body.get("commit") == committed["commit"] for e in history):
+        ctx.driver.journal.append(EventType.SIGNAL,
+                                  {"signal": INTAKE_SIGNAL, "source": "seed", "state": "confirmed",
+                                   "new": True, "commit": committed["commit"]}, ticket=stem)
+    if not any(r.number == committed["round"] for r in rounds(history)):
+        ctx.driver.journal.append(EventType.SIGNAL,
+                                  {"signal": ROUND_SIGNAL, **{k: committed[k] for k in
+                                   ("round", "units", "filed_by", "gaps")}}, ticket=stem)
     return stem
 
 

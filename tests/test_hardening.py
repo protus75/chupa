@@ -7,8 +7,9 @@ import pytest
 from chupa.audit import audit, audit_journal
 from chupa.caps import CAPS, DECLARED_CAPS, consume, draws, remaining, spent
 from chupa.config import Caps
-from chupa.hardening import ROUND_STATES, round_state
+from chupa.hardening import ROUND_SIGNAL, ROUND_STATES, hardener_round, open_round, rounds, round_state
 from chupa.journal import TERMINAL_STATES, EventType, Journal
+from tests.test_seed_path import repo, add_registry_row, context, ticket, terminal_body
 
 
 def journal(tmp_path):
@@ -29,27 +30,28 @@ def test_round_state_maps_every_run_state():
 ])
 def test_round_state_closes_per_section_11_4(tmp_path, terminal, expected):
     j = journal(tmp_path)
-    assert round_state(j.read(), "hardener") == "open"
+    record(j)
     j.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="other")
     j.append(EventType.SIGNAL, {"to": "merged", "routed": "reject_queue"}, ticket="hardener")
     j.append(EventType.STATE_TRANSITION, {"to": "running", "routed": "reject_queue"}, ticket="hardener")
-    assert round_state(j.read(), "hardener") == "open"
+    assert round_state(j.read(), 1) == "open"
     j.append(EventType.STATE_TRANSITION, {"to": terminal}, ticket="hardener")
-    assert round_state(iter(j.read()), "hardener") == expected
+    assert round_state(iter(j.read()), 1) == expected
     j.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket="hardener")
     j.append(EventType.STATE_TRANSITION, {"to": "gate_failed"}, ticket="hardener")
-    assert round_state(j.read(), "hardener") == expected
+    assert round_state(j.read(), 1) == expected
     j.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "routed": "reject_queue"}, ticket="hardener")
-    assert round_state(j.read(), "hardener") == "closed"
+    assert round_state(j.read(), 1) == "closed"
     j.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket="hardener")
-    assert round_state(j.read(), "hardener") == "closed"
+    assert round_state(j.read(), 1) == "closed"
 
 
 @pytest.mark.parametrize("terminal", sorted(TERMINAL_STATES))
 def test_every_reject_routed_terminal_closes(tmp_path, terminal):
     j = journal(tmp_path)
+    record(j)
     j.append(EventType.STATE_TRANSITION, {"to": terminal, "routed": "reject_queue"}, ticket="hardener")
-    assert round_state(j.read(), "hardener") == "closed"
+    assert round_state(j.read(), 1) == "closed"
 
 
 def test_hardening_draws_pass_the_declared_cap_audit(tmp_path):
@@ -74,3 +76,94 @@ def test_hardening_uses_the_lineage_fold_without_blocking_dispatch(tmp_path):
     assert remaining(config, j.read(), "held", "hardening") == 0
     j.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "operator"}, ticket="held")
     assert remaining(config, j.read(), "held", "hardening") == 2
+
+
+def record(j, number=1, hardener="hardener"):
+    return j.append(EventType.SIGNAL, {"signal": ROUND_SIGNAL, "round": number,
+                    "units": {"19.P3.row": "absent"}, "filed_by": "filer",
+                    "gaps": [{"unit": "19.P3.row", "message": "fact"}]}, ticket=hardener)
+
+
+def test_round_record_anchors_identity_coverage_and_closure(tmp_path):
+    j = journal(tmp_path)
+    assert rounds(j.read()) == () and open_round(j.read()) is None
+    assert hardener_round(j.read(), "plan-gap-1") is None
+    j.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="arbitrary-name")
+    record(j, hardener="arbitrary-name")
+    [r] = rounds(iter(j.read()))
+    assert (r.number, r.hardener, r.units, r.filed_by, r.gaps, r.position) == (
+        1, "arbitrary-name", {"19.P3.row": "absent"}, "filer",
+        [{"unit": "19.P3.row", "message": "fact"}], 1)
+    assert round_state(j.read(), 1) == "open"
+    assert open_round(j.read()) == hardener_round(j.read(), "arbitrary-name") == r
+    j.append(EventType.STATE_TRANSITION, {"to": "premise_failed"}, ticket="arbitrary-name")
+    assert round_state(j.read(), 1) == "closed" and open_round(j.read()) is None
+    record(j, number=2, hardener="another-name")
+    assert open_round(j.read()).number == 2
+    assert round_state(j.read(), 1) == "closed"
+
+
+def test_one_open_round_engine_wide(repo):
+    import asyncio
+    from dataclasses import replace
+    from chupa.runner import hold_on_hardening
+    from tests.test_stages import STEM, git
+    add_registry_row(repo)
+    ctx, _ = context(repo, [])
+    plan = repo / "CHUPA_PLAN.md"
+    plan.write_text(plan.read_text().replace("[gamma-seed]", "[gamma-seed, delta-seed]").replace(
+        "  gamma-seed:", "  delta-seed: {fence: [chupa/thing.py]}\n  gamma-seed:"))
+    git(repo, "add", "CHUPA_PLAN.md")
+    git(repo, "commit", "-m", "second registry row")
+    first = ticket(repo)
+    second = replace(first, stem="existing-a")
+    gaps = {"gamma-seed": ["missing fact"]}
+    asyncio.run(hold_on_hardening(ctx, first, gaps, attempt=0))
+    # Deleting the hardener's directory cannot change the journaled round identity.
+    path = repo / "tickets/plan-gap-1/ticket.md"
+    path.unlink()
+    path.parent.rmdir()
+    asyncio.run(hold_on_hardening(ctx, second, {"delta-seed": ["different fact"]}, attempt=7))
+    assert len(rounds(ctx.driver.journal.read())) == 1
+    assert terminal_body(ctx)["round"] == 1
+    other = [e.body for e in ctx.driver.journal.read() if e.ticket == second.stem
+             and e.type == EventType.STATE_TRANSITION][-1]
+    assert other["round"] == 1
+    assert other["plan_units"] == {"19.P3.delta-seed": "absent"}
+    assert rounds(ctx.driver.journal.read())[0].units == {"19.P3.gamma-seed": "absent"}
+    assert not (repo / "tickets/plan-gap-2/ticket.md").exists()
+    ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="plan-gap-1")
+    asyncio.run(hold_on_hardening(ctx, second, {"delta-seed": ["different fact"]}, attempt=8))
+    assert [r.number for r in rounds(ctx.driver.journal.read())] == [1, 2]
+    assert open_round(ctx.driver.journal.read()).number == 2
+    assert open_round(ctx.driver.journal.read()).units == {"19.P3.delta-seed": "absent"}
+    assert (repo / "tickets/plan-gap-2/ticket.md").is_file()
+    assert git(repo, "log", "--format=%s").count("hardening round") == 2
+
+
+@pytest.mark.parametrize("outcome", ["premise_failed", "gate_failed"])
+@pytest.mark.parametrize("closed", [False, True])
+def test_a_hardener_is_never_hardened(repo, outcome, closed, monkeypatch):
+    import asyncio
+    from chupa import runner
+    from chupa.artifacts import Cost, Finding, StageResult
+    from chupa.stages import StagesRun
+    from tests.test_stages import STEM
+    add_registry_row(repo)
+    ctx, _ = context(repo, [])
+    record(ctx.driver.journal, hardener=STEM)
+    if closed:
+        ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=STEM)
+    async def stage(ctx, ticket):
+        return StagesRun(attempt=1, results={"implement" if outcome == "premise_failed" else "check":
+            StageResult(outcome=outcome, artifact=None, cost=Cost(), findings=[Finding(
+                code="premise", message="19.P3.gamma-seed missing", paved_road="state the fact")])})
+    def gaps(*args):
+        pytest.fail("a recorded hardener never enters gap detection")
+    monkeypatch.setattr(runner, "run_stages", stage)
+    monkeypatch.setattr(runner, "spec_gaps", gaps)
+    monkeypatch.setattr(runner, "premise_spec_gaps", gaps)
+    assert asyncio.run(runner.drive(ctx, ticket(repo))) == outcome
+    assert terminal_body(ctx).get("dispatch") != "spec_gap_hold"
+    assert len(rounds(ctx.driver.journal.read())) == 1
+    assert not any(e.body.get("cap") == "hardening" for e in ctx.driver.journal.read())

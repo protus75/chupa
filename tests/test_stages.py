@@ -573,3 +573,16 @@ def test_full_gather_evidence_reuses_safety_gatherer(repo, monkeypatch):
         assert (ctx.config.state_dir / "spools" / STEM / "4/check/verify-01-base.txt").is_file()
         assert not (ctx.config.worktree_root / ".base" / STEM).exists()
     asyncio.run(scenario())
+
+
+def test_scope_fence_admits_a_plan_edit_confined_to_all_anchored_units(tmp_path):
+    gate = ScopeFenceGate()
+    main = UNIT_HEAD.replace("### 19.P4 Next", "### 19.P3.other Other\n\nold\n\n### 19.P4 Next")
+    head = main.replace("- **Owner:** o", "- **Owner:** changed").replace("old\n", "new\n")
+    anchored = dict(scope_fence=["CHUPA_PLAN.md#19.P3.row", "CHUPA_PLAN.md#19.P3.other"],
+                    changed_files=["CHUPA_PLAN.md"], plan_main=main)
+    assert gate.check(evidence(**anchored, plan_head=head), tmp_path).verdict == "pass"
+    assert gate.check(evidence(**anchored, plan_head=head.replace("reg\n", "escaped\n")), tmp_path).verdict == "fail"
+    inserted = main.replace("### 19.P4 Next", "### 19.P3.missing Missing\n\nadded\n\n### 19.P4 Next")
+    anchored["scope_fence"].append("CHUPA_PLAN.md#19.P3.missing")
+    assert gate.check(evidence(**anchored, plan_head=inserted.replace("old\n", "new\n")), tmp_path).verdict == "pass"

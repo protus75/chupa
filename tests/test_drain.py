@@ -392,10 +392,10 @@ def test_a_spec_gap_hold_waits_for_its_hardening_ticket_then_re_runs_free(root):
             calls.append(t.stem)
             if t.stem == "held" and calls.count("held") == 1:
                 commit_ticket(root, "harden-held-1", confirmed(priority="P3"))
-                checkout.journal.append(EventType.SIGNAL, {"signal": "spec_gap_hold", "awaits": ["harden-held-1"],
-                                                           "gaps": {"held": ["fact"]}}, ticket="held")
+                round_record(checkout.journal, "harden-held-1")
                 checkout.journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "stage": "check",
-                                                                     "dispatch": "spec_gap_hold"}, ticket="held")
+                                                                     "dispatch": "spec_gap_hold", "round": 1,
+                                                                     "plan_units": {"19.P3.held": "absent"}}, ticket="held")
                 return "gate_failed"
             checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=t.stem)
             return "merged"
@@ -417,17 +417,17 @@ def test_a_spec_gap_hold_never_re_runs_while_its_hardening_ticket_is_unmerged(ro
             calls.append(t.stem)
             draft = confirmed().replace("state: confirmed", "state: draft")  # never dispatched
             commit_ticket(root, "harden-held-1", draft)
-            checkout.journal.append(EventType.SIGNAL, {"signal": "spec_gap_hold", "awaits": ["harden-held-1"],
-                                                       "gaps": {"held": ["fact"]}}, ticket="held")
+            round_record(checkout.journal, "harden-held-1")
             checkout.journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "stage": "check",
-                                                                 "dispatch": "spec_gap_hold"}, ticket="held")
+                                                                 "dispatch": "spec_gap_hold", "round": 1,
+                                                                     "plan_units": {"19.P3.held": "absent"}}, ticket="held")
             return "gate_failed"
 
         return dispatch
 
     drain(root, pipeline)
     assert calls == ["held"]
-    assert "spec gap held on harden-held-1" in capsys.readouterr().out
+    assert "spec gap held on round 1 (harden-held-1)" in capsys.readouterr().out
 
 
 def test_a_spec_gap_premise_releases_on_its_hardening_merge_without_a_ticket_edit(root):
@@ -439,10 +439,10 @@ def test_a_spec_gap_premise_releases_on_its_hardening_merge_without_a_ticket_edi
             calls.append(t.stem)
             if t.stem == "held" and calls.count("held") == 1:
                 commit_ticket(root, "harden-held-1", confirmed(priority="P3"))
-                checkout.journal.append(EventType.SIGNAL, {"signal": "spec_gap_hold", "awaits": ["harden-held-1"],
-                                                           "gaps": {"held": ["fact"]}}, ticket="held")
+                round_record(checkout.journal, "harden-held-1")
                 checkout.journal.append(EventType.STATE_TRANSITION, {"to": "premise_failed", "stage": "implement",
-                                                                     "dispatch": "spec_gap_hold"}, ticket="held")
+                                                                     "dispatch": "spec_gap_hold", "round": 1,
+                                                                     "plan_units": {"19.P3.held": "absent"}}, ticket="held")
                 return "premise_failed"
             checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=t.stem)
             return "merged"
@@ -855,13 +855,14 @@ async def test_pause_checkpoint_failure_spends_no_retry(root, cancel):
 @pytest.mark.parametrize("kind", ["premise", "spec_gap", "spec_gap_premise"])
 async def test_pause_preserves_free_premise_and_spec_gap_reoffers(root, kind):
     commit_ticket(root, "work", confirmed())
-    extra = {} if kind == "premise" else {"dispatch": "spec_gap_hold"}
+    extra = {} if kind == "premise" else {"dispatch": "spec_gap_hold", "round": 1,
+                                               "plan_units": {"19.P3.held": "absent"}}
+    if kind != "premise":
+        round_record(journal(root), "hardening")
     prior_failure(root, terminal="premise_failed" if kind != "spec_gap" else "gate_failed", extra=extra)
     if kind == "premise":
         commit_ticket(root, "work", confirmed().replace("`thing()` returns ok.", "`thing()` returns revised ok."))
     else:
-        journal(root).append(EventType.SIGNAL, {"signal": "spec_gap_hold", "awaits": ["hardening"],
-                                               "gaps": {"work": ["fact"]}}, ticket="work")
         journal(root).append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="hardening")
     before = offer_events(root)
     pause, script = Pause(), Script()
@@ -920,3 +921,20 @@ async def test_drain_uses_supplied_control(root, monkeypatch):
     with pytest.raises(Refusal, match="build_control.*Checkout.control"):
         await run_drain(replace(checkout, control=None), Script()(checkout), reexec=NoChild())
     assert trace == []
+
+
+def round_record(j, hardener):
+    j.append(EventType.SIGNAL, {"signal": "hardening_round", "round": 1,
+             "units": {"19.P3.held": "absent"}, "filed_by": "held",
+             "gaps": [{"unit": "19.P3.held", "message": "fact"}]}, ticket=hardener)
+
+
+def test_legacy_spec_gap_hold_without_round_is_released(root):
+    from chupa.drain import awaited_hardening
+    commit_ticket(root, "held", confirmed())
+    j = journal(root)
+    j.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "dispatch": "spec_gap_hold"}, ticket="held")
+    assert awaited_hardening(j.read(), "held") == ()
+    script = Script()
+    assert drain(root, script) == 0
+    assert script.calls == ["held"] and retry_draws(root, "held") == 0

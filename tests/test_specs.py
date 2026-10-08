@@ -318,3 +318,17 @@ def test_section_cited_with_its_own_subsection_is_refused():
 def test_plan_id_canonicalizes_new_forms(text, pid):
     from chupa.specs import plan_id
     assert plan_id(text) == pid
+
+
+def test_unit_sha_is_absent_for_a_missing_unit_and_tracks_unit_bytes():
+    import hashlib
+    from chupa.specs import unit_sha
+    uid = "19.P3.rework-stage"
+    assert unit_sha(SUB_PLAN, "19.P3.missing") == "absent"
+    expected = hashlib.sha256(resolve_plan_contract(SUB_PLAN, [uid]).encode()).hexdigest()
+    assert unit_sha(SUB_PLAN, uid) == expected
+    assert unit_sha(SUB_PLAN.replace("rework body", "rework changed"), uid) != expected
+    assert unit_sha(SUB_PLAN.replace("registry", "registry changed"), uid) == expected
+    assert unit_sha(SUB_PLAN.replace("Rework", "Renamed"), uid) != expected
+    with pytest.raises(PlanContractError):
+        unit_sha(SUB_PLAN + resolve_plan_contract(SUB_PLAN, [uid]), uid)

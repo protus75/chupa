@@ -75,7 +75,6 @@ REQUIRED_SECTIONS = (
 OPTIONAL_SECTIONS = ("On-demand", "Plan contract", "Regression", "Exit-read window")
 SECTIONS = REQUIRED_SECTIONS + OPTIONAL_SECTIONS
 SEED_REFUSED_SECTIONS = frozenset({"0", "19", "21", "22"})
-HARDENING_STEM = re.compile(r"harden-([a-z0-9][a-z0-9-]*)-([1-9]\d*)")
 BANNED_ADJECTIVES = re.compile(r"\b(improved|better|cleaner)\b", re.IGNORECASE)
 _FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
 _HEADING = re.compile(r"^## (.+?)\s*$")
@@ -223,12 +222,7 @@ def _seed_cites(stem: str, plan_ids: list[str], plan: str, path: str) -> list[Fi
     out: list[Finding] = []
     rows = registry_rows(plan)
     cited = set(plan_ids)
-    hardening = HARDENING_STEM.fullmatch(stem)
-    if hardening and hardening.group(1) in rows:
-        phase = rows[hardening.group(1)][0]
-        need = {"19.L", f"19.P{phase}"}
-        road = "a hardening ticket cites `19.L`, its phase unit, the entry unit it hardens, and that row's `cite`"
-    elif stem in rows and not rows[stem][1].get("exit"):
+    if stem in rows and not rows[stem][1].get("exit"):
         phase, row = rows[stem]
         row_cites = {str(c) for c in row.get("cite", []) or []}
         need = {"19.I", f"19.P{phase}.{stem}"} | row_cites

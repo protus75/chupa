@@ -1428,8 +1428,10 @@ async def test_live_drain_resume_rechecks_selection_and_caps(root, monkeypatch, 
     if change in {"retry", "caps", "premise", "spec-gap"}:
         c.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": "old"}, ticket="work")
         if change == "spec-gap":
-            c.journal.append(EventType.SIGNAL, {"signal": SPEC_GAP_HOLD, "awaits": ["hardening"]}, ticket="work")
-            c.journal.append(EventType.STATE_TRANSITION, {"to": "premise_failed", "dispatch": SPEC_GAP_HOLD}, ticket="work")
+            from tests.test_drain import round_record
+            round_record(c.journal, "hardening")
+            c.journal.append(EventType.STATE_TRANSITION, {"to": "premise_failed", "dispatch": SPEC_GAP_HOLD,
+                                                        "round": 1, "plan_units": {"19.P3.held": "absent"}}, ticket="work")
         else:
             c.journal.append(EventType.STATE_TRANSITION, {"to": "premise_failed" if change == "premise" else "gate_failed",
                                                         "rung": {"tier": "high", "effort": "max"}}, ticket="work")
