@@ -1,0 +1,138 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "72fa20ab317b8c5f29919b3756fcdfc97af1a836",
+  "stem": "phase3-exit",
+  "passed": false,
+  "changed_files": [
+    "tests/test_phase3_exit.py",
+    "tests/test_seeded_phase4_core.py"
+  ],
+  "inserted_lines": 718,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "requisition_review",
+      "verdict": "fail",
+      "findings": [
+        {
+          "code": "requisition_review",
+          "path": null,
+          "line": null,
+          "message": "invalid requisition review reply: 1 schema error(s)",
+          "paved_road": "reply with a schema-valid requisition verdict",
+          "kind": "authoring_error",
+          "unit": null
+        }
+      ],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [
+    {
+      "stem": "notify-transport",
+      "ticket_sha": "5eabd3f6e24d32bccf8f02cd805bf61d238ab6bc",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
+    },
+    {
+      "stem": "phase4-continue",
+      "ticket_sha": "9e9625145f7882c0b5fa7e4de6d681fafd855460",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "requisition_review",
+          "path": null,
+          "line": null,
+          "message": "invalid requisition review reply: 1 schema error(s)",
+          "paved_road": "reply with a schema-valid requisition verdict",
+          "kind": "authoring_error",
+          "unit": null
+        }
+      ],
+      "mechanical": "invalid reply"
+    },
+    {
+      "stem": "watchdog-event-stream",
+      "ticket_sha": "f977c54f768c5e7d47c27bbbb384450c3f862cd8",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
+    }
+  ],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_phase3_exit.py"
+      ],
+      "rc": 0,
+      "tail": "..                                                                       [100%]\n2 passed in 0.08s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_seeded_phase4_core.py"
+      ],
+      "rc": 0,
+      "tail": "....................                                                     [100%]\n20 passed in 1.57s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "tests/test_daemon_soak.py",
+        "tests/test_daemon_soak_runner.py"
+      ],
+      "rc": 0,
+      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/phase3-exit\nconfigfile: pyproject.toml\nplugins: asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 83 items\n\ntests/test_daemon_soak.py ...........                                    [ 13%]\ntests/test_daemon_soak_runner.py ....................................... [ 60%]\n.................................                                        [100%]\n\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase3-exit/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n======================== 83 passed, 1 warning in 27.34s ========================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "tests/test_stages.py",
+        "tests/test_merge.py"
+      ],
+      "rc": 0,
+      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/phase3-exit\nconfigfile: pyproject.toml\nplugins: asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 111 items\n\ntests/test_stages.py ...............................................     [ 42%]\ntests/test_merge.py .................................................... [ 89%]\n............                                                             [100%]\n\n============================= 111 passed in 15.84s =============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
