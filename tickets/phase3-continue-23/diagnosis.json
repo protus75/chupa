@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "95d29a21aaf0148fe2355427c1a294b78905c048",
+  "stem": "phase3-continue-23",
+  "attempt": 0,
+  "terminal": "infra_error",
+  "stage": "implement",
+  "verdict": "retry",
+  "lessons": [
+    "The failure was a transient provider 503 (codex 'Reconnecting... 2/5'), not a ticket defect. Retry at the same capability; the ticket itself needs no change.",
+    "The prior attempt's log shows both Verification commands passing (14 targeted tests, 2295 total), a commit 95d29a2 of tests/test_seeded_phase3_23.py, and both seeds left untracked. Before re-authoring, check the workspace and HEAD to see whether that work survived.",
+    "Per the ticket scope, commit only tests/test_seeded_phase3_23.py. Leave tickets/outbox-only-admission/ and tickets/phase3-continue-24/ uncommitted for Check's requisition_review, and use no ticket paths in the code commit.",
+    "The prior attempt said it 'adjusted acceptance wording to satisfy intake grammar'. Rerun test_seed_passes_intake_lint_with_confirmed_seed_birth on the seeds as written, and keep cite-don't-copy: no unit text copied into either seed."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
