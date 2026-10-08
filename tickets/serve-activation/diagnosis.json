@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "07da0abe0d595423ac92fbcbaf5d912f0ac3a709",
+  "produced_at_sha": "b8c25aee8ef1214441197f7708449e81885ee6fa",
   "stem": "serve-activation",
-  "attempt": 337,
+  "attempt": 339,
   "terminal": "premise_failed",
   "stage": "implement",
   "verdict": "reject",
   "lessons": [
-    "The fence omits chupa/runner.py. Merged chupa/runner.py:437-439 harvest_orphan builds its own Driver.from_config, so startup orphan harvest writes through a separate Journal. That breaks 19.P3.serve-activation's single shared journal. Re-author the seed under 19.L with chupa/runner.py fenced.",
-    "Re-grep the harvest_orphan callers before re-authoring: chupa/runner.py:455 and chupa/drain.py:201 pass lambdas into restart. Put every caller whose behavior changes into the caller closure, and keep public signatures and bootstrap reconciliation unchanged.",
-    "Do not copy orphan-recovery logic into chupa/serve.py or swap the writer implicitly to stay inside the fence. Under the ticket's Records contract Journal stays the sole durable event writer, and 19.P3.serve-activation requires reusing the real startup reconciliation.",
-    "The material does not show how harvest_orphan's Driver and Effects get bound to checkout.journal, and no merged binding was verified here. Read chupa/runner.py and chupa/driver.py before naming one. If none exists, report it as a spec_gap on 19.P3.serve-activation.",
-    "Before the next implement attempt, check that the restart preservation tests in tests/test_restart_timers.py still pass on base. Add a test_serve test proving the interrupted-ticket harvest intent and completion events land in the same journal as abandoned."
+    "Re-author the seed under 19.L and add the six paths 19.P3.serve-activation requires (CHUPA_PLAN.md:2253) to Scope fence and Context/On-demand: chupa/stages.py, chupa/scheduler.py, chupa/storm.py, tests/test_stages.py, tests/test_daemon_admission.py, tests/test_daemon_config.py.",
+    "Add the Verification command the contract requires, `uv run pytest tests/test_stages.py tests/test_daemon_admission.py tests/test_daemon_config.py`, alongside the existing suite. Record the fence additions in the owning seeding test, as 19.L requires.",
+    "Merged run_stages awaits Implement, Check and Review directly with no suspension point. The Scheduler keeps its slot for the whole callback and excludes running tickets. Both need edits in stages.py and scheduler.py, so those files must be in the fence.",
+    "StormLedger.holds drops stage identity, so the storm hold/resume obligation (test_serve_storm_hold_and_resume) needs an edit in chupa/storm.py. Fence it rather than working around it in serve.py or daemon.py.",
+    "After widening the fence, re-check direct callers and contradicted assertions across chupa/, eval/ and tests/. On base, the 560 existing tests plus 62 stage/admission/config tests pass. The Verification command exits 4 only because tests/test_serve.py does not exist yet."
   ],
   "mechanical": null,
   "spec_version": "1.1",
