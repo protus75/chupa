@@ -1,18 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "b8c25aee8ef1214441197f7708449e81885ee6fa",
+  "produced_at_sha": "ff92996a5ba66eba19288bfb2a9c5c66db143e5f",
   "stem": "serve-activation",
-  "attempt": 339,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "reject",
+  "attempt": 340,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
   "lessons": [
-    "Re-author the seed under 19.L and add the six paths 19.P3.serve-activation requires (CHUPA_PLAN.md:2253) to Scope fence and Context/On-demand: chupa/stages.py, chupa/scheduler.py, chupa/storm.py, tests/test_stages.py, tests/test_daemon_admission.py, tests/test_daemon_config.py.",
-    "Add the Verification command the contract requires, `uv run pytest tests/test_stages.py tests/test_daemon_admission.py tests/test_daemon_config.py`, alongside the existing suite. Record the fence additions in the owning seeding test, as 19.L requires.",
-    "Merged run_stages awaits Implement, Check and Review directly with no suspension point. The Scheduler keeps its slot for the whole callback and excludes running tickets. Both need edits in stages.py and scheduler.py, so those files must be in the fence.",
-    "StormLedger.holds drops stage identity, so the storm hold/resume obligation (test_serve_storm_hold_and_resume) needs an edit in chupa/storm.py. Fence it rather than working around it in serve.py or daemon.py.",
-    "After widening the fence, re-check direct callers and contradicted assertions across chupa/, eval/ and tests/. On base, the 560 existing tests plus 62 stage/admission/config tests pass. The Verification command exits 4 only because tests/test_serve.py does not exist yet."
+    "Serve's own stop/cleanup cancellations must not reach the worker-failure callback. 19.P3.serve-activation requires exactly one ordinary callback without a matching kill. Latch a memory-only stopping flag and check it before notifying.",
+    "Keep WorkerFailureObserver's predecessor contract and the post-kill suppression unchanged. Gate the cleanup-cancel suppression in serve.py only, on the latched stop, and leave chupa/daemon.py's DaemonTasks/_stop_workers semantics alone.",
+    "In test_serve_worker_failure_and_kill_suppression, assert exactly one callback carrying the scripted error for each ending: consumer error, unexpected return, signal stop. Add a matching-kill case that asserts zero callbacks.",
+    "Check the new assertions against the current multi-callback behavior (1 ValueError + 3 CancelledErrors) and confirm they fail there before applying the fix. Then rerun the full Verification command."
   ],
   "mechanical": null,
   "spec_version": "1.1",
