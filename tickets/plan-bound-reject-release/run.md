@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The prior-attempt implementation was absent; the existing seed test expected repeated hardening of unchanged units and needed updating.
+Staged-plan coverage exercises _scan directly because intake intentionally refuses unrelated staged files.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the expected 90-minute budget.
+Completed within the 90-minute expected budget.
 
