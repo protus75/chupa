@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "3d8cb44cb9214ee89880f133b734da8f07df82c5",
+  "produced_at_sha": "0cfe3556ea209b2a12b23586b39fd6d573e17e9d",
   "stem": "plan-bound-reject-release",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "In chupa/drain.py, a machine-actor keep that takes a stem out of the Reject queue must always draw one retry unit, even when the terminal's dispatch is spec_gap_hold. Only a released hold that never reached the Reject queue may re-run without a draw.",
-    "The ticket's Definition of rejected forbids any machine release that draws no retry unit. A spec_gap_hold terminal carrying plan_units becomes a plan-bound Reject arrival once _settle journals reject_arrival after any cap is spent, so it gets the same retry draw.",
-    "Add a tests/test_drain.py case for this: a spec_gap_hold terminal with diagnosis spent and retry unspent, whose bound unit changes. Assert one machine keep, exactly one retry draw, and then the re-run.",
-    "Keep the rest of the merged work, which passed all 2150 tests. The finding is limited to the draw-skip condition near chupa/drain.py:382, so change only that condition and do not widen the scope."
+    "In chupa/drain.py `_scan`, read `HEAD:CHUPA_PLAN.md` only when a plan-bound arrival exists, meaning a Reject arrival whose terminal carries `plan_units` (ticket Scope in). Drains with no plan-bound arrival must keep the merge-base behavior and must not call git for the plan.",
+    "When `git show HEAD:CHUPA_PLAN.md` fails because the plan is untracked, only staged, or deleted from HEAD, catch the GitError inside `_scan` and treat the committed plan as empty, so every bound unit is `absent` (review paved_road). Never let GitError abort the drain scan.",
+    "Add a test in tests/test_drain.py where CHUPA_PLAN.md exists in the working tree but not in HEAD. With no plan-bound arrival, the drain reaches quiescence with no error. With a plan-bound arrival, it treats the units as absent and does not crash.",
+    "Keep the rest of the attempt-1 diff. The reviewer said the hold and release logic matches the ticket, and all 2150 tests passed. Change only the committed-plan read path and its tests, then rerun the full Verification block."
   ],
   "mechanical": null,
   "spec_version": "1.1",
