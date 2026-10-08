@@ -808,11 +808,17 @@ def test_merge_queue_is_reachable_from_production():
         assert_reachable({**removed, "chupa.merge": removed["chupa.merge"] + "\n" + spelling})
 
 
-def test_inline_admission_does_not_use_merge_queue(ctx):
+def test_inline_admission_does_not_use_merge_queue(ctx, monkeypatch):
     async def scenario():
         ticket = await ready(ctx)
+        queue = MergeQueue(ctx, escalate=lambda _: None, control=admission_control(ctx))
+        queue._hold(ticket.stem, {"kind": TREE_MISMATCH, "checked_tree": "a", "main_tree": "b"})
+        def forbidden(*args, **kwargs):
+            pytest.fail("inline admission entered the held queue")
+        monkeypatch.setattr(MergeQueue, "offer", forbidden)
+        monkeypatch.setattr(MergeQueue, "process", forbidden)
         result = await merge.merge(ctx, ticket, attempt=0)
-        assert result.outcome == "ok" and facts(ctx) == []
+        assert result.outcome == "ok" and facts(ctx) == [] and queue.paused
     run(scenario())
 
 

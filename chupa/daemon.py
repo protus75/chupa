@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import Awaitable, Callable, Iterable, Set
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from chupa.artifacts import Cost, Finding, StageResult
 from chupa.caps import spent
 from chupa.heartbeat import Heartbeat
 from chupa.mergequeue import ConflictHandoff, MergeQueue
+from chupa.merge import AdmissionBoundary
 from chupa.rework import ReworkOrder, record_supersedes, rework
 from chupa.runner import Dispatch
 from chupa.restart import Restart
@@ -438,6 +440,8 @@ class TicketWriter:
 
     def __init__(self, ctx: StageContext, queue: MergeQueue) -> None:
         self.ctx, self.queue = ctx, queue
+        self.admission = AdmissionBoundary(ctx)
+        self.active = False
         self.continuations: dict[str, Continuation] = {}
 
     async def __call__(self, ticket: Ticket) -> str:
@@ -445,8 +449,13 @@ class TicketWriter:
         prior = self.continuations.get(ticket.stem)
         if prior is not None:
             ticket, boundary.run = prior.ticket, prior.run
+        self.active = True
         try:
-            result = await runner.drive(self.ctx, ticket)
+            if self.admission.mode == "inline":
+                result = await runner.drive(self.ctx, ticket)
+            else:
+                result = await runner.drive(self.ctx, ticket, admission=self.admission,
+                                            consume_handoff=self.consume_handoff)
             if boundary.next_stage is not None:
                 assert boundary.run is not None and boundary.ticket is not None
                 self.continuations[ticket.stem] = Continuation(
@@ -455,7 +464,20 @@ class TicketWriter:
                 self.continuations.pop(ticket.stem, None)
             return result
         finally:
+            self.active = False
             boundary.run, boundary.ticket, boundary.next_stage = None, None, None
+
+    async def consume_result(self, ticket: Ticket, result: StageResult | ConflictHandoff, *, attempt: int) -> None:
+        """Deliver the producing run's result; predecessor offers retain their existing custody."""
+        if self.admission.deliver(ticket, attempt, result):
+            return
+        if isinstance(result, ConflictHandoff):
+            await self.consume_handoff(ticket, result, attempt=attempt)
+        elif result.outcome != "ok":
+            await runner.harvest_failure(self.ctx, ticket, attempt=attempt, stage="merge",
+                outcome=result.outcome, findings=result.findings, results=(result,))
+            await runner.failure_terminal(self.ctx, ticket, attempt=attempt, stage="merge",
+                outcome=result.outcome, findings=result.findings)
 
     async def abort_current(self) -> None:
         await self.ctx.abort_current()
@@ -516,6 +538,15 @@ class DaemonAdmission:
         self.active: Ticket | None = None
         self.task: asyncio.Task[str] | None = None
         self.resume: Callable[[Ticket], Dispatch | None] = lambda _: None
+
+    @asynccontextmanager
+    async def waiting_for_merge(self):
+        """Retain dispatch ownership while lending its ticket-plane boundary to the consumer."""
+        self._slot.release()
+        try:
+            yield
+        finally:
+            await _protected_cleanup(asyncio.create_task(self._slot.acquire()))
 
     async def dispatch(self, ticket: Ticket) -> str:
         async with self._slot:

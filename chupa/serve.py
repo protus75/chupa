@@ -17,7 +17,7 @@ from chupa.enginelog import EngineLog
 from chupa.heartbeat import Heartbeat
 from chupa.journal import EventType
 from chupa.lockfile import Lockfile
-from chupa.mergequeue import ConflictHandoff
+from chupa.merge import AdmissionBoundary
 from chupa.providers import ProviderLLM
 from chupa.providers import ProviderSetupError
 from chupa.journal import JournalCorruption
@@ -82,6 +82,7 @@ class Serve:
 
         self.read, self.stems, self.signals = read, stems, signals
         self.writers: dict[str, TicketWriter] = {}
+        self.queue = None
         self.stopping = False
         self.wake = asyncio.Event()
         self.ready = asyncio.Event()
@@ -101,6 +102,11 @@ class Serve:
             if not isinstance(callback, TicketWriter):
                 raise TypeError("serve preparation must return the composed TicketWriter")
             callback.ctx.boundary.select = self.select
+            if self.queue is None:
+                self.queue = callback.queue
+            callback.queue = self.queue
+            callback.admission = AdmissionBoundary(callback.ctx, mode="daemon", queue=self.queue,
+                waiting=self.core.admission.waiting_for_merge)
 
             async def dispatch(ticket):
                 if not self.select(ticket, "implement"):
@@ -118,7 +124,7 @@ class Serve:
 
         self.core = build_daemon_core(checkout, config_path=config_path, plan=plan, read=read,
             debounce=SERVE_POLL_S, quarantined=lambda: set(), drought_parked=lambda: set(),
-            completed_unmerged=lambda: sum(len(w.queue.pending) for w in self.writers.values()),
+            completed_unmerged=lambda: len(self.queue.pending) if self.queue is not None else 0,
             prepare=prepared)
         self.checkout = replace(checkout, control=self.core.control)
         self.control = self.core.control
@@ -218,23 +224,18 @@ class Serve:
                 self.control.poll()
                 if self.stopping or self.control.projection.kill_requested:
                     return
-                for writer in tuple(self.writers.values()):
-                    offers = dict(writer.queue.pending)
-                    ages = authored_at(self.checkout.journal.read())
-                    ordered = sorted(offers.values(), key=lambda row: sort_key(row[0], ages))
-                    results = await writer.queue.process()
-                    for (ticket, attempt), result in zip(ordered, results, strict=False):
-                        if isinstance(result, ConflictHandoff):
-                            await writer.consume_handoff(ticket, result, attempt=attempt)
-                        elif result.outcome != "ok":
-                            await runner.harvest_failure(writer.ctx, ticket, attempt=attempt,
-                                stage="merge", outcome=result.outcome, findings=result.findings, results=(result,))
-                            await runner.failure_terminal(writer.ctx, ticket, attempt=attempt,
-                                stage="merge", outcome=result.outcome, findings=result.findings)
-                    if not writer.continuations and not writer.queue.pending:
-                        for stem, owned in tuple(self.writers.items()):
-                            if owned is writer:
-                                del self.writers[stem]
+                if self.queue is None:
+                    return
+                offers = dict(self.queue.pending)
+                ages = authored_at(self.checkout.journal.read())
+                ordered = sorted(offers.values(), key=lambda row: sort_key(row[0], ages))
+                results = await self.queue.process()
+                for (ticket, attempt), result in zip(ordered, results, strict=False):
+                    owner = self.writers.get(ticket.stem) or next(iter(self.writers.values()))
+                    await owner.consume_result(ticket, result, attempt=attempt)
+                for stem, writer in tuple(self.writers.items()):
+                    if not writer.active and not writer.continuations and not self.queue.pending:
+                        del self.writers[stem]
         while True:
             await response.wait(poll())
             await response.wait(self.checkout.sleep(SERVE_POLL_S))
@@ -268,6 +269,7 @@ class Serve:
         for task in operations:
             if not task.done() and not task.cancelling():
                 task.cancel()
+        for task in operations:
             cleanup = asyncio.gather(task, return_exceptions=True)
             await _protected_cleanup(cleanup)
             errors.extend(result for result in cleanup.result()

@@ -122,7 +122,7 @@ def bind(checkout: Checkout, llm: LLM) -> Dispatch:
     return TicketWriter(ctx, queue)
 
 
-async def drive(ctx: StageContext, ticket: Ticket) -> str:
+async def drive(ctx: StageContext, ticket: Ticket, *, admission=None, consume_handoff=None) -> str:
     """Implement -> Check -> Review -> Merge; harvest, dispatch, journal, then wipe a non-ok run."""
     if ctx.boundary.run is None:
         tier, effort = capability(ticket, ctx.driver.journal.read())
@@ -133,7 +133,13 @@ async def drive(ctx: StageContext, ticket: Ticket) -> str:
         return "running"
     stage, result = run.last
     if stage == "review" and result.outcome == "ok":
-        stage, result = "merge", await merge(ctx, ticket, attempt=run.attempt)
+        from chupa.mergequeue import ConflictHandoff
+
+        stage, result = "merge", await (admission(ticket, attempt=run.attempt) if admission is not None
+                                       else merge(ctx, ticket, attempt=run.attempt))
+        if isinstance(result, ConflictHandoff):
+            assert consume_handoff is not None
+            return await consume_handoff(ticket, result, attempt=run.attempt)
         if result.outcome == "ok":
             return "merged"
     if result.outcome != "already_satisfied":

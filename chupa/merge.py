@@ -1,21 +1,23 @@
-"""Merge: the single-admission writer to main (CHUPA_PLAN.md sections 7, 9, 10; 19.P1).
+"""Inline merge and explicit serve admission (CHUPA_PLAN.md sections 7, 9, 10; 19.P3.serve-merge-admission).
 
 Per admission, all before main moves: restore the worktree's ticket plane -> rebase onto main ->
 re-run the mechanical hard set on the rebased candidate -> require the pinned review approval ->
-squash-merge with trailers -> journal `to: merged` -> delete the worktree and branch. Runs inline
-in the one CLI process holding the single-writer lock; the serial merge task, red-streak pause, and
-tree-hash assert are Phase 3. The bug gate is deferred to its first bug-intake consumer (Phase 6).
+squash-merge with trailers -> journal `to: merged` -> delete the worktree and branch. Run/drain
+admit inline; serve offers through AdmissionBoundary and its serial MergeQueue consumer.
 
 A refusal leaves main untouched and the branch in place; journaling a non-ok terminal is the
 runner's (section 11.2).
 """
 
+import asyncio
 from collections.abc import Callable
+from contextlib import nullcontext
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from chupa.daemon import PauseConsumer
+    from chupa.mergequeue import ConflictHandoff, MergeQueue
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
@@ -184,6 +186,55 @@ class SeedSafetyGate:
 
 
 MERGE_GATES = (TicketSchemaGate(), PostRebaseGate(), ApprovalGate(), SeedSafetyGate())
+
+
+class AdmissionBoundary:
+    """Explicit, idle composition and memory-only delivery (19.P3.serve-merge-admission)."""
+
+    def __init__(self, ctx: StageContext, *, mode: str = "inline",
+                 queue: "MergeQueue | None" = None, waiting=nullcontext) -> None:
+        from chupa.runner import Refusal
+
+        if mode not in ("inline", "daemon") or (mode == "daemon" and queue is None):
+            raise Refusal(f"invalid admission setup: mode={mode!r}",
+                          "select inline or supply the composed MergeQueue with daemon mode at serve composition")
+        self.ctx, self.mode, self.queue, self.waiting = ctx, mode, queue, waiting
+        self.results: dict[tuple[str, int], asyncio.Future] = {}
+
+    async def __call__(self, ticket: Ticket, *, attempt: int) -> "StageResult | ConflictHandoff":
+        ctx = self.ctx
+        if self.mode == "inline":
+            return await merge(ctx, ticket, attempt=attempt)
+        started = ctx.driver.clock()
+        reviewed = await ctx.git.rev_parse(ctx.repo, ticket.stem)
+        paths = await ctx.git.diff_names(ctx.repo, MAIN, ticket.stem)
+        seeds, checks = await gather_seeds(ctx, ticket)
+        candidate = read_candidate(ctx, ticket, reviewed, paths, seeds, checks)
+        reports = run_gates((PostRebaseGate(), SeedSafetyGate()), candidate, ctx.repo,
+                           severity={"post_rebase_regate": "hard", "requisition_review": "hard"})
+        if reports.hard_failures:
+            return _refused([f for r in reports.hard_failures for f in r.findings],
+                            Cost(seconds=(ctx.driver.clock() - started).total_seconds()))
+        assert self.queue is not None
+        key = ticket.stem, attempt
+        result = asyncio.get_running_loop().create_future()
+        self.results[key] = result
+        try:
+            # Single-flight dispatch retains this run's snapshot until its receipt is consumed.
+            self.queue.ctx = ctx
+            self.queue.offer(ticket, attempt=attempt)
+            async with self.waiting():
+                return await result
+        finally:
+            self.results.pop(key, None)
+
+    def deliver(self, ticket: Ticket, attempt: int, result: "StageResult | ConflictHandoff") -> bool:
+        future = self.results.get((ticket.stem, attempt))
+        if future is None:
+            return False
+        if not future.done():
+            future.set_result(result)
+        return True
 
 
 def squash_message(ticket: Ticket, reviewed_sha: str) -> str:

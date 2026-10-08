@@ -14,7 +14,7 @@ from chupa.driver import Driver
 from chupa.git import Git
 from chupa.journal import EventType
 from chupa.llm import FakeLLM
-from chupa.merge import Admission, Candidate, PostRebaseGate, merge
+from chupa.merge import Admission, AdmissionBoundary, Candidate, PostRebaseGate, merge
 from chupa.mergequeue import CONFLICT_FACTS, MergeQueue
 from chupa import runner
 from chupa.seams import LocalFileSystem, SubprocessExec
@@ -111,7 +111,8 @@ def test_a_passing_ticket_squash_merges_with_trailers_and_journals_merged(repo):
     assert git(repo, "status", "--porcelain") == ""
 
 
-def test_bootstrap_pipeline_keeps_inline_admission(repo, monkeypatch):
+@pytest.mark.parametrize("verb", ["bind", "run", "drain"])
+def test_bootstrap_pipeline_keeps_inline_admission(repo, monkeypatch, verb):
     author(repo)
     source = context(repo, [])
     checkout = runner.Checkout(repo, source.config, source.env, source.exec_, source.git,
@@ -133,14 +134,120 @@ def test_bootstrap_pipeline_keeps_inline_admission(repo, monkeypatch):
         return await original(ctx, ticket, attempt=attempt)
 
     monkeypatch.setattr(runner, "merge", inline)
-    dispatch = runner.bind(checkout, llm)
+    def pipeline(local):
+        dispatch = runner.bind(local, llm)
+        dispatch.queue.paused, dispatch.queue.hold_id = True, "daemon-only-hold"
+        local.control.hold(dispatch.queue.hold_id)
+        return dispatch
     ticket = validate_ticket(STEM, (repo / "tickets" / STEM / "ticket.md").read_text(), repo)
-    assert asyncio.run(dispatch(ticket)) == "merged"
+    if verb == "bind":
+        assert asyncio.run(pipeline(checkout)(ticket)) == "merged"
+    else:
+        from chupa.__main__ import main
+        from tests.test_drain_reentry import NoChild
+        assert main(["run", STEM] if verb == "run" else ["drain"], cwd=repo, env=ENV,
+                    clock=checkout.clock, pipeline=pipeline, reexec=NoChild()) == 0
     [(ctx, original_ticket, attempt)] = calls
     assert original_ticket.stem == ticket.stem and attempt == 0
     assert len(merged_events(ctx)) == 1
     assert not any(e.body.get("kind") == CONFLICT_FACTS for e in ctx.driver.journal.read())
     assert (repo / "chupa/thing.py").read_text() == "ok\n" and not ctx.worktree(STEM).exists()
+
+
+@pytest.mark.parametrize("failure", ["ticket-plane", "missing-checks", "malformed-checks", "missing-approval", "wrong-sha",
+                                    "missing-blob", "invalid-blob", "dirty-main"])
+def test_daemon_prechecks_precede_offer(seed_repo, monkeypatch, failure):
+    ctx, ticket, attempt = seed_reviewed(seed_repo)
+    async def scenario():
+        checks = "tickets/add-thing/checks.json"
+        seed = "tickets/alpha-seed/ticket.md"
+        code = "requisition_review"
+        if failure == "ticket-plane":
+            code = "post_rebase_regate"
+            path = ctx.worktree(ticket.stem) / "tickets/committed.md"
+            ctx.fs.write(path, b"forbidden code-lane ticket\n")
+            await ctx.git.add(ctx.worktree(ticket.stem), ["tickets/committed.md"])
+            await ctx.git.commit(ctx.worktree(ticket.stem), "code lane violation")
+        elif failure == "missing-checks":
+            (ctx.repo / checks).unlink()
+        elif failure == "malformed-checks":
+            ctx.fs.write(ctx.repo / checks, b"invalid")
+        elif failure in {"missing-approval", "wrong-sha"}:
+            data = json.loads((ctx.repo / checks).read_text())
+            if failure == "missing-approval":
+                data["seeds"] = []
+            else:
+                data["seeds"][0]["ticket_sha"] = "wrong"
+            ctx.fs.write(ctx.repo / checks, json.dumps(data).encode())
+        elif failure == "missing-blob":
+            (ctx.repo / seed).unlink()
+        elif failure == "invalid-blob":
+            ctx.fs.write(ctx.repo / seed, b"invalid")
+            data = json.loads((ctx.repo / checks).read_text())
+            data["seeds"][0]["ticket_sha"] = (await ctx.git._run(ctx.repo, "hash-object", seed)).strip()
+            ctx.fs.write(ctx.repo / checks, json.dumps(data).encode())
+        else:
+            # A dirty, valid replacement cannot cure committed wrong-SHA custody.
+            data = json.loads((ctx.repo / checks).read_text())
+            data["seeds"][0]["ticket_sha"] = "wrong"
+            valid = (ctx.repo / checks).read_bytes()
+            ctx.fs.write(ctx.repo / checks, json.dumps(data).encode())
+        if failure != "ticket-plane":
+            await ctx.git.add(ctx.repo, [seed, checks])
+            await ctx.git.commit(ctx.repo, "precheck refusal fixture")
+        if failure == "dirty-main":
+            ctx.fs.write(ctx.repo / checks, valid)
+        ctx.config.review.gate_severity = {code: "soft"}
+        before = await ctx.git.rev_parse(ctx.repo, "main")
+        head = await ctx.git.rev_parse(ctx.repo, ticket.stem)
+        journal = ctx.driver.journal.read()
+        queue = MergeQueue(ctx, escalate=lambda _: None)
+        def forbidden(*args, **kwargs):
+            pytest.fail("precheck refusal offered, rebased or ran Verification")
+        monkeypatch.setattr(queue, "offer", forbidden)
+        monkeypatch.setattr(ctx.git, "rebase_stop_at_conflict", forbidden)
+        monkeypatch.setattr(ctx.git, "rebase", forbidden)
+        monkeypatch.setattr(stages, "gather_evidence", forbidden)
+        boundary = AdmissionBoundary(ctx, mode="daemon", queue=queue)
+        result = await boundary(ticket, attempt=attempt)
+        assert result.outcome == "gate_failed" and result.artifact is None
+        assert code in {f.code for f in result.findings}
+        assert all(f.paved_road for f in result.findings)
+        assert await ctx.git.rev_parse(ctx.repo, "main") == before
+        assert await ctx.git.rev_parse(ctx.repo, ticket.stem) == head
+        assert ctx.worktree(ticket.stem).exists() and not queue.pending
+        assert ctx.driver.journal.read() == journal and not boundary.results
+    from chupa import stages
+    asyncio.run(scenario())
+
+
+def test_admission_mode_is_explicit(repo, monkeypatch):
+    ctx, ticket, attempt = reviewed(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
+    queue = MergeQueue(ctx, escalate=lambda _: None)
+    def forbidden(*args, **kwargs):
+        pytest.fail("construction or inline admission entered daemon queue")
+    monkeypatch.setattr(queue, "offer", forbidden)
+    monkeypatch.setattr(queue, "process", forbidden)
+    before = ctx.driver.journal.read()
+    with monkeypatch.context() as idle:
+        idle.setattr(ctx.exec_, "run", forbidden)
+        idle.setattr(asyncio, "create_task", forbidden)
+        boundary = AdmissionBoundary(ctx, queue=queue)
+        daemon = AdmissionBoundary(ctx, mode="daemon", queue=queue)
+    assert boundary.mode == "inline" and daemon.mode == "daemon"
+    assert not boundary.results and not daemon.results and not queue.pending
+    assert ctx.driver.journal.read() == before
+    for kwargs in ({"mode": "unknown", "queue": queue}, {"mode": "daemon"}):
+        with pytest.raises(runner.Refusal, match="supply.*MergeQueue.*serve composition"):
+            AdmissionBoundary(ctx, **kwargs)
+    queue.paused, queue.hold_id = True, "daemon-hold"
+    from chupa.lockfile import Lockfile
+    lock = Lockfile(ctx.config.state_dir, instance_id="inline-mode", clock=ctx.driver.clock)
+    lock.acquire()
+    try:
+        assert asyncio.run(boundary(ticket, attempt=attempt)).outcome == "ok"
+    finally:
+        lock.release()
 
 
 def test_approval_carries_across_a_clean_rebase_onto_a_moved_main(repo):
