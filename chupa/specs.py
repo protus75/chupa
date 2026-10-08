@@ -342,14 +342,21 @@ def without_unit(plan: str, uid: str) -> str:
     return plan.replace(slices[0], "", 1) if len(slices) == 1 else plan
 
 
+def required_units(plan: str, stem: str, plan_contract: Iterable[str]) -> tuple[str, ...]:
+    """Own non-exit entry then cited registry entries, even when their headings are absent."""
+    entries = {f"19.P{phase}.{name}" for name, (phase, row) in registry_rows(plan).items()
+               if not row.get("exit")}
+    own = next((uid for uid in entries if uid.rsplit(".", 1)[1] == stem), None)
+    return tuple(dict.fromkeys([*([own] if own is not None else []),
+                               *(uid for uid in plan_contract if uid in entries)]))
+
+
 def hardenable_units(plan: str, stem: str, plan_contract: Iterable[str]) -> tuple[str, ...]:
     """Own entry, cited entries, then cited phases' non-exit rows, even when their headings are absent."""
     entries = {f"19.P{phase}.{name}": f"19.P{phase}" for name, (phase, row) in registry_rows(plan).items()
                if not row.get("exit")}
     cites = tuple(plan_contract)
-    own = next((uid for uid in entries if uid.rsplit(".", 1)[1] == stem), None)
-    return tuple(dict.fromkeys([*([own] if own is not None else []),
-                               *(uid for uid in cites if uid in entries),
+    return tuple(dict.fromkeys([*required_units(plan, stem, cites),
                                *(uid for cite in cites for uid, phase in entries.items() if phase == cite)]))
 
 

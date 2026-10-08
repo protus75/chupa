@@ -31,7 +31,7 @@ from chupa.git import Git, GitError
 from chupa.journal import TERMINAL_STATES, EventType, run_seq
 from chupa.providers import child_env
 from chupa.seams import ExecutableNotFound, FileSystem, ProcessExec
-from chupa.specs import PlanContractError, RenderOverBound, Spec, entry_unit_gap, hardenable_units, load_spec, plan_id, render, resolve_plan_contract, without_unit
+from chupa.specs import PlanContractError, RenderOverBound, Spec, entry_unit_gap, hardenable_units, load_spec, plan_id, render, required_units, resolve_plan_contract, without_unit
 from chupa.tickets import _HEADING, _bullets, _sections, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, TicketInvalid, ticket_path, validate_ticket
 
 MAIN = "main"
@@ -961,7 +961,7 @@ async def _review_one(ctx: StageContext, ticket: Ticket, seed_stem: str, rel: st
             citations.append(plan_id(bullet))
         except PlanContractError:
             pass  # Grammar reports malformed ids after the SPEC DEPTH check.
-    units = hardenable_units(plan, seed_stem, citations)
+    units = required_units(plan, seed_stem, citations)
     gaps = [Finding(code="requisition_review", path=rel, message=gap,
                     paved_road="harden the entry unit through section 11.4; never invent its facts in the seed",
                     kind="spec_gap", unit=uid)

@@ -17,6 +17,7 @@ from chupa.specs import (
     lint_spec,
     load_spec,
     render,
+    required_units,
     resolve_plan_contract,
     validate_data_blocks,
 )
@@ -100,6 +101,37 @@ seeds:
         reply["findings"][0]["unit"] = uid
         with pytest.raises(ValidationError, match="spec_gap unit must be one of"):
             RequisitionReply.model_validate(reply, context={"hardenable_units": units})
+
+
+def test_required_units_exclude_phase_rows():
+    plan = """### 19.P4 Phase 4
+```yaml
+# BEGIN_REGISTRY_P4
+seeds:
+  uncited: {}
+  own: {}
+  present: {}
+  missing: {}
+  exit: {exit: true}
+# END_REGISTRY_P4
+```
+### 19.P4.present Present
+- **Owner:** o
+- **Records:** r
+- **Observable:** b
+- **Tests:** t
+### 19.P4.orphan Orphan
+"""
+    cites = ("19.P4", "19.P4.present", "19.P4.own", "19.P4.missing", "19.P4.present",
+             "19.P4.exit", "19.P4.orphan", "19.P3.present", "19.L")
+    assert required_units(plan, "own", iter(cites)) == (
+        "19.P4.own", "19.P4.present", "19.P4.missing")
+    assert hardenable_units(plan, "own", iter(cites)) == (
+        "19.P4.own", "19.P4.present", "19.P4.missing", "19.P4.uncited")
+    assert required_units(plan, "exit", cites) == ("19.P4.present", "19.P4.own", "19.P4.missing")
+    assert required_units(plan, "own", ()) == ("19.P4.own",)
+    assert required_units(plan, "unregistered", ("19.P4", "19.L")) == ()
+    assert required_units(plan, "exit", ()) == ()
 
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():

@@ -528,6 +528,44 @@ def test_cited_missing_unit_is_a_spec_gap_not_a_grammar_refusal(repo):
     assert record.body["units"] == {"19.P3.gamma-seed": "absent"}
 
 
+def test_phase_citing_seed_is_not_snagged_for_uncited_phase_rows(repo):
+    plan = repo / "CHUPA_PLAN.md"
+    plan.write_text(plan.read_text() + """
+### 19.P4 Phase 4
+```yaml
+# BEGIN_REGISTRY_P4
+seeds:
+  first: {}
+  second: {}
+  missing: {}
+  lookahead: {}
+  exit: {exit: true}
+# END_REGISTRY_P4
+```
+### 19.P4.first First
+- **Owner:** o
+- **Records:** r
+- **Observable:** b
+- **Tests:** t
+### 19.P4.second Second
+- **Owner:** o
+- **Records:** r
+- **Observable:** b
+- **Tests:** t
+""")
+    git(repo, "add", "CHUPA_PLAN.md")
+    git(repo, "commit", "-m", "two present phase entries and missing uncited rows")
+    seed = seed_text("alpha-seed").replace("- 19.P2\n", "- 19.P4\n- 19.P4.first\n- 19.P4.second\n")
+    outcome, ctx, llm = run(repo, [write_seeds({"alpha-seed": seed}), requisition("approve"), verdict()])
+
+    assert outcome == "merged"
+    [review] = invoice(repo).seeds
+    assert review.verdict == "approve" and not review.findings
+    assert [r.surface for r in llm.requests] == ["implement", "requisition_review", "review"]
+    assert len(intake_events(ctx)) == 1
+    assert not any(e.body.get("signal") == "hardening_round" for e in ctx.driver.journal.read())
+
+
 def test_spec_depth_checks_every_own_and_cited_unit_before_grammar(repo):
     add_registry_row(repo)
     plan = repo / "CHUPA_PLAN.md"
