@@ -218,6 +218,7 @@ class _Drain:
         self.upgrade: tuple[str, str] | None = None  # (stem, commit) of a self-upgrading admission
         self.deadline = checkout.clock() + timedelta(hours=checkout.config.drain.max_runtime_hours)
         self.over_budget: dict[str, Parked] = {}  # parked at dispatch by the per-ticket ceiling
+        self.storm_waiting = False
         self.report = Report()
 
     async def run(self) -> Report:
@@ -245,6 +246,11 @@ class _Drain:
                     or awaited_hardening(events, s)}
             pick, reoffer = self._select(scan, events, last, held)
             if pick is None:
+                if self.storm_waiting:
+                    if self.c.clock() >= self.deadline:
+                        return self._halt(scan, events, last, held)
+                    await self.c.control.sleep(0.1)
+                    continue
                 self._settle(scan, events, last, held)
                 return self.report
             if self.c.clock() >= self.deadline:
@@ -314,7 +320,16 @@ class _Drain:
                        key=lambda t: sort_key(t, authored))
         awaiting = reject_queue(events)
         fresh, reoffers = [], []
+        storm_held = set(self.c.control.storm_holds().values()) if self.c.control is not None else set()
+        self.storm_waiting = False
         for t in ready:
+            if t.stem in storm_held:
+                if (t.stem not in self.over_budget
+                        and t.stuck_minutes <= self.c.config.drain.max_ticket_minutes
+                        and (last.get(t.stem) is None or (t.stem not in held
+                             and caps.spent(self.c.config.caps, events, t.stem) is None))):
+                    self.storm_waiting = True
+                continue
             if t.stem in awaiting:
                 if caps.spent(self.c.config.caps, events, t.stem) is not None:
                     continue

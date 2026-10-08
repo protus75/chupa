@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal
 
-from chupa.journal import EventType, Journal
+from chupa.journal import Event, EventType, Journal
 from chupa.seams import FileSystem
 
 CONTROL_DECISION = "control_decision"
@@ -75,6 +75,42 @@ class ControlProjection:
     kill_requested: bool = False
 
 
+def decisions(events: Iterable[Event]) -> Iterable[Event]:
+    """Validate the sole inbox writer's evidence before granting release authority."""
+    seen: dict[str, dict] = {}
+    road = "repair the producing control evidence, never overwrite journal history"
+    for event in events:
+        body = event.body
+        if body.get("kind") != CONTROL_DECISION:
+            continue
+        if (event.type != EventType.SIGNAL or event.ticket is not None or event.key is not None
+                or set(body) != {"kind", "request_id", "lifecycle_id", "verb", "hold_id",
+                                 "decision", "reason"}
+                or not isinstance(body.get("request_id"), str)
+                or _ID.fullmatch(body["request_id"]) is None
+                or not isinstance(body.get("decision"), str)
+                or body.get("decision") not in {"accepted", "stale", "rejected"}
+                or not isinstance(body.get("reason"), str) or not body["reason"]):
+            raise ValueError(f"invalid control decision; {road}")
+        request_id = body["request_id"]
+        if body["decision"] == "rejected":
+            if any(body[field] is not None for field in ("lifecycle_id", "verb", "hold_id")):
+                raise ValueError(f"invalid rejected control decision; {road}")
+        else:
+            try:
+                validate_request({field: body[field] for field in
+                                  ("request_id", "lifecycle_id", "verb", "hold_id")},
+                                 request_id + ".json")
+            except ValueError as exc:
+                raise ValueError(f"invalid control decision; {road}") from exc
+        if request_id in seen:
+            if seen[request_id] != body:
+                raise ValueError(f"conflicting control decision; {road}")
+            continue
+        seen[request_id] = body
+        yield event
+
+
 class ControlInbox:
     """Serial consumer owned by the existing journal lock holder.
 
@@ -97,13 +133,9 @@ class ControlInbox:
         released = set()
         killed = False
         accepted = False
-        for event in self.journal.read():
+        for event in decisions(self.journal.read()):
             body = event.body
-            if event.type != EventType.SIGNAL or body.get("kind") != CONTROL_DECISION:
-                continue
             request_id = body["request_id"]
-            if request_id in decided:
-                continue
             decided.add(request_id)
             if body["decision"] != "accepted" or body["lifecycle_id"] != self.lifecycle_id:
                 continue

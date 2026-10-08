@@ -251,13 +251,13 @@ def test_ledger_trip_uses_only_journal_and_box(tmp_path, monkeypatch):
     monkeypatch.setattr(Effects, "run", forbidden)
     monkeypatch.setattr(control, "publish_request", forbidden)
     monkeypatch.setattr(daemon.DaemonAdmission, "dispatch", forbidden)
-    monkeypatch.setattr(daemon.PauseConsumer, "hold", forbidden)
     storm, journal, clock = ledger(tmp_path)
     box = daemon.storm_producer(root=tmp_path / "box", fs=LocalFileSystem(),
                                 journal=journal, clock=clock)
     for n in range(12):
         box.enqueue(message_class="failure_report", origin="one", summary="failed path/one 123",
                     stage="implement", outcome="gate_failed", occurrence_id=str(n))
+    assert list(storm.holds().values()) == ["one"]
     assert storm.count(SIG) == 12
     assert len([e for e in journal.read() if e.body.get("kind") == "storm_breaker_trip"]) == 1
     assert len(box.messages()) == 2

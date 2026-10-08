@@ -243,6 +243,7 @@ def test_storm_report_cannot_recurse(tmp_path):
 
 @pytest.mark.parametrize("verb", ["run", "drain"])
 def test_storm_activation_does_not_hold_dispatch_or_notify(tmp_path, monkeypatch, verb):
+    """Drain waits for the emitting ticket's resume; explicit run remains operator-invoked."""
     root = make_root(tmp_path)
     commit_ticket(root, "one", confirmed())
     commit_ticket(root, "unrelated", confirmed())
@@ -253,14 +254,31 @@ def test_storm_activation_does_not_hold_dispatch_or_notify(tmp_path, monkeypatch
                                 journal=journal, clock=clock)
     six(box)
     def forbidden(*args, **kwargs):
-        pytest.fail("storm suppressed dispatch or invoked external notification")
-    monkeypatch.setattr(daemon.PauseConsumer, "hold", forbidden)
+        pytest.fail("storm invoked external notification")
+    monkeypatch.setattr("chupa.effects.Effects.run", forbidden)
     monkeypatch.setattr("chupa.triage.triage_pass", forbidden)
+    if verb == "drain":
+        original = cli.build_control
+        def build(checkout):
+            consumer = original(checkout)
+            async def sleep(_):
+                # Only the emitting ticket remains; the lifecycle and lock are live.
+                assert script.calls == ["unrelated"]
+                hold, = consumer.storm_holds()
+                assert json.loads((checkout.config.state_dir / "control/active.json").read_bytes())["hold_id"] == hold
+                await cli._control(checkout, "resume")
+            consumer.sleep = sleep
+            return consumer
+        monkeypatch.setattr(cli, "build_control", build)
     assert cli.main([verb, "one"] if verb == "run" else [verb], cwd=root, env=ENV,
                     clock=clock, pipeline=script, reexec=NoChild()) == 0
-    assert script.calls == (["one"] if verb == "run" else ["one", "unrelated"])
+    assert script.calls == (["one"] if verb == "run" else ["unrelated", "one"])
     assert script.lock_held == [True] * len(script.calls)
     assert len(trips(journal)) == 1
+    if verb == "drain":
+        assert StormLedger(journal=journal, clock=clock).holds() == {}
+        decisions = [e for e in journal.read() if e.body.get("kind") == "control_decision"]
+        assert [e.body["decision"] for e in decisions] == ["accepted"]
     assert all(m.status == "pending" for m in box.messages())
 
 
@@ -502,8 +520,8 @@ async def test_storm_leaves_daemon_selection_and_accounting_unchanged(admission_
     checkout = runner.Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git, ctx.driver.journal,
                                ctx.fs, ctx.driver.clock, ctx.driver.sleep)
     def forbidden(*args, **kwargs):
-        pytest.fail("storm invoked a notification or dispatch hold")
-    monkeypatch.setattr(daemon.PauseConsumer, "hold", forbidden)
+        pytest.fail("storm invoked an external notification")
+    monkeypatch.setattr("chupa.effects.Effects.run", forbidden)
     core = cli.build_daemon_core(checkout, plan=None, read=lambda _: None, debounce=0,
         quarantined=lambda: set(), drought_parked=lambda: set(), completed_unmerged=lambda: 0,
         prepare=prepare)
@@ -516,6 +534,15 @@ async def test_storm_leaves_daemon_selection_and_accounting_unchanged(admission_
     assert await core.scheduler.dispatch_next() is None
     assert calls == ["one", "unrelated"]
     assert core.control.admission is None and core.control.projection.pause_id is None
+    hold, = core.control.storm_holds()
+    assert core.control.storm_holds()[hold] == "one"
+    # This activation publishes identities; continuous stage selection lands with serve.
+    from chupa.control import ControlRequest, publish_request
+    publish_request(ctx.config.state_dir,
+                    ControlRequest("daemon-release", core.control.inbox.lifecycle_id, "resume", hold), ctx.fs)
+    await core.control.checkpoint()
+    assert core.control.storm_holds() == {}
+    assert hold in core.control.projection.released_hold_ids
     assert not any(e.type == EventType.CAP_CONSUMED for e in ctx.driver.journal.read())
     assert len(trips(ctx.driver.journal)) == 1
 

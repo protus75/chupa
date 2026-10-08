@@ -24,6 +24,7 @@ from chupa.providers import ProviderLLM, ProviderSetupError, child_env
 from chupa.restart import Restart
 from chupa.seams import Clock, ExecutableNotFound, LocalFileSystem, ProcessExec, SubprocessExec
 from chupa.status import project, render
+from chupa.storm import StormLedger
 from chupa.timers import Timers
 from chupa.tickets import IntakeRefused, Ticket, TicketInvalid, stem_findings, template, ticket_path, validate_ticket
 
@@ -43,7 +44,8 @@ def build_control(checkout: runner.Checkout) -> PauseConsumer:
     return PauseConsumer(journal=checkout.journal, lifecycle_id=uuid4().hex,
                          state_dir=checkout.config.state_dir, fs=checkout.fs, sleep=checkout.sleep,
                          files=lambda: (checkout.config.state_dir / "control/inbox").glob("*"),
-                         read=Path.read_bytes, recover=box.recover)
+                         read=Path.read_bytes, recover=box.recover,
+                         storm_holds=StormLedger(journal=checkout.journal, clock=checkout.clock).holds)
 
 
 def build_daemon_core(

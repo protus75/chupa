@@ -160,47 +160,67 @@ class PauseConsumer:
 
     def __init__(self, *, journal: Journal, lifecycle_id: str, state_dir: Path,
                  fs: FileSystem, sleep: Sleep, files: Callable[[], Iterable[Path]],
-                 read: Callable[[Path], bytes], recover: Callable[[], None] | None = None) -> None:
+                 read: Callable[[Path], bytes], recover: Callable[[], None] | None = None,
+                 storm_holds: Callable[[], dict[str, str]] | None = None) -> None:
         self._recover = recover
+        self._storm_holds = storm_holds
         self.state_dir, self.fs, self.sleep = state_dir, fs, sleep
         self.projection = ControlProjection(lifecycle_id)
         self._published = False
+        self._advertised: tuple[str, str | None] | None = None
         self._stop: asyncio.Task | None = None
         self.admission: str | None = None
         self.inbox = control_inbox(journal=journal, lifecycle_id=lifecycle_id,
-                                   holds=lambda: {self.admission} if self.admission is not None else set(),
+                                   holds=self._holds,
                                    apply=self._apply, files=files, read=read)
+
+    def storm_holds(self) -> dict[str, str]:
+        return {} if self._storm_holds is None else self._storm_holds()
+
+    def _holds(self) -> set[str]:
+        return set(self.storm_holds()) | ({self.admission} if self.admission is not None else set())
 
     def _apply(self, projection: ControlProjection) -> None:
         # The inbox has already fsynced the decision; discovery is only its projection.
-        self.projection = projection
         if self._published:
-            write_active(self.state_dir, projection, self.fs, hold_id=self._selected_hold())
+            self._refresh(projection)
+        self.projection = projection
 
-    def _selected_hold(self) -> str | None:
-        if self.projection.pause_id is not None:
-            return self.projection.pause_id
-        if self.admission not in self.projection.released_hold_ids:
+    def _selected_hold(self, projection: ControlProjection) -> str | None:
+        if projection.pause_id is not None:
+            return projection.pause_id
+        if self.admission is not None and self.admission not in projection.released_hold_ids:
             return self.admission
-        return None
+        return next((identity for identity in self.storm_holds()
+                     if identity not in projection.released_hold_ids), None)
+
+    def _refresh(self, projection: ControlProjection) -> None:
+        hold = self._selected_hold(projection)
+        advertised = projection.lifecycle_id, hold
+        if advertised != self._advertised:
+            write_active(self.state_dir, projection, self.fs, hold_id=hold)
+            self._advertised = advertised
 
     def hold(self, hold_id: str) -> None:
         self.admission = hold_id
         if self._published:
-            write_active(self.state_dir, self.projection, self.fs, hold_id=self._selected_hold())
+            self._refresh(self.projection)
 
     def publish(self) -> None:
+        self._refresh(self.projection)
         self._published = True
-        write_active(self.state_dir, self.projection, self.fs, hold_id=self._selected_hold())
 
     def retire(self) -> None:
         write_active(self.state_dir, None, self.fs, hold_id=None)
         self._published = False
+        self._advertised = None
 
     async def checkpoint(self) -> None:
         if self._recover is not None:
             self._recover()
         while True:
+            if self._published:
+                self._refresh(self.projection)
             self.inbox.consume()
             if self.projection.kill_requested or self.projection.pause_id is None:
                 return

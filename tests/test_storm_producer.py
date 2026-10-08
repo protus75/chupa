@@ -268,15 +268,15 @@ def test_storm_producer_hook_is_active(tmp_path, monkeypatch, admission_context,
     assert hook.call_count > 1
 
     def forbidden(*args, **kwargs):
-        pytest.fail("arrival producer invoked notify/dispatch/hold")
+        pytest.fail("arrival producer invoked notify/dispatch")
 
     monkeypatch.setattr(Effects, "run", forbidden)
     monkeypatch.setattr(control, "publish_request", forbidden)
     monkeypatch.setattr(daemon.DaemonAdmission, "dispatch", forbidden)
-    monkeypatch.setattr(daemon.PauseConsumer, "hold", forbidden)
     box, journal, clock = compose(tmp_path / "direct")
     for n in range(12):
         box.enqueue(**ARRIVAL, occurrence_id=str(n))
+    assert list(StormLedger(journal=journal, clock=clock).holds().values()) == ["one"]
     assert len(box.messages()) == 2 and StormLedger(journal=journal, clock=clock).count(SIG) == 12
     assert len([e for e in journal.read() if e.body.get("kind") == "storm_breaker_trip"]) == 1
     assert len([e for e in journal.read() if e.body.get("kind") == "storm_occurrence"]) == 13
