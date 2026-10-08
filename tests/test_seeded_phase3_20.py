@@ -38,6 +38,12 @@ FENCE_FLOORS = {'serve-activation': ('chupa/serve.py',
                       'chupa/triage.py',
                       'chupa/driver.py',
                       'chupa/runner.py',
+                      'chupa/stages.py',
+                      'chupa/scheduler.py',
+                      'chupa/storm.py',
+                      'tests/test_stages.py',
+                      'tests/test_daemon_admission.py',
+                      'tests/test_daemon_config.py',
                       'tests/test_serve.py',
                       'tests/test_daemon_composition.py',
                       'tests/test_daemon_tasks.py',
@@ -78,7 +84,12 @@ PLAN_CHARS = {'19.I': 1811,
  '6': 36783,
  '15': 17090}
 
-FILE_CHARS = {'chupa/daemon.py': 23259,
+FILE_CHARS = {'tests/test_daemon_config.py': 16015,
+ 'tests/test_daemon_admission.py': 9543,
+ 'tests/test_stages.py': 26094,
+ 'chupa/storm.py': 9574,
+ 'chupa/stages.py': 53586,
+ 'chupa/daemon.py': 23259,
  'chupa/__main__.py': 10026,
  'tests/test_daemon_tasks.py': 13570,
  'tests/test_kill_worker_stop.py': 15142,
@@ -102,7 +113,7 @@ FILE_CHARS = {'chupa/daemon.py': 23259,
 
 STANDING_CONTEXT = ()
 
-AUTHORED = {'serve-activation': {'chars': 7791,
+AUTHORED = {'serve-activation': {'chars': 8235,
                       'plan': ('19.I', '19.P3.serve-activation', '18', '20'),
                       'context': ('chupa/daemon.py',
                                   'chupa/__main__.py',
@@ -121,13 +132,20 @@ AUTHORED = {'serve-activation': {'chars': 7791,
                                   'chupa/scheduler.py',
                                   'chupa/watcher.py',
                                   'chupa/restart.py',
-                                  'chupa/timers.py'),
-                      'on_demand': ('tests/test_daemon_composition.py', 'chupa/driver.py'),
+                                  'chupa/timers.py',
+                                  'chupa/scheduler.py'),
+                      'on_demand': ('tests/test_daemon_composition.py', 'chupa/driver.py', 'chupa/stages.py', 'chupa/storm.py', 'tests/test_stages.py', 'tests/test_daemon_admission.py', 'tests/test_daemon_config.py'),
                       'fenced_existing': ('chupa/daemon.py',
                                           'chupa/__main__.py',
                                           'chupa/triage.py',
                                           'chupa/driver.py',
                                           'chupa/runner.py',
+                                          'chupa/stages.py',
+                                          'chupa/scheduler.py',
+                                          'chupa/storm.py',
+                                          'tests/test_stages.py',
+                                          'tests/test_daemon_admission.py',
+                                          'tests/test_daemon_config.py',
                                           'tests/test_daemon_composition.py',
                                           'tests/test_daemon_tasks.py',
                                           'tests/test_kill_worker_stop.py',
@@ -155,6 +173,7 @@ AUTHORED = {'serve-activation': {'chars': 7791,
                         'measured_render': 166042}}
 
 DELIMITER_FREE_AT_AUTHORING = ('chupa/daemon.py',
+ 'chupa/scheduler.py',
  'chupa/driver.py',
  'chupa/__main__.py',
  'tests/test_daemon_tasks.py',
@@ -281,6 +300,9 @@ ENTRY_VERIFICATION = ('uv',
  'tests/test_storm.py',
  'tests/test_checkpoint.py',
  'tests/test_restart_timers.py',
+ 'tests/test_stages.py',
+ 'tests/test_daemon_admission.py',
+ 'tests/test_daemon_config.py',
  'tests/test_control.py',
  'tests/test_control_cli.py',
  'tests/test_kill_cli_activation.py',
@@ -460,7 +482,7 @@ def test_context_closure_and_max_effort_render_use_authoring_snapshots(stem):
     assert all(FILE_CHARS[p] > 0 for p in (*a['context'], *a['on_demand'], *STANDING_CONTEXT))
     for path in a['on_demand']:
         assert path in a['fenced_existing'] and render_chars(a, (path,)) > HEADROOM_CHARS
-    assert AUTHORED['serve-activation']['on_demand'] == ('tests/test_daemon_composition.py', 'chupa/driver.py')
+    assert AUTHORED['serve-activation']['on_demand'] == ('tests/test_daemon_composition.py', 'chupa/driver.py', 'chupa/stages.py', 'chupa/storm.py', 'tests/test_stages.py', 'tests/test_daemon_admission.py', 'tests/test_daemon_config.py')
     assert AUTHORED['serve-activation']['created'] == ('chupa/serve.py', 'tests/test_serve.py')
     assert 'chupa/checkpoint.py' in AUTHORED['serve-activation']['context']
     assert 'tests/test_checkpoint.py' in AUTHORED['serve-activation']['fenced_existing']
@@ -475,10 +497,11 @@ def test_payloads_run_preservation_suites_without_fencing_or_embedding_them():
         'tests/test_serve.py', 'tests/test_daemon_composition.py', 'tests/test_daemon_tasks.py',
         'tests/test_kill_worker_stop.py', 'tests/test_kill_failure_suppression.py',
         'tests/test_heartbeat.py', 'tests/test_storm.py', 'tests/test_checkpoint.py',
-        'tests/test_restart_timers.py', 'tests/test_control.py', 'tests/test_control_cli.py',
+        'tests/test_restart_timers.py', 'tests/test_stages.py', 'tests/test_daemon_admission.py', 'tests/test_daemon_config.py',
+        'tests/test_control.py', 'tests/test_control_cli.py',
         'tests/test_kill_cli_activation.py', 'tests/test_scheduler.py', 'tests/test_mergequeue.py',
         'tests/test_triage.py', 'tests/test_cli.py', 'tests/test_drain.py', 'tests/test_audit.py')
-    assert PRESERVATION == ENTRY_VERIFICATION[12:]
+    assert PRESERVATION == ENTRY_VERIFICATION[15:]
     assert not set(PRESERVATION) & (set(t.scope_fence) | set(t.context) | set(t.on_demand))
     assert 'unchanged preservation suites' in t.sections['Scope in / Scope out']
     assert _ticket('phase3-continue-21').verification == (
