@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The three targeted suites passed, and the prose-only regression failed on the merge base as required; the preservation suite failed on its version assertion.
+The prose-only regression fails on the merge base and passes on this branch; the worktree is clean.
 
 ## Dead ends
 
-Restored the uncommitted implementation after discovering the scope conflict; stopped the full suite.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped before the 90-minute expected budget because the ticket requires an out-of-fence test change.
+Completed within the expected 90-minute budget.
 
