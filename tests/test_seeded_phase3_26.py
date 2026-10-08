@@ -29,7 +29,7 @@ MERGED_IDIOM_BLOB = '2feb2512789adbf84d57e9153d77d6a7a06edb8a'
 
 IMPLEMENT_SPEC_CHARS = 4775
 
-PLAN_CHARS = {'19.I': 1811, '19.P3.soak-run': 2713, '19.L': 20858, '19.P3': 16240, '13': 19708}
+PLAN_CHARS = {'19.I': 1811, '19.P3.soak-run': 2713, '19.L': 20858, '19.P3': 16240, '19.P4': 5514, '13': 19708}
 
 FILE_CHARS = {'chupa/artifacts.py': 8748,
  'chupa/stages.py': 59170,
@@ -90,9 +90,9 @@ SNAPSHOTS = {'soak-run': {'chars': 4980,
               'stuck': 60,
               'birth': ('seed', 'confirmed', 'medium', 'medium'),
               'base_render': 207662},
- 'phase3-continue-27': {'chars': 7134,
-                        'bytes': 7134,
-                        'plan': ('19.L', '19.I', '19.P3', '13'),
+ 'phase3-continue-27': {'chars': 7142,
+                        'bytes': 7142,
+                        'plan': ('19.L', '19.I', '19.P3', '19.P4', '13'),
                         'context': ('tests/test_seeded_phase3_core.py',),
                         'on_demand': (),
                         'fenced_existing': (),
@@ -297,7 +297,7 @@ def test_implementing_seeds_cite_exactly_their_own_entry_and_row_contract():
 
 def test_successor_cites_next_admission_and_embeds_merged_earlier_idiom():
     t = _ticket("phase3-continue-27")
-    assert t.plan_contract == SNAPSHOTS[t.stem]["plan"] == ("19.L", "19.I", "19.P3", "13")
+    assert t.plan_contract == SNAPSHOTS[t.stem]["plan"] == ("19.L", "19.I", "19.P3", "19.P4", "13")
     assert t.context == ("tests/test_seeded_phase3_core.py",)
     text = _text(t.stem)
     for fact in ("admissions[27:]", "phase3-exit only", "sole payload", "without a successor",
