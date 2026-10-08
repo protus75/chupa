@@ -1,15 +1,21 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "03c65dcffc77c3a17073f6431fcf2cc08008a4a5",
+  "produced_at_sha": "07da0abe0d595423ac92fbcbaf5d912f0ac3a709",
   "stem": "serve-activation",
-  "attempt": 336,
+  "attempt": 337,
   "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "premise_bounce cap spent",
+  "verdict": "reject",
+  "lessons": [
+    "The fence omits chupa/runner.py. Merged chupa/runner.py:437-439 harvest_orphan builds its own Driver.from_config, so startup orphan harvest writes through a separate Journal. That breaks 19.P3.serve-activation's single shared journal. Re-author the seed under 19.L with chupa/runner.py fenced.",
+    "Re-grep the harvest_orphan callers before re-authoring: chupa/runner.py:455 and chupa/drain.py:201 pass lambdas into restart. Put every caller whose behavior changes into the caller closure, and keep public signatures and bootstrap reconciliation unchanged.",
+    "Do not copy orphan-recovery logic into chupa/serve.py or swap the writer implicitly to stay inside the fence. Under the ticket's Records contract Journal stays the sole durable event writer, and 19.P3.serve-activation requires reusing the real startup reconciliation.",
+    "The material does not show how harvest_orphan's Driver and Effects get bound to checkout.journal, and no merged binding was verified here. Read chupa/runner.py and chupa/driver.py before naming one. If none exists, report it as a spec_gap on 19.P3.serve-activation.",
+    "Before the next implement attempt, check that the restart preservation tests in tests/test_restart_timers.py still pass on base. Add a test_serve test proving the interrupted-ticket harvest intent and completion events land in the same journal as abandoned."
+  ],
+  "mechanical": null,
   "spec_version": "1.1",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
