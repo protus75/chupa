@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-Both immediate Phase 4 core contracts resolve and all nine batch tests passed, but base Check code mechanically demands five missing later-phase entry units.
+The prior contract-selection blocker is resolved; Check owns the pending requisition review and seed lift.
 
 ## Dead ends
 
-Abandoned the lint-valid seed and snapshot test after reproducing Check's refusal against unchanged base code and plan; stopped full-suite verification after 727 passing tests.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped within the 60-minute expected budget upon proving the admission blocker.
+Completed within the expected 60-minute budget.
 
