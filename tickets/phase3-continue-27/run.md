@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The reply schema permits spec_gap units only from this ticket's cited Phase 3 contracts, so the missing Phase 4 units cannot be represented as valid spec_gap findings.
+Both missing units are valid spec_gap targets under the ticket's cited 19.P4 contract and the current reply validator.
 
 ## Dead ends
 
-Stopped before writing or committing; inventing next-phase contracts or editing the plan would violate the ticket.
+Stopped before writing the seed or batch test because entry_unit_gap and resolve_plan_contract reject both required core units.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during contract validation, well within the 60-minute expected budget.
+Contract validation established the blocker within minutes, before the 60m expected budget; verification commands were not run.
 
