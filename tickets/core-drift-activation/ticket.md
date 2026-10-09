@@ -40,6 +40,7 @@ state: confirmed
 - eval/daemon_soak.py
 - eval/reliability_battery.py
 - eval/shakeout/bench.py
+- tests/test_restart_timers.py
 
 ## Plan contract
 - 19.I
@@ -84,6 +85,7 @@ The hard flip also invalidates independently constructed test and eval hosts. Up
 - eval/daemon_soak.py
 - eval/reliability_battery.py
 - eval/shakeout/bench.py
+- tests/test_restart_timers.py
 
 ## Acceptance criteria
 1. `uv run pytest -q tests/test_hostfiles.py tests/test_gates.py tests/test_merge.py tests/test_providers.py tests/test_cli.py` exits 0 with test_core_activation_entry_unit proving required_units, unique resolve_plan_contract and all entry_unit_gap parts with missing-part rejection. test_core_drift_reachable_from_production_gates replaces the dormancy assertion through production Check and both merge paths.
