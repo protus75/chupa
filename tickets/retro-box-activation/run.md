@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Journal-backed arrival receipts preserve re-report counts across crashes and delayed replay.
+The prior implementation was absent from this branch, so its retained scoped changes were restored before fixing the reproduced defect.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-90m expected; approximately 35m actual.
+90m expected; approximately 15m actual.
 
