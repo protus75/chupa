@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-Reproduced on untouched base dc1c54485cc8bd8e842bcc2f696a2cc7927eec3c. Existing effect/reconcile tests passed: 28 tests. Ticket Verification commands were not run after confirming the scope blocker; final worktree status is clean.
+The prior journal scope-fence issue is repaired; the untouched branch passes all 99 tests in tests/test_thresh.py and tests/test_providers.py.
 
 ## Dead ends
 
-none
+Rejected inventing a wait estimate or an auth-error exclusion lifetime without governing rules.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Stopped during contract validation before implementation; the ticket budgets 60 minutes expected and 90 minutes stuck.
 
