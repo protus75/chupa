@@ -212,6 +212,23 @@ def test_unresolvable_plan_contract_section_is_refused(repo):
 # --- the rest of the section 13 grammar ------------------------------------------------------
 
 
+@pytest.mark.parametrize("stuck", [19, 20, 21])
+def test_time_budget_stuck_must_exceed_expected(repo, stuck):
+    root, _, _ = repo
+    text = complete(VALID.replace("- stuck: 40m", f"- stuck: {stuck}m"))
+    if stuck <= 20:
+        [finding] = refusal(root, text)
+        assert finding.code == "ticket_schema"
+        assert finding.path == "tickets/t-one/ticket.md"
+        assert "Time budget" in finding.message
+        assert f"stuck: {stuck}m" in finding.message
+        assert "expected: 20m" in finding.message
+        assert finding.paved_road == "set stuck greater than expected (the stage deadline is the stuck budget)"
+    else:
+        ticket = validate_ticket("t-one", text, root)
+        assert (ticket.expected_minutes, ticket.stuck_minutes) == (20, stuck)
+
+
 @pytest.mark.parametrize(
     ("old", "new", "needle"),
     [

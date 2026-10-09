@@ -424,6 +424,10 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings
                                "write exactly two bullets, `- expected: <int>m` and `- stuck: <int>m`", path))
         else:
             expected, stuck = budget["expected"], budget["stuck"]
+            if stuck <= expected:
+                findings.append(_f(f"`## Time budget` stuck: {stuck}m must exceed expected: {expected}m",
+                                   "set stuck greater than expected (the stage deadline is the stuck budget)",
+                                   path))
 
     if text_ := sections.get("Exit-read window"):
         items, errs = _bullets(text_, "Exit-read window", path)
