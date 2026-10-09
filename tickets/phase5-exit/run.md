@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Prior retro and missing-entry blockers are cleared; Check owns seed approvals and lift.
+Approved seeds remain byte-identical; the continuation now cites and depth-checks the repaired successor entries.
 
 ## Dead ends
 
