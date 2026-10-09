@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The Phase 6 registry contains both core rows, but required_units and entry_unit_gap confirm their governing units are missing at HEAD c05535d41890fc56709a87a0a3e91b7e303bc235.
+Both previously missing Phase 6 core entry units now resolve and pass entry_unit_gap; both predecessor approval receipts are committed and passing.
 
 ## Dead ends
 
-Seed authoring and verification stopped at the mandatory pre-write SPEC DEPTH check.
+Stopped before seed authoring at the ticket's mandatory unmet-read check; verification commands were not run.
 
 ## Second problems filed
 
