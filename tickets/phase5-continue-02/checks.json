@@ -1,13 +1,13 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "4bbe6c8d99314c514ca8658025831d1fe5410198",
+  "produced_at_sha": "b2a96aaa02e32e952255f909775b7c46e2cfa196",
   "stem": "phase5-continue-02",
-  "passed": false,
+  "passed": true,
   "changed_files": [
     "tests/test_seeded_phase5_02.py"
   ],
-  "inserted_lines": 413,
+  "inserted_lines": 425,
   "bypassed": [],
   "reports": [
     {
@@ -36,27 +36,8 @@
     },
     {
       "code": "requisition_review",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "missing_successor_entry_unit",
-          "path": "CHUPA_PLAN.md",
-          "line": 2489,
-          "message": "The ticket says phase5-continue-04 requires 19.P5.retro-doctor-cli and its row citation, and that this entry must be validated before any file is authored. The P5 registry has a retro-doctor-cli row (cite [18], VERBS contract), but CHUPA_PLAN.md has no '### 19.P5.retro-doctor-cli' heading. The P5 entry units stop at 19.P5.baseline-binding-reader. So entry_unit_gap(plan, '19.P5.retro-doctor-cli') returns 'entry unit 19.P5.retro-doctor-cli is missing'. The successor's Plan contract also cannot cite that unit, because the grammar gate refuses unresolvable ids. Following its own Scope and Definition of rejected, Implement must return premise_failed before seed creation, so acceptance criteria 1 and 2 cannot be met. The plan does not state the facts this unit needs: an Owner for chupa/doctor.py and the retro verb composition; Records for the retro/doctor outputs, exit codes and lock interaction; an Observable; and named Tests such as the doctor check order and retro no-merge, success and no-commit paths.",
-          "paved_road": "Harden the plan through section 11.4: add '### 19.P5.retro-doctor-cli' after 19.P5.baseline-binding-reader, with Owner, Records, Observable and Tests bullets taken from the 19.P5 VERBS contract and naming each test obligation. Run plan lint and commit the plan. Then re-offer phase5-continue-03 unchanged. Its unit-change release re-admits it.",
-          "kind": "spec_gap",
-          "unit": "19.P5.retro-doctor-cli"
-        },
-        {
-          "code": "requisition_review",
-          "path": null,
-          "line": null,
-          "message": "invalid requisition review reply: 1 schema error(s)",
-          "paved_road": "reply with a schema-valid requisition verdict",
-          "kind": "authoring_error",
-          "unit": null
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false
     }
   ],
@@ -64,36 +45,16 @@
     {
       "stem": "phase5-continue-03",
       "ticket_sha": "48a859955d6d7b41c01a514b92ecaf0b96089413",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "missing_successor_entry_unit",
-          "path": "CHUPA_PLAN.md",
-          "line": 2489,
-          "message": "The ticket says phase5-continue-04 requires 19.P5.retro-doctor-cli and its row citation, and that this entry must be validated before any file is authored. The P5 registry has a retro-doctor-cli row (cite [18], VERBS contract), but CHUPA_PLAN.md has no '### 19.P5.retro-doctor-cli' heading. The P5 entry units stop at 19.P5.baseline-binding-reader. So entry_unit_gap(plan, '19.P5.retro-doctor-cli') returns 'entry unit 19.P5.retro-doctor-cli is missing'. The successor's Plan contract also cannot cite that unit, because the grammar gate refuses unresolvable ids. Following its own Scope and Definition of rejected, Implement must return premise_failed before seed creation, so acceptance criteria 1 and 2 cannot be met. The plan does not state the facts this unit needs: an Owner for chupa/doctor.py and the retro verb composition; Records for the retro/doctor outputs, exit codes and lock interaction; an Observable; and named Tests such as the doctor check order and retro no-merge, success and no-commit paths.",
-          "paved_road": "Harden the plan through section 11.4: add '### 19.P5.retro-doctor-cli' after 19.P5.baseline-binding-reader, with Owner, Records, Observable and Tests bullets taken from the 19.P5 VERBS contract and naming each test obligation. Run plan lint and commit the plan. Then re-offer phase5-continue-03 unchanged. Its unit-change release re-admits it.",
-          "kind": "spec_gap",
-          "unit": "19.P5.retro-doctor-cli"
-        }
-      ],
+      "verdict": "approve",
+      "findings": [],
       "mechanical": null
     },
     {
       "stem": "scorecard-reporting",
       "ticket_sha": "4c1fb7e2a81cf0ffbbd9cb558409279079fc4d0a",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "requisition_review",
-          "path": null,
-          "line": null,
-          "message": "invalid requisition review reply: 1 schema error(s)",
-          "paved_road": "reply with a schema-valid requisition verdict",
-          "kind": "authoring_error",
-          "unit": null
-        }
-      ],
-      "mechanical": "invalid reply"
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
     }
   ],
   "verification": [
@@ -106,7 +67,7 @@
         "tests/test_seeded_phase5_02.py"
       ],
       "rc": 0,
-      "tail": ".........                                                                [100%]\n9 passed in 1.12s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": ".........                                                                [100%]\n9 passed in 1.11s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -129,7 +90,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "................................................. [ 66%]\n........................................................................ [ 68%]\n........................................................................ [ 71%]\n........................................................................ [ 73%]\n........................................................................ [ 76%]\n........................................................................ [ 78%]\n........................................................................ [ 81%]\n........................................................................ [ 83%]\n........................................................................ [ 86%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 96%]\n........................................................................ [ 99%]\n.........................                                                [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase5-continue-02/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n2833 passed, 1 warning in 253.36s (0:04:13)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "................................................. [ 66%]\n........................................................................ [ 68%]\n........................................................................ [ 71%]\n........................................................................ [ 73%]\n........................................................................ [ 76%]\n........................................................................ [ 78%]\n........................................................................ [ 81%]\n........................................................................ [ 83%]\n........................................................................ [ 86%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 96%]\n........................................................................ [ 99%]\n.........................                                                [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase5-continue-02/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n2833 passed, 1 warning in 252.67s (0:04:12)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
