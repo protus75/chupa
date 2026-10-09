@@ -92,7 +92,7 @@ def run_echo(tmp_path: Path, llm: FakeLLM, consumed: Stub):
             tier="medium",
             effort="medium",
             stuck_budget=600.0,
-        )
+            expected_budget=300.0, scope_fence=())
     )
     return result, config.state_dir
 

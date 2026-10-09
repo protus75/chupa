@@ -141,7 +141,7 @@ async def rework(ctx: StageContext, ticket: Ticket, text: str, findings: list[Fi
                     attempt=attempt, call_seq=review_seq,
                     prior=json.dumps({"action": artifact.action, "original_stem": ticket.stem, "original_ticket": text,
                                       "snag_list": [f.model_dump() for f in findings],
-                                      "retry_findings": [f.model_dump() for f in retry_findings]}))
+                                      "retry_findings": [f.model_dump() for f in retry_findings]}), expected_budget=ticket.expected_minutes * 60.0)
                 if verdict.verdict == "rma":
                     return GateReport(code="requisition_review", verdict="fail", findings=[
                         f.model_copy(update={"code": "requisition_rma"}) for f in verdict.findings])
@@ -162,7 +162,7 @@ async def rework(ctx: StageContext, ticket: Ticket, text: str, findings: list[Fi
             LlmStage(surface="rework", emits=ReworkReply, gates=[], render=render_attempt, review=review,
                      terminal_findings=frozenset({"requisition_rma"})), ticket,
             ticket=ticket.stem, attempt=attempt, workspace=workspace, tier=tier, effort=effort,
-            stuck_budget=stuck_budget)
+            stuck_budget=stuck_budget, expected_budget=ticket.expected_minutes * 60.0, scope_fence=())
     except RenderOverBound as exc:
         return StageResult(outcome="premise_failed", artifact=None, findings=[exc.finding], cost=Cost())
     if result.outcome != "ok":

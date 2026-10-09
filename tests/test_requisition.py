@@ -88,7 +88,7 @@ engine_plane_safety_inventory: [context.txt]
 def run(driver: Driver, repo: Path, text: str = TICKET, stem: str = "one-thing") -> RequisitionVerdict:
     return asyncio.run(review_ticket(driver, repo=repo, plan="", stem=stem, text=text,
                                      specs_dir=SPECS, tier="high", stem_slot="s", run_seq=0,
-                                     attempt=1, call_seq=1))
+                                     attempt=1, call_seq=1, expected_budget='surface'))
 
 
 def reply(verdict: str, findings: list | None = None) -> str:
@@ -131,7 +131,7 @@ seeds:
     text = TICKET.replace("## Goal / Why", "## Plan contract\n- 19.P3.governing\n\n## Goal / Why")
     verdict = asyncio.run(review_ticket(driver, repo=repo, plan=plan, stem="one-thing", text=text,
                                        specs_dir=SPECS, tier="high", stem_slot="s", run_seq=0,
-                                       attempt=1, call_seq=1))
+                                       attempt=1, call_seq=1, expected_budget='surface'))
     assert verdict.mechanical == (None if valid else "invalid reply")
     if valid:
         assert verdict.findings == [Finding(**finding)]
@@ -181,7 +181,7 @@ seeds:
                        git=None, fs=None, driver=driver, specs_dir=SPECS)
     stage, _ = implement_stage(ctx, ticket, repo)
     result = asyncio.run(driver.run(stage, ticket, ticket=ticket.stem, attempt=0, workspace=repo,
-                                   tier="high", effort="high", stuck_budget=60))
+                                   tier="high", effort="high", stuck_budget=60, expected_budget=300.0, scope_fence=()))
     assert result.outcome == "ok"
     assert result.artifact.findings == [Finding(**valid)]
     assert len(llm.requests) == 2
@@ -204,7 +204,7 @@ def test_snag_and_invalid_reply(tmp_path):
     # A new call identity avoids replaying the first completion.
     invalid = asyncio.run(review_ticket(driver, repo=repo, plan="", stem="one-thing", text=TICKET,
                                         specs_dir=SPECS, tier="high", stem_slot="s", run_seq=0,
-                                        attempt=1, call_seq=2))
+                                        attempt=1, call_seq=2, expected_budget='surface'))
     assert invalid.verdict == "snag" and invalid.mechanical == "invalid reply"
     assert len(llm.requests) == 2
     with pytest.raises(Exception):

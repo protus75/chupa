@@ -21,16 +21,19 @@ class _ScriptedProcess:
         self._delegate = SubprocessExec()
 
     async def run(self, argv, *, cwd: Path, env: Mapping[str, str], timeout: float | None,
-                  stdin_path: Path | None = None, on_spawn=None) -> tuple[int, str, str]:
+                  stdin_path: Path | None = None, on_spawn=None, on_stdout_line=None) -> tuple[int, str, str]:
         if argv[0] != "claude":
             return await self._delegate.run(argv, cwd=cwd, env=env, timeout=timeout,
-                                            stdin_path=stdin_path, on_spawn=on_spawn)
+                                            stdin_path=stdin_path, on_spawn=on_spawn, on_stdout_line=on_stdout_line)
         if on_spawn is not None:
             on_spawn(1)
         action = next(self._actions)
         result = action(cwd, env)
         if hasattr(result, "__await__"):
-            return await result
+            result = await result
+        if on_stdout_line is not None:
+            for line in result[1].splitlines(keepends=True):
+                on_stdout_line(line)
         return result
 
     def kill_group(self, pgid: int) -> None:

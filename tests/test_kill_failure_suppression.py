@@ -260,7 +260,7 @@ async def test_kill_suppression_preserves_run_and_abort_failures(admission_conte
     ctx.driver.sleep = Timer()
     invocation = asyncio.create_task(ctx.driver.run(
         ECHO, Stub(text="hi"), ticket=work.stem, attempt=1, workspace=ctx.worktree(work.stem),
-        tier="medium", effort="low", stuck_budget=600))
+        tier="medium", effort="low", stuck_budget=600, expected_budget=300.0, scope_fence=()))
     await writer.started.wait()
     rig, projection = accepted(ctx.config.state_dir)
     worker = Worker(failure=RuntimeError("worker unwind"))

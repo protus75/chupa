@@ -108,6 +108,8 @@ def build(tmp_path: Path, llm: FakeLLM, *, fires: bool = False, env=None) -> tup
 def run(driver: Driver, stage: LlmStage = ECHO, text: str = "hi", **kw):
     kw = {"ticket": "t-echo", "attempt": 1, "workspace": Path("."), "tier": "medium", "effort": "low"} | kw
     kw.setdefault("stuck_budget", 600.0)
+    kw.setdefault("expected_budget", 300.0)
+    kw.setdefault("scope_fence", ())
     return asyncio.run(driver.run(stage, Stub(text=text), **kw))
 
 
@@ -172,7 +174,7 @@ def test_hung_call_is_aborted_at_stuck_budget_and_prompt_survives(tmp_path):
             return await driver.run(
                 ECHO, Stub(text="hi"), ticket="t-echo", attempt=1, workspace=Path("."),
                 tier="medium", effort="low", stuck_budget=90.0,
-            )
+                expected_budget=300.0, scope_fence=())
 
     result = asyncio.run(bounded())
     assert result.outcome == "timeout"

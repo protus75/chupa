@@ -1,4 +1,4 @@
-"""Dormant event consumer and run-local detector (19.P4.watchdog-detector)."""
+"""Watched LLM execution and run-local spend/progress detection."""
 
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping, Sequence
@@ -6,11 +6,38 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from chupa.artifacts import Cost, StageResult
 from chupa.driver import _observe
 from chupa.llm import LLMAborted, LLMResult
-from chupa.providers import ADAPTERS, ProviderSetupError, Served
+from chupa.providers import ADAPTERS, ProviderSetupError, Served, resolve
 from chupa.seams import Clock, Sleep
 from chupa.specs import unit_sha
 
 SPIRAL_SPEND_MULTIPLIER = 3
+
+
+class WatchedLLM:
+    """The effect still owns execution/replay; only executed calls consume adapter events."""
+
+    def __init__(self, llm, detector):
+        self.llm, self.detector = llm, detector
+        self.kind = llm.kind
+
+    async def call(self, req):
+        meter = self.detector.start_call(resolve(self.llm._config, req.tier, req.surface))
+        result = await self.llm.call(req, consumer=meter)
+        meter.complete()
+        return result
+
+    def abort_current(self):
+        self.llm.abort_current()
+
+
+async def watch_deadline(detector, remaining):
+    deadline = detector.active_seconds + remaining
+    while detector.decide() != 'stuck' and detector.active_seconds < deadline:
+        if detector.pending:
+            detector.deliveries.append(asyncio.create_task(detector.flush_notifications()))
+        await detector.sleep(min(1.0, deadline - detector.active_seconds))
+    if detector.pending:
+        detector.deliveries.append(asyncio.create_task(detector.flush_notifications()))
 
 
 class EventConsumer:
@@ -112,7 +139,7 @@ class CallMeter(EventConsumer):
 
 
 class Detector:
-    """One instance per run; production callers remain unwatched until activation.
+    """One instance per run, retaining spend and warning state across re-prompts.
 
     cap_wait supplies cumulative excluded seconds from admission/wait records (including an
     in-flight wait when observing admission). No journal or filesystem writer lives here.
@@ -134,6 +161,7 @@ class Detector:
         self.call: CallMeter | None = None
         self.spiral = self.warned = self.stuck_warned = False
         self.pending: list[str] = []
+        self.deliveries: list[asyncio.Task] = []
         self.calls = 0
 
     @property
@@ -187,6 +215,10 @@ class Detector:
     async def flush_notifications(self) -> None:
         while self.pending:
             await self.notify(self.pending.pop(0))
+
+    async def close_notifications(self) -> None:
+        await asyncio.gather(*self.deliveries)
+        await self.flush_notifications()
 
     async def watch(self, start: Callable[[EventConsumer], Awaitable[LLMResult]], *,
                     served: Served, abort: Callable[[], None]) -> LLMResult | StageResult:

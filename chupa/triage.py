@@ -164,7 +164,7 @@ async def _settle_pass(checkout, driver, box, spec, history, pass_no):
             LlmStage(surface="triage", emits=TriageReply, gates=[], render=render_message), message,
             ticket=None, run_seq=message.seq, attempt=pass_no, workspace=checkout.repo,
             tier=checkout.config.routing_default_tier, effort=spec.meta.effort, stuck_budget=TRIAGE_STUCK_S,
-        )
+            expected_budget='surface', scope_fence=())
         if result.outcome != "ok":
             line = f"{message.id}: {result.outcome}; remains pending"
         else:

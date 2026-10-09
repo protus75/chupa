@@ -110,6 +110,30 @@ def build_notifications(checkout: runner.Checkout, *, config_path: Path | None, 
         load=lambda: load_config(config_path, cwd=checkout.repo), compose=compose, log=log)
 
 
+def watchdog_observation(workspace: Path, fence):
+    from chupa.watchdog import ScopeObservation
+
+    def snapshot():
+        files = {}
+        for prefix in fence:
+            path = workspace / prefix.partition('#')[0]
+            paths = path.rglob('*') if path.is_dir() else (path,)
+            for candidate in paths:
+                if candidate.is_file():
+                    files[candidate.relative_to(workspace).as_posix()] = candidate.read_bytes()
+        return files
+    return ScopeObservation(fence, snapshot)
+
+
+def watchdog_notifications(config, env, effects, log, *, redactor, cwd, **context):
+    from chupa.notify import WatchdogNotifications
+
+    return WatchdogNotifications(effects=effects,
+        notifications=CommandNotifications(SubprocessExec(), cwd=cwd,
+            env=child_env(env, config, serving=None), timeout=NOTIFY_TIMEOUT_S,
+            scrub=redactor.scrub), argv=config.notify, log=log, **context)
+
+
 def _parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="python -m chupa")
     ap.add_argument("--config", type=Path, help="config path (default: config.yaml at the checkout root)")

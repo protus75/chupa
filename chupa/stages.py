@@ -319,7 +319,7 @@ async def diagnose(ctx: StageContext, ticket: Ticket, material: DiagnosisMateria
         diagnose_stage(spec, material), material, ticket=ticket.stem, attempt=attempt,
         workspace=ctx.worktree(ticket.stem), tier=ticket.frontmatter.agent_tier,
         effort=ticket.frontmatter.agent_effort, stuck_budget=DIAGNOSIS_STUCK_S,
-    )
+        expected_budget=ticket.expected_minutes * 60.0, scope_fence=())
     reply = result.artifact
     if result.outcome == "ok" and isinstance(reply, DiagnosisReply):
         return await write_diagnosis(ctx, ticket, attempt=attempt, terminal=material.terminal,
@@ -537,7 +537,7 @@ async def implement(ctx: StageContext, ticket: Ticket, *, attempt: int) -> Stage
             stage, ticket, ticket=stem, attempt=attempt, workspace=worktree,
             tier=ticket.frontmatter.agent_tier, effort=ticket.frontmatter.agent_effort,
             stuck_budget=ticket.stuck_minutes * 60.0,
-        )
+            expected_budget=ticket.expected_minutes * 60.0, scope_fence=ticket.scope_fence)
     except RenderOverBound as e:
         # The pre-call short-circuit: ticket-text arithmetic, parked like premise_failed (section 8).
         return StageResult(outcome="premise_failed", artifact=None, findings=[e.finding], cost=Cost())
@@ -1011,7 +1011,7 @@ async def _review_one(ctx: StageContext, ticket: Ticket, seed_stem: str, rel: st
         ctx.driver, repo=ctx.repo, plan=plan, stem=seed_stem, text=data.decode(), specs_dir=ctx.specs_dir,
         tier=parsed.frontmatter.agent_tier, stem_slot=ticket.stem, run_seq=attempt, attempt=attempt,
         call_seq=call_seq, prior=_prior_review(earlier, data.decode()), siblings=siblings,
-    )
+     expected_budget=ticket.expected_minutes * 60.0)
     return SeedReview(stem=seed_stem, ticket_sha=reviewed.ticket_sha, verdict=reviewed.verdict,
                       findings=list(reviewed.findings), mechanical=reviewed.mechanical)
 
@@ -1139,7 +1139,7 @@ async def review(ctx: StageContext, ticket: Ticket, invoice: Invoice, *, attempt
             stage, invoice, ticket=stem, attempt=attempt, workspace=ctx.worktree(stem),
             tier=ticket.frontmatter.agent_tier, effort=ticket.frontmatter.agent_effort,
             stuck_budget=ticket.stuck_minutes * 60.0,
-        )
+            expected_budget=ticket.expected_minutes * 60.0, scope_fence=())
     except RenderOverBound as e:
         return StageResult(outcome="premise_failed", artifact=None, findings=[e.finding], cost=Cost())
     if result.outcome != "ok":

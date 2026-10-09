@@ -385,7 +385,7 @@ async def active_graph(root, monkeypatch, *, signals=None, failure=None):
         return await ctx.driver.run(LlmStage(surface="implement", emits=PackingSlip, gates=[],
             render=lambda *_: "scripted implement"), ticket, ticket=ticket.stem,
             attempt=attempt, workspace=ctx.worktree(ticket.stem), tier="medium", effort="medium",
-            stuck_budget=1200)
+            stuck_budget=1200, expected_budget=300.0, scope_fence=())
     monkeypatch.setattr(stages, "implement", implementing)
     write(root, "work", text())
     run = asyncio.create_task(rig.owner.run())

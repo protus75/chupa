@@ -80,7 +80,8 @@ def base_render_chars(repo: Path, plan: str, ticket: Ticket, text: str, specs_di
 
 async def review_ticket(driver: Driver, *, repo: Path, plan: str, stem: str, text: str,
                         specs_dir: Path, tier: AgentTier, stem_slot: str, run_seq: int,
-                        attempt: int, call_seq: int, prior: str = "none",
+                        attempt: int, call_seq: int, expected_budget: float | Literal['surface', 'eval'],
+                        prior: str = "none",
                         siblings: Collection[str] = ()) -> RequisitionVerdict:
     ticket = review_target(repo, stem, text, siblings)
     units = hardenable_units(plan, stem, ticket.plan_contract)
@@ -121,9 +122,13 @@ async def review_ticket(driver: Driver, *, repo: Path, plan: str, stem: str, tex
     driver.spool.write(spool_stem, attempt, f"{name}/prompt.md", prompt)
     req = LLMRequest(surface="requisition_review", rendered=prompt, tier=tier,
                      effort=spec.meta.effort, ticket=None, worktree=None)
+    if driver._active is None:
+        driver.begin_watch(owner=stem_slot, ticket=None, run_sequence=run_seq,
+            surface='requisition_review', workspace=repo, expected_budget=expected_budget,
+            stuck_budget=REQUISITION_STUCK_S, scope_fence=(), attempt=attempt)
     try:
         recorded = await driver.race(
-            lambda: llm_call(driver.effects, driver.llm, req, driver.redactor, ticket=stem,
+            lambda: llm_call(driver.effects, driver.watched_llm(), req, driver.redactor, ticket=stem,
                              stem=stem_slot, run_seq=run_seq, attempt=attempt, call_seq=call_seq),
             REQUISITION_STUCK_S,
         )

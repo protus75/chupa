@@ -50,7 +50,7 @@ class ScriptExec:
         self.reply = "ok"
         self.refuse_probe = False
 
-    async def run(self, argv, *, cwd, env, timeout, stdin_path=None, on_spawn=None):
+    async def run(self, argv, *, cwd, env, timeout, stdin_path=None, on_spawn=None, on_stdout_line=None):
         prompt = self.fs.files[stdin_path].decode() if stdin_path else None
         self.calls.append((list(argv), cwd, dict(env), prompt, timeout))
         if self.hook is not None:
@@ -65,10 +65,68 @@ class ScriptExec:
         if self.refuse_probe and prompt == providers.PROBE_PROMPT:
             return 1, jsonl({"type": "turn.failed", "error": {"message": "model not supported"}}), ""
         reply = "ok" if prompt == providers.PROBE_PROMPT else self.reply
-        return 0, (claude_ok(reply) if argv[0] == "claude" else codex_ok(reply)), ""
+        out = claude_ok(reply) if argv[0] == "claude" else codex_ok(reply)
+        if on_stdout_line is not None:
+            for line in out.splitlines(keepends=True):
+                on_stdout_line(line)
+        return 0, out, ""
 
     def kill_group(self, pgid):
         raise AssertionError("no scripted child survives its invocation")
+
+
+@pytest.mark.asyncio
+async def test_production_watchdog_shares_active_executor(root, monkeypatch):
+    from chupa.drain import drain
+    from chupa.seams import SubprocessExec
+    from tests.test_restart_timers import repository
+    from tests.test_serve import until, finish, terminals
+
+    contexts = []
+    async def drive(ctx, ticket, **kwargs):
+        assert ctx.driver.llm._exec is ctx.exec_
+        ctx.exec_.reply = '{"text":"done"}'
+        for surface, identity, budget in (("implement", ticket.stem, 600), ("triage", None, 'surface')):
+            result = await ctx.driver.run(
+                LlmStage(surface=surface, emits=Reply, gates=[], render=lambda *_: "probe"), None,
+                ticket=identity, attempt=0, workspace=ctx.repo, tier="medium", effort="low",
+                stuck_budget=1200, expected_budget=budget, scope_fence=(),
+                run_seq=5 + len(contexts) if identity is None else None)
+            assert result.outcome == 'ok'
+            d = ctx.driver.detector
+            assert d.call.detector is d
+            assert d.notify.notifications.exec_ is not ctx.exec_
+            assert ctx.driver.llm.abort_current.__self__._exec is ctx.exec_
+            assert ctx.driver.llm._adapters[d.call.identity[0]]._exec is ctx.exec_
+        contexts.append(ctx)
+        ctx.driver.journal.append(EventType.STATE_TRANSITION, {'to': 'already_satisfied'}, ticket=ticket.stem)
+        return 'already_satisfied'
+
+    class Reply(BaseModel):
+        text: str
+
+    monkeypatch.setattr(runner, 'drive', drive)
+    rig = await repository(root, monkeypatch)
+    await rig.add('bootstrap')
+    checkout = replace(rig.checkout, control=cli.build_control(rig.checkout))
+    handoff = SubprocessExec()
+    dispatch = await runner.prepare_pipeline(checkout)
+    report = await drain(checkout, dispatch, reexec=handoff)
+    assert report.exit_code == 0 and contexts[0].exec_ is checkout.exec_
+    assert handoff is not contexts[0].exec_ and handoff is not contexts[0].driver.detector.notify.notifications.exec_
+    from chupa.seams import LocalFileSystem
+    serving = rig
+    rig.fs.publish = LocalFileSystem().publish
+    rig.owner = cli.build_serve(rig.checkout, plan=PLAN)
+    write(root, 'continuous', text())
+    run = asyncio.create_task(serving.owner.run())
+    try:
+        await until(serving, lambda: bool(terminals(serving, 'continuous')))
+        assert contexts[-1].exec_ is serving.checkout.exec_
+        assert len(serving.owner.workers) == 4 and len(serving.owner.tasks.tasks) == 3
+        assert serving.owner.notifications.compose(serving.checkout.config).exec_ is not contexts[-1].exec_
+    finally:
+        await finish(serving, run)
 
 
 class CoreRig:
@@ -668,7 +726,7 @@ async def test_production_core_uses_real_snapshot_pipeline(tmp_path, monkeypatch
             LlmStage(surface="review", emits=Reply, gates=[], render=lambda *_: rig.exec.reply),
             None, ticket=original.stem, attempt=0, workspace=tmp_path,
             tier="medium", effort="low", stuck_budget=60,
-        )
+            expected_budget=300.0, scope_fence=())
         assert result.outcome == "ok" and result.cost.provider == "claude" and result.cost.model == "c-max"
         assert result.artifact.text == "[REDACTED:CLAUDE_KEY] [REDACTED:CODEX_KEY]"
         return "original-terminal"

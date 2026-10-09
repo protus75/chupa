@@ -79,7 +79,7 @@ def build(tmp_path: Path, llm: FakeLLM) -> tuple[Driver, Path]:
 def run(driver: Driver, ticket: str | None = "t-echo", attempt: int = 1):
     return asyncio.run(
         driver.run(ECHO, Stub(text="hi"), ticket=ticket, attempt=attempt, workspace=Path("."),
-                   tier="medium", effort="low", stuck_budget=600.0)
+                   tier="medium", effort="low", stuck_budget=600.0, expected_budget=300.0, scope_fence=())
     )
 
 

@@ -124,20 +124,22 @@ def test_event_consumer_preserves_tool_identity_and_optional_usage(tmp_path, nam
     assert not list(tmp_path.rglob("journal"))
 
 
-async def production_dormancy(tmp_path, monkeypatch, component):
-    calls = []
-    invoke = CliAdapter.invoke
+async def production_activation(tmp_path, monkeypatch, component):
+    calls, constructed = [], []
+    invoke, construct = CliAdapter.invoke, component.__init__
 
     async def observe(self, req, model, **kwargs):
-        assert kwargs.get("consumer") is None
-        calls.append((self.provider.name, req.surface))
+        if req.surface != "preflight":
+            assert isinstance(kwargs.get("consumer"), EventConsumer)
+            calls.append((self.provider.name, req.surface))
         return await invoke(self, req, model, **kwargs)
 
-    def forbidden(*args, **kwargs):
-        raise AssertionError("production constructed a watchdog component")
+    def bound(self, *args, **kwargs):
+        constructed.append(self)
+        construct(self, *args, **kwargs)
 
     monkeypatch.setattr(CliAdapter, "invoke", observe)
-    monkeypatch.setattr(component, "__init__", forbidden)
+    monkeypatch.setattr(component, "__init__", bound)
     rig = CoreRig(tmp_path)
     rig.exec.reply = '{"text": "done"}'
 
@@ -149,7 +151,9 @@ async def production_dormancy(tmp_path, monkeypatch, component):
         for surface in ("implement", "review"):
             result = await ctx.driver.run(
                 LlmStage(surface=surface, emits=Reply, gates=[], render=lambda *_: "probe"), None,
-                ticket=ticket.stem, attempt=0, workspace=tmp_path, tier="medium", effort="low", stuck_budget=600,
+                ticket=ticket.stem, attempt=0, workspace=tmp_path, tier="medium", effort="low",
+                stuck_budget=600, expected_budget=ticket.expected_minutes * 60,
+                scope_fence=ticket.scope_fence if surface == "implement" else (),
             )
             assert result.outcome == "ok" and result.artifact.text == "done"
         return "merged"
@@ -157,29 +161,26 @@ async def production_dormancy(tmp_path, monkeypatch, component):
     monkeypatch.setattr(runner, "drive", drive)
     await rig.add("ordinary")
     await rig.drain()
-    assert ("codex", "implement") in calls and ("claude", "review") in calls
+    assert constructed and calls == [("codex", "implement"), ("claude", "review")]
     assert not any("spiral" in str(event.body) for event in rig.journal.read())
 
-    call = ProviderLLM.call
+    def forbidden(*args, **kwargs):
+        raise AssertionError("activated watchdog component refused")
 
-    async def activated(self, req):
-        component(lambda event: None) if component is EventConsumer else component()
-        return await call(self, req)
-
-    monkeypatch.setattr(ProviderLLM, "call", activated)
+    monkeypatch.setattr(component, "__init__", forbidden)
     await rig.add("activated")
     with pytest.raises(AssertionError):
-        await rig.drain()  # The same production graph must fail once consumer construction is wired.
+        await rig.drain()  # Removing either activated component must break the same graph.
 
 
 @pytest.mark.asyncio
 async def test_event_stream_is_dormant(tmp_path, monkeypatch):
-    await production_dormancy(tmp_path, monkeypatch, EventConsumer)
+    await production_activation(tmp_path, monkeypatch, EventConsumer)
 
 
 @pytest.mark.asyncio
 async def test_detector_is_dormant(tmp_path, monkeypatch):
-    await production_dormancy(tmp_path, monkeypatch, Detector)
+    await production_activation(tmp_path, monkeypatch, Detector)
 
 
 class DetectorRig:

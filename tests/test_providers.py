@@ -72,7 +72,7 @@ class FakeExec:
         self.killed: list[int] = []
         self.hang: asyncio.Event | None = None
 
-    async def run(self, argv, *, cwd, env, timeout, stdin_path=None, on_spawn=None):
+    async def run(self, argv, *, cwd, env, timeout, stdin_path=None, on_spawn=None, on_stdout_line=None):
         self.calls.append(
             {"argv": list(argv), "cwd": cwd, "env": dict(env), "stdin": Path(stdin_path).read_text(), "timeout": timeout}
         )
@@ -81,7 +81,11 @@ class FakeExec:
         if self.hang is not None:
             await self.hang.wait()
             return -9, "", "killed"
-        return self.responses.pop(0)
+        result = self.responses.pop(0)
+        if on_stdout_line is not None:
+            for line in result[1].splitlines(keepends=True):
+                on_stdout_line(line)
+        return result
 
     def kill_group(self, pgid: int) -> None:
         self.killed.append(pgid)
@@ -394,7 +398,7 @@ class PreflightExec:
         self.probed: list[str] = []
         self.version_envs: list[dict[str, str]] = []
 
-    async def run(self, argv, *, cwd, env, timeout, stdin_path=None, on_spawn=None):
+    async def run(self, argv, *, cwd, env, timeout, stdin_path=None, on_spawn=None, on_stdout_line=None):
         if argv[1:] == ["--version"]:
             self.version_envs.append(dict(env))
             return 0, self.versions[argv[0]], ""
@@ -548,7 +552,7 @@ def test_classified_error_preserves_scrubbed_evidence_and_login_road(tmp_path, n
                                     clock=lambda: datetime(2026, 10, 6, tzinfo=UTC), sleep=sleep)
         result = asyncio.run(driver.run(LlmStage(surface="review", emits=Reply, gates=[], render=lambda *_: "probe"),
                                        None, ticket=f"classification-{index}", attempt=0, workspace=tmp_path,
-                                       tier="medium", effort="low", stuck_budget=600))
+                                       tier="medium", effort="low", stuck_budget=600, expected_budget=300.0, scope_fence=()))
         assert result.outcome == "infra_error"
         if error.failure_class == "unclassified":
             assert result.findings == []
@@ -580,7 +584,7 @@ def test_cli_failure_classifier_is_dormant(tmp_path, monkeypatch):
         for surface in ("implement", "review"):
             result = await ctx.driver.run(LlmStage(surface=surface, emits=Reply, gates=[], render=lambda *_: "probe"),
                                           None, ticket="dormancy", attempt=0, workspace=tmp_path,
-                                          tier="medium", effort="low", stuck_budget=600)
+                                          tier="medium", effort="low", stuck_budget=600, expected_budget=300.0, scope_fence=())
             assert result.outcome == "infra_error"
             results.append(result)
         return "infra_error"

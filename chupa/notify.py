@@ -31,7 +31,7 @@ async def send(effects: Effects, notifications: Notifications, argv: Sequence[st
 
 
 class WatchdogNotifications:
-    """Dormant producer binding; transport alone owns the Effects and notification keys."""
+    """Run-bound producer; transport alone owns the Effects and notification keys."""
 
     def __init__(self, *, effects: Effects, notifications: Notifications, argv: Sequence[str] | None,
                  owner: str, ticket: str | None, run_sequence: int, identity: str, log) -> None:

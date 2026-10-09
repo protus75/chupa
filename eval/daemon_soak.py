@@ -92,7 +92,7 @@ class _Exec:
         self.calls = []
         self.removals = []
 
-    async def run(self, argv, *, cwd, env, timeout, stdin_path=None, on_spawn=None):
+    async def run(self, argv, *, cwd, env, timeout, stdin_path=None, on_spawn=None, on_stdout_line=None):
         argv = list(argv)
         if argv[0] == "git" and argv[3:4] == ["rebase"] and argv[-1] == "main":
             self.member.admission_heads[cwd.name] = await self.member.git.rev_parse(self.member.root, "main")
@@ -114,9 +114,12 @@ class _Exec:
                 result = (0, "disposable checkpoint transport accepted\n", "")
             else:
                 result = await self.real.run(argv, cwd=cwd, env=env, timeout=timeout,
-                    stdin_path=stdin_path, on_spawn=on_spawn)
+                    stdin_path=stdin_path, on_spawn=on_spawn, on_stdout_line=on_stdout_line)
         else:
             raise AssertionError(f"unconfigured soak executable: {argv[0]}")
+        if argv[0] == "claude" and on_stdout_line is not None:
+            for line in result[1].splitlines(keepends=True):
+                on_stdout_line(line)
         self.calls.append((argv, cwd, result))
         if argv == self.member.command and cwd.name == "semantic" and result[0] != 0:
             head = await self.member.git.rev_parse(self.member.root, "main")

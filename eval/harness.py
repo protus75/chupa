@@ -183,7 +183,7 @@ async def run_baseline(
     results = []
     for fx in fixtures:
         r = await driver.run(stage, fx, ticket=f"baseline-{fx.name}", attempt=attempt, workspace=workspace,
-                             tier=tier, effort=effort, stuck_budget=STUCK_BUDGET_S)
+                             tier=tier, effort=effort, stuck_budget=STUCK_BUDGET_S, expected_budget='eval', scope_fence=())
         verdict = r.artifact.verdict if r.outcome == "ok" and r.artifact is not None else None
         results.append(Scored(fx.name, fx.expected, r.outcome, verdict))
         driver.log.event("baseline_fixture", fixture=fx.name, expected=fx.expected.expected_verdict,

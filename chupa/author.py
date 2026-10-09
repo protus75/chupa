@@ -142,7 +142,7 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
             stem=artifact.stem, text=text, specs_dir=SPECS_DIR,
             tier=checkout.config.routing_default_tier, stem_slot="author", run_seq=pass_no,
             attempt=message.seq, call_seq=call_seq,
-        )
+         expected_budget=AUTHOR_STUCK_S / 2)
         reviewed_text = text
         reviewed_state = state
         findings = reviewed.findings
@@ -158,7 +158,7 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
                  terminal_findings=frozenset({"requisition_rma"})), None,
         ticket=None, run_seq=pass_no, attempt=message.seq, workspace=checkout.repo,
         tier=checkout.config.routing_default_tier, effort=spec.meta.effort, stuck_budget=AUTHOR_STUCK_S,
-    )
+        expected_budget='surface', scope_fence=())
     if result.outcome != "ok" or not isinstance(result.artifact, AuthorReply):
         return await failure_decision(checkout, driver, box, message,
                                       findings_text(result.findings) or result.outcome)

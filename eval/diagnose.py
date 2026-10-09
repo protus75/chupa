@@ -175,7 +175,7 @@ async def run_eval(*, config: Config, driver: Driver, journal: Journal, cases: S
             result = await driver.run(diagnose_stage(spec, material), material,
                                       ticket=f"diagnose-eval-{case.name}", attempt=attempt, workspace=ROOT,
                                       tier=spec.meta.tier, effort=spec.meta.effort,
-                                      stuck_budget=min(CALL_STUCK_S, left))
+                                      stuck_budget=min(CALL_STUCK_S, left), expected_budget='eval', scope_fence=())
             reply = result.artifact
             got = reply.verdict if result.outcome == "ok" and isinstance(reply, DiagnosisReply) else None
             result_outcome = ("agree" if got == case.expected else "disagree") if got else result.outcome
