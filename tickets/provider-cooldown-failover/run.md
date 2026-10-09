@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Recovered the prior local implementation and added escalation, auditor, and run-sequence regressions.
+Recovered the previous reviewed implementation; all three Verification commands passed (544, 247, and 2658 tests).
 
 ## Dead ends
 
@@ -17,10 +17,10 @@ none
 ## Resolved engine/model
 
 - provider: codex
-- model: gpt-6.1-sol
+- model: gpt-6-astra
 - spec: implement 1.2
 
 ## Predicted vs actual
 
-Completed within the expected 60-minute budget.
+Expected 60m, stuck 90m; completed in approximately 10m.
 
