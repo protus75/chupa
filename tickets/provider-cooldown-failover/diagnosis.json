@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "dc1c54485cc8bd8e842bcc2f696a2cc7927eec3c",
+  "produced_at_sha": "05a79c50ec11ee0cdd27f723f49c538306b7a100",
   "stem": "provider-cooldown-failover",
-  "attempt": 2,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "reject",
+  "attempt": 4,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
   "lessons": [
-    "The fence must add chupa/journal.py. Its run_seq (journal.py:71) counts every STATE_TRANSITION into TERMINAL_STATES, so a run-less drought park advances the run sequence. Section 15 says such a park is never a run terminal, and section 6.3 derives the sequence from prior terminals.",
-    "Before re-implementing, fix the plan's 19.P4.provider-cooldown-failover closure to fence chupa/journal.py and its sequencing test. The ticket's own Definition of rejected says to repair the contract rather than work around a path outside the fence.",
-    "Do not add a caller-local run_seq workaround in the fenced modules. Restart reconciliation reads the same journal.py fold, so a local fix would make recovery sequence numbers disagree with dispatch.",
-    "Once journal.py is fenced, add a regression test: a pre-dispatch provider_drought park leaves run_seq unchanged, a mid-run drought terminal advances it, and restart harvest identity agrees with both cases."
+    "Every implement-surface drought check must use the tier from caps.capability(ticket, history), the same fold _select (drain.py ~400) and runner.drive (runner.py:149) use. Never use ticket.frontmatter.agent_tier, which ignores retry-rung escalation.",
+    "In drain.py, make _Drain._dispatch reuse _select's drought verdict or the tier _select resolved, not a second check. If the two checks disagree, _dispatch parks a ticket, park dedups the record and the loop spins forever.",
+    "Fix __main__.py:77 daemon/serve dispatch and Serve's admission predicate (serve.py:170) so they use caps.capability(ticket, checkout.journal.read())[0]. That keeps them consistent with the route tier provider_holds re-checks.",
+    "In runner.py, run_ticket's pre-dispatch drought check (~517) and drive's diagnosis-surface check (~198) must take the tier from capability(ticket, history), as failure_terminal and drive already do.",
+    "Add a discriminating test: authored tier's route fully cooling, escalated tier's route healthy. Drain, serve and runner must dispatch it without a provider_drought park or a select/dispatch spin. The reverse case must hold."
   ],
   "mechanical": null,
   "spec_version": "1.1",
