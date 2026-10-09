@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The targeted verification yielded 157 passes and one failure: the drain selected-failure scenario expected one retro attempt, but the required behavior produced two; that test passes on the unchanged base.
+tests/test_status.py hardcodes the retro spec version replacement; the targeted suite passed, but the full suite had 2966 passes and this one failure.
 
 ## Dead ends
 
-Implemented and tested the scoped fixes, then restored them because updating the contradictory drain assertions is forbidden by the fence.
+Implemented and validated both fixes, then discarded them because repairing the full-suite failure requires an out-of-fence edit.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-45m expected; approximately 10m spent.
+Within the expected 45-minute budget.
 
