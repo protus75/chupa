@@ -1,10 +1,10 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-Both required entry units pass structural depth checks; the missing bound semantics were verified on the untouched base commit, and the working tree remains clean.
+Both seeds remain uncommitted for Check’s requisition_review and ticket-plane lift. All five Verification commands passed; the full suite passed 2,725 tests.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during preflight within the 60-minute expected budget.
+Expected 60m / stuck 90m; final full-suite verification took 236.98s.
 
