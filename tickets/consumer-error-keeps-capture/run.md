@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Updated the old immediate-kill callback test to verify timeout still kills the group after a consumer failure; the capture regression fails on the merge base.
+The first consumer exception propagates with any later timeout or cancellation chained as its cause.
 
 ## Dead ends
 
-Initial test scripts exceeded the argv limit; replaced large literals with compact child-side expressions.
+Initial test scripts exceeded the argv limit; replaced large literals with child-generated output.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the expected 30-minute budget.
+Completed within the 30-minute expected budget.
 
