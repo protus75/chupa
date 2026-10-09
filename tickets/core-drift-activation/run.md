@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The restart constructor is now fenced, but tests/test_serve.py still pins the pre-activation gate sequence.
+The plan explicitly requires updating tests/test_serve.py, but the ticket still excludes it from the scope fence.
 
 ## Dead ends
 
-none
+An in-memory probe adding a passing core_drift gate reproduced the exact gate-sequence assertion failure without changing files.
 
 ## Second problems filed
 
