@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "7646ae8aa7085cb5da141954bb6dc99ab25c5fe1",
+  "stem": "watchdog-activation",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "The fence omits eval/shakeout/providers.py. Its _ScriptedProcess.run (line 23) rejects the on_stdout_line kwarg that the adapter passes once a watchdog consumer is bound, so activation breaks two shakeout proofs that must keep passing.",
+    "Repair the 19.P4.watchdog-activation closure in the plan before regenerating: add eval/shakeout/providers.py to the Scope fence and Context, and authorize migrating its process seam to accept the watched stdout-line callback.",
+    "Add the shakeout proofs test_auth_expiry_member_observes_classified_finding_and_reauth_road and test_planted_secret_member_observes_redacted_run_record to Verification, so classification and redaction are proven after activation.",
+    "Before regenerating, grep eval/ and tests/ for every process-seam fake whose run() signature lacks on_stdout_line. Fence each one the production Driver reaches so the closure is complete and this premise failure does not repeat."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
