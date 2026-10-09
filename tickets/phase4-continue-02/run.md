@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-Provider and threshold entry-depth checks passed, but required future citation resolution failed on untouched HEAD 05c8bbef64b1f6daf63db8beb979e36dcc5716d2.
+On untouched HEAD f9b122eafa51b669a8a8ee5a856f791229e72059, provider and threshold entry-depth checks passed, but resolving the successor's required reliability-battery citation failed with zero matching headings.
 
 ## Dead ends
 
-Stopped before authoring because resolve_plan_contract found zero headings for the successor's required entry citation.
+Stopped before authoring seeds or tests because required future citation resolution failed; Verification commands were not run.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during prerequisite validation, within the 60-minute expected budget.
+Prerequisite validation took approximately two minutes against the expected 60-minute budget.
 
