@@ -82,6 +82,60 @@ def test_triage_authors_ticket_and_journals_intake(tmp_path, monkeypatch):
     assert len(verdicts) == 1 and verdicts[0].body["verdict"] == "approve"
 
 
+@pytest.mark.parametrize("baseline", ["ABSENT", "NO_GO", "GO", "REVOKED"])
+@pytest.mark.parametrize(("message_class", "extra", "expected"), [
+    ("failure_report", {}, "confirmed"),
+    ("retro_finding", {"retro_report_key": "retro/1", "fixed_failure": "broken behavior",
+                       "overcorrection_risk": "useful inputs", "proposed_spec_paths": ["specs/review.md"]}, "confirmed"),
+    ("override_report", {}, "draft"),
+    ("suggestion", {}, "draft"),
+    ("bug_report", {"bug_origin": "self_diagnosed", "has_repro": True}, "confirmed"),
+    ("bug_report", {"bug_origin": "player", "has_repro": True}, "confirmed"),
+    ("bug_report", {"bug_origin": "player", "has_repro": False}, "draft"),
+])
+def test_author_uses_baseline_resolution(tmp_path, monkeypatch, baseline, message_class, extra, expected):
+    from chupa import author as module
+    from chupa.config import load_config
+    from chupa.policy import baseline_identity
+    root = make_root(tmp_path)
+    _routes(root)
+    path = root / "config.yaml"
+    path.write_text(path.read_text().replace("engine_plane_safety_inventory: []",
+                                           "engine_plane_safety_inventory: [config.yaml]"))
+    cfg = load_config(None, cwd=root)
+    journal = Journal(cfg.state_dir, Clock())
+    if baseline != "ABSENT":
+        identity = baseline_identity(cfg)
+        if baseline == "REVOKED":
+            identity["author"]["rows"]["max"]["model"] = "drifted"
+        journal.append(EventType.SIGNAL, {"signal": "review_baseline",
+                       "verdict": "NO_GO" if baseline == "NO_GO" else "GO", "identity": identity})
+    box = _box(root)
+    message_id, _ = box.enqueue(message_class=message_class, origin="test", summary="broken behavior", **extra)
+    reader, policy = module.resolve_baseline, module.start_state
+    resolutions, operands = [], []
+    def resolve(*args, **kwargs):
+        result = reader(*args, **kwargs)
+        resolutions.append(result)
+        return result
+    def starting_state(*args, **kwargs):
+        operands.append(kwargs["go"])
+        return policy(*args, **kwargs)
+    monkeypatch.setattr(module, "resolve_baseline", resolve)
+    monkeypatch.setattr(module, "start_state", starting_state)
+    llm = FakeLLM([reply("author"), author_reply("baseline-repair"), requisition_reply("approve")])
+    assert _run(root, monkeypatch, llm) == 0
+    assert [r.state for r in resolutions] == [baseline]
+    assert operands == [baseline == "GO"]
+    state = expected if baseline == "GO" else "draft"
+    text = (root / "tickets/baseline-repair/ticket.md").read_text()
+    assert validate_ticket("baseline-repair", text, root).frontmatter.state == state
+    assert f"state: {state}" in next(r.rendered for r in llm.requests if r.surface == "requisition_review")
+    intake, = [e for e in journal.read() if e.body.get("signal") == "ticket_intake"]
+    assert intake.body["state"] == state
+    assert box.get(message_id).resolution == Resolution(kind="ticket", link="baseline-repair")
+
+
 def test_author_reprompts_for_reused_stem_and_invalid_ticket(tmp_path, monkeypatch):
     root = make_root(tmp_path)
     _routes(root)

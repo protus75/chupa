@@ -11,7 +11,8 @@ from chupa.box import Box, BoxError, DecisionRecord, Message, Resolution, record
 from chupa.driver import Driver, LlmStage, unwrap_fence
 from chupa.gates import GateReport
 from chupa.journal import EventType
-from chupa.policy import baseline_identity, go_binds, policy_row, start_state
+from chupa.baseline import resolve_baseline
+from chupa.policy import policy_row, start_state
 from chupa.requisition import RequisitionVerdict, review_ticket
 from chupa.runner import Checkout, SPECS_DIR
 from chupa.specs import Spec, load_spec, render
@@ -188,7 +189,7 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
         parsed = validate_ticket(artifact.stem, provisional, checkout.repo)
         state = start_state(checkout.config, row=row, fence=parsed.scope_fence,
                             gate_bypass=parsed.frontmatter.gate_bypass,
-                            go=go_binds(checkout.journal.read(), baseline_identity(checkout.config, SPECS_DIR)),
+                            go=resolve_baseline(checkout.config, checkout.journal.read(), specs_dir=SPECS_DIR).binds,
                             reopen=message.reopen)
         text = stamp(provisional, "state", state)
         reviewed = await review_ticket(

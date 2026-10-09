@@ -4,9 +4,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from chupa.baseline import resolve_baseline
 from chupa.config import BOX_POLICY_DEFAULTS, load_config
 from chupa.journal import EventType
-from chupa.policy import BASELINE_SIGNAL, baseline_identity, go_binds, policy_row, start_state, touches_inventory
+from chupa.policy import BASELINE_SIGNAL, baseline_identity, policy_row, start_state, touches_inventory
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -46,23 +47,29 @@ def test_bootstrap_without_a_go_or_with_phase_one_no_go_drafts_every_row(tmp_pat
     cfg = config(tmp_path)
     identity = baseline_identity(cfg, ROOT / "specs")
     for row in BOX_POLICY_DEFAULTS:
-        assert state(cfg, row, go=go_binds([], identity)) == "draft"
-        assert state(cfg, row, go=go_binds([signal("NO_GO", identity)], identity)) == "draft"
+        assert state(cfg, row, go=resolve_baseline(cfg, [], specs_dir=ROOT / "specs").binds) == "draft"
+        assert state(cfg, row, go=resolve_baseline(cfg, [signal("NO_GO", identity)], specs_dir=ROOT / "specs").binds) == "draft"
 
 
 def test_standing_go_uses_the_table_and_each_override_drafts(tmp_path):
     cfg = config(tmp_path)
     identity = baseline_identity(cfg, ROOT / "specs")
-    go = go_binds([signal("GO", identity)], identity)
+    go = resolve_baseline(cfg, [signal("GO", identity)], specs_dir=ROOT / "specs").binds
     assert go
     for row, expected in BOX_POLICY_DEFAULTS.items():
         assert state(cfg, row, go=go) == expected
         assert state(cfg, row, go=go, reopen=True) == "draft"
+        assert state(cfg, row, go=go, gate_bypass=("scope_fence",)) == "draft"
+        assert state(cfg, row, go=go, fence=("chupa/gates.py",)) == "draft"
+        inventory = cfg.engine_plane_safety_inventory
+        cfg.engine_plane_safety_inventory = []
+        assert state(cfg, row, go=go) == "draft"
+        cfg.engine_plane_safety_inventory = inventory
 
     row = "failure_report"
-    assert not go_binds([signal("GO", identity), signal("NO_GO", identity)], identity)
+    assert not resolve_baseline(cfg, [signal("GO", identity), signal("NO_GO", identity)], specs_dir=ROOT / "specs").binds
     drifted = {**identity, "review": {**identity["review"], "spec_major": 999}}
-    assert not go_binds([signal("GO", drifted)], identity)
+    assert not resolve_baseline(cfg, [signal("GO", drifted)], specs_dir=ROOT / "specs").binds
     assert state(cfg, row, go=False) == "draft"
     cfg.engine_plane_safety_inventory = []
     assert state(cfg, row, go=True) == "draft"

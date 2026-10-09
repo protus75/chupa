@@ -1,8 +1,8 @@
 """Starting-state policy for box-authored tickets (plan section 12)."""
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, get_args
+from typing import get_args
 
 from chupa.box import MESSAGE_CLASSES
 from chupa.config import BoxRow, Config, StartState
@@ -28,16 +28,6 @@ def baseline_identity(config: Config, specs_dir: Path = SPECS) -> dict:
         major = int(load_spec(path.read_text()).meta.version.split(".")[0]) if path.exists() else None
         out[surface] = {"spec_major": major, "rows": rows}
     return out
-
-
-def go_binds(events: Iterable[Any], identity: Mapping[str, Any]) -> bool:
-    """Whether the latest review-baseline signal is a GO for this identity."""
-    latest = None
-    for event in events:
-        body = event.body
-        if event.type == "signal" and body.get("signal") == BASELINE_SIGNAL:
-            latest = body
-    return latest is not None and latest.get("verdict") == "GO" and latest.get("identity") == identity
 
 
 def policy_row(message_class: str, bug_origin: str | None, has_repro: bool | None) -> BoxRow:
