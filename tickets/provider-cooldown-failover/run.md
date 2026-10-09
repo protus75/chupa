@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The prior journal scope-fence issue is repaired; the untouched branch passes all 99 tests in tests/test_thresh.py and tests/test_providers.py.
+The full suite retains one warning also observed on the untouched branch.
 
 ## Dead ends
 
-Rejected inventing a wait estimate or an auth-error exclusion lifetime without governing rules.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during contract validation before implementation; the ticket budgets 60 minutes expected and 90 minutes stuck.
+none
 
