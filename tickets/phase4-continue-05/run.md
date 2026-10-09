@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The Phase 5 registry names retro-drain-invoker, but resolve_plan_contract cannot resolve its entry and entry_unit_gap reports it missing on untouched HEAD a5749e3840ace25c96f886288adfb889569aa9fd; no files were changed or committed.
+The previous gap in 19.P5.retro-drain-invoker is repaired, but the continuation's governing entry remains absent on untouched HEAD ca6389ff864052dc4fab6ba2c2ff58a151d49d4f.
 
 ## Dead ends
 
-Stopped before authoring, grammar validation, or review as required for missing governing facts.
+Stopped during required entry-depth validation before authoring or verification; no files changed or committed.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during initial contract validation, well within the 60-minute expected budget.
+Stopped within minutes, below the 60-minute expected budget.
 
