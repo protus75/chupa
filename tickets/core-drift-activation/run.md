@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-tests/test_restart_timers.py::repository replaces the Claude-only fixture config with Claude and Codex routes, then commits without adopting AGENTS.md.
+A disposable-repository probe on the untouched branch reproduced the prior scope blocker: after permitted Claude-only adoption, repository() replaces routing with Claude and Codex, leaving committed AGENTS.md missing.
 
 ## Dead ends
 
-Adoption in the fenced builders passed 237 tests, but the real serve composition still rejected its missing committed AGENTS.md.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped within the expected 60-minute budget after reproducing the scope blocker.
+Stopped early within the expected 60-minute budget after confirming the contract blocker.
 
