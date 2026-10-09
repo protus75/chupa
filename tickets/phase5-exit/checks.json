@@ -1,0 +1,195 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "a18daab773e2066208530365d2df2026fbbb7c13",
+  "stem": "phase5-exit",
+  "passed": false,
+  "changed_files": [
+    "tests/test_phase5_exit.py",
+    "tests/test_seeded_phase6_core.py"
+  ],
+  "inserted_lines": 955,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "requisition_review",
+      "verdict": "fail",
+      "findings": [
+        {
+          "code": "missing_successor_entry_unit",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "The ticket requires required_units/entry_unit_gap to pass for the successor's next-admission entries, and requires phase6-continue-02 to cite them. The plan has only four 19.P6 entry headings: core-renderer, core-drift-classifier, core-drift-activation and migrate-config. There is no `### 19.P6.host-contract-doc`, so entry_unit_gap returns 'entry unit 19.P6.host-contract-doc is missing'. The successor cannot cite it either, because the grammar gate refuses an id that does not resolve. Authoring would end in premise_failed every time.",
+          "paved_road": "Harden 19.P6 through section 11.4: add `### 19.P6.host-contract-doc` with Owner, Records, Observable and Tests bullets, run plan lint and commit the plan, then re-offer this seed unchanged.",
+          "kind": "spec_gap",
+          "unit": "19.P6.host-contract-doc"
+        },
+        {
+          "code": "missing_successor_entry_unit",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "The second next-admission row, fixture-host-scaffold, has no `### 19.P6.fixture-host-scaffold` entry unit either. The successor needs this unit to pass depth validation and to cite it, so it fails in the same way.",
+          "paved_road": "Harden 19.P6 by adding `### 19.P6.fixture-host-scaffold` with all four SPEC DEPTH parts. Base them on the 19.P6 fixture-host Deliverables text and the row's depends on host-contract-doc and core-drift-activation. Run plan lint and commit before this seed is re-offered.",
+          "kind": "spec_gap",
+          "unit": "19.P6.fixture-host-scaffold"
+        }
+      ],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [
+    {
+      "stem": "core-drift-classifier",
+      "ticket_sha": "2b88ccc4a6518649ba6e3baf5c8f539f343b3bcb",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
+    },
+    {
+      "stem": "core-renderer",
+      "ticket_sha": "98d6f13f3f83862c7bbbe56702de673afbcc320d",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
+    },
+    {
+      "stem": "phase6-continue",
+      "ticket_sha": "100609570c30a7c048f222273b859051261d9c5e",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "missing_successor_entry_unit",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "The ticket requires required_units/entry_unit_gap to pass for the successor's next-admission entries, and requires phase6-continue-02 to cite them. The plan has only four 19.P6 entry headings: core-renderer, core-drift-classifier, core-drift-activation and migrate-config. There is no `### 19.P6.host-contract-doc`, so entry_unit_gap returns 'entry unit 19.P6.host-contract-doc is missing'. The successor cannot cite it either, because the grammar gate refuses an id that does not resolve. Authoring would end in premise_failed every time.",
+          "paved_road": "Harden 19.P6 through section 11.4: add `### 19.P6.host-contract-doc` with Owner, Records, Observable and Tests bullets, run plan lint and commit the plan, then re-offer this seed unchanged.",
+          "kind": "spec_gap",
+          "unit": "19.P6.host-contract-doc"
+        },
+        {
+          "code": "missing_successor_entry_unit",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "The second next-admission row, fixture-host-scaffold, has no `### 19.P6.fixture-host-scaffold` entry unit either. The successor needs this unit to pass depth validation and to cite it, so it fails in the same way.",
+          "paved_road": "Harden 19.P6 by adding `### 19.P6.fixture-host-scaffold` with all four SPEC DEPTH parts. Base them on the 19.P6 fixture-host Deliverables text and the row's depends on host-contract-doc and core-drift-activation. Run plan lint and commit before this seed is re-offered.",
+          "kind": "spec_gap",
+          "unit": "19.P6.fixture-host-scaffold"
+        }
+      ],
+      "mechanical": null
+    }
+  ],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_phase5_exit.py"
+      ],
+      "rc": 0,
+      "tail": "....................                                                     [100%]\n20 passed in 3.44s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_seeded_phase6_core.py"
+      ],
+      "rc": 0,
+      "tail": ".............                                                            [100%]\n13 passed in 0.74s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_phase5_exit.py",
+        "tests/test_retro_box.py"
+      ],
+      "rc": 0,
+      "tail": "......................                                                   [100%]\n22 passed in 1.89s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_phase5_exit.py",
+        "tests/test_baseline.py"
+      ],
+      "rc": 0,
+      "tail": "............................................................             [100%]\n60 passed in 3.80s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_retro.py",
+        "tests/test_scorecard.py",
+        "tests/test_drain.py"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 81%]\n................                                                         [100%]\n88 passed in 11.43s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_plan_lint.py"
+      ],
+      "rc": 0,
+      "tail": "............................                                             [100%]\n28 passed in 0.18s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "........................................................ [ 67%]\n........................................................................ [ 69%]\n........................................................................ [ 72%]\n........................................................................ [ 74%]\n........................................................................ [ 76%]\n........................................................................ [ 79%]\n........................................................................ [ 81%]\n........................................................................ [ 84%]\n........................................................................ [ 86%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 93%]\n........................................................................ [ 96%]\n........................................................................ [ 98%]\n................................................                         [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase5-exit/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3000 passed, 1 warning in 282.24s (0:04:42)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
