@@ -1,0 +1,106 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "e1c86a28881705fe4727dcee80e8c8e734c6e04e",
+  "stem": "scorecard-reporting",
+  "passed": true,
+  "changed_files": [
+    "chupa/retro.py",
+    "chupa/scorecard.py",
+    "tests/test_scorecard.py"
+  ],
+  "inserted_lines": 363,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_scorecard.py"
+      ],
+      "rc": 0,
+      "tail": ".....                                                                    [100%]\n5 passed in 1.03s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_scorecard.py",
+        "tests/test_retro.py"
+      ],
+      "rc": 0,
+      "tail": "...................                                                      [100%]\n19 passed in 2.16s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_driver.py",
+        "tests/test_stages.py",
+        "tests/test_retro_box.py",
+        "tests/test_vocabularies.py"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 76%]\n......................                                                   [100%]\n94 passed in 8.00s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_plan_lint.py"
+      ],
+      "rc": 0,
+      "tail": "............................                                             [100%]\n28 passed in 0.18s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "................................................ [ 65%]\n........................................................................ [ 68%]\n........................................................................ [ 71%]\n........................................................................ [ 73%]\n........................................................................ [ 76%]\n........................................................................ [ 78%]\n........................................................................ [ 81%]\n........................................................................ [ 83%]\n........................................................................ [ 86%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 93%]\n........................................................................ [ 96%]\n........................................................................ [ 98%]\n..............................                                           [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/scorecard-reporting/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n2838 passed, 1 warning in 251.75s (0:04:11)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
