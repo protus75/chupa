@@ -255,7 +255,13 @@ def test_storm_activation_does_not_hold_dispatch_or_notify(tmp_path, monkeypatch
     six(box)
     def forbidden(*args, **kwargs):
         pytest.fail("storm invoked external notification")
-    monkeypatch.setattr("chupa.effects.Effects.run", forbidden)
+    from chupa.effects import Effects
+    effect = Effects.run
+    async def allowed(self, action, **kwargs):
+        if kwargs['key'].startswith('notify/'):
+            forbidden()
+        return await effect(self, action, **kwargs)
+    monkeypatch.setattr("chupa.effects.Effects.run", allowed)
     monkeypatch.setattr("chupa.triage.triage_pass", forbidden)
     if verb == "drain":
         original = cli.build_control

@@ -308,6 +308,7 @@ def test_recovery_alert_does_not_change_disposition(root, verb):
             assert fresh.exists() and not (fresh / "half-done.py").exists()
             return await callback(work)
 
+        dispatch.stages = callback.stages
         return dispatch
 
     assert cli(root, *(["run", "work"] if verb == "run" else ["drain"]), stages=prepare) == 0

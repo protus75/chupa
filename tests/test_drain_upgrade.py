@@ -18,7 +18,7 @@ from chupa.drain import HANDOFF_SIGNAL, PREMISE, REEXEC
 from chupa.journal import EventType, Journal
 from chupa.lockfile import Lockfile, LockHeld
 from chupa.seams import SubprocessExec
-from tests.test_cli import ENV, git_out
+from tests.test_cli import ENV, git_out, with_retro_driver
 from tests.test_drain import Clock, commit_ticket, confirmed, journal, make_root, retry_draws, tos
 
 
@@ -48,7 +48,7 @@ class Script:
             checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged", "commit": commit}, ticket=t.stem)
             return "merged"
 
-        return dispatch
+        return with_retro_driver(checkout, dispatch)
 
 
 class Child:
@@ -143,7 +143,8 @@ def test_a_self_upgrading_admission_hands_off_before_the_next_dispatch(tmp_path,
     handoff = spawn["last_event"]
     assert handoff.type == EventType.SIGNAL and handoff.body["signal"] == HANDOFF_SIGNAL
     assert handoff.ticket == "upgrade" and handoff.body["parked"] == ["red"]
-    assert handoff.body["commit"] == git_out(root, "rev-parse", "HEAD~1").strip()
+    assert handoff.body["commit"] == next(e.body["commit"] for e in journal(root).read()
+                                        if e.ticket == "upgrade" and e.body.get("to") == "merged")
     # The parked set survives: the child reports the parent's red; the parent printed nothing of its own.
     out = capsys.readouterr().out
     assert out.count("drain quiescent") == 1

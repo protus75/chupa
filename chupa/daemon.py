@@ -27,7 +27,7 @@ from chupa.runner import Dispatch
 from chupa.restart import Restart
 from chupa.scheduler import Scheduler
 from chupa.seams import Clock, FileSystem, Sleep
-from chupa.stages import StageContext, StageName, StagesRun
+from chupa.stages import StageContext, StageName, Stages, StagesRun
 from chupa.storm import StormBreaker
 from chupa.tickets import Ticket, parse_ticket, ticket_path
 from chupa.watcher import Watcher
@@ -440,6 +440,7 @@ class TicketWriter:
 
     def __init__(self, ctx: StageContext, queue: MergeQueue) -> None:
         self.ctx, self.queue = ctx, queue
+        self.stages = Stages(ctx)
         self.admission = AdmissionBoundary(ctx)
         self.active = False
         self.continuations: dict[str, Continuation] = {}

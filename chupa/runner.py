@@ -91,12 +91,14 @@ def pipeline(checkout: Checkout) -> Dispatch:
     class PreparedDispatch:
         callback = None
         snapshot = None
+        stages = None
         async def prepare(self):
             snapshot = snapshot_config(checkout.control.load_config())
             if self.callback is not None and snapshot == self.snapshot:
                 return
             local = replace(checkout, config=snapshot)
             self.callback = await prepare_pipeline(local)
+            self.stages = self.callback.stages
             self.snapshot = snapshot
         async def __call__(self, ticket):
             if self.callback is None:

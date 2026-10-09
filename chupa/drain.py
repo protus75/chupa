@@ -14,6 +14,7 @@ release through their hardening round or bound plan units instead.
 """
 
 import asyncio
+import re
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -205,6 +206,7 @@ async def drain(
             await dispatch.prepare()
         await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
         run = _Drain(checkout, dispatch, frozenset(parked), before_dispatch=checkpoint)
+        run.retro = getattr(dispatch, "_retro", None)
         report = await run.run()
         # A pending self-upgrade is still an offer boundary, never permission to
         # launch a child after a kill accepted during the final preparation.
@@ -248,6 +250,7 @@ class _Drain:
         self.storm_waiting = False
         self.provider_deadlines = []
         self.report = Report()
+        self.retro = None
 
     async def run(self) -> Report:
         while True:
@@ -259,6 +262,10 @@ class _Drain:
                 await self.before_dispatch()
             if self._stopping():
                 return self.report
+            if self.retro is not None:
+                if hasattr(self.dispatch, 'prepare'):
+                    await self.dispatch.prepare()
+                await self._run_retro(forced=False)
             material = self._offer_material()
             scan = await self._scan()
             shas = {s: await self._sha(s) for s in scan.tickets}
@@ -291,10 +298,20 @@ class _Drain:
                         return self._halt(scan, events, last, held)
                     await self.c.control.sleep(0.1)
                     continue
+                if self.retro is not None:
+                    before = self.c.journal.read()
+                    await self._run_retro(forced=True)
+                    if self.c.journal.read() != before:
+                        continue
                 self._settle(scan, events, last, held)
                 return self.report
             if self.c.clock() >= self.deadline:
                 return self._halt(scan, events, last, held)
+            if self.retro is not None and re.fullmatch(r"phase[0-6]-exit", pick.stem):
+                before = self.c.journal.read()
+                await self._run_retro(forced=True)
+                if self.c.journal.read() != before:
+                    continue
             await self._run_one(pick, reoffer, shas[pick.stem])
             if self._stopping() or self.upgrade is not None:
                 return self.report
@@ -423,8 +440,6 @@ class _Drain:
         return None, False
 
     async def _run_one(self, ticket: Ticket, reoffer: bool, sha: str) -> None:
-        from chupa.daemon import _protected_cleanup
-
         if self._stopping():
             return
         stem = ticket.stem
@@ -453,15 +468,41 @@ class _Drain:
                 caps.consume(self.c.journal, stem, "retry", sha, rung=body.get("rung"))
         # The `ticket.md` the run answers: a `premise_failed` verdict parks the stem until this changes.
         self.c.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": sha}, ticket=stem)
-        consumer = self.c.control
-        task = asyncio.create_task(self.dispatch(ticket))
+        async def abort():
+            await self.dispatch.abort_current()
+        terminal = await self._await_controlled(asyncio.create_task(self.dispatch(ticket)), abort,
+            self.c.control.sleep if self.c.control is not None else self.c.sleep)
+        if self._stopping():
+            return
+        if terminal not in TERMINAL_STATES:
+            raise ValueError(f"stage seam returned {terminal!r}, not a terminal state {sorted(TERMINAL_STATES)}")
+        body = next(e.body for e in reversed(self.c.journal.read())
+                    if e.type == EventType.STATE_TRANSITION and e.ticket == stem)
+        if body["to"] != terminal:
+            raise ValueError(f"stage seam returned {terminal!r} for {stem} but journaled {body['to']!r};"
+                             " the seam must journal the run's single terminal transition")
+        if terminal == "merged":
+            self.report.merged.append(stem)
+            # A `merged` with no commit is the no-diff settlement (section 7): nothing was admitted.
+            if (commit := body.get("commit")) is not None:
+                changed = await self.c.git.diff_names(self.c.repo, f"{commit}^", commit)
+                if any(p.startswith(UPGRADE_PREFIXES) for p in changed):
+                    self.upgrade = (stem, commit)
 
+    async def _run_retro(self, *, forced):
+        await self._await_controlled(asyncio.create_task(self.retro(forced=forced)),
+                                     self.retro.abort_current, self.c.sleep)
+
+    async def _await_controlled(self, task, abort, sleep):
+        from chupa.daemon import _protected_cleanup
+
+        consumer = self.c.control
         async def control() -> None:
             while not task.done():
-                await consumer.sleep(0.1)
+                await sleep(0.1)
                 consumer.inbox.consume()
                 if self._stopping():
-                    await consumer.apply_kill(self.dispatch.abort_current, task)
+                    await consumer.apply_kill(abort, task)
                     return
 
         monitor = asyncio.create_task(control()) if consumer is not None else None
@@ -474,14 +515,14 @@ class _Drain:
                 return
             if monitor is not None and monitor.done():
                 monitor.result()
-            terminal = task.result()
+            return task.result()
         finally:
             async def cleanup() -> None:
                 failed_stop = False
                 try:
                     if self._stopping():
                         try:
-                            await consumer.apply_kill(self.dispatch.abort_current, task)
+                            await consumer.apply_kill(abort, task)
                         except BaseException:
                             failed_stop = True
                             raise
@@ -500,20 +541,6 @@ class _Drain:
                         if isinstance(result, BaseException) and not isinstance(result, asyncio.CancelledError):
                             raise result
             await _protected_cleanup(asyncio.create_task(cleanup()))
-        if terminal not in TERMINAL_STATES:
-            raise ValueError(f"stage seam returned {terminal!r}, not a terminal state {sorted(TERMINAL_STATES)}")
-        body = next(e.body for e in reversed(self.c.journal.read())
-                    if e.type == EventType.STATE_TRANSITION and e.ticket == stem)
-        if body["to"] != terminal:
-            raise ValueError(f"stage seam returned {terminal!r} for {stem} but journaled {body['to']!r};"
-                             " the seam must journal the run's single terminal transition")
-        if terminal == "merged":
-            self.report.merged.append(stem)
-            # A `merged` with no commit is the no-diff settlement (section 7): nothing was admitted.
-            if (commit := body.get("commit")) is not None:
-                changed = await self.c.git.diff_names(self.c.repo, f"{commit}^", commit)
-                if any(p.startswith(UPGRADE_PREFIXES) for p in changed):
-                    self.upgrade = (stem, commit)
 
     def parked_stems(self) -> tuple[str, ...]:
         """The invocation's parked set, carried across the handoff chain: every unsettled red plus the carried."""

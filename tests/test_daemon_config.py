@@ -13,7 +13,7 @@ from chupa.config import ConfigError, ConfigSnapshot, load_config, snapshot_conf
 from chupa.daemon import DaemonAdmission, snapshot_dispatch
 from chupa.journal import EventType
 from chupa.seams import LocalFileSystem
-from tests.test_cli import ENV, Clock, root, ticket, write
+from tests.test_cli import ENV, Clock, root, ticket, write, with_retro_driver
 from tests.test_config import VALID
 from tests.test_daemon_admission import assert_reachable, assert_idle, tickets, turn
 
@@ -369,7 +369,7 @@ def test_config_snapshot_is_dormant(root, monkeypatch, verb, operation):
             calls.append(ticket.stem)
             checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=ticket.stem)
             return "merged"
-        return callback
+        return with_retro_driver(checkout, callback)
 
     def probe(*args):
         raise AssertionError(f"{operation} wired into CLI")

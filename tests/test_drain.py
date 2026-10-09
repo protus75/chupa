@@ -20,7 +20,7 @@ from chupa.journal import EventType, Journal
 from chupa.lockfile import Lockfile, LockHeld
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.tickets import intake
-from tests.test_cli import CONFIG, ENV, PLAN, git_out, ticket, write
+from tests.test_cli import CONFIG, ENV, PLAN, git_out, ticket, write, with_retro_driver
 from tests.test_terminal import repo as rework_repo
 
 START = datetime(2026, 1, 1, tzinfo=UTC)
@@ -64,7 +64,7 @@ class Script:
                                     if terminal != "merged" else {"to": terminal}, ticket=t.stem)
             return terminal
 
-        return dispatch
+        return with_retro_driver(checkout, dispatch)
 
 
 def make_root(tmp_path: Path, caps: str = "") -> Path:
@@ -400,7 +400,7 @@ def test_a_spec_gap_hold_waits_for_its_hardening_ticket_then_re_runs_free(root):
             checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=t.stem)
             return "merged"
 
-        return dispatch
+        return with_retro_driver(checkout, dispatch)
 
     assert drain(root, pipeline) == 0
     assert calls == ["held", "harden-held-1", "held"]  # held while the hardening ticket is unmerged
@@ -447,7 +447,7 @@ def test_a_spec_gap_premise_releases_on_its_hardening_merge_without_a_ticket_edi
             checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=t.stem)
             return "merged"
 
-        return dispatch
+        return with_retro_driver(checkout, dispatch)
 
     assert drain(root, pipeline) == 0
     assert calls == ["held", "harden-held-1", "held"]
@@ -927,6 +927,185 @@ def round_record(j, hardener, units=None):
     j.append(EventType.SIGNAL, {"signal": "hardening_round", "round": 1,
              "units": units if units is not None else {"19.P3.held": "absent"}, "filed_by": "held",
              "gaps": [{"unit": "19.P3.held", "message": "fact"}]}, ticket=hardener)
+
+
+def test_retro_hook_is_default_off(root):
+    from chupa.drain import _Drain, drain as run_drain
+    from tests.test_drain_reentry import NoChild
+    commit_ticket(root, "work", confirmed())
+    checkout = pause_checkout(root)
+    script = Script()
+    dispatch = script(checkout)
+    assert _Drain(checkout, dispatch, frozenset()).retro is None
+    assert asyncio.run(run_drain(checkout, dispatch, reexec=NoChild())).merged == ["work"]
+    assert not list((root / "tickets/retro").glob("*.md"))
+    assert not any((e.key or "").startswith("llm/retro/") for e in checkout.journal.read())
+
+
+@pytest.mark.asyncio
+async def test_selected_retro_remains_killable_through_existing_control(root):
+    from chupa import runner
+    from chupa.control import ControlRequest, publish_request
+    from chupa.drain import drain as run_drain
+    from chupa.llm import FakeLLM, HANG
+    from chupa.retro import Retro
+    from tests.test_daemon_admission import turn
+    from tests.test_drain_reentry import NoChild
+    commit_ticket(root, "work", confirmed())
+    ticks = asyncio.Queue()
+    async def sleep(seconds):
+        if seconds == .1:
+            await ticks.get()
+        else:
+            await asyncio.Event().wait()
+    checkout = replace(pause_checkout(root), sleep=sleep, control=None)
+    checkout = replace(checkout, control=build_control(checkout))
+    llm = FakeLLM([HANG])
+    writer = runner.bind(checkout, llm)
+    async def dispatch(ticket):
+        checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=ticket.stem)
+        return "merged"
+    dispatch.stages = writer.stages
+    dispatch.abort_current = writer.abort_current
+    dispatch._retro = Retro(checkout, dispatch)
+    async with asyncio.timeout(5):
+        task = asyncio.create_task(run_drain(checkout, dispatch, reexec=NoChild()))
+        while not llm.requests:
+            await turn()
+        assert llm.requests[0].surface == "retro"
+        publish_request(checkout.config.state_dir,
+            ControlRequest("stop-retro", checkout.control.inbox.lifecycle_id, "kill", None), checkout.fs)
+        ticks.put_nowait(None)
+        report = await task
+    assert report.killed and report.exit_code == 1 and llm.aborted == 1
+    assert not list((root / "tickets/retro").glob("*.md"))
+    assert not any(e.body.get("kind") == "retro_failed" for e in checkout.journal.read())
+
+
+@pytest.mark.parametrize("scenario", ["quiescence", "pre-exit", "no-merge", "selected-failure", "due", "self-upgrade"])
+def test_drain_retro_due_quiescence_and_pre_exit(tmp_path, monkeypatch, scenario):
+    from chupa import __main__ as cli, runner
+    from chupa.retro import Retro
+    from tests.test_drain_reentry import NoChild
+    from tests.test_providers import claude_ok
+
+    root = make_root(tmp_path)
+    config = (root / "config.yaml").read_text().replace("review: {}", "  - {tier: medium, surface: retro, candidates: [{provider: claude}]}\nreview: {}")
+    (root / "config.yaml").write_text(config)
+    git_out(root, "add", "config.yaml")
+    git_out(root, "commit", "-m", "retro route")
+    commit_ticket(root, "feature", confirmed(priority="P0"))
+    if scenario in {"pre-exit", "selected-failure"}:
+        commit_ticket(root, "phase5-exit", confirmed(depends="- feature"))
+        commit_ticket(root, "later", confirmed(depends="- phase5-exit", priority="P3"))
+    clock = Clock()
+    if scenario == "due":
+        for n in range(25):
+            journal(root).append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=f"prior-{n}")
+    invocations, dispatches, contexts, prompts = [], [], [], []
+    original_hook = Retro.__call__
+    async def hook(self, *, forced=False):
+        invocations.append((forced, list(dispatches)))
+        contender = Lockfile(self.checkout.config.state_dir, instance_id="retro-contender", clock=clock)
+        with pytest.raises(LockHeld):
+            contender.acquire()
+        return await original_hook(self, forced=forced)
+    monkeypatch.setattr(Retro, "__call__", hook)
+
+    class Process(SubprocessExec):
+        async def run(self, argv, **kwargs):
+            if argv[0] == "git":
+                return await super().run(argv, **kwargs)
+            if argv[1:] == ["--version"]:
+                return 0, "1.2.3", ""
+            if argv[0] == "pnpm":
+                return 0, "1.2.3", ""
+            assert argv[0] == "claude"
+            prompt = kwargs["stdin_path"].read_text()
+            if prompt == "Reply with the single word ok.":
+                return 0, claude_ok("ok"), ""
+            prompts.append((list(dispatches), prompt))
+            assert "current retro window" in prompt
+            if scenario == "selected-failure":
+                return 1, "", "scripted retro outage"
+            out = claude_ok('{"proposals": []}')
+            if kwargs.get("on_spawn"):
+                kwargs["on_spawn"](123)
+            if kwargs.get("on_stdout_line"):
+                for line in out.splitlines(keepends=True):
+                    kwargs["on_stdout_line"](line)
+            return 0, out, ""
+    monkeypatch.setattr(cli, "SubprocessExec", Process)
+
+    async def drive(ctx, ticket, **kwargs):
+        dispatches.append(ticket.stem)
+        contexts.append(ctx)
+        if ticket.stem == "phase5-exit":
+            history = ctx.driver.journal.read()
+            reports = [e for e in history if e.type == EventType.EFFECT_COMPLETION and (e.key or "").startswith("retro/")]
+            assert bool(reports) == (scenario != "selected-failure")
+            if reports:
+                assert reports[-1].body["result"]["commit"] == await ctx.git.rev_parse(root, "HEAD")
+        if scenario == "no-merge":
+            terminal = "already_satisfied"
+            body = {"to": terminal}
+        else:
+            path = "chupa/thing.py" if scenario == "self-upgrade" else f"work/{ticket.stem}.py"
+            ctx.fs.write(root / path, b"ok\n")
+            await ctx.git.add(root, [path])
+            await ctx.git.commit(root, "admitted " + ticket.stem, only=[path])
+            terminal = "merged"
+            body = {"to": terminal, "commit": await ctx.git.rev_parse(root, "HEAD")}
+        ctx.driver.journal.append(EventType.STATE_TRANSITION, body, ticket=ticket.stem)
+        return terminal
+    monkeypatch.setattr(runner, "drive", drive)
+    prepared = runner.prepare_pipeline
+    owners = []
+    async def prepare(checkout):
+        writer = await prepared(checkout)
+        assert writer.stages.driver.llm.session is checkout.control.providers
+        owners.append(writer.stages.driver)
+        return writer
+    monkeypatch.setattr(runner, "prepare_pipeline", prepare)
+    seen = []
+    run_driver = __import__('chupa.driver', fromlist=['Driver']).Driver.run
+    async def recorded(self, stage, *args, **kwargs):
+        if stage.surface == "retro":
+            assert self in owners and kwargs["ticket"] is None and kwargs["scope_fence"] == ()
+            assert kwargs["workspace"] == root
+            seen.append(self)
+        return await run_driver(self, stage, *args, **kwargs)
+    monkeypatch.setattr("chupa.driver.Driver.run", recorded)
+    class Child:
+        spawns = 0
+        async def run(self, argv, **kwargs):
+            self.spawns += 1
+            assert journal(root).read()[-1].body.get("signal") == "drain_handoff"
+            contender = Lockfile(root / ".chupa/state", instance_id="child", clock=clock)
+            contender.acquire()
+            contender.release()
+            code = await asyncio.to_thread(main, argv[5:], cwd=root, env=ENV, clock=clock,
+                                           pipeline=runner.pipeline, reexec=self)
+            return code, "", ""
+    child = Child()
+    assert main(["drain"], cwd=root, env=ENV, clock=clock, pipeline=runner.pipeline,
+                reexec=child if scenario == "self-upgrade" else NoChild()) == 0
+    assert child.spawns == (1 if scenario == "self-upgrade" else 0)
+    assert invocations[0] == (False, [])
+    if scenario == "no-merge":
+        assert seen == prompts == []
+    elif scenario == "selected-failure":
+        assert dispatches == ["feature", "phase5-exit", "later"] and len(seen) == 1
+        assert len([e for e in journal(root).read() if e.body.get("kind") == "retro_failed"]) == 1
+    else:
+        assert seen and len(seen) == len(prompts)
+        if scenario == "pre-exit":
+            assert prompts[0][0] == ["feature"] and prompts[-1][0] == ["feature", "phase5-exit", "later"]
+        elif scenario == "due":
+            assert prompts[0][0] == [] and prompts[-1][0] == ["feature"]
+        else:
+            assert prompts[0][0] == ["feature"]
+        assert list((root / "tickets/retro").glob("*.md"))
 
 
 def test_legacy_spec_gap_hold_without_round_is_released(root):

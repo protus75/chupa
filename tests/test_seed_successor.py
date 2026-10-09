@@ -163,7 +163,8 @@ def test_merged_parent_registers_and_runs_successor_in_same_drain(tmp_path: Path
         assert last_states(checkouts[0].journal.read()) == {PARENT: "merged", SUCCESSOR: "running"}
         return verdict()
 
-    llm = FakeLLM([implement(PARENT), seed_review, parent_review, implement(SUCCESSOR), successor_review])
+    llm = FakeLLM([implement(PARENT), seed_review, parent_review, implement(SUCCESSOR), successor_review,
+                   '{"proposals": []}'])
 
     async def never(seconds: float) -> None:
         await asyncio.Event().wait()
@@ -189,6 +190,7 @@ def test_merged_parent_registers_and_runs_successor_in_same_drain(tmp_path: Path
                 seed_records(checkout)
             dispatches.append(ticket.stem)
             return await bound(ticket)
+        dispatch.stages = bound.stages
         return dispatch
 
     assert main(["drain"], cwd=repo, env=ENV, clock=lambda: NOW, pipeline=pipeline) == 0
@@ -197,6 +199,7 @@ def test_merged_parent_registers_and_runs_successor_in_same_drain(tmp_path: Path
     assert [(r.surface, r.ticket) for r in llm.requests] == [
         ("implement", PARENT), ("requisition_review", None), ("review", PARENT),
         ("implement", SUCCESSOR), ("review", SUCCESSOR),
+        ("retro", None),
     ]
     assert not llm.script and llm.aborted == 0
     [checkout] = checkouts
@@ -223,7 +226,9 @@ def test_merged_parent_registers_and_runs_successor_in_same_drain(tmp_path: Path
     assert history.index(terminals[0]) < history.index(successor_running)
     assert git_out(repo, "log", "--format=%s", f"{start}..main").splitlines().count(
         f"chupa({PARENT}): seeds") == 1
-    assert git_out(repo, "rev-parse", "main") == terminals[1].body["commit"]
+    [receipt] = [e for e in history if e.type == EventType.EFFECT_COMPLETION and e.key == "retro/1"]
+    assert git_out(repo, "rev-parse", "main") == receipt.body["result"]["commit"]
+    assert git_out(repo, "rev-parse", "main~1") == terminals[1].body["commit"]
     assert wait_for(git.status_porcelain(repo)) == ""
     probe = drain._Drain(checkout, runner.bind(checkout, llm), frozenset())
     scan = wait_for(probe._scan())

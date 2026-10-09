@@ -8,6 +8,7 @@ Every model call crosses the LLM effect (chupa/llmeffect.py); the driver never c
 """
 
 import asyncio
+import json
 import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -224,6 +225,17 @@ class Driver:
                     invocation.abort is None or invocation.abort.done()
                 ):
                     self._active = None
+
+    def materialize_exit_window(self, declarations: Mapping[str, Sequence], workspace: Path) -> Path | None:
+        """Freeze resolved declarations in the consuming worktree, through the Driver's writer seam."""
+        from dataclasses import asdict
+        if not declarations:
+            return None
+        path = workspace / ".chupa" / "exit-read-window.json"
+        payload = {declaration: [asdict(event) for event in events]
+                   for declaration, events in declarations.items()}
+        self.spool._fs.write(path, (json.dumps(payload, indent=2) + "\n").encode())
+        return path
 
     async def _run(
         self, stage: LlmStage, consumed: Any, *, ticket: str | None, attempt: int,

@@ -249,8 +249,17 @@ def main(
         checkout.control.load_config = lambda: load_config(args.config, cwd=repo)
         dispatch = pipeline(checkout)
         if args.verb == "drain":
+            from chupa.retro import Retro
+            class DrainDispatch:
+                _retro = Retro(checkout, dispatch)
+
+                async def __call__(self, ticket):
+                    return await dispatch(ticket)
+
+                def __getattr__(self, name):
+                    return getattr(dispatch, name)
             # The handoff's own seam instance, never shared with active work (section 15).
-            report = asyncio.run(drain.drain(checkout, dispatch, reexec=reexec or SubprocessExec(),
+            report = asyncio.run(drain.drain(checkout, DrainDispatch(), reexec=reexec or SubprocessExec(),
                                              parked=args.parked))
             if report.handoff is None:
                 print(report.render(), end="")

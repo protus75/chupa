@@ -10,7 +10,7 @@ from chupa.__main__ import main
 from chupa.daemon import DaemonAdmission
 from chupa.journal import EventType
 from chupa.tickets import parse_ticket
-from tests.test_cli import ENV, PLAN, Clock, root, ticket, write
+from tests.test_cli import ENV, PLAN, Clock, root, ticket, write, with_retro_driver
 
 
 @pytest.fixture
@@ -236,7 +236,7 @@ def test_daemon_admission_is_dormant(root, monkeypatch, verb):
             calls.append(ticket.stem)
             checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=ticket.stem)
             return "merged"
-        return dispatch
+        return with_retro_driver(checkout, dispatch)
 
     async def probe(self, ticket):
         raise AssertionError("daemon dispatch wired into CLI")

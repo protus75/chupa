@@ -398,3 +398,70 @@ def test_engine_log_rotates_by_size(tmp_path):
     assert names == ["engine.log", "engine.log.1", "engine.log.2", "engine.log.3"]
     assert all(p.stat().st_size <= 200 for p in tmp_path.iterdir())
     assert json.loads((tmp_path / "engine.log").read_text().splitlines()[-1])["n"] == 39
+
+
+@pytest.mark.parametrize("history", ["initial", "intent", "multiple", "empty", "no-match"])
+def test_exit_read_window_materialization(tmp_path, monkeypatch, history):
+    from dataclasses import asdict
+    from types import SimpleNamespace
+    from chupa.journal import EventType
+    from chupa.seams import LocalFileSystem
+    from chupa.stages import resolve_exit_window
+
+    driver, state = build(tmp_path, FakeLLM([]))
+    j = driver.journal
+    if history != "empty":
+        j.append(EventType.STATE_TRANSITION, {"to": "merged", "commit": "before"}, ticket="other")
+    if history == "intent":
+        j.append(EventType.EFFECT_INTENT, {}, key="retro/1")
+    if history in {"multiple", "no-match"}:
+        j.append(EventType.EFFECT_COMPLETION, {"result": {"commit": "first"}}, key="retro/1")
+        j.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="old-window")
+        j.append(EventType.EFFECT_COMPLETION, {"result": {"commit": "latest"}}, key="retro/2")
+    if history not in {"empty", "no-match"}:
+        body = {"kind": "drain_handoff", "nested": [None, {"exact": "value"}]}
+        j.append(EventType.SIGNAL, body, ticket=None)
+        j.append(EventType.STATE_TRANSITION, {"to": "gate_failed"}, ticket="unrelated")
+        driver.clock.now -= timedelta(seconds=1)
+        j.append(EventType.SIGNAL, {"kind": "drain_handoff", "ordinal": "second"}, ticket="foreign")
+        driver.clock.now += timedelta(seconds=1)
+        j.append(EventType.SIGNAL, body, ticket=None)
+    snapshot = j.read()
+    boundary = max((i for i, e in enumerate(snapshot)
+                    if e.type == EventType.EFFECT_COMPLETION and (e.key or "").startswith("retro/")), default=-1)
+    suffix = snapshot[boundary + 1:]
+    canonical = {f"{kind}: current retro window": [asdict(e) for e in suffix if e.type == kind]
+                 for kind in ("signal", "state_transition", "effect_completion")}
+    declarations = "-   signal  :   current retro window  \n- state_transition: current retro window\n- effect_completion: current retro window\n"
+    def ticket(stem, declaration=declarations):
+        return SimpleNamespace(stem=stem, sections={"Exit-read window": declaration})
+    consumed = resolve_exit_window(ticket("phase5-exit"), snapshot)
+    assert consumed == resolve_exit_window(ticket("phase6-exit"), snapshot)
+    writes = []
+    fs = LocalFileSystem()
+    def write(path, data):
+        writes.append((path, data))
+        fs.write(path, data)
+    monkeypatch.setattr(driver.spool._fs, "write", write)
+    # Later events cannot change any declaration in the already resolved snapshot.
+    j.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="appended-later")
+    j.append(EventType.SIGNAL, {"kind": "drain_handoff"}, ticket="appended-later")
+    workspace = tmp_path / "exit-worktree"
+    path = driver.materialize_exit_window(consumed, workspace)
+    assert len(writes) == 1 and writes[0][0] == path
+    assert json.loads(path.read_text()) == canonical
+    assert all(set(event) == {"v", "type", "ts", "ticket", "key", "body"}
+               for events in canonical.values() for event in events)
+    if history not in {"empty", "no-match"}:
+        signals = canonical["signal: current retro window"]
+        assert signals[0] == signals[2] and signals[0]["ticket"] is None
+        assert signals[1]["body"]["ordinal"] == "second" and signals[1]["ts"] < signals[0]["ts"]
+        assert asdict(snapshot[-1]) == signals[-1]
+    # The consumed exit read is self-contained even without the live journal directory.
+    fs.replace(state, tmp_path / "offline-state")
+    assert not state.exists() and json.loads(path.read_text()) == canonical
+    assert resolve_exit_window(SimpleNamespace(stem="no-declaration", sections={}), snapshot) == {}
+    assert driver.materialize_exit_window({}, workspace) is None
+    for declaration in ("- unknown: current retro window", "- signal: since yesterday", "- signal: anything nonblank"):
+        with pytest.raises(ValueError, match="EVENT_VERSIONS.*current retro window"):
+            resolve_exit_window(ticket("phase5-exit", declaration), snapshot)

@@ -87,6 +87,13 @@ class Clock:
         return datetime(2026, 1, 1, tzinfo=UTC)
 
 
+def with_retro_driver(checkout, dispatch):
+    from chupa import runner
+    from chupa.llm import FakeLLM
+    dispatch.stages = runner.bind(checkout, FakeLLM(['{"proposals": []}'] * 10)).stages
+    return dispatch
+
+
 class Stages:
     """Scripted fake for the stage-dispatch seam: records each dispatched ticket and the lock state."""
 
@@ -112,7 +119,7 @@ class Stages:
             checkout.journal.append(EventType.STATE_TRANSITION, {"to": self.terminal}, ticket=t.stem)
             return self.terminal
 
-        return dispatch
+        return with_retro_driver(checkout, dispatch)
 
 
 @pytest.fixture
