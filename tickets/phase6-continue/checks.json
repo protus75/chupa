@@ -1,0 +1,156 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "dad4ce072a128a50a094251f78a4769a2229764d",
+  "stem": "phase6-continue",
+  "passed": false,
+  "changed_files": [
+    "tests/test_seeded_phase6_01.py"
+  ],
+  "inserted_lines": 1087,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "requisition_review",
+      "verdict": "fail",
+      "findings": [
+        {
+          "code": "self_host_conduct_unowned",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "On main, CLAUDE.md and AGENTS.md contain no chupa:core markers, and chupa's config routes both claude and codex. classify_core therefore returns `missing` for both files. This ticket ships core_drift as a hard gate in Check and in the inline and queued merge rerun. It explicitly leaves migration and docs out, and it fences neither conduct file. Phase 6 Deliverables call chupa's own CLAUDE.md/AGENTS.md 'the first case' of first adoption, but no registry row owns rendering and committing them. 19.P6.core-drift-activation also omits this fact. As a result, from the next drain onward, every ticket on this repo (starting with migrate-config, admitted in the same admission) fails core_drift before main moves. The only way out is an unplanned operator `chupa core` plus a hand commit of a section-17 render target. That is a hold with no planned release.",
+          "paved_road": "Repair 19.P6.core-drift-activation (Owner/Records/Observable) to name the owner and order for making the self-host's routed conduct current. One option: this deliverable fences CLAUDE.md and AGENTS.md and commits their mechanical `chupa core` render, with a criterion that the gate classifies both as `current` on the branch, and test_core_first_adoption_preserves_project_bytes is adjusted to the rendered bytes. The other option: a predecessor row does this before activation. Also state how a mechanical core render interacts with CLAUDE.md being authored from section 17. Then re-author the ticket from the repaired unit.",
+          "kind": "spec_gap",
+          "unit": "19.P6.core-drift-activation"
+        },
+        {
+          "code": "requisition_review",
+          "path": null,
+          "line": null,
+          "message": "invalid requisition review reply: 1 schema error(s)",
+          "paved_road": "reply with a schema-valid requisition verdict",
+          "kind": "authoring_error",
+          "unit": null
+        }
+      ],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [
+    {
+      "stem": "core-drift-activation",
+      "ticket_sha": "8a647d0789a34b0b0c98add328d4560328aa95ef",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "self_host_conduct_unowned",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "On main, CLAUDE.md and AGENTS.md contain no chupa:core markers, and chupa's config routes both claude and codex. classify_core therefore returns `missing` for both files. This ticket ships core_drift as a hard gate in Check and in the inline and queued merge rerun. It explicitly leaves migration and docs out, and it fences neither conduct file. Phase 6 Deliverables call chupa's own CLAUDE.md/AGENTS.md 'the first case' of first adoption, but no registry row owns rendering and committing them. 19.P6.core-drift-activation also omits this fact. As a result, from the next drain onward, every ticket on this repo (starting with migrate-config, admitted in the same admission) fails core_drift before main moves. The only way out is an unplanned operator `chupa core` plus a hand commit of a section-17 render target. That is a hold with no planned release.",
+          "paved_road": "Repair 19.P6.core-drift-activation (Owner/Records/Observable) to name the owner and order for making the self-host's routed conduct current. One option: this deliverable fences CLAUDE.md and AGENTS.md and commits their mechanical `chupa core` render, with a criterion that the gate classifies both as `current` on the branch, and test_core_first_adoption_preserves_project_bytes is adjusted to the rendered bytes. The other option: a predecessor row does this before activation. Also state how a mechanical core render interacts with CLAUDE.md being authored from section 17. Then re-author the ticket from the repaired unit.",
+          "kind": "spec_gap",
+          "unit": "19.P6.core-drift-activation"
+        }
+      ],
+      "mechanical": null
+    },
+    {
+      "stem": "migrate-config",
+      "ticket_sha": "ee1bae82a7b233fd528bb19efccaf32fe3302cfd",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
+    },
+    {
+      "stem": "phase6-continue-02",
+      "ticket_sha": "fbef7eeb4586bce84296da09ef908558c44cd171",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "requisition_review",
+          "path": null,
+          "line": null,
+          "message": "invalid requisition review reply: 1 schema error(s)",
+          "paved_road": "reply with a schema-valid requisition verdict",
+          "kind": "authoring_error",
+          "unit": null
+        }
+      ],
+      "mechanical": "invalid reply"
+    }
+  ],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_seeded_phase6_01.py"
+      ],
+      "rc": 0,
+      "tail": "...                                                                      [100%]\n3 passed in 0.07s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_hostfiles.py",
+        "tests/test_cli.py"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 16%]\n........................................................................ [ 32%]\n........................................................................ [ 49%]\n........................................................................ [ 65%]\n........................................................................ [ 81%]\n........................................................................ [ 98%]\n........                                                                 [100%]\n440 passed in 2.20s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_plan_lint.py"
+      ],
+      "rc": 0,
+      "tail": "............................                                             [100%]\n28 passed in 0.18s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": ".................................................... [ 71%]\n........................................................................ [ 73%]\n........................................................................ [ 75%]\n........................................................................ [ 78%]\n........................................................................ [ 80%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 86%]\n........................................................................ [ 88%]\n........................................................................ [ 90%]\n........................................................................ [ 92%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n........................................................................ [ 99%]\n.............................                                            [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase6-continue/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3413 passed, 1 warning in 282.90s (0:04:42)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
