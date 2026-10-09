@@ -53,7 +53,9 @@ FENCE_FLOORS = {'provider-cooldown-failover': ('chupa/providers.py',
                                 'tests/test_serve.py',
                                 'tests/test_merge.py',
                                 'tests/test_mergequeue.py',
-                                'tests/test_daemon_composition.py'),
+                                'tests/test_daemon_composition.py',
+                                'chupa/audit.py',
+                                'tests/test_audit.py'),
  'phase4-continue-03': ('tickets', 'tests/test_seeded_phase4_03.py')}
 
 FENCE_ADDITIONS = {'provider-cooldown-failover': {'chupa/thresh.py': '19.L rule 4 and cited seam-owner closure: '
@@ -148,9 +150,11 @@ FILE_CHARS = {'chupa/providers.py': 19824,
  'chupa/effects.py': 3229,
  'chupa/journal.py': 10606,
  'chupa/notify.py': 7137,
- 'tests/test_seeded_phase3_core.py': 5425}
+ 'tests/test_seeded_phase3_core.py': 5425,
+ 'chupa/audit.py': 5117,
+ 'tests/test_audit.py': 3588}
 
-AUTHORED = {'provider-cooldown-failover': {'chars': 8156,
+AUTHORED = {'provider-cooldown-failover': {'chars': 8254,
                                 'plan': ('19.I',
                                          '19.P4.provider-cooldown-failover',
                                          '6',
@@ -174,7 +178,8 @@ AUTHORED = {'provider-cooldown-failover': {'chars': 8156,
                                             'chupa/seams.py',
                                             'chupa/effects.py',
                                             'chupa/journal.py',
-                                            'chupa/notify.py'),
+                                            'chupa/notify.py',
+                                            'chupa/audit.py'),
                                 'on_demand': ('eval/daemon_soak.py',
                                               'tests/test_daemon_composition.py',
                                               'tests/test_serve.py',
@@ -187,7 +192,8 @@ AUTHORED = {'provider-cooldown-failover': {'chars': 8156,
                                               'tests/test_stages.py',
                                               'chupa/drain.py',
                                               'chupa/daemon.py',
-                                              'tests/test_thresh.py'),
+                                              'tests/test_thresh.py',
+                                              'tests/test_audit.py'),
                                 'fenced_existing': ('chupa/providers.py',
                                                     'chupa/watchdog.py',
                                                     'chupa/timers.py',
@@ -215,7 +221,9 @@ AUTHORED = {'provider-cooldown-failover': {'chars': 8156,
                                                     'chupa/requisition.py',
                                                     'eval/shakeout/providers.py',
                                                     'eval/diagnose.py',
-                                                    'eval/harness.py'),
+                                                    'eval/harness.py',
+                                                    'chupa/audit.py',
+                                                    'tests/test_audit.py'),
                                 'created': ('tests/test_provider_cooldown_failover.py',),
                                 'expected': 60,
                                 'stuck': 90},
@@ -332,6 +340,7 @@ state: confirmed
 - chupa/effects.py
 - chupa/journal.py
 - chupa/notify.py
+- chupa/audit.py
 
 ## On-demand
 - eval/daemon_soak.py
@@ -347,6 +356,7 @@ state: confirmed
 - chupa/drain.py
 - chupa/daemon.py
 - tests/test_thresh.py
+- tests/test_audit.py
 
 ## Plan contract
 - 19.I
@@ -395,6 +405,8 @@ Read every Context and On-demand path before writing. On-demand is the measured 
 - tests/test_merge.py
 - tests/test_mergequeue.py
 - tests/test_daemon_composition.py
+- chupa/audit.py
+- tests/test_audit.py
 - chupa/thresh.py
 - tests/test_thresh.py
 - chupa/driver.py
@@ -411,7 +423,7 @@ Read every Context and On-demand path before writing. On-demand is the measured 
 
 ## Verification
 ```
-uv run pytest tests/test_provider_cooldown_failover.py tests/test_providers.py tests/test_thresh.py tests/test_restart_timers.py tests/test_stages.py tests/test_serve.py tests/test_merge.py tests/test_mergequeue.py tests/test_daemon_composition.py tests/test_watchdog.py
+uv run pytest tests/test_provider_cooldown_failover.py tests/test_providers.py tests/test_thresh.py tests/test_restart_timers.py tests/test_stages.py tests/test_serve.py tests/test_merge.py tests/test_mergequeue.py tests/test_daemon_composition.py tests/test_watchdog.py tests/test_audit.py
 uv run pytest tests/test_driver.py tests/test_drain.py tests/test_watchdog_activation.py tests/test_llm_effect.py tests/test_requisition.py tests/test_notify.py tests/test_shakeout.py tests/test_eval_harness.py tests/test_diagnose_eval.py tests/test_daemon_soak_runner.py
 uv run pytest -q
 ```
@@ -488,7 +500,7 @@ Missing or contradictory governing facts return premise_failed, kind: spec_gap, 
 """,
 }
 
-APPROVED_SEED_SHA256 = {'provider-cooldown-failover': 'd2244a9744912a51aeb59768db2ff46ad690f0a8ac3d134372c7a50ec4e3b940'}
+APPROVED_SEED_SHA256 = {'provider-cooldown-failover': '813c4fc7a714553deaa68001bd06983eae7e30fc3ac1d6d61c235f6ba6d078e2'}
 
 REQUIRED_UNITS = {'provider-cooldown-failover': ('19.P4.provider-cooldown-failover', '19.P3.thresh-runtime'),
  'phase4-continue-03': ('19.P4.reliability-battery',
