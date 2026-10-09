@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-eval/shakeout/providers.py runs the production Driver through a process seam that cannot accept watched adapter events.
+The prior shakeout fence omission is corrected. On the untouched branch, Verification commands 2–4 passed (201, 421 and 107 tests); command 1 exited 4 because tests/test_watchdog_activation.py does not yet exist. Existing watchdog/composition/notify tests passed (104 tests).
 
 ## Dead ends
 
-An in-memory consumer probe broke both shakeout provider proofs; both pass on untouched HEAD without the probe.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during closure investigation, before the 60-minute expected budget.
+Stopped during contract review, before implementation; the ticket budgets 60 minutes expected and 90 minutes stuck.
 
