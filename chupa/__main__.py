@@ -171,6 +171,8 @@ def _parser() -> argparse.ArgumentParser:
     ap.add_argument("--config", type=Path, help="config path (default: config.yaml at the checkout root)")
     sub = ap.add_subparsers(dest="verb", required=True)
     sub.add_parser("status", help="project current state from the journal (read-only)")
+    sub.add_parser("retro", help="force a retro report under the writer lock")
+    sub.add_parser("doctor", help="inspect setup without changing state")
     for verb in ("pause", "resume"):
         sub.add_parser(verb, help=f"submit {verb} to the running engine, or do nothing under the idle lock")
     sub.add_parser("kill", help="submit kill to the running engine; refuse when nothing is running")
@@ -203,6 +205,12 @@ def main(
     try:
         if args.verb == "new":
             return _new(repo, args.stem)
+        if args.verb == "doctor":
+            from chupa import doctor
+            results = asyncio.run(doctor.check(repo=repo, config_path=args.config, env=env,
+                exec_=SubprocessExec(), clock=clock, in_venv=sys.prefix != sys.base_prefix))
+            print(doctor.render(results), end="")
+            return 0 if all(r.passed for r in results) else 2
         config = load_config(args.config, cwd=repo)
         exec_ = SubprocessExec()
         checkout = runner.Checkout(
@@ -248,6 +256,8 @@ def main(
         checkout = replace(checkout, control=build_control(checkout))
         checkout.control.load_config = lambda: load_config(args.config, cwd=repo)
         dispatch = pipeline(checkout)
+        if args.verb == "retro":
+            return asyncio.run(_retro(checkout, dispatch))
         if args.verb == "drain":
             from chupa.retro import Retro
             class DrainDispatch:
@@ -267,8 +277,45 @@ def main(
         return asyncio.run(runner.run_ticket(args.stem, checkout, dispatch))
     except (ConfigError, runner.Refusal, LockHeld, IntakeRefused, JournalCorruption, ProviderSetupError,
             ExecutableNotFound) as e:
-        print(f"chupa {args.verb}: {e}", file=sys.stderr)
+        road = (" -- repair the selected config and retry retro"
+                if args.verb == "retro" and isinstance(e, ConfigError) else "")
+        print(f"chupa {args.verb}: {e}{road}", file=sys.stderr)
         return runner.EXIT_REFUSED
+
+
+async def _retro(checkout, dispatch):
+    from chupa.retro import RETRO_FAILED, Retro, RetroConstructionError, measurements, project_window
+
+    lock = Lockfile(checkout.config.state_dir,
+                    instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
+    lock.acquire()
+    try:
+        try:
+            window = project_window(checkout.journal.read())
+        except JournalCorruption as exc:
+            raise runner.Refusal(str(exc), "restore journal readability from backup and retry retro") from None
+        selected = bool(measurements(window)["merged_count"])
+        suppressed = any(e.type == "signal" and e.body.get("kind") == RETRO_FAILED
+                         and e.body.get("window_boundary") == window.boundary for e in window.events)
+        if selected and not suppressed and hasattr(dispatch, "prepare"):
+            await dispatch.prepare()
+        try:
+            result = await Retro(checkout, dispatch)(forced=True)
+        except RetroConstructionError as exc:
+            raise runner.Refusal("retro Driver unavailable", str(exc)) from None
+        if not selected:
+            print("retro: no merge since the latest completed report")
+            return 0
+        if result is not None:
+            print(f"retro: committed tickets/retro/{window.sequence:06d}.md")
+            return 0
+        print("retro: no report committed; inspect status and the Suggestion Box")
+        return 1
+    finally:
+        try:
+            await checkout.control.providers.close()
+        finally:
+            lock.release()
 
 
 async def _status(checkout: runner.Checkout):

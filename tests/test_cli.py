@@ -352,3 +352,156 @@ def test_project_stays_virtual():
     assert "scripts" not in pyproject["project"]
     assert "build-system" not in pyproject
     assert os.path.isfile(Path(__file__).resolve().parents[1] / "chupa" / "__main__.py")
+
+
+def released(root):
+    lock = Lockfile(root / ".chupa/state", instance_id="after", clock=Clock())
+    lock.acquire()
+    lock.release()
+
+
+def test_retro_doctor_entry_unit():
+    import re
+    from chupa.specs import required_units, entry_unit_gap, resolve_plan_contract
+    from chupa.tickets import parse_ticket
+    repo = Path(__file__).resolve().parents[1]
+    plan = (repo / "CHUPA_PLAN.md").read_text()
+    uid = "19.P5.retro-doctor-cli"
+    for stem in ("retro-doctor-cli", "phase5-continue-04", "phase5-continue-05"):
+        t = parse_ticket(stem, (repo / f"tickets/{stem}/ticket.md").read_text(), repo, plan=plan)
+        assert required_units(plan, stem, t.plan_contract) == (() if stem.endswith("05") else (uid,))
+        if not stem.endswith("05"):
+            assert resolve_plan_contract(plan, t.plan_contract).count(f"### {uid} ") == 1
+    assert entry_unit_gap(plan, uid) is None
+    for part in ("Owner", "Records", "Observable", "Tests"):
+        broken = re.sub(rf"^- \*\*{part}:\*\*.*$", "", plan, flags=re.M)
+        assert part in entry_unit_gap(broken, uid)
+
+
+@pytest.mark.parametrize("completed_report", [False, True])
+def test_retro_no_merge(root, capsys, completed_report):
+    if completed_report:
+        journal(root).append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="one")
+        assert cli(root, "retro") == 0
+        capsys.readouterr()
+    def factory(c):
+        class Dispatch:
+            async def prepare(self):
+                pytest.fail("unselected pipeline prepared")
+            async def __call__(self, ticket):
+                pytest.fail("ticket dispatched")
+        return Dispatch()
+    head = git_out(root, "rev-parse", "HEAD")
+    assert cli(root, "retro", stages=factory) == 0
+    assert capsys.readouterr().out == "retro: no merge since the latest completed report\n"
+    assert git_out(root, "rev-parse", "HEAD") == head
+    assert (root / "tickets/retro").exists() == completed_report
+    released(root)
+
+
+def test_retro_success(root, capsys, monkeypatch):
+    from chupa import runner
+    from chupa.llm import FakeLLM
+    from chupa.retro import Retro, project_window
+    import chupa.__main__ as module
+    llm = FakeLLM(['{"proposals": []}'])
+    config = root / "config.yaml"
+    config.write_text(config.read_text().replace("review: {}", "  - {tier: medium, surface: retro, candidates: [{provider: claude}]}\nreview: {}"))
+    seen = []
+    from chupa.providers import ProviderLLM
+    async def preflight(self):
+        contender = Lockfile(self._config.state_dir, instance_id="other", clock=Clock())
+        with pytest.raises(LockHeld):
+            contender.acquire()
+        seen.append(self.session)
+        return []
+    async def call(self, request, served, **kwargs):
+        contender = Lockfile(self._config.state_dir, instance_id="model", clock=Clock())
+        with pytest.raises(LockHeld):
+            contender.acquire()
+        return await llm.call(request)
+    monkeypatch.setattr(ProviderLLM, "preflight", preflight)
+    monkeypatch.setattr(ProviderLLM, "_invoke", call)
+    original = Retro.__call__
+    async def invoke(self, *, forced=False):
+        assert forced
+        driver = self.driver()
+        assert isinstance(driver.llm, ProviderLLM)
+        assert driver.llm.session is self.checkout.control.providers is seen[0]
+        return await original(self, forced=forced)
+    monkeypatch.setattr(Retro, "__call__", invoke)
+    journal(root).append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="one")
+    assert module.main(["retro"], cwd=root, env=ENV, clock=Clock()) == 0
+    assert capsys.readouterr().out == "retro: committed tickets/retro/000001.md\n"
+    assert len(llm.requests) == 1
+    assert project_window(journal(root).read()).boundary == "retro/1"
+    completion = next(e for e in journal(root).read() if e.key == "retro/1" and e.type == EventType.EFFECT_COMPLETION)
+    assert completion.body == {"result": {"commit": git_out(root, "rev-parse", "HEAD").strip()}}
+    assert git_out(root, "show", "--format=", "--name-only", "HEAD").splitlines() == ["tickets/retro/000001.md"]
+    released(root)
+
+
+@pytest.mark.parametrize("suppressed", [False, True])
+def test_retro_no_commit(root, capsys, monkeypatch, suppressed):
+    from chupa import runner
+    from chupa.llm import FakeLLM
+    llm = FakeLLM([RuntimeError("failed")])
+    j = journal(root)
+    j.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="one")
+    if suppressed:
+        j.append(EventType.SIGNAL, {"kind": "retro_failed", "window_boundary": "initial"}, key="retro-failed/initial/forced")
+    def factory(c):
+        writer = runner.bind(c, llm)
+        writer.stages.driver.retry_cap = 0
+        return writer
+    head = git_out(root, "rev-parse", "HEAD")
+    if suppressed:
+        async def forbidden(c):
+            pytest.fail("suppressed retro prepared providers")
+        monkeypatch.setattr(runner, "prepare_pipeline", forbidden)
+        assert main(["retro"], cwd=root, env=ENV, clock=Clock()) == 1
+    else:
+        assert cli(root, "retro", stages=factory) == 1
+    assert git_out(root, "rev-parse", "HEAD") == head
+    assert capsys.readouterr().out == "retro: no report committed; inspect status and the Suggestion Box\n"
+    assert len(llm.requests) == (0 if suppressed else 1)
+    assert not (root / "tickets/retro").exists()
+    released(root)
+
+
+@pytest.mark.parametrize("failure", ["lock", "config", "journal", "driver", "prepare"])
+def test_retro_refusals(root, capsys, failure):
+    j = journal(root)
+    j.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="one")
+    holder = Lockfile(root / ".chupa/state", instance_id="other", clock=Clock())
+    if failure == "lock":
+        holder.acquire()
+    elif failure == "config":
+        (root / "config.yaml").write_text("schema_version: 1\n")
+    elif failure == "journal":
+        next(j.dir.glob("*.jsonl")).write_bytes(b"bad\n")
+    def factory(c):
+        class Dispatch:
+            async def prepare(self):
+                if failure == "prepare":
+                    raise Refusal("preflight failed", "repair provider and retry")
+            async def __call__(self, ticket):
+                pytest.fail("dispatched")
+        return Dispatch()
+    try:
+        assert cli(root, "retro", stages=factory) == 2
+        err = capsys.readouterr().err
+        assert "Traceback" not in err
+        assert {"lock": "wait", "config": "repair", "journal": "never hand-edited",
+                "driver": "construct the pipeline", "prepare": "repair provider"}[failure] in err
+    finally:
+        if holder.held:
+            holder.release()
+    released(root)
+
+
+def test_doctor_cli(root, capsys):
+    assert cli(root, "doctor", stages=lambda c: pytest.fail("pipeline constructed")) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == "doctor: ok"
+    assert [line.split(":", 1)[0] for line in lines[1:]] == [f"PASS {n}" for n in ("venv", "git", "config", "lock", "journal")]
