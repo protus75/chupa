@@ -30,6 +30,28 @@ async def send(effects: Effects, notifications: Notifications, argv: Sequence[st
         key=notification_key(owner, escalation, identity, run_sequence=run_sequence))
 
 
+class WatchdogNotifications:
+    """Dormant producer binding; transport alone owns the Effects and notification keys."""
+
+    def __init__(self, *, effects: Effects, notifications: Notifications, argv: Sequence[str] | None,
+                 owner: str, ticket: str | None, run_sequence: int, identity: str, log) -> None:
+        self.effects, self.notifications, self.argv = effects, notifications, argv
+        self.owner, self.ticket, self.run_sequence, self.identity = owner, ticket, run_sequence, identity
+        self.log = log
+
+    async def __call__(self, escalation: str) -> None:
+        message = f'{self.owner}: {escalation}; inspect the run, then kill it, inject guidance, or let it cook'
+        if self.argv is None:
+            self.log.event('watchdog_notify_unset', owner=self.owner, escalation=escalation,
+                           warning='push is off; set notify argv in config.yaml to deliver warnings')
+            return
+        try:
+            await send(self.effects, self.notifications, self.argv, owner=self.owner, escalation=escalation,
+                       identity=self.identity, message=message, ticket=self.ticket, run_sequence=self.run_sequence)
+        except NotificationFailed as exc:
+            self.log.event('notify_failed', owner=self.owner, escalation=escalation, error=str(exc))
+
+
 def escalation(event: Event) -> tuple[str, str, str] | None:
     if event.type != EventType.SIGNAL:
         return None

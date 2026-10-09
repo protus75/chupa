@@ -1,16 +1,24 @@
 import asyncio
 import json
+import os
 
 import pytest
 from pydantic import BaseModel
 
 from chupa import runner
 from chupa.driver import LlmStage
-from chupa.providers import CliAdapter, ProviderLLM
-from chupa.watchdog import EventConsumer
+from chupa.effects import Effects
+from chupa.enginelog import EngineLog
+from chupa.journal import EventType, Journal
+from chupa.notify import WatchdogNotifications
+from chupa.providers import CliAdapter, ProviderCallError, ProviderLLM, ProviderSetupError, Served, resolve
+from chupa.redact import Redactor
+from chupa.thresh import Admission, PROVIDER_CAP_WAIT
+from chupa.watchdog import Detector, EventConsumer, ScopeObservation
 from tests.test_daemon_composition import CoreRig
 from tests.test_providers import (PythonProviderExec, claude_ok, codex_ok, config, jsonl,
                                  provider_request, python_client)
+from tests.test_scheduler import Time, turn
 
 
 def tool_events(name):
@@ -116,10 +124,7 @@ def test_event_consumer_preserves_tool_identity_and_optional_usage(tmp_path, nam
     assert not list(tmp_path.rglob("journal"))
 
 
-@pytest.mark.asyncio
-async def test_event_stream_is_dormant(tmp_path, monkeypatch):
-    rig = CoreRig(tmp_path)
-    rig.exec.reply = '{"text": "done"}'
+async def production_dormancy(tmp_path, monkeypatch, component):
     calls = []
     invoke = CliAdapter.invoke
 
@@ -129,10 +134,12 @@ async def test_event_stream_is_dormant(tmp_path, monkeypatch):
         return await invoke(self, req, model, **kwargs)
 
     def forbidden(*args, **kwargs):
-        raise AssertionError("production constructed an event consumer")
+        raise AssertionError("production constructed a watchdog component")
 
     monkeypatch.setattr(CliAdapter, "invoke", observe)
-    monkeypatch.setattr(EventConsumer, "__init__", forbidden)
+    monkeypatch.setattr(component, "__init__", forbidden)
+    rig = CoreRig(tmp_path)
+    rig.exec.reply = '{"text": "done"}'
 
     class Reply(BaseModel):
         text: str
@@ -156,9 +163,432 @@ async def test_event_stream_is_dormant(tmp_path, monkeypatch):
     call = ProviderLLM.call
 
     async def activated(self, req):
-        return await call(self, req, consumer=EventConsumer(lambda event: None))
+        component(lambda event: None) if component is EventConsumer else component()
+        return await call(self, req)
 
     monkeypatch.setattr(ProviderLLM, "call", activated)
     await rig.add("activated")
     with pytest.raises(AssertionError):
         await rig.drain()  # The same production graph must fail once consumer construction is wired.
+
+
+@pytest.mark.asyncio
+async def test_event_stream_is_dormant(tmp_path, monkeypatch):
+    await production_dormancy(tmp_path, monkeypatch, EventConsumer)
+
+
+@pytest.mark.asyncio
+async def test_detector_is_dormant(tmp_path, monkeypatch):
+    await production_dormancy(tmp_path, monkeypatch, Detector)
+
+
+class DetectorRig:
+    def __init__(self, root, *, expected=1, stuck=3, argv=('notify',), sequence=0, clock=None):
+        root.mkdir(exist_ok=True)
+        self.root, self.time = root, clock or Time()
+        self.cfg = config(root)
+        self.journal = Journal(root / 'state', self.time)
+        self.log = EngineLog(root / 'engine.log', Redactor({}), self.time)
+        self.sent = []
+        rig = self
+
+        class Delivery:
+            async def notify(self, argv):
+                rig.sent.append(argv)
+                return {'rc': 0}
+
+        self.transport = WatchdogNotifications(effects=Effects(self.journal), notifications=Delivery(),
+            argv=argv, owner='work', ticket='work', run_sequence=sequence, identity='implement', log=self.log)
+        self.files, self.waited = {}, 0.0
+        self.observation = ScopeObservation(('out/', 'CHUPA_PLAN.md#19.P4.owned'), lambda: self.files.copy())
+        self.detector = Detector(expected_minutes=expected, stuck_minutes=stuck,
+            clock=self.time, sleep=self.time.sleep, observe=self.observation,
+            cap_wait=lambda: self.waited, log=self.log, notify=self.transport)
+
+    def served(self, name='claude', model='model', estimate=None):
+        provider = next(p for p in self.cfg.providers if p.name == name).model_copy(deep=True)
+        provider.limits.est_cost_per_call_usd = estimate
+        return Served(provider, model)
+
+    def call(self, **kwargs):
+        return self.detector.start_call(self.served(**kwargs))
+
+    def snapshot_disk(self):
+        self.files = {str(p.relative_to(self.root)): p.read_bytes()
+                      for p in self.root.rglob('*') if p.is_file()}
+
+
+def terminal(cost, usage=None):
+    event = {'type': 'result', 'subtype': 'success', 'is_error': False,
+             'result': 'done', 'total_cost_usd': cost}
+    if usage is not None:
+        event['usage'] = usage
+    return event
+
+
+@pytest.mark.parametrize('seconds,region', [(0, 'healthy'), (90, 'soft'), (180, 'stuck')])
+def test_spend_resets_only_on_observed_scope_mutation(tmp_path, seconds, region):
+    rig = DetectorRig(tmp_path)
+    d = rig.detector
+    rig.time.advance(seconds)
+    meter = rig.call(estimate=1)
+    meter.consume(terminal(2))
+    assert d.region == region and d.spend == 2
+    for event in tool_events('claude') + tool_events('codex'):
+        meter.consume(event)
+        assert d.spend == 2
+    outside = tmp_path / 'outside.py'
+    outside.write_text('requested work happened outside the fence')
+    rig.snapshot_disk()
+    d.decide()
+    assert d.spend == 2
+    path = tmp_path / 'out/file.py'
+    path.parent.mkdir()
+    for mutation in ('create', 'same', 'change', 'delete'):
+        if mutation == 'delete':
+            path.unlink()
+        else:
+            path.write_text('new' if mutation == 'change' else 'old')
+        rig.snapshot_disk()
+        d.decide()
+        assert d.spend == (1 if mutation == 'same' else 0)
+        rig.call(estimate=1)
+    assert d.bases == {}  # Progress never completes a call or learns its basis.
+
+    plan = tmp_path / 'CHUPA_PLAN.md'
+    plan.write_text('## 19. Registry\n### 19.P4.owned Owned\ncontent\n### 19.P4.other Other\nunrelated\n')
+    rig.snapshot_disk()
+    d.decide()
+    rig.call(estimate=1)
+    plan.write_text(plan.read_text().replace('unrelated', 'different unrelated bytes'))
+    rig.snapshot_disk()
+    d.decide()
+    assert d.spend == 1
+    plan.write_text(plan.read_text().replace('content', 'changed content'))
+    rig.snapshot_disk()
+    d.decide()
+    assert d.spend == 0 and d.region == region
+    rig.call(estimate=1)
+    plan.write_text('## 19. Registry\n### 19.P4.other Other\nunrelated\n')
+    rig.snapshot_disk()
+    d.decide()
+    assert d.spend == 0  # Removing the admitted unit is progress too.
+
+
+def test_spend_metering_and_threshold(tmp_path):
+    rig = DetectorRig(tmp_path)
+    d = rig.detector
+    for cost, spend, verdict in [(1, 1, False), (2, 3, False), (.5, 3.5, True)]:
+        meter = rig.call()
+        assert meter.basis == (None if cost == 1 else 1)
+        for event in tool_events('claude'):
+            meter.consume(event)
+        event = terminal(cost, {'input_tokens': 10, 'output_tokens': 7})
+        meter.consume(event)
+        meter.consume(event)
+        assert d.spend == spend and d.spiral is verdict
+        meter.complete()
+        assert d.bases == {('claude', 'model'): 1}
+    assert d.tokens == 51 and meter.tools == {'tool-1'}
+    # The first total survives retries and progress; the active basis never uses its own cost.
+    rig.files['out/new'] = b'progress'
+    d.decide()
+    assert d.spend == 0 and d.bases[('claude', 'model')] == 1
+    meter = rig.call(estimate=8)
+    assert meter.basis == 1 and not d.spiral
+    meter.consume(terminal(2))
+    assert d.spend == 2 and meter.basis == 1 and not d.spiral
+    meter.complete()
+    assert d.bases[('claude', 'model')] == 1
+    other = rig.call(model='other')
+    assert other.basis is None and d.spend == 2
+    other.consume(terminal(4))
+    other.complete()
+    assert rig.call(model='other').basis == 4
+    assert rig.call().basis == 1 and d.spend == 6
+    provider = rig.call(name='codex', estimate=5)
+    assert provider.basis == 5 and d.spend == 11
+    for event in tool_events('codex'):
+        provider.consume(event)
+    for _ in range(2):
+        provider.consume({'type': 'turn.completed', 'usage': {'input_tokens': 100, 'output_tokens': 3}})
+    assert d.spend == 11 and provider.tools == {'tool-1'}
+    assert d.tokens == 154 and ('codex', 'model') not in d.bases
+    fresh = DetectorRig(tmp_path / 'fresh')
+    assert fresh.detector.spend == 0 and fresh.detector.tokens is None and fresh.detector.bases == {}
+    assert fresh.call().basis is None
+    fresh.detector.call.consume(terminal(0))
+    fresh.detector.call.complete()
+    zero = fresh.call()
+    assert zero.basis == 0
+    zero.consume(terminal(.5))
+    assert fresh.detector.spiral and fresh.detector.spend == .5
+    assert fresh.detector.tokens is None
+    zero.consume({'type': 'result', 'usage': {}})
+    assert fresh.detector.tokens is None
+    with pytest.raises(ProviderSetupError, match='estimate|est_cost'):
+        fresh.call(name='codex')
+    cfg = rig.cfg.model_copy(deep=True)
+    next(p for p in cfg.providers if p.name == 'codex').limits.est_cost_per_call_usd = None
+    with pytest.raises(ProviderSetupError, match='est_cost_per_call_usd is required'):
+        python_client(cfg, PythonProviderExec(''), tmp_path)
+
+    snapshots = DetectorRig(tmp_path / 'snapshots')
+    meter = snapshots.call(estimate=1)
+    for usage in ({'input_tokens': 10}, {'input_tokens': 10, 'output_tokens': 5}):
+        event = {'type': 'assistant', 'message': {'id': 'message', 'usage': usage, 'content': []}}
+        meter.consume(event)
+        meter.consume(event)
+    meter.consume(terminal(.5, {'input_tokens': 10, 'output_tokens': 5}))
+    assert snapshots.detector.tokens == 15 and snapshots.detector.spend == .5
+    # A cumulative increase charges only the new cost, even after scope progress.
+    snapshots.files['out/file'] = b'new bytes'
+    meter.consume(terminal(.75))
+    meter.consume(terminal(.75))
+    assert snapshots.detector.spend == .25 and meter.metered == .75
+    meter.complete()
+    assert snapshots.detector.bases == {('claude', 'model'): .75}
+
+
+@pytest.mark.asyncio
+async def test_missing_cost_preserves_adapter_refusal(tmp_path):
+    cfg = config(tmp_path)
+    served = resolve(cfg, 'high', 'implement')
+    served.provider.limits.est_cost_per_call_usd = None
+    stream = terminal(None)
+    client = python_client(cfg, PythonProviderExec(f'import os; os.write(1, {jsonl(stream).encode()!r})'), tmp_path)
+    rig = DetectorRig(tmp_path / 'detector')
+    with pytest.raises(ProviderCallError, match='reported no cost'):
+        await rig.detector.watch(lambda consumer: client.call(provider_request('claude', tmp_path), consumer=consumer),
+                                 served=served, abort=client.abort_current)
+    assert rig.detector.bases == {} and rig.detector.spend == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('name', ['claude', 'codex'])
+async def test_watched_result_and_capture_are_preserved(tmp_path, name):
+    rig = DetectorRig(tmp_path)
+    served = resolve(rig.cfg, 'high' if name == 'claude' else 'medium', 'implement')
+    stream = jsonl(*tool_events(name)) + (claude_ok() if name == 'claude' else codex_ok())
+    client = python_client(rig.cfg, PythonProviderExec(f'import os; os.write(1, {stream.encode()!r})'), tmp_path)
+    request = provider_request(name, tmp_path)
+    result = await rig.detector.watch(lambda consumer: client.call(request, consumer=consumer),
+                                      served=served, abort=client.abort_current)
+    ordinary = await client.call(request)
+    assert result == ordinary
+    assert rig.detector.total_usd == result.usd and rig.detector.spend == result.usd
+    assert rig.detector.bases == ({(name, served.model): result.usd} if name == 'claude' else {})
+    calls = sorted((rig.cfg.state_dir / 'spools/providers' / request.ticket).iterdir())
+    assert len(calls) == 2
+    for capture in calls:
+        assert {p.name for p in capture.iterdir()} == {'prompt.md', 'events.jsonl', 'stderr.txt'}
+        assert (capture / 'events.jsonl').read_text() == stream
+    assert rig.journal.read() == []
+
+
+@pytest.mark.asyncio
+async def test_watchdog_regions_and_notify_once(tmp_path):
+    rig = DetectorRig(tmp_path)
+    d = rig.detector
+    rig.call(estimate=1).consume(terminal(4))
+    assert d.spiral and d.region == 'healthy' and not d.pending and rig.sent == []
+    # Consume the existing admission value, not a new detector journal record.
+    admission = Admission(rig.served(name='codex', estimate=1), 50.0)
+    rig.time.advance(139)
+    rig.waited = admission.waited_seconds
+    assert d.active_seconds == 89 and d.decide() == 'healthy'
+    rig.time.advance(1)
+    assert d.decide() == 'soft'
+    await d.flush_notifications()
+    assert d.warned and len(rig.sent) == 1
+    for _ in range(2):
+        rig.files['out/file'] = str(_).encode()
+        d.decide()
+        rig.call(estimate=1).consume(terminal(4))
+        await d.flush_notifications()
+    assert len(rig.sent) == 1 and d.warned
+    # The provider_cap_wait record can feed the same injected cumulative exclusion seam.
+    rig.journal.append(EventType.SIGNAL, {'signal': PROVIDER_CAP_WAIT, 'provider': 'codex',
+        'call_key': 'call', 'started_at': rig.time().isoformat(), 'waited_seconds': 50.0,
+        'disposition': 'admitted'}, ticket='work')
+    d.cap_wait = lambda: sum(e.body['waited_seconds'] for e in rig.journal.read()
+                            if e.body.get('signal') == PROVIDER_CAP_WAIT)
+    rig.time.advance(89)
+    assert d.decide() == 'soft' and d.active_seconds == 179
+    rig.time.advance(1)
+    assert d.decide() == 'stuck'
+    await d.flush_notifications()
+    completed = [e.key for e in rig.journal.read() if e.type == EventType.EFFECT_COMPLETION]
+    assert completed == ['notify/work/spiral-warning/0', 'notify/work/stuck-past-threshold/implement']
+    next_run = DetectorRig(tmp_path, sequence=1, clock=rig.time)
+    next_run.call(estimate=1).consume(terminal(4))
+    next_run.time.advance(90)
+    next_run.detector.decide()
+    await next_run.detector.flush_notifications()
+    assert len(next_run.sent) == 1
+    next_run.time.advance(90)
+    next_run.detector.decide()
+    await next_run.detector.flush_notifications()
+    assert len(next_run.sent) == 1  # Stuck keys omit run sequence and Effects suppress replay.
+    assert 'notify/work/spiral-warning/1' in [e.key for e in next_run.journal.read()]
+    unset = DetectorRig(tmp_path / 'unset', argv=None)
+    unset.call(estimate=1).consume(terminal(4))
+    unset.time.advance(90)
+    unset.detector.decide()
+    await unset.detector.flush_notifications()
+    assert unset.sent == [] and unset.journal.read() == []
+    assert 'spiral_warning' in unset.log.path.read_text() and 'push is off' in unset.log.path.read_text()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('name,estimate', [('claude', None), ('claude', 1), ('codex', 1)])
+async def test_watchdog_hard_timeout_group_cleanup(tmp_path, name, estimate):
+    # Expected==stuck is rejected by ticket grammar, not floored again at runtime.
+    rig = DetectorRig(tmp_path, expected=1, stuck=1)
+    d = rig.detector
+    started, cleaning, finish = (asyncio.Event() for _ in range(3))
+    trace = []
+
+    async def hung(consumer):
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            trace.append('cancelled')
+            cleaning.set()
+            await finish.wait()
+            trace.append('reaped')
+
+    def abort():
+        trace.append('group-kill')
+
+    task = asyncio.create_task(d.watch(hung, served=rig.served(name=name, estimate=estimate), abort=abort))
+    await started.wait()
+    assert d.spend == (estimate or 0) and d.call.basis == estimate and not d.spiral
+    rig.waited = 20
+    rig.time.advance(79)
+    await turn()
+    assert not task.done() and trace == [] and d.active_seconds == 59
+    rig.time.advance(1)
+    await cleaning.wait()
+    assert trace == ['group-kill', 'cancelled'] and not task.done()
+    # Even cancellation of the caller cannot abandon owned asynchronous cleanup.
+    task.cancel()
+    await turn()
+    assert not task.done()
+    finish.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert trace == ['group-kill', 'cancelled', 'reaped']
+    assert d.bases == {} and d.stuck_warned
+
+    # Repeat without caller cancellation to prove the existing timeout outcome.
+    fresh = DetectorRig(tmp_path / 'timeout', expected=1, stuck=1)
+    async def silent(_):
+        await asyncio.Event().wait()
+    timeout = asyncio.create_task(fresh.detector.watch(silent,
+        served=fresh.served(name=name, estimate=estimate), abort=abort))
+    await turn()
+    fresh.time.advance(60)
+    result = await timeout
+    assert result.outcome == 'timeout' and result.cost.seconds == 60
+    assert result.cost.usd == (estimate or 0) and fresh.detector.bases == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('name', ['claude', 'codex'])
+async def test_watchdog_real_group_cleanup(tmp_path, name):
+    rig = DetectorRig(tmp_path)
+    before = set(asyncio.all_tasks())
+    connected = asyncio.get_running_loop().create_future()
+
+    def connection(reader, writer):
+        connected.set_result((reader, writer))
+
+    server = await asyncio.start_server(connection, '127.0.0.1', 0)
+    port = server.sockets[0].getsockname()[1]
+    marker = tmp_path / 'grandchild-wrote'
+    grandchild = (f'import socket; gate=socket.create_connection(("127.0.0.1", {port})); '
+                  f'gate.recv(1); open({str(marker)!r}, "w").close()')
+    script = ('import subprocess, sys, signal\n'
+              f'subprocess.Popen([sys.executable, "-c", {grandchild!r}])\n'
+              f'print({json.dumps(tool_events(name)[0])!r}, flush=True)\n'
+              'signal.pause()\n')
+    trace = []
+
+    class Process(PythonProviderExec):
+        def kill_group(self, pgid):
+            trace.append('group-kill')
+            super().kill_group(pgid)
+
+        async def run(self, argv, **kwargs):
+            try:
+                return await super().run(argv, **kwargs)
+            finally:
+                trace.append('reaped')
+
+    process = Process(script)
+    client = python_client(rig.cfg, process, tmp_path)
+    served = resolve(rig.cfg, 'high' if name == 'claude' else 'medium', 'implement')
+    task = asyncio.create_task(rig.detector.watch(
+        lambda consumer: client.call(provider_request(name, tmp_path), consumer=consumer),
+        served=served, abort=client.abort_current))
+    writer = None
+    try:
+        reader, writer = await asyncio.wait_for(connected, 5)
+        assert client._active._pgid == process.pgids[-1]
+        rig.time.advance(180)
+        result = await asyncio.wait_for(task, 5)
+        assert result.outcome == 'timeout'
+        assert trace[0] == 'group-kill' and trace[-1] == 'reaped'
+        assert await asyncio.wait_for(reader.read(), 5) == b''  # Grandchild was killed too.
+        assert not marker.exists()
+        with pytest.raises(ProcessLookupError):
+            os.kill(process.pgids[-1], 0)
+        assert client._active is None and client._adapters[name]._pgid is None
+    finally:
+        if not task.done():
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        if writer is not None:
+            writer.close()
+            await writer.wait_closed()
+        server.close()
+        await server.wait_closed()
+    assert set(asyncio.all_tasks()) == before
+
+
+# Pinned adapter objects: verdicts are explicit and require no external judge or fixture files.
+SPIRAL_CORPUS = [
+    ('claude', 1, [
+        {'type': 'assistant', 'message': {'id': 'm', 'content': [
+            {'type': 'tool_use', 'id': 'poll', 'name': 'Bash', 'input': {'command': 'poll'}}]}},
+        {'type': 'assistant', 'message': {'id': 'm', 'content': [
+            {'type': 'tool_use', 'id': 'poll', 'name': 'Bash', 'input': {'command': 'poll'}}]}},
+        {'type': 'result', 'subtype': 'success', 'is_error': False, 'result': 'done', 'total_cost_usd': 3.5},
+        {'type': 'result', 'subtype': 'success', 'is_error': False, 'result': 'done', 'total_cost_usd': 3.5},
+    ], True, 3.5),
+    ('claude', 1, [
+        {'type': 'result', 'subtype': 'success', 'is_error': False, 'result': 'done', 'total_cost_usd': 3},
+        {'type': 'result', 'subtype': 'success', 'is_error': False, 'result': 'done', 'total_cost_usd': 3},
+    ], False, 3),
+    ('claude', None, [
+        {'type': 'result', 'subtype': 'success', 'is_error': False, 'result': 'done', 'total_cost_usd': 50},
+    ], False, 50),
+    ('codex', 1, [
+        {'type': 'item.started', 'item': {'id': 't', 'type': 'command_execution', 'command': 'poll'}},
+        {'type': 'item.updated', 'item': {'id': 't', 'type': 'command_execution', 'command': 'poll'}},
+        {'type': 'item.completed', 'item': {'id': 't', 'type': 'command_execution', 'command': 'poll'}},
+        {'type': 'turn.completed', 'usage': {'input_tokens': 100000, 'output_tokens': 10000}},
+        {'type': 'turn.completed', 'usage': {'input_tokens': 100000, 'output_tokens': 10000}},
+    ], False, 1),
+]
+
+
+@pytest.mark.parametrize('name,estimate,events,verdict,spend', SPIRAL_CORPUS)
+def test_spiral_corpus(tmp_path, name, estimate, events, verdict, spend):
+    rig = DetectorRig(tmp_path)
+    meter = rig.call(name=name, estimate=estimate)
+    for event in events:
+        meter.consume(event)
+    assert rig.detector.spiral is verdict and rig.detector.spend == spend
