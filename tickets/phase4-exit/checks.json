@@ -1,9 +1,9 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "ca737efd67f62a9bb916aa985163ddcccdf73733",
+  "produced_at_sha": "8f3e594eeaa091ba40d608c93b99a1e51a6a1878",
   "stem": "phase4-exit",
-  "passed": false,
+  "passed": true,
   "changed_files": [
     "tests/test_phase4_exit.py",
     "tests/test_seeded_phase5_core.py"
@@ -37,18 +37,8 @@
     },
     {
       "code": "requisition_review",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "requisition_review",
-          "path": null,
-          "line": null,
-          "message": "invalid requisition review reply: 1 schema error(s)",
-          "paved_road": "reply with a schema-valid requisition verdict",
-          "kind": "authoring_error",
-          "unit": null
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false
     }
   ],
@@ -56,26 +46,16 @@
     {
       "stem": "phase5-continue",
       "ticket_sha": "d367ce01c66639e0bb6fbc04b3b6d8af11e76787",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "requisition_review",
-          "path": null,
-          "line": null,
-          "message": "invalid requisition review reply: 1 schema error(s)",
-          "paved_road": "reply with a schema-valid requisition verdict",
-          "kind": "authoring_error",
-          "unit": null
-        }
-      ],
-      "mechanical": "invalid reply"
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
     },
     {
       "stem": "retro-drain-invoker",
       "ticket_sha": "ed640bb2f52887a703b1d3cf7bd78d9bbb63f6de",
       "verdict": "approve",
       "findings": [],
-      "mechanical": null
+      "mechanical": "approved earlier"
     }
   ],
   "verification": [
@@ -100,7 +80,7 @@
         "tests/test_seeded_phase5_core.py"
       ],
       "rc": 0,
-      "tail": "..........                                                               [100%]\n10 passed in 0.47s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "..........                                                               [100%]\n10 passed in 0.50s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -113,7 +93,7 @@
         "tests/test_watchdog_activation.py::test_production_hard_timeout_group_kill_is_harvested"
       ],
       "rc": 0,
-      "tail": "..                                                                       [100%]\n2 passed in 0.74s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "..                                                                       [100%]\n2 passed in 0.49s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -127,7 +107,7 @@
         "tests/test_merge.py"
       ],
       "rc": 0,
-      "tail": "........................................................................ [ 55%]\n..........................................................               [100%]\n130 passed in 20.18s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................................ [ 55%]\n..........................................................               [100%]\n130 passed in 18.24s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -138,7 +118,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "........................................................ [ 63%]\n........................................................................ [ 66%]\n........................................................................ [ 68%]\n........................................................................ [ 71%]\n........................................................................ [ 73%]\n........................................................................ [ 76%]\n........................................................................ [ 79%]\n........................................................................ [ 81%]\n........................................................................ [ 84%]\n........................................................................ [ 87%]\n........................................................................ [ 89%]\n........................................................................ [ 92%]\n........................................................................ [ 95%]\n........................................................................ [ 97%]\n.............................................................            [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase4-exit/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n2725 passed, 1 warning in 238.04s (0:03:58)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................ [ 63%]\n........................................................................ [ 66%]\n........................................................................ [ 68%]\n........................................................................ [ 71%]\n........................................................................ [ 73%]\n........................................................................ [ 76%]\n........................................................................ [ 79%]\n........................................................................ [ 81%]\n........................................................................ [ 84%]\n........................................................................ [ 87%]\n........................................................................ [ 89%]\n........................................................................ [ 92%]\n........................................................................ [ 95%]\n........................................................................ [ 97%]\n.............................................................            [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase4-exit/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n2725 passed, 1 warning in 241.28s (0:04:01)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
