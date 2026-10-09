@@ -10,6 +10,7 @@ runner's (section 11.2).
 """
 
 import asyncio
+import re
 from collections.abc import Callable
 from contextlib import nullcontext
 from pathlib import Path
@@ -69,6 +70,7 @@ class Candidate(BaseModel):
     review_text: str | None  # main's `review.md`, None when absent
     seeds: list["SeedOnMain"] = []
     seed_checks_text: str | None = None
+    provenance_findings: list[Finding] = []
 
 
 class SeedOnMain(BaseModel):
@@ -100,7 +102,8 @@ class TicketSchemaGate:
         except TicketInvalid as e:
             return GateReport(code=self.code, verdict="fail",
                               findings=[f.model_copy(update={"code": self.code}) for f in e.findings])
-        return GateReport(code=self.code, verdict="pass")
+        return GateReport(code=self.code, verdict="fail" if artifact.provenance_findings else "pass",
+                          findings=artifact.provenance_findings)
 
 
 class PostRebaseGate:
@@ -208,6 +211,8 @@ class AdmissionBoundary:
         if self.mode == "inline":
             return await merge(ctx, ticket, attempt=attempt)
         started = ctx.driver.clock()
+        if findings := retro_bridge_findings(ctx, ticket):
+            return _refused(findings, Cost(seconds=(ctx.driver.clock() - started).total_seconds()))
         reviewed = await ctx.git.rev_parse(ctx.repo, ticket.stem)
         paths = await ctx.git.diff_names(ctx.repo, MAIN, ticket.stem)
         seeds, checks = await gather_seeds(ctx, ticket)
@@ -283,7 +288,38 @@ def read_candidate(ctx: StageContext, ticket: Ticket, reviewed: str, changed_fil
         ticket_text=(ctx.repo / ticket_path(stem)).read_text(),
         review_text=review_md.read_text() if review_md.is_file() else None,
         seeds=seeds, seed_checks_text=checks_text,
+        provenance_findings=retro_bridge_findings(ctx, ticket),
     )
+
+
+def retro_bridge(ctx: StageContext, ticket: Ticket) -> dict | None:
+    if ticket.frontmatter.source != "box:retro_finding":
+        return None
+    key = f"retro-ticket/{ticket.stem}"
+    bridges = [e for e in ctx.driver.journal.read() if e.key == key or
+               (e.body.get("kind") == "retro_ticket_authored" and e.body.get("ticket_stem") == ticket.stem)]
+    fields = {"kind", "box_id", "retro_report_key", "ticket_stem"}
+    if len(bridges) == 1:
+        event = bridges[0]
+        body = event.body
+        if (event.type == EventType.SIGNAL and event.key == key and event.ticket == ticket.stem
+                and set(body) == fields and body.get("kind") == "retro_ticket_authored"
+                and body.get("ticket_stem") == ticket.stem
+                and isinstance(body.get("box_id"), str) and re.fullmatch(r"box-[0-9]{6,}-[0-9a-f]{8}", body["box_id"])
+                and isinstance(body.get("retro_report_key"), str)
+                and re.fullmatch(r"retro/[0-9]+", body["retro_report_key"])):
+            return body
+    raise ValueError("retro admission requires one unique matching Author bridge; "
+                     "restore the Author-produced retro-ticket/<stem> provenance from the journal before retrying")
+
+
+def retro_bridge_findings(ctx: StageContext, ticket: Ticket) -> list[Finding]:
+    try:
+        retro_bridge(ctx, ticket)
+    except ValueError as exc:
+        return [Finding(code="ticket_schema", path=ticket_path(ticket.stem), message=str(exc),
+                        paved_road="restore the unique Author-produced retro-ticket/<stem> bridge and retry admission")]
+    return []
 
 
 async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResult:
@@ -327,6 +363,9 @@ async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResu
 async def write_squash(ctx: StageContext, ticket: Ticket, reviewed: str, *, attempt: int) -> Admission:
     """The shared admission Effect and sole merged terminal; retirement follows tree validation."""
     stem = ticket.stem
+    bridge = retro_bridge(ctx, ticket)
+    checked_tree = (await ctx.git.rev_parse(ctx.worktree(stem), "HEAD^{tree}")
+                    if bridge is not None and ctx.worktree(stem).exists() else None)
 
     async def squash() -> dict:
         if not await ctx.git.diff_names(ctx.repo, MAIN, stem):
@@ -339,6 +378,21 @@ async def write_squash(ctx: StageContext, ticket: Ticket, reviewed: str, *, atte
         return {"commit": await ctx.git.rev_parse(ctx.repo, MAIN)}
 
     commit = (await ctx.driver.effects.run(squash, key="/".join(("merge", stem, str(attempt))), ticket=stem))["commit"]
+    if (bridge is not None and commit is not None and
+            (checked_tree is None or await ctx.git.rev_parse(ctx.repo, "main^{tree}") == checked_tree)):
+        paths = sorted(p for p in (await ctx.git._run(ctx.repo, "diff-tree", "--no-commit-id", "--name-only",
+                                                     "-r", commit)).splitlines()
+                       if re.fullmatch(r"specs/[^/]+\.md", p))
+        if paths:
+            body = {"kind": "retro_prompt_spec_change_merged", "box_id": bridge["box_id"],
+                    "retro_report_key": bridge["retro_report_key"], "ticket_stem": stem,
+                    "squash_sha": commit, "changed_spec_paths": paths}
+            key = f"retro-prompt-spec-change/{stem}/{commit}"
+            prior = [e for e in ctx.driver.journal.read() if e.key == key]
+            if prior and any(e.type != EventType.SIGNAL or e.body != body or e.ticket != stem for e in prior):
+                raise ValueError("conflicting retro merge evidence; restore the merge-owned admission signal")
+            if not prior:
+                ctx.driver.journal.append(EventType.SIGNAL, body, ticket=stem, key=key)
     body = {"to": "merged", "commit": commit, "reviewed_sha": reviewed}
     if not any(e.type == EventType.STATE_TRANSITION and e.ticket == stem and e.body == body
                for e in ctx.driver.journal.read()):

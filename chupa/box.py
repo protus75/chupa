@@ -5,7 +5,7 @@ import hashlib
 import json
 import os
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Annotated, Literal, get_args
 
@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 
 from chupa.config import load_config
 from chupa.git import Git
-from chupa.journal import Journal
+from chupa.journal import EventType, Journal
 from chupa.seams import Clock, FileSystem, LocalFileSystem, SubprocessExec
 
 BOX_DIR = "box"
@@ -27,6 +27,10 @@ DECISIONS_DIR = "tickets/decisions"
 
 class BoxError(Exception):
     """A box message or registry record is missing or invalid."""
+
+
+class RereportCallbackRequired(BoxError):
+    """The reopen signal must be durable before the queue is reopened."""
 
 
 def normalize(reason: str) -> str:
@@ -71,6 +75,12 @@ class Message(_Strict):
     status: Literal["pending", "resolved"]
     verdict: Verdict | None
     resolution: Resolution | None
+    retro_report_key: NonBlank | None = None
+    fixed_failure: NonBlank | None = None
+    overcorrection_risk: NonBlank | None = None
+    proposed_spec_paths: list[Annotated[str, Field(pattern=r"^specs/[a-z0-9_-]+\.md$")]] = []
+    reports: Annotated[int, Field(ge=0)] = 0
+    reopen: bool = False
 
     @model_validator(mode="after")
     def _coherent(self) -> "Message":
@@ -80,17 +90,78 @@ class Message(_Strict):
             raise ValueError("bug_origin and has_repro are required exactly for bug_report")
         if (self.status == "resolved") != (self.resolution is not None):
             raise ValueError("resolution is required exactly when resolved")
+        evidence = (self.retro_report_key, self.fixed_failure, self.overcorrection_risk)
+        if self.message_class == "retro_finding":
+            if any(value is None for value in evidence) or not self.proposed_spec_paths:
+                raise ValueError("retro_finding requires completed report and proposal evidence")
+            if re.fullmatch(r"retro/[0-9]+", self.retro_report_key) is None:
+                raise ValueError("retro_report_key must name a completed retro/<seq> effect")
+        elif any(value is not None for value in evidence) or self.proposed_spec_paths:
+            raise ValueError("proposal evidence is allowed only for retro_finding")
         return self
+
+
+class RereportJournal:
+    """Write-ahead receipts make each collapsing arrival count once across crashes."""
+
+    def __init__(self, journal: Journal) -> None:
+        self.journal = journal
+
+    def __call__(self, message: Message) -> None:
+        body = {"kind": "tombstone_auto_reopened", "box_id": message.id,
+                "signature": message.signature, "reports": message.reports}
+        key = f"tombstone-reopen/{message.id}/{message.reports}"
+        prior = [e for e in self.journal.read() if e.key == key]
+        if prior:
+            if any(e.type != EventType.SIGNAL or e.body != body or e.ticket is not None for e in prior):
+                raise BoxError("conflicting reopen evidence; restore the journal-backed reopen signal")
+            return
+        self.journal.append(EventType.SIGNAL, body, key=key)
+
+    def record(self, message: Message, occurrence_id: str, apply: Callable[[int], None]) -> None:
+        history = self.journal.read()
+        key = f"box-rereport/{message.id}/{occurrence_id}"
+        events = [e for e in history if e.key == key]
+        if any(e.type == EventType.EFFECT_COMPLETION for e in events):
+            return
+        intent = next((e for e in events if e.type == EventType.EFFECT_INTENT), None)
+        if intent is not None and (set(intent.body) != {"reports"}
+                or type(intent.body["reports"]) is not int or intent.body["reports"] < 1):
+            raise BoxError("invalid re-report receipt; restore its journal-backed occurrence evidence")
+        if message.resolution is None or message.resolution.kind != "tombstone":
+            if intent is not None and message.reopen and message.reports >= intent.body["reports"]:
+                self.journal.append(EventType.EFFECT_COMPLETION,
+                                    {"result": {"reports": intent.body["reports"]}}, key=key)
+            return
+        arrivals = [e for e in history if e.type == EventType.SIGNAL
+                    and e.body.get("kind") == "storm_occurrence"
+                    and e.body.get("signature") == message.signature]
+        original = arrivals[0] if arrivals else None
+        arrival = next((e for e in arrivals if e.body["occurrence_id"] == occurrence_id), None)
+        tombstone = next((e for e in history if e.type == EventType.EFFECT_COMPLETION
+                          and e.key == f"ticket-plane/decisions/{message.resolution.link}"), None)
+        if arrival is not None and (arrival == original or
+                (tombstone is not None and history.index(arrival) < history.index(tombstone))):
+            return
+        if intent is None:
+            reserved = [e.body["reports"] for e in history if e.type == EventType.EFFECT_INTENT
+                        and e.key is not None and e.key.startswith(f"box-rereport/{message.id}/")]
+            reports = max([message.reports, *reserved]) + 1
+            intent = self.journal.append(EventType.EFFECT_INTENT, {"reports": reports}, key=key)
+        apply(intent.body["reports"])
+        self.journal.append(EventType.EFFECT_COMPLETION, {"result": {"reports": intent.body["reports"]}}, key=key)
 
 
 class Box:
     def __init__(self, root: Path, fs: FileSystem, *,
                  arrival: Callable[..., object] | None = None,
-                 recover: Callable[[], None] | None = None) -> None:
+                 recover: Callable[[], None] | None = None,
+                 rereport: RereportJournal | None = None) -> None:
         self.root = root
         self.fs = fs
         self._arrival = arrival
         self._recover = recover
+        self._rereport = rereport
 
     def messages(self) -> list[Message]:
         result = []
@@ -121,6 +192,8 @@ class Box:
         stage: str | None = None, outcome: str | None = None, reason: str | None = None,
         bug_origin: Literal["self_diagnosed", "player"] | None = None, has_repro: bool | None = None,
         occurrence_id: str | None = None,
+        retro_report_key: str | None = None, fixed_failure: str | None = None,
+        overcorrection_risk: str | None = None, proposed_spec_paths: Sequence[str] = (),
     ) -> tuple[str, bool]:
         if self._arrival is not None and (not isinstance(occurrence_id, str) or not occurrence_id.strip()):
             raise BoxError("occurrence_id must be a nonblank producer-supplied string; "
@@ -134,6 +207,8 @@ class Box:
                 id=f"box-000001-{digest[:8]}", seq=1, signature=digest, message_class=message_class, summary=summary,
                 origin=origin, stage=stage, outcome=outcome, bug_origin=bug_origin, has_repro=has_repro,
                 status="pending", verdict=None, resolution=None,
+                retro_report_key=retro_report_key, fixed_failure=fixed_failure,
+                overcorrection_risk=overcorrection_risk, proposed_spec_paths=list(proposed_spec_paths),
             )
         except ValidationError as exc:
             raise BoxError(f"invalid box message: {exc}") from exc
@@ -145,6 +220,7 @@ class Box:
             existing = self.messages()
         for prior in existing:
             if prior.signature == digest:
+                self.record_rereport(prior.id, occurrence_id=occurrence_id)
                 return prior.id, False
         seq = max((prior.seq for prior in existing), default=0) + 1
         id = f"box-{seq:06d}-{digest[:8]}"
@@ -155,6 +231,37 @@ class Box:
     def recover(self) -> None:
         if self._recover is not None:
             self._recover()
+
+    def record_rereport(self, id: str, *, occurrence_id: str | None = None) -> None:
+        message = self.get(id)
+        if self._rereport is None and (message.resolution is None or message.resolution.kind != "tombstone"):
+            return
+
+        def apply(reports: int) -> None:
+            counted = message.model_copy(update={"reports": max(message.reports, reports)})
+            self._write(counted)
+            if counted.reports >= 3:
+                if self._rereport is None:
+                    raise RereportCallbackRequired(
+                        "tombstone reopening requires a journal-backed callback; "
+                        "supply rereport=RereportJournal(journal) to Box")
+                self._rereport(counted)
+                self._write(counted.model_copy(update={"status": "pending", "resolution": None,
+                                                       "verdict": None, "reopen": True}))
+
+        if self._rereport is None:
+            apply(message.reports + 1)
+        else:
+            self._rereport.record(message, occurrence_id or f"report/{message.reports + 1}", apply)
+
+    def confirmed_tombstones(self, policy=None) -> list[Message]:
+        from chupa.config import BOX_POLICY_DEFAULTS
+        from chupa.policy import policy_row
+
+        rows = BOX_POLICY_DEFAULTS if policy is None else policy
+        return [m for m in self.messages() if m.resolution is not None
+                and m.resolution.kind == "tombstone"
+                and rows[policy_row(m.message_class, m.bug_origin, m.has_repro)] == "confirmed"]
 
     def publish_storm_report(self, body: dict, count: int) -> tuple[str, bool]:
         return self.enqueue(

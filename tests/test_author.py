@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from chupa.box import Box, Resolution, Verdict, parse_record, record_path
 from chupa.journal import EventType, Journal
 from chupa.llm import FakeLLM
@@ -149,3 +151,72 @@ def test_prior_author_invocation_records_decision_without_author_call(tmp_path, 
     assert [r for r in llm.requests if r.surface == "author"] == []
     record, _ = parse_record((root / record_path(f"decision-{message_id}")).read_text())
     assert box.get(message_id).resolution == Resolution(kind="decision", link=record.id)
+
+
+def test_reopened_retro_ticket_starts_draft(tmp_path, monkeypatch):
+    from chupa.box import RereportJournal
+    from chupa.config import load_config
+    from chupa.policy import baseline_identity
+    from tests.test_retro_box import PROPOSAL
+    root = make_root(tmp_path)
+    _routes(root)
+    path = root / "config.yaml"
+    path.write_text(path.read_text().replace("engine_plane_safety_inventory: []", "engine_plane_safety_inventory: [config.yaml]"))
+    cfg = load_config(None, cwd=root)
+    journal = Journal(cfg.state_dir, Clock())
+    journal.append(EventType.SIGNAL, {"signal": "review_baseline", "verdict": "GO", "identity": baseline_identity(cfg)})
+    assert cfg.box_policy["retro_finding"] == "confirmed" and cfg.engine_plane_safety_inventory
+    box = Box(cfg.state_dir / "box", LocalFileSystem(), rereport=RereportJournal(journal))
+    id, _ = box.enqueue(message_class="retro_finding", origin="retro", summary=PROPOSAL["fixed_failure"],
+                        retro_report_key="retro/1", **PROPOSAL)
+    box.resolve(id, Resolution(kind="tombstone", link=f"tombstone-{id}"))
+    for n in range(3):
+        box.record_rereport(id, occurrence_id=f"report/{n}")
+    assert _run(root, monkeypatch, FakeLLM([reply("author"), author_reply("human-look"),
+                                          requisition_reply("approve")])) == 0
+    text = (root / "tickets/human-look/ticket.md").read_text()
+    ticket = validate_ticket("human-look", text, root)
+    assert ticket.frontmatter.source == "box:retro_finding" and ticket.frontmatter.state == "draft"
+    assert box.get(id).resolution == Resolution(kind="ticket", link="human-look")
+    bridge, = [e for e in journal.read() if e.body.get("kind") == "retro_ticket_authored"]
+    assert bridge.key == "retro-ticket/human-look" and bridge.body == {
+        "kind": "retro_ticket_authored", "box_id": id, "retro_report_key": "retro/1", "ticket_stem": "human-look"}
+
+
+@pytest.mark.parametrize("point", ["bridge", "resolution"])
+@pytest.mark.parametrize("after", [False, True])
+def test_retro_author_bridge_and_resolution_recover_without_another_call(tmp_path, monkeypatch, point, after):
+    from tests.test_retro_box import PROPOSAL
+    class Crash(BaseException):
+        pass
+    root = make_root(tmp_path)
+    _routes(root)
+    box = _box(root)
+    id, _ = box.enqueue(message_class="retro_finding", origin="retro", summary=PROPOSAL["fixed_failure"],
+                        retro_report_key="retro/1", **PROPOSAL)
+    llm = FakeLLM([reply("author"), author_reply("durable-repair"), requisition_reply("approve")])
+    append, resolve = Journal.append, Box.resolve
+    def crashed_append(self, type_, body, **kwargs):
+        if point == "bridge" and body.get("kind") == "retro_ticket_authored":
+            if after:
+                append(self, type_, body, **kwargs)
+            raise Crash()
+        return append(self, type_, body, **kwargs)
+    def crashed_resolve(self, message_id, resolution):
+        if point == "resolution" and resolution.kind == "ticket":
+            if after:
+                resolve(self, message_id, resolution)
+            raise Crash()
+        return resolve(self, message_id, resolution)
+    with monkeypatch.context() as patch:
+        patch.setattr(Journal, "append", crashed_append)
+        patch.setattr(Box, "resolve", crashed_resolve)
+        with pytest.raises(Crash):
+            _run(root, patch, llm)
+    head = git_out(root, "rev-parse", "HEAD").strip()
+    assert _run(root, monkeypatch, FakeLLM([])) == 0
+    assert git_out(root, "rev-parse", "HEAD").strip() == head
+    assert box.get(id).resolution == Resolution(kind="ticket", link="durable-repair")
+    bridges = [e for e in _events(root) if e.body.get("kind") == "retro_ticket_authored"]
+    assert len(bridges) == 1 and bridges[0].key == "retro-ticket/durable-repair"
+    assert len(llm.requests) == 3

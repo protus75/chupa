@@ -205,7 +205,11 @@ def main(
             return _new(repo, args.stem)
         config = load_config(args.config, cwd=repo)
         if args.verb == "status":
-            print(render(project(Journal(config.state_dir, clock).read())), end="")
+            from chupa.box import BOX_DIR, Box, RereportJournal
+            journal = Journal(config.state_dir, clock)
+            print(render(project(journal.read(),
+                               box=Box(config.state_dir / BOX_DIR, LocalFileSystem(), rereport=RereportJournal(journal)),
+                               policy=config.box_policy)), end="")
             return 0
         exec_ = SubprocessExec()
         checkout = runner.Checkout(

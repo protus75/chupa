@@ -882,6 +882,9 @@ def check_severity(ctx: StageContext, ticket: Ticket) -> dict[str, Severity]:
     severity = dict(ctx.driver.severity)
     for bypass in ticket.frontmatter.gate_bypass:
         severity[bypass.code] = "soft"
+    if ticket.frontmatter.source == "box:retro_finding":
+        # Admission provenance is required even when the ticket demotes schema checks.
+        severity["ticket_schema"] = "hard"
     return severity
 
 

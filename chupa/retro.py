@@ -1,5 +1,6 @@
 """Lock-held retro receipts and the shared ordered journal window (19.P5.retro-drain-invoker)."""
 
+import hashlib
 import json
 import re
 from dataclasses import asdict, dataclass
@@ -9,7 +10,7 @@ from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field
 
 from chupa.artifacts import NonBlank
-from chupa.box import BOX_DIR, read_registry
+from chupa.box import BOX_DIR, Box, RereportJournal, read_registry
 from chupa.driver import LlmStage
 from chupa.git import GitError
 from chupa.journal import Event, EventType
@@ -148,6 +149,8 @@ def render_report(window: Window, evidence: dict, provenance: dict, tombstones: 
               "provenance": provenance, "measurements": evidence,
               "calibration_divergence": evidence["elapsed_seconds"], "tombstone_digest": tombstones,
               "proposals": artifact.model_dump()["proposals"]}
+    record["tombstone_reopens"] = [e.body for e in window.events if e.type == EventType.SIGNAL
+                                  and e.body.get("kind") == "tombstone_auto_reopened"]
     return "# Retro receipt\n\n```json\n" + json.dumps(record, indent=2, sort_keys=True) + "\n```\n"
 
 
@@ -182,7 +185,56 @@ class Retro:
             await self.checkout.git.add(self.checkout.repo, [path])
             await self.checkout.git.commit(self.checkout.repo, f"chupa: retro {window.sequence:06d}", only=[path])
             return {"commit": await self.checkout.git.rev_parse(self.checkout.repo, "HEAD")}
-        return await driver.effects.run(commit, key=f"retro/{window.sequence}", ticket=None)
+        result = await driver.effects.run(commit, key=f"retro/{window.sequence}", ticket=None)
+        await self.emit_proposals(f"retro/{window.sequence}")
+        return result
+
+    async def emit_proposals(self, report_key):
+        """Only the completed effect's committed receipt can supply proposal evidence."""
+        c = self.checkout
+        completed = next((e for e in c.journal.read() if e.type == EventType.EFFECT_COMPLETION
+                          and e.key == report_key and _REPORT.fullmatch(e.key or "")), None)
+        if completed is None:
+            return
+        sequence = int(_REPORT.fullmatch(report_key)[1])
+        text = await c.git._run(c.repo, "show",
+            f"{completed.body['result']['commit']}:tickets/retro/{sequence:06d}.md")
+        # The predecessor's explicit recovery seam also accepts a plain operator receipt.
+        if not text.startswith("# Retro receipt\n\n```json\n"):
+            return
+        artifact = RetroArtifact.model_validate({"proposals": json.loads(
+            text.split("```json\n", 1)[1].split("\n```", 1)[0])["proposals"]})
+        from chupa.daemon import storm_producer
+        from chupa.storm import arrival_id
+
+        box = storm_producer(root=c.config.state_dir / BOX_DIR, fs=c.fs, journal=c.journal, clock=c.clock)
+        for proposal in artifact.proposals:
+            fields = proposal.model_dump()
+            canonical = json.dumps(fields, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+            proposal_id = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+            origin = f"retro-proposal/{report_key}/{proposal_id}"
+            box.enqueue(message_class="retro_finding", origin=origin, summary=proposal.fixed_failure,
+                        retro_report_key=report_key, **fields,
+                        occurrence_id=arrival_id("retro-proposal", report_key, proposal_id))
+
+    def tombstones(self):
+        c = self.checkout
+        box = Box(c.config.state_dir / BOX_DIR, c.fs, rereport=RereportJournal(c.journal))
+        confirmed = {m.id: m for m in box.confirmed_tombstones(c.config.box_policy)}
+        # Reopened records remain committed even after their queue resolution clears.
+        from chupa.policy import policy_row
+        confirmed.update({m.id: m for m in box.messages() if m.reopen
+                          and c.config.box_policy[policy_row(m.message_class, m.bug_origin, m.has_repro)] == "confirmed"})
+        digest = []
+        for record, body in read_registry(c.repo):
+            if record.kind != "tombstone":
+                continue
+            item = {**record.model_dump(), "body": body}
+            if message := confirmed.get(record.id.removeprefix("tombstone-")):
+                item.update(box_id=message.id, message_class=message.message_class,
+                            reports=message.reports, reopen=message.reopen)
+            digest.append(item)
+        return digest
 
     async def committed_report(self, window):
         c = self.checkout
@@ -205,6 +257,9 @@ class Retro:
 
     async def __call__(self, *, forced=False):
         c = self.checkout
+        for event in c.journal.read():
+            if event.type == EventType.EFFECT_COMPLETION and _REPORT.fullmatch(event.key or ""):
+                await self.emit_proposals(event.key)
         window = project_window(c.journal.read())
         # No selection means no failure capture or writer construction.
         evidence = await production_evidence(window, c)
@@ -236,8 +291,7 @@ class Retro:
                 stuck_budget=call_timeout(c.config), expected_budget="surface", scope_fence=())
             if result.outcome != "ok":
                 raise ValueError(result.outcome)
-            tombstones = [{**record.model_dump(), "body": body} for record, body in read_registry(c.repo)
-                          if record.kind == "tombstone"]
+            tombstones = self.tombstones()
             text = render_report(window, evidence, provenance, tombstones, result.artifact)
             return await self.commit_report(driver, window, text)
         except Exception as exc:

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from chupa.config import Config, ConfigSnapshot, snapshot_config
-from chupa.box import Box
+from chupa.box import Box, RereportJournal
 from chupa.checkpoint import Checkpoint
 from chupa.effects import Effects
 from chupa.enginelog import EngineLog
@@ -46,7 +46,8 @@ def storm_producer(*, root: Path, fs: FileSystem, journal: Journal, clock: Clock
     """Compose without effects; recovery and arrivals run under the caller's writer lock."""
     storm = StormBreaker(journal=journal, clock=clock,
                          publish=lambda body, count: box.publish_storm_report(body, count))
-    box = Box(root, fs, arrival=storm.record, recover=storm.recover)
+    box = Box(root, fs, arrival=storm.record, recover=storm.recover,
+              rereport=RereportJournal(journal))
     return box
 
 

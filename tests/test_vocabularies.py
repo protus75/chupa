@@ -107,6 +107,7 @@ def _engine_signal_names():
 def test_every_engine_signal_name_is_listed():
     # Equality also refuses unused names that would enlarge the write vocabulary.
     assert _engine_signal_names() == journal_module.SIGNAL_NAMES
+    assert {"tombstone_auto_reopened", "retro_ticket_authored", "retro_prompt_spec_change_merged"} <= journal_module.SIGNAL_NAMES
 
 
 @pytest.mark.parametrize("body", [

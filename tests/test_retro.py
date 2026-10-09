@@ -267,4 +267,39 @@ def test_receipt_uses_engine_provenance_usage_calibration_and_tombstones(tmp_pat
     assert data["tombstone_digest"] == [{**record.model_dump(), "body": "Evidence digest\n"}]
     assert data["proposals"] == [proposal]
     assert all(request.worktree is None for request in llm.requests)
-    assert Box(c.config.state_dir / "box", c.fs).messages() == []
+    message, = Box(c.config.state_dir / "box", c.fs).messages()
+    assert message.message_class == "retro_finding" and message.retro_report_key == "retro/1"
+    assert {key: getattr(message, key) for key in proposal} == proposal
+    completion, = [e for e in c.journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key == "retro/1"]
+    occurrence, = [e for e in c.journal.read() if e.body.get("kind") == "storm_occurrence"]
+    assert c.journal.read().index(completion) < c.journal.read().index(occurrence)
+
+
+def test_retro_itemizes_confirmed_class_tombstones(tmp_path, monkeypatch):
+    from chupa.box import Resolution, record_path
+    from chupa.daemon import storm_producer
+    c, writer, hook, llm = rig(tmp_path, ['{"proposals": []}'])
+    box = storm_producer(root=c.config.state_dir / "box", fs=c.fs, journal=c.journal, clock=c.clock)
+    id, _ = box.enqueue(message_class="failure_report", origin="test", summary="confirmed-class failure",
+                        occurrence_id="original")
+    record = DecisionRecord(id=f"tombstone-{id}", kind="tombstone", link="known", reopen_after_days=7)
+    c.fs.write(c.repo / record_path(record.id), render_record(record, "Witnessed failure\n").encode())
+    box.resolve(id, Resolution(kind="tombstone", link=record.id))
+    expected = {**record.model_dump(), "body": "Witnessed failure\n", "box_id": id,
+                "message_class": "failure_report", "reports": 0, "reopen": False}
+    before = {p: p.read_bytes() for p in box.root.glob("*.json")}
+    with monkeypatch.context() as patch:
+        patch.setattr(c.fs, "write", lambda *_: pytest.fail("tombstone projection wrote"))
+        patch.setattr(c.journal, "append", lambda *_: pytest.fail("tombstone projection journaled"))
+        assert hook.tombstones() == [expected]
+    assert {p: p.read_bytes() for p in box.root.glob("*.json")} == before
+    for n in range(3):
+        box.record_rereport(id, occurrence_id=f"report/{n}")
+    expected.update(reports=3, reopen=True)
+    assert hook.tombstones() == [expected]
+    merged(c.journal)
+    assert asyncio.run(hook(forced=True))["commit"]
+    data = json.loads((c.repo / "tickets/retro/000001.md").read_text().split("```json\n")[1].split("\n```")[0])
+    assert data["tombstone_digest"] == [expected]
+    assert data["tombstone_reopens"] == [{"kind": "tombstone_auto_reopened", "box_id": id,
+                                         "signature": box.get(id).signature, "reports": 3}]

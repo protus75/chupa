@@ -7,8 +7,8 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from chupa.box import Box, DecisionRecord, Message, Resolution, record_path, render_record
-from chupa.driver import Driver, LlmStage
+from chupa.box import Box, BoxError, DecisionRecord, Message, Resolution, record_path, render_record
+from chupa.driver import Driver, LlmStage, unwrap_fence
 from chupa.gates import GateReport
 from chupa.journal import EventType
 from chupa.policy import baseline_identity, go_binds, policy_row, start_state
@@ -102,6 +102,56 @@ async def failure_decision(checkout: Checkout, driver: Driver, box: Box, message
     return AuthorOutcome(decision=record_id)
 
 
+def record_retro_ticket(journal, message: Message, stem: str) -> None:
+    if message.message_class != "retro_finding":
+        return
+    body = {"kind": "retro_ticket_authored", "box_id": message.id,
+            "retro_report_key": message.retro_report_key, "ticket_stem": stem}
+    key = f"retro-ticket/{stem}"
+    prior = [e for e in journal.read() if e.key == key or
+             (e.body.get("kind") == "retro_ticket_authored" and
+              (e.body.get("ticket_stem") == stem or e.body.get("box_id") == message.id))]
+    if prior:
+        if (len(prior) != 1 or prior[0].type != EventType.SIGNAL or prior[0].key != key
+                or prior[0].ticket != stem or prior[0].body != body):
+            raise BoxError("conflicting retro ticket provenance; restore the Author-produced bridge before resolving the Box")
+        return
+    journal.append(EventType.SIGNAL, body, ticket=stem, key=key)
+
+
+async def recover_retro_ticket(checkout: Checkout, box: Box, message: Message) -> AuthorOutcome | None:
+    """Finish the bridge/resolution crash window without another Author invocation."""
+    if message.message_class != "retro_finding":
+        return None
+    history = checkout.journal.read()
+    stems = set()
+    for event in history:
+        parts = (event.key or "").split("/")
+        if (event.type != EventType.EFFECT_COMPLETION or len(parts) != 6
+                or parts[:2] != ["llm", "author"] or parts[3:5] != ["author", str(message.seq)]):
+            continue
+        try:
+            proposal = AuthorReply.model_validate_json(unwrap_fence(event.body["result"]["text"]))
+        except ValueError:
+            continue
+        commit = next((e for e in history if e.type == EventType.EFFECT_COMPLETION
+                       and e.key == f"ticket-plane/{proposal.stem}/author"), None)
+        if commit is not None:
+            text = await checkout.git._run(checkout.repo, "show",
+                f"{commit.body['result']}:{ticket_path(proposal.stem)}")
+            if validate_ticket(proposal.stem, text, checkout.repo).frontmatter.source != "box:retro_finding":
+                raise BoxError("conflicting committed retro ticket source; restore the Author-produced ticket and bridge")
+            stems.add(proposal.stem)
+    if not stems:
+        return None
+    if len(stems) != 1:
+        raise BoxError("conflicting retro author completions; restore the unique Author-produced ticket provenance")
+    stem = stems.pop()
+    record_retro_ticket(checkout.journal, message, stem)
+    box.resolve(message.id, Resolution(kind="ticket", link=stem))
+    return AuthorOutcome(stem=stem)
+
+
 async def author(checkout: Checkout, driver: Driver, box: Box, message: Message, pass_no: int) -> AuthorOutcome:
     """Author and ticket-plane commit one recorded author verdict."""
     try:
@@ -112,7 +162,10 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
     spec: Spec = load_spec((SPECS_DIR / "author.md").read_text())
     files = "\n".join(await checkout.git.ls_files(checkout.repo))
     request = json.dumps({"class": message.message_class, "rationale": message.verdict.rationale,
-                          "summary": message.summary})
+                          "summary": message.summary, "retro_report_key": message.retro_report_key,
+                          "fixed_failure": message.fixed_failure,
+                          "overcorrection_risk": message.overcorrection_risk,
+                          "proposed_spec_paths": message.proposed_spec_paths, "reopen": message.reopen})
 
     def render_author(_: object, findings: list) -> str:
         inputs = {"request": request, "files": files, "open_tickets": open_tickets,
@@ -135,7 +188,8 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
         parsed = validate_ticket(artifact.stem, provisional, checkout.repo)
         state = start_state(checkout.config, row=row, fence=parsed.scope_fence,
                             gate_bypass=parsed.frontmatter.gate_bypass,
-                            go=go_binds(checkout.journal.read(), baseline_identity(checkout.config, SPECS_DIR)))
+                            go=go_binds(checkout.journal.read(), baseline_identity(checkout.config, SPECS_DIR)),
+                            reopen=message.reopen)
         text = stamp(provisional, "state", state)
         reviewed = await review_ticket(
             driver, repo=checkout.repo, plan=(checkout.repo / "CHUPA_PLAN.md").read_text(),
@@ -184,5 +238,6 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
                                                 "ticket_sha": reviewed.ticket_sha, "provider": reviewed.provider,
                                                 "model": reviewed.model, "spec_version": reviewed.spec_version},
                             ticket=reply.stem)
+    record_retro_ticket(checkout.journal, message, reply.stem)
     box.resolve(message.id, Resolution(kind="ticket", link=reply.stem))
     return AuthorOutcome(stem=reply.stem)

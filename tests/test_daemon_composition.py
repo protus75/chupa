@@ -1974,3 +1974,60 @@ async def test_production_serve_graph_is_reachable(root, monkeypatch):
         assert "chupa.serve" in import_closure(sources())
     finally:
         await finish(rig, run)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("site", ["implement", "fallback-raises", "fallback-absent", "dependency", "base",
+    "flake", "bootstrap", "main-ingest", "operator", "core", "serve", "drain", "driver", "retro"])
+async def test_production_boxes_receive_rereport_callback(admission_context, tmp_path, monkeypatch, site):
+    import inspect
+    from chupa.box import Box, RereportJournal
+    from chupa.triage import triage_pass
+    from chupa.retro import Retro
+    from chupa.drain import drain
+    from chupa.providers import ProviderCallError
+    from tests.test_storm_notification_activation import SITES, exercise_site
+    from tests.test_serve import graph
+    from tests.test_retro_box import PROPOSAL
+    from tests.test_drain_reentry import NoChild
+
+    source = admission_context
+    checkout, writer = production_writer(source, [])
+    captured = []
+    construct = Box.__init__
+    def bound(self, *args, **kwargs):
+        caller = inspect.currentframe().f_back.f_globals["__name__"]
+        if caller.startswith("chupa."):
+            callback = kwargs.get("rereport")
+            assert isinstance(callback, RereportJournal), f"{caller} omitted journal custody"
+            captured.append((caller, callback.journal))
+        construct(self, *args, **kwargs)
+    monkeypatch.setattr(Box, "__init__", bound)
+    if site in SITES:
+        await exercise_site(source, monkeypatch, site)
+    elif site == "operator":
+        await triage_pass(checkout, FakeLLM([]))
+    elif site == "core":
+        (tmp_path / "core").mkdir()
+        rig = CoreRig(tmp_path / "core")
+        assert rig.core.control._recover.__self__._rereport.journal is rig.journal
+    elif site == "serve":
+        rig = await graph(checkout.repo, monkeypatch)
+        assert rig.owner.box._rereport.journal is rig.journal
+    elif site == "drain":
+        checkout = replace(checkout, control=cli.build_control(checkout))
+        assert checkout.control._recover.__self__._rereport.journal is checkout.journal
+        await drain(checkout, writer, reexec=NoChild())
+    elif site == "driver":
+        error = ProviderCallError("fake", "quota", rc=1, stderr_tail="quota", failure_class="quota_exhausted",
+                                  paved_road="wait for quota")
+        await writer.stages.driver.provider_failure(error, owner="source", ticket=None, sequence=1,
+                                                   surface="implement", workspace=checkout.repo)
+    else:
+        hook = Retro(checkout, writer)
+        hook.failure_report("retro-failed/initial/forced")
+        writer.stages.driver.llm = FakeLLM([json.dumps({"proposals": [PROPOSAL]})])
+        checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="history")
+        assert (await hook(forced=True))["commit"]
+    assert captured, f"{site} did not exercise a production constructor"
+    assert all(journal is not None for _, journal in captured)

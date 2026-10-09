@@ -18,6 +18,8 @@ class Status:
     intake: tuple[tuple[str, str, str, str], ...]  # (stem, source, state, commit) per intake commit
     spend_usd: float
     reject: tuple[tuple[str, Mapping], ...] = ()
+    tombstones: tuple[tuple[str, str, int], ...] = ()
+    reopens: tuple[Mapping, ...] = ()
 
 
 def reject_queue(events: Iterable[Event]) -> dict[str, Mapping]:
@@ -46,7 +48,7 @@ def last_states(events: Iterable[Event]) -> dict[str, str]:
             if e.type == EventType.STATE_TRANSITION and e.ticket is not None and "to" in e.body}
 
 
-def project(events: Iterable[Event]) -> Status:
+def project(events: Iterable[Event], *, box=None, policy=None) -> Status:
     events = list(events)
     last = last_states(events)
     intake = tuple(
@@ -62,6 +64,10 @@ def project(events: Iterable[Event]) -> Status:
         intake=intake,
         spend_usd=spend,
         reject=tuple(sorted(reject_queue(events).items())),
+        tombstones=tuple((m.id, m.message_class, m.reports) for m in
+                         box.confirmed_tombstones(policy)) if box is not None else (),
+        reopens=tuple(e.body for e in events if e.type == EventType.SIGNAL
+                      and e.body.get("kind") == "tombstone_auto_reopened"),
     )
 
 
@@ -79,4 +85,8 @@ def render(status: Status) -> str:
         block("Reject queue", (f"{stem}: {body['to']} at {body.get('stage', 'unknown')} -- "
                                f"confirm {stem} after editing, or reject {stem}"
                                for stem, body in status.reject)),
+        block("Confirmed-class tombstones", (f"{id}: {cls}, {reports} re-reports"
+                                              for id, cls, reports in status.tombstones)),
+        block("Tombstone reopens", (f"{body['box_id']}: reopened at {body['reports']} re-reports"
+                                    for body in status.reopens)),
     )) + "\n"

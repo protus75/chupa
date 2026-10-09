@@ -680,3 +680,101 @@ async def test_outbox_only_exception_preserves_code_lane_safety(repo, mode, case
     else:
         refused_untouched(ctx, result, before, code)
         assert all(f.paved_road for f in result.findings)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("mode", "case"), [
+    (mode, case) for mode in ("inline", "queue") for case in
+    ("missing", "conflicting", "malformed", "valid", "no-spec", "unrelated", "failed", "tree-mismatch")
+] + [("boundary", case) for case in ("missing", "conflicting", "malformed")])
+async def test_retro_prompt_spec_merge_requires_unique_bridge(repo, monkeypatch, mode, case):
+    from chupa.effects import Effects
+    from chupa.merge import write_squash
+    from chupa.mergequeue import TreeMismatch
+    from tests.test_stages import implement_reply
+    author(repo)
+    ctx = context(repo, [implement_reply(), verdict()])
+    path = repo / f"tickets/{STEM}/ticket.md"
+    source = "human" if case == "unrelated" else "box:retro_finding"
+    ctx.fs.write(path, path.read_text().replace("source: human", f"source: {source}").replace(
+        "## Scope fence\n- chupa/thing.py", "## Scope fence\n- chupa/thing.py\n- specs/").encode())
+    for rel in ("specs/z.md", "specs/a.md", "specs/readme.txt"):
+        ctx.fs.write(repo / rel, b"before\n")
+    await ctx.git.add(repo, [str(path.relative_to(repo)), "specs/z.md", "specs/a.md", "specs/readme.txt"])
+    await ctx.git.commit(repo, "retro admission fixture")
+    ticket = validate_ticket(STEM, path.read_text(), repo)
+    call = ctx.driver.llm.call
+    async def implement(request):
+        if request.surface == "implement":
+            changes = {"chupa/thing.py": "ok\n"}
+            if case != "no-spec":
+                changes.update({"specs/z.md": "fixed\n", "specs/a.md": "fixed\n", "specs/readme.txt": "fixed\n"})
+            for rel, text in changes.items():
+                ctx.fs.write(request.worktree / rel, text.encode())
+            await ctx.git.add(request.worktree, list(changes))
+            await ctx.git.commit(request.worktree, "repair")
+        return await call(request)
+    monkeypatch.setattr(ctx.driver.llm, "call", implement)
+    run = await run_stages(ctx, ticket)
+    assert run.results["review"].outcome == "ok"
+    body = {"kind": "retro_ticket_authored", "box_id": "box-000001-1234abcd",
+            "retro_report_key": "retro/1", "ticket_stem": STEM}
+    journal = ctx.driver.journal
+    if case not in {"missing", "unrelated"}:
+        journal.append(EventType.SIGNAL, {**body, **({"retro_report_key": "invented"} if case == "malformed" else {})},
+                       ticket=STEM, key=f"retro-ticket/{STEM}")
+    if case == "conflicting":
+        journal.append(EventType.SIGNAL, {**body, "box_id": "box-000002-abcdef12"},
+                       ticket=STEM, key=f"retro-ticket/{STEM}")
+    if case == "failed":
+        (repo / f"tickets/{STEM}/review.md").unlink()
+    if case in {"missing", "conflicting", "malformed"}:
+        ctx.config.review.gate_severity = {"ticket_schema": "soft"}
+    if case == "tree-mismatch":
+        parse = ctx.git.rev_parse
+        async def mismatch(root, ref):
+            return "different" if ref == "main^{tree}" else await parse(root, ref)
+        monkeypatch.setattr(ctx.git, "rev_parse", mismatch)
+    before = await ctx.git.rev_parse(repo, "main")
+    reviewed_sha = await ctx.git.rev_parse(repo, STEM)
+    queue = MergeQueue(ctx, escalate=lambda _: None)
+    if mode == "inline":
+        result = await merge(ctx, ticket, attempt=run.attempt)
+    elif mode == "queue":
+        queue.offer(ticket, attempt=run.attempt)
+        if case == "tree-mismatch":
+            with pytest.raises(TreeMismatch):
+                await queue.process()
+            result = None
+        else:
+            result, = await queue.process()
+    else:
+        boundary = AdmissionBoundary(ctx, mode="daemon", queue=queue)
+        result = await boundary(ticket, attempt=run.attempt)
+        assert not queue.pending
+    signals = [e for e in journal.read() if e.body.get("kind") == "retro_prompt_spec_change_merged"]
+    if case in {"missing", "conflicting", "malformed", "failed"}:
+        assert result.outcome == "gate_failed" and not signals
+        assert await ctx.git.rev_parse(repo, "main") == before
+        assert ctx.worktree(STEM).exists() and await ctx.git.rev_parse(repo, STEM)
+        assert all(f.paved_road for f in result.findings)
+        if case != "failed":
+            assert any("restore" in f.paved_road and "Author" in f.paved_road for f in result.findings)
+    elif case in {"no-spec", "unrelated", "tree-mismatch"}:
+        assert not signals
+    else:
+        assert result.outcome == "ok"
+        signal, = signals
+        sha = result.artifact.commit
+        assert signal.type == EventType.SIGNAL and signal.ticket == STEM
+        assert signal.key == f"retro-prompt-spec-change/{STEM}/{sha}"
+        assert signal.body == {"kind": "retro_prompt_spec_change_merged", "box_id": body["box_id"],
+            "retro_report_key": "retro/1", "ticket_stem": STEM, "squash_sha": sha,
+            "changed_spec_paths": ["specs/a.md", "specs/z.md"]}
+        assert sha == await ctx.git.rev_parse(repo, "main")
+        assert (await ctx.git._run(repo, "diff-tree", "--no-commit-id", "--name-only", "-r", sha)).splitlines() == [
+            "chupa/thing.py", "specs/a.md", "specs/readme.txt", "specs/z.md"]
+        ctx.driver.effects = Effects(journal)
+        before = journal.read()
+        assert (await write_squash(ctx, ticket, reviewed_sha, attempt=run.attempt)).commit == sha
+        assert journal.read() == before

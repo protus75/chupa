@@ -6,8 +6,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from chupa.box import BOX_DIR, Box, DecisionRecord, Resolution, Verdict, read_registry, record_path, render_record
-from chupa.author import author, failure_decision
+from chupa.box import BOX_DIR, Box, DecisionRecord, RereportJournal, Resolution, Verdict, read_registry, record_path, render_record
+from chupa.author import author, failure_decision, recover_retro_ticket
 from chupa.driver import Driver, LlmStage
 from chupa.effects import Effects
 from chupa.git import GitError
@@ -93,7 +93,8 @@ async def triage_pass(checkout: Checkout, llm: LLM) -> list[tuple[str, str]]:
     history = checkout.journal.read()
     pass_no = sum(e.type == EventType.SIGNAL and e.body.get("signal") == "triage_pass" for e in history)
     checkout.journal.append(EventType.SIGNAL, {"signal": "triage_pass", "pass": pass_no})
-    box = Box(checkout.config.state_dir / BOX_DIR, checkout.fs)
+    box = Box(checkout.config.state_dir / BOX_DIR, checkout.fs,
+              rereport=RereportJournal(checkout.journal))
     spec = load_spec((SPECS_DIR / "triage.md").read_text())
     driver = Driver.from_config(checkout.config, llm=llm, env=checkout.env, clock=checkout.clock,
                                 sleep=checkout.sleep, fs=checkout.fs)
@@ -113,7 +114,12 @@ async def _settle_pass(checkout, driver, box, spec, history, pass_no):
     merged = sorted(stem for stem, state in states.items() if state == "merged")
     lines: list[tuple[str, str]] = []
     for message in box.pending():
+        if recovered := await recover_retro_ticket(checkout, box, message):
+            lines.append((message.id, f"{message.id}: ticket -> {recovered.stem}"))
+            continue
         registry = read_registry(checkout.repo)
+        if message.reopen:
+            registry = [(r, body) for r, body in registry if r.id != f"tombstone-{message.id}"]
         existing = next((r for r, _ in registry if r.id in
                          {f"decision-{message.id}", f"tombstone-{message.id}"}), None)
         if existing is not None:
@@ -150,7 +156,10 @@ async def _settle_pass(checkout, driver, box, spec, history, pass_no):
         inputs = {
             "message": json.dumps({"class": message.message_class, "summary": message.summary,
                                    "origin": message.origin, "stage": message.stage,
-                                   "outcome": message.outcome}),
+                                   "outcome": message.outcome, "retro_report_key": message.retro_report_key,
+                                   "fixed_failure": message.fixed_failure,
+                                   "overcorrection_risk": message.overcorrection_risk,
+                                   "proposed_spec_paths": message.proposed_spec_paths, "reopen": message.reopen}),
             "open_tickets": "\n".join(open_tickets),
             "merged": "\n".join(merged),
             "decisions": "\n".join(f"{r.id}: {r.kind}, link={r.link}, {body.splitlines()[0] if body else ''}"
@@ -170,6 +179,10 @@ async def _settle_pass(checkout, driver, box, spec, history, pass_no):
         else:
             reply = result.artifact
             assert isinstance(reply, TriageReply)
+            # Every tombstone verdict would reuse the committed record's id, even
+            # when it names another link. Reopening preserves that record's bytes.
+            if message.reopen and reply.verdict == "tombstone":
+                reply = reply.model_copy(update={"verdict": "author", "link": None, "reopen_after_days": None})
             if reply.verdict == "author":
                 box.record_verdict(message.id, Verdict(verdict="author", produced_by_spec_version=spec.meta.version,
                                                       rationale=reply.rationale))
@@ -192,6 +205,12 @@ async def _settle_pass(checkout, driver, box, spec, history, pass_no):
                             "evidence": [*reply.evidence, f"unresolvable link: {reply.link}"],
                         })
                         kind = "decision"
+                    else:
+                        for prior in box.messages():
+                            if (prior.id != message.id and prior.resolution is not None
+                                    and prior.resolution.kind == "tombstone"
+                                    and prior.resolution.link == reply.link):
+                                box.record_rereport(prior.id, occurrence_id=f"semantic/{message.id}")
                 line = await _record(checkout, driver, box, message.id, kind,
                                      reply.link if kind == "tombstone" else message.id, reply,
                                      message.summary)

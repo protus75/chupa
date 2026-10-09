@@ -132,3 +132,201 @@ def test_bootstrap_ingest_uses_main_checkout(tmp_path):
     ]
     assert not (linked / ".chupa").exists()
     assert ingest_bootstrap(box, "first line\nsecond line\n") == [m.id for m in box.messages()]
+
+
+def test_tombstone_rereports_reopen_at_threshold(tmp_path, monkeypatch):
+    from chupa.daemon import storm_producer
+    from chupa.journal import EventType, Journal
+    from tests.test_drain import Clock, commit_ticket, confirmed
+    from tests.test_triage import root_with_box, reply, run
+    from chupa.llm import FakeLLM
+
+    root, _ = root_with_box(tmp_path)
+    clock = Clock()
+    journal = Journal(root / ".chupa/state", clock)
+    box = storm_producer(root=root / ".chupa/state/box", fs=LocalFileSystem(), journal=journal, clock=clock)
+    commit_ticket(root, "known", confirmed())
+    fields = dict(message_class="failure_report", origin="test", summary="observed failure")
+    id, _ = box.enqueue(**fields, occurrence_id="original")
+    assert box.get(id).reports == 0 and box.get(id).reopen is False
+    assert run(root, monkeypatch, FakeLLM([reply("tombstone", link="known")])) == 0
+    box.record_verdict(id, Verdict(verdict="tombstone", produced_by_spec_version="1.0", rationale="prior match"))
+    path = root / record_path(f"tombstone-{id}")
+    committed_bytes = path.read_bytes()
+    box.enqueue(**fields, occurrence_id="original")
+    assert box.get(id).reports == 0
+    box.enqueue(**fields, occurrence_id="signature-1")
+    box.enqueue(**fields, occurrence_id="signature-1")
+    assert box.get(id).reports == 1 and box.get(id).resolution.kind == "tombstone"
+    incoming, _ = box.enqueue(**{**fields, "summary": "semantically the same new evidence"}, occurrence_id="semantic-source")
+    assert run(root, monkeypatch, FakeLLM([reply("tombstone", link=f"tombstone-{id}")])) == 0
+    assert box.get(incoming).status == "resolved"
+    assert box.get(id).reports == 2 and box.get(id).verdict.verdict == "tombstone"
+    observed = []
+    append = journal.append
+    def before_clear(type_, body, **kwargs):
+        if body.get("kind") == "tombstone_auto_reopened":
+            target = box.get(id)
+            assert target.reports == 3 and target.resolution.kind == "tombstone"
+            assert target.status == "resolved" and target.verdict is not None
+            observed.append(body)
+        return append(type_, body, **kwargs)
+    monkeypatch.setattr(journal, "append", before_clear)
+    box.enqueue(**fields, occurrence_id="signature-crossing")
+    message = box.get(id)
+    assert message.reports == 3 and message.reopen and message.status == "pending"
+    assert message.resolution is message.verdict is None
+    signal, = [e for e in journal.read() if e.body.get("kind") == "tombstone_auto_reopened"]
+    assert signal.key == f"tombstone-reopen/{id}/3" and signal.type == EventType.SIGNAL and signal.ticket is None
+    assert observed == [signal.body] == [{"kind": "tombstone_auto_reopened", "box_id": id,
+        "signature": message.signature, "reports": 3}]
+    assert path.read_bytes() == committed_bytes
+    assert asyncio.run(Git(SubprocessExec(), env=os.environ, timeout=30)._run(
+        root, "show", f"HEAD:{record_path(f'tombstone-{id}')}")).encode() == committed_bytes
+    restarted = storm_producer(root=box.root, fs=box.fs, journal=Journal(root / ".chupa/state", clock), clock=clock)
+    before = restarted._rereport.journal.read()
+    for _ in range(3):
+        restarted.enqueue(**fields, occurrence_id="signature-crossing")
+        restarted.record_rereport(id, occurrence_id=f"semantic/{incoming}")
+        restarted.pending()
+        restarted.recover()
+    assert restarted.get(id) == message and restarted._rereport.journal.read() == before
+    assert path.read_bytes() == committed_bytes
+
+
+def test_tombstone_reopen_requires_journal_callback(tmp_path, monkeypatch):
+    from chupa.box import RereportCallbackRequired, RereportJournal
+    from chupa.journal import Journal
+    from tests.test_drain import Clock
+
+    box = Box(tmp_path / "box", LocalFileSystem())
+    id, _ = box.enqueue(message_class="suggestion", origin="test", summary="same")
+    box.record_verdict(id, Verdict(verdict="tombstone", produced_by_spec_version="1", rationale="duplicate"))
+    resolution = Resolution(kind="tombstone", link="old")
+    box.resolve(id, resolution)
+    for _ in range(2):
+        box.record_rereport(id)
+    with pytest.raises(RereportCallbackRequired, match=r"supply rereport=RereportJournal\(journal\)"):
+        box.record_rereport(id)
+    assert box.get(id).reports == 3 and box.get(id).resolution == resolution
+    assert box.get(id).status == "resolved" and not box.get(id).reopen
+    journal = Journal(tmp_path, Clock())
+    bound = Box(box.root, box.fs, rereport=RereportJournal(journal))
+    append = journal.append
+    def refused(type_, body, **kwargs):
+        if body.get("kind") == "tombstone_auto_reopened":
+            raise OSError("append failed")
+        return append(type_, body, **kwargs)
+    monkeypatch.setattr(journal, "append", refused)
+    with pytest.raises(OSError, match="append failed"):
+        bound.record_rereport(id, occurrence_id="retryable")
+    assert bound.get(id).reports == 4 and bound.get(id).resolution == resolution
+    assert bound.get(id).verdict is not None and not bound.get(id).reopen
+    monkeypatch.setattr(journal, "append", append)
+    bound.record_rereport(id, occurrence_id="retryable")
+    assert bound.get(id).reports == 4 and bound.get(id).reopen
+    assert len([e for e in journal.read() if e.body.get("kind") == "tombstone_auto_reopened"]) == 1
+
+
+@pytest.mark.parametrize("point", ["intent", "count", "signal", "reopen", "completion"])
+@pytest.mark.parametrize("after", [False, True])
+def test_rereport_crash_replay_counts_and_reopens_once(tmp_path, monkeypatch, point, after):
+    from chupa.daemon import storm_producer
+    from chupa.journal import EventType, Journal
+    from tests.test_drain import Clock
+
+    class Crash(BaseException):
+        pass
+    clock = Clock()
+    journal = Journal(tmp_path, clock)
+    box = storm_producer(root=tmp_path / "box", fs=LocalFileSystem(), journal=journal, clock=clock)
+    fields = dict(message_class="suggestion", origin="test", summary="same")
+    id, _ = box.enqueue(**fields, occurrence_id="original")
+    box.resolve(id, Resolution(kind="tombstone", link="registry"))
+    for n in range(2):
+        box.enqueue(**fields, occurrence_id=f"report/{n}")
+    append, write = journal.append, box.fs.write
+    def crashed_append(type_, body, **kwargs):
+        target = ((point == "intent" and type_ == EventType.EFFECT_INTENT)
+                  or (point == "completion" and type_ == EventType.EFFECT_COMPLETION)
+                  or (point == "signal" and body.get("kind") == "tombstone_auto_reopened"))
+        if target:
+            if after:
+                append(type_, body, **kwargs)
+            raise Crash()
+        return append(type_, body, **kwargs)
+    def crashed_write(path, data):
+        record = json.loads(data)
+        if record["reports"] == 3 and ((point == "count" and not record["reopen"]) or
+                                      (point == "reopen" and record["reopen"])):
+            if after:
+                write(path, data)
+            raise Crash()
+        write(path, data)
+    with monkeypatch.context() as patch:
+        patch.setattr(journal, "append", crashed_append)
+        patch.setattr(box.fs, "write", crashed_write)
+        with pytest.raises(Crash):
+            box.enqueue(**fields, occurrence_id="crossing")
+    restarted = storm_producer(root=box.root, fs=box.fs, journal=Journal(tmp_path, clock), clock=clock)
+    for _ in range(2):
+        restarted.enqueue(**fields, occurrence_id="crossing")
+    assert restarted.get(id).reports == 3 and restarted.get(id).reopen
+    signals = [e for e in restarted._rereport.journal.read() if e.body.get("kind") == "tombstone_auto_reopened"]
+    assert len(signals) == 1 and signals[0].key == f"tombstone-reopen/{id}/3"
+
+
+@pytest.mark.parametrize("after", [False, True])
+def test_late_rereport_replay_preserves_later_arrival_count(tmp_path, monkeypatch, after):
+    from chupa.daemon import storm_producer
+    from chupa.journal import Journal
+    from tests.test_drain import Clock
+
+    clock = Clock()
+    box = storm_producer(root=tmp_path / "box", fs=LocalFileSystem(),
+                         journal=Journal(tmp_path, clock), clock=clock)
+    fields = dict(message_class="suggestion", origin="test", summary="same")
+    id, _ = box.enqueue(**fields, occurrence_id="original")
+    box.resolve(id, Resolution(kind="tombstone", link="registry"))
+    write = box.fs.write
+    def interrupted(path, data):
+        if after:
+            write(path, data)
+        raise OSError("count interrupted")
+    with monkeypatch.context() as patch:
+        patch.setattr(box.fs, "write", interrupted)
+        with pytest.raises(OSError, match="count interrupted"):
+            box.enqueue(**fields, occurrence_id="first-report")
+    restarted = storm_producer(root=box.root, fs=box.fs, journal=Journal(tmp_path, clock), clock=clock)
+    restarted.enqueue(**fields, occurrence_id="second-report")
+    assert restarted.get(id).reports == 2 and not restarted.get(id).reopen
+    restarted.enqueue(**fields, occurrence_id="first-report")
+    assert restarted.get(id).reports == 2 and not restarted.get(id).reopen
+    restarted.enqueue(**fields, occurrence_id="third-report")
+    assert restarted.get(id).reports == 3 and restarted.get(id).reopen
+    signals = [e for e in restarted._rereport.journal.read()
+               if e.body.get("kind") == "tombstone_auto_reopened"]
+    assert len(signals) == 1 and signals[0].key == f"tombstone-reopen/{id}/3"
+
+
+def test_tombstone_visibility_uses_message_class(tmp_path, monkeypatch):
+    from tests.test_retro_box import PROPOSAL
+    box = Box(tmp_path / "box", LocalFileSystem())
+    expected = []
+    for cls, bug, repro, visible in [("suggestion", None, None, False), ("override_report", None, None, False),
+        ("failure_report", None, None, True), ("retro_finding", None, None, True),
+        ("bug_report", "self_diagnosed", False, True), ("bug_report", "player", True, True),
+        ("bug_report", "player", False, False)]:
+        evidence = {**PROPOSAL, "retro_report_key": "retro/1"} if cls == "retro_finding" else {}
+        id, _ = box.enqueue(message_class=cls, origin=f"{cls}/{bug}/{repro}", summary="concern",
+                            bug_origin=bug, has_repro=repro, **evidence)
+        box.resolve(id, Resolution(kind="tombstone", link=f"tombstone-{id}"))
+        if visible:
+            expected.append(id)
+    before = {p: p.read_bytes() for p in box.root.glob("*.json")}
+    def forbidden(*args, **kwargs):
+        pytest.fail("visibility wrote to the queue")
+    monkeypatch.setattr(box.fs, "write", forbidden)
+    assert [m.id for m in box.confirmed_tombstones()] == expected
+    assert all("priority" not in m.model_dump() for m in box.messages())
+    assert {p: p.read_bytes() for p in box.root.glob("*.json")} == before

@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from chupa.__main__ import main
 from chupa.box import Box, DecisionRecord, Resolution, Verdict, parse_record, record_path, render_record
 from chupa.journal import EventType, Journal
@@ -228,3 +230,51 @@ def test_lock_contention_exits_two_without_pass(tmp_path, monkeypatch):
         holder.release()
     assert llm.requests == []
     assert not any(e.type == EventType.SIGNAL and e.body.get("signal") == "triage_pass" for e in events(root))
+
+
+@pytest.mark.parametrize(("recorded_verdict", "tombstone_link"), [
+    (True, None), (False, "own-record"), (False, "known"),
+])
+def test_reopened_message_bypasses_its_tombstone(tmp_path, monkeypatch, recorded_verdict, tombstone_link):
+    from chupa import triage
+    from chupa.box import RereportJournal
+    root, source = root_with_box(tmp_path)
+    box = Box(source.root, source.fs, rereport=RereportJournal(Journal(root / ".chupa/state", Clock())))
+    commit_ticket(root, "known", confirmed())
+    id = enqueue(box, "reopened concern")
+    assert run(root, monkeypatch, FakeLLM([reply("tombstone", link="known")])) == 0
+    path = root / record_path(f"tombstone-{id}")
+    before = path.read_bytes()
+    head = git_out(root, "rev-parse", "HEAD").strip()
+    commits = subjects(root)
+    for n in range(3):
+        box.record_rereport(id, occurrence_id=f"distinct/{n}")
+    assert box.get(id).reopen and box.get(id).verdict is None
+    script = [author_reply("reconsidered"), requisition_reply("approve")]
+    if recorded_verdict:
+        box.record_verdict(id, Verdict(verdict="author", produced_by_spec_version="1.0", rationale="new evidence"))
+    else:
+        def classify(request):
+            assert f"tombstone-{id}: tombstone" not in request.rendered
+            assert '"reopen": true' in request.rendered
+            return reply("tombstone", link=f"tombstone-{id}" if tombstone_link == "own-record" else tombstone_link)
+        script.insert(0, classify)
+    author = triage.author
+    calls = []
+    async def author_with_preserved_registry(*args):
+        assert path.read_bytes() == before
+        assert git_out(root, "rev-parse", "HEAD").strip() == head
+        assert git_out(root, "show", f"HEAD:{record_path(f'tombstone-{id}')}").encode() == before
+        calls.append(id)
+        return await author(*args)
+    monkeypatch.setattr(triage, "author", author_with_preserved_registry)
+    llm = FakeLLM(script)
+    assert run(root, monkeypatch, llm) == 0
+    assert calls == [id]
+    assert box.get(id).resolution == Resolution(kind="ticket", link="reconsidered")
+    assert path.read_bytes() == before
+    assert git_out(root, "show", f"HEAD:{record_path(f'tombstone-{id}')}").encode() == before
+    assert subjects(root) == ["chupa(reconsidered): ticket", *commits]
+    assert (root / "tickets/reconsidered/ticket.md").is_file()
+    count = len(llm.requests)
+    assert run(root, monkeypatch, llm) == 0 and len(llm.requests) == count

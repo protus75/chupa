@@ -39,7 +39,8 @@ SIGNAL_NAMES: frozenset[str] = frozenset({
     "flake_detected", "flake_released", "hardening_round", "harvest_failed", "kill_applied",
     "merge_conflict_facts", "merge_red_streak", "merge_tree_mismatch", "provider_call_outcome",
     "provider_cap_wait", "recovery_alert", "reject_arrival", "reject_verdict", "requisition_verdict", "review_baseline",
-    "retro_failed", "rework_order", "storm_breaker_trip", "storm_occurrence", "supersedes", "ticket_intake",
+    "retro_failed", "retro_ticket_authored", "retro_prompt_spec_change_merged", "tombstone_auto_reopened",
+    "rework_order", "storm_breaker_trip", "storm_occurrence", "supersedes", "ticket_intake",
     "triage_pass", "watcher_parse_failure",
 })
 

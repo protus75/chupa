@@ -57,6 +57,7 @@ def test_standing_go_uses_the_table_and_each_override_drafts(tmp_path):
     assert go
     for row, expected in BOX_POLICY_DEFAULTS.items():
         assert state(cfg, row, go=go) == expected
+        assert state(cfg, row, go=go, reopen=True) == "draft"
 
     row = "failure_report"
     assert not go_binds([signal("GO", identity), signal("NO_GO", identity)], identity)
