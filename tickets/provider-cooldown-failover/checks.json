@@ -1,0 +1,115 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "05a79c50ec11ee0cdd27f723f49c538306b7a100",
+  "stem": "provider-cooldown-failover",
+  "passed": true,
+  "changed_files": [
+    "chupa/__main__.py",
+    "chupa/audit.py",
+    "chupa/drain.py",
+    "chupa/driver.py",
+    "chupa/journal.py",
+    "chupa/llmeffect.py",
+    "chupa/providers.py",
+    "chupa/requisition.py",
+    "chupa/runner.py",
+    "chupa/serve.py",
+    "chupa/stages.py",
+    "chupa/thresh.py",
+    "chupa/watchdog.py",
+    "eval/daemon_soak.py",
+    "eval/diagnose.py",
+    "eval/harness.py",
+    "eval/shakeout/bench.py",
+    "eval/shakeout/providers.py",
+    "tests/test_daemon_composition.py",
+    "tests/test_provider_cooldown_failover.py",
+    "tests/test_providers.py",
+    "tests/test_thresh.py"
+  ],
+  "inserted_lines": 1283,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "tests/test_provider_cooldown_failover.py",
+        "tests/test_providers.py",
+        "tests/test_thresh.py",
+        "tests/test_restart_timers.py",
+        "tests/test_stages.py",
+        "tests/test_serve.py",
+        "tests/test_merge.py",
+        "tests/test_mergequeue.py",
+        "tests/test_daemon_composition.py",
+        "tests/test_watchdog.py",
+        "tests/test_audit.py",
+        "tests/test_journal.py"
+      ],
+      "rc": 0,
+      "tail": "t-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/provider-cooldown-failover\nconfigfile: pyproject.toml\nplugins: asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 531 items\n\ntests/test_provider_cooldown_failover.py ............................... [  5%]\n......                                                                   [  6%]\ntests/test_providers.py ................................................ [ 16%]\n.........                                                                [ 17%]\ntests/test_thresh.py ..........................................          [ 25%]\ntests/test_restart_timers.py ......................                      [ 29%]\ntests/test_stages.py ...............................................     [ 38%]\ntests/test_serve.py .................................................... [ 48%]\n....                                                                     [ 49%]\ntests/test_merge.py .................................................... [ 58%]\n............                                                             [ 61%]\ntests/test_mergequeue.py ............................................... [ 70%]\n....................                                                     [ 73%]\ntests/test_daemon_composition.py ....................................... [ 81%]\n.....................................                                    [ 88%]\ntests/test_watchdog.py ..........................                        [ 93%]\ntests/test_audit.py ....                                                 [ 93%]\ntests/test_journal.py .................................                  [100%]\n\n======================== 531 passed in 65.71s (0:01:05) ========================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "tests/test_driver.py",
+        "tests/test_drain.py",
+        "tests/test_watchdog_activation.py",
+        "tests/test_llm_effect.py",
+        "tests/test_requisition.py",
+        "tests/test_notify.py",
+        "tests/test_shakeout.py",
+        "tests/test_eval_harness.py",
+        "tests/test_diagnose_eval.py",
+        "tests/test_daemon_soak_runner.py"
+      ],
+      "rc": 0,
+      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/provider-cooldown-failover\nconfigfile: pyproject.toml\nplugins: asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 247 items\n\ntests/test_driver.py ............................                        [ 11%]\ntests/test_drain.py .................................................... [ 32%]\n......                                                                   [ 34%]\ntests/test_watchdog_activation.py ....                                   [ 36%]\ntests/test_llm_effect.py ............                                    [ 41%]\ntests/test_requisition.py ...................                            [ 48%]\ntests/test_notify.py ....                                                [ 50%]\ntests/test_shakeout.py ........................                          [ 60%]\ntests/test_eval_harness.py .................                             [ 67%]\ntests/test_diagnose_eval.py .........                                    [ 70%]\ntests/test_daemon_soak_runner.py ....................................... [ 86%]\n.................................                                        [100%]\n\n============================= 247 passed in 33.75s =============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "......................................... [ 62%]\n........................................................................ [ 65%]\n........................................................................ [ 68%]\n........................................................................ [ 70%]\n........................................................................ [ 73%]\n........................................................................ [ 76%]\n........................................................................ [ 78%]\n........................................................................ [ 81%]\n........................................................................ [ 84%]\n........................................................................ [ 87%]\n........................................................................ [ 89%]\n........................................................................ [ 92%]\n........................................................................ [ 95%]\n........................................................................ [ 97%]\n.....................................................                    [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/provider-cooldown-failover/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n2645 passed, 1 warning in 233.01s (0:03:53)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
