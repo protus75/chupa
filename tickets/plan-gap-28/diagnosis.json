@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "b8397517325d6ab239a98322d07b9e040d37650f",
+  "stem": "plan-gap-28",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Re-author this ticket so its scope fence also covers CHUPA_PLAN.md#19.P6.bug-gate-grammar and CHUPA_PLAN.md#19.P6.report-inbox-triage. The gap fact needs both units, but the current fence and Definition of rejected forbid plan bytes outside 19.P6.fixture-host-scaffold.",
+    "Add both missing units as new headings after the last 19.P6 entry unit, as the ticket's Scope-in says. Give each its Owner, Records, Observable, and Tests parts. Merged resolve_plan_contract needs exactly one heading per id, so text inside fixture-host-scaffold cannot satisfy them.",
+    "Add 19.P6.bug-gate-grammar and 19.P6.report-inbox-triage to the re-authored Plan contract. Check that entry_unit_gap returns None for each, and for fixture-host-scaffold, before running uv run pytest tests/test_plan_lint.py.",
+    "The plan text given here does not say what Owner, Records, Observable, or Tests the two new units should hold. Take those facts only from plan text inside the fence and from merged code. If one is not there, report which fact is missing; do not invent it."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
