@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "e9806b97250fb8c0a249ab55b5433b7a5ec32295",
+  "stem": "retro-box-activation",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "In chupa/triage.py, if message.reopen is true, no tombstone verdict may reach _record with record_id tombstone-{message.id}, whatever link it names. Route all of them to author so the committed tombstones/tombstone-{id} bytes stay unchanged, as the ticket's reopen invariant requires.",
+    "Do not depend on the _commit_record effect key ticket-plane/decisions/tombstone-{id} to protect a reopened item. That effect already completed, so it replays as a no-op and leaves an uncommitted, diverged registry file in the working tree.",
+    "Extend test_reopened_message_bypasses_its_tombstone: script a triage reply that tombstones a reopened message to a different committed link (for example the original target). Assert the tombstone record bytes and HEAD are unchanged and the Box item does not resolve back to a tombstone.",
+    "Once the fix is in, check that RereportJournal.record orders arrivals against the reopen and not a stale tombstone completion. Keep fresh semantic dedup and existing-record recovery bypassing the reopened target's old tombstone, as the ticket's Scope requires.",
+    "Change only triage.py and its tests. The review found no other problem, and all 2823 tests passed. Rerun every Verification command after the fix."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
