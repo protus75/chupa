@@ -1,19 +1,15 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "d08471865cdc8ec9fec1b9f7943bb87876761751",
+  "produced_at_sha": "b7b6dc999e24939e086842683c0545996fc68263",
   "stem": "retro-window-bound",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "reject",
-  "lessons": [
-    "The fence excludes tests/test_drain.py, but the required later-merge release breaks its selected-failure case (~line 1098). That case asserts one retro attempt and one failure record even after later merges, so criteria 1 and 2 cannot both pass as written.",
-    "Re-author the ticket so the scope fence includes tests/test_drain.py. Its Scope in should say to update the selected-failure assertions in test_drain_retro_due_quiescence_and_pre_exit: a merge after retro_failed releases suppression (19.P5.retro-drain-invoker), so a second retro attempt is expected.",
-    "Keep the scoped implementation the attempt already validated (157 of 158 passing). Spool the window as JSONL through the Driver's filesystem seam when it is over the 0.75 headroom, and release suppression on a later state_transition to merged. Leave the retro_failed key and body unchanged."
-  ],
-  "mechanical": null,
+  "verdict": "abandon-human",
+  "lessons": [],
+  "mechanical": "premise_bounce cap spent",
   "spec_version": "1.1",
-  "provider": "claude",
-  "model": "claude-opus-5-5"
+  "provider": null,
+  "model": null
 }
