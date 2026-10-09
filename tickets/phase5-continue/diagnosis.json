@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "748359d190ba29839d963d5201a491bdeae61a18",
+  "stem": "phase5-continue",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "retry",
+  "lessons": [
+    "Re-author only the snagged retro-box-activation seed. Its Scope must not say 'Add test_plan_lint'. Write 'Keep tests/test_plan_lint.py green unchanged' and put the plan-lint run only in Verification.",
+    "Give the required_units, resolve_plan_contract and entry_unit_gap proof for 19.P5.retro-box-activation a fenced owner inside the activation's own fenced test. This follows merged tests/test_retro.py, which proves the same facts for 19.P5.retro-drain-invoker.",
+    "Do not add tests/test_plan_lint.py to the activation's Scope fence unless a specific 19.L rule 2-5 closure reason is recorded for it. Unchanged preservation suites belong only in Verification, per this ticket's Scope.",
+    "Keep the approved phase5-continue-02 bytes while its ticket_sha matches. After rewording the activation seed, update tests/test_seeded_phase5_01.py pins (ticket bytes/chars, render bounds) so they match the new seed text exactly.",
+    "Before handing off, read each seed's Scope against its own ## Scope fence. Every instruction to edit or add a path must name a fenced path, or Check returns a scope_fence authoring_error again."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
