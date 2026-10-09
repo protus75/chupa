@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The activation entry passes SPEC DEPTH, but the successor's required entry is absent on the untouched authoring head 961ecb34abd7ff4e9c68e4a526d7e8915f06bf4d.
+The prior scorecard entry gap is repaired; seven files require On-demand. A temporary misplaced test append was restored byte-for-byte.
 
 ## Dead ends
 
-Stopped before seed authoring because resolve_plan_contract found zero headings for 19.P5.scorecard-reporting and entry_unit_gap confirmed it is missing.
+Corrected test-name extraction that initially included module filenames.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during read-only contract validation, before implementation or verification.
+Finished within the 60-minute expected budget; all three verification commands exited 0.
 
