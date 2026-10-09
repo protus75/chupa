@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "5fdcd1c4329b86c9487b1ee0f0b5512641feae5e",
+  "stem": "reliability-battery",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "In tests/test_reliability_battery.py near line 194, restore the real audit_journal before the supplied success/auditor verdict case. Otherwise the monkeypatched violations make _observe red no matter what the verdict says.",
+    "Pair the supplied success/auditor verdict with evidence that would otherwise be refused, such as the member journal with one required fault event removed. Assert BatteryRefused or red, so a regression that trusts the verdict fails the test.",
+    "Keep each refusal case isolated: missing, contradictory, cross-member and supplied-verdict evidence. Each must be the only defect in its fixture, so the assertion depends on that one refusal path (ticket: these must refuse green).",
+    "Change only the test case the review flagged. Leave the machinery, registration, writer and command as they are, since review found them correct, and rerun the four-suite Verification command."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
