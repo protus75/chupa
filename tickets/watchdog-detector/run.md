@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-Untouched-branch verification passed all 11 existing tests, but the six detector obligations are not implemented.
+Untouched-branch verification passed all 11 existing tests, but the six named detector obligations are absent.
 
 ## Dead ends
 
-Checked the plan and existing timeout implementation for a defined floor; neither supplies one.
+Checked section 9.7, the detector entry, and existing Driver behavior; none defines the required floor.
 
 ## Second problems filed
 
