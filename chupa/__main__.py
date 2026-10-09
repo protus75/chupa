@@ -204,19 +204,15 @@ def main(
         if args.verb == "new":
             return _new(repo, args.stem)
         config = load_config(args.config, cwd=repo)
-        if args.verb == "status":
-            from chupa.box import BOX_DIR, Box, RereportJournal
-            journal = Journal(config.state_dir, clock)
-            print(render(project(journal.read(),
-                               box=Box(config.state_dir / BOX_DIR, LocalFileSystem(), rereport=RereportJournal(journal)),
-                               policy=config.box_policy)), end="")
-            return 0
         exec_ = SubprocessExec()
         checkout = runner.Checkout(
             repo=repo, config=config, env=env, exec_=exec_,
             git=Git(exec_, env=child_env(env, config), timeout=GIT_TIMEOUT_S),
             journal=Journal(config.state_dir, clock), fs=LocalFileSystem(), clock=clock,
         )
+        if args.verb == "status":
+            print(render(asyncio.run(_status(checkout))), end="")
+            return 0
         if args.verb in {"pause", "resume", "kill"}:
             return asyncio.run(_control(checkout, args.verb))
         if args.verb in {"confirm", "reject"}:
@@ -273,6 +269,22 @@ def main(
             ExecutableNotFound) as e:
         print(f"chupa {args.verb}: {e}", file=sys.stderr)
         return runner.EXIT_REFUSED
+
+
+async def _status(checkout: runner.Checkout):
+    from chupa.box import BOX_DIR, Box, RereportJournal
+    from chupa.retro import production_evidence, project_window
+    from chupa.specs import load_spec
+
+    events = checkout.journal.read()
+    window = project_window(events)
+    await production_evidence(window, checkout)
+    spec = load_spec((runner.SPECS_DIR / "retro.md").read_text())
+    provenance = {"head": await checkout.git.rev_parse(checkout.repo, "HEAD"),
+                  "spec_version": spec.meta.version, "at": checkout.clock().isoformat()}
+    return project(events, window=window, provenance=provenance,
+        box=Box(checkout.config.state_dir / BOX_DIR, checkout.fs,
+                rereport=RereportJournal(checkout.journal)), policy=checkout.config.box_policy)
 
 
 def _serve_signals(stop: Callable[[], None]) -> Callable[[], None]:

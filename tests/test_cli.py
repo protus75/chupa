@@ -196,6 +196,8 @@ def test_status_on_an_empty_journal(root, capsys):
     out = capsys.readouterr().out
     for heading in ("merged", "in flight", "blocked", "intake", "spend"):
         assert heading in out
+    assert "current-window scorecard:\n- boundary: initial\n- merged tickets: 0\n- spend: $0.00" in out
+    assert "window provenance:" in out and "## Surface scorecard" in out
     assert not (root / ".chupa").exists()  # write-free: no journal, no lockfile
 
 
@@ -220,6 +222,8 @@ def test_status_projects_the_journal(root, capsys):
     assert "c: gate_failed" in section["blocked:"]
     assert "d: source: human" in section["intake:"]
     assert "$0.75" in section["spend:"]
+    assert "merged tickets: 1" in section["current-window scorecard:"]
+    assert "spend: $0.75" in section["current-window scorecard:"]
     assert sorted(p.read_bytes() for p in (root / ".chupa").rglob("*") if p.is_file()) == before
 
 
@@ -232,6 +236,7 @@ def test_status_is_deterministic(root, capsys):
     cli(root, "status")
     assert capsys.readouterr().out == first
     assert first.index("- a") < first.index("- m") < first.index("- z")
+    assert "- merged tickets: 3\n" in first
 
 
 # --- run ----------------------------------------------------------------------------------------

@@ -4,9 +4,12 @@ A projection, never an authority: no gate or dispatch decision reads its renderi
 """
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from types import MappingProxyType
 
 from chupa.journal import EventType, Event
+from chupa.retro import Window, project_window
+from chupa.scorecard import Scorecard, project_scorecard
 from chupa.tickets import INTAKE_SIGNAL
 
 
@@ -20,6 +23,8 @@ class Status:
     reject: tuple[tuple[str, Mapping], ...] = ()
     tombstones: tuple[tuple[str, str, int], ...] = ()
     reopens: tuple[Mapping, ...] = ()
+    scorecard: Scorecard = field(default_factory=lambda: project_scorecard(project_window(())))
+    provenance: Mapping[str, str] = field(default_factory=lambda: MappingProxyType({}))
 
 
 def reject_queue(events: Iterable[Event]) -> dict[str, Mapping]:
@@ -48,7 +53,8 @@ def last_states(events: Iterable[Event]) -> dict[str, str]:
             if e.type == EventType.STATE_TRANSITION and e.ticket is not None and "to" in e.body}
 
 
-def project(events: Iterable[Event], *, box=None, policy=None) -> Status:
+def project(events: Iterable[Event], *, box=None, policy=None,
+            window: Window | None = None, provenance: Mapping[str, str] | None = None) -> Status:
     events = list(events)
     last = last_states(events)
     intake = tuple(
@@ -68,6 +74,8 @@ def project(events: Iterable[Event], *, box=None, policy=None) -> Status:
                          box.confirmed_tombstones(policy)) if box is not None else (),
         reopens=tuple(e.body for e in events if e.type == EventType.SIGNAL
                       and e.body.get("kind") == "tombstone_auto_reopened"),
+        scorecard=project_scorecard(window if window is not None else project_window(events)),
+        provenance=MappingProxyType(dict(provenance or {})),
     )
 
 
@@ -75,6 +83,21 @@ def render(status: Status) -> str:
     def block(name: str, lines: Iterable[str]) -> str:
         return f"{name}:\n" + ("\n".join(f"- {line}" for line in lines) or "(none)")
 
+    card = status.scorecard
+    totals = [f"boundary: {card.boundary}", f"merged tickets: {card.merged_ticket_count}",
+              f"spend: ${card.spend_usd:.2f}"]
+    for direction, tokens in card.tokens.items():
+        totals.append(f"{direction} tokens: {tokens['known']} known, {tokens['unknown_calls']} unknown calls")
+    totals.extend(f"{kind}: {count}" for kind, count in sorted(card.signal_counts.items()))
+    totals.append(f"gate failures: {card.gate_failure_count}")
+    table = ["## Surface scorecard",
+        "| Surface | Evaluated tickets | Catches | Escapes | Bypass count | Catch rate | Escape rate | Prune candidate |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |"]
+    for row in card.surfaces:
+        surface = row.surface.replace("|", "\\|").replace("\n", " ")
+        table.append(f"| {surface} | {row.evaluated_tickets} | {row.catches} | {row.escapes} | "
+                     f"{row.bypass_count} | {row.catch_rate:.4f} | {row.escape_rate:.4f} | "
+                     f"{str(row.prune_candidate).lower()} |")
     return "\n\n".join((
         block("merged", status.merged),
         block("in flight", status.in_flight),
@@ -89,4 +112,7 @@ def render(status: Status) -> str:
                                               for id, cls, reports in status.tombstones)),
         block("Tombstone reopens", (f"{body['box_id']}: reopened at {body['reports']} re-reports"
                                     for body in status.reopens)),
+        block("current-window scorecard", totals),
+        block("window provenance", (f"{key}: {value}" for key, value in sorted(status.provenance.items()))),
+        "\n".join(table),
     )) + "\n"
