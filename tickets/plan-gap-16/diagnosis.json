@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "58d688f7896502c0c401ec0d51d4e595ebf08b08",
+  "stem": "plan-gap-16",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Ticket premise is false: on base 58d688f, chupa/audit.py:74 flags a pre-dispatch infra_error/provider_drought transition with no open run as 'terminal has no open run' (one_terminal_per_run). Plan prose fenced to 19.P4.provider-cooldown-failover cannot fix that without contradicting merged code.",
+    "Per the ticket's Definition of rejected, stating this fact needs edits outside the fence: chupa/audit.py, tests/test_audit.py, and the 19.P4 registry fence. Re-author the ticket with that scope rather than retrying it as written.",
+    "A re-authored repair must add a regression test in tests/test_audit.py. It must show that a pre-dispatch drought transition passes audit while an ordinary orphan terminal still yields a one_terminal_per_run violation, so section 15 keeps its green-auditor requirement.",
+    "Before re-authoring, confirm that the plan text in 19.P4.provider-cooldown-failover and section 6 says whether a provider_drought infra_error may come before any run. If the plan does not say, that missing fact must be fixed in the plan first (plan is the seed)."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
