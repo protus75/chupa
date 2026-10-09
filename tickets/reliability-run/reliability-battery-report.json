@@ -1,0 +1,34 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "079cac90c2244daa6a136c22f66ac12ee194b4a4",
+  "entries": [
+    {
+      "member": "classified_quota_exhaustion",
+      "planted_fault": "Scripted CLI exit/stderr failure",
+      "expected": "quota_classified_cooldown_persisted",
+      "observed": "quota_classified_cooldown_persisted",
+      "producing_run": "quota-fault/0",
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "all_candidates_cooling_recovery",
+      "planted_fault": "Scripted CLI exit/stderr failure",
+      "expected": "all_cooling_held_timer_fired_recovered",
+      "observed": "all_cooling_held_timer_fired_recovered",
+      "producing_run": "cooling-fault/0",
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "unclassified_failure_preservation",
+      "planted_fault": "Scripted CLI exit/stderr failure",
+      "expected": "unknown_failure_unclassified",
+      "observed": "unknown_failure_unclassified",
+      "producing_run": "unknown-fault/0",
+      "auditor": [],
+      "green": true
+    }
+  ]
+}
