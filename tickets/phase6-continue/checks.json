@@ -1,9 +1,9 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "109b74189d782d1ad9b239232e8309e3fbfc2467",
+  "produced_at_sha": "145bcb1974eac311b319dc04f1340bc976b8ca4c",
   "stem": "phase6-continue",
-  "passed": false,
+  "passed": true,
   "changed_files": [
     "tests/test_seeded_phase6_01.py"
   ],
@@ -36,18 +36,8 @@
     },
     {
       "code": "requisition_review",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "requisition_review",
-          "path": null,
-          "line": null,
-          "message": "invalid requisition review reply: 1 schema error(s)",
-          "paved_road": "reply with a schema-valid requisition verdict",
-          "kind": "authoring_error",
-          "unit": null
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false
     }
   ],
@@ -55,19 +45,9 @@
     {
       "stem": "core-drift-activation",
       "ticket_sha": "1598423cab1022ee6656f369147d57385d6ea461",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "requisition_review",
-          "path": null,
-          "line": null,
-          "message": "invalid requisition review reply: 1 schema error(s)",
-          "paved_road": "reply with a schema-valid requisition verdict",
-          "kind": "authoring_error",
-          "unit": null
-        }
-      ],
-      "mechanical": "invalid reply"
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
     },
     {
       "stem": "migrate-config",
@@ -94,7 +74,7 @@
         "tests/test_seeded_phase6_01.py"
       ],
       "rc": 0,
-      "tail": ".......                                                                  [100%]\n7 passed in 0.32s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": ".......                                                                  [100%]\n7 passed in 0.33s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -107,7 +87,7 @@
         "tests/test_cli.py"
       ],
       "rc": 0,
-      "tail": "........................................................................ [ 16%]\n........................................................................ [ 32%]\n........................................................................ [ 49%]\n........................................................................ [ 65%]\n........................................................................ [ 81%]\n........................................................................ [ 98%]\n........                                                                 [100%]\n440 passed in 4.19s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................................ [ 16%]\n........................................................................ [ 32%]\n........................................................................ [ 49%]\n........................................................................ [ 65%]\n........................................................................ [ 81%]\n........................................................................ [ 98%]\n........                                                                 [100%]\n440 passed in 4.11s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -130,7 +110,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": ".................................................... [ 71%]\n........................................................................ [ 73%]\n........................................................................ [ 75%]\n........................................................................ [ 77%]\n........................................................................ [ 80%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 86%]\n........................................................................ [ 88%]\n........................................................................ [ 90%]\n........................................................................ [ 92%]\n........................................................................ [ 94%]\n........................................................................ [ 96%]\n........................................................................ [ 98%]\n...................................                                      [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase6-continue/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3419 passed, 1 warning in 282.27s (0:04:42)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": ".................................................... [ 71%]\n........................................................................ [ 73%]\n........................................................................ [ 75%]\n........................................................................ [ 77%]\n........................................................................ [ 80%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 86%]\n........................................................................ [ 88%]\n........................................................................ [ 90%]\n........................................................................ [ 92%]\n........................................................................ [ 94%]\n........................................................................ [ 96%]\n........................................................................ [ 98%]\n...................................                                      [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase6-continue/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3419 passed, 1 warning in 282.31s (0:04:42)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
