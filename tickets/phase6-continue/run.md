@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-Activation includes self-host conduct adoption and twelve earned fence additions; approved migration bytes remain unchanged.
+Both approved seed files remain byte-identical.
 
 ## Dead ends
 
-none
+Stopped before authoring because required_units and entry_unit_gap identify missing contracts, and resolve_plan_contract rejects both missing ids.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the expected 60-minute budget; the full suite passed 3,413 tests.
+Stopped during initial contract validation, within the 60-minute expected budget.
 
