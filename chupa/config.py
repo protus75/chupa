@@ -14,6 +14,8 @@ from typing import Annotated, Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, ValidationInfo, field_validator, model_validator
 
+from chupa.seams import FileSystem
+
 SCHEMA_VERSION = 1
 
 Tier = Literal["low", "medium", "high", "max"]
@@ -237,7 +239,7 @@ def snapshot_config(config: Config) -> ConfigSnapshot:
 
 def load_config(config_path: Path | None, *, cwd: Path) -> Config:
     """Load the `--config` path, else `config.yaml` at the invocation cwd (the checkout root)."""
-    path = Path(config_path) if config_path is not None else Path(cwd) / "config.yaml"
+    path = config_path if config_path is not None else Path(cwd) / "config.yaml"
     try:
         text = path.read_text()
     except FileNotFoundError:
@@ -261,6 +263,75 @@ def load_config(config_path: Path | None, *, cwd: Path) -> Config:
         raise _from_validation(path, e) from None
     _check_references(path, cfg)
     return cfg
+
+
+class _CandidatePath(Path):
+    """Let the real loader read an unpublished candidate at the original config base."""
+
+    text: str
+
+    def read_text(self, *args, **kwargs) -> str:
+        return self.text
+
+
+def migrate_config(config_path: Path | None, *, cwd: Path, fs: FileSystem) -> bool:
+    """Validate before publishing an exact-byte backup and the sole supported 0->1 edit."""
+    path = config_path if config_path is not None else Path(cwd) / "config.yaml"
+    try:
+        original = path.read_bytes()
+    except OSError as exc:
+        raise ConfigError(path, None, f"cannot read config file: {exc}; create config.yaml or pass --config <path>") from None
+    try:
+        # Keep the BOM in the text so YAML marks still address the original bytes.
+        text = original.decode("utf-8")
+        raw = yaml.safe_load(text)
+        node = yaml.compose(text, Loader=yaml.SafeLoader)
+        tokens = list(yaml.scan(text))
+    except (ValueError, yaml.YAMLError) as exc:
+        raise ConfigError(path, None, f"invalid YAML: {exc}; repair the selected config and retry migrate-config") from None
+    if not isinstance(raw, dict):
+        raise ConfigError(path, None, "top level must be a mapping of config keys; repair the selected config and retry migrate-config")
+    if "schema_version" not in raw:
+        raise ConfigError(path, "schema_version", "missing required key; supply explicit schema_version: 0 or 1 and retry migrate-config")
+    version = raw["schema_version"]
+    if type(version) is not int or version < 0:
+        raise ConfigError(path, "schema_version", f"must be a non-negative integer, got {version!r}; supply the required integer version and retry migrate-config")
+    if version > SCHEMA_VERSION:
+        _check_schema_version(path, raw)
+    candidate = text
+    if version == 0:
+        entries = [(key, value) for key, value in node.value
+                  if isinstance(key, yaml.ScalarNode) and key.value == "schema_version"]
+        scalars = [token for token in tokens if isinstance(token, yaml.tokens.ScalarToken)
+                   and len(entries) == 1 and entries[0][0].end_mark.index <= token.start_mark.index
+                   and entries[0][1].start_mark.index <= token.start_mark.index
+                   and token.end_mark.index == entries[0][1].end_mark.index]
+        if len(scalars) != 1:
+            raise ConfigError(path, "schema_version", "version must be one explicit scalar, without duplicate keys or aliases; repair schema_version and retry migrate-config")
+        scalar = scalars[0]
+        start, end = scalar.start_mark.index, scalar.end_mark.index
+        if scalar.style in ("'", '"'):
+            start, end = start + 1, end - 1
+        elif scalar.style in ("|", ">"):
+            # Block indicators, header comments, indentation and line endings are formatting.
+            start += len(text[start:end].splitlines(keepends=True)[0])
+            while start < end and text[start].isspace():
+                start += 1
+            while end > start and text[end - 1].isspace():
+                end -= 1
+        candidate = text[:start] + str(SCHEMA_VERSION) + text[end:]
+    source = _CandidatePath(path)
+    source.text = candidate
+    try:
+        load_config(source, cwd=cwd)
+    except ConfigError as exc:
+        exc.args = (f"{exc}; repair the selected config and retry migrate-config",)
+        raise
+    if version == SCHEMA_VERSION:
+        return False
+    fs.write(path.with_name(path.name + ".bak"), original)
+    fs.write(path, candidate.encode("utf-8"))
+    return True
 
 
 def _check_schema_version(path: Path, raw: dict[str, Any]) -> None:

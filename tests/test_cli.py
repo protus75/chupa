@@ -605,3 +605,44 @@ def test_core_refusal_and_no_git(tmp_path, monkeypatch, capsys):
     assert main(["core"], cwd=tmp_path, env=ENV, pipeline=forbidden) == 0
     assert replacements == [clean, corrupt]
     assert {p.name for p in tmp_path.iterdir()} == {"config.yaml", "CLAUDE.md", "AGENTS.md"}
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_migrate_config_before_load(tmp_path, monkeypatch, capsys, explicit):
+    import chupa.__main__ as module
+    from chupa.providers import ProviderLLM
+    from tests.test_config import MigrationFS
+
+    directory = tmp_path / "elsewhere" if explicit else tmp_path
+    directory.mkdir(exist_ok=True)
+    path = directory / ("host.yaml" if explicit else "config.yaml")
+    original = CONFIG.replace("schema_version: 1", "schema_version: 0").encode()
+    path.write_bytes(original)
+    if explicit:
+        (tmp_path / "config.yaml").write_bytes(b"unselected invalid config")
+    fs = MigrationFS()
+    monkeypatch.setattr(module, "LocalFileSystem", lambda: fs)
+    def forbidden(*args, **kwargs):
+        pytest.fail("migration invoked git, process, provider, journal, or pipeline work")
+    for name in ("Git", "Journal", "SubprocessExec", "ProviderLLM", "ProviderSession", "build_control"):
+        monkeypatch.setattr(module, name, forbidden)
+    monkeypatch.setattr(ProviderLLM, "call", forbidden)
+    args = (["--config", str(path)] if explicit else []) + ["migrate-config"]
+    assert main(args, cwd=tmp_path, env=ENV, pipeline=forbidden) == 0
+    backup = path.with_name(path.name + ".bak")
+    expected = CONFIG.encode()
+    assert fs.writes == [(backup, original), (path, expected)]
+    assert path.read_bytes() == expected
+    assert backup.read_bytes() == original
+    assert main(args, cwd=tmp_path, env=ENV, pipeline=forbidden) == 0
+    assert len(fs.writes) == 2
+    assert path.read_bytes() == expected and backup.read_bytes() == original
+    path.write_bytes(original + b"caps: {retry: 7}\n")
+    before = path.read_bytes()
+    assert main(args, cwd=tmp_path, env=ENV, pipeline=forbidden) == 2
+    assert "caps.retry" in capsys.readouterr().err
+    assert len(fs.writes) == 2
+    assert path.read_bytes() == before and backup.read_bytes() == original
+    assert not (tmp_path / ".chupa").exists()
+    if explicit:
+        assert (tmp_path / "config.yaml").read_bytes() == b"unselected invalid config"

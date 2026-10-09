@@ -15,7 +15,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from chupa import control, drain, hostfiles, runner, serve, triage
-from chupa.config import ConfigError, ConfigSnapshot, load_config
+from chupa.config import ConfigError, ConfigSnapshot, load_config, migrate_config
 from chupa.daemon import DaemonCore, PauseConsumer, daemon_core
 from chupa.daemon import StartupBoundary
 from chupa.git import Git
@@ -174,6 +174,7 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("retro", help="force a retro report under the writer lock")
     sub.add_parser("doctor", help="inspect setup without changing state")
     sub.add_parser("core", help="refresh managed conduct in every routed agent's root file")
+    sub.add_parser("migrate-config", help="validate and migrate schema_version: 0 to the current config schema")
     for verb in ("pause", "resume"):
         sub.add_parser(verb, help=f"submit {verb} to the running engine, or do nothing under the idle lock")
     sub.add_parser("kill", help="submit kill to the running engine; refuse when nothing is running")
@@ -204,6 +205,9 @@ def main(
     repo = Path(cwd) if cwd is not None else Path.cwd()
     env = dict(os.environ) if env is None else env
     try:
+        if args.verb == "migrate-config":
+            migrate_config(args.config, cwd=repo, fs=LocalFileSystem())
+            return 0
         if args.verb == "new":
             return _new(repo, args.stem)
         if args.verb == "doctor":

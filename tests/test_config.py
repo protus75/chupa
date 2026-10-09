@@ -241,3 +241,154 @@ def test_provider_backstop_never_undercuts_a_ticket_stuck_budget(tmp_path):
                                  '["   "]', '[notify, "\\0"]'])
 def test_notify_refuses_malformed_argv(tmp_path, argv):
     assert refusal(tmp_path, VALID + f"notify: {argv}\n").key.startswith("notify")
+
+
+class MigrationFS:
+    def __init__(self):
+        from chupa.seams import LocalFileSystem
+        self.local = LocalFileSystem()
+        self.writes = []
+
+    def write(self, path, data):
+        self.writes.append((path, data))
+        self.local.write(path, data)
+
+
+def test_migrate_config_entry_unit():
+    import re
+    from chupa.specs import entry_unit_gap, required_units, resolve_plan_contract
+    from chupa.tickets import parse_ticket
+
+    repo = Path(__file__).resolve().parents[1]
+    plan = (repo / "CHUPA_PLAN.md").read_text()
+    uid = "19.P6.migrate-config"
+    ticket = parse_ticket("migrate-config", (repo / "tickets/migrate-config/ticket.md").read_text(),
+                          repo, plan=plan)
+    assert required_units(plan, ticket.stem, ticket.plan_contract) == (uid,)
+    assert required_units(plan, "continuation", (uid,)) == (uid,)
+    resolved = resolve_plan_contract(plan, (*ticket.plan_contract, uid))
+    assert resolved.count(f"### {uid} ") == 1
+    assert entry_unit_gap(plan, uid) is None
+    for part in ("Owner", "Records", "Observable", "Tests"):
+        for replacement in ("", f"- **{part}:**"):
+            broken = re.sub(rf"^- \*\*{part}:\*\*.*$", replacement, plan, flags=re.M)
+            assert part in entry_unit_gap(broken, uid)
+
+
+@pytest.mark.parametrize("declaration, migrated", [
+    ("schema_version: 0", "schema_version: 1"),
+    ("'schema_version' :   +0 # version", "'schema_version' :   1 # version"),
+    ("schema_version: !!int 0x0 # version", "schema_version: !!int 1 # version"),
+    ("schema_version: !!int '0' # version", "schema_version: !!int '1' # version"),
+    ("schema_version: !!int |- # version\n  0", "schema_version: !!int |- # version\n  1"),
+    ("schema_version: !!int >- # version\n  0", "schema_version: !!int >- # version\n  1"),
+])
+@pytest.mark.parametrize("ending", ["\n", "\r\n", "\r"])
+def test_migrate_config_zero_to_one(tmp_path, monkeypatch, declaration, migrated, ending):
+    import os
+    from chupa.config import migrate_config
+
+    text = "\ufeff# café: schema_version: 0\n" + VALID.replace("schema_version: 1", declaration)
+    original = text.rstrip("\n").replace("\n", ending).encode()
+    path = tmp_path / "config.yaml"
+    path.write_bytes(original)
+    backup = tmp_path / "config.yaml.bak"
+    expected = original.replace((ending + declaration.replace("\n", ending)).encode(),
+                                (ending + migrated.replace("\n", ending)).encode(), 1)
+    fs = MigrationFS()
+    publications = []
+    replace = os.replace
+    def observe(src, dst):
+        src, dst = Path(src), Path(dst)
+        if dst == path:
+            assert src.parent == path.parent
+            assert src.read_bytes() == expected
+            assert path.read_bytes() == original
+            assert backup.read_bytes() == original
+            publications.append(dst)
+        replace(src, dst)
+    monkeypatch.setattr(os, "replace", observe)
+    assert migrate_config(None, cwd=tmp_path, fs=fs) is True
+    assert path.read_bytes() == expected
+    assert backup.read_bytes() == original
+    assert fs.writes == [(backup, original), (path, expected)]
+    assert publications == [path]
+    assert load_config(path, cwd=tmp_path).schema_version == 1
+
+
+@pytest.mark.parametrize("invalid", ["caps: {retry: 7}\n", "unknown: true\n",
+                                     "notify: null\n", 'caps: {retry: "4"}\n'])
+def test_migrate_config_validates_before_write(tmp_path, monkeypatch, invalid):
+    import chupa.config as module
+
+    path = write(tmp_path, VALID.replace("schema_version: 1", "schema_version: 0") + invalid)
+    backup = tmp_path / "config.yaml.bak"
+    backup.write_bytes(b"previous backup")
+    before = {p: p.read_bytes() for p in tmp_path.iterdir()}
+    fs = MigrationFS()
+    load = module.load_config
+    seen = []
+    def observe(source, *, cwd):
+        assert fs.writes == []
+        assert source.read_text().startswith("schema_version: 1")
+        seen.append(source)
+        return load(source, cwd=cwd)
+    monkeypatch.setattr(module, "load_config", observe)
+    with pytest.raises(ConfigError, match="repair.*retry migrate-config"):
+        module.migrate_config(path, cwd=tmp_path, fs=fs)
+    assert len(seen) == 1
+    assert fs.writes == []
+    assert {p: p.read_bytes() for p in tmp_path.iterdir()} == before
+
+
+@pytest.mark.parametrize("existing_backup", [False, True])
+def test_migrate_config_current_is_noop(tmp_path, existing_backup):
+    from chupa.config import migrate_config
+
+    path = write(tmp_path, "# unchanged\n" + VALID)
+    backup = tmp_path / "config.yaml.bak"
+    if existing_backup:
+        backup.write_bytes(b"previous backup")
+    before = {p: p.read_bytes() for p in tmp_path.iterdir()}
+    fs = MigrationFS()
+    for _ in range(2):
+        assert migrate_config(path, cwd=tmp_path, fs=fs) is False
+        assert fs.writes == []
+        assert {p: p.read_bytes() for p in tmp_path.iterdir()} == before
+
+
+@pytest.mark.parametrize("text, cause, road", [
+    (None, "cannot read config file", "--config"),
+    (VALID.replace("schema_version: 1\n", ""), "missing required key", "supply"),
+    *[(VALID.replace("schema_version: 1", f"schema_version: {v}"), "non-negative integer", "supply")
+      for v in ("null", "true", '\"0\"', "0.0", "-1")],
+    (VALID.replace("schema_version: 1", "schema_version: 2"), "newer", "upgrade chupa"),
+    ("a: [unclosed\n", "invalid YAML", "repair"),
+    ("schema_version: !!int wrong\n", "invalid YAML", "repair"),
+    ("!!python/object/apply:os.system [echo hi]", "invalid YAML", "repair"),
+    ("- a\n- b\n", "mapping", "repair"),
+    ("null\n", "mapping", "repair"),
+    ("schema_version: 0\n", "missing required key", "repair"),
+    ("schema_version: 1\n", "missing required key", "repair"),
+    (VALID.replace("schema_version: 1", "schema_version: 0\nschema_version: 0"),
+     "duplicate", "repair"),
+    (VALID.replace("schema_version: 1", "version: &v 0\nschema_version: *v"),
+     "explicit scalar", "repair"),
+])
+@pytest.mark.parametrize("existing_backup", [False, True])
+def test_migrate_config_refuses_unsupported_inputs(tmp_path, text, cause, road, existing_backup):
+    from chupa.config import migrate_config
+
+    path = tmp_path / "config.yaml"
+    if text is not None:
+        path.write_text(text)
+    if existing_backup:
+        (tmp_path / "config.yaml.bak").write_bytes(b"previous backup")
+    before = {p: p.read_bytes() for p in tmp_path.iterdir()}
+    fs = MigrationFS()
+    with pytest.raises(ConfigError) as exc:
+        migrate_config(None, cwd=tmp_path, fs=fs)
+    assert cause in str(exc.value)
+    assert road in str(exc.value)
+    assert fs.writes == []
+    assert {p: p.read_bytes() for p in tmp_path.iterdir()} == before
