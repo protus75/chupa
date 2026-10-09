@@ -1095,8 +1095,16 @@ def test_drain_retro_due_quiescence_and_pre_exit(tmp_path, monkeypatch, scenario
     if scenario == "no-merge":
         assert seen == prompts == []
     elif scenario == "selected-failure":
-        assert dispatches == ["feature", "phase5-exit", "later"] and len(seen) == 1
-        assert len([e for e in journal(root).read() if e.body.get("kind") == "retro_failed"]) == 1
+        assert dispatches == ["feature", "phase5-exit", "later"] and len(seen) == 2
+        assert [order for order, _ in prompts] == [
+            ["feature"], ["feature", "phase5-exit", "later"]]
+        failures = [e for e in journal(root).read() if e.body.get("kind") == "retro_failed"]
+        assert len(failures) == len(seen)
+        history = journal(root).read()
+        indices = [i for i, e in enumerate(history) if e.body.get("kind") == "retro_failed"]
+        for earlier, later in zip(indices, indices[1:]):
+            assert any(e.type == EventType.STATE_TRANSITION and e.body.get("to") == "merged"
+                       for e in history[earlier + 1:later])
     else:
         assert seen and len(seen) == len(prompts)
         if scenario == "pre-exit":

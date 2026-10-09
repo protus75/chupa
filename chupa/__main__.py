@@ -284,7 +284,7 @@ def main(
 
 
 async def _retro(checkout, dispatch):
-    from chupa.retro import RETRO_FAILED, Retro, RetroConstructionError, measurements, project_window
+    from chupa.retro import Retro, RetroConstructionError, measurements, project_window, suppressing_failure
 
     lock = Lockfile(checkout.config.state_dir,
                     instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
@@ -295,8 +295,7 @@ async def _retro(checkout, dispatch):
         except JournalCorruption as exc:
             raise runner.Refusal(str(exc), "restore journal readability from backup and retry retro") from None
         selected = bool(measurements(window)["merged_count"])
-        suppressed = any(e.type == "signal" and e.body.get("kind") == RETRO_FAILED
-                         and e.body.get("window_boundary") == window.boundary for e in window.events)
+        suppressed = suppressing_failure(window) is not None
         if selected and not suppressed and hasattr(dispatch, "prepare"):
             await dispatch.prepare()
         try:

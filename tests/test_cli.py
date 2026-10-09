@@ -441,8 +441,8 @@ def test_retro_success(root, capsys, monkeypatch):
     released(root)
 
 
-@pytest.mark.parametrize("suppressed", [False, True])
-def test_retro_no_commit(root, capsys, monkeypatch, suppressed):
+@pytest.mark.parametrize("suppressed, later_merge", [(False, False), (True, False), (True, True)])
+def test_retro_no_commit(root, capsys, monkeypatch, suppressed, later_merge):
     from chupa import runner
     from chupa.llm import FakeLLM
     llm = FakeLLM([RuntimeError("failed")])
@@ -454,17 +454,27 @@ def test_retro_no_commit(root, capsys, monkeypatch, suppressed):
         writer = runner.bind(c, llm)
         writer.stages.driver.retry_cap = 0
         return writer
+    prepared = []
+    if later_merge:
+        j.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="later")
+        async def prepare(c):
+            prepared.append(c)
+            return factory(c)
+        monkeypatch.setattr(runner, "prepare_pipeline", prepare)
     head = git_out(root, "rev-parse", "HEAD")
-    if suppressed:
+    if suppressed and not later_merge:
         async def forbidden(c):
             pytest.fail("suppressed retro prepared providers")
         monkeypatch.setattr(runner, "prepare_pipeline", forbidden)
         assert main(["retro"], cwd=root, env=ENV, clock=Clock()) == 1
+    elif later_merge:
+        assert main(["retro"], cwd=root, env=ENV, clock=Clock()) == 1
+        assert len(prepared) == 1
     else:
         assert cli(root, "retro", stages=factory) == 1
     assert git_out(root, "rev-parse", "HEAD") == head
     assert capsys.readouterr().out == "retro: no report committed; inspect status and the Suggestion Box\n"
-    assert len(llm.requests) == (0 if suppressed else 1)
+    assert len(llm.requests) == (0 if suppressed and not later_merge else 1)
     assert not (root / "tickets/retro").exists()
     released(root)
 

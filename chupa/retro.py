@@ -14,7 +14,7 @@ from chupa.box import BOX_DIR, Box, RereportJournal, read_registry
 from chupa.driver import LlmStage
 from chupa.git import GitError
 from chupa.journal import Event, EventType
-from chupa.specs import load_spec, render
+from chupa.specs import RENDER_BOUND_CHARS, REQ_RENDER_HEADROOM, RenderOverBound, load_spec, render
 
 RETRO_FAILED = "retro_failed"
 _REPORT = re.compile(r"retro/([0-9]+)\Z")
@@ -58,6 +58,18 @@ def project_window(events) -> Window:
     suffix = snapshot[index + 1:]
     started = snapshot[index].ts if index >= 0 else snapshot[0].ts if snapshot else None
     return Window(boundary, suffix, started, sequence)
+
+
+def suppressing_failure(window: Window) -> Event | None:
+    """A matching failure holds only until a merge later in journal order."""
+    failure = None
+    for event in window.events:
+        if (event.type == EventType.SIGNAL and event.body.get("kind") == RETRO_FAILED
+                and event.body.get("window_boundary") == window.boundary):
+            failure = event
+        elif event.type == EventType.STATE_TRANSITION and event.body.get("to") == "merged":
+            failure = None
+    return failure
 
 
 def measurements(window: Window) -> dict:
@@ -293,9 +305,7 @@ class Retro:
         trigger = select_trigger(window, evidence, c.clock(), forced=forced)
         if trigger is None:
             return None
-        failure = next((e for e in window.events if e.type == EventType.SIGNAL
-                        and e.body.get("kind") == RETRO_FAILED
-                        and e.body.get("window_boundary") == window.boundary), None)
+        failure = suppressing_failure(window)
         if failure is not None:
             self.failure_report(failure.key)
             return None
@@ -310,9 +320,27 @@ class Retro:
             provenance = {"head": head, "spec_version": spec.meta.version, "at": c.clock().isoformat()}
             consumed = {"events": [asdict(e) for e in window.events], "measurements": evidence,
                         "provenance": provenance}
-            stage = LlmStage(surface="retro", emits=RetroArtifact, gates=[], render=lambda material, findings:
-                render(spec, {"window": json.dumps(material, sort_keys=True),
-                              "retry_findings": json.dumps([f.model_dump() for f in findings])}))
+            call_seq = 0
+            def render_input(material, findings):
+                nonlocal call_seq
+                call_seq += 1
+                retries = json.dumps([f.model_dump() for f in findings])
+                try:
+                    prompt = render(spec, {"window": json.dumps(material, sort_keys=True),
+                                           "retry_findings": retries})
+                    if len(prompt) <= RENDER_BOUND_CHARS * REQ_RENDER_HEADROOM:
+                        return prompt
+                except RenderOverBound:
+                    pass
+                name = f"retro/call-{call_seq:02d}/window.jsonl"
+                stem = f"retro/{window.sequence}"
+                driver.spool.write(stem, 1, name,
+                    "".join(json.dumps(event, sort_keys=True) + "\n" for event in material["events"]))
+                on_demand = {"events_path": str((driver.spool.root / stem / "1" / name).resolve()),
+                             "measurements": material["measurements"], "provenance": material["provenance"]}
+                return render(spec, {"window": json.dumps(on_demand, sort_keys=True),
+                                     "retry_findings": retries})
+            stage = LlmStage(surface="retro", emits=RetroArtifact, gates=[], render=render_input)
             result = await driver.run(stage, consumed, ticket=None, run_seq=window.sequence, attempt=1,
                 workspace=c.repo, tier=spec.meta.tier, effort=spec.meta.effort,
                 stuck_budget=call_timeout(c.config), expected_budget="surface", scope_fence=())

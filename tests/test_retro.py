@@ -16,7 +16,7 @@ from chupa.journal import EventType, Journal
 from chupa.llm import FakeLLM, LLMResult
 from chupa.retro import (Retro, RetroArtifact, measurements, production_evidence, project_window,
                          render_report, select_trigger)
-from chupa.specs import entry_unit_gap, resolve_plan_contract
+from chupa.specs import RENDER_BOUND_CHARS, REQ_RENDER_HEADROOM, data_open, data_close, entry_unit_gap, resolve_plan_contract
 from tests.test_drain import Clock, make_root, pause_checkout, confirmed, commit_ticket
 
 
@@ -72,6 +72,44 @@ def test_window_uses_completed_report_boundary(tmp_path):
     assert window.boundary == "retro/2" and window.sequence == 3
     assert window.events == (last, j.read()[-1]) and older not in window.events
     assert measurements(window)["merged_count"] == 0
+
+
+@pytest.mark.parametrize("size", [100, int(RENDER_BOUND_CHARS * REQ_RENDER_HEADROOM / 2), RENDER_BOUND_CHARS * 2])
+def test_window_over_headroom_is_read_on_demand(tmp_path, monkeypatch, size):
+    c, writer, hook, llm = rig(tmp_path, ['{"proposals": []}'])
+    merged(c.journal)
+    c.journal.append(EventType.SIGNAL, {"kind": "drain_handoff", "payload": "x" * size}, key="large")
+    # Preserve multiplicity, null tickets, and journal order rather than sorting timestamps.
+    event = c.journal.read()[-1]
+    c.journal.append(event.type, event.body, ticket=event.ticket, key=event.key)
+    expected = [asdict(e) for e in c.journal.read()]
+    evidence = asyncio.run(production_evidence(project_window(c.journal.read()), c))
+    driver = writer.stages.driver
+    writes = []
+    write = driver.spool._fs.write
+    def captured(path, content):
+        writes.append(path)
+        write(path, content)
+    monkeypatch.setattr(driver.spool._fs, "write", captured)
+    result = asyncio.run(hook(forced=True))
+    assert result == {"commit": asyncio.run(c.git.rev_parse(c.repo, "HEAD"))}
+    prompt = llm.requests[0].rendered
+    assert len(prompt) <= RENDER_BOUND_CHARS
+    material = json.loads(prompt.split(data_open("window") + "\n", 1)[1].split("\n" + data_close("window"), 1)[0])
+    assert material["measurements"] == json.loads(json.dumps(evidence))
+    if size == 100:
+        assert material["events"] == expected and "events_path" not in material
+        assert not list(driver.spool.root.rglob("window.jsonl"))
+    else:
+        assert "events" not in material
+        path = Path(material["events_path"])
+        assert path in writes
+        assert path == driver.spool.root / "retro/1/1/retro/call-01/window.jsonl"
+        assert [json.loads(line) for line in path.read_text().splitlines()] == expected
+    completion, = [e for e in c.journal.read() if e.key == "retro/1" and e.type == EventType.EFFECT_COMPLETION]
+    assert completion.body == {"result": result}
+    assert asyncio.run(c.git._run(c.repo, "show", "--name-only", "--format=", result["commit"])).splitlines() == [
+        "tickets/retro/000001.md"]
 
 
 @pytest.mark.parametrize("kind", ["merges", "elapsed", "override", "rework", "gate-failure", "integration-red"])
@@ -198,7 +236,7 @@ def test_report_file_without_intent_cannot_replace_the_production_receipt(tmp_pa
 
 
 def test_failed_retro_suppresses_window_until_completion(tmp_path):
-    c, writer, hook, llm = rig(tmp_path, [RuntimeError("secret diagnostic"), '{"proposals": []}'])
+    c, writer, hook, llm = rig(tmp_path, [RuntimeError("secret diagnostic"), RuntimeError("later outage"), '{"proposals": []}'])
     assert asyncio.run(hook()) is None and c.journal.read() == []
     assert Box(c.config.state_dir / "box", c.fs).messages() == []
     merged(c.journal)
@@ -219,11 +257,21 @@ def test_failed_retro_suppresses_window_until_completion(tmp_path):
         assert asyncio.run(resumed(forced=forced)) is None
     assert restarted.journal.read() == before and len(llm.requests) == 1
     assert len(Box(c.config.state_dir / "box", c.fs).messages()) == 1
-    # A lock-held completed report releases the durable suppression.
-    asyncio.run(hook.commit_report(writer.stages.driver, project_window(before), "recovered report\n"))
+    # Journal order, even with equal timestamps, releases a failure on a later merge.
+    merged(restarted.journal, "later")
+    assert asyncio.run(resumed(forced=True)) is None
+    failures = [e for e in restarted.journal.read() if e.body.get("kind") == "retro_failed"]
+    assert len(failures) == 2 and failures[-1].key == failed.key
+    assert failures[-1].body == failed.body
+    after_release = restarted.journal.read()
+    assert asyncio.run(resumed(forced=True)) is None
+    assert restarted.journal.read() == after_release and len(llm.requests) == 2
+    assert len(Box(c.config.state_dir / "box", c.fs).messages()) == 1
+    # A lock-held completed report releases the renewed durable suppression.
+    asyncio.run(hook.commit_report(writer.stages.driver, project_window(after_release), "recovered report\n"))
     merged(restarted.journal, "next")
     assert asyncio.run(resumed(forced=True))["commit"]
-    assert len(llm.requests) == 2 and project_window(restarted.journal.read()).boundary == "retro/2"
+    assert len(llm.requests) == 3 and project_window(restarted.journal.read()).boundary == "retro/2"
 
 
 def test_artifact_is_closed_and_proposals_pair_the_risks():
@@ -258,7 +306,7 @@ def test_receipt_uses_engine_provenance_usage_calibration_and_tombstones(tmp_pat
     assert asyncio.run(hook(forced=True))["commit"] != head
     report = (c.repo / "tickets/retro/000001.md").read_text()
     data = json.loads(report.split("```json\n")[1].split("\n```")[0])
-    assert data["provenance"] == {"head": head, "spec_version": "1.0", "at": c.clock().isoformat()}
+    assert data["provenance"] == {"head": head, "spec_version": "1.1", "at": c.clock().isoformat()}
     assert data["measurements"]["usd"] == 2.3 and data["measurements"]["merged_count"] == 1
     assert data["measurements"]["input_tokens"] == {"known": 0, "unknown_calls": 1}
     assert data["measurements"]["output_tokens"] == {"known": 7, "unknown_calls": 0}

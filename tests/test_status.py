@@ -143,7 +143,7 @@ def test_status_current_window_scorecard(tmp_path):
 
 def test_status_production_provenance(tmp_path, monkeypatch, capsys):
     c, _, _, _ = rig(tmp_path)
-    spec_text = (runner.SPECS_DIR / "retro.md").read_text().replace('version: "1.0"', 'version: "7.3"')
+    spec_text = (runner.SPECS_DIR / "retro.md").read_text().replace('version: "1.1"', 'version: "7.3"')
     specs = tmp_path / "specs"
     specs.mkdir()
     (specs / "retro.md").write_text(spec_text)
