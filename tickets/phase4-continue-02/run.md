@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The previously missing reliability-battery citation now resolves; both Verification commands passed with 14 batch tests and 2601 full-suite tests. Check retains approval and seed-lift ownership.
+The required reliability-run entry now resolves; the approved provider seed remains byte-identical. Verification passed: 15 batch tests and 2,602 full-suite tests. Check retains approval and lift ownership.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Approximately 11 minutes against the expected 60-minute budget.
+Completed within the expected 60-minute budget.
 
