@@ -2,7 +2,7 @@
 priority: P0
 kind: bug
 source: human
-state: confirmed
+state: rejected
 ---
 
 ## Depends on
