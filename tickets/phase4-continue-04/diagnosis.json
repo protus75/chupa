@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "d0a433ffb49ecacdcee39a8f1667d23654d6a29b",
+  "stem": "phase4-continue-04",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "retry",
+  "lessons": [
+    "Implement output was sound: batch test committed alone (d0a433f), both seeds uncommitted, 2703 tests green. Keep those approved bytes while ticket_sha matches; do not re-author seeds that drew no snag.",
+    "The only finding is Check's requisition_review reply failing schema validation (1 error), not a seed or test defect. Re-run Check so requisition_review returns a schema-valid requisition verdict.",
+    "Do not widen scope to fix the failure. Per the ticket, Check owns requisition_review, the tickets/phase4-continue-04/checks.json approvals and the one ticket-plane seed lift. Implement must not write checks.json or lift the seeds.",
+    "The material does not show which field broke the requisition reply schema. If the reply fails again on the same cause, a human should inspect the raw reviewer reply in the Check attempt spool."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
