@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Activation required 13 earned fence additions; its recorded render is 297,652 characters. Both approved seeds remain byte-identical.
+Prior proof operands matched the checkout; activation was restored byte-identically and both approved seeds remained untouched. Check owns review approvals and seed lift.
 
 ## Dead ends
 
