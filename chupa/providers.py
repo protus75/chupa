@@ -182,11 +182,14 @@ class CliAdapter:
                 on_spawn=self._spawned,
                 **({"on_stdout_line": lambda line: self._forward(line, consumer)} if consumer is not None else {}),
             )
+        except BaseException as exc:
+            capture = getattr(exc, "process_capture", None)
+            if capture is not None:
+                self._write_capture(call_dir, *capture)
+            raise
         finally:
             self._pgid = None
-        out, err = self._redactor.scrub(out), self._redactor.scrub(err)
-        self._fs.write(call_dir / "events.jsonl", out.encode())
-        self._fs.write(call_dir / "stderr.txt", err.encode())
+        out, err = self._write_capture(call_dir, out, err)
         tail = err[-2000:]
         if rc != 0:
             # A CLI may report its failure in the event stream, not stderr: carry that message forward.
@@ -217,6 +220,12 @@ class CliAdapter:
             model=model,
             usd=usd,
         )
+
+    def _write_capture(self, call_dir: Path, out: str, err: str) -> tuple[str, str]:
+        out, err = self._redactor.scrub(out), self._redactor.scrub(err)
+        self._fs.write(call_dir / "events.jsonl", out.encode())
+        self._fs.write(call_dir / "stderr.txt", err.encode())
+        return out, err
 
     def _spawned(self, pgid: int) -> None:
         self._pgid = pgid

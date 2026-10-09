@@ -690,6 +690,80 @@ def provider_request(name, tmp_path, **kwargs):
     return req("implement", tier="high" if name == "claude" else "medium", worktree=tmp_path, **kwargs)
 
 
+@pytest.mark.parametrize("fail_at_tail", [False, True])
+def test_raising_line_callback_still_drains_and_reaps(tmp_path, fail_at_tail):
+    marker = tmp_path / "finished"
+    out = "first\n" + "x" * 300000 + "\nlast"
+    err = "e" * 300000 + "stderr tail"
+    script = (
+        "import os, threading\n"
+        "thread = threading.Thread(target=lambda: os.write(2, b'e' * 300000 + b'stderr tail'))\n"
+        "thread.start()\n"
+        "os.write(1, b'first\\n' + b'x' * 300000 + b'\\nlast')\n"
+        "thread.join()\n"
+        f"open({str(marker)!r}, 'w').close()\n"
+    )
+    process = PythonProviderExec(script)
+    error = RuntimeError("line consumer failed")
+    lines = []
+
+    def consume(line):
+        lines.append(line)
+        if not fail_at_tail or line == "last":
+            raise error
+
+    async def scenario():
+        before = set(asyncio.all_tasks())
+        with pytest.raises(RuntimeError) as caught:
+            await process.run([], cwd=tmp_path, env=os.environ, timeout=5, on_stdout_line=consume)
+        assert caught.value is error
+        assert error.process_capture == (out, err)
+        assert set(asyncio.all_tasks()) == before
+        with pytest.raises(ProcessLookupError):
+            os.kill(process.pgids[-1], 0)
+
+    asyncio.run(scenario())
+    assert marker.exists()
+    assert lines == (["first\n", "x" * 300000 + "\n", "last"] if fail_at_tail else ["first\n"])
+
+
+@pytest.mark.parametrize("name", ["claude", "codex"])
+def test_consumer_error_keeps_call_capture(tmp_path, name):
+    cfg = config(tmp_path)
+    first = jsonl({"type": "tool", "text": "sk-codex-secret"})
+    terminal = (claude_ok if name == "claude" else codex_ok)("sk-claude-secret").rstrip("\n")
+    out = first + "x" * 300000 + "\n" + terminal
+    err = "e" * 300000 + "sk-codex-secret stderr tail"
+    script = (
+        "import os, threading\n"
+        "thread = threading.Thread(target=lambda: os.write(2, b'e' * 300000 + b'sk-codex-secret stderr tail'))\n"
+        "thread.start()\n"
+        f"os.write(1, {first.encode()!r})\n"
+        "os.write(1, b'x' * 300000 + b'\\n')\n"
+        f"os.write(1, {terminal.encode()!r})\n"
+        "thread.join()\n"
+    )
+    process = PythonProviderExec(script)
+    client = python_client(cfg, process, tmp_path)
+    error = RuntimeError("consumer failed")
+    events = []
+
+    def consume(event):
+        events.append(event)
+        raise error
+
+    with pytest.raises(RuntimeError) as caught:
+        asyncio.run(client.call(provider_request(name, tmp_path), consumer=EventConsumer(consume)))
+    assert caught.value is error
+    assert events == [{"type": "tool", "text": "[REDACTED:CODEX_KEY]"}]
+    [capture] = (cfg.state_dir / "spools/providers/t-1").iterdir()
+    redactor = Redactor.from_config(cfg, ENV)
+    assert (capture / "events.jsonl").read_bytes() == redactor.scrub(out).encode()
+    assert (capture / "stderr.txt").read_bytes() == redactor.scrub(err).encode()
+    assert (capture / "prompt.md").read_text() == "do the thing"
+    assert client._active is None and client._adapters[name]._pgid is None
+
+
 @pytest.mark.parametrize("name", ["claude", "codex"])
 def test_inflight_events_are_scrubbed_and_capture_is_preserved(tmp_path, name):
     cfg = config(tmp_path)
@@ -738,7 +812,7 @@ def test_inflight_events_are_scrubbed_and_capture_is_preserved(tmp_path, name):
 
 
 @pytest.mark.parametrize("name", ["claude", "codex"])
-@pytest.mark.parametrize("unwind", ["timeout", "cancel", "callback", "abort"])
+@pytest.mark.parametrize("unwind", ["timeout", "cancel", "callback_timeout", "callback_cancel", "abort"])
 def test_event_callback_unwind_kills_group(tmp_path, name, unwind):
     marker = tmp_path / "grandchild-wrote"
     grandchild = "import time; time.sleep(0.5); open(" + repr(str(marker)) + ", 'w').close(); time.sleep(30)"
@@ -752,7 +826,8 @@ def test_event_callback_unwind_kills_group(tmp_path, name, unwind):
         "time.sleep(30)\n"
     )
     process = PythonProviderExec(script)
-    client = python_client(config(tmp_path), process, tmp_path, timeout=0.15 if unwind == "timeout" else 10)
+    cfg = config(tmp_path)
+    client = python_client(cfg, process, tmp_path, timeout=0.15 if unwind in {"timeout", "callback_timeout"} else 10)
     error = RuntimeError("consumer failed")
 
     async def scenario():
@@ -764,21 +839,28 @@ def test_event_callback_unwind_kills_group(tmp_path, name, unwind):
             assert client._active is client._adapters[name]
             assert client._active._pgid == process.pgids[-1]
             received.set()
-            if unwind == "callback":
+            if unwind.startswith("callback_"):
                 raise error
 
         task = asyncio.create_task(client.call(provider_request(name, tmp_path), consumer=EventConsumer(consume)))
         await asyncio.wait_for(received.wait(), 5)
-        if unwind == "cancel":
+        if unwind in {"cancel", "callback_cancel"}:
             task.cancel()
         elif unwind == "abort":
             client.abort_current()
         expected = {"timeout": TimeoutError, "cancel": asyncio.CancelledError,
-                    "callback": RuntimeError, "abort": ProviderCallError}[unwind]
+                    "callback_timeout": TimeoutError, "callback_cancel": asyncio.CancelledError, "abort": ProviderCallError}[unwind]
         with pytest.raises(expected) as caught:
             await asyncio.wait_for(task, 5)
-        if unwind == "callback":
-            assert caught.value is error
+        if unwind.startswith("callback_"):
+            assert caught.value.__cause__ is error
+            [capture] = (cfg.state_dir / "spools/providers/t-1").iterdir()
+            out, err = error.process_capture
+            assert out.startswith('{"type": "tool"}\n')
+            assert (capture / "events.jsonl").read_text() == out
+            assert (capture / "stderr.txt").read_text() == err
+        if unwind in {"cancel", "callback_cancel"}:
+            assert task.cancelled()
         assert set(asyncio.all_tasks()) == before
         assert client._active is None and client._adapters[name]._pgid is None
         client.abort_current()

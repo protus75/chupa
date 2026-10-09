@@ -31,7 +31,12 @@ class ProcessExec(Protocol):
 
 @runtime_checkable
 class GroupExec(ProcessExec, Protocol):
-    """Publish spawn groups and optionally deliver stdout lines synchronously, including the EOF tail."""
+    """Publish spawn groups and optionally deliver stdout lines synchronously, including the EOF tail.
+
+    A failed line consumer stops delivery, not capture: drain and reap, then raise its first
+    exception with (stdout, stderr) in `process_capture`. An intervening unwind keeps its
+    exception type, with the consumer failure as its cause and the capture attached to both.
+    """
 
     async def run(
         self,
@@ -119,6 +124,17 @@ class SubprocessExec:
                 start_new_session=True,
             )
             readers: list[asyncio.Task] = []
+            stdout, stderr = bytearray(), bytearray()
+            consumer_error: BaseException | None = None
+
+            def deliver(line: str) -> None:
+                nonlocal consumer_error
+                if consumer_error is None and on_stdout_line is not None:
+                    try:
+                        on_stdout_line(line)
+                    except BaseException as exc:
+                        consumer_error = exc
+
             try:
                 if on_spawn is not None:
                     on_spawn(proc.pid)  # start_new_session: the child's pid IS its pgid
@@ -126,17 +142,29 @@ class SubprocessExec:
                     if stream is None:
                         out, err = await proc.communicate()
                     else:
-                        readers = [asyncio.create_task(_read_pipe(proc.stdout, on_stdout_line)),
-                                   asyncio.create_task(_read_pipe(proc.stderr)),
+                        readers = [asyncio.create_task(_read_pipe(proc.stdout, stdout,
+                                                                 deliver if on_stdout_line is not None else None)),
+                                   asyncio.create_task(_read_pipe(proc.stderr, stderr)),
                                    asyncio.create_task(proc.wait())]
                         out, err, _ = await asyncio.gather(*readers)
-            except BaseException:
+            except BaseException as exc:
                 # Timeout and outer cancellation alike: grandchildren must not outlive the call.
                 for reader in readers:
                     reader.cancel()
                 await asyncio.gather(*readers, return_exceptions=True)
-                await _kill_and_wait(proc)
+                remaining_out, remaining_err = await _kill_and_wait(proc)
+                if consumer_error is not None:
+                    stdout.extend(remaining_out or b"")
+                    stderr.extend(remaining_err or b"")
+                    capture = (stdout.decode(errors="replace"), stderr.decode(errors="replace"))
+                    consumer_error.process_capture = capture
+                    exc.process_capture = capture
+                    # Cancellation/timeout still owns the unwind; keep the consumer failure visible.
+                    raise exc from consumer_error
                 raise
+            if consumer_error is not None:
+                consumer_error.process_capture = (stdout.decode(errors="replace"), stderr.decode(errors="replace"))
+                raise consumer_error
         return proc.returncode or 0, (out or b"").decode(errors="replace"), (err or b"").decode(errors="replace")
 
     def kill_group(self, pgid: int) -> None:
@@ -146,17 +174,17 @@ class SubprocessExec:
             pass
 
 
-async def _kill_and_wait(proc: asyncio.subprocess.Process) -> None:
+async def _kill_and_wait(proc: asyncio.subprocess.Process) -> tuple[bytes | None, bytes | None]:
     SubprocessExec().kill_group(proc.pid)
     # Drain after failed/cancelled readers: wait alone can hang on a full pipe transport.
-    await proc.communicate()
+    return await proc.communicate()
 
 
 async def _read_pipe(
     pipe: asyncio.StreamReader,
+    captured: bytearray,
     on_line: Callable[[str], None] | None = None,
 ) -> bytes:
-    captured = bytearray()
     pending = bytearray()
     while chunk := await pipe.read(65536):
         captured.extend(chunk)
