@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-Both previously missing Phase 6 core entry units now resolve and pass entry_unit_gap; both predecessor approval receipts are committed and passing.
+Check owns the approval record and seed lift; the real retro receipt is required only at phase5-exit's run.
 
 ## Dead ends
 
-Stopped before seed authoring at the ticket's mandatory unmet-read check; verification commands were not run.
+Removed unnecessary chupa/tickets.py Context embedding after the initial render estimate exceeded headroom.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during initial contract validation, well within the expected 60 minutes.
+Completed within the expected 60-minute budget.
 
