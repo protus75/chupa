@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Activation required ten earned caller/fixture fence additions and measured On-demand inputs.
+Activation includes self-host conduct adoption and twelve earned fence additions; approved migration bytes remain unchanged.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60m expected budget.
+Completed within the expected 60-minute budget; the full suite passed 3,413 tests.
 
