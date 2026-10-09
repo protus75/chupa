@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Reused the production serve merge consumer to complete recovery evidence.
+The fresh worktree lacked the prior implementation, so its four fenced files were recovered from the reviewed commit before correcting the test.
 
 ## Dead ends
 
