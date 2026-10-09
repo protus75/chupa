@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The missing provider contract now resolves; activation closure includes the separate requisition-review call path.
+The committed plan resolves the metered-basis gap; the detector seed now names the cap-wait source and requires inline corpus fixtures.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60-minute expected budget; verification passed with 19 batch tests and 2558 full-suite tests.
+Completed within the expected 60-minute budget; verification passed with 21 batch tests and 2560 full-suite tests.
 
