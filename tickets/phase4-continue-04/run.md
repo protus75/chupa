@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Delimiter-bearing runner source is read from disk rather than embedded in Context; Check owns approvals and seed lifting.
+Recovered the prior test and successor seed verbatim; preserved the approved reliability-run seed byte-identically.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the expected 60-minute budget.
+Completed well within the 60-minute expected budget; full verification took about four minutes.
 
