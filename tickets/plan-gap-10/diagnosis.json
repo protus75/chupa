@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "c3d2db3fa181a5337d87917cc523a08c60289a9d",
+  "stem": "plan-gap-10",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "The ticket fences only unit 19.P4.watchdog-detector, but the missing fact belongs to section 9.7 (line 1226). That line requires 'an expected-to-stuck floor (guard against expected==stuck authoring mistakes)' and gives no formula. The ticket's Definition of rejected covers exactly this case.",
+    "Reissue the ticket with section 9.7 inside the fence. The rewrite must state the floor rule in 9.7 and in the detector unit together, so the two units agree.",
+    "Before choosing the floor, read line 711: its authoring rule is 'stuck = 2x expected'. Then read the Driver code, which uses the supplied stuck budget unchanged. The 9.7 rule must not contradict merged Driver behavior, or it must name the code change that brings Driver into line.",
+    "Missing fact: what the Driver does when stuck <= expected. It could clamp, reject at parse, or use the budget as-is. The plan does not say. A human must decide this before the detector's test obligation can name a check."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
