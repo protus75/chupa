@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "6a61d3346c45601ddea52d7a650b65b5a9c56447",
+  "produced_at_sha": "8c47bfe7ed5a946e638e28b5f20c6b90c5bb660c",
   "stem": "consumer-error-keeps-capture",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "In chupa/seams.py ProcessExec.run, the timeout/cancel `except BaseException` path must not drop a stored consumer error: after kill-and-wait, surface it (raise it, or chain the timeout `from` it). The ticket's Definition of rejected forbids swallowing a consumer exception.",
-    "Keep timeout and group-kill behavior unchanged when the consumer fails. Still kill the group and wait for the child. Only make the first callback exception visible to the caller. The ticket fences out changes to timeout/group-kill behavior.",
-    "In tests/test_providers.py, do not turn the old `callback` case into one that expects a bare TimeoutError. Assert that the consumer's `error` is visible (as the raised exception, or as `__cause__`/`__context__`), and keep the group-kill and no-leaked-task assertions.",
-    "Use the same propagation form in seams.py and in its test, and make sure CliAdapter.invoke still writes the scrubbed events.jsonl and stderr.txt on this timeout-after-consumer-error path before the exception propagates."
+    "In ProcessExec.run, when a consumer error is pending and the unwind is asyncio.CancelledError or TimeoutError, re-raise the original exception, not the consumer error. Ticket Scope out and Definition of rejected forbid changing timeout or group-kill behavior.",
+    "Raise the stored consumer exception, with stdout/stderr capture attached, only after a normal drain to EOF and child reap. That is the ticket's Scope-in path; every other unwind must keep its original exception type.",
+    "Leave test_event_callback_unwind_kills_group[callback_cancel] and [callback_timeout] expecting CancelledError/TimeoutError. If an edit makes either case expect RuntimeError, the edit is pinning a forbidden behavior change.",
+    "The merged driver._kill and abort() run race.call.cancel() and then cleanup(), ignoring only CancelledError/LLMAborted. Keep that path raising CancelledError so a deliberate stage kill is not reported as a cleanup failure.",
+    "Keep the parts that passed review: drain to EOF, reap the child, and have CliAdapter.invoke write the scrubbed events.jsonl and stderr.txt before propagating. Keep the regression test failing on the merge base."
   ],
   "mechanical": null,
   "spec_version": "1.1",
