@@ -4,7 +4,7 @@ premise_failed
 
 ## Surprises / judgment calls
 
-On the untouched branch, a disposable-repository probe confirmed that adopting the original Claude route leaves committed AGENTS.md missing after repository() replaces routing with Claude and Codex; the existing outbox admission test passes while the gate remains dormant.
+The restart constructor is now fenced, but tests/test_serve.py still pins the pre-activation gate sequence.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped early within the expected 60-minute budget after reproducing the scope blocker.
+Stopped during scope validation, within the expected 60-minute budget.
 
