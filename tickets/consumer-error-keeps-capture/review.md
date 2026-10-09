@@ -1,11 +1,10 @@
 # Review: snag
 
-Capture is now drained and written when a consumer raises, but if the child keeps running after the consumer fails, the call blocks until the provider timeout and then raises TimeoutError, so the consumer's exception is lost.
+The drain-and-capture path works, but the exceptional branch turns an outer asyncio cancellation into the consumer's RuntimeError, so cancellation is swallowed and cancel/kill behavior changes.
 
 ## Findings
 
-- [logic] chupa/seams.py:150 `forward` stores the first callback exception in `consumer_error`, and only the normal-return path re-raises it. If the timeout fires (or the call is cancelled) after the consumer has failed, the `except BaseException` handler kills the group and re-raises TimeoutError/CancelledError, and nothing ever attaches or chains `consumer_error`. A consumer that crashes on an early event of a long-running CLI (the plan-gap-13 watchdog crash) now has its root cause replaced by a TimeoutError at the end of the full provider timeout. The ticket's Definition of rejected forbids swallowing a consumer exception. (do instead: In the timeout/cancel handler, when `consumer_error` is set, keep the kill-and-wait and then surface the consumer error. Either attach `process_capture` and `raise consumer_error from <timeout exc>`, or chain the timeout with `raise ... from consumer_error`. Pick one so the first consumer exception is always visible to the caller.)
-- [logic] tests/test_providers.py:778 The test case formerly named `callback` is renamed `callback_timeout`, and its assertion that the consumer's error propagates (`caught.value is error`) is replaced with an expected TimeoutError. The test now enforces the swallowed exception as correct behavior, so it can never catch the loss of the consumer error. (do instead: Have the `callback_timeout` case assert that the consumer's `error` is visible, either as the raised exception or as the `__cause__`/`__context__` of the timeout, whichever form the seams.py fix chooses. Keep the group-kill and no-leaked-task assertions.)
+- [logic] chupa/seams.py:160 If a consumer error is pending, `except BaseException as exc: ... raise consumer_error from exc` replaces every unwind with the consumer's exception. That includes `asyncio.CancelledError` from outer cancellation, so the cancellation is suppressed. It breaks asyncio's contract: the task's cancelling() count is never consumed, and an enclosing asyncio.timeout/TaskGroup will not see the cancellation. It also changes how the engine's own kill paths behave. In `driver._kill`, `race.call.cancel()` followed by `cleanup()` (and likewise in `abort()`) ignores only CancelledError/LLMAborted. Now the call result is a RuntimeError, so a deliberate stage kill or abort after a consumer error is re-raised as a cleanup failure. The ticket's definition of rejected forbids this kind of unwind-behavior change. The edited `test_event_callback_unwind_kills_group[callback_cancel]` case pins the swallowing by expecting RuntimeError from `task.cancel()`. (do instead: In the exceptional branch, attach `process_capture` to `consumer_error` if you want to keep it there, but re-raise the original `exc` for CancelledError. Re-raising it for TimeoutError too keeps timeout behavior unchanged. Use `raise consumer_error` only on the normal EOF path (line 166). Update the `callback_cancel` (and `callback_timeout`) test cases to expect the original CancelledError/TimeoutError.)
 
 ## Record
 
@@ -13,26 +12,17 @@ Capture is now drained and written when a consumer raises, but if the child keep
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "6a61d3346c45601ddea52d7a650b65b5a9c56447",
+  "produced_at_sha": "8c47bfe7ed5a946e638e28b5f20c6b90c5bb660c",
   "stem": "consumer-error-keeps-capture",
-  "reviewed_sha": "6a61d3346c45601ddea52d7a650b65b5a9c56447",
-  "summary": "Capture is now drained and written when a consumer raises, but if the child keeps running after the consumer fails, the call blocks until the provider timeout and then raises TimeoutError, so the consumer's exception is lost.",
+  "reviewed_sha": "8c47bfe7ed5a946e638e28b5f20c6b90c5bb660c",
+  "summary": "The drain-and-capture path works, but the exceptional branch turns an outer asyncio cancellation into the consumer's RuntimeError, so cancellation is swallowed and cancel/kill behavior changes.",
   "findings": [
     {
       "code": "logic",
       "path": "chupa/seams.py",
-      "line": 150,
-      "message": "`forward` stores the first callback exception in `consumer_error`, and only the normal-return path re-raises it. If the timeout fires (or the call is cancelled) after the consumer has failed, the `except BaseException` handler kills the group and re-raises TimeoutError/CancelledError, and nothing ever attaches or chains `consumer_error`. A consumer that crashes on an early event of a long-running CLI (the plan-gap-13 watchdog crash) now has its root cause replaced by a TimeoutError at the end of the full provider timeout. The ticket's Definition of rejected forbids swallowing a consumer exception.",
-      "paved_road": "In the timeout/cancel handler, when `consumer_error` is set, keep the kill-and-wait and then surface the consumer error. Either attach `process_capture` and `raise consumer_error from <timeout exc>`, or chain the timeout with `raise ... from consumer_error`. Pick one so the first consumer exception is always visible to the caller.",
-      "kind": null,
-      "unit": null
-    },
-    {
-      "code": "logic",
-      "path": "tests/test_providers.py",
-      "line": 778,
-      "message": "The test case formerly named `callback` is renamed `callback_timeout`, and its assertion that the consumer's error propagates (`caught.value is error`) is replaced with an expected TimeoutError. The test now enforces the swallowed exception as correct behavior, so it can never catch the loss of the consumer error.",
-      "paved_road": "Have the `callback_timeout` case assert that the consumer's `error` is visible, either as the raised exception or as the `__cause__`/`__context__` of the timeout, whichever form the seams.py fix chooses. Keep the group-kill and no-leaked-task assertions.",
+      "line": 160,
+      "message": "If a consumer error is pending, `except BaseException as exc: ... raise consumer_error from exc` replaces every unwind with the consumer's exception. That includes `asyncio.CancelledError` from outer cancellation, so the cancellation is suppressed. It breaks asyncio's contract: the task's cancelling() count is never consumed, and an enclosing asyncio.timeout/TaskGroup will not see the cancellation. It also changes how the engine's own kill paths behave. In `driver._kill`, `race.call.cancel()` followed by `cleanup()` (and likewise in `abort()`) ignores only CancelledError/LLMAborted. Now the call result is a RuntimeError, so a deliberate stage kill or abort after a consumer error is re-raised as a cleanup failure. The ticket's definition of rejected forbids this kind of unwind-behavior change. The edited `test_event_callback_unwind_kills_group[callback_cancel]` case pins the swallowing by expecting RuntimeError from `task.cancel()`.",
+      "paved_road": "In the exceptional branch, attach `process_capture` to `consumer_error` if you want to keep it there, but re-raise the original `exc` for CancelledError. Re-raising it for TimeoutError too keeps timeout behavior unchanged. Use `raise consumer_error` only on the normal EOF path (line 166). Update the `callback_cancel` (and `callback_timeout`) test cases to expect the original CancelledError/TimeoutError.",
       "kind": null,
       "unit": null
     }
