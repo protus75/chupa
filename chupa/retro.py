@@ -3,7 +3,7 @@
 import hashlib
 import json
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 from typing import Annotated
 
@@ -44,6 +44,8 @@ class Window:
     events: tuple[Event, ...]
     started_at: str | None
     sequence: int
+    evidence: dict = field(default_factory=dict, init=False, compare=False)
+    completed_checks: dict = field(default_factory=dict, init=False, compare=False)
 
 
 def project_window(events) -> Window:
@@ -65,7 +67,7 @@ def measurements(window: Window) -> dict:
 
     merges, calls = [], []
     spikes = {kind: set() for kind in ("override", "rework", "gate-failure", "integration-red")}
-    sequences, running, durations = {}, {}, {}
+    sequences, running, durations, completed_calls = {}, {}, {}, set()
     for event in window.events:
         body, stem = event.body, event.ticket
         identity = (stem, sequences.get(stem, 0))
@@ -85,7 +87,9 @@ def measurements(window: Window) -> dict:
             if body.get("kind") == CONFLICT_FACTS and body.get("integration_red_paths"):
                 spikes["integration-red"].add(identity)
         elif event.type == EventType.EFFECT_COMPLETION and (event.key or "").startswith("llm/"):
-            calls.append(event)
+            if event.key not in completed_calls:
+                calls.append(event)
+                completed_calls.add(event.key)
     unique = list({(row["ticket"], row["commit"]): row for row in merges}.values())
     costs = [event.body["cost"] for event in calls if "cost" in event.body]
     def tokens(field):
@@ -115,21 +119,26 @@ async def production_evidence(window, checkout):
     from chupa.stages import Invoice
 
     evidence = measurements(window)
-    checks, counted = {}, set()
+    checks, counted, invoices, observations = {}, set(), {}, []
     for event in window.events:
         stem = event.ticket
         if (event.type == EventType.EFFECT_COMPLETION
                 and (event.key or "").startswith(f"ticket-plane/{stem}/")
                 and (event.key or "").endswith("/checks")):
             checks[stem] = event
+            if event.key not in invoices:
+                commit = event.body["result"]["commit"]
+                text = await checkout.git._run(checkout.repo, "show", f"{commit}:tickets/{stem}/checks.json")
+                invoice = Invoice.model_validate_json(text)
+                invoices[event.key] = invoice
+                observations.extend((invoice.stem, report.code, report.verdict,
+                                     report.code in invoice.bypassed) for report in invoice.reports)
         if event.type != EventType.STATE_TRANSITION or event.body.get("to") != "merged":
             continue
         check = checks.pop(stem, None)
         if check is not None and check.key not in counted:
             counted.add(check.key)
-            commit = check.body["result"]["commit"]
-            text = await checkout.git._run(checkout.repo, "show", f"{commit}:tickets/{stem}/checks.json")
-            evidence["spikes"]["override"] += bool(Invoice.model_validate_json(text).bypassed)
+            evidence["spikes"]["override"] += bool(invoices[check.key].bypassed)
     for row in evidence["elapsed_seconds"]:
         predicted = None
         if row["commit"] is not None:
@@ -139,6 +148,12 @@ async def production_evidence(window, checkout):
         row["predicted_seconds"] = predicted
         row["divergence_seconds"] = (row["actual_seconds"] - predicted
             if row["actual_seconds"] is not None and predicted is not None else None)
+    evidence["check_observations"] = observations
+    window.completed_checks.clear()
+    window.completed_checks.update({key: tuple((invoice.stem, report.code, report.verdict,
+        report.code in invoice.bypassed) for report in invoice.reports) for key, invoice in invoices.items()})
+    window.evidence.clear()
+    window.evidence.update(evidence)
     return evidence
 
 
@@ -151,7 +166,19 @@ def render_report(window: Window, evidence: dict, provenance: dict, tombstones: 
               "proposals": artifact.model_dump()["proposals"]}
     record["tombstone_reopens"] = [e.body for e in window.events if e.type == EventType.SIGNAL
                                   and e.body.get("kind") == "tombstone_auto_reopened"]
-    return "# Retro receipt\n\n```json\n" + json.dumps(record, indent=2, sort_keys=True) + "\n```\n"
+    from chupa.scorecard import project_scorecard
+
+    card = project_scorecard(window)
+    table = ["## Surface scorecard", "",
+        "| Surface | Evaluated tickets | Catches | Escapes | Bypass count | Catch rate | Escape rate | Prune candidate |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |"]
+    for row in card.surfaces:
+        surface = row.surface.replace("|", "\\|").replace("\n", " ")
+        table.append(f"| {surface} | {row.evaluated_tickets} | {row.catches} | {row.escapes} | "
+                     f"{row.bypass_count} | {row.catch_rate:.4f} | {row.escape_rate:.4f} | "
+                     f"{str(row.prune_candidate).lower()} |")
+    return ("# Retro receipt\n\n```json\n" + json.dumps(record, indent=2, sort_keys=True) + "\n```\n\n"
+            + "\n".join(table) + "\n")
 
 
 class Retro:
