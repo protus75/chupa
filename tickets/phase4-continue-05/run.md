@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The previous gap in 19.P5.retro-drain-invoker is repaired, but the continuation's governing entry remains absent on untouched HEAD ca6389ff864052dc4fab6ba2c2ff58a151d49d4f.
+Both previously missing Phase 5 entry units now validate; watchdog checks record suite-level results, paired with named production proofs.
 
 ## Dead ends
 
-Stopped during required entry-depth validation before authoring or verification; no files changed or committed.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped within minutes, below the 60-minute expected budget.
+Completed within the expected 60-minute budget; verification passed with 8 batch tests and 2,711 full-suite tests.
 
