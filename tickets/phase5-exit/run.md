@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-HEAD equals the merge base, 0585f69718b27b0c9320fc4caed2d46c5d26ba79; Git confirms tickets/retro is absent there and the worktree is clean.
+The prior retro blocker is cleared: tickets/retro/000001.md is committed after the final feature merge. No files were changed or committed.
 
 ## Dead ends
 
-none
+Stopped before authoring rather than inventing the continuation’s missing contracts.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during initial evidence reads, before implementation or verification.
+Stopped during read-first checks, within the 60-minute expected budget.
 
