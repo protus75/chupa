@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from chupa import control, drain, runner, serve, triage
+from chupa import control, drain, hostfiles, runner, serve, triage
 from chupa.config import ConfigError, ConfigSnapshot, load_config
 from chupa.daemon import DaemonCore, PauseConsumer, daemon_core
 from chupa.daemon import StartupBoundary
@@ -22,7 +22,7 @@ from chupa.git import Git
 from chupa.journal import Journal, JournalCorruption
 from chupa.lockfile import LockHeld, Lockfile
 from chupa.notify import NOTIFY_TIMEOUT_S, NotificationReconciler
-from chupa.providers import ProviderLLM, ProviderSession, ProviderSetupError, child_env
+from chupa.providers import ProviderLLM, ProviderSession, ProviderSetupError, candidates, child_env
 from chupa.redact import Redactor
 from chupa.restart import Restart
 from chupa.seams import Clock, ExecutableNotFound, LocalFileSystem, ProcessExec, SubprocessExec
@@ -173,6 +173,7 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("status", help="project current state from the journal (read-only)")
     sub.add_parser("retro", help="force a retro report under the writer lock")
     sub.add_parser("doctor", help="inspect setup without changing state")
+    sub.add_parser("core", help="refresh managed conduct in every routed agent's root file")
     for verb in ("pause", "resume"):
         sub.add_parser(verb, help=f"submit {verb} to the running engine, or do nothing under the idle lock")
     sub.add_parser("kill", help="submit kill to the running engine; refuse when nothing is running")
@@ -212,6 +213,12 @@ def main(
             print(doctor.render(results), end="")
             return 0 if all(r.passed for r in results) else 2
         config = load_config(args.config, cwd=repo)
+        if args.verb == "core":
+            paths = [repo / ("CLAUDE.md" if served.provider.name == "claude" else "AGENTS.md")
+                     for route in config.routing
+                     for served in candidates(config, route.tier, route.surface)]
+            hostfiles.refresh(paths, LocalFileSystem())
+            return 0
         exec_ = SubprocessExec()
         checkout = runner.Checkout(
             repo=repo, config=config, env=env, exec_=exec_,
@@ -276,7 +283,7 @@ def main(
             return report.exit_code
         return asyncio.run(runner.run_ticket(args.stem, checkout, dispatch))
     except (ConfigError, runner.Refusal, LockHeld, IntakeRefused, JournalCorruption, ProviderSetupError,
-            ExecutableNotFound) as e:
+            ExecutableNotFound, hostfiles.MarkerCorruption) as e:
         road = (" -- repair the selected config and retry retro"
                 if args.verb == "retro" and isinstance(e, ConfigError) else "")
         print(f"chupa {args.verb}: {e}{road}", file=sys.stderr)

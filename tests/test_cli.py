@@ -515,3 +515,93 @@ def test_doctor_cli(root, capsys):
     lines = capsys.readouterr().out.splitlines()
     assert lines[0] == "doctor: ok"
     assert [line.split(":", 1)[0] for line in lines[1:]] == [f"PASS {n}" for n in ("venv", "git", "config", "lock", "journal")]
+
+
+def core_config(root, routes):
+    import yaml
+
+    config = yaml.safe_load(CONFIG)
+    claude = config["providers"][0]
+    # Both providers are declared even when only one is routed.
+    config["providers"].append({**claude, "name": "codex", "package": "other-cli"})
+    config["routing"] = [
+        {"tier": tier, "surface": surface, "candidates": [{"provider": name} for name in names]}
+        for tier, surface, names in routes
+    ]
+    path = root / "config.yaml"
+    path.write_text(yaml.safe_dump(config))
+    return path
+
+
+@pytest.mark.parametrize("routes, expected", [
+    ([("medium", "implement", ["claude"])], {"CLAUDE.md"}),
+    ([("medium", "implement", ["codex"])], {"AGENTS.md"}),
+    ([("medium", "implement", ["claude", "codex"])], {"CLAUDE.md", "AGENTS.md"}),
+    ([("medium", "implement", ["codex", "codex", "claude"]),
+      ("high", "review", ["claude", "codex"])], {"CLAUDE.md", "AGENTS.md"}),
+])
+def test_core_routed_conduct_files(tmp_path, monkeypatch, routes, expected):
+    import chupa.__main__ as module
+    from tests.test_hostfiles import RecordingFS
+    from chupa import hostfiles
+
+    core_config(tmp_path, routes)
+    fs = RecordingFS()
+    monkeypatch.setattr(module, "LocalFileSystem", lambda: fs)
+    assert cli(tmp_path, "core") == 0
+    assert {p.name for p, _ in fs.writes} == expected
+    assert len(fs.writes) == len(expected)
+    for name in ("CLAUDE.md", "AGENTS.md"):
+        path = tmp_path / name
+        assert path.exists() == (name in expected)
+        if path.exists():
+            assert path.read_bytes() == hostfiles.render(b"")
+    assert cli(tmp_path, "core") == 0
+    assert len(fs.writes) == len(expected)
+    assert not (tmp_path / ".chupa").exists()
+
+
+def test_core_refusal_and_no_git(tmp_path, monkeypatch, capsys):
+    import chupa.__main__ as module
+    from chupa import gates, hostfiles
+    from chupa.seams import LocalFileSystem
+
+    config = core_config(tmp_path, [("medium", "implement", ["claude", "codex"])])
+    clean, corrupt = tmp_path / "CLAUDE.md", tmp_path / "AGENTS.md"
+    project = b"# Project\r\nkeep every byte"
+    clean.write_bytes(project)
+    corrupt.write_bytes(b"project\n<!-- chupa:core beg")
+    before = {p: p.read_bytes() for p in tmp_path.iterdir()}
+    def forbidden(*args, **kwargs):
+        pytest.fail("core constructed git, journal, provider, pipeline, or gate work")
+    for name in ("Git", "Journal", "SubprocessExec", "ProviderLLM", "ProviderSession", "build_control"):
+        monkeypatch.setattr(module, name, forbidden)
+    monkeypatch.setattr(gates, "run_gates", forbidden)
+    replacements = []
+    original_replace = os.replace
+    def observe_replace(src, dst):
+        src, dst = Path(src), Path(dst)
+        assert src.parent == dst.parent
+        assert src.name == f".{dst.name}.tmp"
+        assert src.read_bytes() == hostfiles.render(before[dst])
+        assert dst.read_bytes() == before[dst]
+        replacements.append(dst)
+        original_replace(src, dst)
+    monkeypatch.setattr(os, "replace", observe_replace)
+    monkeypatch.setattr(module, "LocalFileSystem", LocalFileSystem)
+    assert main(["--config", str(config), "core"], cwd=tmp_path, env=ENV, pipeline=forbidden) == 2
+    assert replacements == []
+    assert {p: p.read_bytes() for p in tmp_path.iterdir()} == before
+    error = capsys.readouterr().err
+    assert "repair" in error and "retain all project content" in error and "retry core" in error
+    # The paved road escapes marker-like project text without deleting its content.
+    repaired = before[corrupt].replace(b"chupa:core", b"chupa&#58;core")
+    corrupt.write_bytes(repaired)
+    before[corrupt] = repaired
+    assert main(["core"], cwd=tmp_path, env=ENV, pipeline=forbidden) == 0
+    assert replacements == [clean, corrupt]
+    assert clean.read_bytes() == hostfiles.render(project)
+    assert corrupt.read_bytes() == hostfiles.render(repaired)
+    assert main(["core"], cwd=tmp_path, env=ENV, pipeline=forbidden) == 0
+    assert replacements == [clean, corrupt]
+    assert {p.name for p in tmp_path.iterdir()} == {"config.yaml", "CLAUDE.md", "AGENTS.md"}
