@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "2cd14a4bbdf7dd11e88a6a6959877ffa8f5735ed",
+  "stem": "phase5-continue-05",
+  "attempt": 1,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Timing contradiction: chupa/drain.py run() fires the forced retro only at quiescence or just before dispatching a stem matching phase[0-6]-exit. phase5-exit does not exist until this admission authors it, so no retro receipt can be committed when phase5-continue-05 runs.",
+    "CHUPA_PLAN.md:2502 says the forced pre-exit retro supplies the committed report after the latest feature merge, and :2468 makes it phase5-exit's evidence. Repair the contract so the receipt is a criterion of the phase5-exit seed, not a read this authoring admission needs.",
+    "After repair, pin the receipt read as a named obligation in phase5-exit's acceptance criteria and in tests/test_seeded_phase5_05.py, citing producer retro-drain-invoker + scorecard-reporting (plan :2468). Never require tickets/retro/<seq>.md at authoring HEAD.",
+    "Keep the confirmed passes: both Phase 6 core entry units resolve and pass entry_unit_gap, and the committed checks.json for retro-box-activation and baseline-binding-reader pass. Do not run those checks again as blockers."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
