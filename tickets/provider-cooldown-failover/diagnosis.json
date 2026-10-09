@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "05a79c50ec11ee0cdd27f723f49c538306b7a100",
+  "produced_at_sha": "bb3eb4c52a56c257e95b70967b857dd98f786956",
   "stem": "provider-cooldown-failover",
-  "attempt": 4,
+  "attempt": 5,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "Every implement-surface drought check must use the tier from caps.capability(ticket, history), the same fold _select (drain.py ~400) and runner.drive (runner.py:149) use. Never use ticket.frontmatter.agent_tier, which ignores retry-rung escalation.",
-    "In drain.py, make _Drain._dispatch reuse _select's drought verdict or the tier _select resolved, not a second check. If the two checks disagree, _dispatch parks a ticket, park dedups the record and the loop spins forever.",
-    "Fix __main__.py:77 daemon/serve dispatch and Serve's admission predicate (serve.py:170) so they use caps.capability(ticket, checkout.journal.read())[0]. That keeps them consistent with the route tier provider_holds re-checks.",
-    "In runner.py, run_ticket's pre-dispatch drought check (~517) and drive's diagnosis-surface check (~198) must take the tier from capability(ticket, history), as failure_terminal and drive already do.",
-    "Add a discriminating test: authored tier's route fully cooling, escalated tier's route healthy. Drain, serve and runner must dispatch it without a provider_drought park or a select/dispatch spin. The reverse case must hold."
+    "In chupa/drain.py _Drain.run, the pick-is-None provider_deadlines branch must first return self._halt(...) when self.c.clock() >= self.deadline, mirroring the storm_waiting branch right below it.",
+    "Bound the cooldown wait to min(min(self.provider_deadlines), self.deadline). Never wait the full quota window in one uninterrupted call.",
+    "Wait in short slices and loop back so before_dispatch and _stopping() still see a pause or kill during a provider drought. Reuse the storm_waiting brief-sleep pattern instead of adding a new wait mechanism.",
+    "Add a test in tests/test_provider_cooldown_failover.py with injected clock and seams: max runtime ends before the cooldown deadline, and the drain halts at its own deadline. Add a second case where a kill request during the drought wait stops the drain.",
+    "Leave the rest of the passing diff unchanged and keep the fix inside drain.py and its test. Also check serve.py's drought wait for the same unbounded-wait pattern, then rerun all three Verification commands."
   ],
   "mechanical": null,
   "spec_version": "1.1",
