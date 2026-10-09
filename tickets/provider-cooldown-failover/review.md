@@ -1,12 +1,10 @@
 # Review: snag
 
-The pre-dispatch drought checks look up the implement route by the ticket's authored tier, not the escalated tier the runner actually uses, so a ticket on a retry rung can be parked by mistake, and in drain this disagrees with the scheduler's own check and loops forever.
+When every ready ticket is drought-held, the drain blocks on the provider cooldown deadline without checking its own max-runtime deadline or a kill request, so a cooldown can hold the drain open past both.
 
 ## Findings
 
-- [logic] chupa/drain.py:428 _Drain._dispatch calls session.drought(self.c.config, ticket.frontmatter.agent_tier, 'implement'), but _select (line 400) checks drought with caps.capability(t, events), and runner.drive implements at capability(ticket, history) (runner.py:149). Take a ticket escalated by a retry rung to a tier whose route is available, while the authored tier's route is fully cooling. _select finds no drought and picks it. _dispatch then parks it and returns. park dedups the identical record, nothing waits, and the next loop picks it again: drain spins forever without dispatching or sleeping. It also parks a ticket whose real route is healthy. (do instead: Resolve the implement tier once with caps.capability(ticket, history), the same fold _select and runner.drive use, and use it in every drought check (or reuse _select's verdict instead of re-checking in _dispatch).)
-- [logic] chupa/__main__.py:77 The daemon/serve dispatch (and Serve's admission check, serve.py:170) evaluate drought with ticket.frontmatter.agent_tier. provider_holds then re-checks with the recorded route tier. An escalated ticket is parked, or held, against the wrong route, so a ticket with a healthy escalated route gets a provider_drought infra_error park. (do instead: Use caps.capability(ticket, checkout.journal.read())[0] for the implement-surface drought check here and in Serve's admission predicate.)
-- [logic] chupa/runner.py:517 run_ticket's pre-dispatch drought check and drive's diagnosis-surface drought check (line 198) also use ticket.frontmatter.agent_tier rather than the capability tier this attempt runs at. They can park a ticket whose escalated route is available, or let one through whose escalated route is dry. (do instead: Derive the tier with capability(ticket, history) at these sites, the same way failure_terminal and drive already do.)
+- [logic] chupa/drain.py:282 When `pick is None` and `provider_deadlines` is non-empty, `_Drain.run` awaits `providers.wait_until(min(self.provider_deadlines))` in one uninterrupted call. That deadline can be up to `quota_window_minutes` away (60m in fixtures). During the wait the loop never compares `self.c.clock()` to `self.deadline` (drain.max_runtime_hours), so `_halt` never fires on time. It also never re-runs `before_dispatch` or `_stopping()`, so a pause or kill request is ignored until the cooldown expires. The `storm_waiting` branch right below guards against both: it checks the deadline, then sleeps briefly. Concrete case: max_runtime_hours ends 5 minutes from now, all candidates cool for 60 minutes, and the drain overruns its ceiling by about 55 minutes and cannot be killed in that window. (do instead: Bound the wait: return `self._halt(...)` when `self.c.clock() >= self.deadline`, and otherwise wait until `min(min(self.provider_deadlines), self.deadline)`. Make the wait wake on control input as well (for example, wait in short slices and re-run the loop so `before_dispatch` and `_stopping()` see a pause or kill). Add a test in tests/test_provider_cooldown_failover.py where the drain's max runtime ends before the cooldown deadline, and assert the drain halts at its own deadline.)
 
 ## Record
 
@@ -14,35 +12,17 @@ The pre-dispatch drought checks look up the implement route by the ticket's auth
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "05a79c50ec11ee0cdd27f723f49c538306b7a100",
+  "produced_at_sha": "bb3eb4c52a56c257e95b70967b857dd98f786956",
   "stem": "provider-cooldown-failover",
-  "reviewed_sha": "05a79c50ec11ee0cdd27f723f49c538306b7a100",
-  "summary": "The pre-dispatch drought checks look up the implement route by the ticket's authored tier, not the escalated tier the runner actually uses, so a ticket on a retry rung can be parked by mistake, and in drain this disagrees with the scheduler's own check and loops forever.",
+  "reviewed_sha": "bb3eb4c52a56c257e95b70967b857dd98f786956",
+  "summary": "When every ready ticket is drought-held, the drain blocks on the provider cooldown deadline without checking its own max-runtime deadline or a kill request, so a cooldown can hold the drain open past both.",
   "findings": [
     {
       "code": "logic",
       "path": "chupa/drain.py",
-      "line": 428,
-      "message": "_Drain._dispatch calls session.drought(self.c.config, ticket.frontmatter.agent_tier, 'implement'), but _select (line 400) checks drought with caps.capability(t, events), and runner.drive implements at capability(ticket, history) (runner.py:149). Take a ticket escalated by a retry rung to a tier whose route is available, while the authored tier's route is fully cooling. _select finds no drought and picks it. _dispatch then parks it and returns. park dedups the identical record, nothing waits, and the next loop picks it again: drain spins forever without dispatching or sleeping. It also parks a ticket whose real route is healthy.",
-      "paved_road": "Resolve the implement tier once with caps.capability(ticket, history), the same fold _select and runner.drive use, and use it in every drought check (or reuse _select's verdict instead of re-checking in _dispatch).",
-      "kind": null,
-      "unit": null
-    },
-    {
-      "code": "logic",
-      "path": "chupa/__main__.py",
-      "line": 77,
-      "message": "The daemon/serve dispatch (and Serve's admission check, serve.py:170) evaluate drought with ticket.frontmatter.agent_tier. provider_holds then re-checks with the recorded route tier. An escalated ticket is parked, or held, against the wrong route, so a ticket with a healthy escalated route gets a provider_drought infra_error park.",
-      "paved_road": "Use caps.capability(ticket, checkout.journal.read())[0] for the implement-surface drought check here and in Serve's admission predicate.",
-      "kind": null,
-      "unit": null
-    },
-    {
-      "code": "logic",
-      "path": "chupa/runner.py",
-      "line": 517,
-      "message": "run_ticket's pre-dispatch drought check and drive's diagnosis-surface drought check (line 198) also use ticket.frontmatter.agent_tier rather than the capability tier this attempt runs at. They can park a ticket whose escalated route is available, or let one through whose escalated route is dry.",
-      "paved_road": "Derive the tier with capability(ticket, history) at these sites, the same way failure_terminal and drive already do.",
+      "line": 282,
+      "message": "When `pick is None` and `provider_deadlines` is non-empty, `_Drain.run` awaits `providers.wait_until(min(self.provider_deadlines))` in one uninterrupted call. That deadline can be up to `quota_window_minutes` away (60m in fixtures). During the wait the loop never compares `self.c.clock()` to `self.deadline` (drain.max_runtime_hours), so `_halt` never fires on time. It also never re-runs `before_dispatch` or `_stopping()`, so a pause or kill request is ignored until the cooldown expires. The `storm_waiting` branch right below guards against both: it checks the deadline, then sleeps briefly. Concrete case: max_runtime_hours ends 5 minutes from now, all candidates cool for 60 minutes, and the drain overruns its ceiling by about 55 minutes and cannot be killed in that window.",
+      "paved_road": "Bound the wait: return `self._halt(...)` when `self.c.clock() >= self.deadline`, and otherwise wait until `min(min(self.provider_deadlines), self.deadline)`. Make the wait wake on control input as well (for example, wait in short slices and re-run the loop so `before_dispatch` and `_stopping()` see a pause or kill). Add a test in tests/test_provider_cooldown_failover.py where the drain's max runtime ends before the cooldown deadline, and assert the drain halts at its own deadline.",
       "kind": null,
       "unit": null
     }
