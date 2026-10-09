@@ -1,0 +1,105 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "d47a6c084107de97fa2819f7e86e0480da91ffe7",
+  "stem": "phase4-continue-02",
+  "passed": false,
+  "changed_files": [
+    "tests/test_seeded_phase4_02.py"
+  ],
+  "inserted_lines": 771,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "requisition_review",
+      "verdict": "fail",
+      "findings": [
+        {
+          "code": "missing_entry_unit",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "Scope in requires resolve_plan_contract to resolve 19.P4.reliability-run, the successor phase4-continue-04's required next-admission citation. Under 13.3 and 19.L, a seeding ticket cites the entry units of the seeds it authors, and the 19.P4.reliability-battery Owner bullet sets the same pattern for the predecessor's successor seed. CHUPA_PLAN.md has entry units only up to `### 19.P4.reliability-battery` and has no `### 19.P4.reliability-run`. resolve_plan_contract raises PlanContractError on an id that matches zero headings, and entry_unit_gap returns 'entry unit 19.P4.reliability-run is missing'. The successor seed therefore cannot carry a resolvable Plan contract, and the plan does not state the reliability-run row's Owner, Records, Observable or Tests (its OUTBOX run-lane admission, producer custody and report destination).",
+          "paved_road": "Harden the plan under section 11.4: insert `### 19.P4.reliability-run` after 19.P4.reliability-battery with Owner, Records, Observable and Tests bullets for the no-code run-lane producer. Those bullets should cover the OUTBOX report at tickets/reliability-run/reliability-battery-report.json, the run-lane empty-diff admission and the producer-after-machinery custody. Run plan lint, commit the plan, and then re-offer this seeding ticket unchanged.",
+          "kind": "spec_gap",
+          "unit": "19.P4.reliability-run"
+        }
+      ],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [
+    {
+      "stem": "phase4-continue-03",
+      "ticket_sha": "5aa8df3762da9f140fd135e450c58435664ec746",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "missing_entry_unit",
+          "path": "CHUPA_PLAN.md",
+          "line": null,
+          "message": "Scope in requires resolve_plan_contract to resolve 19.P4.reliability-run, the successor phase4-continue-04's required next-admission citation. Under 13.3 and 19.L, a seeding ticket cites the entry units of the seeds it authors, and the 19.P4.reliability-battery Owner bullet sets the same pattern for the predecessor's successor seed. CHUPA_PLAN.md has entry units only up to `### 19.P4.reliability-battery` and has no `### 19.P4.reliability-run`. resolve_plan_contract raises PlanContractError on an id that matches zero headings, and entry_unit_gap returns 'entry unit 19.P4.reliability-run is missing'. The successor seed therefore cannot carry a resolvable Plan contract, and the plan does not state the reliability-run row's Owner, Records, Observable or Tests (its OUTBOX run-lane admission, producer custody and report destination).",
+          "paved_road": "Harden the plan under section 11.4: insert `### 19.P4.reliability-run` after 19.P4.reliability-battery with Owner, Records, Observable and Tests bullets for the no-code run-lane producer. Those bullets should cover the OUTBOX report at tickets/reliability-run/reliability-battery-report.json, the run-lane empty-diff admission and the producer-after-machinery custody. Run plan lint, commit the plan, and then re-offer this seeding ticket unchanged.",
+          "kind": "spec_gap",
+          "unit": "19.P4.reliability-run"
+        }
+      ],
+      "mechanical": null
+    },
+    {
+      "stem": "provider-cooldown-failover",
+      "ticket_sha": "20cbcdaf81428aa9a64d6c955ca0675be96ab1a4",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
+    }
+  ],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_seeded_phase4_02.py"
+      ],
+      "rc": 0,
+      "tail": "..............                                                           [100%]\n14 passed in 0.85s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "................................................. [ 63%]\n........................................................................ [ 66%]\n........................................................................ [ 69%]\n........................................................................ [ 71%]\n........................................................................ [ 74%]\n........................................................................ [ 77%]\n........................................................................ [ 80%]\n........................................................................ [ 83%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 96%]\n........................................................................ [ 99%]\n.........                                                                [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase4-continue-02/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n2601 passed, 1 warning in 224.34s (0:03:44)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
