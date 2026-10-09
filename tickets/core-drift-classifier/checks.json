@@ -1,0 +1,104 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "79040ebcdaec6d7384b178f5c13b5145bde4d75f",
+  "stem": "core-drift-classifier",
+  "passed": true,
+  "changed_files": [
+    "chupa/hostfiles.py",
+    "tests/test_hostfiles.py"
+  ],
+  "inserted_lines": 219,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_hostfiles.py"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 17%]\n........................................................................ [ 35%]\n........................................................................ [ 53%]\n........................................................................ [ 71%]\n........................................................................ [ 88%]\n.............................................                            [100%]\n405 passed in 0.85s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_hostfiles.py",
+        "tests/test_cli.py"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 16%]\n........................................................................ [ 32%]\n........................................................................ [ 49%]\n........................................................................ [ 65%]\n........................................................................ [ 81%]\n........................................................................ [ 98%]\n........                                                                 [100%]\n440 passed in 2.45s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_gates.py",
+        "tests/test_merge.py",
+        "tests/test_stages.py"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 48%]\n........................................................................ [ 96%]\n......                                                                   [100%]\n150 passed in 20.68s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_plan_lint.py"
+      ],
+      "rc": 0,
+      "tail": "............................                                             [100%]\n28 passed in 0.21s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": ".............................................. [ 71%]\n........................................................................ [ 73%]\n........................................................................ [ 76%]\n........................................................................ [ 78%]\n........................................................................ [ 80%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 86%]\n........................................................................ [ 88%]\n........................................................................ [ 90%]\n........................................................................ [ 92%]\n........................................................................ [ 95%]\n........................................................................ [ 97%]\n........................................................................ [ 99%]\n..........................                                               [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/core-drift-classifier/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3410 passed, 1 warning in 282.11s (0:04:42)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
