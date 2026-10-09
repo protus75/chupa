@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The full suite retains one warning also observed on the untouched branch.
+Recovered the prior local implementation and added escalation, auditor, and run-sequence regressions.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Completed within the expected 60-minute budget.
 
