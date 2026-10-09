@@ -1,13 +1,13 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "547db6df1ef97ec70e7bfe7272701e744f034c78",
+  "produced_at_sha": "e7f4558444eb54ba6aa85ac5f3041a2c675a283c",
   "stem": "phase6-continue",
   "passed": false,
   "changed_files": [
     "tests/test_seeded_phase6_01.py"
   ],
-  "inserted_lines": 1095,
+  "inserted_lines": 752,
   "bypassed": [],
   "reports": [
     {
@@ -39,13 +39,13 @@
       "verdict": "fail",
       "findings": [
         {
-          "code": "missing_successor_entry_units",
-          "path": "CHUPA_PLAN.md",
-          "line": 2621,
-          "message": "The Scope requires phase6-continue-03 to carry position 3 and admissions[3:], which starts with [bug-gate-grammar, report-inbox-triage]. It also requires running required_units and entry_unit_gap on every required non-exit entry, including the successor's next-admission entries. Under section 13's seeding-role grammar, phase6-continue-03 must cite the entry units of the seeds it authors, 19.P6.bug-gate-grammar and 19.P6.report-inbox-triage, and the grammar gate refuses an unresolvable Plan contract id. CHUPA_PLAN.md has no heading for either unit: the 19.P6 entry units stop at fixture-host-scaffold. The successor therefore cannot be authored grammar-valid. 19.P6.fixture-host-scaffold, the cited unit that bug-gate-grammar's registry row depends on, says phase6-continue-02 checks SPEC DEPTH on every entry unit its seeds need, but the plan does not state the Owner, Records, Observable or Tests of the successor's next-admission rows. By the ticket's own instruction, Implement deterministically returns premise_failed.",
-          "paved_road": "Harden the plan through section 11.4. Insert ### 19.P6.bug-gate-grammar and ### 19.P6.report-inbox-triage after 19.P6.fixture-host-scaffold, each with non-empty Owner, Records, Observable and Tests bullets that state the citation and depth-check duties phase6-continue-03 needs. Run plan lint and commit the plan. Then re-author this seed unchanged so its successor can cite both units.",
-          "kind": "spec_gap",
-          "unit": "19.P6.fixture-host-scaffold"
+          "code": "scope_fence_gap",
+          "path": "tests/test_stages.py",
+          "line": 97,
+          "message": "Activation puts core_drift into stages.CHECK_GATES with hard severity, so the inline and queued merge reruns also run it through that gate set (mergequeue.py:274 runs stages.CHECK_GATES). In the shared fixture CONFIG (tests/test_stages.py:97), the only routed provider is `fake`. Under the plan's resolver, any routed agent CLI other than claude maps to AGENTS.md. The test host repos are built in tests/test_stages.py, tests/test_seed_path.py and tests/test_drain.py, and none of them commits an AGENTS.md or CLAUDE.md. Every Check and merge in those tests would therefore classify `missing` and fail hard. Examples: test_stages.py:227 and :661 run run_stages expecting review to pass; test_seed_path.py:125 and test_drain.py:197 assert `merged`. Many more files import these builders, and `uv run pytest -q` (criterion 7) requires all of them to pass. 19.I's transition-fence law says the fence must name every predecessor fixture and composition root that the flip invalidates. This fence names none of these builders.",
+          "paved_road": "Add the repo-building fixture owners (at least tests/test_stages.py, tests/test_seed_path.py and tests/test_drain.py) to Scope fence and Context. Have each builder commit a mechanically rendered conduct file for its routed providers, using hostfiles.render applied to the fixture's own bytes. Check the import closure of those builders, list any other fixture repo that runs Check or merge, and recheck the diff budget. Do not make core_drift soft in the shared fixture CONFIG, because that would hide the hard default the ticket must preserve.",
+          "kind": "authoring_error",
+          "unit": null
         }
       ],
       "autofix_applied": false
@@ -54,33 +54,33 @@
   "seeds": [
     {
       "stem": "core-drift-activation",
-      "ticket_sha": "d0632d8cf27c126b79df95a3b4c40dd9d9db5ab5",
+      "ticket_sha": "c9b3df0266fbc319a5b52e6777adfa245d206965",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "scope_fence_gap",
+          "path": "tests/test_stages.py",
+          "line": 97,
+          "message": "Activation puts core_drift into stages.CHECK_GATES with hard severity, so the inline and queued merge reruns also run it through that gate set (mergequeue.py:274 runs stages.CHECK_GATES). In the shared fixture CONFIG (tests/test_stages.py:97), the only routed provider is `fake`. Under the plan's resolver, any routed agent CLI other than claude maps to AGENTS.md. The test host repos are built in tests/test_stages.py, tests/test_seed_path.py and tests/test_drain.py, and none of them commits an AGENTS.md or CLAUDE.md. Every Check and merge in those tests would therefore classify `missing` and fail hard. Examples: test_stages.py:227 and :661 run run_stages expecting review to pass; test_seed_path.py:125 and test_drain.py:197 assert `merged`. Many more files import these builders, and `uv run pytest -q` (criterion 7) requires all of them to pass. 19.I's transition-fence law says the fence must name every predecessor fixture and composition root that the flip invalidates. This fence names none of these builders.",
+          "paved_road": "Add the repo-building fixture owners (at least tests/test_stages.py, tests/test_seed_path.py and tests/test_drain.py) to Scope fence and Context. Have each builder commit a mechanically rendered conduct file for its routed providers, using hostfiles.render applied to the fixture's own bytes. Check the import closure of those builders, list any other fixture repo that runs Check or merge, and recheck the diff budget. Do not make core_drift soft in the shared fixture CONFIG, because that would hide the hard default the ticket must preserve.",
+          "kind": "authoring_error",
+          "unit": null
+        }
+      ],
+      "mechanical": null
+    },
+    {
+      "stem": "migrate-config",
+      "ticket_sha": "d3b6e9bc0cd753c600595be2a73cef3305a9833d",
       "verdict": "approve",
       "findings": [],
       "mechanical": null
     },
     {
-      "stem": "migrate-config",
-      "ticket_sha": "ee1bae82a7b233fd528bb19efccaf32fe3302cfd",
+      "stem": "phase6-continue-02",
+      "ticket_sha": "72a1d2b0e2a101b789a527d74a50a7f3b3a858ae",
       "verdict": "approve",
       "findings": [],
-      "mechanical": "approved earlier"
-    },
-    {
-      "stem": "phase6-continue-02",
-      "ticket_sha": "fbef7eeb4586bce84296da09ef908558c44cd171",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "missing_successor_entry_units",
-          "path": "CHUPA_PLAN.md",
-          "line": 2621,
-          "message": "The Scope requires phase6-continue-03 to carry position 3 and admissions[3:], which starts with [bug-gate-grammar, report-inbox-triage]. It also requires running required_units and entry_unit_gap on every required non-exit entry, including the successor's next-admission entries. Under section 13's seeding-role grammar, phase6-continue-03 must cite the entry units of the seeds it authors, 19.P6.bug-gate-grammar and 19.P6.report-inbox-triage, and the grammar gate refuses an unresolvable Plan contract id. CHUPA_PLAN.md has no heading for either unit: the 19.P6 entry units stop at fixture-host-scaffold. The successor therefore cannot be authored grammar-valid. 19.P6.fixture-host-scaffold, the cited unit that bug-gate-grammar's registry row depends on, says phase6-continue-02 checks SPEC DEPTH on every entry unit its seeds need, but the plan does not state the Owner, Records, Observable or Tests of the successor's next-admission rows. By the ticket's own instruction, Implement deterministically returns premise_failed.",
-          "paved_road": "Harden the plan through section 11.4. Insert ### 19.P6.bug-gate-grammar and ### 19.P6.report-inbox-triage after 19.P6.fixture-host-scaffold, each with non-empty Owner, Records, Observable and Tests bullets that state the citation and depth-check duties phase6-continue-03 needs. Run plan lint and commit the plan. Then re-author this seed unchanged so its successor can cite both units.",
-          "kind": "spec_gap",
-          "unit": "19.P6.fixture-host-scaffold"
-        }
-      ],
       "mechanical": null
     }
   ],
@@ -94,7 +94,7 @@
         "tests/test_seeded_phase6_01.py"
       ],
       "rc": 0,
-      "tail": "...                                                                      [100%]\n3 passed in 0.07s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "...                                                                      [100%]\n3 passed in 0.48s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -107,7 +107,7 @@
         "tests/test_cli.py"
       ],
       "rc": 0,
-      "tail": "........................................................................ [ 16%]\n........................................................................ [ 32%]\n........................................................................ [ 49%]\n........................................................................ [ 65%]\n........................................................................ [ 81%]\n........................................................................ [ 98%]\n........                                                                 [100%]\n440 passed in 4.19s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................................ [ 16%]\n........................................................................ [ 32%]\n........................................................................ [ 49%]\n........................................................................ [ 65%]\n........................................................................ [ 81%]\n........................................................................ [ 98%]\n........                                                                 [100%]\n440 passed in 2.19s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -119,7 +119,7 @@
         "tests/test_plan_lint.py"
       ],
       "rc": 0,
-      "tail": "............................                                             [100%]\n28 passed in 0.19s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "............................                                             [100%]\n28 passed in 0.18s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -130,7 +130,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": ".................................................... [ 71%]\n........................................................................ [ 73%]\n........................................................................ [ 75%]\n........................................................................ [ 78%]\n........................................................................ [ 80%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 86%]\n........................................................................ [ 88%]\n........................................................................ [ 90%]\n........................................................................ [ 92%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n........................................................................ [ 99%]\n.............................                                            [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase6-continue/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3413 passed, 1 warning in 281.74s (0:04:41)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": ".................................................... [ 71%]\n........................................................................ [ 73%]\n........................................................................ [ 75%]\n........................................................................ [ 78%]\n........................................................................ [ 80%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 86%]\n........................................................................ [ 88%]\n........................................................................ [ 90%]\n........................................................................ [ 92%]\n........................................................................ [ 94%]\n........................................................................ [ 96%]\n........................................................................ [ 99%]\n...............................                                          [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase6-continue/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3415 passed, 1 warning in 288.03s (0:04:48)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
