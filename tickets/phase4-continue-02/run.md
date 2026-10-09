@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-Verified on untouched base HEAD cc6c364d424ef64194ce2ec3756c87e81ceb80c6: provider and threshold entry-depth checks pass, but the required reliability-battery citation resolves to zero headings; git status remains clean.
+The previously missing reliability-battery citation now resolves; both Verification commands passed with 14 batch tests and 2601 full-suite tests. Check retains approval and seed-lift ownership.
 
 ## Dead ends
 
-Stopped at prerequisite citation validation as required by the ticket; Verification commands were not run.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Prerequisite validation took approximately two minutes against the expected 60-minute budget.
+Approximately 11 minutes against the expected 60-minute budget.
 
