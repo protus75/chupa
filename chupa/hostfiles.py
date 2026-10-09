@@ -1,7 +1,10 @@
 """Managed conduct bytes and atomic refresh (CHUPA_PLAN.md sections 8, 15, 17)."""
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
+import re
+from typing import Literal
 
 from chupa.seams import FileSystem
 
@@ -61,6 +64,51 @@ def render(data: bytes) -> bytes:
         return block + b"\n\n" + data
     prefix, suffix = project
     return prefix + block + suffix
+
+
+_MODALS = ("must", "must not", "should", "should not", "shall", "shall not",
+           "will", "will not", "may", "may not")
+_IMPERATIVES = ("author", "implement", "check", "review", "merge", "commit", "dispatch",
+                "confirm", "reject", "kill", "pause", "resume", "triage", "rework", "drain")
+_PROCESS_OPENING = re.compile(r"^chupa\s+(?:" + "|".join((*_MODALS, *_IMPERATIVES)) + r")\b", re.I)
+_LIST_PREFIX = re.compile(r"^\s*(?:[-+*]|[0-9]+[.)])\s+")
+
+
+@dataclass(frozen=True)
+class CoreClassification:
+    state: Literal["missing", "current", "drifted", "refused"]
+    paved_road: str | None = None
+
+
+def _process_override(remainder: bytes) -> bool:
+    paragraphs, continuation = [], []
+    for line in remainder.decode(errors="replace").splitlines():
+        item = _LIST_PREFIX.match(line)
+        if not line.strip() or item:
+            paragraphs.append(" ".join(continuation))
+            continuation = []
+        if line.strip():
+            continuation.append(line[item.end():] if item else line)
+    paragraphs.append(" ".join(continuation))
+    return any(_PROCESS_OPENING.match(" ".join(paragraph.split())) for paragraph in paragraphs)
+
+
+def classify_core(data: bytes | None) -> CoreClassification:
+    """Judge supplied bytes against this branch's fresh render, without effects (19.P6)."""
+    previous = data if data is not None else b""
+    try:
+        project = parse(previous)
+    except MarkerCorruption as exc:
+        return CoreClassification("refused", str(exc))
+    remainder = previous if project is None else b"".join(project)
+    if _process_override(remainder):
+        return CoreClassification("refused", "move engine-process rules to the engine core template"
+                                  " or rewrite them as project-content rules")
+    if project is None:
+        return CoreClassification("missing", "run `chupa core` to insert the managed block")
+    if previous != render(previous):
+        return CoreClassification("drifted", "run `chupa core` to refresh the managed block")
+    return CoreClassification("current")
 
 
 def refresh(paths: Sequence[Path], fs: FileSystem) -> None:
