@@ -4,7 +4,7 @@ premise_failed
 
 ## Surprises / judgment calls
 
-Verified on untouched base commit 22e86866843b1e1e86d9a51993755c148295b5bf: the exact required drought transition reports one_terminal_per_run; a control with a preceding running transition passes.
+Reproduced on untouched base 3e1ae0b3b8562e82db328f2f9a949f8cd41833c0; the running-first control passes, and tests/test_audit.py reports 4 passed. Ticket Verification commands were not run after confirming the blocking premise.
 
 ## Dead ends
 
