@@ -1,15 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "e7f4558444eb54ba6aa85ac5f3041a2c675a283c",
+  "produced_at_sha": "109b74189d782d1ad9b239232e8309e3fbfc2467",
   "stem": "phase6-continue",
-  "attempt": 6,
+  "attempt": 7,
   "terminal": "gate_failed",
   "stage": "check",
   "verdict": "retry",
   "lessons": [
-    "In the core-drift-activation seed, add tests/test_stages.py, tests/test_seed_path.py and tests/test_drain.py to Scope fence and Context. Under 19.I's transition-fence law, the fence names every predecessor fixture and composition root the hard core_drift flip invalidates.",
-    "Apply 19.L closure through compositions as well as direct callers: activation adds core_drift to stages.CHECK_GATES, and mergequeue.py:274 reruns CHECK_GATES. Every test that builds a host repo and runs Check or merge is a fixture the flip invalidates."
+    "Implement passed: 3419 tests green, test commit 109b741, three seeds uncommitted. The only finding is requisition_review's 'invalid requisition review reply: 1 schema error(s)', a malformed reviewer reply rather than a seed or test defect. Do not rewrite the passing work.",
+    "Per the ticket ('A retry retains approved bytes while ticket_sha matches and authors only snagged seeds'), keep the two approved seeds byte-identical. Re-author or re-review only the seed whose requisition_review reply failed.",
+    "Follow the finding's paved road and send a schema-valid requisition verdict. This material omits which schema field failed, so read the requisition_review reply schema in merged chupa code before replying rather than guessing its shape.",
+    "Keep tests/test_seeded_phase6_01.py AUTHORED sha256 pins consistent with the seed bytes. If a snagged seed changes, update its pin, rerun all Verification commands, and keep the activation render under the 300,000-character On-demand threshold (currently 297,652)."
   ],
   "mechanical": null,
   "spec_version": "1.1",
