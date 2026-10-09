@@ -4,7 +4,7 @@ premise_failed
 
 ## Surprises / judgment calls
 
-A disposable-repository probe on the untouched branch reproduced the prior scope blocker: after permitted Claude-only adoption, repository() replaces routing with Claude and Codex, leaving committed AGENTS.md missing.
+On the untouched branch, a disposable-repository probe confirmed that adopting the original Claude route leaves committed AGENTS.md missing after repository() replaces routing with Claude and Codex; the existing outbox admission test passes while the gate remains dormant.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped early within the expected 60-minute budget after confirming the contract blocker.
+Stopped early within the expected 60-minute budget after reproducing the scope blocker.
 
