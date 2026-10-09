@@ -1,13 +1,13 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "fd238c5525af4c97bda824f9cbd1f2b4b596e9ca",
+  "produced_at_sha": "07065f3ff1715bb28dacbf2b1e17546151ae835c",
   "stem": "phase4-continue",
-  "passed": false,
+  "passed": true,
   "changed_files": [
     "tests/test_seeded_phase4_01.py"
   ],
-  "inserted_lines": 834,
+  "inserted_lines": 714,
   "bypassed": [],
   "reports": [
     {
@@ -36,36 +36,8 @@
     },
     {
       "code": "requisition_review",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "undefined_metered_threshold_basis",
-          "path": "chupa/providers.py",
-          "line": null,
-          "message": "19.P4.watchdog-detector sets the threshold as spend strictly above SPIRAL_SPEND_MULTIPLIER times 'the serving row's per-call basis (metered cost when available, otherwise its declared estimate)', but it never says which metered cost is the basis. For a cost-reporting provider with no `limits.est_cost_per_call_usd` (ClaudeAdapter.reports_cost=True; config.py allows the estimate to be None), the only metered cost is the cumulative `total_cost_usd` on the terminal `result` event. If the basis is that same call's cost, the threshold is circular: spend can never exceed 3x itself within one call. Across re-prompts with retained state, the basis is still unnamed: first call, latest call, a running mean, or something else. test_spend_metering_and_threshold must assert exact equality and strict crossing, so the implementer would have to invent this fact.",
-          "paved_road": "Amend 19.P4.watchdog-detector Records to name the metered per-call basis exactly: which call's metered cost it is, when it becomes available relative to the in-flight call, and how it behaves when a cost-reporting provider has not yet emitted a terminal cost. Then regenerate the ticket.",
-          "kind": "spec_gap",
-          "unit": "19.P4.watchdog-detector"
-        },
-        {
-          "code": "context_omits_cap_wait_owner",
-          "path": "chupa/thresh.py",
-          "line": 35,
-          "message": "The scope requires 'cap-wait exclusion' from both budgets. In merged code the only provider-cap wait record lives in chupa/thresh.py (`Admission.waited_seconds` and the journaled `provider_cap_wait` signal with `started_at`/`waited_seconds`). That module is not in Context, and the ticket never names which record or injected seam supplies cap-wait intervals to the detector. Under read-before-write, the implementer cannot build the exclusion against the real record and would have to guess its shape.",
-          "paved_road": "Add chupa/thresh.py to `## Context`. In Scope in, state that cap-wait time comes from the existing `Admission.waited_seconds` / `provider_cap_wait` record through an injected seam, with no change to thresh.py, which stays outside the fence.",
-          "kind": "authoring_error",
-          "unit": null
-        },
-        {
-          "code": "corpus_fixture_location_unfenced",
-          "path": "tests/test_watchdog.py",
-          "line": null,
-          "message": "test_spiral_corpus must 'replay pinned adapter-event fixtures'. A standalone fixture file such as tests/fixtures/*.jsonl is outside `## Scope fence`, and section 9.3 bars it from test-file auto-admission: the anti-weakening check parses Python only, so a file under tests/ that Python's `ast` cannot parse forfeits admission. The ticket does not say the fixtures must be inline. An implementer who reads 'pinned fixtures' as files would trip the fence gate.",
-          "paved_road": "State in Scope in that the corpus fixtures are pinned inline as Python literals in tests/test_watchdog.py. Alternatively, fence the fixture path explicitly.",
-          "kind": "authoring_error",
-          "unit": null
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false
     }
   ],
@@ -75,48 +47,20 @@
       "ticket_sha": "fb08979a21c7b7f5650813b63c914dbff2e5b85d",
       "verdict": "approve",
       "findings": [],
-      "mechanical": null
+      "mechanical": "approved earlier"
     },
     {
       "stem": "watchdog-activation",
       "ticket_sha": "7c075788b6e396fe0f515d71ef8b3955e1d1709a",
       "verdict": "approve",
       "findings": [],
-      "mechanical": null
+      "mechanical": "approved earlier"
     },
     {
       "stem": "watchdog-detector",
-      "ticket_sha": "f21543f35afc1604820248f42f9320cd1c575a46",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "undefined_metered_threshold_basis",
-          "path": "chupa/providers.py",
-          "line": null,
-          "message": "19.P4.watchdog-detector sets the threshold as spend strictly above SPIRAL_SPEND_MULTIPLIER times 'the serving row's per-call basis (metered cost when available, otherwise its declared estimate)', but it never says which metered cost is the basis. For a cost-reporting provider with no `limits.est_cost_per_call_usd` (ClaudeAdapter.reports_cost=True; config.py allows the estimate to be None), the only metered cost is the cumulative `total_cost_usd` on the terminal `result` event. If the basis is that same call's cost, the threshold is circular: spend can never exceed 3x itself within one call. Across re-prompts with retained state, the basis is still unnamed: first call, latest call, a running mean, or something else. test_spend_metering_and_threshold must assert exact equality and strict crossing, so the implementer would have to invent this fact.",
-          "paved_road": "Amend 19.P4.watchdog-detector Records to name the metered per-call basis exactly: which call's metered cost it is, when it becomes available relative to the in-flight call, and how it behaves when a cost-reporting provider has not yet emitted a terminal cost. Then regenerate the ticket.",
-          "kind": "spec_gap",
-          "unit": "19.P4.watchdog-detector"
-        },
-        {
-          "code": "context_omits_cap_wait_owner",
-          "path": "chupa/thresh.py",
-          "line": 35,
-          "message": "The scope requires 'cap-wait exclusion' from both budgets. In merged code the only provider-cap wait record lives in chupa/thresh.py (`Admission.waited_seconds` and the journaled `provider_cap_wait` signal with `started_at`/`waited_seconds`). That module is not in Context, and the ticket never names which record or injected seam supplies cap-wait intervals to the detector. Under read-before-write, the implementer cannot build the exclusion against the real record and would have to guess its shape.",
-          "paved_road": "Add chupa/thresh.py to `## Context`. In Scope in, state that cap-wait time comes from the existing `Admission.waited_seconds` / `provider_cap_wait` record through an injected seam, with no change to thresh.py, which stays outside the fence.",
-          "kind": "authoring_error",
-          "unit": null
-        },
-        {
-          "code": "corpus_fixture_location_unfenced",
-          "path": "tests/test_watchdog.py",
-          "line": null,
-          "message": "test_spiral_corpus must 'replay pinned adapter-event fixtures'. A standalone fixture file such as tests/fixtures/*.jsonl is outside `## Scope fence`, and section 9.3 bars it from test-file auto-admission: the anti-weakening check parses Python only, so a file under tests/ that Python's `ast` cannot parse forfeits admission. The ticket does not say the fixtures must be inline. An implementer who reads 'pinned fixtures' as files would trip the fence gate.",
-          "paved_road": "State in Scope in that the corpus fixtures are pinned inline as Python literals in tests/test_watchdog.py. Alternatively, fence the fixture path explicitly.",
-          "kind": "authoring_error",
-          "unit": null
-        }
-      ],
+      "ticket_sha": "f813609e6ea0c8ee269e7779a29f2418cfd3f7e3",
+      "verdict": "approve",
+      "findings": [],
       "mechanical": null
     }
   ],
@@ -130,7 +74,7 @@
         "tests/test_seeded_phase4_01.py"
       ],
       "rc": 0,
-      "tail": "...................                                                      [100%]\n19 passed in 1.42s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": ".....................                                                    [100%]\n21 passed in 1.47s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -141,7 +85,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": ".................................................... [ 61%]\n........................................................................ [ 64%]\n........................................................................ [ 67%]\n........................................................................ [ 70%]\n........................................................................ [ 73%]\n........................................................................ [ 75%]\n........................................................................ [ 78%]\n........................................................................ [ 81%]\n........................................................................ [ 84%]\n........................................................................ [ 87%]\n........................................................................ [ 90%]\n........................................................................ [ 92%]\n........................................................................ [ 95%]\n........................................................................ [ 98%]\n......................................                                   [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase4-continue/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n2558 passed, 1 warning in 231.66s (0:03:51)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": ".................................................... [ 61%]\n........................................................................ [ 64%]\n........................................................................ [ 67%]\n........................................................................ [ 70%]\n........................................................................ [ 73%]\n........................................................................ [ 75%]\n........................................................................ [ 78%]\n........................................................................ [ 81%]\n........................................................................ [ 84%]\n........................................................................ [ 87%]\n........................................................................ [ 90%]\n........................................................................ [ 92%]\n........................................................................ [ 95%]\n........................................................................ [ 98%]\n........................................                                 [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase4-continue/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n2560 passed, 1 warning in 232.42s (0:03:52)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
