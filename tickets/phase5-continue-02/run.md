@@ -1,18 +1,18 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The scorecard entry passes SPEC DEPTH, but phase5-continue-03 cannot resolve its required contracts; the working plan matches committed HEAD and no tracked files were changed.
+All verification commands passed: 9 batch tests, 28 plan-lint tests, and 2833 full-suite tests; Check owns requisition approvals and seed lift.
 
 ## Dead ends
 
-Stopped before writing seeds or the batch test, as required by the pre-authoring contract checks.
+An interim full-suite run loaded an outdated seed hash during an edit; fresh verification against final bytes passed.
 
 ## Second problems filed
 
-none
+- box-000282-0235c609: Verified on the unchanged base that 19.P5.retro-doctor-cli is missing; that entry needs contract repair before the later continuation can author its admission.
 
 ## Resolved engine/model
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during initial contract validation, within the 60-minute expected budget.
+Completed within the expected 60-minute budget, including two approximately four-minute full-suite runs.
 
