@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Both seeds remain uncommitted for Check’s requisition_review and ticket-plane lift. All five Verification commands passed; the full suite passed 2,725 tests.
+Recovered prior files byte-for-byte; the approved seed is unchanged, and both seeds remain uncommitted for Check's requisition_review and ticket-plane lift.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60m / stuck 90m; final full-suite verification took 236.98s.
+Completed within the 60m expected budget; full-suite verification took 241.86s.
 
