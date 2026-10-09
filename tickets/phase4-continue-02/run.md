@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-On untouched HEAD f9b122eafa51b669a8a8ee5a856f791229e72059, provider and threshold entry-depth checks passed, but resolving the successor's required reliability-battery citation failed with zero matching headings.
+Verified on untouched base HEAD cc6c364d424ef64194ce2ec3756c87e81ceb80c6: provider and threshold entry-depth checks pass, but the required reliability-battery citation resolves to zero headings; git status remains clean.
 
 ## Dead ends
 
-Stopped before authoring seeds or tests because required future citation resolution failed; Verification commands were not run.
+Stopped at prerequisite citation validation as required by the ticket; Verification commands were not run.
 
 ## Second problems filed
 
