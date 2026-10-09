@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-Untouched-branch verification passed all 11 existing tests, but the six named detector obligations are absent.
+The governing plan now explicitly resolves the prior timeout-floor blocker; production calls remain unwatched.
 
 ## Dead ends
 
-Checked section 9.7, the detector entry, and existing Driver behavior; none defines the required floor.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60 minutes; stopped during initial contract inspection.
+Expected 60 minutes; completed within budget.
 
