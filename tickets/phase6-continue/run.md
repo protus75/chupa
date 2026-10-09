@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Recorded five earned activation fence additions and three measured On-demand paths; review approvals and seed lifting remain engine Check responsibilities.
+Activation required 13 earned fence additions; its recorded render is 297,652 characters. Both approved seeds remain byte-identical.
 
 ## Dead ends
 
-Corrected snapshot test-name extraction and reran the full suite after an overlapping run used stale snapshots.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60-minute expected and 90-minute stuck budgets.
+Completed within the expected 60-minute budget.
 
