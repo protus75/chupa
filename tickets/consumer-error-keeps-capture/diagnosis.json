@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "6a61d3346c45601ddea52d7a650b65b5a9c56447",
+  "stem": "consumer-error-keeps-capture",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "In chupa/seams.py ProcessExec.run, the timeout/cancel `except BaseException` path must not drop a stored consumer error: after kill-and-wait, surface it (raise it, or chain the timeout `from` it). The ticket's Definition of rejected forbids swallowing a consumer exception.",
+    "Keep timeout and group-kill behavior unchanged when the consumer fails. Still kill the group and wait for the child. Only make the first callback exception visible to the caller. The ticket fences out changes to timeout/group-kill behavior.",
+    "In tests/test_providers.py, do not turn the old `callback` case into one that expects a bare TimeoutError. Assert that the consumer's `error` is visible (as the raised exception, or as `__cause__`/`__context__`), and keep the group-kill and no-leaked-task assertions.",
+    "Use the same propagation form in seams.py and in its test, and make sure CliAdapter.invoke still writes the scrubbed events.jsonl and stderr.txt on this timeout-after-consumer-error path before the exception propagates."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
