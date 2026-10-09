@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The detector, activation, event-stream and notify-transport entry units pass entry_unit_gap; the successor's required next-admission entry has no heading.
+The missing provider contract now resolves; activation closure includes the separate requisition-review call path.
 
 ## Dead ends
 
-Stopped before authoring because omitting the successor's required citation or inventing its contract is prohibited.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during contract validation, within the 60-minute expected budget.
+Completed within the 60-minute expected budget; verification passed with 19 batch tests and 2558 full-suite tests.
 
