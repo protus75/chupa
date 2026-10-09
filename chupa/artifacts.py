@@ -180,6 +180,54 @@ class DaemonSoakReport(Artifact):
         return self
 
 
+RELIABILITY_BATTERY_REPORT = "reliability-battery-report.json"
+RELIABILITY_BATTERY_SPEC_VERSION = 1
+RELIABILITY_BATTERY_MEMBERS = (
+    "classified_quota_exhaustion",
+    "all_candidates_cooling_recovery",
+    "unclassified_failure_preservation",
+)
+_RELIABILITY_BATTERY_EXPECTED = (
+    "quota_classified_cooldown_persisted",
+    "all_cooling_held_timer_fired_recovered",
+    "unknown_failure_unclassified",
+)
+
+
+class ReliabilityBatteryEntry(_Strict):
+    member: Literal["classified_quota_exhaustion", "all_candidates_cooling_recovery",
+                    "unclassified_failure_preservation"]
+    planted_fault: NonBlank
+    expected: NonBlank
+    observed: NonBlank
+    producing_run: str
+    auditor: list[NonBlank]
+    green: bool
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "ReliabilityBatteryEntry":
+        from chupa.tickets import stem_findings
+
+        stem, separator, sequence = self.producing_run.rpartition("/")
+        if not separator or not re.fullmatch(r"[0-9]+", sequence) or stem_findings(stem):
+            raise ValueError("producing_run must be <ticket stem>/<nonnegative run sequence>")
+        if self.expected != _RELIABILITY_BATTERY_EXPECTED[RELIABILITY_BATTERY_MEMBERS.index(self.member)]:
+            raise ValueError(f"{self.member} requires its fixed expected observation")
+        if self.green != (self.observed == self.expected and not self.auditor):
+            raise ValueError("green must match the observation and empty auditor")
+        return self
+
+
+class ReliabilityBatteryReport(Artifact):
+    entries: list[ReliabilityBatteryEntry]
+
+    @model_validator(mode="after")
+    def _ordered_members(self) -> "ReliabilityBatteryReport":
+        if tuple(entry.member for entry in self.entries) != RELIABILITY_BATTERY_MEMBERS:
+            raise ValueError(f"entries must contain exactly {RELIABILITY_BATTERY_MEMBERS}, in order")
+        return self
+
+
 @dataclass(frozen=True)
 class Cost:
     tokens: int | None = None  # None when a cli stream reports no usage

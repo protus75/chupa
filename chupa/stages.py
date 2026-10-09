@@ -20,7 +20,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
-from chupa.artifacts import DAEMON_SOAK_REPORT, OUTCOMES, SHAKEOUT_REPORT, Artifact, Cost, DaemonSoakReport, Diagnosis, DiagnosisReply, Finding, Harvest, NonBlank, Outcome, ReviewVerdict, ShakeoutReport, StageResult
+from chupa.artifacts import RELIABILITY_BATTERY_REPORT, ReliabilityBatteryReport, DAEMON_SOAK_REPORT, OUTCOMES, SHAKEOUT_REPORT, Artifact, Cost, DaemonSoakReport, Diagnosis, DiagnosisReply, Finding, Harvest, NonBlank, Outcome, ReviewVerdict, ShakeoutReport, StageResult
 from chupa.box import BOX_DIR
 from chupa.storm import arrival_id
 from chupa.caps import lineage
@@ -36,7 +36,8 @@ from chupa.tickets import _HEADING, _bullets, _sections, PLAN_FILE, TICKET_FILE,
 
 MAIN = "main"
 KNOWN_ARTIFACTS: Mapping[str, type[BaseModel]] = {SHAKEOUT_REPORT: ShakeoutReport,
-                                             DAEMON_SOAK_REPORT: DaemonSoakReport}
+                                             DAEMON_SOAK_REPORT: DaemonSoakReport,
+                                             RELIABILITY_BATTERY_REPORT: ReliabilityBatteryReport}
 # Section 7 diff budget: sized so every rendered review prompt fits the serving provider's bound.
 DIFF_BUDGET_FILES = 30
 DIFF_BUDGET_INSERTED = 1_500
@@ -1065,7 +1066,7 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
     required_report = _report("verification", [Finding(
         code="verification", path=f"{TICKETS_DIR}/{stem}/{name}",
         message=f"Verification named {name} but left no report in the outbox",
-        paved_road="make the named eval.shakeout.run command exit 0 so it writes the report",
+        paved_road="make the named Verification command exit 0 and write its registered report",
     ) for name in missing]) if missing else None
     seeding = TICKETS_DIR in ticket.scope_fence
     own = _seeded_stems(ctx, stem) if seeding else set()
@@ -1095,7 +1096,7 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
         (outbox / "checks.json").unlink(missing_ok=True)
         finding = Finding(code="verification", path=str(error.path.relative_to(ctx.worktree(stem))),
                           message=f"invalid registered artifact: {error.error}",
-                          paved_road="produce the report only through eval.shakeout.run")
+                          paved_road="produce the report through its named Verification command")
         return StageResult(outcome="gate_failed", artifact=invoice.model_copy(update={"passed": False}), findings=[finding],
                            cost=Cost(seconds=active_seconds()))
     except GitError as error:
