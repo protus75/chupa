@@ -1,0 +1,66 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "a8034dc621345dcb53b41cff9e6d73fd9446874f",
+  "stem": "watchdog-meter-event-shapes",
+  "passed": true,
+  "changed_files": [
+    "chupa/watchdog.py",
+    "tests/test_watchdog.py"
+  ],
+  "inserted_lines": 56,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_watchdog.py",
+        "tests/test_watchdog_activation.py"
+      ],
+      "rc": 0,
+      "tail": "..............................                                           [100%]\n30 passed in 1.30s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "........................................ [ 61%]\n........................................................................ [ 64%]\n........................................................................ [ 66%]\n........................................................................ [ 69%]\n........................................................................ [ 72%]\n........................................................................ [ 75%]\n........................................................................ [ 77%]\n........................................................................ [ 80%]\n........................................................................ [ 83%]\n........................................................................ [ 86%]\n........................................................................ [ 89%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n...................................................................      [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/watchdog-meter-event-shapes/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n2587 passed, 1 warning in 225.63s (0:03:45)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
