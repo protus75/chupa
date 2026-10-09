@@ -5,7 +5,7 @@ emits: {approve: requisition-approval, snag: requisition-snag, rma: requisition-
 tier: high
 effort: high
 gates: [requisition_review]
-version: "2.1"
+version: "2.2"
 ---
 ## Role
 
@@ -27,8 +27,10 @@ ticket can be implemented as written. Reply `snag` for a ticket defect its autho
 Give every finding a `kind`. `spec_gap`: the ticket's governing spec (its plan contract and entry
 unit) omits a fact the work needs, such as a record, its writer, an edge case, or an owner; name the
 missing fact and never invent it. `authoring_error`: the ticket contradicts what the plan or merged
-code states, or is malformed. Every `spec_gap` finding names its `unit`: the ticket's
-own non-exit registry entry unit or a registry entry unit cited in `## Plan contract`.
+code states, or is malformed. Every `spec_gap` finding names its `unit` from the
+ticket's own non-exit registry entry unit, each registry entry unit its `## Plan contract` cites,
+or, for each cited phase unit `19.P<n>`, every non-exit row's entry unit of that phase,
+present or absent. Name the unit that is missing or under-specified, never a unit that refers to it.
 If the ticket has no such units, `unit` is null; every `authoring_error` has `unit: null`.
 
 When a prior review is given, first rule each of its findings `cleared` or `standing` in your

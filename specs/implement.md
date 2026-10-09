@@ -5,7 +5,7 @@ emits: packing-slip
 tier: medium
 effort: medium
 gates: []
-version: "1.2"
+version: "1.3"
 ---
 ## Role
 
@@ -87,8 +87,10 @@ When your work is committed, reply with ONLY one JSON object, no prose before or
 `ok` and `already_satisfied` carry an empty `findings` list. `premise_failed` carries at least one
 finding, every one coded `premise`. A premise finding may also carry optional `kind`
 (`spec_gap`, `authoring_error`, or null) and `unit` (a unit id or null). A missing or
-under-specified governing entry unit is `kind: spec_gap` with that `unit`: name the
-ticket's own non-exit registry entry unit or one its `## Plan contract` cites.
+under-specified governing entry unit is `kind: spec_gap` with that `unit`: choose one of the
+ticket's own non-exit registry entry unit, each registry entry unit its `## Plan contract` cites,
+or, for each cited phase unit `19.P<n>`, every non-exit row's entry unit of that phase,
+present or absent. Name the unit that is missing or under-specified, never a unit that refers to it.
 For `spec_gap`, `unit` is required when the ticket has any such units and must name
 one of them; otherwise `unit` is null. Every other finding has `unit: null`.
 Use an empty `second_problems` list when there are none.

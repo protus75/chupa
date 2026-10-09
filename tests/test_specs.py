@@ -134,9 +134,23 @@ seeds:
     assert required_units(plan, "exit", ()) == ()
 
 
+@pytest.mark.parametrize("name", ["implement", "requisition_review"])
+def test_specs_name_every_hardenable_unit_kind(name):
+    specs = Path(__file__).resolve().parent.parent / "specs"
+    body = " ".join(load_spec((specs / f"{name}.md").read_text()).body.split())
+    for rule in (
+        "ticket's own non-exit registry entry unit",
+        "each registry entry unit its `## Plan contract` cites",
+        "for each cited phase unit `19.P<n>`, every non-exit row's entry unit of that phase",
+        "present or absent",
+        "Name the unit that is missing or under-specified, never a unit that refers to it.",
+    ):
+        assert rule in body
+
+
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parent.parent / "specs"
-    for name, version in (("implement", "1.2"), ("requisition_review", "2.1")):
+    for name, version in (("implement", "1.3"), ("requisition_review", "2.2")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
