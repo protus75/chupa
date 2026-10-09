@@ -47,6 +47,7 @@ state: confirmed
 - chupa/daemon.py
 - tests/test_thresh.py
 - tests/test_audit.py
+- tests/test_journal.py
 
 ## Plan contract
 - 19.I
@@ -97,6 +98,8 @@ Read every Context and On-demand path before writing. On-demand is the measured 
 - tests/test_daemon_composition.py
 - chupa/audit.py
 - tests/test_audit.py
+- chupa/journal.py
+- tests/test_journal.py
 - chupa/thresh.py
 - tests/test_thresh.py
 - chupa/driver.py
@@ -113,7 +116,7 @@ Read every Context and On-demand path before writing. On-demand is the measured 
 
 ## Verification
 ```
-uv run pytest tests/test_provider_cooldown_failover.py tests/test_providers.py tests/test_thresh.py tests/test_restart_timers.py tests/test_stages.py tests/test_serve.py tests/test_merge.py tests/test_mergequeue.py tests/test_daemon_composition.py tests/test_watchdog.py tests/test_audit.py
+uv run pytest tests/test_provider_cooldown_failover.py tests/test_providers.py tests/test_thresh.py tests/test_restart_timers.py tests/test_stages.py tests/test_serve.py tests/test_merge.py tests/test_mergequeue.py tests/test_daemon_composition.py tests/test_watchdog.py tests/test_audit.py tests/test_journal.py
 uv run pytest tests/test_driver.py tests/test_drain.py tests/test_watchdog_activation.py tests/test_llm_effect.py tests/test_requisition.py tests/test_notify.py tests/test_shakeout.py tests/test_eval_harness.py tests/test_diagnose_eval.py tests/test_daemon_soak_runner.py
 uv run pytest -q
 ```
