@@ -1,0 +1,156 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "11cbabd9e96eaeedbe96e6ab200ac43bf5e15a78",
+  "stem": "retro-drain-invoker",
+  "passed": true,
+  "changed_files": [
+    "chupa/__main__.py",
+    "chupa/daemon.py",
+    "chupa/drain.py",
+    "chupa/driver.py",
+    "chupa/journal.py",
+    "chupa/retro.py",
+    "chupa/runner.py",
+    "chupa/stages.py",
+    "specs/retro.md",
+    "tests/test_cli.py",
+    "tests/test_daemon_admission.py",
+    "tests/test_daemon_config.py",
+    "tests/test_drain.py",
+    "tests/test_drain_upgrade.py",
+    "tests/test_driver.py",
+    "tests/test_reconcile.py",
+    "tests/test_retro.py",
+    "tests/test_seed_successor.py",
+    "tests/test_stages.py",
+    "tests/test_storm_notification_activation.py"
+  ],
+  "inserted_lines": 1000,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_retro.py",
+        "tests/test_drain.py",
+        "tests/test_driver.py",
+        "tests/test_stages.py",
+        "tests/test_box.py",
+        "tests/test_vocabularies.py"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 40%]\n........................................................................ [ 81%]\n................................                                         [100%]\n176 passed in 14.97s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_vocabularies.py",
+        "tests/test_cli.py",
+        "tests/test_drain_upgrade.py",
+        "tests/test_seed_successor.py",
+        "tests/test_daemon_config.py",
+        "tests/test_daemon_admission.py",
+        "tests/test_daemon_pause.py",
+        "tests/test_reconcile.py",
+        "tests/test_flake.py",
+        "tests/test_storm_hold.py",
+        "tests/test_storm_notification_activation.py"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 22%]\n........................................................................ [ 44%]\n........................................................................ [ 66%]\n........................................................................ [ 88%]\n.....................................                                    [100%]\n325 passed in 20.62s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_drain_reentry.py",
+        "tests/test_ladder.py",
+        "tests/test_diagnose.py",
+        "tests/test_harvest.py",
+        "tests/test_audit.py",
+        "tests/test_merge.py",
+        "tests/test_storm_producer.py",
+        "tests/test_daemon_composition.py",
+        "tests/test_provider_cooldown_failover.py",
+        "tests/test_watchdog_activation.py",
+        "tests/test_restart_timers.py",
+        "tests/test_kill_cli_activation.py",
+        "tests/test_kill_executor_abort.py",
+        "tests/test_kill_signal_journal.py",
+        "tests/test_seed_path.py",
+        "tests/test_reject_queue.py",
+        "tests/test_caps.py",
+        "tests/test_control_cli.py",
+        "tests/test_daemon_tasks.py",
+        "tests/test_heartbeat.py",
+        "tests/test_checkpoint.py",
+        "tests/test_kill_worker_stop.py",
+        "tests/test_kill_failure_suppression.py"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 11%]\n........................................................................ [ 23%]\n........................................................................ [ 35%]\n........................................................................ [ 47%]\n........................................................................ [ 59%]\n........................................................................ [ 71%]\n........................................................................ [ 83%]\n........................................................................ [ 95%]\n..............................                                           [100%]\n606 passed in 58.70s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_plan_lint.py"
+      ],
+      "rc": 0,
+      "tail": "............................                                             [100%]\n28 passed in 0.18s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "................................................ [ 65%]\n........................................................................ [ 67%]\n........................................................................ [ 70%]\n........................................................................ [ 73%]\n........................................................................ [ 75%]\n........................................................................ [ 78%]\n........................................................................ [ 81%]\n........................................................................ [ 83%]\n........................................................................ [ 86%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 96%]\n........................................................................ [ 99%]\n.................                                                        [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/retro-drain-invoker/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n2753 passed, 1 warning in 243.66s (0:04:03)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
