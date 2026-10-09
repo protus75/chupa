@@ -4,7 +4,7 @@ premise_failed
 
 ## Surprises / judgment calls
 
-Reproduced on untouched base 3e1ae0b3b8562e82db328f2f9a949f8cd41833c0; the running-first control passes, and tests/test_audit.py reports 4 passed. Ticket Verification commands were not run after confirming the blocking premise.
+Reproduced on untouched base dc1c54485cc8bd8e842bcc2f696a2cc7927eec3c. Existing effect/reconcile tests passed: 28 tests. Ticket Verification commands were not run after confirming the scope blocker; final worktree status is clean.
 
 ## Dead ends
 
