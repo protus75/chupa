@@ -93,16 +93,22 @@ class CallMeter(EventConsumer):
         d = self.detector
         d.observe_progress()
         kind = event.get('type')
-        message = event.get('message') or {}
+        message = event.get('message')
+        if not isinstance(message, dict):
+            message = {}
         if kind == 'assistant':
-            self.tools.update(block['id'] for block in message.get('content', [])
-                              if block.get('type') == 'tool_use' and 'id' in block)
-        item = event.get('item') or {}
+            content = message.get('content')
+            if isinstance(content, list):
+                self.tools.update(block['id'] for block in content
+                                  if isinstance(block, dict) and block.get('type') == 'tool_use' and 'id' in block)
+        item = event.get('item')
+        if not isinstance(item, dict):
+            item = {}
         if kind in {'item.started', 'item.updated', 'item.completed'} and item.get('type') in {
                 'command_execution', 'file_change', 'mcp_tool_call', 'web_search'} and 'id' in item:
             self.tools.add(item['id'])
         usage = event.get('usage') if kind in {'result', 'turn.completed'} else message.get('usage')
-        if usage is not None:
+        if isinstance(usage, dict):
             key = 'terminal' if kind in {'result', 'turn.completed'} else message.get('id')
             if key is not None:
                 previous = self.usage.setdefault(key, {})

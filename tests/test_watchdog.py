@@ -366,6 +366,51 @@ async def test_missing_cost_preserves_adapter_refusal(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_meter_ignores_non_object_event_fields(tmp_path):
+    rig = DetectorRig(tmp_path)
+    served = resolve(rig.cfg, 'high', 'implement')
+    events = [
+        {'type': 'system', 'subtype': 'permission_denied', 'message': 'Read denied'},
+        {'type': 'assistant', 'message': {'id': 'bad', 'content': 'text', 'usage': 'unknown'}},
+        {'type': 'turn.completed', 'item': 'command', 'usage': 'unknown'},
+    ]
+    for value in (None, False, 1, 'text', []):
+        events.extend([
+            {'type': 'assistant', 'message': value},
+            {'type': 'item.started', 'item': value},
+            {'type': 'turn.completed', 'usage': value},
+            {'type': 'assistant', 'message': {'content': value, 'usage': value}},
+        ])
+    events.append({'type': 'assistant', 'message': {'content': {'type': 'tool_use', 'id': 'ignored'}}})
+    events.extend(tool_events('claude') + tool_events('codex'))
+    events.append({'type': 'assistant', 'message': {'id': 'msg-1',
+        'content': [None, 'text', 1, [], {'type': 'tool_use', 'id': 'tool-2'}],
+        'usage': {'input_tokens': 10, 'output_tokens': 7}}})
+    stream = jsonl(*events) + claude_ok()
+    client = python_client(rig.cfg, PythonProviderExec(f'import os; os.write(1, {stream.encode()!r})'), tmp_path)
+    observed = []
+
+    async def start(meter):
+        def consume(event):
+            epoch = rig.detector.progress_epoch
+            rig.files['out/file'] = str(len(observed)).encode()
+            meter.consume(event)
+            assert rig.detector.progress_epoch == epoch + 1
+            observed.append(event)
+
+        return await client.call(provider_request('claude', tmp_path), consumer=EventConsumer(consume))
+
+    result = await rig.detector.watch(start, served=served, abort=client.abort_current)
+    assert result.text == 'done' and result.usd == 0.42
+    assert observed == [json.loads(line) for line in stream.splitlines()]
+    assert rig.detector.call.tools == {'tool-1', 'tool-2'}
+    assert rig.detector.call.usage['msg-1'] == {'input_tokens': 10, 'output_tokens': 7}
+    assert rig.detector.tokens == 122
+    assert rig.detector.total_usd == rig.detector.spend == 0.42
+    assert rig.detector.bases == {('claude', served.model): 0.42}
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('name', ['claude', 'codex'])
 async def test_watched_result_and_capture_are_preserved(tmp_path, name):
     rig = DetectorRig(tmp_path)
