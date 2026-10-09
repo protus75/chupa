@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The prior spec gap persists on untouched HEAD 0984b7c28f94354bd09de2bad89484783d914f05.
+Recorded five earned activation fence additions and three measured On-demand paths; review approvals and seed lifting remain engine Check responsibilities.
 
 ## Dead ends
 
-Stopped before seed authoring because entry_unit_gap reports missing units and resolve_plan_contract rejects both citations.
+Corrected snapshot test-name extraction and reran the full suite after an overlapping run used stale snapshots.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Contract validation stopped within minutes of the 60-minute expected budget; verification commands were not run.
+Completed within the 60-minute expected and 90-minute stuck budgets.
 
