@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-The prior scorecard entry gap is repaired; seven files require On-demand. A temporary misplaced test append was restored byte-for-byte.
+The approved successor remains byte-identical; both seeds are uncommitted for Check-owned approval and lift.
 
 ## Dead ends
 
-Corrected test-name extraction that initially included module filenames.
+Corrected snapshot extraction that initially counted test-module filenames as named obligations.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Finished within the 60-minute expected budget; all three verification commands exited 0.
+Completed in approximately 13 minutes against the 60-minute expected budget.
 
