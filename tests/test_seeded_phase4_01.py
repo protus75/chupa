@@ -36,7 +36,9 @@ FENCE_FLOORS = {'watchdog-detector': ('chupa/watchdog.py', 'chupa/notify.py', 't
                          'chupa/__main__.py',
                          'tests/test_watchdog.py',
                          'tests/test_watchdog_activation.py',
-                         'tests/test_daemon_composition.py'),
+                         'tests/test_daemon_composition.py',
+                         'eval/shakeout/providers.py',
+                         'eval/daemon_soak.py'),
  'phase4-continue-02': ('tickets', 'tests/test_seeded_phase4_02.py')}
 
 FENCE_ADDITIONS = {'watchdog-detector': {},
@@ -145,7 +147,9 @@ FILE_CHARS = {'chupa/watchdog.py': 402,
  'chupa/runner.py': 35603,
  'chupa/requisition.py': 8155,
  'tests/test_seeded_phase3_core.py': 5425,
- 'chupa/thresh.py': 9737}
+ 'chupa/thresh.py': 9737,
+ 'eval/shakeout/providers.py': 5732,
+ 'eval/daemon_soak.py': 35654}
 
 AUTHORED = {'watchdog-detector': {'chars': 3857,
                        'plan': ('19.I',
@@ -168,7 +172,7 @@ AUTHORED = {'watchdog-detector': {'chars': 3857,
                        'created': (),
                        'expected': 60,
                        'stuck': 90},
- 'watchdog-activation': {'chars': 7261,
+ 'watchdog-activation': {'chars': 7459,
                          'plan': ('19.I',
                                   '19.P4.watchdog-activation',
                                   '9',
@@ -193,12 +197,14 @@ AUTHORED = {'watchdog-detector': {'chars': 3857,
                                      'tests/test_kill_failure_suppression.py',
                                      'tests/test_llm_effect.py',
                                      'tests/test_requisition.py',
-                                     'chupa/requisition.py'),
+                                     'chupa/requisition.py',
+                                     'eval/shakeout/providers.py'),
                          'on_demand': ('tests/test_daemon_composition.py',
                                        'tests/test_serve.py',
                                        'chupa/stages.py',
                                        'chupa/runner.py',
-                                       'tests/test_providers.py'),
+                                       'tests/test_providers.py',
+                                       'eval/daemon_soak.py'),
                          'fenced_existing': ('chupa/watchdog.py',
                                              'chupa/driver.py',
                                              'chupa/stages.py',
@@ -222,7 +228,9 @@ AUTHORED = {'watchdog-detector': {'chars': 3857,
                                              'tests/test_requisition.py',
                                              'tests/test_serve.py',
                                              'chupa/runner.py',
-                                             'chupa/requisition.py'),
+                                             'chupa/requisition.py',
+                                             'eval/shakeout/providers.py',
+                                             'eval/daemon_soak.py'),
                          'created': ('tests/test_watchdog_activation.py',),
                          'expected': 60,
                          'stuck': 90},
@@ -299,7 +307,7 @@ CALLER_SNAPSHOT = {'chupa/author.py': (155,),
  'tests/test_serve.py': (385,),
  'tests/test_watchdog.py': (143,)}
 
-DELIMITER_PATHS = ()
+DELIMITER_PATHS = ('eval/daemon_soak.py',)
 
 AUTHORED_TEXT = {
     'watchdog-detector': """---
@@ -398,6 +406,7 @@ state: confirmed
 - tests/test_llm_effect.py
 - tests/test_requisition.py
 - chupa/requisition.py
+- eval/shakeout/providers.py
 
 ## On-demand
 - tests/test_daemon_composition.py
@@ -405,6 +414,7 @@ state: confirmed
 - chupa/stages.py
 - chupa/runner.py
 - tests/test_providers.py
+- eval/daemon_soak.py
 
 ## Plan contract
 - 19.I
@@ -439,6 +449,8 @@ Read Context and each On-demand file before editing; read predecessor tickets an
 - tests/test_watchdog.py
 - tests/test_watchdog_activation.py
 - tests/test_daemon_composition.py
+- eval/shakeout/providers.py
+- eval/daemon_soak.py
 - chupa/author.py
 - chupa/rework.py
 - chupa/triage.py
@@ -465,6 +477,7 @@ Read Context and each On-demand file before editing; read predecessor tickets an
 uv run pytest tests/test_watchdog.py tests/test_watchdog_activation.py tests/test_daemon_composition.py tests/test_notify.py
 uv run pytest tests/test_driver.py tests/test_echo_stage.py tests/test_kill_executor_abort.py tests/test_kill_failure_suppression.py tests/test_llm_effect.py tests/test_providers.py tests/test_requisition.py tests/test_serve.py
 uv run pytest tests/test_drain.py tests/test_stages.py tests/test_merge.py tests/test_mergequeue.py tests/test_seed_path.py tests/test_eval_harness.py tests/test_diagnose_eval.py tests/test_storm_notification_activation.py tests/test_effects.py tests/test_notify.py
+uv run pytest tests/test_shakeout.py tests/test_daemon_soak.py tests/test_daemon_soak_runner.py
 ```
 
 ## Definition of rejected
@@ -549,7 +562,7 @@ REGISTRY_ADMISSIONS = (('watchdog-event-stream', 'notify-transport'),
  ('reliability-run',),
  ('phase4-exit',))
 
-APPROVED_SEED_SHA256 = {'watchdog-activation': 'ef621f2a9655f35e630874690620e18e9579975f4af542c554739d75fa66bc86',
+APPROVED_SEED_SHA256 = {'watchdog-activation': '3a6ddbcf099ab17db2bcf64854dc37b8f2880003c8949ef9211d5a4525fa7b29',
  'phase4-continue-02': 'b15687e4f69040ff04d1f72d44ea9dc1d2b5e0c438e8fbf78ec1ae309d450a53'}
 
 def _birth(stem):
@@ -670,7 +683,7 @@ def test_context_closure_and_max_effort_render_use_authoring_snapshots(stem):
     assert not any(p.startswith("specs/") or p == "CHUPA_PLAN.md" for p in a["context"])
     assert all(FILE_CHARS[p] > 0 for p in (*a["context"], *a["on_demand"]))
     assert ACTUAL_BASE_RENDER_CHARS[stem] <= render_chars(stem) <= HEADROOM_CHARS == 300_000
-    for path in a["on_demand"]:
+    for path in set(a["on_demand"]) - set(DELIMITER_PATHS):
         assert render_chars(stem, (path,)) > HEADROOM_CHARS, path
 
 

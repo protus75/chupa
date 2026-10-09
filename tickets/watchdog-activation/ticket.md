@@ -31,6 +31,7 @@ state: confirmed
 - tests/test_llm_effect.py
 - tests/test_requisition.py
 - chupa/requisition.py
+- eval/shakeout/providers.py
 
 ## On-demand
 - tests/test_daemon_composition.py
@@ -38,6 +39,7 @@ state: confirmed
 - chupa/stages.py
 - chupa/runner.py
 - tests/test_providers.py
+- eval/daemon_soak.py
 
 ## Plan contract
 - 19.I
@@ -72,6 +74,8 @@ Read Context and each On-demand file before editing; read predecessor tickets an
 - tests/test_watchdog.py
 - tests/test_watchdog_activation.py
 - tests/test_daemon_composition.py
+- eval/shakeout/providers.py
+- eval/daemon_soak.py
 - chupa/author.py
 - chupa/rework.py
 - chupa/triage.py
@@ -98,6 +102,7 @@ Read Context and each On-demand file before editing; read predecessor tickets an
 uv run pytest tests/test_watchdog.py tests/test_watchdog_activation.py tests/test_daemon_composition.py tests/test_notify.py
 uv run pytest tests/test_driver.py tests/test_echo_stage.py tests/test_kill_executor_abort.py tests/test_kill_failure_suppression.py tests/test_llm_effect.py tests/test_providers.py tests/test_requisition.py tests/test_serve.py
 uv run pytest tests/test_drain.py tests/test_stages.py tests/test_merge.py tests/test_mergequeue.py tests/test_seed_path.py tests/test_eval_harness.py tests/test_diagnose_eval.py tests/test_storm_notification_activation.py tests/test_effects.py tests/test_notify.py
+uv run pytest tests/test_shakeout.py tests/test_daemon_soak.py tests/test_daemon_soak_runner.py
 ```
 
 ## Definition of rejected
