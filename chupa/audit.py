@@ -67,6 +67,8 @@ def audit(segments: Iterable[tuple[Event, ...]], caps: Collection[str] = DECLARE
                         runs[event.ticket] = _Run()
                     elif state in TERMINAL_STATES:
                         run = runs.get(event.ticket)
+                        if 'provider_drought' in event.body and (run is None or run.terminal is not None):
+                            continue
                         if run is None:
                             if state != "rejected":
                                 violations.append(Violation(

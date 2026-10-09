@@ -76,3 +76,12 @@ def test_timestamp_monotonicity_is_scoped_to_each_segment():
     second = (event(EventType.SIGNAL, ts="2026-10-05T01:00:00+00:00"),)
 
     assert audit([first, second]) == []
+
+
+def test_provider_drought_is_runless_only_without_an_open_run():
+    park = event(EventType.STATE_TRANSITION, body={'to': 'infra_error', 'reason': 'provider_drought',
+        'provider_drought': {'tier': 'medium', 'surface': 'implement', 'providers': ['codex']}})
+    running = event(EventType.STATE_TRANSITION, body={'to': 'running'})
+    assert audit([(park, running, park, park)]) == []
+    duplicate = event(EventType.STATE_TRANSITION, body={'to': 'infra_error', 'reason': 'provider_drought'})
+    assert [v.invariant for v in audit([(running, park, duplicate)])] == ['one_terminal_per_run']

@@ -199,6 +199,10 @@ async def drain(
         assert checkout.config.worktree_root is not None  # resolved at config load
         await reconcile(checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root,
                         lambda stem, attempt: harvest_orphan(checkout, stem, attempt))
+        consumer.providers.timers.reconstruct()
+        consumer.providers.timers.fire_due()
+        if hasattr(dispatch, 'prepare'):
+            await dispatch.prepare()
         await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
         run = _Drain(checkout, dispatch, frozenset(parked), before_dispatch=checkpoint)
         report = await run.run()
@@ -219,7 +223,10 @@ async def drain(
         checkout.journal.close()
     finally:
         try:
-            consumer.retire()
+            try:
+                await consumer.providers.close()
+            finally:
+                consumer.retire()
         finally:
             lock.release()
     # The fixed HANDOFF order (section 18): journaled, journal closed, lock free -- the child is the only writer,
@@ -239,10 +246,15 @@ class _Drain:
         self.deadline = checkout.clock() + timedelta(hours=checkout.config.drain.max_runtime_hours)
         self.over_budget: dict[str, Parked] = {}  # parked at dispatch by the per-ticket ceiling
         self.storm_waiting = False
+        self.provider_deadlines = []
         self.report = Report()
 
     async def run(self) -> Report:
         while True:
+            if hasattr(self.dispatch, 'prepare'):
+                from dataclasses import replace
+                from chupa.config import snapshot_config
+                self.c = replace(self.c, config=snapshot_config(self.c.control.load_config()))
             if self.before_dispatch is not None:
                 await self.before_dispatch()
             if self._stopping():
@@ -266,6 +278,14 @@ class _Drain:
                     or awaited_hardening(events, s)}
             pick, reoffer = self._select(scan, events, last, held)
             if pick is None:
+                if self.provider_deadlines:
+                    now = self.c.clock()
+                    if now >= self.deadline:
+                        return self._halt(scan, events, last, held)
+                    deadline = min(min(self.provider_deadlines), self.deadline)
+                    # Re-enter the control checkpoint while routing is unavailable.
+                    await self.c.control.sleep(min(0.1, max(0, (deadline - now).total_seconds())))
+                    continue
                 if self.storm_waiting:
                     if self.c.clock() >= self.deadline:
                         return self._halt(scan, events, last, held)
@@ -355,6 +375,7 @@ class _Drain:
         fresh, reoffers = [], []
         storm_held = set(self.c.control.storm_holds().values()) if self.c.control is not None else set()
         self.storm_waiting = False
+        self.provider_deadlines = []
         for t in ready:
             bound = t.stem in awaiting and "plan_units" in awaiting[t.stem]
             if bound and (t.stem not in scan.plan_changed
@@ -379,6 +400,18 @@ class _Drain:
                     f"lower `- stuck:` in {ticket_path(t.stem)} to at most"
                     f" {self.c.config.drain.max_ticket_minutes}m (split the ticket if it cannot fit)")
                 continue
+            session = self.c.control.providers
+            if session.active and budget and t.stem not in held:
+                tier, _ = caps.capability(t, events)
+                latest = next((e.body for e in reversed(events)
+                               if e.type == EventType.STATE_TRANSITION and e.ticket == t.stem), {})
+                route = latest.get('provider_drought', {'tier': tier, 'surface': 'implement'})
+                drought = session.drought(self.c.config, route['tier'], route['surface'])
+                if drought:
+                    session.park(t.stem, drought)
+                    if drought.deadline is not None:
+                        self.provider_deadlines.append(drought.deadline)
+                    continue
             if last.get(t.stem) is None:
                 fresh.append(t)
             elif t.stem not in held and budget:
@@ -395,6 +428,8 @@ class _Drain:
         if self._stopping():
             return
         stem = ticket.stem
+        if hasattr(self.dispatch, 'prepare'):
+            await self.dispatch.prepare()
         if reoffer:
             history = self.c.journal.read()
             queued = reject_queue(history)
@@ -411,7 +446,7 @@ class _Drain:
                 case "spec_gap_hold":
                     draw_retry = bound
                 case "retry" | "escalate" | "reject_queue" | None:
-                    draw_retry = bound or body.get("to") != PREMISE
+                    draw_retry = (bound or body.get("to") != PREMISE) and 'provider_drought' not in body
                 case _:
                     assert_never(dispatch)
             if draw_retry:
@@ -499,6 +534,8 @@ class _Drain:
                 body = next(e.body for e in reversed(events)
                             if e.type == EventType.STATE_TRANSITION and e.ticket == stem)
                 if body.get("to") == PREMISE and "render_over_bound" in body.get("reason", "").split(","):
+                    continue
+                if 'provider_drought' in body:
                     continue
                 if body.get("routed") != "reject_queue":
                     self.c.journal.append(EventType.SIGNAL, {"signal": "reject_arrival"}, ticket=stem)

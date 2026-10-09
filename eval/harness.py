@@ -27,15 +27,16 @@ from typing import Literal, get_args
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
 from chupa.artifacts import Finding, NonBlank, ReviewVerdict
-from chupa.config import Config, load_config
+from chupa.config import Candidate, Config, Route, load_config
 from chupa.driver import Driver, LlmStage, unwrap_fence
 from chupa.git import Git
 from chupa.journal import EventType, Journal
-from chupa.llm import AgentTier, LLMRequest
+from chupa.llm import AgentTier
 from chupa.lockfile import Lockfile
 from chupa.policy import BASELINE_SIGNAL, TIERS, baseline_identity
-from chupa.providers import ADAPTERS, ProviderLLM
-from chupa.redact import Redactor
+from chupa.providers import ProviderLLM, ProviderSession
+from chupa.runner import call_timeout
+from chupa.timers import Timers
 from chupa.seams import Clock, LocalFileSystem, SubprocessExec
 from chupa.specs import Spec, load_spec, render
 
@@ -311,29 +312,56 @@ async def author_fixtures(
     env: Mapping[str, str],
     root: Path = FIXTURES,
 ) -> None:
+    exec_ = SubprocessExec()
+    lock = Lockfile(config.state_dir, instance_id=await Git(exec_, env=env, timeout=30).describe(ROOT), clock=_clock)
+    lock.acquire()
+    journal = Journal(config.state_dir, _clock)
+    timers = Timers(journal=journal, clock=_clock, sleep=asyncio.sleep)
+    session = ProviderSession(config, journal=journal, clock=_clock, sleep=asyncio.sleep, timers=timers)
+    try:
+        timers.reconstruct()
+        timers.fire_due()
+        probe = ProviderLLM(config, exec_=exec_, fs=LocalFileSystem(), env=env, cwd=ROOT,
+                             timeout=call_timeout(config), session=session)
+        if problems := await probe.preflight():
+            raise FixtureError('; '.join(problems))
+        await _author_fixtures(config, provider=provider, tier=tier, only=only, force=force,
+                              env=env, root=root, session=session, exec_=exec_)
+    finally:
+        try:
+            await session.close()
+        finally:
+            lock.release()
+
+
+async def _author_fixtures(config, *, provider, tier, only, force, env, root, session, exec_):
     prov = next((p for p in config.providers if p.name == provider), None)
     if prov is None:
         raise FixtureError(f"no provider {provider!r} in config.yaml; pick one of {[p.name for p in config.providers]}")
     model = getattr(prov.models_by_tier, tier)
     who = AuthorIdentity(provider=provider, model=model, tier=tier)
     refuse_same_author([who], baseline_identity(config), load_spec((SPECS / "review.md").read_text()).meta.tier)
-    # Called directly, not through routing: the author must be a different identity from REVIEW's route.
-    adapter = ADAPTERS[provider](prov, config=config, exec_=SubprocessExec(), fs=LocalFileSystem(),
-                                 redactor=Redactor.from_config(config, env), env=env, cwd=ROOT,
-                                 capture_dir=config.state_dir / "spools" / "providers", timeout=CALL_TIMEOUT_S)
+    # The explicit eval Author choice remains pinned; the registry and admission owner stay shared.
+    chosen = config.model_copy(update={'routing': [Route(tier=tier, surface='author',
+        candidates=[Candidate(provider=provider, model=model)])]})
+    llm = ProviderLLM(chosen, exec_=exec_, fs=LocalFileSystem(), env=env, cwd=ROOT,
+                      timeout=call_timeout(config), session=session)
+    driver = Driver.from_config(chosen, llm=llm, env=env, clock=_clock, sleep=asyncio.sleep)
+    attempt = 1 + sum(e.body.get('signal') == 'author_invoked' for e in session.journal.read())
+    session.journal.append(EventType.SIGNAL, {'signal': 'author_invoked', 'message': f'eval-fixture-pass/{attempt}'})
     briefs = [b for b in BRIEFS if not only or b[0] in only]
     for name, cls, domain in briefs:
         d = root / name
         if (d / "expected.json").exists() and not force:
             continue
-        req = LLMRequest(surface="author", rendered=author_prompt(cls, domain), tier=tier, effort=tier,
-                         ticket=f"fixture-{name}", worktree=None)
-        result = await adapter.invoke(req, model)
-        try:
-            authored = Authored.model_validate_json(unwrap_fence(result.text))
-        except ValidationError as e:
-            print(f"{name}: unparseable reply ({e.error_count()} errors); re-run with --only {name}", file=sys.stderr)
+        result = await driver.run(LlmStage(surface='author', emits=Authored, gates=[],
+            render=lambda *_: author_prompt(cls, domain)), None, ticket=f'fixture-{name}',
+            attempt=attempt, workspace=ROOT, tier=tier, effort=tier, stuck_budget=CALL_TIMEOUT_S,
+            expected_budget='eval', scope_fence=())
+        if result.outcome != 'ok':
+            print(f'{name}: {result.outcome}; re-run with --only {name}', file=sys.stderr)
             continue
+        authored = result.artifact
         if problems := check_authored(authored, cls):
             print(f"{name}: refused: {'; '.join(problems)}; re-run with --only {name}", file=sys.stderr)
             continue
@@ -358,13 +386,26 @@ async def _run(config: Config, env: Mapping[str, str], clock: Clock) -> dict:
     instance_id = await Git(exec_, env=env, timeout=30).describe(ROOT)
     lock = Lockfile(config.state_dir, instance_id=instance_id, clock=clock)
     lock.acquire()  # the journal is a single-writer surface
+    session = None
     try:
-        llm = ProviderLLM(config, exec_=exec_, fs=LocalFileSystem(), env=env, cwd=ROOT, timeout=CALL_TIMEOUT_S)
+        journal = Journal(config.state_dir, clock)
+        timers = Timers(journal=journal, clock=clock, sleep=asyncio.sleep)
+        timers.reconstruct()
+        timers.fire_due()
+        session = ProviderSession(config, journal=journal, clock=clock, sleep=asyncio.sleep, timers=timers)
+        llm = ProviderLLM(config, exec_=exec_, fs=LocalFileSystem(), env=env, cwd=ROOT, timeout=call_timeout(config),
+                          session=session)
+        if problems := await llm.preflight():
+            raise FixtureError('; '.join(problems))
         driver = Driver.from_config(config, llm=llm, env=env, clock=clock, sleep=asyncio.sleep)
         return await run_baseline(config=config, driver=driver, journal=Journal(config.state_dir, clock),
                                   fixtures=load_fixtures(), progress=print)
     finally:
-        lock.release()
+        try:
+            if session is not None:
+                await session.close()
+        finally:
+            lock.release()
 
 
 def main(argv: Sequence[str] | None = None) -> int:

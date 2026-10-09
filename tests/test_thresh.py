@@ -520,7 +520,7 @@ def cli_import_closure(sources):
     return reached
 
 
-def test_thresh_is_dormant():
+def test_thresh_is_active():
     sources = {}
     for path in (ROOT / "chupa").rglob("*.py"):
         parts = path.relative_to(ROOT).with_suffix("").parts
@@ -529,11 +529,15 @@ def test_thresh_is_dormant():
     def assert_dormant(graph):
         reached = cli_import_closure(graph)
         assert "chupa.providers" in reached  # traverse beyond the entry point
-        assert "chupa.thresh" not in reached
+        assert "chupa.thresh" in reached
 
     assert_dormant(sources)
     for statement in ("import chupa.thresh", "from chupa import thresh", "from chupa.thresh import Thresh"):
         for owner in ("chupa.providers", "chupa"):
-            wired = {**sources, owner: sources[owner] + "\n" + statement}
+            wired = {**sources, 'chupa.providers': sources['chupa.providers'].replace(
+                'from chupa.thresh import Thresh', '').replace('from chupa.thresh import UnavailableRoute', '')}
+            wired[owner] += '\n' + statement
+            assert_dormant(wired)
+            wired[owner] = wired[owner].removesuffix('\n' + statement)
             with pytest.raises(AssertionError):
                 assert_dormant(wired)

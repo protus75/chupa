@@ -22,7 +22,7 @@ from chupa.git import Git
 from chupa.journal import Journal, JournalCorruption
 from chupa.lockfile import LockHeld, Lockfile
 from chupa.notify import NOTIFY_TIMEOUT_S, NotificationReconciler
-from chupa.providers import ProviderLLM, ProviderSetupError, child_env
+from chupa.providers import ProviderLLM, ProviderSession, ProviderSetupError, child_env
 from chupa.redact import Redactor
 from chupa.restart import Restart
 from chupa.seams import Clock, ExecutableNotFound, LocalFileSystem, ProcessExec, SubprocessExec
@@ -45,11 +45,16 @@ def build_control(checkout: runner.Checkout) -> PauseConsumer:
 
     box = storm_producer(root=checkout.config.state_dir / "box", fs=checkout.fs,
                          journal=checkout.journal, clock=checkout.clock)
-    return PauseConsumer(journal=checkout.journal, lifecycle_id=uuid4().hex,
+    consumer = PauseConsumer(journal=checkout.journal, lifecycle_id=uuid4().hex,
                          state_dir=checkout.config.state_dir, fs=checkout.fs, sleep=checkout.sleep,
                          files=lambda: (checkout.config.state_dir / "control/inbox").glob("*"),
                          read=Path.read_bytes, recover=box.recover,
                          storm_holds=StormLedger(journal=checkout.journal, clock=checkout.clock).holds)
+    timers = Timers(journal=checkout.journal, clock=checkout.clock, sleep=checkout.sleep)
+    consumer.providers = ProviderSession(checkout.config, journal=checkout.journal,
+        clock=checkout.clock, sleep=checkout.sleep, timers=timers)
+    consumer.load_config = lambda: load_config(None, cwd=checkout.repo)
+    return consumer
 
 
 def build_daemon_core(
@@ -60,7 +65,8 @@ def build_daemon_core(
     prepare: Callable[[runner.Checkout], Awaitable[runner.Dispatch]] = runner.prepare_pipeline,
 ) -> DaemonCore:
     """Compose the production core without starting consumers or preparing a dispatch."""
-    consumer = build_control(checkout)
+    consumer = checkout.control or build_control(checkout)
+    consumer.load_config = lambda: load_config(config_path, cwd=checkout.repo)
     checkout = replace(checkout, control=consumer)
 
     def bind(snapshot: ConfigSnapshot) -> runner.Dispatch:
@@ -68,7 +74,20 @@ def build_daemon_core(
 
         async def dispatch(ticket: Ticket) -> str:
             callback = await prepare(local)
-            return await callback(ticket)
+            tier, _ = runner.capability(ticket, checkout.journal.read())
+            drought = (consumer.providers.drought(snapshot, tier, 'implement')
+                       if consumer.providers.active else None)
+            if drought:
+                consumer.providers.park(ticket.stem, drought)
+                core.scheduler.update(ticket)
+                return 'infra_error'
+            result = await callback(ticket)
+            history = checkout.journal.read()
+            body = next((e.body for e in reversed(history)
+                if e.type == 'state_transition' and e.ticket == ticket.stem), {})
+            if 'provider_drought' in body:
+                core.scheduler.update(ticket)
+            return result
 
         return dispatch
 
@@ -80,11 +99,24 @@ def build_daemon_core(
         completed_unmerged=completed_unmerged, max_unmerged=checkout.config.scheduler.max_unmerged,
         before_dispatch=consumer.checkpoint, control=consumer,
     )
-    timers = Timers(journal=checkout.journal, clock=checkout.clock, sleep=checkout.sleep)
+    timers = consumer.providers.timers
     restart = Restart(checkout, timers=timers,
                       owned=lambda: core.admission.active is not None or core.admission.task is not None)
     core.admission.restart = restart
     core.admission._before_dispatch = StartupBoundary(restart, consumer).checkpoint
+    def provider_holds():
+        held = set(drought_parked())
+        latest = {}
+        for event in checkout.journal.read():
+            if event.type == 'state_transition' and event.ticket is not None:
+                latest[event.ticket] = event.body
+        for stem, body in latest.items():
+            if route := body.get('provider_drought'):
+                snapshot = load_config(config_path, cwd=checkout.repo)
+                if consumer.providers.drought(snapshot, route['tier'], route['surface']):
+                    held.add(stem)
+        return held
+    core.scheduler.drought_parked = provider_holds
     return core
 
 
@@ -189,12 +221,22 @@ def main(
             async def one_pass() -> list[tuple[str, str]]:
                 lock = Lockfile(config.state_dir, instance_id=await checkout.git.describe(repo), clock=clock)
                 lock.acquire()
+                session = build_control(checkout).providers
                 try:
                     llm = ProviderLLM(config, exec_=exec_, fs=checkout.fs, env=env,
-                                      cwd=repo, timeout=runner.call_timeout(config))
+                                      cwd=repo, timeout=runner.call_timeout(config),
+                                      session=session)
+                    session.timers.reconstruct()
+                    session.timers.fire_due()
+                    problems = await llm.preflight() if session.active else []
+                    if problems:
+                        raise ProviderSetupError('; '.join(problems))
                     return await triage.triage_pass(checkout, llm)
                 finally:
-                    lock.release()
+                    try:
+                        await session.close()
+                    finally:
+                        lock.release()
 
             lines = asyncio.run(one_pass())
             print("\n".join(line for _, line in lines) if lines else "no pending suggestions")
@@ -204,6 +246,7 @@ def main(
             return asyncio.run(serve.serve(checkout, config_path=args.config,
                 plan=plan_path.read_text() if plan_path.is_file() else None, signals=_serve_signals))
         checkout = replace(checkout, control=build_control(checkout))
+        checkout.control.load_config = lambda: load_config(args.config, cwd=repo)
         dispatch = pipeline(checkout)
         if args.verb == "drain":
             # The handoff's own seam instance, never shared with active work (section 15).

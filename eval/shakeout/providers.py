@@ -22,6 +22,10 @@ class _ScriptedProcess:
 
     async def run(self, argv, *, cwd: Path, env: Mapping[str, str], timeout: float | None,
                   stdin_path: Path | None = None, on_spawn=None, on_stdout_line=None) -> tuple[int, str, str]:
+        if argv[1:] == ['--version'] or argv[0] == 'pnpm':
+            return 0, '1.2.3', ''
+        if stdin_path is not None and stdin_path.read_text() == 'Reply with the single word ok.':
+            return _claude_result('ok')
         if argv[0] != "claude":
             return await self._delegate.run(argv, cwd=cwd, env=env, timeout=timeout,
                                             stdin_path=stdin_path, on_spawn=on_spawn, on_stdout_line=on_stdout_line)
@@ -63,8 +67,9 @@ def _provider_config(bench: Bench, *, auth: str | None = None):
 def _use_provider(bench: Bench, config, process: _ScriptedProcess, env: Mapping[str, str]) -> None:
     bench.process = process
     bench.env = env
-    bench.llm = ProviderLLM(config, exec_=process, fs=bench.fs, env=env, cwd=bench.repo, timeout=30.0)
     bench.configure(config)
+    bench.llm = ProviderLLM(config, exec_=process, fs=bench.fs, env=env, cwd=bench.repo, timeout=30.0,
+                            session=bench._checkout.control.providers)
 
 
 async def _auth_expiry(bench: Bench) -> Observation:

@@ -7,7 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from chupa import runner, triage
-from chupa.config import ConfigError
+from chupa.config import ConfigError, snapshot_config
 from chupa.daemon import DaemonTasks, HeartbeatCycle, TicketWriter, WorkerFailureObserver
 from chupa.daemon import WorkerStop, _protected_cleanup, checkpoint_push
 from chupa.daemon import _stop_workers
@@ -81,6 +81,7 @@ class Serve:
         from chupa.__main__ import build_daemon_core, build_notifications
 
         self.read, self.stems, self.signals = read, stems, signals
+        self.config_path = config_path
         self.writers: dict[str, TicketWriter] = {}
         self.queue = None
         self.stopping = False
@@ -119,6 +120,10 @@ class Serve:
                 try:
                     return await callback(ticket)
                 finally:
+                    latest = next((e.body for e in reversed(local.journal.read())
+                                   if e.type == EventType.STATE_TRANSITION and e.ticket == ticket.stem), {})
+                    if 'provider_drought' in latest:
+                        self.core.scheduler.update(ticket)
                     if not callback.continuations and not callback.queue.pending:
                         self.writers.pop(ticket.stem, None)
             return dispatch
@@ -159,6 +164,14 @@ class Serve:
         projection = self.control.projection
         if projection.kill_requested:
             self.stop()
+        if ticket.stem not in self.writers and not self.stopping and self.control.providers.active:
+            from chupa.config import load_config
+            snapshot = load_config(self.config_path, cwd=self.checkout.repo)
+            tier, _ = runner.capability(ticket, self.checkout.journal.read())
+            drought = self.control.providers.drought(snapshot, tier, 'implement')
+            if drought:
+                self.control.providers.park(ticket.stem, drought)
+                return False
         return (not self.stopping and projection.pause_id is None
                 and (self.control.admission is None
                      or self.control.admission in projection.released_hold_ids)
@@ -247,9 +260,12 @@ class Serve:
             async with self.mutations():
                 if self.stopping or not self.box.pending():
                     return
-                c = self.checkout
+                c = replace(self.checkout, config=snapshot_config(self.control.load_config()))
                 llm = ProviderLLM(c.config, exec_=c.exec_, fs=c.fs, env=c.env, cwd=c.repo,
-                                  timeout=runner.call_timeout(c.config))
+                                  timeout=runner.call_timeout(c.config), session=self.control.providers)
+                problems = await llm.preflight() if self.control.providers.active else []
+                if problems:
+                    raise ProviderSetupError('; '.join(problems))
                 await triage.triage_pass(c, llm)
         while True:
             await response.wait(poll())
@@ -411,6 +427,7 @@ class Serve:
         finally:
             try:
                 await _protected_cleanup(asyncio.create_task(self.notifications.close()))
+                await _protected_cleanup(asyncio.create_task(self.control.providers.close()))
             finally:
                 try:
                     self.control.retire()

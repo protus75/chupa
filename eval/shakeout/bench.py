@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import yaml
 from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -14,7 +15,8 @@ from chupa.drain import Report, drain
 from chupa.git import Git
 from chupa.journal import Journal
 from chupa.llm import FakeLLM, LLM, ScriptItem
-from chupa.runner import Checkout, Dispatch, bind
+from chupa.runner import Checkout, Dispatch, bind, pipeline
+from chupa.providers import ProviderLLM
 from chupa.seams import LocalFileSystem, SubprocessExec
 
 _CONFIG = """schema_version: 1
@@ -79,9 +81,10 @@ class Bench:
         self._initialized = True
 
     def _compose(self, config: Config) -> Checkout:
-        return Checkout(repo=self.repo, config=config, env=self.env, exec_=self.process,
+        checkout = Checkout(repo=self.repo, config=config, env=self.env, exec_=self.process,
                         git=self.git, journal=self.journal, fs=self.fs, clock=self.clock,
                         sleep=self._sleep)
+        return replace(checkout, control=build_control(checkout))
 
     async def _sleep(self, seconds: float) -> None:
         """Advance only when a fixture wakes the timer after its call has started."""
@@ -96,6 +99,8 @@ class Bench:
         self.config = parsed_config.model_copy(update={"state_dir": self.config.state_dir,
                                                         "worktree_root": self.config.worktree_root})
         self._checkout = self._compose(self.config)
+        self.fs.write(self.repo / 'config.yaml', yaml.safe_dump(
+            self.config.model_dump(mode='json', exclude_none=True)).encode())
 
     def add_ticket(self, stem: str, text: str) -> None:
         self.fs.write(self.repo / "tickets" / stem / "ticket.md", text.encode())
@@ -107,6 +112,8 @@ class Bench:
 
     def _pipeline(self) -> Dispatch:
         self._checkout = replace(self._checkout, control=build_control(self._checkout))
+        if isinstance(self.llm, ProviderLLM):
+            return pipeline(self._checkout)
         return bind(self._checkout, self.llm)
 
     async def drain(self) -> Report:

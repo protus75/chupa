@@ -70,10 +70,22 @@ TERMINAL_STATES: frozenset[str] = frozenset({"merged", "abandoned", "rejected"})
 
 def run_seq(events: Iterable[Any], stem: str) -> int:
     """The RUN SEQUENCE: count of the stem's prior terminal events, folded at run entry, never stored."""
-    return sum(
-        e.type == EventType.STATE_TRANSITION and e.ticket == stem and e.body.get("to") in TERMINAL_STATES
-        for e in events
-    )
+    return len(run_terminals(events, stem))
+
+
+def run_terminals(events: Iterable[Any], stem: str) -> list[Any]:
+    terminals, running = [], False
+    for event in events:
+        if event.type != EventType.STATE_TRANSITION or event.ticket != stem:
+            continue
+        state = event.body.get('to')
+        if state == 'running':
+            running = True
+        elif state in TERMINAL_STATES:
+            if running or 'provider_drought' not in event.body:
+                terminals.append(event)
+            running = False
+    return terminals
 
 
 class JournalCorruption(Exception):

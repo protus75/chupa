@@ -1,15 +1,18 @@
 """Provider layer (CHUPA_PLAN.md section 6): registry + routing, key-scoped child env, the cli adapters.
 
-Routing resolves (tier, surface) to the FIRST candidate only; failover is Phase 4. `CliAdapter` is the
+Session admission selects from the ordered route before its LLM effect. `CliAdapter` is the
 shared base and the trust boundary -- write-grant derivation, redaction of both sinks (the captured
 stream and the returned result), and the cost floor live there ONCE; each subclass is only its CLI's
 argv contract and event-stream parse.
 """
 
+import asyncio
 import json
+import math
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -17,6 +20,7 @@ from chupa.config import Config, ConfigSnapshot, Provider
 from chupa.llm import AgentEffort, AgentTier, LLMRequest, LLMResult
 from chupa.redact import Redactor
 from chupa.seams import FileSystem, GroupExec
+from chupa.journal import EventType, render_ts
 
 if TYPE_CHECKING:
     from chupa.watchdog import EventConsumer
@@ -99,7 +103,10 @@ def resolve(config: Config | ConfigSnapshot, tier: AgentTier, surface: str) -> S
         raise ProviderSetupError(
             f"no routing row for tier {tier!r}, surface {surface!r}; add one under `routing:` in config.yaml"
         )
-    cand = route.candidates[0]
+    return _candidate(config, tier, surface, route.candidates[0])
+
+
+def _candidate(config, tier, surface, cand):
     provider = next(p for p in config.providers if p.name == cand.provider)  # load_config checked the reference
     model = cand.model if cand.model is not None else getattr(provider.models_by_tier, tier)
     if PLACEHOLDER in (model, provider.auth):
@@ -108,6 +115,126 @@ def resolve(config: Config | ConfigSnapshot, tier: AgentTier, surface: str) -> S
             f" {PLACEHOLDER}; set the operator values in config.yaml (Phase 1 prerequisites, section 0)"
         )
     return Served(provider, model)
+
+
+def candidates(config, tier, surface) -> tuple[Served, ...]:
+    # Resolve through the existing routing/placeholder owner, including the review fallback.
+    route = next((r for r in config.routing if r.tier == tier and r.surface == surface), None)
+    if route is None:
+        resolve(config, tier, surface)
+        route = next(r for r in config.routing if r.tier == tier and r.surface == "review")
+    return tuple(_candidate(config, tier, surface, candidate) for candidate in route.candidates)
+
+
+class ProviderDrought(Exception):
+    """A pre-effect routing refusal, carried to the existing failure owner."""
+
+    def __init__(self, tier, surface, refusal):
+        self.record = {"tier": tier, "surface": surface, "providers": list(refusal.providers)}
+        self.waited_seconds = refusal.waited_seconds
+        self.deadline = refusal.open_until
+        self.paved_road = refusal.paved_road
+        super().__init__(f"provider_drought: {', '.join(refusal.providers)}; {self.paved_road}")
+
+
+class ProviderSession:
+    """One idle registry, admission owner and Timer lifetime per lock holder."""
+
+    def __init__(self, config, *, journal, clock, sleep, timers):
+        from chupa.thresh import Thresh
+        self.journal, self.clock, self.sleep, self.timers = journal, clock, sleep, timers
+        self.thresh = Thresh(config, journal=journal, clock=clock, sleep=sleep)
+        self.auth_excluded: set[str] = set()
+        self.auth_position: int | None = None
+        self.active = False
+        self.thresh.unavailable = self.unavailable
+        self.thresh.on_outcome = self.outcome
+        self.waits: set[asyncio.Task] = set()
+        self._holds: dict[str, datetime] = {}
+        self._held_seconds: dict[str, float] = {}
+
+    def live_wait(self, prefix):
+        return (self.thresh.live_wait(prefix)
+                + sum(seconds for key, seconds in self._held_seconds.items() if key.startswith(prefix))
+                + sum(max(0, (self.clock() - started).total_seconds())
+                      for key, started in self._holds.items() if key.startswith(prefix)))
+
+    async def wait_until(self, deadline):
+        async def wait():
+            while self.clock() < deadline:
+                await self.sleep((deadline - self.clock()).total_seconds())
+            self.timers.fire_due()
+        task = asyncio.create_task(wait())
+        self.waits.add(task)
+        try:
+            await asyncio.shield(task)
+        finally:
+            from chupa.driver import _observe
+            task.cancel()
+            await _observe(asyncio.gather(task, return_exceptions=True))
+            self.waits.discard(task)
+
+    async def close(self):
+        from chupa.driver import _observe
+        tasks = tuple(self.waits)
+        for task in tasks:
+            task.cancel()
+        await _observe(asyncio.gather(*tasks, return_exceptions=True))
+        self.waits.clear()
+
+    def preflight_passed(self):
+        if self.auth_position is None:
+            self.auth_position = len(self.journal.read())
+
+    def cooling(self):
+        self.timers.fire_due()
+        return {timer.body.timer_id.split('/')[1]: timer.deadline
+                for timer in self.timers.pending.values()
+                if timer.body.timer_id.startswith('provider-cooldown/')}
+
+    def exclusions(self):
+        if self.auth_position is not None:
+            history = self.journal.read()
+            self.auth_excluded.update(e.body['provider'] for e in history[self.auth_position:]
+                if e.type == EventType.SIGNAL and e.body.get('signal') == 'provider_call_outcome'
+                and e.body.get('failure_class') == 'auth_error')
+            self.auth_position = len(history)
+        return self.auth_excluded
+
+    def unavailable(self, name):
+        cooling = self.cooling()
+        if name in self.exclusions():
+            return True, cooling.get(name), ADAPTERS[name].LOGIN_ROAD
+        if name in cooling:
+            return True, cooling[name], f"wait until {render_ts(cooling[name])}"
+        return False, None, None
+
+    def quota(self, provider):
+        if provider.name not in self.cooling():
+            deadline = self.clock() + timedelta(minutes=provider.limits.quota_window_minutes)
+            self.timers.arm(f"provider-cooldown/{provider.name}/{render_ts(deadline)}", deadline, ticket=None)
+
+    def outcome(self, served, failure):
+        # Thresh invokes this only after its sole outcome append succeeds.
+        if failure == 'quota_exhausted':
+            self.quota(served.provider)
+        elif failure == 'auth_error':
+            self.auth_excluded.add(served.provider.name)
+
+    def drought(self, config, tier, surface):
+        from chupa.thresh import UnavailableRoute
+        route = candidates(config, tier, surface)
+        refusal = self.thresh._select(route, 0, 0)
+        return ProviderDrought(tier, surface, refusal) if isinstance(refusal, UnavailableRoute) else None
+
+    def park(self, stem, drought):
+        history = self.journal.read()
+        previous = next((e.body for e in reversed(history)
+                         if e.type == EventType.STATE_TRANSITION and e.ticket == stem), {})
+        if previous.get('provider_drought') != drought.record:
+            self.journal.append(EventType.STATE_TRANSITION,
+                {'to': 'infra_error', 'reason': 'provider_drought', 'provider_drought': drought.record},
+                ticket=stem, key=None)
 
 
 @dataclass(frozen=True)
@@ -245,7 +372,7 @@ class CliAdapter:
         return value
 
     def classify_failure(self, message: str, *, rc: int, stderr_tail: str) -> ProviderCallError:
-        """Dormant Phase 3 classifier: only failed diagnostics, never successful output."""
+        """Classify only failed diagnostics, never successful output."""
         message = self._redactor.scrub(message)
         tail = stderr_tail[-2000:]
         diagnostic = f"{tail}\n{message}".lower()
@@ -272,15 +399,7 @@ class CliAdapter:
         return None
 
     def _raise_call_error(self, message: str, *, rc: int, stderr_tail: str) -> None:
-        auth = any(marker in f"{stderr_tail}\n{message}".lower() for marker in self.AUTH_MARKERS)
-        raise ProviderCallError(
-            self.provider.name,
-            message,
-            rc=rc,
-            stderr_tail=stderr_tail,
-            failure_class="auth_error" if auth else None,
-            paved_road=self.LOGIN_ROAD if auth else None,
-        )
+        raise self.classify_failure(message, rc=rc, stderr_tail=stderr_tail)
 
     def abort(self) -> None:
         if self._pgid is not None:
@@ -372,7 +491,7 @@ PREFLIGHT_TIMEOUT_S = 120.0
 
 
 class ProviderLLM:
-    """The real `LLM`: one adapter per configured provider, each call served by its route's first candidate."""
+    """Snapshot-local adapters sharing one session's ordered provider admission."""
 
     kind: Literal["api", "cli"] = "cli"
 
@@ -385,7 +504,13 @@ class ProviderLLM:
         env: Mapping[str, str],
         cwd: Path,
         timeout: float,
+        session: ProviderSession,
     ) -> None:
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError('provider timeout must be positive and finite')
+        self.session, self._timeout = session, timeout
+        session.active = True
+        session.thresh.configure(config)
         self._config = config
         self._exec, self._env, self._cwd = exec_, env, cwd
         self.preflight_notices: list[str] = []
@@ -418,6 +543,8 @@ class ProviderLLM:
         problems: list[str] = []
         notices = self.preflight_notices = []
         for adapter in self._adapters.values():
+            if adapter.provider.name in self.session.exclusions():
+                continue
             package = adapter.provider.package
             _, out, err = await self._exec.run([adapter.binary, "--version"], cwd=self._cwd,
                                                env=child_env(self._env, self._config),
@@ -431,6 +558,8 @@ class ProviderLLM:
         probed: set[tuple[str, str]] = set()
         for route in self._config.routing:
             for cand in route.candidates:
+                if cand.provider in self.session.exclusions():
+                    continue
                 adapter = self._adapters[cand.provider]
                 model = cand.model or getattr(adapter.provider.models_by_tier, route.tier)
                 if (cand.provider, model) in probed:
@@ -443,13 +572,45 @@ class ProviderLLM:
                 except Exception as e:
                     problems.append(f"{cand.provider} model {model!r} failed its probe: {e} -- run: pnpm add -g"
                                     f" {adapter.provider.package}@latest, or route a model this login serves in config.yaml")
+        if not problems:
+            self.session.preflight_passed()
         return problems
 
+    async def admitted_call(self, req, *, ticket, call_key, effect, meter=None):
+        from chupa.thresh import UnavailableRoute
+        route = candidates(self._config, req.tier, req.surface)
+        used, queued, cap = self.session.thresh.occupancy(route[0].provider.name)
+        estimate = ((used + queued) // cap) * self._timeout
+        async def operation(served):
+            consumer = meter(served) if meter else None
+            result = await self._invoke(req, served, consumer=consumer)
+            if consumer is not None and hasattr(consumer, 'complete'):
+                consumer.complete()
+            return result
+        while True:
+            result = await self.session.thresh.run(route, ticket=ticket, call_key=call_key,
+                projected_wait_seconds=estimate, effect=effect, operation=operation)
+            if not isinstance(result, UnavailableRoute):
+                return result.result
+            if ticket is not None or result.open_until is None:
+                raise ProviderDrought(req.tier, req.surface, result)
+            self.session._holds[call_key] = self.session.clock()
+            try:
+                await self.session.wait_until(result.open_until)
+            finally:
+                started = self.session._holds.pop(call_key)
+                self.session._held_seconds[call_key] = self.session._held_seconds.get(call_key, 0) + max(
+                    0, (self.session.clock() - started).total_seconds())
+
     async def call(self, req: LLMRequest, *, consumer: "EventConsumer | None" = None) -> LLMResult:
-        served = resolve(self._config, req.tier, req.surface)
+        """The raw LLM execution seam; llm_call owns its durable admission boundary."""
+        return await self._invoke(req, resolve(self._config, req.tier, req.surface), consumer=consumer)
+
+    async def _invoke(self, req, served, *, consumer=None):
         self._active = self._adapters[served.provider.name]
         try:
-            return await self._active.invoke(req, served.model, **({"consumer": consumer} if consumer is not None else {}))
+            return await self._active.invoke(req, served.model,
+                **({'consumer': consumer} if consumer is not None else {}))
         finally:
             self._active = None
 

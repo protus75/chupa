@@ -20,7 +20,7 @@ from chupa.artifacts import Finding, Harvest, StageResult
 from chupa.box import BOX_DIR
 from chupa.storm import arrival_id
 from chupa.caps import capability, consume, lineage, next_rung, remaining, spent, spent_reason
-from chupa.config import Config, ConfigSnapshot
+from chupa.config import Config, ConfigSnapshot, snapshot_config
 from chupa.driver import Driver
 from chupa.effects import Effects
 from chupa.git import Git, GitError
@@ -87,14 +87,35 @@ Pipeline = Callable[[Checkout], Dispatch]
 
 
 def pipeline(checkout: Checkout) -> Dispatch:
-    """Prepare the bootstrap dispatch before its outer run/drain event loop starts."""
-    return asyncio.run(prepare_pipeline(checkout))
+    """Preparation belongs to the outer lock-held run/drain lifetime."""
+    class PreparedDispatch:
+        callback = None
+        snapshot = None
+        async def prepare(self):
+            snapshot = snapshot_config(checkout.control.load_config())
+            if self.callback is not None and snapshot == self.snapshot:
+                return
+            local = replace(checkout, config=snapshot)
+            self.callback = await prepare_pipeline(local)
+            self.snapshot = snapshot
+        async def __call__(self, ticket):
+            if self.callback is None:
+                await self.prepare()
+            try:
+                return await self.callback(ticket)
+            finally:
+                self.callback = None
+        async def abort_current(self):
+            if self.callback is not None:
+                await self.callback.abort_current()
+    return PreparedDispatch()
 
 
 async def prepare_pipeline(checkout: Checkout) -> Dispatch:
     """Preflight this checkout's providers before constructing any stage consumers."""
     llm = ProviderLLM(checkout.config, exec_=checkout.exec_, fs=checkout.fs, env=checkout.env,
-                      cwd=checkout.repo, timeout=call_timeout(checkout.config))
+                      cwd=checkout.repo, timeout=call_timeout(checkout.config),
+                      session=checkout.control.providers)
     problems = await llm.preflight()
     for notice in llm.preflight_notices:
         print(f"chupa: provider preflight notice: {notice}", file=sys.stderr)
@@ -146,6 +167,11 @@ async def drive(ctx: StageContext, ticket: Ticket, *, admission=None, consume_ha
         await harvest_failure(ctx, ticket, attempt=run.attempt, stage=stage, outcome=result.outcome,
                               findings=result.findings, results=(*run.results.values(),)
                               + ((result,) if stage == "merge" else ()))
+    drought = getattr(result, 'provider_drought', None)
+    quota = any(f.code == 'quota_exhausted' for f in result.findings)
+    if drought is not None or quota:
+        return await failure_terminal(ctx, ticket, outcome=result.outcome, stage=stage,
+            findings=result.findings, attempt=run.attempt, provider_drought=drought)
     if result.outcome in {"infra_error", "timeout"}:
         ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
         consume(ctx.driver.journal, ticket.stem, "infra", ticket_sha)
@@ -166,6 +192,14 @@ async def drive(ctx: StageContext, ticket: Ticket, *, admission=None, consume_ha
         ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
         consume(ctx.driver.journal, ticket.stem, "premise_bounce", ticket_sha)
     diagnosed = result.outcome != "budget_exceeded" and not over_bound
+    if (diagnosed and isinstance(ctx.driver.llm, ProviderLLM)
+            and not spent(ctx.config.caps, ctx.driver.journal.read(), ticket.stem)
+            and ctx.worktree(ticket.stem).exists()):
+        tier, _ = capability(ticket, ctx.driver.journal.read())
+        refusal = ctx.driver.llm.session.drought(ctx.config, tier, 'diagnose')
+        if refusal:
+            return await failure_terminal(ctx, ticket, outcome='infra_error', stage=stage,
+                findings=result.findings, attempt=run.attempt, provider_drought=refusal.record)
     if diagnosed:
         worktree = ctx.worktree(ticket.stem)
         mechanical = None if worktree.exists() else "workspace gone"
@@ -226,13 +260,19 @@ async def harvest_failure(ctx: StageContext, ticket: Ticket, *, attempt: int, st
 async def failure_terminal(ctx: StageContext, ticket: Ticket, *, outcome: str, stage: str,
                            findings: list[Finding], attempt: int, reworked: StageResult | None = None,
                            rework_requested: bool = False, mechanical: bool = False,
-                           verdict: str | None = None) -> str:
+                           verdict: str | None = None, provider_drought: dict | None = None) -> str:
     """Preserve the producing terminal, then retire a published split before wiping and returning."""
     from chupa.rework import ReworkOrder
     from chupa.daemon import storm_producer
 
     reason = ",".join(sorted({f.code for f in findings})) or outcome
     terminal = {"to": outcome, "stage": stage, "reason": reason}
+    if provider_drought is None and reworked is not None:
+        provider_drought = getattr(reworked, 'provider_drought', None)
+    if provider_drought is not None:
+        terminal.update(to='infra_error', reason='provider_drought', provider_drought=provider_drought)
+        rework_requested, verdict = False, None
+        outcome = 'infra_error'
     history = ctx.driver.journal.read()
     tier, effort = capability(ticket, history)
     split = False
@@ -299,7 +339,7 @@ async def failure_terminal(ctx: StageContext, ticket: Ticket, *, outcome: str, s
             routed = bool(spent(ctx.config.caps, history, ticket.stem))
         case _:
             assert_never(terminal_dispatch)
-    if not mechanical and not split and routed:
+    if not mechanical and not split and routed and provider_drought is None:
         terminal["routed"] = "reject_queue"
     ctx.driver.journal.append(EventType.STATE_TRANSITION, terminal, ticket=ticket.stem)
     if split:
@@ -464,18 +504,33 @@ async def run_ticket(stem: str, checkout: Checkout, dispatch: Dispatch) -> int:
         assert checkout.config.worktree_root is not None  # resolved at config load
         await reconcile(checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root,
                         lambda orphan, attempt: harvest_orphan(checkout, orphan, attempt))
+        if checkout.control is not None:
+            checkout.control.providers.timers.reconstruct()
+            checkout.control.providers.timers.fire_due()
+        if hasattr(dispatch, 'prepare'):
+            await dispatch.prepare()
         from chupa.daemon import storm_producer
 
         storm_producer(root=checkout.config.state_dir / BOX_DIR, fs=checkout.fs,
                        journal=checkout.journal, clock=checkout.clock).recover()
         ticket = await _admit(stem, checkout)
+        if checkout.control is not None:
+            tier, _ = capability(ticket, checkout.journal.read())
+            drought = checkout.control.providers.drought(checkout.config, tier, 'implement')
+            if drought:
+                checkout.control.providers.park(stem, drought)
+                return EXIT_TICKET
         checkout.journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket=stem)
         terminal = await dispatch(ticket)
         if terminal not in TERMINAL_STATES:
             raise ValueError(f"stage seam returned {terminal!r}, not a terminal state {sorted(TERMINAL_STATES)}")
         return EXIT_MERGED if terminal == "merged" else EXIT_TICKET
     finally:
-        lock.release()
+        try:
+            if checkout.control is not None:
+                await checkout.control.providers.close()
+        finally:
+            lock.release()
 
 
 async def verdict(stem: str, checkout: Checkout, *, kill: bool) -> int:

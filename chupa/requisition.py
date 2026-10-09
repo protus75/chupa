@@ -13,6 +13,7 @@ from chupa.driver import Driver, _StuckBudget, unwrap_fence
 from chupa.gates import GateReport
 from chupa.llm import AgentTier, LLMRequest, LLMResult
 from chupa.llmeffect import llm_call
+from chupa.providers import ProviderCallError, ProviderDrought
 from chupa.specs import REQ_RENDER_HEADROOM, RENDER_BOUND_CHARS, RenderOverBound, hardenable_units, load_spec, render
 from chupa.stages import implement_inputs
 from chupa.tickets import Ticket, validate_ticket
@@ -134,6 +135,8 @@ async def review_ticket(driver: Driver, *, repo: Path, plan: str, stem: str, tex
         )
     except _StuckBudget:
         return snag("requisition review timed out", "timeout", road="retry the authoring review")
+    except (ProviderDrought, ProviderCallError):
+        raise
     except Exception as exc:
         message = f"requisition review provider failed: {type(exc).__name__}: {exc}"
         driver.spool.write(spool_stem, attempt, f"{name}/error.txt", message)

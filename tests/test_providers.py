@@ -17,11 +17,14 @@ from chupa.providers import (
     PLACEHOLDER,
     ProviderCallError,
     ProviderLLM,
+    ProviderSession,
     ProviderSetupError,
     child_env,
     resolve,
 )
 from chupa.redact import Redactor
+from chupa.journal import Journal
+from chupa.timers import Timers
 from chupa.seams import GroupExec, LocalFileSystem, SubprocessExec
 from chupa.watchdog import EventConsumer
 
@@ -93,8 +96,15 @@ class FakeExec:
             self.hang.set()
 
 
+def provider_session(cfg, clock=lambda: datetime(2026, 1, 1, tzinfo=UTC), sleep=asyncio.sleep):
+    journal = Journal(cfg.state_dir, clock)
+    return ProviderSession(cfg, journal=journal, clock=clock, sleep=sleep,
+                           timers=Timers(journal=journal, clock=clock, sleep=sleep))
+
+
 def llm(cfg, exec_: FakeExec, tmp_path: Path) -> ProviderLLM:
-    return ProviderLLM(cfg, exec_=exec_, fs=LocalFileSystem(), env=ENV, cwd=tmp_path / "checkout", timeout=600)
+    return ProviderLLM(cfg, exec_=exec_, fs=LocalFileSystem(), env=ENV, cwd=tmp_path / "checkout", timeout=600,
+                       session=provider_session(cfg))
 
 
 def req(surface: str, tier="medium", worktree=None, rendered="do the thing", effort="high") -> LLMRequest:
@@ -561,7 +571,7 @@ def test_classified_error_preserves_scrubbed_evidence_and_login_road(tmp_path, n
             assert (finding.code, finding.message, finding.paved_road) == (error.failure_class, str(error), error.paved_road)
 
 
-def test_cli_failure_classifier_is_dormant(tmp_path, monkeypatch):
+def test_cli_failure_classifier_is_active(tmp_path, monkeypatch):
     from chupa import __main__, runner
     from chupa.driver import LlmStage
     from chupa.tickets import validate_ticket
@@ -647,17 +657,18 @@ def test_cli_failure_classifier_is_dormant(tmp_path, monkeypatch):
         assert __main__.main(["run", "dormancy"], cwd=tmp_path, env=ENV,
                              clock=lambda: datetime(2026, 10, 6, tzinfo=UTC)) == 0
         assert len(results) == 2
-        assert hits == []
+        assert hits == ['codex', 'claude']
+        assert [r.findings[0].code for r in results] == ['outage', 'rate_limited']
 
     assert_dormant()
 
     def wired(self, message, **kwargs):
-        raise self.classify_failure(message, **kwargs)
+        raise ProviderCallError(self.provider.name, message, **kwargs)
 
     monkeypatch.setattr(CliAdapter, "_raise_call_error", wired)
     with pytest.raises(AssertionError):
         assert_dormant()
-    assert hits == ["codex", "claude"]
+    assert hits == []
 
 
 class PythonProviderExec(SubprocessExec):
@@ -683,7 +694,7 @@ class PythonProviderExec(SubprocessExec):
 def python_client(cfg, process, tmp_path, *, timeout=10, env=None):
     return ProviderLLM(cfg, exec_=process, fs=LocalFileSystem(),
                        env=env or {**os.environ, **ENV, "PATH": os.environ["PATH"]},
-                       cwd=tmp_path, timeout=timeout)
+                       cwd=tmp_path, timeout=timeout, session=provider_session(cfg))
 
 
 def provider_request(name, tmp_path, **kwargs):

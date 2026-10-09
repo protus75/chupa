@@ -1,8 +1,8 @@
-"""Dormant provider admission and journal-backed breakers (19.P3.thresh-runtime).
+"""Provider admission and journal-backed breakers (19.P3.thresh-runtime).
 
 One instance owns a session's slots across surfaces. Breaker truth is folded from
-the journal; neither queue state nor counters survive the session. Phase 4 owns
-production composition and budget accounting.
+the journal; neither queue state nor counters survive the session. Providers owns
+selection policy; the production callers own budget accounting.
 """
 
 import asyncio
@@ -54,7 +54,7 @@ class Admission:
 @dataclass(frozen=True)
 class UnavailableRoute:
     providers: tuple[str, ...]
-    open_until: datetime
+    open_until: datetime | None
     waited_seconds: float
     paved_road: str
 
@@ -118,6 +118,24 @@ class Thresh:
         self._journal, self._clock, self._sleep = journal, clock, sleep
         self._breaker = config.circuit_breaker
         self._slots = {p.name: _Slots(p.limits.concurrency) for p in config.providers}
+        self.unavailable = lambda name: (False, None, None)
+        self.on_outcome = lambda served, failure: None
+        self._waiting: dict[str, datetime] = {}
+
+    def occupancy(self, provider: str) -> tuple[int, int, int]:
+        slots = self._slots[provider]
+        return slots.used, len(slots.queue), slots.cap
+
+    def configure(self, config):
+        self._breaker = config.circuit_breaker
+        for provider in config.providers:
+            slots = self._slots.setdefault(provider.name, _Slots(provider.limits.concurrency))
+            slots.cap = provider.limits.concurrency
+            slots.wake()
+
+    def live_wait(self, prefix: str) -> float:
+        return sum(max(0, (self._clock() - started).total_seconds())
+                   for key, started in self._waiting.items() if key.startswith(prefix))
 
     def breakers(self) -> dict[str, Breaker]:
         return fold_breakers(self._journal, self._clock())
@@ -137,12 +155,19 @@ class Thresh:
 
     def _select(self, route: Sequence[Served], estimate: float, waited: float) -> Served | UnavailableRoute:
         states = self.breakers()
-        closed = [s for s in route if states.get(s.provider.name, Breaker()).open_until is None]
+        excluded = {s.provider.name: self.unavailable(s.provider.name) for s in route}
+        closed = [s for s in route if states.get(s.provider.name, Breaker()).open_until is None
+                  and not excluded[s.provider.name][0]]
         if not closed:
-            deadline = min(states[s.provider.name].open_until for s in route)
+            deadlines = [d for s in route for d in (
+                states.get(s.provider.name, Breaker()).open_until, excluded[s.provider.name][1]) if d is not None]
+            deadline = min(deadlines) if deadlines else None
             names = tuple(s.provider.name for s in route)
-            return UnavailableRoute(names, deadline, waited,
-                                    f"wait until {render_ts(deadline)} or repair the configured route for {', '.join(names)}")
+            roads = [road for _, _, road in excluded.values() if road]
+            road = '; '.join(roads) or f"repair the configured route for {', '.join(names)}"
+            if deadline:
+                road = f"wait until {render_ts(deadline)} or {road}"
+            return UnavailableRoute(names, deadline, waited, road)
         selected = closed[0]
         if (selected is route[0] and not self._slots[selected.provider.name].free()
                 and estimate > SPILL_WAIT_SECONDS):
@@ -175,6 +200,7 @@ class Thresh:
                 return Admission(selected, waited)
             waiter, started = _Waiter(), self._clock()
             slots.queue.append(waiter)
+            self._waiting[call_key] = started
             slots.wake()
             try:
                 while True:
@@ -184,10 +210,12 @@ class Thresh:
                     waiter.ready.clear()
                     if slots.queue[0] is not waiter or slots.used >= slots.cap:
                         continue
-                    unavailable = self.breakers().get(name, Breaker()).open_until is not None
+                    unavailable = (self.breakers().get(name, Breaker()).open_until is not None
+                                   or self.unavailable(name)[0])
                     waited += self._wait_record(name, started, "unavailable" if unavailable else "admitted",
                                                 ticket=ticket, call_key=call_key)
                     slots.queue.popleft()
+                    self._waiting.pop(call_key, None)
                     if not unavailable:
                         slots.used += 1
                     slots.wake()
@@ -196,6 +224,7 @@ class Thresh:
                     return Admission(selected, waited)
             except BaseException as exc:
                 slots.queue.remove(waiter)
+                self._waiting.pop(call_key, None)
                 slots.wake()
                 if isinstance(exc, asyncio.CancelledError):
                     self._wait_record(name, started, "cancelled", ticket=ticket, call_key=call_key)
@@ -223,8 +252,10 @@ class Thresh:
             except Exception as exc:
                 failure = (exc.failure_class or "unclassified") if isinstance(exc, ProviderCallError) else "unclassified"
                 self.record_outcome(admission.served.provider.name, failure, ticket=ticket, call_key=call_key)
+                self.on_outcome(admission.served, failure)
                 raise
             self.record_outcome(admission.served.provider.name, None, ticket=ticket, call_key=call_key)
+            self.on_outcome(admission.served, None)
             return result
 
         try:

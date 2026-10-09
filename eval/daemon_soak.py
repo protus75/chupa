@@ -94,12 +94,17 @@ class _Exec:
 
     async def run(self, argv, *, cwd, env, timeout, stdin_path=None, on_spawn=None, on_stdout_line=None):
         argv = list(argv)
+        if argv == ['claude', '--version'] or argv[0] == 'pnpm':
+            return 0, '1.2.3', ''
         if argv[0] == "git" and argv[3:4] == ["rebase"] and argv[-1] == "main":
             self.member.admission_heads[cwd.name] = await self.member.git.rev_parse(self.member.root, "main")
         if argv[0] == "claude":
             if stdin_path is None:
                 raise AssertionError("soak provider requires a captured triage prompt")
             prompt = stdin_path.read_text()
+            if prompt == 'Reply with the single word ok.':
+                return 0, json.dumps(dict(type='result', subtype='success', is_error=False,
+                                          result='ok', total_cost_usd=0.0)) + '\n', ''
             if "<<chupa-data:begin message>>" not in prompt:
                 raise AssertionError("soak transport accepts only triage, never host work")
             reply = json.dumps(dict(verdict="decision", link=None, summary="Observed synthetic fault",

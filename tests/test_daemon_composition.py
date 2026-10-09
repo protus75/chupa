@@ -873,26 +873,30 @@ def test_bootstrap_pipeline_prepares_before_dispatch(tmp_path, monkeypatch, refu
     original_bind = runner.bind
 
     def bind(checkout, llm):
-        assert checkout is rig.checkout and llm._config is checkout.config
+        assert checkout is not rig.checkout and llm._config is checkout.config
+        assert isinstance(checkout.config, ConfigSnapshot)
+        assert checkout.control.providers is rig.core.control.providers
         assert len([call for call in rig.exec.calls if call[3] is not None]) == 5
         bound.append(checkout)
         return original_bind(checkout, llm)
 
     async def stop(ctx, original):
-        assert original is ticket and ctx.config is rig.checkout.config
+        assert original is ticket and ctx.config is bound[0].config
         called.append(original)
         return "merged"
 
     monkeypatch.setattr(runner, "bind", bind)
     monkeypatch.setattr(runner, "drive", stop)
     rig.exec.refuse_probe = refuse
+    callback = runner.pipeline(rig.checkout)
+    assert bound == called == [] and rig.exec.calls == []
     if refuse:
         with pytest.raises(runner.Refusal, match="provider preflight failed"):
-            runner.pipeline(rig.checkout)
+            asyncio.run(callback.prepare())
         assert bound == called == []
     else:
-        callback = runner.pipeline(rig.checkout)
-        assert bound == [rig.checkout] and called == []
+        asyncio.run(callback.prepare())
+        assert len(bound) == 1 and called == []
         assert asyncio.run(callback(ticket)) == "merged" and called == [ticket]
     assert_idle(rig.core.admission)
 

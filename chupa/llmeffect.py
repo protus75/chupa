@@ -8,7 +8,7 @@ instead of calling. The driver reaches the model only through `llm_call`.
 from dataclasses import asdict, replace
 from typing import Any
 
-from chupa.effects import effect
+from chupa.effects import Effects
 from chupa.llm import LLM, LLMRequest
 from chupa.redact import Redactor
 
@@ -21,15 +21,17 @@ def _cost(result: dict[str, Any]) -> dict[str, Any]:
     return {k: result[k] for k in ("usd", "input_tokens", "output_tokens", "provider", "model")}
 
 
-@effect(
-    key=lambda llm, req, redactor, *, stem, run_seq, attempt, call_seq: llm_key(
-        stem, run_seq, req.surface, attempt, call_seq
-    ),
-    cost=_cost,
-)
 async def llm_call(
-    llm: LLM, req: LLMRequest, redactor: Redactor, *, stem: str, run_seq: int, attempt: int, call_seq: int
+    effects: Effects, llm: LLM, req: LLMRequest, redactor: Redactor, *, ticket: str | None,
+    stem: str, run_seq: int, attempt: int, call_seq: int
 ) -> dict[str, Any]:
-    result = await llm.call(req)
-    # Scrubbed once, before it becomes the completion record: execute and replay return the same bytes.
-    return asdict(replace(result, text=redactor.scrub(result.text)))
+    key = llm_key(stem, run_seq, req.surface, attempt, call_seq)
+    async def record(operation):
+        async def action():
+            result = await operation()
+            return asdict(replace(result, text=redactor.scrub(result.text)))
+        return await effects.run(action, key=key, ticket=ticket, cost=_cost)
+    # A replay has no admission, wait, meter, outcome or cooldown side effect.
+    if key in effects._completed or not hasattr(llm, 'admitted_call'):
+        return await record(lambda: llm.call(req))
+    return await llm.admitted_call(req, ticket=ticket, call_key=key, effect=record)

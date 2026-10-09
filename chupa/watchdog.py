@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from chupa.artifacts import Cost, StageResult
 from chupa.driver import _observe
 from chupa.llm import LLMAborted, LLMResult
-from chupa.providers import ADAPTERS, ProviderSetupError, Served, resolve
+from chupa.providers import ADAPTERS, ProviderSetupError, Served
 from chupa.seams import Clock, Sleep
 from chupa.specs import unit_sha
 
@@ -21,10 +21,11 @@ class WatchedLLM:
         self.kind = llm.kind
 
     async def call(self, req):
-        meter = self.detector.start_call(resolve(self.llm._config, req.tier, req.surface))
-        result = await self.llm.call(req, consumer=meter)
-        meter.complete()
-        return result
+        return await self.llm.call(req, consumer=None)
+
+    async def admitted_call(self, req, *, ticket, call_key, effect):
+        return await self.llm.admitted_call(req, ticket=ticket, call_key=call_key, effect=effect,
+                                           meter=self.detector.start_call)
 
     def abort_current(self):
         self.llm.abort_current()

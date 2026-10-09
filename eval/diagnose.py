@@ -25,6 +25,9 @@ from chupa.providers import ProviderLLM, resolve
 from chupa.seams import Clock, LocalFileSystem, SubprocessExec
 from chupa.specs import load_spec
 from chupa.stages import DiagnosisMaterial, diagnose_stage
+from chupa.providers import ProviderSession
+from chupa.runner import call_timeout
+from chupa.timers import Timers
 
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = ROOT / "eval" / "diagnose_fixtures"
@@ -223,13 +226,26 @@ async def _run(config: Config) -> Report:
     instance_id = await Git(exec_, env=env, timeout=30).describe(ROOT)
     lock = Lockfile(config.state_dir, instance_id=instance_id, clock=_clock)
     lock.acquire()
+    session = None
     try:
-        llm = ProviderLLM(config, exec_=exec_, fs=LocalFileSystem(), env=env, cwd=ROOT, timeout=CALL_STUCK_S)
+        journal = Journal(config.state_dir, _clock)
+        timers = Timers(journal=journal, clock=_clock, sleep=asyncio.sleep)
+        timers.reconstruct()
+        timers.fire_due()
+        session = ProviderSession(config, journal=journal, clock=_clock, sleep=asyncio.sleep, timers=timers)
+        llm = ProviderLLM(config, exec_=exec_, fs=LocalFileSystem(), env=env, cwd=ROOT, timeout=call_timeout(config),
+                          session=session)
+        if problems := await llm.preflight():
+            raise CaseError('; '.join(problems))
         driver = Driver.from_config(config, llm=llm, env=env, clock=_clock, sleep=asyncio.sleep)
         return await run_eval(config=config, driver=driver, journal=driver.journal,
                               cases=load_cases(), clock=_clock, progress=print)
     finally:
-        lock.release()
+        try:
+            if session is not None:
+                await session.close()
+        finally:
+            lock.release()
 
 
 def main(argv: Sequence[str] | None = None) -> int:

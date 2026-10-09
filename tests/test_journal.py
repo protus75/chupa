@@ -239,3 +239,19 @@ def test_append_fsyncs_before_returning(tmp_path, monkeypatch):
     monkeypatch.setattr(journal_mod.os, "fsync", recording_fsync)
     Journal(tmp_path, FakeClock(T0)).append("effect_intent", {"n": 1}, key="k")
     assert any('"effect_intent"' in text for text in synced)
+
+
+def test_run_sequence_counts_mid_run_drought_but_not_runless_parks(tmp_path):
+    from chupa.journal import EventType, run_seq
+    journal = Journal(tmp_path, FakeClock(T0))
+    park = {'to': 'infra_error', 'reason': 'provider_drought',
+            'provider_drought': {'tier': 'high', 'surface': 'implement', 'providers': ['claude']}}
+    journal.append(EventType.STATE_TRANSITION, park, ticket='work')
+    assert run_seq(journal.read(), 'work') == 0
+    journal.append(EventType.STATE_TRANSITION, {'to': 'running'}, ticket='work')
+    journal.append(EventType.STATE_TRANSITION, park, ticket='work')
+    journal.append(EventType.STATE_TRANSITION, park, ticket='work')
+    assert run_seq(journal.read(), 'work') == 1
+    journal.append(EventType.STATE_TRANSITION, {'to': 'running'}, ticket='work')
+    journal.append(EventType.STATE_TRANSITION, {'to': 'abandoned'}, ticket='work')
+    assert run_seq(journal.read(), 'work') == 2

@@ -423,9 +423,8 @@ def prior_attempts(ctx: StageContext, stem: str) -> str | None:
     terminal stage's artifact is read: an older stage's artifact left in the dir is a stale attempt's.
     """
     history = ctx.driver.journal.read()
-    terminals = [e.body for e in history
-                 if e.type == EventType.STATE_TRANSITION and e.ticket == stem
-                 and e.body.get("to") in TERMINAL_STATES]
+    from chupa.journal import run_terminals
+    terminals = [e.body for e in run_terminals(history, stem)]
     lessons = {e.body.get("attempt"): e.body["lessons"] for e in history
                if e.type == EventType.SIGNAL and e.ticket == stem
                and e.body.get("signal") == "diagnosis" and e.body.get("lessons")}
@@ -510,18 +509,19 @@ def implement_stage(ctx: StageContext, ticket: Ticket, worktree: Path,
     return LlmStage(surface="implement", emits=TicketImplementReply, gates=[], render=render_ticket), spec
 
 
-def run_record(reply: ImplementReply, cost: Cost, spec: Spec, second_problem_ids: Sequence[str]) -> str:
+def run_record(reply: ImplementReply | None, cost: Cost, spec: Spec, second_problem_ids: Sequence[str],
+               *, outcome: Outcome | None = None) -> str:
     fields = {
-        "Outcome": reply.outcome,
-        "Surprises / judgment calls": reply.surprises,
-        "Dead ends": reply.dead_ends,
+        "Outcome": outcome or reply.outcome,
+        "Surprises / judgment calls": reply.surprises if reply else 'none',
+        "Dead ends": reply.dead_ends if reply else 'none',
         "Second problems filed": "\n".join(
             f"- {id}: {_one_line(problem.summary)}"
-            for id, problem in zip(second_problem_ids, reply.second_problems, strict=True)
+            for id, problem in zip(second_problem_ids, reply.second_problems if reply else (), strict=True)
         ) or "none",
         "Resolved engine/model": f"- provider: {cost.provider}\n- model: {cost.model}\n"
                                  f"- spec: {spec.meta.llm_surface} {spec.meta.version}",
-        "Predicted vs actual": reply.predicted_vs_actual,
+        "Predicted vs actual": reply.predicted_vs_actual if reply else 'none',
     }
     return "".join(f"## {name}\n\n{(fields[name].strip() or 'none')}\n\n" for name in RUN_RECORD_SECTIONS)
 
@@ -542,6 +542,10 @@ async def implement(ctx: StageContext, ticket: Ticket, *, attempt: int) -> Stage
         # The pre-call short-circuit: ticket-text arithmetic, parked like premise_failed (section 8).
         return StageResult(outcome="premise_failed", artifact=None, findings=[e.finding], cost=Cost())
     if result.outcome != "ok":
+        if result.cost.provider is not None:
+            record = f'{TICKETS_DIR}/{stem}/run.md'
+            ctx.fs.write(worktree / record, run_record(None, result.cost, spec, [], outcome=result.outcome).encode())
+            await lift_outbox(ctx, stem, 'run-record', attempt=attempt)
         return result
     reply = result.artifact
     assert isinstance(reply, ImplementReply)
@@ -1047,6 +1051,10 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
     """Invoicing: run the mechanical gates on the branch head, write + lift `checks.json`."""
     stem = ticket.stem
     started = ctx.driver.clock()
+    prior_wait = ctx.driver.provider_wait(stem, attempt)
+    def active_seconds():
+        return max(0, (ctx.driver.clock() - started).total_seconds()
+                   - (ctx.driver.provider_wait(stem, attempt) - prior_wait))
     outbox = ctx.worktree(stem) / TICKETS_DIR / stem
     evidence = await gather_evidence(ctx, ticket, slip.outcome, attempt=attempt)
     gated = run_gates(CHECK_GATES, evidence, ctx.worktree(stem), severity=check_severity(ctx, ticket))
@@ -1089,15 +1097,15 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
                           message=f"invalid registered artifact: {error.error}",
                           paved_road="produce the report only through eval.shakeout.run")
         return StageResult(outcome="gate_failed", artifact=invoice.model_copy(update={"passed": False}), findings=[finding],
-                           cost=Cost(seconds=(ctx.driver.clock() - started).total_seconds()))
+                           cost=Cost(seconds=active_seconds()))
     except GitError as error:
         finding = Finding(code="verification", message=f"checks lift failed: {error}",
                           paved_road="repair the ticket-plane Git failure and rerun Check")
         return StageResult(outcome="gate_failed", artifact=invoice.model_copy(update={"passed": False}),
-                           findings=[finding], cost=Cost(seconds=(ctx.driver.clock() - started).total_seconds()))
+                           findings=[finding], cost=Cost(seconds=active_seconds()))
     if passed:
         await lift_seeds(ctx, stem, new_paths, attempt=attempt)
-    cost = Cost(seconds=(ctx.driver.clock() - started).total_seconds())
+    cost = Cost(seconds=active_seconds())
     if not passed:
         hard = [f for r in gated.hard_failures for f in r.findings]
         if required_report is not None:
@@ -1200,17 +1208,33 @@ async def run_stages(ctx: StageContext, ticket: Ticket) -> StagesRun:
             invoice = run.results["check"].artifact
             assert isinstance(invoice, Invoice)
             operation = review(ctx, ticket, invoice, attempt=run.attempt)
-        if boundary.select is None:
-            result = await operation
-        else:
-            boundary.active = asyncio.create_task(operation)
-            try:
-                result = await asyncio.shield(boundary.active)
-            except asyncio.CancelledError:
-                await ctx.abort_current()
+        try:
+            if boundary.select is None:
+                result = await operation
+            else:
+                boundary.active = asyncio.create_task(operation)
+                try:
+                    result = await asyncio.shield(boundary.active)
+                except asyncio.CancelledError:
+                    await ctx.abort_current()
+                    raise
+                finally:
+                    boundary.active = None
+        except Exception as exc:
+            from chupa.providers import ProviderCallError, ProviderDrought
+            from chupa.driver import ProviderDroughtResult
+            if isinstance(exc, ProviderDrought):
+                result = ProviderDroughtResult(outcome='infra_error', artifact=None, findings=[],
+                                               cost=Cost(), provider_drought=exc.record)
+            elif isinstance(exc, ProviderCallError):
+                findings = await ctx.driver.provider_failure(exc, owner=ticket.stem, ticket=ticket.stem,
+                    sequence=run.attempt, surface='requisition_review', workspace=ctx.worktree(ticket.stem))
+                meter = ctx.driver.detector.call if ctx.driver.detector else None
+                result = StageResult(outcome='infra_error', artifact=None, findings=findings,
+                    cost=Cost(attempts=1, provider=meter.identity[0] if meter else None,
+                              model=meter.identity[1] if meter else None))
+            else:
                 raise
-            finally:
-                boundary.active = None
         run.results[stage] = result
         if result.outcome != "ok":
             break
