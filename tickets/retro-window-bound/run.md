@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-tests/test_status.py hardcodes the retro spec version replacement; the targeted suite passed, but the full suite had 2966 passes and this one failure.
+Failure records can have identical timestamps and bodies, so ordering assertions use journal indices.
 
 ## Dead ends
 
-Implemented and validated both fixes, then discarded them because repairing the full-suite failure requires an out-of-fence edit.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Within the expected 45-minute budget.
+Completed within the 45-minute expected budget.
 
