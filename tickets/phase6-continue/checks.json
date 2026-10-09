@@ -1,13 +1,13 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "e7f4558444eb54ba6aa85ac5f3041a2c675a283c",
+  "produced_at_sha": "109b74189d782d1ad9b239232e8309e3fbfc2467",
   "stem": "phase6-continue",
   "passed": false,
   "changed_files": [
     "tests/test_seeded_phase6_01.py"
   ],
-  "inserted_lines": 752,
+  "inserted_lines": 925,
   "bypassed": [],
   "reports": [
     {
@@ -39,11 +39,11 @@
       "verdict": "fail",
       "findings": [
         {
-          "code": "scope_fence_gap",
-          "path": "tests/test_stages.py",
-          "line": 97,
-          "message": "Activation puts core_drift into stages.CHECK_GATES with hard severity, so the inline and queued merge reruns also run it through that gate set (mergequeue.py:274 runs stages.CHECK_GATES). In the shared fixture CONFIG (tests/test_stages.py:97), the only routed provider is `fake`. Under the plan's resolver, any routed agent CLI other than claude maps to AGENTS.md. The test host repos are built in tests/test_stages.py, tests/test_seed_path.py and tests/test_drain.py, and none of them commits an AGENTS.md or CLAUDE.md. Every Check and merge in those tests would therefore classify `missing` and fail hard. Examples: test_stages.py:227 and :661 run run_stages expecting review to pass; test_seed_path.py:125 and test_drain.py:197 assert `merged`. Many more files import these builders, and `uv run pytest -q` (criterion 7) requires all of them to pass. 19.I's transition-fence law says the fence must name every predecessor fixture and composition root that the flip invalidates. This fence names none of these builders.",
-          "paved_road": "Add the repo-building fixture owners (at least tests/test_stages.py, tests/test_seed_path.py and tests/test_drain.py) to Scope fence and Context. Have each builder commit a mechanically rendered conduct file for its routed providers, using hostfiles.render applied to the fixture's own bytes. Check the import closure of those builders, list any other fixture repo that runs Check or merge, and recheck the diff budget. Do not make core_drift soft in the shared fixture CONFIG, because that would hide the hard default the ticket must preserve.",
+          "code": "requisition_review",
+          "path": null,
+          "line": null,
+          "message": "invalid requisition review reply: 1 schema error(s)",
+          "paved_road": "reply with a schema-valid requisition verdict",
           "kind": "authoring_error",
           "unit": null
         }
@@ -54,34 +54,34 @@
   "seeds": [
     {
       "stem": "core-drift-activation",
-      "ticket_sha": "c9b3df0266fbc319a5b52e6777adfa245d206965",
+      "ticket_sha": "1598423cab1022ee6656f369147d57385d6ea461",
       "verdict": "snag",
       "findings": [
         {
-          "code": "scope_fence_gap",
-          "path": "tests/test_stages.py",
-          "line": 97,
-          "message": "Activation puts core_drift into stages.CHECK_GATES with hard severity, so the inline and queued merge reruns also run it through that gate set (mergequeue.py:274 runs stages.CHECK_GATES). In the shared fixture CONFIG (tests/test_stages.py:97), the only routed provider is `fake`. Under the plan's resolver, any routed agent CLI other than claude maps to AGENTS.md. The test host repos are built in tests/test_stages.py, tests/test_seed_path.py and tests/test_drain.py, and none of them commits an AGENTS.md or CLAUDE.md. Every Check and merge in those tests would therefore classify `missing` and fail hard. Examples: test_stages.py:227 and :661 run run_stages expecting review to pass; test_seed_path.py:125 and test_drain.py:197 assert `merged`. Many more files import these builders, and `uv run pytest -q` (criterion 7) requires all of them to pass. 19.I's transition-fence law says the fence must name every predecessor fixture and composition root that the flip invalidates. This fence names none of these builders.",
-          "paved_road": "Add the repo-building fixture owners (at least tests/test_stages.py, tests/test_seed_path.py and tests/test_drain.py) to Scope fence and Context. Have each builder commit a mechanically rendered conduct file for its routed providers, using hostfiles.render applied to the fixture's own bytes. Check the import closure of those builders, list any other fixture repo that runs Check or merge, and recheck the diff budget. Do not make core_drift soft in the shared fixture CONFIG, because that would hide the hard default the ticket must preserve.",
+          "code": "requisition_review",
+          "path": null,
+          "line": null,
+          "message": "invalid requisition review reply: 1 schema error(s)",
+          "paved_road": "reply with a schema-valid requisition verdict",
           "kind": "authoring_error",
           "unit": null
         }
       ],
-      "mechanical": null
+      "mechanical": "invalid reply"
     },
     {
       "stem": "migrate-config",
       "ticket_sha": "d3b6e9bc0cd753c600595be2a73cef3305a9833d",
       "verdict": "approve",
       "findings": [],
-      "mechanical": null
+      "mechanical": "approved earlier"
     },
     {
       "stem": "phase6-continue-02",
       "ticket_sha": "72a1d2b0e2a101b789a527d74a50a7f3b3a858ae",
       "verdict": "approve",
       "findings": [],
-      "mechanical": null
+      "mechanical": "approved earlier"
     }
   ],
   "verification": [
@@ -94,7 +94,7 @@
         "tests/test_seeded_phase6_01.py"
       ],
       "rc": 0,
-      "tail": "...                                                                      [100%]\n3 passed in 0.48s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": ".......                                                                  [100%]\n7 passed in 0.32s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -107,7 +107,7 @@
         "tests/test_cli.py"
       ],
       "rc": 0,
-      "tail": "........................................................................ [ 16%]\n........................................................................ [ 32%]\n........................................................................ [ 49%]\n........................................................................ [ 65%]\n........................................................................ [ 81%]\n........................................................................ [ 98%]\n........                                                                 [100%]\n440 passed in 2.19s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................................ [ 16%]\n........................................................................ [ 32%]\n........................................................................ [ 49%]\n........................................................................ [ 65%]\n........................................................................ [ 81%]\n........................................................................ [ 98%]\n........                                                                 [100%]\n440 passed in 4.19s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -119,7 +119,7 @@
         "tests/test_plan_lint.py"
       ],
       "rc": 0,
-      "tail": "............................                                             [100%]\n28 passed in 0.18s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "............................                                             [100%]\n28 passed in 0.19s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -130,7 +130,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": ".................................................... [ 71%]\n........................................................................ [ 73%]\n........................................................................ [ 75%]\n........................................................................ [ 78%]\n........................................................................ [ 80%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 86%]\n........................................................................ [ 88%]\n........................................................................ [ 90%]\n........................................................................ [ 92%]\n........................................................................ [ 94%]\n........................................................................ [ 96%]\n........................................................................ [ 99%]\n...............................                                          [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase6-continue/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3415 passed, 1 warning in 288.03s (0:04:48)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": ".................................................... [ 71%]\n........................................................................ [ 73%]\n........................................................................ [ 75%]\n........................................................................ [ 77%]\n........................................................................ [ 80%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 86%]\n........................................................................ [ 88%]\n........................................................................ [ 90%]\n........................................................................ [ 92%]\n........................................................................ [ 94%]\n........................................................................ [ 96%]\n........................................................................ [ 98%]\n...................................                                      [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase6-continue/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3419 passed, 1 warning in 282.27s (0:04:42)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
