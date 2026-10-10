@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The prior receipt-machinery gap is repaired; the hold requires nine On-demand files to meet render headroom.
+Recovered the prior test and hold seed byte-identically; preserved the approved continuation unchanged.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60-minute expected budget; all five Verification commands passed, including 3,656 full-suite tests.
+Completed within the 60-minute expected budget; the full suite passed 3,656 tests.
 
