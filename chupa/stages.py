@@ -168,6 +168,45 @@ def read_review(text: str) -> ApprovedInvoice | SnagList | Rma:
     return _REVIEW.validate_json(m.group(1))
 
 
+async def served_review(ctx, stem: str, attempt: int, reviewed: str) -> tuple[str | None, str | None]:
+    """Only the approving call and its committed lift can attest to the served pair."""
+    from chupa.driver import unwrap_fence
+
+    try:
+        events = ctx.driver.journal.read()
+        path = f"tickets/{stem}/review.md"
+        lifts = [e.body["result"] for e in events if e.type == EventType.EFFECT_COMPLETION
+                 and e.ticket == stem and e.key == f"ticket-plane/{stem}/{attempt}/review"]
+        if len(lifts) != 1 or lifts[0]["kind"] != "review" or path not in lifts[0]["paths"]:
+            return None, None
+        commit = lifts[0]["commit"]
+        pinned = await ctx.git._run(ctx.repo, "show", f"{MAIN}:{path}")
+        if (await ctx.git.merge_base(ctx.repo, MAIN, commit) != commit
+                or pinned != await ctx.git._run(ctx.repo, "show", f"{commit}:{path}")):
+            return None, None
+        review = read_review(pinned)
+        if not isinstance(review, ApprovedInvoice) or review.stem != stem or review.reviewed_sha != reviewed:
+            return None, None
+        calls = [e for e in events if e.type == EventType.EFFECT_COMPLETION and e.ticket == stem
+                 and e.key and re.fullmatch(rf"llm/{re.escape(stem)}/{attempt}/review/{attempt}/[1-9][0-9]*", e.key)]
+        if not calls:
+            return None, None
+        call = calls[-1]
+        if any(e.key == call.key and e.body != call.body for e in calls):
+            return None, None
+        result = call.body["result"]
+        verdict = ReviewVerdict.model_validate_json(unwrap_fence(result["text"]))
+        pair = result["provider"], result["model"]
+        if (verdict.verdict != "approve" or verdict.summary != review.summary
+                or verdict.findings != review.findings or pair != (review.provider, review.model)
+                or any(not isinstance(n, str) or not n.strip() for n in pair)
+                or any(call.body["cost"].get(k) != result[k] for k in ("provider", "model"))):
+            return None, None
+        return pair
+    except (ValueError, KeyError, TypeError, AttributeError, GitError):
+        return None, None
+
+
 # --- context ------------------------------------------------------------------------------------
 
 

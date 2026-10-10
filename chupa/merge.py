@@ -13,6 +13,7 @@ import asyncio
 import re
 from collections.abc import Callable
 from contextlib import nullcontext
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -42,6 +43,13 @@ from chupa.tickets import TICKETS_DIR, Ticket, TicketInvalid, ticket_path, valid
 
 # Versions the merge contract in the provenance slot, like the mechanical Check.
 MERGE_SPEC_VERSION = 1
+
+
+@dataclass(frozen=True)
+class Held:
+    stem: str
+    attempt: int
+    hold_id: str
 
 
 def compose_pipeline(ctx: StageContext, *, escalate: Callable[[Event], None],
@@ -206,7 +214,7 @@ class AdmissionBoundary:
         self.ctx, self.mode, self.queue, self.waiting = ctx, mode, queue, waiting
         self.results: dict[tuple[str, int], asyncio.Future] = {}
 
-    async def __call__(self, ticket: Ticket, *, attempt: int) -> "StageResult | ConflictHandoff":
+    async def __call__(self, ticket: Ticket, *, attempt: int) -> "StageResult | ConflictHandoff | Held":
         ctx = self.ctx
         if self.mode == "inline":
             return await merge(ctx, ticket, attempt=attempt)
@@ -235,7 +243,7 @@ class AdmissionBoundary:
         finally:
             self.results.pop(key, None)
 
-    def deliver(self, ticket: Ticket, attempt: int, result: "StageResult | ConflictHandoff") -> bool:
+    def deliver(self, ticket: Ticket, attempt: int, result: "StageResult | ConflictHandoff | Held") -> bool:
         future = self.results.get((ticket.stem, attempt))
         if future is None:
             return False

@@ -12,6 +12,7 @@ from pathlib import Path
 import yaml
 
 from chupa import runner, serve
+from chupa.control import AdmissionRequest, publish_request, releases
 from chupa.hostfiles import render
 from chupa.providers import routed_conduct_paths
 from chupa.artifacts import (DAEMON_SOAK_MEMBERS, DAEMON_SOAK_SPEC_VERSION,
@@ -21,7 +22,7 @@ from chupa.config import load_config
 from chupa.git import Git
 from chupa.journal import EventType, Journal, TERMINAL_STATES
 from chupa.llm import FakeLLM, HANG
-from chupa.mergequeue import CONFLICT_FACTS, ConflictHandoff
+from chupa.mergequeue import CONFLICT_FACTS, MERGE_REGATE, ConflictHandoff, held_admissions
 from chupa.reconcile import RECOVERY_ALERT
 from chupa.seams import FileSystem, LocalFileSystem, SubprocessExec
 from chupa.stages import Invoice, read_review
@@ -281,7 +282,8 @@ class _Member:
                     self.script.append(json.dumps(dict(verdict="abandon-human", lessons=["Inspect fixture refusal"])))
                 else:
                     raise AssertionError(f"unexpected soak surface {req.surface}")
-                return await super().call(req)
+                from dataclasses import replace
+                return replace(await super().call(req), provider="claude", model="script")
 
         model = Model([])
         self.models.append(model)
@@ -342,8 +344,18 @@ class _Member:
                 and e.type == EventType.STATE_TRANSITION and e.body.get("to") in TERMINAL_STATES]
 
     async def settled(self, stem, count=1):
-        await self.until(lambda: len(self.terminals(stem)) >= count and
-                         self.owner.core.admission.active is None and self.owner.mutating is None)
+        def settled():
+            held = held_admissions(self.journal.read()).get(stem)
+            if held:
+                hold, receipt = held
+                request = AdmissionRequest(f"soak-{stem}-{receipt['attempt']}-{receipt['candidate_sha']}",
+                    self.owner.control.inbox.lifecycle_id, "confirm", stem, hold, "operator")
+                path = self.checkout.config.state_dir / f"control/inbox/{request.request_id}.json"
+                if not path.exists():
+                    publish_request(self.checkout.config.state_dir, request, self.fs)
+            return (len(self.terminals(stem)) >= count and self.owner.core.admission.active is None
+                    and self.owner.mutating is None)
+        await self.until(settled)
 
     async def file_fault(self, stem, sequence, suffix, outcome, summary):
         async with self.owner.mutations():
@@ -470,6 +482,16 @@ async def _observe(member: _Member) -> DaemonSoakEntry:
         review = read_review((m.root / f"tickets/{stem}/review.md").read_text())
         need(review.verdict == "approve" and review.reviewed_sha == terminal.body["reviewed_sha"],
              f"{stem}/{sequence} fresh review approval missing")
+        receipts = [e for e in events if e.type == EventType.EFFECT_COMPLETION
+                    and (e.key or "").startswith(f"{MERGE_REGATE}/{stem}/{sequence}/")]
+        need(bool(receipts), f"{stem}/{sequence} candidate-base receipt missing")
+        receipt = receipts[-1].body["result"]
+        need(receipt["reviewed_sha"] == review.reviewed_sha
+             and (receipt["review_provider"], receipt["review_model"]) == ("claude", "script")
+             and receipt["candidate_base_sha"] == m.admission_heads[stem]
+             and receipts[0].key in releases(events)
+             and releases(events)[receipts[0].key]["actor"] == "operator",
+             f"{stem}/{sequence} served identity or operator admission evidence missing")
         need(any(s == stem and result[0] == 0 for s, result in m.main_checks),
              f"{stem} main Verification after merge missing")
         return terminal

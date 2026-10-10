@@ -1004,7 +1004,9 @@ async def test_composed_merge_queue_admits_reviewed_candidate(admission_context,
     [merged] = [e for e in events if e.type == EventType.STATE_TRANSITION]
     assert merged.ticket == ticket.stem and merged.key is None
     assert merged.body == {"to": "merged", "commit": artifact.commit, "reviewed_sha": reviewed}
-    [completion] = [e for e in events if e.type == EventType.EFFECT_COMPLETION]
+    [regate, completion] = [e for e in events if e.type == EventType.EFFECT_COMPLETION]
+    assert regate.key.startswith(f"merge-regate/{ticket.stem}/7/")
+    assert regate.body["result"]["admission"] == "READY" and regate.body["result"]["reason"] == "bootstrap"
     assert completion.key == f"merge/{ticket.stem}/7"
     [facts] = [e for e in events if e.type == EventType.SIGNAL]
     assert facts.ticket == ticket.stem and facts.key is None

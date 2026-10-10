@@ -12,12 +12,12 @@ from chupa.daemon import DaemonTasks, HeartbeatCycle, TicketWriter, WorkerFailur
 from chupa.daemon import WorkerStop, _protected_cleanup, checkpoint_push
 from chupa.daemon import _stop_workers
 from chupa.effects import Effects
-from chupa.drain import authored_at, sort_key
 from chupa.enginelog import EngineLog
 from chupa.heartbeat import Heartbeat
 from chupa.journal import EventType
 from chupa.lockfile import Lockfile
 from chupa.merge import AdmissionBoundary
+from chupa.mergequeue import ConflictHandoff, held_admissions, regate_receipts
 from chupa.providers import ProviderLLM
 from chupa.providers import ProviderSetupError
 from chupa.journal import JournalCorruption
@@ -81,6 +81,7 @@ class Serve:
         from chupa.__main__ import build_daemon_core, build_notifications
 
         self.read, self.stems, self.signals = read, stems, signals
+        self.prepare = prepare
         self.config_path = config_path
         self.writers: dict[str, TicketWriter] = {}
         self.queue = None
@@ -106,6 +107,7 @@ class Serve:
             callback.ctx.boundary.select = self.select
             if self.queue is None:
                 self.queue = callback.queue
+                self.queue.supervised = True
             callback.queue = self.queue
             callback.admission = AdmissionBoundary(callback.ctx, mode="daemon", queue=self.queue,
                 waiting=self.core.admission.waiting_for_merge)
@@ -124,17 +126,23 @@ class Serve:
                                    if e.type == EventType.STATE_TRANSITION and e.ticket == ticket.stem), {})
                     if 'provider_drought' in latest:
                         self.core.scheduler.update(ticket)
-                    if not callback.continuations and not callback.queue.pending:
+                    if (not callback.continuations and not any(
+                            context is callback.ctx and stem in callback.queue.pending.keys() | callback.queue.held.keys()
+                            for stem, context in callback.queue.contexts.items())):
                         self.writers.pop(ticket.stem, None)
             return dispatch
 
         self.core = build_daemon_core(checkout, config_path=config_path, plan=plan, read=read,
             debounce=SERVE_POLL_S, quarantined=lambda: set(), drought_parked=lambda: set(),
-            completed_unmerged=lambda: len(self.queue.pending) if self.queue is not None else 0,
+            completed_unmerged=lambda: len(set(self.queue.pending) | set(self.queue.held)) if self.queue is not None else 0,
             prepare=prepared)
         self.checkout = replace(checkout, control=self.core.control)
         self.control = self.core.control
         assert self.control is not None and self.core.restart is not None
+        self.control.inbox.admissions = lambda: {
+            stem: hold for stem, (hold, _) in held_admissions(checkout.journal.read()).items()}
+        self.control.inbox.draft = lambda stem: runner.committed_draft(self.checkout, stem)
+        self.core.restart.admissions = self.reconstruct_admissions
         self.box = self.control._recover.__self__
         self.storm = StormLedger(journal=checkout.journal, clock=checkout.clock)
         self.core.scheduler.continuations = lambda: (
@@ -150,6 +158,20 @@ class Serve:
             fs=checkout.fs), workers=lambda: self.healthy(0),
             merge_queue=lambda: self.healthy(1), box_consumer=lambda: self.healthy(2),
             watcher=lambda: self.healthy(3))
+
+    async def reconstruct_admissions(self):
+        events = self.checkout.journal.read()
+        if (not held_admissions(events) and not any(
+                r["admission"] == "HELD" and (self.checkout.config.worktree_root / r["stem"]).exists()
+                for r in regate_receipts(events).values())):
+            return
+        writer = runner.bind(self.checkout, None)
+        self.queue = writer.queue
+        self.queue.supervised = True
+        await self.queue.reconstruct()
+        writer.admission = AdmissionBoundary(writer.ctx, mode="daemon", queue=self.queue)
+        for stem in self.queue.held:
+            self.writers[stem] = writer
 
     def healthy(self, component: int) -> bool:
         return (bool(self.health_tasks) and not self.health_tasks[component].done()
@@ -173,6 +195,7 @@ class Serve:
                 self.control.providers.park(ticket.stem, drought)
                 return False
         return (not self.stopping and projection.pause_id is None
+                and ticket.stem not in held_admissions(self.checkout.journal.read())
                 and (self.control.admission is None
                      or self.control.admission in projection.released_hold_ids)
                 and not any(target["emitting_origin"] == ticket.stem
@@ -239,16 +262,27 @@ class Serve:
                 if self.stopping or self.control.projection.kill_requested:
                     return
                 if self.queue is None:
+                    async def confirm_draft(stem, request_id):
+                        await runner.confirm_draft(stem, request_id, runner.bind(self.checkout, None).ctx)
+                    await self.control.inbox.settle_admissions(confirm_draft)
                     return
-                offers = dict(self.queue.pending)
-                ages = authored_at(self.checkout.journal.read())
-                ordered = sorted(offers.values(), key=lambda row: sort_key(row[0], ages))
-                results = await self.queue.process()
-                for (ticket, attempt), result in zip(ordered, results, strict=False):
-                    owner = self.writers.get(ticket.stem) or next(iter(self.writers.values()))
+                self.queue.deliveries = []
+                await self.queue.process()
+                for ticket, attempt, result in self.queue.deliveries:
+                    owner = self.writers.get(ticket.stem) or next(
+                        w for w in self.writers.values() if w.ctx is self.queue.contexts.get(ticket.stem))
+                    if isinstance(result, ConflictHandoff) and owner.ctx.driver.llm is None:
+                        owner = await self.prepare(self.checkout)
+                        owner.queue = self.queue
+                        owner.ctx.boundary.select = self.select
+                        owner.admission = AdmissionBoundary(owner.ctx, mode="daemon", queue=self.queue)
+                    self.writers[ticket.stem] = owner
                     await owner.consume_result(ticket, result, attempt=attempt)
+                    if ticket.stem not in self.queue.held and ticket.stem not in self.queue.pending:
+                        self.queue.contexts.pop(ticket.stem, None)
                 for stem, writer in tuple(self.writers.items()):
-                    if not writer.active and not writer.continuations and not self.queue.pending:
+                    if (not writer.active and not writer.continuations and stem not in self.queue.pending
+                            and stem not in self.queue.held):
                         del self.writers[stem]
         while True:
             await response.wait(poll())

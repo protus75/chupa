@@ -97,6 +97,61 @@ async def admission(ctx, ticket, *, queue=None, attempt=0):
     return result
 
 
+@pytest.mark.parametrize("case", ["unchanged", "ticket-plane", "code", "two", "red", "conflict"])
+def test_supervised_confirm_regates_moved_main(ctx, monkeypatch, case):
+    from tests.test_supervised_merge_hold import hold, confirm, served
+    from chupa.mergequeue import regate_receipts
+    async def exercise():
+        ticket, queue, held = await hold(ctx)
+        original = regate_receipts(ctx.driver.journal.read())[held.hold_id]
+        second = None
+        if case == "two":
+            second = await ready(ctx, "second", changes={"chupa/second.py": "ok\n"}, fence=("chupa/second.py",))
+            await served(ctx, second)
+            ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket=second.stem)
+            queue.offer(second, attempt=0)
+            [other] = await queue.process()
+            assert isinstance(other, merge.Held)
+        elif case != "unchanged":
+            path = ("tickets/unrelated.txt" if case == "ticket-plane" else
+                    "chupa/thing.py" if case == "conflict" else "chupa/other.py")
+            ctx.fs.write(ctx.repo / path, b"conflict\n" if case == "conflict" else b"moved\n")
+            await commit(ctx, ctx.repo, [path], "intervening main")
+        if case == "red":
+            ctx.config.review.mechanical = [host("semantic", argv=["false"])]
+        calls = []
+        for name in ("gather_evidence", "gather_safety_evidence"):
+            real = getattr(stages, name)
+            async def called(*args, _real=real, _name=name, **kwargs):
+                calls.append(_name)
+                return await _real(*args, **kwargs)
+            monkeypatch.setattr(stages, name, called)
+        before = await ctx.git.rev_parse(ctx.repo, "main")
+        confirm(queue, held)
+        [result] = await queue.process()
+        if case in ("red", "conflict"):
+            assert await ctx.git.rev_parse(ctx.repo, "main") == before
+            assert not await ctx.git.conflicted_paths(ctx.worktree(ticket.stem))
+            assert result.approval_invalidated if case == "conflict" else result.outcome == "gate_failed"
+            assert len(regate_receipts(ctx.driver.journal.read())) == 1
+        else:
+            assert result.outcome == "ok" and result.artifact.reviewed_sha == original["reviewed_sha"]
+            receipts = regate_receipts(ctx.driver.journal.read())
+            assert receipts[held.hold_id] == original
+            assert calls == ([] if case == "unchanged" else ["gather_safety_evidence", "gather_evidence", "gather_safety_evidence"])
+            latest = list(receipts.values())[-1]
+            assert latest["checked_tree"] == await ctx.git.rev_parse(ctx.repo, "main^{tree}")
+            if case != "unchanged":
+                assert latest["admission"] == "READY" and latest["reason"] == "confirmed" and latest["candidate_base_sha"] == before
+            if second:
+                calls.clear()
+                confirm(queue, other, request_id="second-confirmation")
+                [result] = await queue.process()
+                assert result.outcome == "ok" and calls == ["gather_safety_evidence", "gather_evidence", "gather_safety_evidence"]
+                assert list(regate_receipts(ctx.driver.journal.read()).values())[-1]["checked_tree"] == await ctx.git.rev_parse(ctx.repo, "main^{tree}")
+    run(exercise())
+
+
 def facts(ctx):
     return [e for e in ctx.driver.journal.read() if e.body.get("kind") == CONFLICT_FACTS]
 

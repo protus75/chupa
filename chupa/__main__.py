@@ -232,7 +232,7 @@ def main(
         if args.verb in {"pause", "resume", "kill"}:
             return asyncio.run(_control(checkout, args.verb))
         if args.verb in {"confirm", "reject"}:
-            return asyncio.run(runner.verdict(args.stem, checkout, kill=args.verb == "reject"))
+            return asyncio.run(_verdict(checkout, args.stem, args.verb))
         if args.verb == "triage":
             async def one_pass() -> list[tuple[str, str]]:
                 lock = Lockfile(config.state_dir, instance_id=await checkout.git.describe(repo), clock=clock)
@@ -378,6 +378,32 @@ async def _control(checkout: runner.Checkout, verb: str) -> int:
             print(f"nothing running to {verb}")
         finally:
             lock.release()
+    return 0
+
+
+async def _verdict(checkout, stem, verb):
+    from chupa.mergequeue import held_admissions
+
+    if findings := stem_findings(stem):
+        raise runner.Refusal(findings[0].message, findings[0].paved_road)
+    held = held_admissions(checkout.journal.read()).get(stem)
+    if held is None:
+        try:
+            return await runner.verdict(stem, checkout, kill=verb == "reject")
+        except LockHeld:
+            if verb != "confirm" or not runner.committed_draft(checkout, stem):
+                raise
+            text = await checkout.git._run(checkout.repo, "show", f"main:{ticket_path(stem)}")
+            if validate_ticket(stem, text, checkout.repo).frontmatter.state != "draft":
+                raise runner.Refusal("no committed draft", "restore the committed draft before confirming")
+    try:
+        lifecycle, _ = control.read_active(checkout.config.state_dir, Path.read_bytes)
+    except ValueError as exc:
+        raise runner.Refusal("current control identity unavailable", str(exc)) from exc
+    request = control.AdmissionRequest(uuid4().hex, lifecycle, verb, stem,
+                                       held[0] if held else None, "operator")
+    control.publish_request(checkout.config.state_dir, request, checkout.fs)
+    print(f"{verb} submitted: {request.request_id}")
     return 0
 
 

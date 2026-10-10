@@ -76,3 +76,16 @@ def resolve_baseline(
     except Exception:
         # This authority boundary also contains registry, spec and event-iteration failures.
         return BaselineResolution("REVOKED")
+
+
+def review_coverage(config, events, *, specs_dir: Path, tier: str,
+                    served: tuple[str | None, str | None]) -> tuple[bool, str]:
+    events = tuple(events)
+    resolution = resolve_baseline(config, events, specs_dir=specs_dir)
+    if not resolution.binds:
+        return False, "go_revoked" if resolution.state == "REVOKED" else "go_absent"
+    latest = next(e.body for e in reversed(events)
+                  if e.type == EventType.SIGNAL and e.body.get("signal") == BASELINE_SIGNAL)
+    row = latest["identity"]["review"]["rows"].get(tier)
+    covered = all(_name(name) for name in served) and row == dict(zip(("provider", "model"), served))
+    return covered, "go_covered" if covered else "review_off_baseline"

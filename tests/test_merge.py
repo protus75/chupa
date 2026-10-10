@@ -159,6 +159,10 @@ def test_bootstrap_pipeline_keeps_inline_admission(repo, monkeypatch, verb):
     assert (repo / "chupa/thing.py").read_text() == "ok\n" and not ctx.worktree(STEM).exists()
 
 
+def test_foreground_admission_never_supervised_holds(repo, monkeypatch):
+    test_bootstrap_pipeline_keeps_inline_admission(repo, monkeypatch, "run")
+
+
 @pytest.mark.parametrize("failure", ["ticket-plane", "missing-checks", "malformed-checks", "missing-approval", "wrong-sha",
                                     "missing-blob", "invalid-blob", "dirty-main"])
 def test_daemon_prechecks_precede_offer(seed_repo, monkeypatch, failure):
@@ -461,7 +465,7 @@ def test_outbox_only_admission_records_null_commit_and_retires(root, monkeypatch
     from chupa.effects import Effects
     from chupa.rework import settled_dependencies
     from chupa.stages import lift_outbox
-    from tests.test_serve import admission_graph, admission_ticket, start_admission, until, finish
+    from tests.test_serve import admission_graph, admission_ticket, start_admission, until, finish, request
     from chupa.__main__ import main
     import shlex
 
@@ -556,6 +560,9 @@ def test_outbox_only_admission_records_null_commit_and_retires(root, monkeypatch
         run = await start_admission(rig, monkeypatch)
         try:
             await until(rig, lambda: (stem, "merged") in rig.returns)
+            request(rig, "pause", "proof-pause")
+            await until(rig, lambda: rig.owner.control.projection.pause_id == "proof-pause"
+                        and rig.owner.core.admission.active is None)
             local, ticket, attempt, admission, tree = admissions.pop()
             assert admission.reviewed_sha == rig.pinned
             assert trace.count((stem, "remove")) == trace.count((stem, "delete")) == 1

@@ -24,6 +24,12 @@ from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.tickets import intake
 from tests.test_cli import CONFIG, ENV, PLAN, git_out, ticket, write, with_retro_driver
 from tests.test_terminal import repo as rework_repo
+from tests.test_merge import repo as admission_repo
+
+
+def test_bootstrap_never_supervised_holds(admission_repo, monkeypatch):
+    from tests.test_merge import test_bootstrap_pipeline_keeps_inline_admission
+    test_bootstrap_pipeline_keeps_inline_admission(admission_repo, monkeypatch, "drain")
 
 START = datetime(2026, 1, 1, tzinfo=UTC)
 

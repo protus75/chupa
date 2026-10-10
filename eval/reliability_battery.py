@@ -214,13 +214,24 @@ class _Member:
                 await asyncio.gather(dispatch, return_exceptions=True)
 
     async def finish_recovery(self, dispatch):
+        from chupa.control import AdmissionRequest, publish_request
+        from chupa.mergequeue import held_admissions
         merger = asyncio.create_task(self.owner.merge())
         try:
             for _ in range(100000):
-                if dispatch.done():
+                held = held_admissions(self.journal.read()).get('cooling-recovery')
+                if held:
+                    hold, receipt = held
+                    request = AdmissionRequest('battery-confirm', self.owner.control.inbox.lifecycle_id,
+                        'confirm', 'cooling-recovery', hold, 'operator')
+                    if not (self.checkout.config.state_dir / 'control/inbox/battery-confirm.json').exists():
+                        publish_request(self.checkout.config.state_dir, request, self.fs)
+                if dispatch.done() and any(e.ticket == 'cooling-recovery' and e.body.get('to') == 'merged'
+                                           for e in self.journal.read()):
                     break
                 if merger.done():
                     merger.result()
+                self.time.advance(0.1)
                 await _turn()
             else:
                 raise BatteryRefused(self.name, 'recovery did not complete')

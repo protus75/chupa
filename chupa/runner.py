@@ -28,7 +28,7 @@ from chupa.hardening import ROUND_SIGNAL, hardener_round, open_round, rounds
 from chupa.journal import TERMINAL_STATES, Dispatch as JournalDispatch, Event, EventType, Journal, dispatch_of
 from chupa.llm import LLM
 from chupa.lockfile import Lockfile
-from chupa.merge import compose_pipeline, merge
+from chupa.merge import Held, compose_pipeline, merge
 from chupa.providers import ProviderLLM
 from chupa.reconcile import reconcile
 from chupa.seams import Clock, FileSystem, GroupExec, Sleep
@@ -160,6 +160,8 @@ async def drive(ctx: StageContext, ticket: Ticket, *, admission=None, consume_ha
 
         stage, result = "merge", await (admission(ticket, attempt=run.attempt) if admission is not None
                                        else merge(ctx, ticket, attempt=run.attempt))
+        if isinstance(result, Held):
+            return "running"
         if isinstance(result, ConflictHandoff):
             assert consume_handoff is not None
             return await consume_handoff(ticket, result, attempt=run.attempt)
@@ -596,6 +598,32 @@ async def verdict(stem: str, checkout: Checkout, *, kill: bool) -> int:
         return EXIT_MERGED
     finally:
         lock.release()
+
+
+def committed_draft(checkout, stem: str) -> bool:
+    path = checkout.repo / ticket_path(stem)
+    return (path.is_file() and _ticket_state(path) == "draft" and any(
+        e.ticket == stem and e.body.get("signal") == INTAKE_SIGNAL
+        for e in checkout.journal.read()))
+
+
+async def confirm_draft(stem: str, request_id: str, ctx) -> None:
+    rel = ticket_path(stem)
+    text = await ctx.git._run(ctx.repo, "show", f"main:{rel}")
+    ticket = validate_ticket(stem, text, ctx.repo)
+    if ticket.frontmatter.state not in ("draft", "confirmed") or (ctx.repo / rel).read_text() != text:
+        raise ValueError("restore the committed draft before publishing a fresh confirmation")
+    async def commit():
+        if ticket.frontmatter.state == "confirmed":
+            return {"commit": (await ctx.git._run(ctx.repo, "log", "-1", "--format=%H", "main", "--", rel)).strip()}
+        ctx.fs.write(ctx.repo / rel, stamp(text, "state", "confirmed").encode())
+        await ctx.git.add(ctx.repo, [rel])
+        await ctx.git.commit(ctx.repo, f"chupa({stem}): confirmed", only=[rel])
+        return {"commit": await ctx.git.rev_parse(ctx.repo, "HEAD")}
+    result = await Effects(ctx.driver.journal).run(commit, key=f"ticket-plane/{stem}/confirmed/{request_id}", ticket=stem)
+    if not any(e.ticket == stem and e.body.get("signal") == "draft_confirmed"
+               and e.body.get("commit") == result["commit"] for e in ctx.driver.journal.read()):
+        ctx.driver.journal.append(EventType.SIGNAL, {"signal": "draft_confirmed", **result}, ticket=stem)
 
 
 async def reject_ticket(stem: str, checkout: Checkout) -> bool:
