@@ -1,0 +1,498 @@
+{
+  "schema_version": 1,
+  "complete": false,
+  "cap_usd": 5.0,
+  "spent_usd": 2.1808655999999993,
+  "results": [
+    {
+      "name": "accept-config-precedence",
+      "expected": {
+        "expected_verdict": "snag",
+        "defect_class": "acceptance_mismatch",
+        "defect": "In config.py line 33, `.strip()` removes leading and trailing spaces from environment values, violating the requirement to copy them verbatim.",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "snag"
+    },
+    {
+      "name": "accept-csv-export",
+      "expected": {
+        "expected_verdict": "snag",
+        "defect_class": "acceptance_mismatch",
+        "defect": "orders_export.py:11 uses SQL LIKE for `--status`, so `%` and `_` act as wildcards instead of matching the supplied status exactly.",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "snag"
+    },
+    {
+      "name": "accept-password-policy",
+      "expected": {
+        "expected_verdict": "snag",
+        "defect_class": "acceptance_mismatch",
+        "defect": "signup/passwords.py:16 uses `str.isdigit()`, so a non-ASCII digit satisfies the digit rule even though acceptance criterion 2 requires an ASCII digit.",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "snag"
+    },
+    {
+      "name": "accept-slugify",
+      "expected": {
+        "expected_verdict": "snag",
+        "defect_class": "acceptance_mismatch",
+        "defect": "In slug.py line 12, `lower()` is used instead of the required `casefold()`, so `slugify(\"Straße\")` returns `\"strae\"` instead of `\"strasse\"`.",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "snag"
+    },
+    {
+      "name": "clean-dedupe-emails",
+      "expected": {
+        "expected_verdict": "approve",
+        "defect_class": "none",
+        "defect": "",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "approve"
+    },
+    {
+      "name": "clean-health-endpoint",
+      "expected": {
+        "expected_verdict": "approve",
+        "defect_class": "none",
+        "defect": "",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "approve"
+    },
+    {
+      "name": "clean-retry-config",
+      "expected": {
+        "expected_verdict": "approve",
+        "defect_class": "none",
+        "defect": "",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "approve"
+    },
+    {
+      "name": "clean-word-count",
+      "expected": {
+        "expected_verdict": "approve",
+        "defect_class": "none",
+        "defect": "",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "approve"
+    },
+    {
+      "name": "leak-child-env",
+      "expected": {
+        "expected_verdict": "snag",
+        "defect_class": "hidden_info_leak",
+        "defect": "`jobrunner/lint.py:21` forwards every `CI_` environment variable, exposing credentials such as `CI_JOB_TOKEN` to the lint subprocess despite the ticket’s three-variable allowlist.",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "snag"
+    },
+    {
+      "name": "leak-error-message",
+      "expected": {
+        "expected_verdict": "snag",
+        "defect_class": "hidden_info_leak",
+        "defect": "In dbkit/connection.py line 20, `from exc` chains the driver exception into the formatted traceback, exposing its credential-bearing error message.",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "snag"
+    },
+    {
+      "name": "leak-grader-answers",
+      "expected": {
+        "expected_verdict": "snag",
+        "defect_class": "hidden_info_leak",
+        "defect": "In `grader/report.py:27`, the visibility condition includes failed hidden cases in the learner-facing `cases` list, exposing their names and feedback.",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "snag"
+    },
+    {
+      "name": "leak-log-token",
+      "expected": {
+        "expected_verdict": "snag",
+        "defect_class": "hidden_info_leak",
+        "defect": "In http_client.py:25, passing the exception to the warning formatter exposes its message, which can contain a credential from the request URL.",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "snag"
+    },
+    {
+      "name": "leak-user-serializer",
+      "expected": {
+        "expected_verdict": "snag",
+        "defect_class": "hidden_info_leak",
+        "defect": "In `profiles/serializers.py` line 8, copying every public link field except `visibility` exposes stored credentials such as `access_token` through the public API.",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "snag"
+    },
+    {
+      "name": "logic-cache-expiry",
+      "expected": {
+        "expected_verdict": "snag",
+        "defect_class": "logic",
+        "defect": "config_loader.py:27 treats the exact expiry instant as a cache hit because the comparison uses `<=` instead of `<`.",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "snag"
+    },
+    {
+      "name": "logic-date-range",
+      "expected": {
+        "expected_verdict": "snag",
+        "defect_class": "logic",
+        "defect": "In room_booking/availability.py line 26, the strict comparison misses a conflict when the candidate ends on an existing booking's first day.",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "snag"
+    },
+    {
+      "name": "logic-pagination",
+      "expected": {
+        "expected_verdict": "snag",
+        "defect_class": "logic",
+        "defect": "In listing/pagination.py, line 17, adding `per_page` before integer division overcounts `total_pages` by one whenever a nonempty item count is exactly divisible by `per_page`.",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "snag"
+    },
+    {
+      "name": "logic-rate-limiter",
+      "expected": {
+        "expected_verdict": "snag",
+        "defect_class": "logic",
+        "defect": "In src/gateway/rate_limit.py line 34, assigning a backward clock sample to `_last_checked` moves the refill baseline backward, so returning to the previous time grants tokens twice.",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "snag"
+    },
+    {
+      "name": "logic-retry-backoff",
+      "expected": {
+        "expected_verdict": "snag",
+        "defect_class": "logic",
+        "defect": "In retry.py line 27, catching OSError also retries unrelated operating-system errors, although the ticket permits retries only for ConnectionError and TimeoutError.",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "snag"
+    },
+    {
+      "name": "scope-bump-deps",
+      "expected": {
+        "expected_verdict": "snag",
+        "defect_class": "scope_escape",
+        "defect": "src/invoicing/api.py:12 adds the purchase order number to the API payload, although that file is outside the scope fence and API payload changes are explicitly out of scope.",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "snag"
+    },
+    {
+      "name": "scope-extra-flag",
+      "expected": {
+        "expected_verdict": "snag",
+        "defect_class": "scope_escape",
+        "defect": "The added `addopts = \"-ra\"` line in `pyproject.toml` changes test runner configuration outside the ticket’s scope fence.",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "snag"
+    },
+    {
+      "name": "scope-other-module",
+      "expected": {
+        "expected_verdict": "snag",
+        "defect_class": "scope_escape",
+        "defect": "README.md:13 adds median to the feature list, although README.md is outside the scope fence and documentation changes are expressly out of scope.",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "snag"
+    },
+    {
+      "name": "scope-refactor",
+      "expected": {
+        "expected_verdict": "snag",
+        "defect_class": "scope_escape",
+        "defect": "docs/error_messages.md:7 changes documentation even though the ticket excludes documentation and does not list that file in its scope fence.",
+        "author": {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      },
+      "outcome": "ok",
+      "verdict": "snag"
+    }
+  ],
+  "scores": {
+    "planted": 18,
+    "clean": 4,
+    "catch_rate": 1.0,
+    "known_bad_false_approve": 0.0,
+    "clean_false_snag": 0.0,
+    "by_class": {
+      "logic": {
+        "planted": 5,
+        "caught": 5
+      },
+      "hidden_info_leak": {
+        "planted": 5,
+        "caught": 5
+      },
+      "acceptance_mismatch": {
+        "planted": 4,
+        "caught": 4
+      },
+      "scope_escape": {
+        "planted": 4,
+        "caught": 4
+      }
+    },
+    "missed": [],
+    "false_snagged": [],
+    "unscored": []
+  },
+  "author_graph": {
+    "problems": [
+      {
+        "id": "cache-expiry",
+        "summary": "A cache serves stale values at the exact TTL boundary."
+      },
+      {
+        "id": "retry-errors",
+        "summary": "A network retry wrapper retries unrelated operating-system errors."
+      },
+      {
+        "id": "private-links",
+        "summary": "Public profile links include stored credential fields."
+      }
+    ],
+    "tickets": [
+      {
+        "stem": "fix-cache-ttl-boundary",
+        "problem_id": "cache-expiry",
+        "depends": [],
+        "goal": "Treat a cache entry as expired when the current time equals its TTL deadline, and add a test that checks the exact boundary."
+      },
+      {
+        "stem": "narrow-retry-error-allowlist",
+        "problem_id": "retry-errors",
+        "depends": [],
+        "goal": "Retry only an explicit allowlist of transient network errors, re-raise every other operating-system error at once, and add tests for both cases."
+      },
+      {
+        "stem": "strip-credentials-from-public-links",
+        "problem_id": "private-links",
+        "depends": [],
+        "goal": "Build public profile links from an allowlist of public fields so stored credential fields are never included, and add a test that fails if a credential field appears."
+      }
+    ]
+  },
+  "verdict_signal": {
+    "v": 1,
+    "type": "signal",
+    "ts": "2026-10-10T11:47:01.205243+00:00",
+    "ticket": null,
+    "key": null,
+    "body": {
+      "signal": "review_baseline",
+      "verdict": "NO_GO",
+      "identity": {
+        "review": {
+          "spec_major": 1,
+          "rows": {
+            "low": {
+              "provider": "claude",
+              "model": "claude-opus-5-5"
+            },
+            "medium": {
+              "provider": "claude",
+              "model": "claude-opus-5-5"
+            },
+            "high": {
+              "provider": "claude",
+              "model": "claude-opus-5-5"
+            },
+            "max": {
+              "provider": "claude",
+              "model": "claude-opus-5-5"
+            }
+          }
+        },
+        "author": {
+          "spec_major": 1,
+          "rows": {
+            "low": {
+              "provider": "claude",
+              "model": "claude-sonnet-5-5"
+            },
+            "medium": {
+              "provider": "claude",
+              "model": "claude-sonnet-5-5"
+            },
+            "high": {
+              "provider": "claude",
+              "model": "claude-opus-5-5"
+            },
+            "max": {
+              "provider": "claude",
+              "model": "claude-opus-5-5"
+            }
+          }
+        }
+      },
+      "exercised": {
+        "surface": "review",
+        "tier": "high",
+        "effort": "high",
+        "spec_version": "1.0"
+      },
+      "fixture_authors": [
+        {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      ],
+      "scores": {
+        "planted": 18,
+        "clean": 4,
+        "catch_rate": 1.0,
+        "known_bad_false_approve": 0.0,
+        "clean_false_snag": 0.0,
+        "by_class": {
+          "logic": {
+            "planted": 5,
+            "caught": 5
+          },
+          "hidden_info_leak": {
+            "planted": 5,
+            "caught": 5
+          },
+          "acceptance_mismatch": {
+            "planted": 4,
+            "caught": 4
+          },
+          "scope_escape": {
+            "planted": 4,
+            "caught": 4
+          }
+        },
+        "missed": [],
+        "false_snagged": [],
+        "unscored": []
+      }
+    }
+  }
+}
