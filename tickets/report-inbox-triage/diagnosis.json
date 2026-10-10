@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "ccdb1637969afaa04ba7305a193190a9e2f45b52",
+  "stem": "report-inbox-triage",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Criterion 6 requires evidence to be copied before bug validation, policy and requisition review. Keep that order, but make the copy removable: on every rejection, stem change, and failure_decision path, remove the copied tickets/<stem>/evidence/ files before Author returns.",
+    "The review found AuthorGate.check (chupa/author.py:63) writes evidence that outlives a rejected candidate. Its `copied` set also lives only on that gate instance, so a later gate refuses the stem as 'already exists'. Clean up the copy so a retried or later Author can reuse the stem.",
+    "Add a test that a rejected or failed report attempt leaves no untracked files under tickets/. Extend test_report_author_failure_is_decision: stem 'broken' passes stem_findings, the text 'bad' fails validation, then assert tickets/broken/evidence/ is gone and the stem can be authored again.",
+    "Commit the evidence only together with the accepted ticket: the commit's only= list must name exactly the copied evidence paths of the committed stem (criterion 6: commits it with the ticket before resolution). Paths copied for an abandoned candidate must never stay in the working tree.",
+    "Keep everything else from the prior attempt; the full suite passed (3627 tests). Change only author.py's evidence lifecycle and its tests, and rerun the ticket's Verification commands."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
