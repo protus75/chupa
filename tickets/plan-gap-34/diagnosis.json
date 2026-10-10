@@ -1,0 +1,19 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "c2318bb698d3f7058c128450ebb5b6f7746b01a3",
+  "stem": "plan-gap-34",
+  "attempt": 0,
+  "terminal": "already_satisfied",
+  "stage": "check",
+  "verdict": "reject",
+  "lessons": [
+    "Premise is false: the run record says 19.P6.core-drift-activation's Owner and Tests bullets already require updating the gate-sequence assertion. The plan text states the gap fact, so no plan edit within this fence can add it.",
+    "The real defect is that the core-drift-activation ticket's scope fence leaves out the test file that holds the gate-sequence assertion. Fix that ticket by regenerating it from the plan unit (CLAUDE.md: the plan is the seed). Don't reopen this plan-gap ticket.",
+    "Before filing another plan-gap ticket for this unit, quote the unit's Owner and Tests bullets and show the fact is missing from them. The facts that would show this are not in the current material."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
