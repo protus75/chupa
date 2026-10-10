@@ -39,6 +39,9 @@ state: confirmed
 - tests/test_restart_timers.py
 - tests/test_drain.py
 - tests/test_daemon_composition.py
+- eval/reliability_battery.py
+- tests/test_reliability_battery.py
+- tests/test_provider_cooldown_failover.py
 
 ## Plan contract
 - 19.I
@@ -57,6 +60,8 @@ Use the existing owners and injectable seams identified by the contract. Fence a
 Build the complete hold and its identity-bound release together. Retain approving Review evidence across clean rebases and use real daemon composition for supervision and delivery. Read the entry's Records, Observable and Tests as the detailed contract for each named obligation below. Each named test must cover every case assigned to it there. Bootstrap and foreground remain exempt; ordinary draft, Reject, pause/resume/kill and failure behavior remain covered by their existing suites. Standalone queue callers retain their existing invocation contract; daemon composition selects supervision.
 
 No GO-grade harness, host-loop report producer, new modules, config keys, journal vocabulary, or artifact registration is part of this row. No host cutover, ticket authoring, or manual release in this implementation.
+
+The reliability battery's serve harness (eval/reliability_battery.py) and the serve-composition tests in tests/test_reliability_battery.py and tests/test_provider_cooldown_failover.py publish identity-bound operator confirmation for their disposable candidates and await admission settlement, as the daemon soak does; their existing assertions remain.
 
 ## Scope fence
 - chupa/merge.py
@@ -85,6 +90,9 @@ No GO-grade harness, host-loop report producer, new modules, config keys, journa
 - tests/test_control.py
 - tests/test_reconcile.py
 - tests/test_daemon_composition.py
+- eval/reliability_battery.py
+- tests/test_reliability_battery.py
+- tests/test_provider_cooldown_failover.py
 
 ## Acceptance criteria
 1. `uv run pytest -q` passes with `tests/test_supervised_merge_hold.py::test_supervised_hold_entry_unit` covering required_units, unique resolve_plan_contract resolution, and every entry_unit_gap part.
