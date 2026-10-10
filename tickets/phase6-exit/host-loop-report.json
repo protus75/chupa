@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "member": "machine_ticket_merge",
+      "producing_run": "merge-add/0",
+      "expected": "machine_ticket_merged",
+      "observed": "machine_ticket_merged",
+      "engine_plane_edits": [],
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "machine_ticket_merge",
+      "producing_run": "merge-bonus/0",
+      "expected": "machine_ticket_merged",
+      "observed": "machine_ticket_merged",
+      "engine_plane_edits": [],
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "machine_ticket_merge",
+      "producing_run": "merge-floor/0",
+      "expected": "machine_ticket_merged",
+      "observed": "machine_ticket_merged",
+      "engine_plane_edits": [],
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "report_to_regression_bug_loop",
+      "producing_run": "regression/0",
+      "expected": "report_replayed_regression_bug_merged",
+      "observed": "report_replayed_regression_bug_merged",
+      "engine_plane_edits": [],
+      "auditor": [],
+      "green": true
+    },
+    {
+      "member": "escape_attribution",
+      "producing_run": "escape/0",
+      "expected": "escape_attributed_by_squash_trailers",
+      "observed": "escape_attributed_by_squash_trailers",
+      "engine_plane_edits": [],
+      "auditor": [],
+      "green": true
+    }
+  ]
+}

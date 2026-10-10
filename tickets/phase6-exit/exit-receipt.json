@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "reads": {
+    "machine_ticket_merge": "pass",
+    "report_to_regression_bug_loop": "pass",
+    "escape_attribution": "pass",
+    "go_grade_report": "pass"
+  },
+  "host_loop_digest": "e2dbc223861ac4e8b665a7454eb899cc61cc345a0023d08bd6d0e51b2197ed96",
+  "baseline_report_digest": "ee377d11d5e88eb3e28f62619dabb3406817eba797caeee78f355549c44e02b0",
+  "verdict_signal": {
+    "v": 1,
+    "type": "signal",
+    "ts": "2026-10-10T11:47:01.205243+00:00",
+    "ticket": null,
+    "key": null,
+    "body": {
+      "signal": "review_baseline",
+      "verdict": "NO_GO",
+      "identity": {
+        "review": {
+          "spec_major": 1,
+          "rows": {
+            "low": {
+              "provider": "claude",
+              "model": "claude-opus-5-5"
+            },
+            "medium": {
+              "provider": "claude",
+              "model": "claude-opus-5-5"
+            },
+            "high": {
+              "provider": "claude",
+              "model": "claude-opus-5-5"
+            },
+            "max": {
+              "provider": "claude",
+              "model": "claude-opus-5-5"
+            }
+          }
+        },
+        "author": {
+          "spec_major": 1,
+          "rows": {
+            "low": {
+              "provider": "claude",
+              "model": "claude-sonnet-5-5"
+            },
+            "medium": {
+              "provider": "claude",
+              "model": "claude-sonnet-5-5"
+            },
+            "high": {
+              "provider": "claude",
+              "model": "claude-opus-5-5"
+            },
+            "max": {
+              "provider": "claude",
+              "model": "claude-opus-5-5"
+            }
+          }
+        }
+      },
+      "exercised": {
+        "surface": "review",
+        "tier": "high",
+        "effort": "high",
+        "spec_version": "1.0"
+      },
+      "fixture_authors": [
+        {
+          "provider": "codex",
+          "model": "gpt-6-sol",
+          "tier": "high"
+        }
+      ],
+      "scores": {
+        "planted": 18,
+        "clean": 4,
+        "catch_rate": 1.0,
+        "known_bad_false_approve": 0.0,
+        "clean_false_snag": 0.0,
+        "by_class": {
+          "logic": {
+            "planted": 5,
+            "caught": 5
+          },
+          "hidden_info_leak": {
+            "planted": 5,
+            "caught": 5
+          },
+          "acceptance_mismatch": {
+            "planted": 4,
+            "caught": 4
+          },
+          "scope_escape": {
+            "planted": 4,
+            "caught": 4
+          }
+        },
+        "missed": [],
+        "false_snagged": [],
+        "unscored": []
+      }
+    }
+  }
+}
