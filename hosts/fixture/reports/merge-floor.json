@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "origin": "player",
+  "summary": "Spending clamps score at zero.",
+  "app_commit": "fixture-base",
+  "app_version": "1.0.0",
+  "implicated_paths": [
+    "app.py",
+    "settings.json"
+  ],
+  "evidence": {
+    "replay": "evidence/merge-floor.json",
+    "log": "evidence/merge-floor.log"
+  }
+}

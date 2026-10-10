@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "origin": "player",
+  "summary": "Adding increases score by the supplied amount.",
+  "app_commit": "fixture-base",
+  "app_version": "1.0.0",
+  "implicated_paths": [
+    "app.py",
+    "settings.json"
+  ],
+  "evidence": {
+    "replay": "evidence/merge-add.json",
+    "log": "evidence/merge-add.log"
+  }
+}

@@ -1,0 +1,38 @@
+#!/usr/bin/env python
+"""Fixture-local existing Claude argv/terminal-stream protocol."""
+
+import json
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scaffold import scripted_reply
+
+if sys.argv[1:] == ["--version"]:
+    print("1.0.0 (fixture claude)")
+    raise SystemExit(0)
+
+prompt = sys.stdin.read()
+try:
+    argv = sys.argv[1:]
+    prefix = ["-p", "--output-format", "stream-json", "--verbose", "--model", "fixture"]
+    grant = argv[len(prefix):]
+    if argv[:len(prefix)] != prefix or grant not in (
+        ["--permission-mode", "bypassPermissions"], ["--allowedTools", "Read", "Grep", "Glob", "LS"],
+    ):
+        raise ValueError("unknown argv; invoke the fixture through the existing Claude adapter")
+    if prompt == "Reply with the single word ok.":
+        result = "ok"
+    else:
+        root = Path(os.environ["CHUPA_FIXTURE_ROOT"]).resolve()
+        if Path.cwd().resolve() != root:
+            raise ValueError("wrong host cwd; select the disposable host root")
+        result = scripted_reply(root, os.environ["CHUPA_FIXTURE_SCENARIO"],
+                                os.environ["CHUPA_FIXTURE_SURFACE"], prompt,
+                                grant == ["--permission-mode", "bypassPermissions"])
+except (ValueError, KeyError) as exc:
+    print(json.dumps({"type": "result", "subtype": "error", "is_error": True, "result": str(exc)}))
+    raise SystemExit(2)
+print(json.dumps({"type": "result", "subtype": "success", "is_error": False,
+                  "result": result, "total_cost_usd": 0}))

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "origin": "self_diagnosed",
+  "summary": "Repair the existing add regression.",
+  "app_commit": "fixture-base",
+  "app_version": "1.0.0",
+  "implicated_paths": [
+    "app.py",
+    "settings.json"
+  ],
+  "evidence": {
+    "replay": "evidence/regression.json",
+    "log": "evidence/regression.log"
+  },
+  "game_slug": "score",
+  "anomaly_code": "regression",
+  "location": "score-update"
+}

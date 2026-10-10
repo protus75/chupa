@@ -1,0 +1,33 @@
+schema_version: 1
+state_dir: .chupa/state
+worktree_root: .chupa/worktrees
+providers:
+  - name: claude
+    kind: cli
+    package: '@anthropic-ai/claude-code'
+    models_by_tier: {low: fixture, medium: fixture, high: fixture, max: fixture}
+    limits: {concurrency: 1}
+routing:
+  - {tier: medium, surface: author, candidates: [{provider: claude}]}
+  - {tier: medium, surface: implement, candidates: [{provider: claude}]}
+  - {tier: medium, surface: review, candidates: [{provider: claude}]}
+  - {tier: medium, surface: triage, candidates: [{provider: claude}]}
+review:
+  mechanical:
+    - {code: fixture-smoke, argv: [python, check.py], trigger: always, severity: hard}
+  surfaces: []
+  trigger_map: {}
+  gate_severity: {}
+merge:
+  safety_checks: [fixture-smoke]
+  strategies: []
+engine_plane_safety_inventory:
+  - config.yaml
+  - CLAUDE.md
+  - bin/
+  - scripts.json
+  - scaffold.py
+  - check.py
+  - regression_test.py
+report_inbox: reports
+context_files: [app.py, settings.json]

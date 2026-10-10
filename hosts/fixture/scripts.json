@@ -1,0 +1,325 @@
+{
+  "merge-add": {
+    "kind": "machine_merge",
+    "responses": {
+      "author": [
+        {
+          "stem": "merge-add",
+          "ticket": "---\npriority: P1\nkind: feature\nagent_tier: medium\nagent_effort: medium\n---\n\n## Depends on\n- none\n\n## Context\n- app.py\n- settings.json\n\n## Goal / Why\nAdding increases score by the supplied amount.\n\n## Scope in / Scope out\nChange the declared score setting only.\n\n## Scope fence\n- settings.json\n\n## Acceptance criteria\n- `python check.py` exits 0 and `settings.json` has the declared setting.\n\n## Verification\n```\npython check.py\n```\n\n## Definition of rejected\nAn undeclared edit is rejected.\n\n## Time budget\n- expected: 1m\n- stuck: 2m\n"
+        }
+      ],
+      "implement": [
+        {
+          "outcome": "ok",
+          "summary": "Adding increases score by the supplied amount.",
+          "surprises": "none",
+          "dead_ends": "none",
+          "predicted_vs_actual": "none",
+          "findings": [],
+          "second_problems": []
+        }
+      ],
+      "review": [
+        {
+          "verdict": "approve",
+          "summary": "Declared fixture edit inspected.",
+          "findings": []
+        }
+      ],
+      "triage": [
+        {
+          "verdict": "author",
+          "link": null,
+          "summary": "Adding increases score by the supplied amount.",
+          "rationale": "The attached deterministic replay demonstrates the planted behavior.",
+          "evidence": [
+            "evidence/merge-add.json"
+          ],
+          "reopen_after_days": null
+        }
+      ]
+    },
+    "edits": {
+      "settings.json": {
+        "add_scale": 1
+      }
+    },
+    "checks": [
+      {
+        "argv": [
+          "python",
+          "check.py"
+        ],
+        "base_rc": 0,
+        "head_rc": 0
+      }
+    ],
+    "evidence": {
+      "replay": "evidence/merge-add.json",
+      "log": "evidence/merge-add.log",
+      "report": "reports/merge-add.json",
+      "base_rc": 1,
+      "head_rc": 0
+    }
+  },
+  "merge-bonus": {
+    "kind": "machine_merge",
+    "responses": {
+      "author": [
+        {
+          "stem": "merge-bonus",
+          "ticket": "---\npriority: P1\nkind: feature\nagent_tier: medium\nagent_effort: medium\n---\n\n## Depends on\n- none\n\n## Context\n- app.py\n- settings.json\n\n## Goal / Why\nBonus adds twice the supplied amount.\n\n## Scope in / Scope out\nChange the declared score setting only.\n\n## Scope fence\n- settings.json\n\n## Acceptance criteria\n- `python check.py` exits 0 and `settings.json` has the declared setting.\n\n## Verification\n```\npython check.py\n```\n\n## Definition of rejected\nAn undeclared edit is rejected.\n\n## Time budget\n- expected: 1m\n- stuck: 2m\n"
+        }
+      ],
+      "implement": [
+        {
+          "outcome": "ok",
+          "summary": "Bonus adds twice the supplied amount.",
+          "surprises": "none",
+          "dead_ends": "none",
+          "predicted_vs_actual": "none",
+          "findings": [],
+          "second_problems": []
+        }
+      ],
+      "review": [
+        {
+          "verdict": "approve",
+          "summary": "Declared fixture edit inspected.",
+          "findings": []
+        }
+      ],
+      "triage": [
+        {
+          "verdict": "author",
+          "link": null,
+          "summary": "Bonus adds twice the supplied amount.",
+          "rationale": "The attached deterministic replay demonstrates the planted behavior.",
+          "evidence": [
+            "evidence/merge-bonus.json"
+          ],
+          "reopen_after_days": null
+        }
+      ]
+    },
+    "edits": {
+      "settings.json": {
+        "bonus_scale": 2
+      }
+    },
+    "checks": [
+      {
+        "argv": [
+          "python",
+          "check.py"
+        ],
+        "base_rc": 0,
+        "head_rc": 0
+      }
+    ],
+    "evidence": {
+      "replay": "evidence/merge-bonus.json",
+      "log": "evidence/merge-bonus.log",
+      "report": "reports/merge-bonus.json",
+      "base_rc": 1,
+      "head_rc": 0
+    }
+  },
+  "merge-floor": {
+    "kind": "machine_merge",
+    "responses": {
+      "author": [
+        {
+          "stem": "merge-floor",
+          "ticket": "---\npriority: P1\nkind: feature\nagent_tier: medium\nagent_effort: medium\n---\n\n## Depends on\n- none\n\n## Context\n- app.py\n- settings.json\n\n## Goal / Why\nSpending clamps score at zero.\n\n## Scope in / Scope out\nChange the declared score setting only.\n\n## Scope fence\n- settings.json\n\n## Acceptance criteria\n- `python check.py` exits 0 and `settings.json` has the declared setting.\n\n## Verification\n```\npython check.py\n```\n\n## Definition of rejected\nAn undeclared edit is rejected.\n\n## Time budget\n- expected: 1m\n- stuck: 2m\n"
+        }
+      ],
+      "implement": [
+        {
+          "outcome": "ok",
+          "summary": "Spending clamps score at zero.",
+          "surprises": "none",
+          "dead_ends": "none",
+          "predicted_vs_actual": "none",
+          "findings": [],
+          "second_problems": []
+        }
+      ],
+      "review": [
+        {
+          "verdict": "approve",
+          "summary": "Declared fixture edit inspected.",
+          "findings": []
+        }
+      ],
+      "triage": [
+        {
+          "verdict": "author",
+          "link": null,
+          "summary": "Spending clamps score at zero.",
+          "rationale": "The attached deterministic replay demonstrates the planted behavior.",
+          "evidence": [
+            "evidence/merge-floor.json"
+          ],
+          "reopen_after_days": null
+        }
+      ]
+    },
+    "edits": {
+      "settings.json": {
+        "floor": true
+      }
+    },
+    "checks": [
+      {
+        "argv": [
+          "python",
+          "check.py"
+        ],
+        "base_rc": 0,
+        "head_rc": 0
+      }
+    ],
+    "evidence": {
+      "replay": "evidence/merge-floor.json",
+      "log": "evidence/merge-floor.log",
+      "report": "reports/merge-floor.json",
+      "base_rc": 1,
+      "head_rc": 0
+    }
+  },
+  "regression": {
+    "kind": "regression",
+    "responses": {
+      "author": [
+        {
+          "stem": "regression",
+          "ticket": "---\npriority: P1\nkind: feature\nagent_tier: medium\nagent_effort: medium\n---\n\n## Depends on\n- none\n\n## Context\n- app.py\n- settings.json\n\n## Goal / Why\nRepair the existing add regression.\n\n## Scope in / Scope out\nChange the declared score setting only.\n\n## Scope fence\n- settings.json\n\n## Acceptance criteria\n- `python check.py` exits 0 and `settings.json` has the declared setting.\n\n## Verification\n```\npython check.py\n```\n\n## Definition of rejected\nAn undeclared edit is rejected.\n\n## Time budget\n- expected: 1m\n- stuck: 2m\n"
+        }
+      ],
+      "implement": [
+        {
+          "outcome": "ok",
+          "summary": "Repair the existing add regression.",
+          "surprises": "none",
+          "dead_ends": "none",
+          "predicted_vs_actual": "none",
+          "findings": [],
+          "second_problems": []
+        }
+      ],
+      "review": [
+        {
+          "verdict": "approve",
+          "summary": "Declared fixture edit inspected.",
+          "findings": []
+        }
+      ],
+      "triage": [
+        {
+          "verdict": "author",
+          "link": null,
+          "summary": "Repair the existing add regression.",
+          "rationale": "The attached deterministic replay demonstrates the planted behavior.",
+          "evidence": [
+            "evidence/regression.json"
+          ],
+          "reopen_after_days": null
+        }
+      ]
+    },
+    "edits": {
+      "settings.json": {
+        "add_scale": 1
+      }
+    },
+    "checks": [
+      {
+        "argv": [
+          "python",
+          "check.py"
+        ],
+        "base_rc": 0,
+        "head_rc": 0
+      },
+      {
+        "argv": [
+          "python",
+          "regression_test.py"
+        ],
+        "base_rc": 1,
+        "head_rc": 0
+      }
+    ],
+    "evidence": {
+      "replay": "evidence/regression.json",
+      "log": "evidence/regression.log",
+      "report": "reports/regression.json",
+      "base_rc": 1,
+      "head_rc": 0
+    }
+  },
+  "escape": {
+    "kind": "escape",
+    "responses": {
+      "author": [
+        {
+          "stem": "escape",
+          "ticket": "---\npriority: P1\nkind: feature\nagent_tier: medium\nagent_effort: medium\n---\n\n## Depends on\n- none\n\n## Context\n- app.py\n- settings.json\n\n## Goal / Why\nChange spending sign (a planted escape).\n\n## Scope in / Scope out\nChange the declared score setting only.\n\n## Scope fence\n- settings.json\n\n## Acceptance criteria\n- `python check.py` exits 0 and `settings.json` has the declared setting.\n\n## Verification\n```\npython check.py\n```\n\n## Definition of rejected\nAn undeclared edit is rejected.\n\n## Time budget\n- expected: 1m\n- stuck: 2m\n"
+        }
+      ],
+      "implement": [
+        {
+          "outcome": "ok",
+          "summary": "Change spending sign (a planted escape).",
+          "surprises": "none",
+          "dead_ends": "none",
+          "predicted_vs_actual": "none",
+          "findings": [],
+          "second_problems": []
+        }
+      ],
+      "review": [
+        {
+          "verdict": "approve",
+          "summary": "Declared fixture edit inspected.",
+          "findings": []
+        }
+      ],
+      "triage": [
+        {
+          "verdict": "author",
+          "link": null,
+          "summary": "Change spending sign (a planted escape).",
+          "rationale": "The attached deterministic replay demonstrates the planted behavior.",
+          "evidence": [
+            "evidence/escape.json"
+          ],
+          "reopen_after_days": null
+        }
+      ]
+    },
+    "edits": {
+      "settings.json": {
+        "spend_sign": 1
+      }
+    },
+    "checks": [
+      {
+        "argv": [
+          "python",
+          "check.py"
+        ],
+        "base_rc": 0,
+        "head_rc": 0
+      }
+    ],
+    "evidence": {
+      "replay": "evidence/escape.json",
+      "log": "evidence/escape.log",
+      "report": "reports/escape.json",
+      "base_rc": 0,
+      "head_rc": 1
+    }
+  }
+}

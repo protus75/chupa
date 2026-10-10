@@ -1,0 +1,9 @@
+#!/usr/bin/env python
+"""Offline package lookup for Claude preflight; no package installation."""
+
+import sys
+
+if sys.argv[1:] != ["view", "@anthropic-ai/claude-code", "version"]:
+    print("unknown package command; use view @anthropic-ai/claude-code version", file=sys.stderr)
+    raise SystemExit(2)
+print("1.0.0")
