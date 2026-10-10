@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Preserved all 22 review fixtures and existing run_baseline return behavior; removed unmetered eval model probes.
+Reused the prior implementation while preserving both preflight refusals and moving budget eligibility before provider admission and effect writes; existing fixtures remain unchanged.
 
 ## Dead ends
 
-The first full-suite run overlapped a final edit and invalidated a source-snapshot test; the stable rerun passed.
+none
 
 ## Second problems filed
 
