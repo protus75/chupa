@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "fe3f7e1c5ba43d15df6749be413f542e73f1d5a3",
+  "produced_at_sha": "7b7dd39dcb3ccd377c12e740ffc096d0fe2a89f8",
   "stem": "core-drift-activation",
-  "attempt": 6,
-  "terminal": "gate_failed",
-  "stage": "review",
+  "attempt": 7,
+  "terminal": "premise_failed",
+  "stage": "implement",
   "verdict": "retry",
   "lessons": [
-    "Read the committed conduct blob as raw bytes. The SubprocessExec path decodes with errors=\"replace\", so .encode() turns \\xff project bytes into U+FFFD. Use a bytes-returning git.py seam if merged code has one; if it has none, report that missing fact.",
-    "Add a test: dirty worktree plus a current committed conduct file with non-UTF-8 (\\xff) project bytes must classify current. Classification must depend only on committed bytes.",
-    "In committed_core, catch SyntaxError and ValueError from the CORE_TEMPLATE extraction in the candidate's chupa/hostfiles.py. A gate refusal must carry a paved road (section 7), so gather_safety_evidence must not raise before gates run.",
-    "Carry a template-extraction failure to CoreDriftGate as a core_drift Finding that names chupa/hostfiles.py, with a road: define CORE_TEMPLATE as one literal bytes assignment. Test that a malformed candidate fails the gate and does not raise.",
-    "Keep the rest of the passing diff (wiring, self-host adoption, fixture repairs). Change only hostfiles.py and its tests, stay inside the scope fence and diff budget, and rerun all four Verification commands."
+    "Premise finding is wrong: gates.run_gates passes each gate the workspace Path. Check and the merge rerun both run CHECK_GATES on the candidate worktree at branch head after rebase. Read the routed conduct with Path.read_bytes() there; chupa/git.py is not needed.",
+    "Treat 'committed conduct-file bytes on the candidate branch' (19.P6.core-drift-activation) as the clean candidate worktree's file bytes. Render the template from that same workspace's plan section 17, not from the serving engine's repo.",
+    "Do not file a scope-fence premise again for byte-exact retrieval. hostfiles.py already reads with path.read_bytes() (line 119), so a non-UTF-8 committed byte survives a worktree read. Spend this attempt on the wiring, the fixture adoption and the named tests.",
+    "Wire core_drift into stages.CHECK_GATES. The merge rerun picks it up through run_gates(CHECK_GATES, evidence, worktree) after the rebase. Rely on the shipped hard default in DEFAULT_GATE_SEVERITY and do not add a severity override.",
+    "Render CLAUDE.md and AGENTS.md mechanically with hostfiles.render, keeping their full existing bytes as the remainder, and commit them. Repair each fenced test and eval host builder so it commits rendered conduct for its own routes before Check/merge."
   ],
   "mechanical": null,
   "spec_version": "1.1",
