@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The standalone queue test pins exactly one Effect completion, while the plan requires an additional merge-regate completion after both tiers pass.
+The previous fence gap is repaired; the untouched branch passes all 3,656 tests and plan lint.
 
 ## Dead ends
 
-An in-memory injection of the required receipt reproduced the assertion failure; the same test passed on untouched HEAD.
+Verified that requesting READY/confirmed through an already-completed HELD Effect key replays HELD without executing the new action.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during scope-closure validation, before implementation.
+none
 
