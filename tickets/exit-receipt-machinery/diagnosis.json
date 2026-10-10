@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "a6d095b8a59b7d3731818f48d2d787a7c787a6e5",
+  "stem": "exit-receipt-machinery",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "The fence cannot be satisfied as written. The required bug-ticket fixture migration breaks tests/test_inbox.py::test_report_replay_to_regression at line 234, which adds its own Regression section and so duplicates it. That file is outside the fence, but the ticket's Verification still runs it.",
+    "Repair the ticket or plan first: under the same 19.L contradicted-test closure that already fences tests/test_fixture_host.py, add tests/test_inbox.py to the fence. Limit the change to migrating this one test so it consumes the migrated bug fixture instead of appending its own Regression section.",
+    "The migrated test_report_replay_to_regression must keep its report-custody and regression-overlay proofs, the same way the ticket's preservation rules keep base-test presence and defect failure. Do not weaken the production bug gate.",
+    "Before re-implementing, run every preservation command in Verification (test_inbox, test_triage, test_bug_gate, etc.) against the prototype fixture migration. Find any other unfenced caller of the fixture Author ticket before committing."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
