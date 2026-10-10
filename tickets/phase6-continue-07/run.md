@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The first full-suite run hit a notification-test AttributeError; base checks did not reproduce it, and the unchanged suite passed on retry with 3740 tests.
+Recorded the earned fixture-test fence addition and preserved the approved successor byte-identically.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60m expected budget, including base verification and a full-suite retry.
+Completed within the 60m expected and 90m stuck budgets.
 
