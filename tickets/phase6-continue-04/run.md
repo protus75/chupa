@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The escape and supervised-hold entries resolve, but both following GO-grade entries are absent at HEAD 9f6a2be7dc45397289b7361ea797c96fc3733056.
+Previously missing GO-grade entries now resolve; both seeds fit headroom with all existing fenced files embedded.
 
 ## Dead ends
 
-Stopped before seed writes because resolving the successor chain's GO-grade contracts failed.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during contract inspection, well within the 60-minute expected budget.
+Completed within the 60-minute expected budget; every Verification command passed, including 3,641 full-suite tests.
 
