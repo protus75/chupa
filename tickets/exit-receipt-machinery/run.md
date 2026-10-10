@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The affected inbox test passes on the base commit; the initial full suite passed all 3,740 tests.
+All verification commands passed, including 3,759 tests in the full suite; the worktree is clean.
 
 ## Dead ends
 
-The prototype passed the host-loop, gate, stage, and scaffold tests, but preservation verification exposed an unfenced caller requiring migration.
+An initial full run encountered a fixture snapshot failure because files changed after collection; the unchanged final rerun passed.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Completed within the 60-minute expected budget.
 
