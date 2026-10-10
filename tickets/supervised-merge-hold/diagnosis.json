@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "17cb54fb5620771190910ec84f0a1128e125944e",
+  "stem": "supervised-merge-hold",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Criterion 15 requires tests/test_daemon_composition.py to pass, but that file is outside the Scope fence. Its test_composed_merge_queue_admits_reviewed_candidate (line 1007) unpacks exactly one Effect completion, so the receipt 19.P6.supervised-merge-hold requires cannot be added without editing it.",
+    "The ticket's Definition of rejected says a path the criteria force beyond the recorded closure goes back for plan repair. Fix the 19.P6.supervised-merge-hold entry first: add tests/test_daemon_composition.py to its fence and say which receipts that test must accept. Then regenerate the ticket.",
+    "On the next attempt, check the regenerated fence includes tests/test_daemon_composition.py before editing anything. If any other preservation suite in Verification also pins the Effect-completion count and sits outside the fence, stop with premise_failed and name it.",
+    "The plan may not state how many Effect completions a green admission produces, or in what order. If so, the repair must add that fact; do not infer it from the in-memory proof."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
