@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The hold and GO-grade entries resolve, but the later successor's governing entry is absent on base commit e47704afb5f10aadc4cbb53542db8ff47c6bd871.
+The prior receipt-machinery gap is repaired; the hold requires nine On-demand files to meet render headroom.
 
 ## Dead ends
 
-Stopped before seed writes because inventing the missing successor contract is prohibited.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during contract inspection, within the 60-minute expected budget.
+Completed within the 60-minute expected budget; all five Verification commands passed, including 3,656 full-suite tests.
 
