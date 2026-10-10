@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Preserved the approved successor byte-identically; added section 12 citations and chupa/specs.py Context to both payloads; no fence additions were needed.
+Preserved both approved seeds byte-for-byte and added the check-runner and frontmatter schema owners to host-contract-doc Context.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60-minute expected budget; all four verification commands passed, including 3,522 full-suite tests.
+Completed within the 60-minute expected budget.
 
