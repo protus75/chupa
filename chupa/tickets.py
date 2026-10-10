@@ -97,6 +97,8 @@ class Ticket:
     verification: tuple[tuple[str, ...], ...]
     expected_minutes: int
     stuck_minutes: int
+    regression: tuple[str, ...] = ()
+    carries: tuple[str, ...] = ()
 
 
 class TicketInvalid(Exception):
@@ -201,6 +203,9 @@ def _fenced_commands(text: str, name: str, path: str) -> tuple[list[tuple[str, .
             argv = shlex.split(line, posix=True)
         except ValueError as e:
             findings.append(_f(f"`## {name}` command {line!r} is not argv-parseable: {e}", road, path))
+            continue
+        if not argv or not argv[0].strip():
+            findings.append(_f(f"`## {name}` command has no executable", road, path))
             continue
         commands.append(tuple(argv))
     if not commands and not findings:
@@ -403,12 +408,14 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings
             findings.append(_f("`## Verification` has text outside its fenced block",
                                "keep only the fenced command block in `## Verification`", path))
 
+    regression, carries = (), ()
     kind = fm.kind if fm is not None else data.get("kind")
     if "Regression" in sections:
         if kind != "bug":
             findings.append(_f("`## Regression` is present on a non-bug ticket",
                                "drop `## Regression`, or set `kind: bug` if this ticket fixes a defect", path))
-        findings += _regression(sections["Regression"], path)
+        regression, carries, errs = _regression(sections["Regression"], path)
+        findings += errs
     elif kind == "bug":
         findings.append(_f("a `kind: bug` ticket has no `## Regression` section",
                            "add `## Regression`: one fenced reproducing command plus `- carries: <path-prefix>`"
@@ -443,10 +450,11 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings
         raise TicketInvalid(findings)
     return Ticket(stem=stem, frontmatter=fm, sections=sections, depends=tuple(depends), context=tuple(context),
                   on_demand=tuple(on_demand), plan_contract=tuple(plan_ids), scope_fence=tuple(fence),
-                  verification=tuple(commands), expected_minutes=expected, stuck_minutes=stuck)
+                  verification=tuple(commands), expected_minutes=expected, stuck_minutes=stuck,
+                  regression=regression, carries=carries)
 
 
-def _regression(text: str, path: str) -> list[Finding]:
+def _regression(text: str, path: str) -> tuple[tuple[str, ...], tuple[str, ...], list[Finding]]:
     commands, outside, findings = _fenced_commands(text, "Regression", path)
     if len(commands) > 1:
         findings.append(_f("`## Regression` holds more than one command",
@@ -456,7 +464,10 @@ def _regression(text: str, path: str) -> list[Finding]:
         findings.append(_f("`## Regression` needs `- carries: <path-prefix>` bullets and nothing else outside the"
                            " fence", "add one `- carries: <path-prefix>` bullet per branch-added test/fixture path"
                            " the command needs", path))
-    return findings
+    prefixes = tuple(line.strip().removeprefix("- carries: ") for line in carries)
+    for prefix in prefixes:
+        findings += _repo_path(prefix, "Regression carries", path)
+    return (commands[0] if len(commands) == 1 else ()), prefixes, findings
 
 
 def depends_cycle(stem: str, edges: Mapping[str, Sequence[str]]) -> list[str] | None:

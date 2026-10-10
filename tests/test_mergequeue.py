@@ -675,7 +675,7 @@ def test_strategy_resolution_still_regates(ctx, monkeypatch):
         await unchanged(ctx, ticket, before, result, "combined")
         assert gates == ["scope_fence", "run_record", "ticket_schema", "post_rebase_regate",
                          "correctness_review", "requisition_review", "scope_fence", "verification",
-                         "run_record", "diff_budget", "core_drift", "ticket_schema", "post_rebase_regate",
+                         "run_record", "diff_budget", "core_drift", "bug_evidence", "ticket_schema", "post_rebase_regate",
                          "correctness_review", "requisition_review"]
         spool = ctx.config.state_dir / "spools" / ticket.stem / "0/merge-integration/verify-01.txt"
         assert spool.is_file() and "exit 0" in spool.read_text()

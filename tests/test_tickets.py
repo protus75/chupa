@@ -263,7 +263,25 @@ def test_bug_ticket_with_regression_validates(repo):
     text = VALID.replace("kind: feature", "kind: bug\nstate: draft\nsource: human").replace(
         "## Time budget", "## Regression\n```\nuv run pytest tests/test_thing.py\n```\n- carries: tests/\n\n## Time budget")
     write(root, "t-one", text)
-    assert validate_ticket("t-one", text, root).frontmatter.kind == "bug"
+    ticket = validate_ticket("t-one", text, root)
+    assert ticket.frontmatter.kind == "bug"
+    assert ticket.regression == ("uv", "run", "pytest", "tests/test_thing.py")
+    assert ticket.carries == ("tests/",)
+
+
+@pytest.mark.parametrize("regression", [
+    "```\n```\n- carries: tests/",
+    "```\ntrue\nfalse\n```\n- carries: tests/",
+    "```\ntrue\n```",
+    "```\ntrue\n```\n- carries: ../tests",
+    "```\ntrue\n```\n- carries: /tests",
+    "```\n\"\"\n```\n- carries: tests/",
+])
+def test_regression_grammar_is_closed(repo, regression):
+    root, _, _ = repo
+    text = complete(VALID.replace("kind: feature", "kind: bug").replace(
+        "## Time budget", f"## Regression\n{regression}\n\n## Time budget"))
+    assert "Regression" in messages(refusal(root, text))
 
 
 def test_on_demand_must_be_fenced_existing_and_not_context(repo):

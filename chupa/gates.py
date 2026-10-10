@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Protocol
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from chupa.artifacts import Finding
 from chupa.config import Config, ConfigSnapshot, Severity
@@ -36,6 +36,26 @@ class GateContractError(Exception):
     """A gate broke the closed protocol; this is an engine defect, never the artifact's failure."""
 
 
+class RegressionRun(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+
+    rc: int | None
+    regression_result: Literal["pass", "defect", "error"] | None
+    tail: str
+
+
+class BugEvidence(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+
+    argv: list[str]
+    head_sha: str
+    base_sha: str
+    overlay_paths: list[str]
+    evidence_paths: list[str]
+    head: RegressionRun | None = None
+    base: RegressionRun | None = None
+
+
 class GateReport(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
 
@@ -43,6 +63,7 @@ class GateReport(BaseModel):
     verdict: Literal["pass", "fail"]
     findings: list[Finding] = []
     autofix_applied: bool = False
+    bug_evidence: BugEvidence | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 class Gate(Protocol):

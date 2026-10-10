@@ -26,7 +26,7 @@ from chupa.storm import arrival_id
 from chupa.caps import lineage
 from chupa.config import Config, ConfigSnapshot, Severity
 from chupa.driver import Driver, LlmStage
-from chupa.gates import GateReport, run_gates
+from chupa.gates import BugEvidence, GateReport, RegressionRun, run_gates
 from chupa.git import Git, GitError
 from chupa.hostfiles import CORE_TEMPLATE, CoreDriftGate, committed_core
 from chupa.journal import EVENT_VERSIONS, TERMINAL_STATES, EventType, run_seq
@@ -639,6 +639,114 @@ class Evidence(_Strict):
     core_findings: list[Finding] = []
     report_paths: list[str] = []
     report_findings: list[Finding] = []
+    is_bug: bool = False
+    bug_evidence: BugEvidence | None = None
+    bug_findings: list[Finding] = []
+
+
+def regression_result(stdout: str, rc: int | None) -> Literal["pass", "defect", "error"] | None:
+    """Decode the complete common protocol, never a runner's diagnostic or exit vocabulary."""
+    def unique(pairs):
+        result = dict(pairs)
+        if len(result) != len(pairs):
+            raise ValueError("duplicate keys")
+        return result
+
+    if len(stdout) > OUTPUT_TAIL_CHARS:
+        return None
+    try:
+        result = json.loads(stdout, object_pairs_hook=unique)
+    except (ValueError, TypeError, RecursionError):
+        return None
+    if not isinstance(result, dict) or set(result) != {"regression_result"}:
+        return None
+    value = result["regression_result"]
+    if not isinstance(value, str) or value not in {"pass", "defect", "error"}:
+        return None
+    if (value == "pass" and rc == 0) or (value == "defect" and rc is not None and rc > 0):
+        return value
+    return "error" if value == "error" else None
+
+
+def _bug_finding(message: str) -> Finding:
+    return Finding(code="bug_evidence", message=message,
+                   paved_road="supply durable ticket evidence and carries matching only changed test/fixture files;"
+                              " provide a carried reproducer checking prerequisites and emitting the regression"
+                              " result protocol: pass at head, defect at the overlaid base")
+
+
+async def _gather_bug(ctx: StageContext, ticket: Ticket, evidence: Evidence, *, attempt: int,
+                      stage: str) -> tuple[BugEvidence, list[Finding]]:
+    worktree = ctx.worktree(ticket.stem)
+    base = await ctx.git.merge_base(ctx.repo, MAIN, ticket.stem)
+    findings, overlay = [], set()
+    for prefix in ticket.carries:
+        path = Path(prefix)
+        if not prefix or path.is_absolute() or ".." in path.parts or path.as_posix() != prefix.rstrip("/"):
+            findings.append(_bug_finding(f"invalid carries prefix {prefix!r}"))
+            continue
+        matched = [p for p in evidence.changed_files if _in_fence(p, [prefix])]
+        if not matched:
+            findings.append(_bug_finding(f"carries prefix {prefix!r} matches no branch-changed file"))
+        for rel in matched:
+            if not {"tests", "test", "fixtures", "fixture"}.intersection(Path(rel).parts[:-1]):
+                findings.append(_bug_finding(f"carries path {rel!r} is not a test/fixture file;"
+                                             " implementation paths cannot be carried"))
+                continue
+            tree = await ctx.git._run(ctx.repo, "ls-tree", evidence.head_sha, "--", rel)
+            if not tree.startswith(("100644 blob ", "100755 blob ")):
+                findings.append(_bug_finding(f"carries path {rel!r} is not a committed regular file"))
+                continue
+            overlay.add(rel)
+    custody = []
+    for root in (ctx.repo, worktree):
+        directory = root / TICKETS_DIR / ticket.stem / "evidence"
+        custody.extend(p.relative_to(root).as_posix() for p in directory.rglob("*")
+                       if p.is_file() and not p.is_symlink()
+                       and p.resolve().is_relative_to(directory.resolve()))
+    record = BugEvidence(argv=[ctx.driver.redactor.scrub(arg) for arg in ticket.regression],
+                         head_sha=evidence.head_sha, base_sha=base,
+                         overlay_paths=sorted(overlay), evidence_paths=sorted(set(custody)))
+    if not custody:
+        findings.append(_bug_finding("durable evidence is missing under the ticket evidence/ directory"))
+    if not ticket.regression or not ticket.carries:
+        findings.append(_bug_finding("parsed regression command or carries set is missing"))
+    if findings:
+        return record, findings
+
+    async def execute(root: Path, name: str) -> RegressionRun:
+        try:
+            rc, out, err = await ctx.exec_.run(list(ticket.regression), cwd=root,
+                                              env=child_env(ctx.env, ctx.config),
+                                              timeout=ticket.stuck_minutes * 60.0)
+        except (TimeoutError, ExecutableNotFound, OSError) as error:
+            rc, out, err = None, "", f"regression execution failed: {error}"
+        decoded = regression_result(out, rc)
+        ctx.driver.spool.write(ticket.stem, attempt, f"{stage}/regression-{name}.txt",
+                               f"$ {' '.join(ticket.regression)}\n[exit {rc}]\n--- stdout\n{out}\n--- stderr\n{err}")
+        return RegressionRun(rc=rc, regression_result=decoded,
+                             tail=ctx.driver.redactor.scrub(out + err)[-OUTPUT_TAIL_CHARS:])
+
+    head = await execute(worktree, "head")
+    assert ctx.config.worktree_root is not None
+    base_worktree = ctx.config.worktree_root / ".regression-base" / ticket.stem
+    if base_worktree.exists():
+        await ctx.git.worktree_remove(ctx.repo, base_worktree)
+    base_worktree.parent.mkdir(parents=True, exist_ok=True)
+    await ctx.git.worktree_add_detached(ctx.repo, base_worktree, base)
+    try:
+        # Restore committed blobs (including executable mode), never dirty checkout copies.
+        for rel in overlay:
+            if any(p.is_symlink() for p in (base_worktree / rel).parents if p.is_relative_to(base_worktree)):
+                return record.model_copy(update={"head": head}), [_bug_finding("base overlay traverses a symlink")]
+        await ctx.git.restore(base_worktree, sorted(overlay), source=evidence.head_sha)
+        base_run = await execute(base_worktree, "base")
+    except GitError as error:
+        return record.model_copy(update={"head": head}), [
+            _bug_finding(ctx.driver.redactor.scrub(f"cannot overlay regression inputs: {error}"))]
+    finally:
+        await ctx.git.worktree_remove(ctx.repo, base_worktree)
+    return record.model_copy(update={"head": head, "base": base_run}), findings
 
 
 def _inserted(diff: str) -> int:
@@ -733,8 +841,11 @@ async def gather_evidence(
         findings.extend(Finding(code="verification", path=p, message="uncommitted code in a report-only run",
                                 paved_road="commit code on the branch and rerun Check, or remove the edit")
                         for p in await dirty_code(ctx, stem))
+    bug, bug_findings = (await _gather_bug(ctx, ticket, evidence, attempt=attempt, stage=stage)
+                         if ticket.frontmatter.kind == "bug" else (None, []))
     return evidence.model_copy(update={"verification": results, "report_paths": reports,
-                                       "report_findings": findings})
+                                       "report_findings": findings, "bug_evidence": bug,
+                                       "bug_findings": bug_findings})
 
 
 async def gather_safety_evidence(
@@ -754,6 +865,7 @@ async def gather_safety_evidence(
         changed_files=changed,
         inserted_lines=_inserted(await ctx.git.diff(ctx.repo, MAIN, stem)),
         verification=[],
+        is_bug=ticket.frontmatter.kind == "bug",
         run_record=run_md.read_text() if run_md.is_file() else None,
         plan_main=(ctx.repo / PLAN_FILE).read_text() if anchored else None,
         plan_head=(worktree / PLAN_FILE).read_text() if anchored else None,
@@ -877,8 +989,34 @@ class DiffBudgetGate:
         )])
 
 
-CHECK_GATES: tuple[ScopeFenceGate | VerificationGate | RunRecordGate | DiffBudgetGate | CoreDriftGate, ...] = (
-    ScopeFenceGate(), VerificationGate(), RunRecordGate(), DiffBudgetGate(), CoreDriftGate(),
+class BugEvidenceGate:
+    """A new test proves a defect only when its carried reproducer reaches the defect on base."""
+
+    code = "bug_evidence"
+
+    def check(self, artifact: Evidence, workspace: Path) -> GateReport:
+        if not artifact.is_bug:
+            return _report(self.code, [])
+        record = artifact.bug_evidence
+        findings = list(artifact.bug_findings)
+        if record is None:
+            findings.append(_bug_finding("fresh regression evidence is missing"))
+        elif not findings:
+            if not record.evidence_paths:
+                findings.append(_bug_finding("durable ticket evidence is missing"))
+            if record.head_sha != artifact.head_sha:
+                findings.append(_bug_finding("regression evidence pins a different candidate head"))
+            if record.head is None or record.head.rc != 0 or record.head.regression_result != "pass":
+                findings.append(_bug_finding("regression head did not complete with exit 0 and pass"))
+            if (record.base is None or record.base.rc is None or record.base.rc <= 0
+                    or record.base.regression_result != "defect"):
+                findings.append(_bug_finding("overlaid base did not complete with a positive exit and defect"))
+        return GateReport(code=self.code, verdict="fail" if findings else "pass", findings=findings,
+                          bug_evidence=record)
+
+
+CHECK_GATES: tuple[ScopeFenceGate | VerificationGate | RunRecordGate | DiffBudgetGate | CoreDriftGate | BugEvidenceGate, ...] = (
+    ScopeFenceGate(), VerificationGate(), RunRecordGate(), DiffBudgetGate(), CoreDriftGate(), BugEvidenceGate(),
 )
 
 
