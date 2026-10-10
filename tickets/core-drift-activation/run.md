@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The cited activation contract explicitly requires this test update, but the ticket excludes its file from both Context and Scope fence.
+Shakeout fixtures change routing after initialization, requiring conduct adoption before their next drain.
 
 ## Dead ends
 
-An in-memory probe adding a passing core_drift gate to CHECK_GATES reproduced the exact gate-sequence assertion failure; the same test passed on the untouched branch, whose HEAD equals the base commit.
+Stopped the initial full-suite run when missing shakeout conduct stalled it, repaired the fenced constructor, and reran successfully.
 
 ## Second problems filed
 
@@ -18,9 +18,9 @@ none
 
 - provider: codex
 - model: gpt-6.1-sol
-- spec: implement 1.3
+- spec: implement 1.4
 
 ## Predicted vs actual
 
-Stopped during scope validation within the expected 60-minute budget.
+Expected 60m; completed in approximately 16m, within 23 files and 514 inserted lines.
 
