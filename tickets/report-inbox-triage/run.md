@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Each inbox pathname identifies one arrival, so distinct reports require fresh filenames.
+Recovered the prior scoped implementation from local Git history because it was absent from this branch.
 
 ## Dead ends
 
-Full replay text exceeded the prompt limit; bounded excerpts now accompany complete custody files.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Completed within the expected 60-minute budget.
 
