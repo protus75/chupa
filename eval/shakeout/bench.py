@@ -8,6 +8,8 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from chupa.hostfiles import render
+from chupa.providers import routed_conduct_paths
 from chupa.__main__ import build_control
 
 from chupa.config import Config, load_config
@@ -73,10 +75,22 @@ class Bench:
         self._checkout = self._compose(self.config)
 
     async def initialize(self) -> None:
+        conduct = routed_conduct_paths(load_config(None, cwd=self.repo), self.repo)
+        changed = []
+        for path in conduct:
+            previous = path.read_bytes() if path.exists() else b""
+            fresh = render(previous)
+            if fresh != previous:
+                self.fs.write(path, fresh)
+                changed.append(path.name)
         if self._initialized:
+            # Members can replace routing after their base exists; adopt those routes before dispatch.
+            if changed:
+                await self.git.add(self.repo, changed)
+                await self.git.commit(self.repo, "bench routed conduct", only=changed)
             return
         await self.git.init(self.repo, branch="main")
-        await self.git.add(self.repo, ["config.yaml", ".gitignore", "CHUPA_PLAN.md"])
+        await self.git.add(self.repo, ["config.yaml", ".gitignore", "CHUPA_PLAN.md", *(p.name for p in conduct)])
         await self.git.commit(self.repo, "bench base")
         self._initialized = True
 

@@ -250,11 +250,13 @@ async def test_daemon_soak_uses_registered_checks_lift(root, monkeypatch, case):
 
     fs = LocalFileSystem()
     fs.write(root / "config.yaml", CONFIG.encode())
+    from tests.test_stages import adopt_conduct
+    conduct = adopt_conduct(root)
     ctx = context(root, [])
     rel = f"tickets/{STEM}/{DAEMON_SOAK_REPORT}"
     raw = TICKET.format(bypass="").replace("grep -q ok chupa/thing.py\nenv", f"soak-fixture --out={rel}")
     fs.write(root / f"tickets/{STEM}/ticket.md", raw.encode())
-    await ctx.git.add(root, ["config.yaml", f"tickets/{STEM}/ticket.md"])
+    await ctx.git.add(root, ["config.yaml", f"tickets/{STEM}/ticket.md", *conduct])
     await ctx.git.commit(root, "synthetic report-lane fixture")
     inherited = await report(root)
     if case == "equal-copy":

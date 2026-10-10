@@ -28,6 +28,7 @@ from chupa.config import Config, ConfigSnapshot, Severity
 from chupa.driver import Driver, LlmStage
 from chupa.gates import GateReport, run_gates
 from chupa.git import Git, GitError
+from chupa.hostfiles import CORE_TEMPLATE, CoreDriftGate, committed_core
 from chupa.journal import EVENT_VERSIONS, TERMINAL_STATES, EventType, run_seq
 from chupa.providers import child_env
 from chupa.seams import ExecutableNotFound, FileSystem, ProcessExec
@@ -633,6 +634,9 @@ class Evidence(_Strict):
     # Main's and the branch's plan, gathered only when a `CHUPA_PLAN.md#<unit>` fence entry may admit a plan edit.
     plan_main: str | None = None
     plan_head: str | None = None
+    core_files: dict[str, bytes | None] = {}
+    core_template: bytes = CORE_TEMPLATE
+    core_findings: list[Finding] = []
     report_paths: list[str] = []
     report_findings: list[Finding] = []
 
@@ -753,6 +757,7 @@ async def gather_safety_evidence(
         run_record=run_md.read_text() if run_md.is_file() else None,
         plan_main=(ctx.repo / PLAN_FILE).read_text() if anchored else None,
         plan_head=(worktree / PLAN_FILE).read_text() if anchored else None,
+        **await committed_core(worktree, ctx.config, ctx.git),
     )
 
 
@@ -872,8 +877,8 @@ class DiffBudgetGate:
         )])
 
 
-CHECK_GATES: tuple[ScopeFenceGate | VerificationGate | RunRecordGate | DiffBudgetGate, ...] = (
-    ScopeFenceGate(), VerificationGate(), RunRecordGate(), DiffBudgetGate(),
+CHECK_GATES: tuple[ScopeFenceGate | VerificationGate | RunRecordGate | DiffBudgetGate | CoreDriftGate, ...] = (
+    ScopeFenceGate(), VerificationGate(), RunRecordGate(), DiffBudgetGate(), CoreDriftGate(),
 )
 
 

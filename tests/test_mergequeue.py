@@ -23,7 +23,7 @@ from chupa.providers import child_env
 from chupa.seams import ExecutableNotFound, LocalFileSystem, SubprocessExec
 from chupa.stages import ApprovedInvoice, CommandResult, Invoice, SeedReview, StageContext, render_review
 from chupa.tickets import validate_ticket
-from tests.test_stages import CONFIG, ENV, SECRET, SPECS, STEM, TICKET
+from tests.test_stages import adopt_conduct, CONFIG, ENV, SECRET, SPECS, STEM, TICKET
 
 run = asyncio.run
 
@@ -37,6 +37,7 @@ def ctx(tmp_path):
     (repo / "CHUPA_PLAN.md").write_text("# Plan\n")
     (repo / ".gitignore").write_text(".chupa/\n")
     (repo / "config.yaml").write_text(CONFIG)
+    conduct = adopt_conduct(repo)
     config = load_config(None, cwd=repo)
     exec_ = SubprocessExec()
     driver = Driver.from_config(config, llm=FakeLLM([]), env=ENV,
@@ -46,7 +47,7 @@ def ctx(tmp_path):
                            LocalFileSystem(), driver, SPECS)
     async def init():
         await context.git.init(repo, branch="main")
-        await context.git.add(repo, [".gitignore", "config.yaml", "CHUPA_PLAN.md", "chupa"])
+        await context.git.add(repo, [".gitignore", "config.yaml", "CHUPA_PLAN.md", "chupa", *conduct])
         await context.git.commit(repo, "base")
     run(init())
     return context
@@ -674,7 +675,7 @@ def test_strategy_resolution_still_regates(ctx, monkeypatch):
         await unchanged(ctx, ticket, before, result, "combined")
         assert gates == ["scope_fence", "run_record", "ticket_schema", "post_rebase_regate",
                          "correctness_review", "requisition_review", "scope_fence", "verification",
-                         "run_record", "diff_budget", "ticket_schema", "post_rebase_regate",
+                         "run_record", "diff_budget", "core_drift", "ticket_schema", "post_rebase_regate",
                          "correctness_review", "requisition_review"]
         spool = ctx.config.state_dir / "spools" / ticket.stem / "0/merge-integration/verify-01.txt"
         assert spool.is_file() and "exit 0" in spool.read_text()

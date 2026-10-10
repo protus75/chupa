@@ -158,6 +158,17 @@ def git(root: Path, *args: str) -> str:
                           check=True).stdout
 
 
+def adopt_conduct(root: Path) -> list[str]:
+    """Render each fixture's actual routes from its own project bytes before committing its base."""
+    from chupa.hostfiles import render
+    from chupa.providers import routed_conduct_paths
+
+    paths = routed_conduct_paths(load_config(None, cwd=root), root)
+    for path in paths:
+        path.write_bytes(render(path.read_bytes() if path.exists() else b""))
+    return [p.relative_to(root).as_posix() for p in paths]
+
+
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
     root = tmp_path / "repo"
@@ -166,6 +177,7 @@ def repo(tmp_path: Path) -> Path:
     (root / "CHUPA_PLAN.md").write_text("# Plan\n")
     (root / "config.yaml").write_text(CONFIG)
     (root / ".gitignore").write_text(".chupa/\n")
+    adopt_conduct(root)
     git(root, "init", "-b", "main")
     git(root, "add", ".")
     git(root, "commit", "-m", "base")

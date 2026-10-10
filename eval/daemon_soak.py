@@ -12,6 +12,8 @@ from pathlib import Path
 import yaml
 
 from chupa import runner, serve
+from chupa.hostfiles import render
+from chupa.providers import routed_conduct_paths
 from chupa.artifacts import (DAEMON_SOAK_MEMBERS, DAEMON_SOAK_SPEC_VERSION,
                             DaemonSoakEntry, DaemonSoakReport, Harvest)
 from chupa.audit import audit_journal
@@ -206,8 +208,11 @@ class _Member:
                  "a.txt": "0\n", "b.txt": "0\n", "union.txt": "base\n", "conflict.txt": "base\n"}
         for path, data in files.items():
             self.fs.write(self.root / path, data.encode())
+        conduct = routed_conduct_paths(load_config(None, cwd=self.root), self.root)
+        for path in conduct:
+            self.fs.write(path, render(path.read_bytes() if path.exists() else b""))
         await self.git.init(self.root, branch="main")
-        await self.git.add(self.root, list(files))
+        await self.git.add(self.root, [*files, *(p.name for p in conduct)])
         await self.git.commit(self.root, "synthetic soak baseline")
         config = load_config(None, cwd=self.root)
         self.checkout = runner.Checkout(self.root, config, self.env, self.exec, self.git,

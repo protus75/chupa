@@ -4,6 +4,8 @@ The stage-dispatch seam is scripted per stem; everything else -- lockfile, recon
 re-scan, the journal cap fold, the ceilings -- is the production path.
 """
 
+from tests.test_stages import adopt_conduct
+
 import asyncio
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -74,6 +76,7 @@ def make_root(tmp_path: Path, caps: str = "") -> Path:
     (root / "CHUPA_PLAN.md").write_text(PLAN)
     (root / "config.yaml").write_text(CONFIG + caps)
     (root / ".gitignore").write_text(".chupa/\n")
+    adopt_conduct(root)
     git_out(root, "init", "-b", "main")
     git_out(root, "add", ".")
     git_out(root, "commit", "-m", "base")

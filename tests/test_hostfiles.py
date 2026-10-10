@@ -1,7 +1,6 @@
 """Core renderer contract; regenerate the golden with uv run python -m tests.test_hostfiles."""
 
 import base64
-import ast
 import asyncio
 import builtins
 import re
@@ -13,7 +12,8 @@ from chupa import hostfiles
 from chupa.seams import LocalFileSystem
 from chupa.specs import entry_unit_gap, required_units, resolve_plan_contract
 from chupa.tickets import parse_ticket
-from tests.test_merge import repo, reviewed, admit
+from tests.test_merge import repo
+from tests.test_cli import root
 from tests.test_stages import agent, verdict
 
 REPO = Path(__file__).resolve().parents[1]
@@ -45,8 +45,8 @@ def test_renderer_entry_unit():
 
 
 @pytest.mark.parametrize("project", [None, b"", b"# Project\n\nrules\n", b"one\r\ntwo\nthree\r\nfour",
-                                    b"no final newline\xff", (REPO / "CLAUDE.md").read_bytes(),
-                                    (REPO / "AGENTS.md").read_bytes()])
+                                    b"no final newline\xff", hostfiles.parse((REPO / "CLAUDE.md").read_bytes())[1][2:],
+                                    hostfiles.parse((REPO / "AGENTS.md").read_bytes())[1][2:]])
 def test_core_first_adoption_preserves_project_bytes(tmp_path, project):
     path = tmp_path / "CLAUDE.md"
     if project is not None:
@@ -263,40 +263,77 @@ def test_core_classifier_is_pure(monkeypatch):
             assert [hostfiles.classify_core(data) for data in samples] == expected
 
 
-def test_core_classifier_unreachable_from_production_gates(repo, monkeypatch):
-    from chupa import merge, stages
-    from chupa.gates import DEFAULT_GATE_SEVERITY, ENGINE_GATE_CODES
-
-    def forbidden(*args, **kwargs):
-        pytest.fail("production called the dormant classifier")
-    monkeypatch.setattr(hostfiles, "classify_core", forbidden)
-    monkeypatch.setattr(hostfiles, "_process_override", forbidden)
-    assert "core_drift" in ENGINE_GATE_CODES
-    assert DEFAULT_GATE_SEVERITY["core_drift"] == "hard"
-    assert all(g.code != "core_drift" for g in (*stages.CHECK_GATES, *merge.MERGE_GATES))
-    selections = []
+@pytest.mark.parametrize("mode", ["inline", "queue"])
+def test_core_drift_reachable_from_production_gates(root, monkeypatch, mode):
+    from chupa import merge, stages, runner
     from chupa.gates import run_gates
+    from chupa.llm import FakeLLM
+    from tests.test_cli import ENV, Clock, write, ticket as ticket_text
+    from chupa.__main__ import main
+
+    calls, selections = [], []
+    classify = hostfiles.classify_core
+    def classified(*args, **kwargs):
+        calls.append(args[0])
+        return classify(*args, **kwargs)
+    monkeypatch.setattr(hostfiles, "classify_core", classified)
     def observe(gates, *args, **kwargs):
         gates = tuple(gates)
         selections.append(tuple(g.code for g in gates))
-        assert "core_drift" not in selections[-1]
         return run_gates(gates, *args, **kwargs)
     monkeypatch.setattr(stages, "run_gates", observe)
     monkeypatch.setattr(merge, "run_gates", observe)
-    ctx, ticket, attempt = reviewed(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
-    assert admit(ctx, ticket, attempt).outcome == "ok"
-    check = tuple(g.code for g in stages.CHECK_GATES)
-    merge_codes = tuple(g.code for g in merge.MERGE_GATES)
-    assert selections == [check, check, merge_codes]
-    # Catch dormant callers on paths not taken by the passing production exercise too.
-    for path in (REPO / "chupa").rglob("*.py"):
-        if path.name == "hostfiles.py":
-            continue
-        tree = ast.parse(path.read_text())
-        names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
-        names |= {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}
-        names |= {node.name for node in ast.walk(tree) if isinstance(node, ast.alias)}
-        assert not {"classify_core", "_process_override"} & names, path
+    import chupa.mergequeue as queue_module
+    monkeypatch.setattr(queue_module, "run_gates", observe)
+    if mode == "inline":
+        write(root, "work", ticket_text())
+        llm = FakeLLM([agent({"chupa/thing.py": "ok\n"}), verdict()])
+        assert main(["run", "work"], cwd=root, env=ENV, clock=Clock(),
+                    pipeline=lambda checkout: runner.bind(checkout, llm)) == 0
+    else:
+        from tests.test_serve import admission_graph, admission_ticket, start_admission, until, finish
+        async def queued():
+            rig = await admission_graph(root, monkeypatch, {"work": {"chupa/thing.py": "ok\n"}})
+            admission_ticket(root, "work")
+            run = await start_admission(rig, monkeypatch)
+            try:
+                await until(rig, lambda: ("work", "merged") in rig.returns)
+                assert rig.owner.queue.ctx is rig.contexts["work"]
+            finally:
+                await finish(rig, run)
+        asyncio.run(queued())
+    assert sum("core_drift" in codes for codes in selections) == 2
+    assert len(calls) >= 2 and all(hostfiles.parse(data) is not None for data in calls)
+
+
+def test_core_activation_entry_unit():
+    plan = (REPO / "CHUPA_PLAN.md").read_text()
+    own = "19.P6.core-drift-activation"
+    units = (own, "19.P6.core-renderer", "19.P6.core-drift-classifier")
+    ticket = parse_ticket("core-drift-activation", (REPO / "tickets/core-drift-activation/ticket.md").read_text(),
+                          REPO, plan=plan)
+    assert set(required_units(plan, ticket.stem, ticket.plan_contract)) == set(units)
+    for uid in units:
+        resolved = resolve_plan_contract(plan, (uid, uid))
+        assert resolved.count(f"### {uid} ") == 1
+        assert entry_unit_gap(plan, uid) is None
+        for part in ("Owner", "Records", "Observable", "Tests"):
+            for replacement in ("", f"- **{part}:**"):
+                broken = plan.replace(resolved, re.sub(rf"^- \*\*{part}:\*\*.*$", replacement,
+                                                       resolved, flags=re.M))
+                assert part in entry_unit_gap(broken, uid)
+
+
+def test_core_activation_first_adoption():
+    for name in ("CLAUDE.md", "AGENTS.md"):
+        adopted = (REPO / name).read_bytes()
+        prefix, suffix = hostfiles.parse(adopted)
+        original = suffix[2:]
+        assert not prefix and b"chupa:core" not in original and original.startswith(b"# chupa")
+        assert hostfiles.classify_core(original).state == "missing"
+        assert hostfiles.render(original) == adopted
+        assert hostfiles.classify_core(adopted).state == "current"
+        assert hostfiles.render(adopted) == adopted
 
 
 if __name__ == "__main__":
@@ -304,3 +341,53 @@ if __name__ == "__main__":
     generated = base64.b64encode(hostfiles.render(b""))
     path.write_text(re.sub(r"^GOLDEN = .*$", lambda _: f"GOLDEN = {generated!r}",
                            path.read_text(), flags=re.M))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('dirty', [False, True])
+async def test_committed_core_preserves_raw_bytes(repo, dirty):
+    from tests.test_merge import context
+    from chupa.config import load_config
+    from tests.test_stages import evidence
+    ctx = context(repo, [])
+    raw = hostfiles.render(b'project\xff\r\nno final newline')
+    path = repo / 'AGENTS.md'
+    path.write_bytes(raw)
+    await ctx.git.add(repo, ['AGENTS.md'])
+    await ctx.git.commit(repo, 'raw conduct bytes')
+    if dirty:
+        path.write_bytes(raw + b'dirty')
+    gathered = await hostfiles.committed_core(repo, load_config(None, cwd=repo), ctx.git)
+    report = hostfiles.CoreDriftGate().check(evidence(**gathered), repo)
+    if dirty:
+        assert report.verdict == 'fail'
+        [finding] = report.findings
+        assert finding.path == 'AGENTS.md'
+        assert finding.paved_road == 'commit or restore AGENTS.md, then rerun Check'
+        assert 'AGENTS.md' not in gathered['core_files']
+    else:
+        assert report.verdict == 'pass' and gathered['core_files']['AGENTS.md'] == raw
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('source', ['CORE_TEMPLATE = (\n', 'CORE_TEMPLATE = bytes([65])\n',
+                                   'CORE_TEMPLATE = "not bytes"\n', 'CORE_TEMPLATE = 42\n',
+                                   'CORE_TEMPLATE = b"a"\nCORE_TEMPLATE = b"b"\n'])
+async def test_committed_core_template_extraction_refuses(repo, source):
+    from chupa import stages
+    from tests.test_merge import context
+    from tests.test_stages import author, STEM, evidence
+    from chupa.tickets import validate_ticket
+    author(repo)
+    ctx = context(repo, [])
+    ctx.fs.write(repo / 'chupa/hostfiles.py', source.encode())
+    await ctx.git.add(repo, ['chupa/hostfiles.py'])
+    await ctx.git.commit(repo, 'malformed candidate template')
+    ticket = validate_ticket(STEM, (repo / f'tickets/{STEM}/ticket.md').read_text(), repo)
+    await ctx.git.worktree_add(repo, ctx.worktree(STEM), STEM, 'main')
+    artifact = await stages.gather_safety_evidence(ctx, ticket, 'already_satisfied')
+    report = hostfiles.CoreDriftGate().check(artifact, ctx.worktree(STEM))
+    assert report.verdict == 'fail'
+    [finding] = report.findings
+    assert finding.path == 'chupa/hostfiles.py' and finding.code == 'core_drift'
+    assert finding.paved_road == 'define CORE_TEMPLATE as one literal bytes assignment'

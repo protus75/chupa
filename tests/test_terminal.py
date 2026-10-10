@@ -4,6 +4,8 @@ A non-ok terminal journals the run's single terminal transition and exits 1, lea
 place; an engine-plane refusal exits 2 with nothing dispatched. Retry, diagnosis, and harvest are Phase 2.
 """
 
+from tests.test_stages import adopt_conduct
+
 import json
 
 from datetime import UTC, datetime
@@ -31,6 +33,7 @@ def repo(tmp_path: Path) -> Path:
     (root / "CHUPA_PLAN.md").write_text("# Plan\n")
     (root / "config.yaml").write_text(CONFIG)
     (root / ".gitignore").write_text(".chupa/\n")
+    adopt_conduct(root)
     git(root, "init", "-b", "main")
     git(root, "add", ".")
     git(root, "commit", "-m", "base")

@@ -881,3 +881,18 @@ def test_event_callback_unwind_kills_group(tmp_path, name, unwind):
     asyncio.run(scenario())
     time.sleep(0.6)
     assert not marker.exists()  # A direct-child-only kill would leave the grandchild writing.
+
+
+@pytest.mark.parametrize('names,expected', [
+    (['claude'], ['CLAUDE.md']), (['codex'], ['AGENTS.md']),
+    (['claude', 'codex'], ['CLAUDE.md', 'AGENTS.md']),
+    (['codex', 'codex', 'claude'], ['AGENTS.md', 'CLAUDE.md']),
+])
+def test_routed_conduct_paths(tmp_path, names, expected):
+    from tests.test_cli import core_config
+    from chupa.providers import routed_conduct_paths
+    path = core_config(tmp_path, [('medium', 'implement', names), ('high', 'review', names)])
+    config = load_config(path, cwd=tmp_path)
+    assert routed_conduct_paths(config, tmp_path) == tuple(tmp_path / p for p in expected)
+    # The declared but unrouted provider must never add a path.
+    assert len(config.providers) == 2

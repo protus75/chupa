@@ -126,6 +126,14 @@ def candidates(config, tier, surface) -> tuple[Served, ...]:
     return tuple(_candidate(config, tier, surface, candidate) for candidate in route.candidates)
 
 
+def routed_conduct_paths(config: Config | ConfigSnapshot, checkout: Path) -> tuple[Path, ...]:
+    """Select each resolved CLI's conduct file once; unrouted declarations do not participate."""
+    return tuple(dict.fromkeys(
+        checkout / ("CLAUDE.md" if served.provider.name == "claude" else "AGENTS.md")
+        for route in config.routing for served in candidates(config, route.tier, route.surface)
+    ))
+
+
 class ProviderDrought(Exception):
     """A pre-effect routing refusal, carried to the existing failure owner."""
 

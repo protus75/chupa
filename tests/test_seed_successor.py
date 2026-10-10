@@ -1,5 +1,7 @@
 """A reviewed seed becomes runnable after its parent's real admission, in one CLI drain."""
 
+from tests.test_stages import adopt_conduct
+
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, replace
@@ -61,8 +63,9 @@ def test_merged_parent_registers_and_runs_successor_in_same_drain(tmp_path: Path
     }
     for rel, text in initial.items():
         fs.write(repo / rel, text.encode())
+    conduct = adopt_conduct(repo)
     wait_for(git.init(repo, branch="main"))
-    wait_for(git.add(repo, list(initial)))
+    wait_for(git.add(repo, [*initial, *conduct]))
     wait_for(git.commit(repo, "base with only the parent ticket"))
     start = wait_for(git.rev_parse(repo, "main"))
     assert sorted(p.parent.name for p in (repo / "tickets").glob("*/ticket.md")) == [PARENT]

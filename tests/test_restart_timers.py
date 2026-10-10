@@ -51,7 +51,9 @@ async def repository(root, monkeypatch, *, prepare=None):
 
     monkeypatch.setattr(rig.fs, "write", written)
     (root / ".gitignore").write_text(".chupa/\nstate/\nrecovery-workspaces/\n")
-    await rig.checkout.git.add(root, ["config.yaml", ".gitignore", "chupa/thing.py"])
+    from tests.test_stages import adopt_conduct
+    conduct = adopt_conduct(root)
+    await rig.checkout.git.add(root, ["config.yaml", ".gitignore", "chupa/thing.py", *conduct])
     await rig.checkout.git.commit(root, "restart fixture config")
     return rig
 

@@ -1,5 +1,7 @@
 """Production seeding path: Check reviews each new ticket and lifts only an approved batch."""
 
+from tests.test_stages import adopt_conduct
+
 import asyncio
 import json
 from datetime import UTC, datetime
@@ -55,6 +57,7 @@ def repo(tmp_path: Path) -> Path:
     own = root / "tickets" / STEM / "ticket.md"
     own.parent.mkdir(parents=True)
     own.write_text(seeding_text())
+    adopt_conduct(root)
     git(root, "init", "-b", "main")
     git(root, "add", ".")
     git(root, "commit", "-m", "base with existing tickets")

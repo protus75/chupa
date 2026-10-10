@@ -1305,7 +1305,7 @@ async def test_serve_conflict_handoff_runs_after_admission_unwinds(root, monkeyp
             assert rig.returns == [("work", "merged")] and chronology == ["unwind"]
             assert (root / "chupa/generated.txt").read_text() == "base\nmain\nbranch\n"
             assert gates == ["scope_fence", "run_record", "ticket_schema", "post_rebase_regate", "correctness_review", "requisition_review",
-                "scope_fence", "verification", "run_record", "diff_budget", "ticket_schema", "post_rebase_regate", "correctness_review", "requisition_review"]
+                "scope_fence", "verification", "run_record", "diff_budget", "core_drift", "ticket_schema", "post_rebase_regate", "correctness_review", "requisition_review"]
             for tier in ("safety", "integration"):
                 assert "exit 0" in (rig.checkout.config.state_dir / f"spools/work/0/merge-{tier}/host-01.txt").read_text()
             assert terminal.body["reviewed_sha"] == rig.pinned

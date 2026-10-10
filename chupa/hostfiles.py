@@ -1,5 +1,7 @@
 """Managed conduct bytes and atomic refresh (CHUPA_PLAN.md sections 8, 15, 17)."""
 
+import ast
+import hashlib
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -57,9 +59,9 @@ def parse(data: bytes) -> tuple[bytes, bytes] | None:
     return data[:markers[0][1]], data[markers[1][2]:]
 
 
-def render(data: bytes) -> bytes:
+def render(data: bytes, *, template: bytes | None = None) -> bytes:
     project = parse(data)
-    block = BEGIN + b"\n" + CORE_TEMPLATE + END
+    block = BEGIN + b"\n" + (CORE_TEMPLATE if template is None else template) + END
     if project is None:
         return block + b"\n\n" + data
     prefix, suffix = project
@@ -93,7 +95,7 @@ def _process_override(remainder: bytes) -> bool:
     return any(_PROCESS_OPENING.match(" ".join(paragraph.split())) for paragraph in paragraphs)
 
 
-def classify_core(data: bytes | None) -> CoreClassification:
+def classify_core(data: bytes | None, *, template: bytes | None = None) -> CoreClassification:
     """Judge supplied bytes against this branch's fresh render, without effects (19.P6)."""
     previous = data if data is not None else b""
     try:
@@ -106,7 +108,7 @@ def classify_core(data: bytes | None) -> CoreClassification:
                                   " or rewrite them as project-content rules")
     if project is None:
         return CoreClassification("missing", "run `chupa core` to insert the managed block")
-    if previous != render(previous):
+    if previous != render(previous, template=template):
         return CoreClassification("drifted", "run `chupa core` to refresh the managed block")
     return CoreClassification("current")
 
@@ -124,3 +126,69 @@ def refresh(paths: Sequence[Path], fs: FileSystem) -> None:
             pending.append((path, fresh))
     for path, fresh in pending:
         fs.write(path, fresh)
+
+
+async def committed_core(workspace, config, git):
+    """Gather raw candidate bytes only when their blob identities match HEAD."""
+    from chupa.artifacts import Finding
+    from chupa.git import GitError
+    from chupa.providers import routed_conduct_paths
+
+    files, findings = {}, []
+    template = CORE_TEMPLATE
+    source_path = "chupa/hostfiles.py"
+    try:
+        source = await git._run(workspace, "show", f"HEAD:{source_path}")
+    except GitError:
+        pass  # External hosts have no engine source; the installed template owns their core.
+    else:
+        try:
+            assignments = [node.value for node in ast.parse(source).body
+                           if isinstance(node, ast.Assign)
+                           and any(isinstance(t, ast.Name) and t.id == "CORE_TEMPLATE" for t in node.targets)]
+            if len(assignments) != 1 or not isinstance(assignments[0], ast.Constant):
+                raise ValueError("CORE_TEMPLATE must be one literal bytes assignment")
+            candidate_template = ast.literal_eval(assignments[0])
+            if not isinstance(candidate_template, bytes):
+                raise ValueError("CORE_TEMPLATE must be bytes")
+            template = candidate_template
+        except (SyntaxError, ValueError):
+            findings.append(Finding(code="core_drift", path=source_path,
+                message="cannot extract candidate chupa core template",
+                paved_road="define CORE_TEMPLATE as one literal bytes assignment"))
+    for path in routed_conduct_paths(config, workspace):
+        rel = path.relative_to(workspace).as_posix()
+        try:
+            blob = await git.rev_parse(workspace, f"HEAD:{rel}")
+        except GitError:
+            blob = None
+        try:
+            data = path.read_bytes()
+        except FileNotFoundError:
+            data = None
+        digest = None if data is None else hashlib.sha1(f"blob {len(data)}\0".encode() + data).hexdigest()
+        if digest != blob:
+            findings.append(Finding(code="core_drift", path=rel,
+                message=f"{rel} differs from its committed candidate bytes",
+                paved_road=f"commit or restore {rel}, then rerun Check"))
+        else:
+            files[rel] = data
+    return dict(core_files=files, core_template=template, core_findings=findings)
+
+
+class CoreDriftGate:
+    """Only current committed routed conduct may enter main (sections 7, 8). Never repairs."""
+
+    code = "core_drift"
+
+    def check(self, artifact, workspace: Path):
+        from chupa.artifacts import Finding
+        from chupa.gates import GateReport
+
+        findings = list(artifact.core_findings)
+        for path, data in artifact.core_files.items():
+            result = classify_core(data, template=artifact.core_template)
+            if result.state != "current":
+                findings.append(Finding(code=self.code, path=path,
+                    message=f"{path}: chupa core is {result.state}", paved_road=result.paved_road))
+        return GateReport(code=self.code, verdict="fail" if findings else "pass", findings=findings)

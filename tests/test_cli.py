@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.test_stages import adopt_conduct
 from chupa.__main__ import main
 from chupa.git import Git
 from chupa.journal import EventType, Journal
@@ -130,11 +131,12 @@ def root(tmp_path: Path) -> Path:
     (root / "CHUPA_PLAN.md").write_text(PLAN)
     (root / "config.yaml").write_text(CONFIG)
     (root / ".gitignore").write_text(".chupa/\n")
+    conduct = adopt_conduct(root)
     g = Git(SubprocessExec(), env=ENV, timeout=30.0)
 
     async def seed():
         await g.init(root, branch="main")
-        await g.add(root, ["chupa", "CHUPA_PLAN.md", "config.yaml", ".gitignore"])
+        await g.add(root, ["chupa", "CHUPA_PLAN.md", "config.yaml", ".gitignore", *conduct])
         await g.commit(root, "base")
 
     asyncio.run(seed())
@@ -646,3 +648,53 @@ def test_migrate_config_before_load(tmp_path, monkeypatch, capsys, explicit):
     assert not (tmp_path / ".chupa").exists()
     if explicit:
         assert (tmp_path / "config.yaml").read_bytes() == b"unselected invalid config"
+
+
+def test_core_and_gate_share_routed_paths(tmp_path, monkeypatch):
+    from chupa import hostfiles, providers, __main__ as module
+    from tests.test_hostfiles import RecordingFS
+    from tests.test_stages import evidence
+    from chupa.config import load_config
+    config_path = core_config(tmp_path, [('medium', 'implement', ['codex', 'claude', 'codex'])])
+    config = load_config(config_path, cwd=tmp_path)
+    resolver = providers.routed_conduct_paths
+    calls = []
+    def resolved(config, root):
+        paths = resolver(config, root)
+        calls.append(paths)
+        return paths
+    monkeypatch.setattr(providers, 'routed_conduct_paths', resolved)
+    monkeypatch.setattr(module, 'routed_conduct_paths', resolved)
+    project = b'# project\r\nbytes\xff without newline'
+    for path in resolver(config, tmp_path):
+        path.write_bytes(project)
+    fs = RecordingFS()
+    monkeypatch.setattr(module, 'LocalFileSystem', lambda: fs)
+    assert cli(tmp_path, 'core') == 0
+    assert cli(tmp_path, 'core') == 0
+    g = Git(SubprocessExec(), env=ENV, timeout=30)
+    async def check():
+        await g.init(tmp_path, branch='main')
+        await g.add(tmp_path, ['config.yaml', 'CLAUDE.md', 'AGENTS.md'])
+        await g.commit(tmp_path, 'mechanical adoption')
+        gathered = await hostfiles.committed_core(tmp_path, config, g)
+        assert hostfiles.CoreDriftGate().check(evidence(**gathered), tmp_path).verdict == 'pass'
+    asyncio.run(check())
+    assert calls == [resolver(config, tmp_path)] * 3
+    assert len(fs.writes) == 2
+    for path in resolver(config, tmp_path):
+        assert hostfiles.parse(path.read_bytes()) == (b'', b'\n\n' + project)
+    before = {p: p.read_bytes() for p in resolver(config, tmp_path)}
+    damaged = tmp_path / 'CLAUDE.md'
+    damaged.write_bytes(before[damaged] + b'stray chupa:core')
+    corrupt = {p: p.read_bytes() for p in before}
+    assert cli(tmp_path, 'core') == 2
+    assert {p: p.read_bytes() for p in before} == corrupt and len(fs.writes) == 2
+    async def refusal():
+        await g.add(tmp_path, ['CLAUDE.md'])
+        await g.commit(tmp_path, 'committed marker refusal')
+        gathered = await hostfiles.committed_core(tmp_path, config, g)
+        report = hostfiles.CoreDriftGate().check(evidence(**gathered), tmp_path)
+        [finding] = report.findings
+        assert finding.path == 'CLAUDE.md' and 'retain all project content' in finding.paved_road
+    asyncio.run(refusal())

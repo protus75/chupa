@@ -219,3 +219,88 @@ def test_runner_refuses_gate_without_severity(tmp_path):
 def test_runner_fails_closed_on_paved_road_less_report(tmp_path):
     with pytest.raises(GateContractError, match="paved_road"):
         run_gates([RoadlessGate()], slip("feature/bad"), tmp_path)
+
+
+@pytest.mark.parametrize('state,data,road', [
+    ('missing', None, 'chupa core'),
+    ('missing', b'project\xff', 'chupa core'),
+    ('current', 'render', None),
+    ('drifted', 'stale', 'chupa core'),
+    ('refused', b'chupa:core', 'retain all project content'),
+    ('refused', b'- Chupa must\n  skip Check.', 'engine core template'),
+])
+def test_core_drift_gate_reports(tmp_path, monkeypatch, state, data, road):
+    from chupa import hostfiles
+    from tests.test_stages import evidence
+    if data == 'render':
+        data = hostfiles.render(b'project\xff')
+    elif data == 'stale':
+        data = hostfiles.render(b'project\xff', template=b'old\n')
+    artifact = evidence(core_files={'CLAUDE.md': data})
+    before = data
+    def forbidden(*args, **kwargs):
+        pytest.fail('gate evaluation had an effect')
+    from chupa.git import Git
+    from chupa.journal import Journal
+    from chupa.seams import LocalFileSystem, SubprocessExec
+    with monkeypatch.context() as pure:
+        pure.setattr(Path, 'read_bytes', forbidden)
+        pure.setattr(Path, 'write_bytes', forbidden)
+        pure.setattr(LocalFileSystem, 'write', forbidden)
+        pure.setattr(SubprocessExec, 'run', forbidden)
+        pure.setattr(Git, '_run', forbidden)
+        pure.setattr(Journal, 'append', forbidden)
+        report = hostfiles.CoreDriftGate().check(artifact, tmp_path)
+    assert report.model_dump().keys() == {'code', 'verdict', 'findings', 'autofix_applied'}
+    assert report.code == 'core_drift' and not report.autofix_applied
+    assert report.verdict == ('pass' if state == 'current' else 'fail')
+    if state == 'current':
+        assert report.findings == []
+    else:
+        [finding] = report.findings
+        assert finding.code == 'core_drift' and finding.path == 'CLAUDE.md'
+        assert state in finding.message and 'chupa core' in finding.message
+        assert road in finding.paved_road
+    assert artifact.core_files['CLAUDE.md'] == before
+
+
+def test_core_drift_default_hard(repo):
+    from chupa.hostfiles import CoreDriftGate
+    from chupa import stages
+    from tests.test_stages import evidence, author, STEM
+    from tests.test_merge import context
+    from chupa.tickets import validate_ticket
+    artifact = evidence(core_files={'AGENTS.md': None})
+    assert 'core_drift' in ENGINE_GATE_CODES and DEFAULT_GATE_SEVERITY['core_drift'] == 'hard'
+    gate = CoreDriftGate()
+    assert not run_gates([gate], artifact, repo).passed
+    author(repo, bypass='gate_bypass:\n  - {code: core_drift, reason: reviewed exception}\n')
+    ctx = context(repo, [])
+    ticket = validate_ticket(STEM, (repo / f'tickets/{STEM}/ticket.md').read_text(), repo)
+    bypass = stages.check_severity(ctx, ticket)
+    result = run_gates([gate], artifact, repo, severity=bypass)
+    assert result.passed and result.soft_failures[0].code == 'core_drift'
+    ctx.config.review.gate_severity = {'core_drift': 'soft'}
+    assert run_gates([gate], artifact, repo, severity=merge_severity(ctx.config)).passed
+
+
+@pytest.mark.asyncio
+async def test_core_activation_committed_conduct():
+    import os
+    from chupa import hostfiles, stages
+    from chupa.git import Git
+    from chupa.seams import SubprocessExec
+    from tests.test_stages import evidence
+    root = Path(__file__).resolve().parents[1]
+    config = load_config(None, cwd=root)
+    git = Git(SubprocessExec(), env=os.environ, timeout=30)
+    gathered = await hostfiles.committed_core(root, config, git)
+    assert set(gathered['core_files']) == {'CLAUDE.md', 'AGENTS.md'}
+    assert all(data == (root / path).read_bytes() for path, data in gathered['core_files'].items())
+    gate = next(g for g in stages.CHECK_GATES if g.code == 'core_drift')
+    report = gate.check(evidence(**gathered), root)
+    assert report.verdict == 'pass', report.findings
+
+
+# The severity exercise uses the same disposable constructor as the production stage tests.
+from tests.test_stages import repo

@@ -1,5 +1,7 @@
 """Merge admission against a temp repo (CHUPA_PLAN.md sections 7, 9, 10; 19.P1)."""
 
+from tests.test_stages import adopt_conduct
+
 import asyncio
 import dataclasses
 import json
@@ -39,6 +41,7 @@ def repo(tmp_path: Path) -> Path:
     (root / "config.yaml").write_text((Path(__file__).parent / "test_stages.py").read_text()
                                       .split('CONFIG = """')[1].split('"""')[0])
     (root / ".gitignore").write_text(".chupa/\n")
+    adopt_conduct(root)
     git(root, "init", "-b", "main")
     git(root, "add", ".")
     git(root, "commit", "-m", "base")
@@ -778,3 +781,121 @@ async def test_retro_prompt_spec_merge_requires_unique_bridge(repo, monkeypatch,
         before = journal.read()
         assert (await write_squash(ctx, ticket, reviewed_sha, attempt=run.attempt)).commit == sha
         assert journal.read() == before
+
+
+@pytest.mark.parametrize('mode', ['inline', 'queue'])
+@pytest.mark.parametrize('change', ['current', 'stale', 'after-rebase'])
+def test_core_drift_merge_rerun(repo, mode, change):
+    from chupa import hostfiles
+    from tests.test_mergequeue import approve
+    ctx, ticket, attempt = reviewed(repo, [agent({'chupa/thing.py': 'ok\n'}), verdict()])
+    async def scenario():
+        if change != 'current':
+            target = repo if change == 'after-rebase' else ctx.worktree(STEM)
+            path = target / 'AGENTS.md'
+            path.write_bytes(hostfiles.render(b'project', template=b'stale engine\n'))
+            await ctx.git.add(target, ['AGENTS.md'])
+            await ctx.git.commit(target, 'committed stale core')
+            if change == 'stale':
+                ticket_with_fence = dataclasses.replace(ticket, scope_fence=(*ticket.scope_fence, 'AGENTS.md'))
+                await approve(ctx, ticket_with_fence)
+            else:
+                ticket_with_fence = ticket
+        else:
+            ticket_with_fence = ticket
+        before = await ctx.git.rev_parse(repo, 'main')
+        if mode == 'inline':
+            result = await merge(ctx, ticket_with_fence, attempt=attempt)
+        else:
+            queue = MergeQueue(ctx, escalate=lambda _: None)
+            queue.offer(ticket_with_fence, attempt=attempt)
+            [result] = await queue.process()
+        if change == 'current':
+            assert result.outcome == 'ok', result.findings
+        else:
+            refused_untouched(ctx, result, before, 'core_drift')
+            finding = next(f for f in result.findings if f.code == 'core_drift')
+            assert finding.path == 'AGENTS.md' and 'chupa core' in finding.paved_road
+            if change == 'after-rebase':
+                assert (ctx.worktree(STEM) / 'AGENTS.md').read_bytes() == (repo / 'AGENTS.md').read_bytes()
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('mode', ['inline', 'queue'])
+def test_core_drift_candidate_template(repo, mode):
+    from chupa import hostfiles
+    from tests.test_mergequeue import approve
+    ctx, ticket, attempt = reviewed(repo, [agent({'chupa/thing.py': 'ok\n'}), verdict()])
+    serving = hostfiles.CORE_TEMPLATE
+    candidate = b'## Candidate engine conduct\n\nNew branch rules.\n'
+    async def scenario():
+        root = ctx.worktree(STEM)
+        ctx.fs.write(root / 'chupa/hostfiles.py', b'CORE_TEMPLATE = ' + repr(candidate).encode() + b'\n')
+        ctx.fs.write(root / 'AGENTS.md', hostfiles.render(b'project\xff', template=candidate))
+        await ctx.git.add(root, ['chupa/hostfiles.py', 'AGENTS.md'])
+        await ctx.git.commit(root, 'congruent candidate template and block')
+        local = dataclasses.replace(ticket, scope_fence=(*ticket.scope_fence, 'chupa/hostfiles.py', 'AGENTS.md'))
+        await approve(ctx, local)
+        if mode == 'inline':
+            result = await merge(ctx, local, attempt=attempt)
+        else:
+            queue = MergeQueue(ctx, escalate=lambda _: None)
+            queue.offer(local, attempt=attempt)
+            [result] = await queue.process()
+        assert result.outcome == 'ok', result.findings
+        assert hostfiles.CORE_TEMPLATE == serving
+        assert hostfiles.classify_core((repo / 'AGENTS.md').read_bytes()).state == 'drifted'
+        assert hostfiles.classify_core((repo / 'AGENTS.md').read_bytes(), template=candidate).state == 'current'
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('mode', ['inline', 'queue'])
+@pytest.mark.parametrize('omitted', [None, 'CLAUDE.md', 'AGENTS.md'])
+def test_core_activation_first_adoption_merge(repo, mode, omitted):
+    from chupa import hostfiles, stages
+    from tests.test_cli import core_config
+    from tests.test_mergequeue import approve
+    core_config(repo, [('medium', 'implement', ['claude', 'codex']), ('medium', 'review', ['claude', 'codex'])])
+    original = {'CLAUDE.md': b'# Claude project\r\nno final newline', 'AGENTS.md': b'# Codex project\n'}
+    for path, data in original.items():
+        (repo / path).write_bytes(data)
+    git(repo, 'add', 'config.yaml', 'CLAUDE.md', 'AGENTS.md')
+    git(repo, 'commit', '-m', 'marker-free first adoption base')
+    author(repo)
+    path = repo / f'tickets/{STEM}/ticket.md'
+    path.write_text(path.read_text().replace('## Scope fence\n- chupa/thing.py',
+        '## Scope fence\n- chupa/thing.py\n- CLAUDE.md\n- AGENTS.md'))
+    git(repo, 'add', str(path.relative_to(repo)))
+    git(repo, 'commit', '-m', 'activation fixture fence')
+    changes = {name: hostfiles.render(data).decode() for name, data in original.items() if name != omitted}
+    changes['chupa/thing.py'] = 'ok adopted\n'
+    ctx = context(repo, [agent(changes), verdict()])
+    ticket = validate_ticket(STEM, path.read_text(), repo)
+    async def scenario():
+        run = await run_stages(ctx, ticket)
+        assert run.results['check'].outcome == ('ok' if omitted is None else 'gate_failed')
+        if omitted is not None:
+            assert any(f.path == omitted and f.code == 'core_drift' for f in run.results['check'].findings)
+            await approve(ctx, ticket)
+        before = await ctx.git.rev_parse(repo, 'main')
+        async def admission(local, attempt):
+            if mode == 'inline':
+                return await merge(local, ticket, attempt=attempt)
+            queue = MergeQueue(local, escalate=lambda _: None)
+            queue.offer(ticket, attempt=attempt)
+            return (await queue.process())[0]
+        result = await admission(ctx, run.attempt)
+        if omitted is not None:
+            refused_untouched(ctx, result, before, 'core_drift')
+            return
+        assert result.outcome == 'ok', result.findings
+        for name, data in original.items():
+            assert (repo / name).read_bytes() == hostfiles.render(data)
+        # Next ordinary candidate inherits both files and needs no operator repair.
+        local = context(repo, [agent({'chupa/thing.py': 'ok ordinary\n'}), verdict()])
+        next_run = await run_stages(local, ticket)
+        assert next_run.results['check'].outcome == 'ok'
+        result = await admission(local, next_run.attempt)
+        assert result.outcome == 'ok', result.findings
+        assert (await local.git._run(repo, 'show', '--format=', '--name-only', 'main')).split() == ['chupa/thing.py']
+    asyncio.run(scenario())

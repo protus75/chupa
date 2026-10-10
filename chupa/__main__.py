@@ -22,7 +22,7 @@ from chupa.git import Git
 from chupa.journal import Journal, JournalCorruption
 from chupa.lockfile import LockHeld, Lockfile
 from chupa.notify import NOTIFY_TIMEOUT_S, NotificationReconciler
-from chupa.providers import ProviderLLM, ProviderSession, ProviderSetupError, candidates, child_env
+from chupa.providers import ProviderLLM, ProviderSession, ProviderSetupError, routed_conduct_paths, child_env
 from chupa.redact import Redactor
 from chupa.restart import Restart
 from chupa.seams import Clock, ExecutableNotFound, LocalFileSystem, ProcessExec, SubprocessExec
@@ -218,10 +218,7 @@ def main(
             return 0 if all(r.passed for r in results) else 2
         config = load_config(args.config, cwd=repo)
         if args.verb == "core":
-            paths = [repo / ("CLAUDE.md" if served.provider.name == "claude" else "AGENTS.md")
-                     for route in config.routing
-                     for served in candidates(config, route.tier, route.surface)]
-            hostfiles.refresh(paths, LocalFileSystem())
+            hostfiles.refresh(routed_conduct_paths(config, repo), LocalFileSystem())
             return 0
         exec_ = SubprocessExec()
         checkout = runner.Checkout(

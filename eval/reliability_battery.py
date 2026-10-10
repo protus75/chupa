@@ -13,6 +13,8 @@ from pathlib import Path
 import yaml
 
 from chupa import __main__ as cli, runner
+from chupa.hostfiles import render
+from chupa.providers import routed_conduct_paths
 from chupa.artifacts import (Harvest, RELIABILITY_BATTERY_MEMBERS, _RELIABILITY_BATTERY_EXPECTED,
     RELIABILITY_BATTERY_SPEC_VERSION, ReliabilityBatteryEntry, ReliabilityBatteryReport)
 from chupa.audit import audit_journal
@@ -140,8 +142,11 @@ class _Member:
                  'verify.py': "from pathlib import Path\nassert Path('work.txt').read_text().strip() in {'base', 'recovered'}\n"}
         for path, data in files.items():
             self.fs.write(self.root / path, data.encode())
+        conduct = routed_conduct_paths(load_config(None, cwd=self.root), self.root)
+        for path in conduct:
+            self.fs.write(path, render(path.read_bytes() if path.exists() else b""))
         await self.git.init(self.root, branch='main')
-        await self.git.add(self.root, list(files))
+        await self.git.add(self.root, [*files, *(p.name for p in conduct)])
         await self.git.commit(self.root, 'disposable battery baseline')
         checkout = runner.Checkout(self.root, load_config(None, cwd=self.root), self.env,
             self.exec, self.git, self.journal, self.fs, self.time, self.time.sleep)
