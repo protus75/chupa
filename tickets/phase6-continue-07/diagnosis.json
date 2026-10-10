@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "c70254d9a67e63a06a7dd6f81c667b825782187c",
+  "stem": "phase6-continue-07",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "retry",
+  "lessons": [
+    "Check snagged the exit-receipt-machinery seed for authoring_error scope_fence. Retain approved bytes for any seed whose ticket_sha still matches. Re-author only the snagged seed, applying the 19.L caller and contradicted-test closure.",
+    "Machinery criteria need the regression bug to pass _gather_bug in chupa/stages.py: kind: bug, a ## Regression '- carries:' prefix naming a changed file under tests/test, fixtures/fixture, and stdout JSON regression_result. The committed hosts/fixture scenario meets none of these.",
+    "Add tests/test_fixture_host.py to the seed's Scope fence and Context. In Scope in, allow migrating only contradicted assertions, in the same commit: closed edits=={settings.json}, scope_fence, row keys, settings-only diff_names, engine_plane_safety_inventory.",
+    "Make the seed's Verification run the migrated tests/test_fixture_host.py assertions, not an unchanged preservation run. Record each contradicted assertion and its caller in tests/test_seeded_phase6_07.py as an earned 19.L addition.",
+    "If the plan does not define how the fixture regression scenario meets the carries and regression_result protocol while keeping the fixture unchanged, return premise_failed, kind: spec_gap, naming 19.P6.exit-receipt-machinery. Do not invent the shape."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
