@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The plan explicitly requires updating tests/test_serve.py, but the ticket still excludes it from the scope fence.
+The cited activation contract explicitly requires this test update, but the ticket excludes its file from both Context and Scope fence.
 
 ## Dead ends
 
-An in-memory probe adding a passing core_drift gate reproduced the exact gate-sequence assertion failure without changing files.
+An in-memory probe adding a passing core_drift gate to CHECK_GATES reproduced the exact gate-sequence assertion failure; the same test passed on the untouched branch, whose HEAD equals the base commit.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during scope validation, within the expected 60-minute budget.
+Stopped during scope validation within the expected 60-minute budget.
 
