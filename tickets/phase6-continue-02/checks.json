@@ -1,0 +1,181 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "8e38b1849b6f9235b9db78ea67dadcecb5fa6946",
+  "stem": "phase6-continue-02",
+  "passed": false,
+  "changed_files": [
+    "tests/test_seeded_phase6_02.py"
+  ],
+  "inserted_lines": 516,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "requisition_review",
+      "verdict": "fail",
+      "findings": [
+        {
+          "code": "spec_depth",
+          "path": "CHUPA_PLAN.md",
+          "line": 2623,
+          "message": "19.P6.fixture-host-scaffold says to commit bounded 'version-1 report fixtures following section 12's report fields and origins', and test_fixture_reports_are_bounded must validate them. Section 12.8 (CHUPA_PLAN.md line 1354) names the fields only loosely: origin, summary, dedup signature, app commit/version, implicated paths and evidence. It gives no version scalar, no exact key names and no evidence layout. The concrete version-1 schema appears only in the later unit 19.P6.report-inbox-triage (line 2638). That schema has `schema_version: 1`, `origin`, `summary`, `app_commit`, `app_version`, optional `implicated_paths`, `evidence.{replay,log}` and the self_diagnosed-only `game_slug`/`anomaly_code`/`location`. No engine validator for it exists yet: chupa/inbox.py is unbuilt, and config.py only has `report_inbox`. The entry unit therefore leaves out the exact record shape the fixtures and test must follow, and the implementer would have to invent field names. The later inbox deliverable could then reject the committed fixtures.",
+          "paved_road": "Fix the plan first. In 19.P6.fixture-host-scaffold Records, state the exact version-1 report fields, origin-specific required fields and evidence layout, either inline or by naming 19.P6.report-inbox-triage's Records as the binding schema. Then re-author the ticket. Add section 12 and the governing unit to `## Plan contract` so the Implement render includes the schema, and make criterion 5 check those exact keys.",
+          "kind": "spec_gap",
+          "unit": "19.P6.fixture-host-scaffold"
+        },
+        {
+          "code": "context",
+          "path": null,
+          "line": null,
+          "message": "Criterion 1 requires test_fixture_host_entry_units to exercise `required_units`, `resolve_plan_contract` and `entry_unit_gap`. Those functions live in chupa/specs.py (lines 307, 345, 363), which is not in `## Context`. The read-before-write rule needs the owning artifact for the signatures and four-part semantics the test asserts.",
+          "paved_road": "Add chupa/specs.py to `## Context`.",
+          "kind": "authoring_error",
+          "unit": null
+        },
+        {
+          "code": "plan_contract_missing_section",
+          "path": null,
+          "line": null,
+          "message": "Criterion 5 requires test_host_contract_report_custody_and_cutover to check 'version-1 fields/origins' (and Scope says the doc describes them). 19.P6.host-contract-doc refers to them only as 'section 12's version-1 reports, origins, summary, app commit/version, implicated paths and evidence'. The concrete schema lives in section 12: origin `self_diagnosed | player`, summary, dedup signature recipe, app commit/version, optional implicated code paths and evidence file paths. The ticket's Plan contract cites only 19.I, the unit and section 15, so the Implement render does not carry the facts that criterion's test must pin. The implementer would have to guess the field names, which breaks read-before-write.",
+          "paved_road": "Add `section 12` to the ticket's `## Plan contract`, so the render includes the normative version-1 report schema, origins and box-policy rows. Leave criterion 5 unchanged.",
+          "kind": "authoring_error",
+          "unit": null
+        }
+      ],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [
+    {
+      "stem": "fixture-host-scaffold",
+      "ticket_sha": "e0801c36f40b29350db23109c0a7671b7a12ec51",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "spec_depth",
+          "path": "CHUPA_PLAN.md",
+          "line": 2623,
+          "message": "19.P6.fixture-host-scaffold says to commit bounded 'version-1 report fixtures following section 12's report fields and origins', and test_fixture_reports_are_bounded must validate them. Section 12.8 (CHUPA_PLAN.md line 1354) names the fields only loosely: origin, summary, dedup signature, app commit/version, implicated paths and evidence. It gives no version scalar, no exact key names and no evidence layout. The concrete version-1 schema appears only in the later unit 19.P6.report-inbox-triage (line 2638). That schema has `schema_version: 1`, `origin`, `summary`, `app_commit`, `app_version`, optional `implicated_paths`, `evidence.{replay,log}` and the self_diagnosed-only `game_slug`/`anomaly_code`/`location`. No engine validator for it exists yet: chupa/inbox.py is unbuilt, and config.py only has `report_inbox`. The entry unit therefore leaves out the exact record shape the fixtures and test must follow, and the implementer would have to invent field names. The later inbox deliverable could then reject the committed fixtures.",
+          "paved_road": "Fix the plan first. In 19.P6.fixture-host-scaffold Records, state the exact version-1 report fields, origin-specific required fields and evidence layout, either inline or by naming 19.P6.report-inbox-triage's Records as the binding schema. Then re-author the ticket. Add section 12 and the governing unit to `## Plan contract` so the Implement render includes the schema, and make criterion 5 check those exact keys.",
+          "kind": "spec_gap",
+          "unit": "19.P6.fixture-host-scaffold"
+        },
+        {
+          "code": "context",
+          "path": null,
+          "line": null,
+          "message": "Criterion 1 requires test_fixture_host_entry_units to exercise `required_units`, `resolve_plan_contract` and `entry_unit_gap`. Those functions live in chupa/specs.py (lines 307, 345, 363), which is not in `## Context`. The read-before-write rule needs the owning artifact for the signatures and four-part semantics the test asserts.",
+          "paved_road": "Add chupa/specs.py to `## Context`.",
+          "kind": "authoring_error",
+          "unit": null
+        }
+      ],
+      "mechanical": null
+    },
+    {
+      "stem": "host-contract-doc",
+      "ticket_sha": "642ca00ad61fea0def6e3070895349df588dc30f",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "plan_contract_missing_section",
+          "path": null,
+          "line": null,
+          "message": "Criterion 5 requires test_host_contract_report_custody_and_cutover to check 'version-1 fields/origins' (and Scope says the doc describes them). 19.P6.host-contract-doc refers to them only as 'section 12's version-1 reports, origins, summary, app commit/version, implicated paths and evidence'. The concrete schema lives in section 12: origin `self_diagnosed | player`, summary, dedup signature recipe, app commit/version, optional implicated code paths and evidence file paths. The ticket's Plan contract cites only 19.I, the unit and section 15, so the Implement render does not carry the facts that criterion's test must pin. The implementer would have to guess the field names, which breaks read-before-write.",
+          "paved_road": "Add `section 12` to the ticket's `## Plan contract`, so the render includes the normative version-1 report schema, origins and box-policy rows. Leave criterion 5 unchanged.",
+          "kind": "authoring_error",
+          "unit": null
+        }
+      ],
+      "mechanical": null
+    },
+    {
+      "stem": "phase6-continue-03",
+      "ticket_sha": "63430a4d95568b9f9e0f1bf506780da2370a06de",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
+    }
+  ],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_seeded_phase6_02.py"
+      ],
+      "rc": 0,
+      "tail": "....                                                                     [100%]\n4 passed in 0.31s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_hostfiles.py",
+        "tests/test_cli.py",
+        "tests/test_config.py"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 13%]\n........................................................................ [ 26%]\n........................................................................ [ 39%]\n........................................................................ [ 52%]\n........................................................................ [ 65%]\n........................................................................ [ 78%]\n........................................................................ [ 91%]\n.............................................                            [100%]\n549 passed in 5.42s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_plan_lint.py"
+      ],
+      "rc": 0,
+      "tail": "............................                                             [100%]\n28 passed in 0.19s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "................................................. [ 71%]\n........................................................................ [ 73%]\n........................................................................ [ 75%]\n........................................................................ [ 77%]\n........................................................................ [ 79%]\n........................................................................ [ 81%]\n........................................................................ [ 83%]\n........................................................................ [ 85%]\n........................................................................ [ 87%]\n........................................................................ [ 89%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 96%]\n........................................................................ [ 98%]\n..................................................................       [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase6-continue-02/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3522 passed, 1 warning in 285.93s (0:04:45)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
