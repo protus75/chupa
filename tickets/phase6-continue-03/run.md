@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-The prior supervised-merge-hold contract gap is repaired in the committed plan; no fence additions were needed.
+Both mergequeue and serve gate-sequence assertions earned fence additions; measured headroom required tests/test_serve.py On-demand.
 
 ## Dead ends
 
-Corrected snapshot extraction that initially counted test filenames as test functions.
+Corrected a generated ROOT constant before verification.
 
 ## Second problems filed
 
