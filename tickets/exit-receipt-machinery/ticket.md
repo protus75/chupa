@@ -46,6 +46,7 @@ state: confirmed
 - hosts/fixture/settings.json
 - chupa/seams.py
 - chupa/git.py
+- tests/test_inbox.py
 
 ## Plan contract
 - 19.I
@@ -71,6 +72,8 @@ Before implementation, test required_units, resolve_plan_contract and entry_unit
 
 Receipt regeneration consumes only validated committed input bytes and preserves the baseline's actual embedded identity, including complete or partial NO_GO. No live journal is needed for regeneration. No new configuration, signal, frontmatter, host cutover, live-host soak, seed emission, manual evidence commit or production change outside this fence is part of this deliverable.
 
+Migrate tests/test_inbox.py::test_report_replay_to_regression to consume the migrated bug fixture instead of appending its own Regression section, keeping its report-custody and regression-overlay proofs.
+
 ## Scope fence
 - chupa/artifacts.py
 - chupa/stages.py
@@ -80,6 +83,7 @@ Receipt regeneration consumes only validated committed input bytes and preserves
 - tests/test_stages.py
 - hosts/fixture/
 - tests/test_fixture_host.py
+- tests/test_inbox.py
 
 ## Acceptance criteria
 1. `uv run pytest -q tests/test_host_loop.py` passes with tests/test_host_loop.py::test_exit_receipt_entry_unit proving required_units, unique resolve_plan_contract, all four entry_unit_gap parts and missing-part refusal, including successor-contract closure before seed writes.

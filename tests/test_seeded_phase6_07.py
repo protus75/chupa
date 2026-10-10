@@ -72,7 +72,7 @@ FENCE_FLOORS = {'exit-receipt-machinery': ('chupa/artifacts.py',
                             'hosts/fixture/'),
  'phase6-continue-08': ('tickets', 'tests/test_seeded_phase6_08.py')}
 
-FENCE_ADDITIONS = {'exit-receipt-machinery': ('tests/test_fixture_host.py',), 'phase6-continue-08': ()}
+FENCE_ADDITIONS = {'exit-receipt-machinery': ('tests/test_fixture_host.py', 'tests/test_inbox.py'), 'phase6-continue-08': ()}
 
 REQUIRED = {'exit-receipt-machinery': ('19.P6.exit-receipt-machinery',
                             '19.P6.fixture-host-scaffold',
@@ -252,6 +252,10 @@ FILE_SIZES = {'chupa/artifacts.py': {'bytes': 18577,
                           'chars': 37654,
                           'sha256': 'b90671a899f04e39ee8af147030842a9243e9287b961aaf50e57bfdb484c5792',
                           'delimiter_free': True},
+ 'tests/test_inbox.py': {'bytes': 15230,
+                         'chars': 15230,
+                         'sha256': '1ac59681b8b61617ce3c95b1ad6f9064258fc446221192f68f430ce33bdadaec',
+                         'delimiter_free': True},
  'tests/test_fixture_host.py': {'bytes': 20488,
                                 'chars': 20488,
                                 'sha256': 'e1157abc7f94ecc848f0031c27444a1acaeed9709aed1df89cf6bbb0b7ea3bae',
@@ -427,9 +431,9 @@ IMPLEMENT_SPEC = {'bytes': 5306,
 
 IMPLEMENT_BODY_CHARS = 5185
 
-AUTHORED = {'exit-receipt-machinery': {'bytes': 8170,
-                            'chars': 8170,
-                            'sha256': 'd358bcad5671766d87b90b441bd8123b052d2bbbca186acad47d9ac9edc7264c',
+AUTHORED = {'exit-receipt-machinery': {'bytes': 8420,
+                            'chars': 8420,
+                            'sha256': '141fe96a0f73bb691e794ec40061ebbed3b66f704b549fa67af2f5eaa894772f',
                             'delimiter_free': True,
                             'plan': ('19.I',
                                      '19.P6.exit-receipt-machinery',
@@ -470,7 +474,8 @@ AUTHORED = {'exit-receipt-machinery': {'bytes': 8170,
                                         'hosts/fixture/scripts.json',
                                         'hosts/fixture/settings.json',
                                         'chupa/seams.py',
-                                        'chupa/git.py'),
+                                        'chupa/git.py',
+                                        'tests/test_inbox.py'),
                             'on_demand': (),
                             'fenced_existing': ('chupa/artifacts.py',
                                                 'chupa/stages.py',
@@ -503,10 +508,11 @@ AUTHORED = {'exit-receipt-machinery': {'bytes': 8170,
                                                 'hosts/fixture/reports/regression.json',
                                                 'hosts/fixture/scaffold.py',
                                                 'hosts/fixture/scripts.json',
-                                                'hosts/fixture/settings.json'),
+                                                'hosts/fixture/settings.json',
+                                                'tests/test_inbox.py'),
                             'created': ('eval/host_loop.py', 'tests/test_host_loop.py'),
                             'render_overhead': 1148,
-                            'actual_render': 264575},
+                            'actual_render': 280055},
  'phase6-continue-08': {'bytes': 6218,
                         'chars': 6218,
                         'sha256': '1c0b489e43fb84f35953cb85c6b3ac170752f791b76ab7af43b2124d703121e8',
@@ -557,6 +563,7 @@ CLOSURE_EVIDENCE = {
         "These assertions must migrate with the fixture's real bug-gate shape; "
         "tests/test_fixture_host.py::implement and test_fixture_cli_adapter_roundtrip call scripted_reply."
     ),
+    "tests/test_inbox.py": '19.L rule 2: tests/test_inbox.py::test_report_replay_to_regression at line 234 appends its own ## Regression section to the fixture Author ticket; the bug-ticket migration gives that ticket one, so the test must consume the migrated fixture.',
 }
 CLOSURE_DECISIONS = (
     "New eval/host_loop.py has no existing callers or public-operation allowlist.",
@@ -669,7 +676,7 @@ def test_phase6_07_entry_depth():
 def test_phase6_07_closure():
     assert len(AUTHORING_HEAD) == len(IDIOM_BLOB) == 40
     assert FENCE_FLOORS[BATCH[0]] == tuple(REGISTRY_ROW["fence"])
-    assert FENCE_ADDITIONS == {BATCH[0]: ("tests/test_fixture_host.py",), BATCH[1]: ()}
+    assert FENCE_ADDITIONS == {BATCH[0]: ("tests/test_fixture_host.py", "tests/test_inbox.py"), BATCH[1]: ()}
     assert set(CLOSURE_EVIDENCE) == set(FENCE_ADDITIONS[BATCH[0]])
     evidence = CLOSURE_EVIDENCE["tests/test_fixture_host.py"]
     for fact in ("19.L rule 2", "_gather_bug", "scripted_reply", "regression_result",
@@ -710,7 +717,7 @@ def test_phase6_07_closure():
     for record in (*PLAN_SIZES.values(), *FILE_SIZES.values(), *HISTORICAL_SNAPSHOTS.values(), IMPLEMENT_SPEC):
         assert record["bytes"] >= record["chars"] > 0 and len(record["sha256"]) == 64
     t = _ticket(BATCH[0])
-    preserved = {"tests/test_bug_gate.py", "tests/test_inbox.py", "tests/test_triage.py",
+    preserved = {"tests/test_bug_gate.py", "tests/test_triage.py",
                  "tests/test_supervised_merge_hold.py", "tests/test_merge.py", "tests/test_seed_path.py",
                  "tests/test_plan_lint.py"}
     assert not preserved & (set(t.context) | set(t.on_demand) | set(t.scope_fence))
