@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Dependency history is pinned to dispatch HEAD; the receipt preserves the committed partial NO_GO baseline’s actual verdict signal.
+Fresh harness reports matched existing bytes; neither report was included in the commit.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60m; completed in under 15m, including the 5m28s full suite.
+Expected 60m; completed in under 20m, including the 329-second full suite.
 
