@@ -896,3 +896,56 @@ def test_routed_conduct_paths(tmp_path, names, expected):
     assert routed_conduct_paths(config, tmp_path) == tuple(tmp_path / p for p in expected)
     # The declared but unrouted provider must never add a path.
     assert len(config.providers) == 2
+
+
+def test_eval_budget_ceiling_before_spawn(tmp_path):
+    from dataclasses import replace
+    from chupa.providers import ProviderBudgetExceeded
+    cfg = config(tmp_path)
+    process = FakeExec((0, claude_ok(), ""), (0, codex_ok(), ""), (0, claude_ok(), ""))
+    client = llm(cfg, process, tmp_path)
+    asyncio.run(client.call(replace(req("review"), budget_usd=2.25)))
+    assert process.calls[-1]["argv"][-2:] == ["--max-budget-usd", "2.25"]
+    asyncio.run(client.call(replace(req("review", tier="low"), budget_usd=1.5)))
+    assert "--max-budget-usd" not in process.calls[-1]["argv"]
+    before = list(process.calls)
+    for budget in (1.49, 0.0):
+        with pytest.raises(ProviderBudgetExceeded, match="rerun"):
+            asyncio.run(client.call(replace(req("review", tier="low"), budget_usd=budget)))
+        assert process.calls == before
+    asyncio.run(client.call(req("review")))
+    assert "--max-budget-usd" not in process.calls[-1]["argv"]
+    for budget in (-1, float("inf"), float("nan"), True):
+        with pytest.raises(ValueError, match="finite"):
+            replace(req("review"), budget_usd=budget)
+
+    # Exercise the durable production call boundary, not just the raw adapter.
+    from chupa.effects import Effects
+    from chupa.llmeffect import llm_call
+    from chupa.thresh import fold_breakers
+    journal = client.session.journal
+    effects = Effects(journal)
+    before_events = journal.read()
+    before_breakers = fold_breakers(journal, client.session.clock())
+    before_calls = list(process.calls)
+    admitted = client.session.thresh.run
+    async def forbidden_admission(*args, **kwargs):
+        pytest.fail("budget refusal must precede Thresh.run")
+    client.session.thresh.run = forbidden_admission
+    for budget in (1.49, 0.0):
+        with pytest.raises(ProviderBudgetExceeded, match="rerun"):
+            asyncio.run(llm_call(effects, client, replace(req("review", tier="low"), budget_usd=budget),
+                Redactor({}), ticket="t-1", stem="t-1", run_seq=0, attempt=1, call_seq=1))
+        assert journal.read() == before_events
+        assert fold_breakers(journal, client.session.clock()) == before_breakers
+        assert process.calls == before_calls
+    client.session.thresh.run = admitted
+    # A cost-reporting primary remains usable when an estimated-cost fallback
+    # exceeds the remainder; the admitted call still carries the exact ceiling.
+    process.responses.append((0, claude_ok(cost=0.25), ""))
+    result = asyncio.run(llm_call(effects, client, replace(req("review"), budget_usd=0.5),
+        Redactor({}), ticket="t-1", stem="t-1", run_seq=0, attempt=1, call_seq=2))
+    assert result["usd"] == 0.25
+    assert process.calls[-1]["argv"][-2:] == ["--max-budget-usd", "0.5"]
+    assert [e.type for e in journal.read() if e.key == "llm/t-1/0/review/1/2"] == [
+        "effect_intent", "effect_completion"]

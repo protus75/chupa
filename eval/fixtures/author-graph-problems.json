@@ -1,0 +1,5 @@
+[
+  {"id": "cache-expiry", "summary": "A cache serves stale values at the exact TTL boundary."},
+  {"id": "retry-errors", "summary": "A network retry wrapper retries unrelated operating-system errors."},
+  {"id": "private-links", "summary": "Public profile links include stored credential fields."}
+]

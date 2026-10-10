@@ -25,7 +25,7 @@ from chupa.gates import Gate, GateReport, merge_severity, run_gates
 from chupa.journal import Journal, run_seq as journal_run_seq
 from chupa.llm import LLM, AgentEffort, AgentTier, LLMAborted, LLMRequest, LLMResult
 from chupa.llmeffect import llm_call
-from chupa.providers import ProviderCallError, ProviderDrought, ProviderLLM, WRITING_SURFACES
+from chupa.providers import ProviderBudgetExceeded, ProviderCallError, ProviderDrought, ProviderLLM, WRITING_SURFACES
 from chupa.redact import Redactor
 from chupa.seams import Clock, FileSystem, LocalFileSystem, Sleep
 
@@ -192,6 +192,7 @@ class Driver:
         expected_budget: float | Literal['surface', 'eval'],
         scope_fence: Sequence[str],
         run_seq: int | None = None,
+        budget_usd: float | None = None,
     ) -> StageResult:
         if self._active is not None:
             raise ValueError("await the active Driver.run or abort_current before another stage")
@@ -200,6 +201,7 @@ class Driver:
             stage, consumed, ticket=ticket, attempt=attempt, workspace=workspace,
             tier=tier, effort=effort, stuck_budget=stuck_budget, run_seq=run_seq,
             expected_budget=expected_budget, scope_fence=scope_fence,
+            budget_usd=budget_usd,
         ))
         invocation = _Invocation(task)
         self._active = invocation
@@ -242,6 +244,7 @@ class Driver:
         workspace: Path, tier: AgentTier, effort: AgentEffort, stuck_budget: float,
         run_seq: int | None,
         expected_budget: float | Literal['surface', 'eval'], scope_fence: Sequence[str],
+        budget_usd: float | None,
     ) -> StageResult:
         """Run one stage attempt; `attempt` is the run sequence (section 6), stuck_budget in seconds."""
         stem = ticket or stage.surface  # ticketless surfaces spool and key under their surface name
@@ -293,6 +296,9 @@ class Driver:
 
         outcome: Outcome = "ok"
         for call_seq in range(1, self.retry_cap + 2):  # the first call plus retry_cap re-prompts
+            remaining = None if budget_usd is None else max(0.0, budget_usd - tally.usd)
+            if remaining == 0:
+                return done("budget_exceeded")
             call = {**ctx, "call_seq": call_seq}
             name = f"{stage.surface}/call-{call_seq:02d}"
             prompt = stage.render(consumed, tally.findings)
@@ -303,6 +309,7 @@ class Driver:
                 effort=effort,
                 ticket=ticket,
                 worktree=workspace if stage.surface in WRITING_SURFACES else None,
+                budget_usd=remaining,
             )
             # Before the call: a call that raises or hangs must leave exactly what was sent on disk.
             self.spool.write(spool_stem, attempt, f"{name}/prompt.md", prompt)
@@ -320,6 +327,9 @@ class Driver:
                 self.log.event("stuck_budget_kill", **call)
                 tally.findings = []
                 return done("timeout")
+            except ProviderBudgetExceeded:
+                tally.calls -= 1
+                return done("budget_exceeded")
             except Exception as e:
                 return await failed(e, call, name, pre_call=True)
             result = LLMResult(**recorded)

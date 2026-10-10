@@ -170,3 +170,224 @@ def test_authored_fixture_hinting_at_its_defect_is_refused():
     assert any("hints" in p for p in harness.check_authored(a, "logic"))
     clean = harness.Authored(ticket="t", diff="diff --git a/x b/x\n+x = 1\n", defect="")
     assert harness.check_authored(clean, "none") == []
+
+
+def graph_reply():
+    problems = json.loads(harness.GRAPH_PROBLEMS.read_text())
+    return {"problems": problems, "tickets": [
+        {"stem": f"graph-{i}", "problem_id": p["id"], "depends": [f"graph-{i-1}"] if i else [],
+         "goal": p["summary"]} for i, p in enumerate(problems)]}
+
+
+def corpus_results(planted=60, clean=20, catches=51, false_snags=3):
+    # Disposable scripted score cases, never written into the measured corpus.
+    return [Scored(f"planted-{i}", fixture(f"planted-{i}", harness.DEFECT_CLASSES[i % 4]).expected,
+                   "ok", "snag" if i < catches else "approve") for i in range(planted)] + [
+        Scored(f"clean-{i}", fixture(f"clean-{i}", "none").expected,
+               "ok", "snag" if i < false_snags else "approve") for i in range(clean)]
+
+
+def report_fixture(tmp_path, results=None, graph=True):
+    from chupa.artifacts import AuthorGraph
+    cfg = config(tmp_path)
+    results = corpus_results() if results is None else results
+    body = {"signal": "review_baseline", "verdict": "NO_GO", "identity": harness.baseline_identity(cfg),
+            "exercised": {"surface": "review", "tier": "high", "effort": "high", "spec_version": "1.0"},
+            "fixture_authors": [CODEX], "scores": harness.score(results)}
+    journal = Journal(cfg.state_dir, lambda: NOW)
+    event = journal.append(EventType.SIGNAL, body)
+    report = harness.make_report(results, AuthorGraph.model_validate(graph_reply()) if graph else None, 2.0, event)
+    return report, cfg, journal
+
+
+def test_go_grade_fixture_floors_and_author_separation(tmp_path):
+    assert (harness.MIN_DEFECTS, harness.MIN_CLEAN) == (15, 3)
+    assert (harness.GO_MIN_DEFECTS, harness.GO_MIN_CLEAN) == (50, 15)
+    fixtures = harness.load_fixtures()
+    assert {f.expected.defect_class for f in fixtures} == {*harness.DEFECT_CLASSES, "none"}
+    root = tmp_path / "fixtures"
+    root.mkdir()
+    selected = [f for f in fixtures if f.expected.defect_class != "none"][:15]
+    selected += [f for f in fixtures if f.expected.defect_class == "none"][:3]
+    for f in selected:
+        d = root / f.name
+        d.mkdir()
+        for name in ("ticket.md", "diff.patch", "expected.json"):
+            (d / name).write_bytes((harness.FIXTURES / f.name / name).read_bytes())
+    assert len(harness.load_fixtures(root)) == 18
+    missing = root / selected[-1].name / "expected.json"
+    data = missing.read_bytes()
+    missing.write_text('{"extra":true}')
+    with pytest.raises(FixtureError, match="re-author"):
+        harness.load_fixtures(root)
+    missing.write_bytes(data)
+    for f in selected[-1:]:
+        d = root / f.name
+        for p in d.iterdir():
+            p.unlink()
+        d.rmdir()
+    with pytest.raises(FixtureError, match="15 planted and 2 clean"):
+        harness.load_fixtures(root)
+    clean_dir = root / selected[-1].name
+    clean_dir.mkdir()
+    for name in ("ticket.md", "diff.patch", "expected.json"):
+        (clean_dir / name).write_bytes((harness.FIXTURES / selected[-1].name / name).read_bytes())
+    planted_dir = root / selected[0].name
+    for p in planted_dir.iterdir():
+        p.unlink()
+    planted_dir.rmdir()
+    with pytest.raises(FixtureError, match="14 planted and 3 clean"):
+        harness.load_fixtures(root)
+    with pytest.raises(ValidationError):
+        Expected.model_validate({"expected_verdict": "approve", "defect_class": "none", "defect": " ", "author": CODEX})
+    # A complete graph does not relax either separate GO floor.
+    for planted, clean, complete in ((49, 15, False), (50, 14, False), (50, 15, True)):
+        report, _, _ = report_fixture(tmp_path, corpus_results(planted, clean, planted, 0))
+        assert report.complete is complete
+    cfg = config(tmp_path)
+    identity = harness.baseline_identity(cfg)
+    with pytest.raises(FixtureError, match="different"):
+        harness.refuse_same_author([harness.AuthorIdentity(provider="claude", model="c-max", tier="low")], identity, "high")
+
+
+def test_go_grade_existing_corpus_is_partial_no_go(tmp_path, monkeypatch):
+    from chupa.artifacts import ReviewBaselineReport
+    before = {p: p.read_bytes() for p in harness.FIXTURES.glob("*/*") if p.is_file()}
+    fixtures = harness.load_fixtures()
+    cfg = config(tmp_path)
+    class ReadyLLM(FakeLLM):
+        async def preflight(self):
+            return []
+    llm = ReadyLLM([reply(f.expected.expected_verdict) for f in fixtures] + [json.dumps(graph_reply())])
+    monkeypatch.setattr(harness, "ProviderLLM", lambda *args, **kwargs: llm)
+    out = tmp_path / "report.json"
+    body = asyncio.run(harness._run(cfg, {"PATH": "/usr/bin:/bin"}, lambda: NOW, out=out))
+    report = ReviewBaselineReport.model_validate_json(out.read_bytes())
+    assert (report.scores.planted, report.scores.clean) == (18, 4)
+    assert not report.complete and body["verdict"] == "NO_GO"
+    assert report.author_graph is not None and all(r.verdict for r in report.results)
+    assert before == {p: p.read_bytes() for p in before}
+    assert not (tmp_path / "tickets").exists()
+
+
+@pytest.mark.parametrize("mode", ["run", "author"])
+def test_eval_preflight_refuses_before_measured_calls(tmp_path, monkeypatch, mode):
+    cfg = config(tmp_path)
+    class UnreadyLLM(FakeLLM):
+        async def preflight(self):
+            return ["provider probe failed; repair login and retry"]
+    llm = UnreadyLLM([])
+    monkeypatch.setattr(harness, "ProviderLLM", lambda *args, **kwargs: llm)
+    monkeypatch.setattr(harness, "_clock", lambda: NOW)
+    out = tmp_path / "report.json"
+    cases = tmp_path / "cases"
+    with pytest.raises(FixtureError, match="repair login"):
+        if mode == "run":
+            asyncio.run(harness._run(cfg, {"PATH": "/usr/bin:/bin"}, lambda: NOW, out=out))
+        else:
+            asyncio.run(harness.author_fixtures(cfg, provider="codex", tier="high",
+                only=["logic-pagination"], force=False, env={"PATH": "/usr/bin:/bin"}, root=cases))
+    assert not llm.requests and not out.exists() and not cases.exists()
+    assert not any(e.body.get("signal") in {"review_baseline", "author_invoked"}
+                   for e in Journal(cfg.state_dir, lambda: NOW).read())
+
+
+def test_go_grade_fixture_author_identity_comes_from_call(tmp_path, monkeypatch):
+    from tests.test_providers import FakeExec, codex_ok, provider_session
+    cfg = config(tmp_path)
+    monkeypatch.setattr(harness, "_clock", lambda: NOW)
+    authored = {"ticket": "scripted ticket", "diff": "diff --git a/a b/a\n+x = 1\n", "defect": "a:1 wrong"}
+    process = FakeExec((0, codex_ok(json.dumps(authored)), ""))
+    session = provider_session(cfg, clock=lambda: NOW, sleep=_no_sleep)
+    root = tmp_path / "disposable-cases"
+    asyncio.run(harness._author_fixtures(cfg, provider="codex", tier="high", only=["logic-pagination"],
+        force=False, env={}, root=root, session=session, exec_=process))
+    expected = Expected.model_validate_json((root / "logic-pagination/expected.json").read_bytes())
+    assert expected.author.model_dump() == CODEX
+    assert process.calls[0]["argv"][process.calls[0]["argv"].index("-m") + 1] == "x-high"
+    events = session.journal.read()
+    assert any(e.body.get("signal") == "author_invoked" for e in events)
+    completed = [e.body["result"] for e in events if e.type == EventType.EFFECT_COMPLETION
+                 and (e.key or "").startswith("llm/")]
+    assert [(r["provider"], r["model"]) for r in completed] == [("codex", "x-high")]
+    captured = cfg.state_dir / "spools/fixture-logic-pagination/1/author/call-01"
+    assert captured.joinpath("output.txt").read_text() == json.dumps(authored)
+    assert "fixture" in captured.joinpath("prompt.md").read_text()
+    snapshots = {p: p.read_bytes() for p in cfg.state_dir.rglob("*") if p.is_file()}
+    with pytest.raises(FixtureError, match="different"):
+        # c-max is the actual selected author model at max and the review model.
+        asyncio.run(harness._author_fixtures(cfg, provider="claude", tier="max", only=["logic-pagination"],
+            force=True, env={}, root=root, session=session, exec_=process))
+    assert snapshots == {p: p.read_bytes() for p in snapshots}
+    assert len(process.calls) == 1
+
+
+def test_go_grade_scoring_and_partial_report(tmp_path):
+    from chupa.artifacts import ReviewBaselineReport
+    results = corpus_results()
+    report, _, _ = report_fixture(tmp_path, results)
+    assert report.complete and report.scores.catch_rate == 0.85 and report.scores.clean_false_snag == 0.15
+    assert len(report.scores.missed) == 9 and len(report.scores.false_snagged) == 3
+    results[0] = Scored(results[0].name, results[0].expected, "budget_exceeded", None)
+    partial, _, _ = report_fixture(tmp_path, results)
+    assert not partial.complete and partial.verdict_signal.body.verdict == "NO_GO"
+    assert partial.scores.unscored[0].outcome == "budget_exceeded"
+    raw = partial.model_dump()
+    raw["scores"]["planted"] += 1
+    with pytest.raises(ValidationError, match="scores"):
+        ReviewBaselineReport.model_validate(raw)
+
+
+def test_go_grade_shared_cap_includes_retries_and_author_graph(tmp_path):
+    from chupa.artifacts import ReviewBaselineReport
+    from chupa.llm import LLMResult
+    cfg = config(tmp_path)
+    def paid(text, usd):
+        return LLMResult(text, None, None, "claude", "c-max", usd)
+    fixtures = [fixture("retry", "logic"), fixture("next", "none")]
+    llm = FakeLLM([paid("bad json", 1.0), paid(reply("snag"), 1.0),
+                   paid(reply("approve"), 1.0), paid("bad graph", 1.0), paid(json.dumps(graph_reply()), 1.0)])
+    driver = Driver.from_config(cfg, llm=llm, env={}, clock=lambda: NOW, sleep=_no_sleep)
+    out = tmp_path / "report.json"
+    asyncio.run(harness.run_baseline(config=cfg, driver=driver, journal=driver.journal,
+        fixtures=fixtures, out=out, workspace=tmp_path))
+    assert [r.budget_usd for r in llm.requests] == [5.0, 4.0, 3.0, 2.0, 1.0]
+    assert [r.surface for r in llm.requests] == ["review"] * 3 + ["author"] * 2
+    assert ReviewBaselineReport.model_validate_json(out.read_bytes()).spent_usd == 5.0
+    llm = FakeLLM([paid("invalid", 5.0)])
+    driver = Driver.from_config(cfg, llm=llm, env={}, clock=lambda: NOW, sleep=_no_sleep)
+    asyncio.run(harness.run_baseline(config=cfg, driver=driver, journal=driver.journal,
+        fixtures=fixtures, out=out, workspace=tmp_path))
+    assert len(llm.requests) == 1 and llm.requests[0].budget_usd == 5.0
+    partial = ReviewBaselineReport.model_validate_json(out.read_bytes())
+    assert partial.author_graph is None and not partial.complete
+    assert [r.outcome for r in partial.results] == ["budget_exceeded"] * 2
+
+
+def test_go_grade_author_graph_uses_local_prompt(tmp_path):
+    from chupa.artifacts import AuthorGraph
+    cfg = config(tmp_path)
+    graph = graph_reply()
+    llm = FakeLLM([json.dumps(graph)])
+    driver = Driver.from_config(cfg, llm=llm, env={}, clock=lambda: NOW, sleep=_no_sleep)
+    artifact, cost = asyncio.run(harness.run_author_graph(driver, attempt=1, workspace=tmp_path,
+        budget_usd=5.0, tier="high", effort="high"))
+    assert artifact.model_dump() == graph and cost == 0.0
+    [request] = llm.requests
+    assert "harness-local graph exercise" in request.rendered and request.surface == "author"
+    assert request.worktree is None and "specs/author.md" not in request.rendered
+    assert not (tmp_path / "tickets").exists()
+    for variant in ("cycle", "missing", "unknown-problem", "invalid-stem", "duplicate"):
+        raw = json.loads(json.dumps(graph))
+        if variant == "cycle":
+            raw["tickets"][0]["depends"] = [raw["tickets"][-1]["stem"]]
+        elif variant == "missing":
+            raw["tickets"][0]["depends"] = ["absent-ticket"]
+        elif variant == "unknown-problem":
+            raw["tickets"][0]["problem_id"] = "absent"
+        elif variant == "invalid-stem":
+            raw["tickets"][0]["stem"] = "INVALID"
+        else:
+            raw["problems"].append(raw["problems"][0])
+        with pytest.raises(ValidationError):
+            AuthorGraph.model_validate(raw)

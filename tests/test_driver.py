@@ -131,6 +131,7 @@ def test_echo_stage_with_empty_gate_list_emits_validated_artifact(tmp_path):
     assert result.cost.attempts == 1
     assert result.cost.provider == "fake"
     req = llm.requests[0]
+    assert req.budget_usd is None
     assert (req.surface, req.tier, req.effort, req.ticket) == ("implement", "medium", "low", "t-echo")
     assert (spool(state) / "implement" / "call-01" / "prompt.md").read_text() == req.rendered
     assert (spool(state) / "implement" / "call-01" / "output.txt").read_text() == echo_json("hi")

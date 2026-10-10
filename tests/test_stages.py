@@ -748,6 +748,60 @@ async def test_outbox_only_check_failure_never_admits(repo, monkeypatch, failure
     events = ctx.driver.journal.read()
     assert not any(e.type == EventType.STATE_TRANSITION and e.body.get("to") == "merged" for e in events)
     assert not any((e.key or "").startswith("merge/") for e in events)
+
     if failure in {"invalid", "lift"}:
         assert not any(e.type == EventType.EFFECT_COMPLETION and e.key == f"ticket-plane/{STEM}/0/checks"
                        for e in events)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", ["valid", "purge", "missing", "invalid", "machinery"])
+async def test_review_baseline_report_registered_checks_lift(repo, tmp_path, case):
+    from chupa.artifacts import REVIEW_BASELINE_REPORT, ReviewBaselineReport
+    from chupa.journal import EventType
+    from chupa import stages
+    from eval import harness
+    from tests.test_eval_harness import report_fixture
+    data_dir = tmp_path / "grade"
+    data_dir.mkdir()
+    report, _, _ = report_fixture(data_dir)
+    source = data_dir / "canonical.json"
+    harness.write_report(source, report, fs=LocalFileSystem())
+    assert ReviewBaselineReport.model_validate_json(source.read_bytes()) == report
+    assert stages.KNOWN_ARTIFACTS[REVIEW_BASELINE_REPORT] is ReviewBaselineReport
+    target = f"tickets/{STEM}/{REVIEW_BASELINE_REPORT}"
+    verification = (f"cp source.json {target}" if case in {"valid", "purge", "invalid"}
+                    else f"true --out={target}" if case == "missing" else "true")
+    captured = []
+    def act(req):
+        if case in {"purge", "machinery"}:
+            path = req.worktree / target
+            path.write_text('{"stale":true}')
+            captured.append(path)
+        return implement_reply()
+    ctx, ticket = await report_context(repo, verification=verification,
+        source='{"invalid":true}' if case == "invalid" else source.read_text(), script=[act, verdict()])
+    if case == "purge":
+        execute = ctx.exec_.run
+        async def observe(argv, **kwargs):
+            if argv[0] == "cp":
+                assert not (ctx.worktree(STEM) / target).exists()
+            return await execute(argv, **kwargs)
+        ctx.exec_.run = observe
+    result = await run_stages(ctx, ticket)
+    expected = "gate_failed" if case in {"missing", "invalid", "machinery"} else "ok"
+    assert result.results["check"].outcome == expected
+    events = ctx.driver.journal.read()
+    lifts = [e for e in events if e.type == EventType.EFFECT_COMPLETION
+             and target in e.body.get("result", {}).get("paths", [])]
+    if expected == "ok":
+        [lift] = lifts
+        assert lift.key == f"ticket-plane/{STEM}/0/checks"
+        assert lift.body["result"]["kind"] == "checks"
+        data = await ctx.git._run(repo, "show", f"{lift.body['result']['commit']}:{target}")
+        assert ReviewBaselineReport.model_validate_json(data) == report
+        assert not (ctx.worktree(STEM) / target).exists()
+    else:
+        assert not lifts and not (repo / target).exists()
+    if captured:
+        assert not captured[0].exists()

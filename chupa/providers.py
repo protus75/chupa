@@ -45,6 +45,10 @@ class ProviderSetupError(Exception):
     """A config/setup refusal raised before any call runs: nothing was metered."""
 
 
+class ProviderBudgetExceeded(Exception):
+    """The eval remainder cannot admit this call; rerun within a fresh bounded run."""
+
+
 class ProviderCallError(Exception):
     """The CLI ran and failed. `stderr_tail` is scrubbed."""
 
@@ -298,7 +302,21 @@ class CliAdapter:
         """Raise `ValueError` naming the failure when the stream carries no successful result."""
         raise NotImplementedError
 
+    def within_budget(self, req: LLMRequest) -> bool:
+        budget = req.budget_usd
+        return budget is None or (budget > 0 and (self.reports_cost
+                or self.provider.limits.est_cost_per_call_usd <= budget))
+
+    def check_budget(self, req: LLMRequest) -> None:
+        if not self.within_budget(req):
+            raise ProviderBudgetExceeded("remaining eval budget cannot admit the declared estimate; rerun the bounded eval")
+
     async def invoke(self, req: LLMRequest, model: str, *, consumer: "EventConsumer | None" = None) -> LLMResult:
+        self.check_budget(req)
+        budget = req.budget_usd
+        argv = self.argv(model, req.effort, req.surface in WRITING_SURFACES)
+        if budget is not None and self.reports_cost:
+            argv.extend(["--max-budget-usd", str(budget)])
         writes = req.surface in WRITING_SURFACES
         if writes and req.worktree is None:
             raise ProviderSetupError(f"surface {req.surface!r} writes the tree but the request carries no worktree")
@@ -309,7 +327,7 @@ class CliAdapter:
         self._fs.write(prompt, self._redactor.scrub(req.rendered).encode())
         try:
             rc, out, err = await self._exec.run(
-                self.argv(model, req.effort, writes),
+                argv,
                 cwd=req.worktree if writes else self._cwd,
                 env=child_env(self._env, self._config, self.provider),
                 timeout=self._timeout,
@@ -587,6 +605,13 @@ class ProviderLLM:
     async def admitted_call(self, req, *, ticket, call_key, effect, meter=None):
         from chupa.thresh import UnavailableRoute
         route = candidates(self._config, req.tier, req.surface)
+        # Budget eligibility precedes admission, so a refusal cannot become a
+        # provider failure or leave an unmatched Effect intent. Preserve the
+        # configured order among candidates that can serve the bounded request.
+        affordable = tuple(s for s in route if self._adapters[s.provider.name].within_budget(req))
+        if not affordable:
+            raise ProviderBudgetExceeded("remaining eval budget cannot admit the declared estimate; rerun the bounded eval")
+        route = affordable
         used, queued, cap = self.session.thresh.occupancy(route[0].provider.name)
         estimate = ((used + queued) // cap) * self._timeout
         async def operation(served):

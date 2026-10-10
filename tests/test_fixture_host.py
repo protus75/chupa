@@ -371,6 +371,7 @@ def test_fixture_cli_adapter_roundtrip(host):
         with pytest.raises(ProviderCallError, match="replenish.*declared responses"):
             await llm.call(LLMRequest("review", "exhausted", "medium", "low", None, None))
         assert not (cfg.state_dir / "journal").exists()
+        assert all("--max-budget-usd" not in argv for argv, _ in exec_.calls)
     asyncio.run(proof())
 
 

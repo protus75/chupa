@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 import re
 from typing import Annotated, Literal, get_args
+from chupa.llm import AgentTier, AgentEffort
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
@@ -297,4 +298,225 @@ class ReviewVerdict(_Strict):
             raise ValueError(f"snag needs at least one finding, every code one of {sorted(REVIEW_SNAG_CODES)}")
         if self.verdict == "rma" and not (codes and codes <= {"ticket"}):
             raise ValueError("rma needs at least one finding, every code `ticket`")
+        return self
+
+
+class AuthorIdentity(_Strict):
+    provider: NonBlank
+    model: NonBlank
+    tier: AgentTier
+
+
+class Expected(_Strict):
+    expected_verdict: Literal["approve", "snag"]
+    defect_class: Literal["logic", "hidden_info_leak", "acceptance_mismatch", "scope_escape", "none"]
+    defect: str  # the planted defect in one sentence; empty for a clean fixture
+    author: AuthorIdentity
+
+    @model_validator(mode="after")
+    def _clean_iff_approve(self) -> "Expected":
+        clean = self.defect_class == "none"
+        if clean != (self.expected_verdict == "approve") or (self.defect != "" if clean else not self.defect.strip()):
+            raise ValueError("a clean fixture is defect_class none, verdict approve, empty defect; a planted one"
+                             " names its class, expects snag, and describes the defect")
+        return self
+
+
+REVIEW_BASELINE_REPORT = "review-baseline-report.json"
+FiniteUSD = Annotated[float, Field(ge=0, allow_inf_nan=False)]
+
+
+class BaselineResult(_Strict):
+    name: NonBlank
+    expected: Expected
+    outcome: Outcome
+    verdict: ReviewVerdictName | None
+
+    @model_validator(mode="after")
+    def _scored(self):
+        if (self.outcome == "ok") != (self.verdict is not None):
+            raise ValueError("ok requires a scored verdict; other outcomes require null")
+        return self
+
+
+class GraphProblem(_Strict):
+    id: NonBlank
+    summary: NonBlank
+
+
+class GraphTicket(_Strict):
+    stem: NonBlank
+    problem_id: NonBlank
+    depends: list[NonBlank]
+    goal: NonBlank
+
+
+class AuthorGraph(_Strict):
+    problems: Annotated[list[GraphProblem], Field(min_length=1)]
+    tickets: Annotated[list[GraphTicket], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def _closed_graph(self):
+        from chupa.tickets import stem_findings
+
+        problems = [p.id for p in self.problems]
+        stems = [t.stem for t in self.tickets]
+        if len(set(problems)) != len(problems) or len(set(stems)) != len(stems):
+            raise ValueError("problem ids and ticket stems must be unique")
+        if {t.problem_id for t in self.tickets} != set(problems):
+            raise ValueError("tickets must cover exactly the graph problems")
+        edges = {t.stem: t.depends for t in self.tickets}
+        for t in self.tickets:
+            if stem_findings(t.stem) or len(t.depends) != len(set(t.depends)) or not set(t.depends) <= set(stems):
+                raise ValueError("use valid stems and unique resolving dependencies")
+        visiting, visited = set(), set()
+        def visit(stem):
+            if stem in visiting:
+                raise ValueError("author graph must be acyclic")
+            if stem in visited:
+                return
+            visiting.add(stem)
+            for dep in edges[stem]:
+                visit(dep)
+            visiting.remove(stem)
+            visited.add(stem)
+        for stem in stems:
+            visit(stem)
+        return self
+
+
+class BaselineRoute(_Strict):
+    provider: NonBlank
+    model: NonBlank
+
+
+class BaselineSurface(_Strict):
+    spec_major: Annotated[int, Field(ge=1)]
+    rows: dict[AgentTier, BaselineRoute]
+
+    @model_validator(mode="after")
+    def _tiers(self):
+        if set(self.rows) != set(get_args(AgentTier)):
+            raise ValueError("identity requires all four tier rows")
+        return self
+
+
+class BaselineIdentity(_Strict):
+    review: BaselineSurface
+    author: BaselineSurface
+
+
+class BaselineExercised(_Strict):
+    surface: Literal["review"]
+    tier: AgentTier
+    effort: AgentEffort
+    spec_version: NonBlank
+
+    @field_validator("spec_version")
+    @classmethod
+    def _version(cls, value):
+        if not re.fullmatch(r"[1-9][0-9]*\.[0-9]+", value):
+            raise ValueError("use a major.minor spec version")
+        return value
+
+
+class ClassScore(_Strict):
+    planted: Annotated[int, Field(ge=0)]
+    caught: Annotated[int, Field(ge=0)]
+
+
+class Unscored(_Strict):
+    fixture: NonBlank
+    outcome: Outcome
+
+
+class BaselineScores(_Strict):
+    planted: Annotated[int, Field(ge=0)]
+    clean: Annotated[int, Field(ge=0)]
+    catch_rate: Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)] | None
+    known_bad_false_approve: Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)] | None
+    clean_false_snag: Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)] | None
+    by_class: dict[Literal["logic", "hidden_info_leak", "acceptance_mismatch", "scope_escape"], ClassScore]
+    missed: list[NonBlank]
+    false_snagged: list[NonBlank]
+    unscored: list[Unscored]
+
+
+class BaselineSignalBody(_Strict):
+    signal: Literal["review_baseline"]
+    verdict: Literal["GO", "NO_GO"]
+    identity: BaselineIdentity
+    exercised: BaselineExercised
+    fixture_authors: list[AuthorIdentity]
+    scores: BaselineScores
+
+
+class BaselineSignal(_Strict):
+    v: Literal[1]
+    type: Literal["signal"]
+    ts: NonBlank
+    ticket: str | None
+    key: str | None
+    body: BaselineSignalBody
+
+    @field_validator("v", mode="before")
+    @classmethod
+    def _integer_version(cls, value):
+        if type(value) is not int:
+            raise ValueError("signal v must be the integer 1")
+        return value
+
+    @field_validator("ts")
+    @classmethod
+    def _timestamp(cls, value):
+        from datetime import datetime
+        from chupa.journal import render_ts
+        if render_ts(datetime.fromisoformat(value)) != value:
+            raise ValueError("use the journal UTC timestamp rendering")
+        return value
+
+
+class ReviewBaselineReport(_Strict):
+    schema_version: Literal[1]
+    complete: bool
+    cap_usd: Literal[5.0]
+    spent_usd: FiniteUSD
+    results: list[BaselineResult]
+    scores: BaselineScores
+    author_graph: AuthorGraph | None
+    verdict_signal: BaselineSignal
+
+    @field_validator("schema_version", mode="before")
+    @classmethod
+    def _integer_version(cls, value):
+        if type(value) is not int:
+            raise ValueError("schema_version must be the integer 1")
+        return value
+
+    @model_validator(mode="after")
+    def _consistent(self):
+        from eval.harness import GO_MIN_DEFECTS, GO_MIN_CLEAN, MIN_CATCH_RATE, MAX_FALSE_SNAG_RATE, score
+
+        names = [r.name for r in self.results]
+        if len(set(names)) != len(names):
+            raise ValueError("fixture names must be unique")
+        calculated = score(self.results)
+        if self.scores.model_dump() != calculated or self.verdict_signal.body.scores.model_dump() != calculated:
+            raise ValueError("report and signal scores must equal results")
+        complete = (self.scores.planted >= GO_MIN_DEFECTS and self.scores.clean >= GO_MIN_CLEAN
+                    and all(r.verdict is not None for r in self.results) and self.author_graph is not None)
+        if self.complete != complete:
+            raise ValueError("complete requires the GO floors, every verdict, and a completed graph")
+        body = self.verdict_signal.body
+        authors = sorted({r.expected.author for r in self.results}, key=lambda a: (a.provider, a.model, a.tier))
+        if body.fixture_authors != authors:
+            raise ValueError("signal fixture authors must match the results")
+        if int(body.exercised.spec_version.split('.')[0]) != body.identity.review.spec_major:
+            raise ValueError("exercised review spec major must match identity")
+        reviewer = body.identity.review.rows[body.exercised.tier]
+        if any((a.provider, a.model) == (reviewer.provider, reviewer.model) for a in authors):
+            raise ValueError("fixture author must differ from reviewer")
+        if body.verdict == "GO" and (not self.complete or self.scores.catch_rate < MIN_CATCH_RATE
+                                     or self.scores.clean_false_snag > MAX_FALSE_SNAG_RATE):
+            raise ValueError("GO requires complete evidence and passing numerical boundaries")
         return self
