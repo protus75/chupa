@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-Shakeout fixtures change routing after initialization, requiring conduct adoption before their next drain.
+The untouched branch equals its merge base and contains dormant classifier code, not the previous attempt’s activation diff.
 
 ## Dead ends
 
-Stopped the initial full-suite run when missing shakeout conduct stalled it, repaired the fenced constructor, and reran successfully.
+Verified on the untouched base that Git._run replaces a committed non-UTF-8 byte with U+FFFD; encoding its output cannot recover the original bytes.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60m; completed in approximately 16m, within 23 files and 514 inserted lines.
+none
 
