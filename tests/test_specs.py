@@ -148,9 +148,22 @@ def test_specs_name_every_hardenable_unit_kind(name):
         assert rule in body
 
 
+def test_implement_spec_defines_both_premise_kinds():
+    specs = Path(__file__).resolve().parent.parent / "specs"
+    body = " ".join(load_spec((specs / "implement.md").read_text()).body.split())
+    for rule in (
+        "A ticket that contradicts stated spec or merged code, or is malformed, is `kind: authoring_error`.",
+        "A fence wall -- a `## Scope fence` missing a path the criteria force -- is `authoring_error`.",
+        "A missing or under-specified governing entry unit is `kind: spec_gap` with that `unit`",
+        "For `spec_gap`, `unit` is required when the ticket has any such units",
+        "Every other finding has `unit: null`.",
+    ):
+        assert rule in body
+
+
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parent.parent / "specs"
-    for name, version in (("implement", "1.3"), ("requisition_review", "2.2")):
+    for name, version in (("implement", "1.4"), ("requisition_review", "2.2")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version

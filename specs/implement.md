@@ -5,7 +5,7 @@ emits: packing-slip
 tier: medium
 effort: medium
 gates: []
-version: "1.3"
+version: "1.4"
 ---
 ## Role
 
@@ -93,6 +93,8 @@ or, for each cited phase unit `19.P<n>`, every non-exit row's entry unit of that
 present or absent. Name the unit that is missing or under-specified, never a unit that refers to it.
 For `spec_gap`, `unit` is required when the ticket has any such units and must name
 one of them; otherwise `unit` is null. Every other finding has `unit: null`.
+A ticket that contradicts stated spec or merged code, or is malformed, is `kind: authoring_error`.
+A fence wall -- a `## Scope fence` missing a path the criteria force -- is `authoring_error`.
 Use an empty `second_problems` list when there are none.
 
 ## On-failure
