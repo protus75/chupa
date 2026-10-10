@@ -1,13 +1,13 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "94db8e4b9bd37cfb9e536aadfff08720dfaf7c88",
+  "produced_at_sha": "83d5857bebbd499d3260d4956f31ad535deb6fcb",
   "stem": "phase6-continue-08",
-  "passed": false,
+  "passed": true,
   "changed_files": [
     "tests/test_seeded_phase6_08.py"
   ],
-  "inserted_lines": 649,
+  "inserted_lines": 1333,
   "bypassed": [],
   "reports": [
     {
@@ -48,55 +48,17 @@
     },
     {
       "code": "requisition_review",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "verification_order",
-          "path": "tickets/phase6-exit/ticket.md",
-          "line": null,
-          "message": "Criteria 2, 3, 4 and 6 have tests/test_phase6_exit.py read tickets/phase6-exit/host-loop-report.json and exit-receipt.json. Before Verification, Check's gather_evidence deletes every registered report from the OUTBOX (_registered_files). Verification then runs `uv run pytest -q tests/test_phase6_exit.py` and the full `uv run pytest -q` before the last line, `uv run python -m eval.host_loop ...`. At that point neither report exists in the worktree or on main, because only this run's checks lift commits them. The exit tests and the full suite therefore fail at Check, or pass only through skip-if-absent logic, which is false-green under 19.L. Criterion 6's 'regeneration from committed reports' has the same problem: at Check the reports are not committed yet.",
-          "paved_road": "Move the `uv run python -m eval.host_loop --out ... --receipt ... --baseline ...` line to the top of `## Verification`, ahead of every pytest command. The exit tests should read the report and receipt at their repo-relative paths: that is the fresh OUTBOX copy in the worktree at Check, and the lifted copy on merged main. They must fail closed when a file is missing. Reword criterion 6 so regeneration reads those report bytes and makes no git-HEAD read of the exit's own reports.",
-          "kind": "authoring_error",
-          "unit": null
-        },
-        {
-          "code": "unreadable_member_evidence",
-          "path": "tickets/phase6-exit/ticket.md",
-          "line": null,
-          "message": "Criterion 4 tells test_phase6_exit_escape_attribution to 'read production attribution through Git.first_parent_squashes and the member evidence'. The trailers and member journals are in the harness's temporary fixture checkouts (TemporaryDirectory in eval/host_loop._main), which are deleted once the harness exits. Under 19.L, an exit test at Check and on merged main may read only committed artifacts and merged code. On chupa's own main, first_parent_squashes returns nothing about the fixture escape. The read cannot be performed as worded, and pushes the implementer to rerun serve inside the test or fake the evidence. Criterion 3's 'prove ... a real head-pass/base-defect regression-gated bug' raises the same problem for the test itself.",
-          "paved_road": "Restate criteria 3 and 4 as reads of the committed host-loop-report.json entry: member, expected/observed, producing_run, empty engine_plane_edits and auditor, green. The squash-trailer and regression-gate proof belongs to the exit-receipt-machinery harness that produced the entry (already pinned by test_host_loop_report_regression_and_escape and test_host_loop_regression_uses_real_bug_gate as preservation suites). Do not require a Git.first_parent_squashes call over disposable member evidence in the exit test.",
-          "kind": "authoring_error",
-          "unit": null
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false
     }
   ],
   "seeds": [
     {
       "stem": "phase6-exit",
-      "ticket_sha": "85a702cf2d82509daa31d633994b832f31b11ead",
-      "verdict": "snag",
-      "findings": [
-        {
-          "code": "verification_order",
-          "path": "tickets/phase6-exit/ticket.md",
-          "line": null,
-          "message": "Criteria 2, 3, 4 and 6 have tests/test_phase6_exit.py read tickets/phase6-exit/host-loop-report.json and exit-receipt.json. Before Verification, Check's gather_evidence deletes every registered report from the OUTBOX (_registered_files). Verification then runs `uv run pytest -q tests/test_phase6_exit.py` and the full `uv run pytest -q` before the last line, `uv run python -m eval.host_loop ...`. At that point neither report exists in the worktree or on main, because only this run's checks lift commits them. The exit tests and the full suite therefore fail at Check, or pass only through skip-if-absent logic, which is false-green under 19.L. Criterion 6's 'regeneration from committed reports' has the same problem: at Check the reports are not committed yet.",
-          "paved_road": "Move the `uv run python -m eval.host_loop --out ... --receipt ... --baseline ...` line to the top of `## Verification`, ahead of every pytest command. The exit tests should read the report and receipt at their repo-relative paths: that is the fresh OUTBOX copy in the worktree at Check, and the lifted copy on merged main. They must fail closed when a file is missing. Reword criterion 6 so regeneration reads those report bytes and makes no git-HEAD read of the exit's own reports.",
-          "kind": "authoring_error",
-          "unit": null
-        },
-        {
-          "code": "unreadable_member_evidence",
-          "path": "tickets/phase6-exit/ticket.md",
-          "line": null,
-          "message": "Criterion 4 tells test_phase6_exit_escape_attribution to 'read production attribution through Git.first_parent_squashes and the member evidence'. The trailers and member journals are in the harness's temporary fixture checkouts (TemporaryDirectory in eval/host_loop._main), which are deleted once the harness exits. Under 19.L, an exit test at Check and on merged main may read only committed artifacts and merged code. On chupa's own main, first_parent_squashes returns nothing about the fixture escape. The read cannot be performed as worded, and pushes the implementer to rerun serve inside the test or fake the evidence. Criterion 3's 'prove ... a real head-pass/base-defect regression-gated bug' raises the same problem for the test itself.",
-          "paved_road": "Restate criteria 3 and 4 as reads of the committed host-loop-report.json entry: member, expected/observed, producing_run, empty engine_plane_edits and auditor, green. The squash-trailer and regression-gate proof belongs to the exit-receipt-machinery harness that produced the entry (already pinned by test_host_loop_report_regression_and_escape and test_host_loop_regression_uses_real_bug_gate as preservation suites). Do not require a Git.first_parent_squashes call over disposable member evidence in the exit test.",
-          "kind": "authoring_error",
-          "unit": null
-        }
-      ],
+      "ticket_sha": "2c4efd8c2d602a8426ba9ac13231d871a1cfd2ff",
+      "verdict": "approve",
+      "findings": [],
       "mechanical": null
     }
   ],
@@ -110,7 +72,7 @@
         "tests/test_seeded_phase6_08.py"
       ],
       "rc": 0,
-      "tail": ".....                                                                    [100%]\n5 passed in 3.17s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": ".....                                                                    [100%]\n5 passed in 0.94s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -124,7 +86,7 @@
         "tests/test_seed_path.py"
       ],
       "rc": 0,
-      "tail": "........................................................................ [ 36%]\n........................................................................ [ 72%]\n......................................................                   [100%]\n198 passed in 28.93s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................................ [ 36%]\n........................................................................ [ 72%]\n......................................................                   [100%]\n198 passed in 28.53s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -136,7 +98,7 @@
         "tests/test_plan_lint.py"
       ],
       "rc": 0,
-      "tail": "............................                                             [100%]\n28 passed in 0.18s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "............................                                             [100%]\n28 passed in 0.19s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -147,7 +109,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "................................................. [ 74%]\n........................................................................ [ 76%]\n........................................................................ [ 78%]\n........................................................................ [ 80%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 86%]\n........................................................................ [ 87%]\n........................................................................ [ 89%]\n........................................................................ [ 91%]\n........................................................................ [ 93%]\n........................................................................ [ 95%]\n........................................................................ [ 97%]\n........................................................................ [ 99%]\n....................                                                     [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase6-continue-08/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3764 passed, 1 warning in 325.48s (0:05:25)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "................................................. [ 74%]\n........................................................................ [ 76%]\n........................................................................ [ 78%]\n........................................................................ [ 80%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 86%]\n........................................................................ [ 87%]\n........................................................................ [ 89%]\n........................................................................ [ 91%]\n........................................................................ [ 93%]\n........................................................................ [ 95%]\n........................................................................ [ 97%]\n........................................................................ [ 99%]\n....................                                                     [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase6-continue-08/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3764 passed, 1 warning in 327.00s (0:05:27)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
