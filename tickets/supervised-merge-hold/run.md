@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The full suite reported 3 failures and 3,739 passes; all 19 reliability-battery tests pass on base commit 11a11831.
+Recovery also needed null-commit report handling and lazy Rework preparation for recovered conflicts.
 
 ## Dead ends
 
-The in-fence implementation passed focused checks, but full verification exposed missing harness closure.
+Shared control diagnostics broke kill-request preservation; admission-specific messages fixed it. Concurrent edits invalidated preliminary test snapshots; final verification used frozen files.
 
 ## Second problems filed
 
