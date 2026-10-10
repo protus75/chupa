@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "7f1832f7576d2f583215bf225651bb784d19e5eb",
+  "stem": "go-grade-machinery",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Restore the existing llm.preflight() refusal in eval/harness.py _run and probe.preflight() in author_fixtures unchanged; Scope in says keep the existing injectable seams, so a missing CLI or expired login must still be refused before any run.",
+    "Where tests monkeypatch ProviderLLM with FakeLLM, give the fake an async preflight() returning [] rather than deleting preflight from the harness. Removing a production check to suit a test double is out of scope.",
+    "Refuse an over-budget request before thresh.run admission and before effects.run writes an llm/ EFFECT_INTENT (for example in ProviderLLM.admitted_call). Today a refusal inside them counts as an 'unclassified' failure and adds to the breaker streak.",
+    "Add a test that goes through admitted_call: an estimated-cost refusal writes no provider_call_outcome, leaves no unmatched EFFECT_INTENT and spawns nothing. The current tests use FakeLLM or client.call directly and never reach this path.",
+    "If preflight probes really do spend money with no limit, file that as a Suggestion Box item. Don't fold it into this diff; second problems are filed, not fixed here."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
