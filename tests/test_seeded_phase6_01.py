@@ -111,9 +111,9 @@ CLOSURE_EVIDENCE = {'CLAUDE.md': '19.P6.core-drift-activation Owner/Observable f
  'tests/test_serve.py': 'test_serve_conflict_handoff_runs_after_admission_unwinds at line 1307 asserts the exact '
                         'production CHECK_GATES + MERGE_GATES sequence, which core_drift joins.'}
 
-AUTHORED = {'core-drift-activation': {'bytes': 7361,
-                           'chars': 7361,
-                           'sha256': 'a7f4aad4074af30e2ed6b7d9491de18e56d7388d958f74ecd74e38ed22a0229f',
+AUTHORED = {'core-drift-activation': {'bytes': 8019,
+                           'chars': 8019,
+                           'sha256': 'b4956f220b8753eea9187529859ffc7e1f64b563e5fdb4d47baf993b4d5d8826',
                            'plan': ('19.I',
                                     '19.P6.core-drift-activation',
                                     '19.P6.core-renderer',
@@ -177,7 +177,7 @@ AUTHORED = {'core-drift-activation': {'bytes': 7361,
                            'depends': ('phase6-continue', 'core-drift-classifier'),
                            'expected': 60,
                            'stuck': 90,
-                           'actual_render': 297758,
+                           'actual_render': 298416,
                            'render_overhead': 121},
  'migrate-config': {'bytes': 3832,
                     'chars': 3832,

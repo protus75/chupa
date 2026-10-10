@@ -61,6 +61,8 @@ Replace test_core_classifier_unreachable_from_production_gates with the named re
 
 The hard flip also invalidates independently constructed test and eval hosts. Update the fenced repo constructors to commit conduct mechanically rendered with hostfiles.render from their own fixture bytes for their actual routes, before Check/merge. Builders in test_stages, test_seed_path, test_drain, test_merge, test_cli, test_mergequeue, test_terminal, test_seed_successor and the eval harnesses own that repair; test_daemon_soak also changes routes after its imported builder. Follow the import/composition closure without changing downstream preservation assertions. Do not soften core_drift in fake CONFIG, bypass it, or rewrite historical seeding snapshots. No migration implementation, new provider adapter or host-loop machinery belongs here.
 
+Committed conduct bytes come from the candidate worktree read with Path.read_bytes, accepted only when their git blob hash equals the committed blob id at HEAD; a mismatch (a dirty checkout) is a core_drift finding naming the file with paved road `commit or restore <path>, then rerun Check`, never a decoded git blob read, so chupa/git.py and chupa/seams.py stay unchanged. A candidate chupa/hostfiles.py whose CORE_TEMPLATE cannot be extracted (a syntax error or a non-literal assignment) is a core_drift finding naming chupa/hostfiles.py with paved road `define CORE_TEMPLATE as one literal bytes assignment`, never an exception from evidence gathering.
+
 ## Scope fence
 - chupa/hostfiles.py
 - chupa/gates.py
