@@ -67,7 +67,8 @@ FENCE_ADDITIONS = {'core-drift-activation': ('CLAUDE.md',
                            'eval/daemon_soak.py',
                            'eval/reliability_battery.py',
                            'eval/shakeout/bench.py',
-                           'tests/test_restart_timers.py'),
+                           'tests/test_restart_timers.py',
+                           'tests/test_serve.py'),
  'migrate-config': (),
  'phase6-continue-02': ()}
 
@@ -106,11 +107,13 @@ CLOSURE_EVIDENCE = {'CLAUDE.md': '19.P6.core-drift-activation Owner/Observable f
                            'battery.',
  'tests/test_restart_timers.py': 'repository at line 33 replaces the claude-only root routing with tests.test_providers '
                                  'CONFIG claude+codex routing without AGENTS.md; serve and recovery '
-                                 'suites drive production Check and merge admission through it.'}
+                                 'suites drive production Check and merge admission through it.',
+ 'tests/test_serve.py': 'test_serve_conflict_handoff_runs_after_admission_unwinds at line 1307 asserts the exact '
+                        'production CHECK_GATES + MERGE_GATES sequence, which core_drift joins.'}
 
-AUTHORED = {'core-drift-activation': {'bytes': 7317,
-                           'chars': 7317,
-                           'sha256': '3fa2bc7f97978f7ed30d67111fb65a6732817cab47784c0c12403ed4676748a2',
+AUTHORED = {'core-drift-activation': {'bytes': 7361,
+                           'chars': 7361,
+                           'sha256': 'a7f4aad4074af30e2ed6b7d9491de18e56d7388d958f74ecd74e38ed22a0229f',
                            'plan': ('19.I',
                                     '19.P6.core-drift-activation',
                                     '19.P6.core-renderer',
@@ -143,7 +146,8 @@ AUTHORED = {'core-drift-activation': {'bytes': 7317,
                                          'eval/daemon_soak.py',
                                          'eval/reliability_battery.py',
                                          'eval/shakeout/bench.py',
-                                         'tests/test_restart_timers.py'),
+                                         'tests/test_restart_timers.py',
+                                         'tests/test_serve.py'),
                            'fence': ('chupa/hostfiles.py',
                                      'chupa/gates.py',
                                      'chupa/config.py',
@@ -168,11 +172,12 @@ AUTHORED = {'core-drift-activation': {'bytes': 7317,
                                      'eval/daemon_soak.py',
                                      'eval/reliability_battery.py',
                                      'eval/shakeout/bench.py',
-                                         'tests/test_restart_timers.py'),
+                                         'tests/test_restart_timers.py',
+                                         'tests/test_serve.py'),
                            'depends': ('phase6-continue', 'core-drift-classifier'),
                            'expected': 60,
                            'stuck': 90,
-                           'actual_render': 297714,
+                           'actual_render': 297758,
                            'render_overhead': 121},
  'migrate-config': {'bytes': 3832,
                     'chars': 3832,
@@ -541,6 +546,9 @@ FILE_SIZES = {'chupa/hostfiles.py': {'bytes': 7442,
  'eval/reliability_battery.py': {'bytes': 23709,
                                  'chars': 23709,
                                  'sha256': '2e42e1e58c22691435e1ce58daab5e1d355fc7abc9f8dac9ac6dfc4aad912d61'},
+ 'tests/test_serve.py': {'bytes': 75256,
+                        'chars': 75256,
+                        'sha256': 'afe9c070e806ccda57a4bbef6f996e22aef1a042ce19468da9ca5346de55ee32'},
  'tests/test_restart_timers.py': {'bytes': 33950,
                                  'chars': 33950,
                                  'sha256': 'bb8a3efb5951fd8af7a872ccc65ca001f77d64ee8bd1776b8346a8e21a9b4200'},
@@ -888,7 +896,7 @@ def test_phase6_01_closure():
             "tests/test_seed_path.py", "tests/test_drain.py", "tests/test_mergequeue.py",
             "tests/test_terminal.py", "tests/test_seed_successor.py", "tests/test_daemon_soak.py",
             "eval/daemon_soak.py", "eval/reliability_battery.py", "eval/shakeout/bench.py",
-            "tests/test_restart_timers.py"} == set(CLOSURE_EVIDENCE)
+            "tests/test_restart_timers.py", "tests/test_serve.py"} == set(CLOSURE_EVIDENCE)
     assert "mergequeue.py:274" in CLOSURE_EVIDENCE["chupa/stages.py"]
     assert "test_core_classifier_unreachable_from_production_gates" in (ROOT / ticket_path(activation)).read_text()
     assert "tests/test_hostfiles.py" in FENCE_FLOORS[activation]
