@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The entry unit resolves and passes its four-part depth check, but its execution semantics remain underspecified.
+The updated plan resolves the prior protocol gap; existing merge owners needed no edits.
 
 ## Dead ends
 
-Verified through ProcessExec that an assertion failure and a caught FileNotFoundError both return (1, '', ''); accepting arbitrary nonzero exits would admit invalid evidence.
+An initial full-suite run overlapped source edits and failed its byte snapshot; the final run on unchanged files passed.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during contract validation, before implementation or the verification suite.
+Completed within the expected 60-minute budget.
 
