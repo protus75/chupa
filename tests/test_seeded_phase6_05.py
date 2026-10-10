@@ -88,7 +88,8 @@ FENCE_FLOORS = {'supervised-merge-hold': ('chupa/merge.py',
 FENCE_ADDITIONS = {'supervised-merge-hold': ('chupa/daemon.py',
                            'chupa/reconcile.py',
                            'tests/test_control.py',
-                           'tests/test_reconcile.py'),
+                           'tests/test_reconcile.py',
+                           'tests/test_daemon_composition.py'),
  'phase6-continue-06': ()}
 
 CLOSURE_EVIDENCE = {'chupa/daemon.py': '19.L rule 5: TicketWriter.consume_result calls AdmissionBoundary.deliver then '
@@ -99,7 +100,10 @@ CLOSURE_EVIDENCE = {'chupa/daemon.py': '19.L rule 5: TicketWriter.consume_result
                           'test_request_shape_and_identity_fail_closed pin operation shapes.',
  'tests/test_reconcile.py': '19.L rule 2: '
                             'test_running_with_no_terminal_is_reaped_to_abandoned_on_the_next_run and '
-                            'test_an_open_effect_intent_is_an_orphan pin the pre-hold reap behavior.'}
+                            'test_an_open_effect_intent_is_an_orphan pin the pre-hold reap behavior.',
+ 'tests/test_daemon_composition.py': '19.L rule 2: test_composed_merge_queue_admits_reviewed_candidate at line 1007 unpacks one '
+                                     'Effect completion; the merge-regate receipt every green candidate '
+                                     'writes, reason bootstrap included, adds a second.'}
 
 CLOSURE_SCAN_PATTERN = ('AdmissionBoundary|MergeQueue|consume_result|resolve_baseline|ControlRequest|validate_request|orphans|reconcile|reviewed_sha|candidate_base|__all__|not '
  'hasattr|allowlist|def __init__|compose|build_daemon|confirm|reject')
@@ -129,12 +133,12 @@ CLOSURE_DECISIONS = ('19.L rule 2: tests/test_mergequeue.py::test_restore_rebase
  'remain valid.',
  '19.L rule 5: pause/resume/kill keep operation-specific shapes and existing ControlRequest calls; no '
  'existing public-surface allowlist or standalone queue signature needs widening.',
- 'Preserve tests/test_daemon_composition.py and tests/test_daemon_tasks.py standalone/foreground queue '
- 'semantics; only daemon mode selects supervision. They are Verification-only.')
+ 'Preserve tests/test_daemon_tasks.py standalone/foreground queue '
+ 'semantics; only daemon mode selects supervision. It is Verification-only.')
 
-AUTHORED = {'supervised-merge-hold': {'bytes': 6695,
-                           'chars': 6695,
-                           'sha256': '6e167e95387377a81a8f567206fcddd8b148705f323cd2adcd6009ecf0ac6765',
+AUTHORED = {'supervised-merge-hold': {'bytes': 6765,
+                           'chars': 6765,
+                           'sha256': 'ae7ad817cb4cfdeda017f3aba30d2b064b7f232b0d9badb9b8e5fa9f82b387f8',
                            'plan': ('19.I', '19.P6.supervised-merge-hold', '9', '12'),
                            'context': ('chupa/restart.py',
                                        'chupa/reconcile.py',
@@ -159,7 +163,8 @@ AUTHORED = {'supervised-merge-hold': {'bytes': 6695,
                                          'tests/test_mergequeue.py',
                                          'tests/test_serve.py',
                                          'tests/test_restart_timers.py',
-                                         'tests/test_drain.py'),
+                                         'tests/test_drain.py',
+                                         'tests/test_daemon_composition.py'),
                            'fence': ('chupa/merge.py',
                                      'chupa/mergequeue.py',
                                      'chupa/serve.py',
@@ -184,7 +189,8 @@ AUTHORED = {'supervised-merge-hold': {'bytes': 6695,
                                      'chupa/daemon.py',
                                      'chupa/reconcile.py',
                                      'tests/test_control.py',
-                                     'tests/test_reconcile.py'),
+                                     'tests/test_reconcile.py',
+                                     'tests/test_daemon_composition.py'),
                            'depends': ('phase6-continue-05', 'escape-column'),
                            'expected': 60,
                            'stuck': 90,
@@ -211,19 +217,21 @@ AUTHORED = {'supervised-merge-hold': {'bytes': 6695,
                                                'chupa/daemon.py',
                                                'chupa/reconcile.py',
                                                'tests/test_control.py',
-                                               'tests/test_reconcile.py'),
+                                               'tests/test_reconcile.py',
+                                     'tests/test_daemon_composition.py'),
                            'created': ('tests/test_supervised_merge_hold.py',),
-                           'actual_render': 285230,
+                           'actual_render': 285300,
                            'render_overhead': 334,
-                           'on_demand_embedding': {'chupa/stages.py': 356358,
-                                                   'chupa/drain.py': 320140,
-                                                   'chupa/runner.py': 323760,
-                                                   'eval/daemon_soak.py': 321764,
-                                                   'tests/test_merge.py': 331411,
-                                                   'tests/test_mergequeue.py': 339934,
-                                                   'tests/test_serve.py': 363045,
-                                                   'tests/test_restart_timers.py': 319307,
-                                                   'tests/test_drain.py': 346382},
+                           'on_demand_embedding': {'chupa/stages.py': 356428,
+                                                   'chupa/drain.py': 320210,
+                                                   'chupa/runner.py': 323830,
+                                                   'eval/daemon_soak.py': 321834,
+                                                   'tests/test_merge.py': 331481,
+                                                   'tests/test_mergequeue.py': 340004,
+                                                   'tests/test_serve.py': 363115,
+                                                   'tests/test_restart_timers.py': 319377,
+                                                   'tests/test_drain.py': 346452,
+                                                   'tests/test_daemon_composition.py': 382200},
                            'embedding_overhead': {'chupa/stages.py': 22,
                                                   'chupa/drain.py': 21,
                                                   'chupa/runner.py': 22,
@@ -232,7 +240,8 @@ AUTHORED = {'supervised-merge-hold': {'bytes': 6695,
                                                   'tests/test_mergequeue.py': 31,
                                                   'tests/test_serve.py': 26,
                                                   'tests/test_restart_timers.py': 35,
-                                                  'tests/test_drain.py': 26}},
+                                                  'tests/test_drain.py': 26,
+                                                  'tests/test_daemon_composition.py': 39}},
  'phase6-continue-06': {'bytes': 5838,
                         'chars': 5838,
                         'sha256': '368f836b39854e7df82a40265d5f278fa6d30990961e9712e7174a5aad836a2f',
@@ -534,6 +543,11 @@ FILE_SIZES = {'chupa/merge.py': {'bytes': 21717,
                        'sha256': 'bb5fd7746d0a9136d309bbc3fd0448ee3f15dcfb099e7b822ca7c59500b5ef15',
                        'delimiter_free': True,
                        'quoted_chars': 30441},
+ 'tests/test_daemon_composition.py': {'bytes': 96861,
+                                      'chars': 96861,
+                                      'sha256': '2c3c66e1893c646efe032726db218084969f1cbf4dd63f34ddf3db5cf0a4cdf9',
+                                      'delimiter_free': True,
+                                      'quoted_chars': 96861},
  'tests/test_drain.py': {'bytes': 61126,
                          'chars': 61126,
                          'sha256': 'f84244716b11916ea11b5d7eda23068f6bef7cd475def5ab690cadc7417fbe31',
@@ -704,7 +718,8 @@ def test_phase6_05_closure():
     assert len(AUTHORING_HEAD) == len(IDIOM_BLOB) == 40
     assert FENCE_ADDITIONS == {
         "supervised-merge-hold": ("chupa/daemon.py", "chupa/reconcile.py",
-                                 "tests/test_control.py", "tests/test_reconcile.py"),
+                                 "tests/test_control.py", "tests/test_reconcile.py",
+                                 "tests/test_daemon_composition.py"),
         "phase6-continue-06": ()}
     assert set(CLOSURE_EVIDENCE) == set(FENCE_ADDITIONS[PAYLOADS[0]])
     assert all("19.L rule 2" in reason or "19.L rule 5" in reason
@@ -752,7 +767,7 @@ def test_phase6_05_closure():
     for record in (*PLAN_SIZES.values(), *FILE_SIZES.values(),
                    *HISTORICAL_SNAPSHOTS.values(), IMPLEMENT_SPEC):
         assert record["bytes"] >= record["chars"] > 0 and len(record["sha256"]) == 64
-    preserved = {"tests/test_daemon_composition.py", "tests/test_daemon_tasks.py",
+    preserved = {"tests/test_daemon_tasks.py",
                  "tests/test_kill_signal_journal.py", "tests/test_storm_hold.py",
                  "tests/test_bug_gate.py", "tests/test_rework.py"}
     hold = _ticket(PAYLOADS[0])

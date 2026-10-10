@@ -38,6 +38,7 @@ state: confirmed
 - tests/test_serve.py
 - tests/test_restart_timers.py
 - tests/test_drain.py
+- tests/test_daemon_composition.py
 
 ## Plan contract
 - 19.I
@@ -83,6 +84,7 @@ No GO-grade harness, host-loop report producer, new modules, config keys, journa
 - chupa/reconcile.py
 - tests/test_control.py
 - tests/test_reconcile.py
+- tests/test_daemon_composition.py
 
 ## Acceptance criteria
 1. `uv run pytest -q` passes with `tests/test_supervised_merge_hold.py::test_supervised_hold_entry_unit` covering required_units, unique resolve_plan_contract resolution, and every entry_unit_gap part.
