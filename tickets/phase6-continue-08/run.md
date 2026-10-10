@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-The no-code go-grade-run producer has no squash trailer; its committed baseline provides valid partial NO_GO evidence.
+Covered no-code go-grade-run through its committed baseline and dependency chain because it has no code squash trailer.
 
 ## Dead ends
 
-none
+Replaced the retry test’s verification-failure injection with a checks-lift failure because seed review runs only after mechanical gates pass.
 
 ## Second problems filed
 
