@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The committed plan defines the escape-column registry row but has no governing entry unit.
+The previously missing escape-column entry is now complete; no fence additions were needed.
 
 ## Dead ends
 
-Stopped before seed writes rather than inventing the successor's governing contract.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during contract validation, within the 60-minute expected budget.
+Completed within the 60-minute expected budget; all four Verification commands passed, including 3,522 full-suite tests.
 
