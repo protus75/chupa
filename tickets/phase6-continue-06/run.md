@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Caller closure earned four fence additions; three existing files require On-demand placement to satisfy render headroom.
+Preserved both approved seeds byte-for-byte; three machinery files require On-demand placement to meet render headroom.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-About 13 minutes against 60m expected and 90m stuck.
+About 9 minutes against 60m expected and 90m stuck.
 
