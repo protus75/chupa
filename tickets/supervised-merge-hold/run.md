@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The previous fence gap is repaired; the untouched branch passes all 3,656 tests and plan lint.
+The full suite reported 3 failures and 3,739 passes; all 19 reliability-battery tests pass on base commit 11a11831.
 
 ## Dead ends
 
-Verified that requesting READY/confirmed through an already-completed HELD Effect key replays HELD without executing the new action.
+The in-fence implementation passed focused checks, but full verification exposed missing harness closure.
 
 ## Second problems filed
 
