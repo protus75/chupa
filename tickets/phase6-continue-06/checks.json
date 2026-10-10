@@ -1,0 +1,181 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "642c0b117d8336aaa3ad89e87f8a190d190ea9ce",
+  "stem": "phase6-continue-06",
+  "passed": false,
+  "changed_files": [
+    "tests/test_seeded_phase6_06.py"
+  ],
+  "inserted_lines": 1200,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "requisition_review",
+      "verdict": "fail",
+      "findings": [
+        {
+          "code": "plan_diff_budget",
+          "path": "eval/harness.py",
+          "line": null,
+          "message": "19.P6.go-grade-machinery Records says to raise MIN_DEFECTS to 50 and MIN_CLEAN to 15 and to keep each review fixture as a directory of ticket.md, diff.patch and expected.json. load_fixtures refuses any committed set below those floors. The committed set has 22 fixtures (18 planted, 4 clean), so this one diff would add at least 43 fixture directories, which is 129 files and several thousand inserted lines. DiffBudgetGate (chupa/stages.py:43-44, section 7) caps a diff at 30 files and 1,500 inserted lines, and section 7 says a fixture corpus must be one closed envelope file per case. The alternative also fails: raising the floors without growing the corpus breaks tests/test_watchdog_activation.py:239, which calls harness.load_fixtures() on the committed set and is one of the ticket's own Verification commands. The ticket author cannot fix this, because the unit both requires the shape and assigns the corpus growth to this seed.",
+          "paved_road": "Repair 19.P6.go-grade-machinery in the plan. Either move the corpus growth (and the MIN_DEFECTS/MIN_CLEAN raise) into separate fixture-batch seeds, each inside the 30-file/1,500-line diff budget and depended on by the floor-raising machinery seed, or replace the three-file fixture shape with one closed JSON envelope per case, as section 7 requires, and split the batches to fit the budget. Then regenerate the go-grade seeds.",
+          "kind": "spec_gap",
+          "unit": "19.P6.go-grade-machinery"
+        },
+        {
+          "code": "plan_paid_authoring",
+          "path": "eval/fixtures/",
+          "line": null,
+          "message": "The unit says that no paid baseline run is needed to build the machinery and that all tests use scripted providers. Yet it also requires this seed to commit 43 or more new fixtures, each recording an author identity whose (provider, model) differs from the reviewer's. The only fixture-authoring path is the paid `eval.harness author` command. The unit does not say who authors the new fixtures, by what process, or under which recorded identity. Without that, the Implement agent would hand-write fixtures and stamp an author identity on them that no recorded authoring step backs.",
+          "paved_road": "In the plan unit, name who produces the grown fixture corpus and the Author-graph problem set: an operator-run or separate fixture-authoring seed using `eval.harness author`, with the identity recorded as it is today. Then make the machinery seed depend on that producer.",
+          "kind": "spec_gap",
+          "unit": "19.P6.go-grade-machinery"
+        }
+      ],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [
+    {
+      "stem": "go-grade-machinery",
+      "ticket_sha": "28aba2f2aac0ea59971069a52b84213d9cc00422",
+      "verdict": "rma",
+      "findings": [
+        {
+          "code": "plan_diff_budget",
+          "path": "eval/harness.py",
+          "line": null,
+          "message": "19.P6.go-grade-machinery Records says to raise MIN_DEFECTS to 50 and MIN_CLEAN to 15 and to keep each review fixture as a directory of ticket.md, diff.patch and expected.json. load_fixtures refuses any committed set below those floors. The committed set has 22 fixtures (18 planted, 4 clean), so this one diff would add at least 43 fixture directories, which is 129 files and several thousand inserted lines. DiffBudgetGate (chupa/stages.py:43-44, section 7) caps a diff at 30 files and 1,500 inserted lines, and section 7 says a fixture corpus must be one closed envelope file per case. The alternative also fails: raising the floors without growing the corpus breaks tests/test_watchdog_activation.py:239, which calls harness.load_fixtures() on the committed set and is one of the ticket's own Verification commands. The ticket author cannot fix this, because the unit both requires the shape and assigns the corpus growth to this seed.",
+          "paved_road": "Repair 19.P6.go-grade-machinery in the plan. Either move the corpus growth (and the MIN_DEFECTS/MIN_CLEAN raise) into separate fixture-batch seeds, each inside the 30-file/1,500-line diff budget and depended on by the floor-raising machinery seed, or replace the three-file fixture shape with one closed JSON envelope per case, as section 7 requires, and split the batches to fit the budget. Then regenerate the go-grade seeds.",
+          "kind": "spec_gap",
+          "unit": "19.P6.go-grade-machinery"
+        },
+        {
+          "code": "plan_paid_authoring",
+          "path": "eval/fixtures/",
+          "line": null,
+          "message": "The unit says that no paid baseline run is needed to build the machinery and that all tests use scripted providers. Yet it also requires this seed to commit 43 or more new fixtures, each recording an author identity whose (provider, model) differs from the reviewer's. The only fixture-authoring path is the paid `eval.harness author` command. The unit does not say who authors the new fixtures, by what process, or under which recorded identity. Without that, the Implement agent would hand-write fixtures and stamp an author identity on them that no recorded authoring step backs.",
+          "paved_road": "In the plan unit, name who produces the grown fixture corpus and the Author-graph problem set: an operator-run or separate fixture-authoring seed using `eval.harness author`, with the identity recorded as it is today. Then make the machinery seed depend on that producer.",
+          "kind": "spec_gap",
+          "unit": "19.P6.go-grade-machinery"
+        }
+      ],
+      "mechanical": null
+    },
+    {
+      "stem": "go-grade-run",
+      "ticket_sha": "f49691dbefa99e0620b0809cce87154e0e79c165",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
+    },
+    {
+      "stem": "phase6-continue-07",
+      "ticket_sha": "064152916e104860e26f8c899a44e6e646dc1c60",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
+    }
+  ],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_seeded_phase6_06.py"
+      ],
+      "rc": 0,
+      "tail": "....                                                                     [100%]\n4 passed in 1.16s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_eval_harness.py",
+        "tests/test_providers.py",
+        "tests/test_stages.py",
+        "tests/test_merge.py"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 32%]\n........................................................................ [ 64%]\n........................................................................ [ 96%]\n.........                                                                [100%]\n225 passed in 29.41s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_seed_path.py"
+      ],
+      "rc": 0,
+      "tail": "....................................                                     [100%]\n36 passed in 8.14s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_plan_lint.py"
+      ],
+      "rc": 0,
+      "tail": "............................                                             [100%]\n28 passed in 0.18s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "................................................. [ 73%]\n........................................................................ [ 75%]\n........................................................................ [ 77%]\n........................................................................ [ 79%]\n........................................................................ [ 81%]\n........................................................................ [ 83%]\n........................................................................ [ 85%]\n........................................................................ [ 87%]\n........................................................................ [ 89%]\n........................................................................ [ 90%]\n........................................................................ [ 92%]\n........................................................................ [ 94%]\n........................................................................ [ 96%]\n........................................................................ [ 98%]\n...............................................                          [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase6-continue-06/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3719 passed, 1 warning in 310.93s (0:05:10)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
