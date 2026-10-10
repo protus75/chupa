@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "a918b573886f31208187cd785d9674951fd8aae0",
+  "stem": "phase6-continue-02",
+  "attempt": 2,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "retry",
+  "lessons": [
+    "Re-author only host-contract-doc; keep the approved bytes of fixture-host-scaffold and phase6-continue-03 while their ticket_sha matches, as the retry rule in this ticket's scope says.",
+    "host-contract-doc criterion 5 must not reference the check-runner interface without its owner in Context. Add chupa/gates.py (Gate protocol check(artifact, workspace) -> GateReport) and chupa/mergequeue.py (host_checks) to its ## Context.",
+    "Alternatively, narrow criterion 5 to the merged facts it pins: review.mechanical argv, rc 0 passes, merge.safety_checks resolves to exactly one hard entry, only trigger: always hard entries run when safety is off. Leave the fence unchanged.",
+    "Neither the plan nor merged code read so far names the ticket frontmatter schema owner. Locate and read it before citing the additive-only rule. If no owner states the rule, drop the clause or return premise_failed kind: spec_gap naming 19.P6.host-contract-doc.",
+    "Update tests/test_seeded_phase6_02.py to match: the Context partition, the earned-addition caller records, and the recorded render operands for the revised host-contract-doc bytes. Rerun all four Verification commands before committing only that test file."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
