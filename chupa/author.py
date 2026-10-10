@@ -1,6 +1,7 @@
 """The Suggestion Box Author stage (CHUPA_PLAN.md sections 12 and 13)."""
 
 import json
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
@@ -10,6 +11,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from chupa.box import Box, BoxError, DecisionRecord, Message, Resolution, record_path, render_record
 from chupa.driver import Driver, LlmStage, unwrap_fence
 from chupa.gates import GateReport
+from chupa.git import GitError
+from chupa.artifacts import Finding
+from chupa.inbox import CAPS, bounded, report_data
 from chupa.journal import EventType
 from chupa.baseline import resolve_baseline
 from chupa.policy import policy_row, start_state
@@ -33,29 +37,67 @@ class AuthorReply(BaseModel):
 class AuthorGate:
     code = "ticket_schema"
 
-    def __init__(self, checkout: Checkout, message_class: str = "suggestion") -> None:
+    def __init__(self, checkout: Checkout, message_class: str = "suggestion", *, remove=shutil.rmtree) -> None:
         self.checkout = checkout
         self.message_class = message_class
+        self.message: Message | None = None
+        self.copied: dict[str, list[str]] = {}
+        self._remove = remove
+
+    def cleanup(self) -> None:
+        """Remove only candidate directories this gate created, through an injected seam."""
+        for stem in list(self.copied):
+            directory = self.checkout.repo / "tickets" / stem
+            if directory.exists():
+                self._remove(directory)
+            del self.copied[stem]
 
     def check(self, artifact: BaseModel, workspace: Path) -> GateReport:
         assert isinstance(artifact, AuthorReply)
+        if self.copied and artifact.stem not in self.copied:
+            self.cleanup()
         findings = list(stem_findings(artifact.stem))
         path = ticket_path(artifact.stem)
-        if (self.checkout.repo / "tickets" / artifact.stem).exists():
-            from chupa.artifacts import Finding
+        if (self.checkout.repo / "tickets" / artifact.stem).exists() and artifact.stem not in self.copied:
             findings.append(Finding(code=self.code, path=path, message=f"stem {artifact.stem!r} already exists",
                                     paved_road="choose a new, never-before-used ticket stem"))
         if any(event.ticket == artifact.stem for event in self.checkout.journal.read()):
-            from chupa.artifacts import Finding
             findings.append(Finding(code=self.code, path=path, message=f"stem {artifact.stem!r} is already named in the journal",
                                     paved_road="choose a new, never-before-used ticket stem"))
         try:
+            message = self.message
+            if message is not None and message.report is not None and not findings:
+                # Reserve ownership before writing so partial copies unwind too.
+                paths = self.copied.setdefault(artifact.stem, [])
+                for kind in CAPS:
+                    if (source := getattr(message.report.custody, kind)) is not None:
+                        data = bounded(self.checkout.config.state_dir / "box", source, kind)
+                        target = f"tickets/{artifact.stem}/evidence/" + ("replay.json" if kind == "replay" else "log.txt")
+                        self.checkout.fs.write(self.checkout.repo / target, data)
+                        if target not in paths:
+                            paths.append(target)
+                report_path = f"tickets/{artifact.stem}/evidence/report.json"
+                self.checkout.fs.write(self.checkout.repo / report_path, message.report.report.model_dump_json().encode())
+                if report_path not in paths:
+                    paths.append(report_path)
             candidate = artifact.ticket
             if split_frontmatter(candidate) is not None:
                 candidate = stamp(stamp(candidate, "source", f"box:{self.message_class}"), "state", "draft")
-            validate_ticket(artifact.stem, candidate, self.checkout.repo)
+            parsed = validate_ticket(artifact.stem, candidate, self.checkout.repo)
+            if message is not None and message.report is not None:
+                if parsed.frontmatter.kind != "bug":
+                    findings.append(Finding(code=self.code, path=path, message="host report requires kind: bug",
+                        paved_road="author a bug ticket with one regression command and carries prefixes"))
+                if message.bug_origin == "player" and message.summary in split_frontmatter(candidate)[1]:
+                    findings.append(Finding(code=self.code, path=path, message="raw player prose appears in ticket body",
+                        paved_road="write your own summary; cite the delimited evidence file instead"))
         except TicketInvalid as exc:
             findings.extend(exc.findings)
+        except (OSError, ValueError) as exc:
+            findings.append(Finding(code=self.code, path=path, message=f"report custody refused: {exc}",
+                paved_road="repair bounded Box custody before authoring a bug ticket"))
+        if findings:
+            self.cleanup()
         return GateReport(code=self.code, verdict="fail" if findings else "pass", findings=findings)
 
 
@@ -162,11 +204,16 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
     assert message.verdict is not None
     spec: Spec = load_spec((SPECS_DIR / "author.md").read_text())
     files = "\n".join(await checkout.git.ls_files(checkout.repo))
+    try:
+        report = report_data(message.report, box.root) if message.report else None
+    except (OSError, ValueError) as exc:
+        return await failure_decision(checkout, driver, box, message, f"report custody refused: {exc}")
     request = json.dumps({"class": message.message_class, "rationale": message.verdict.rationale,
                           "summary": message.summary, "retro_report_key": message.retro_report_key,
                           "fixed_failure": message.fixed_failure,
                           "overcorrection_risk": message.overcorrection_risk,
-                          "proposed_spec_paths": message.proposed_spec_paths, "reopen": message.reopen})
+                          "proposed_spec_paths": message.proposed_spec_paths, "reopen": message.reopen,
+                          "report": report})
 
     def render_author(_: object, findings: list) -> str:
         inputs = {"request": request, "files": files, "open_tickets": open_tickets,
@@ -178,6 +225,7 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
     reviewed_text: str | None = None
     reviewed_state: str | None = None
     author_gate = AuthorGate(checkout, message.message_class)
+    author_gate.message = message
 
     async def review_candidate(artifact: BaseModel, call_seq: int) -> GateReport:
         nonlocal reviewed, reviewed_text, reviewed_state
@@ -201,37 +249,62 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
         reviewed_text = text
         reviewed_state = state
         findings = reviewed.findings
+        if reviewed.verdict != "approve":
+            author_gate.cleanup()
         if reviewed.verdict == "rma":
             findings = [finding.model_copy(update={"code": "requisition_rma"}) for finding in findings]
         return GateReport(code="requisition_review", verdict="pass" if reviewed.verdict == "approve" else "fail",
                           findings=findings)
 
     checkout.journal.append(EventType.SIGNAL, {"signal": "author_invoked", "message": message.id})
-    result = await driver.run(
-        LlmStage(surface="author", emits=AuthorReply, gates=[author_gate],
-                 render=render_author, review=review_candidate,
-                 terminal_findings=frozenset({"requisition_rma"})), None,
-        ticket=None, run_seq=pass_no, attempt=message.seq, workspace=checkout.repo,
-        tier=checkout.config.routing_default_tier, effort=spec.meta.effort, stuck_budget=AUTHOR_STUCK_S,
-        expected_budget='surface', scope_fence=())
+    try:
+        result = await driver.run(
+            LlmStage(surface="author", emits=AuthorReply, gates=[author_gate],
+                     render=render_author, review=review_candidate,
+                     terminal_findings=frozenset({"requisition_rma"})), None,
+            ticket=None, run_seq=pass_no, attempt=message.seq, workspace=checkout.repo,
+            tier=checkout.config.routing_default_tier, effort=spec.meta.effort, stuck_budget=AUTHOR_STUCK_S,
+            expected_budget='surface', scope_fence=())
+    except BaseException:
+        author_gate.cleanup()
+        raise
     if result.outcome != "ok" or not isinstance(result.artifact, AuthorReply):
+        author_gate.cleanup()
         return await failure_decision(checkout, driver, box, message,
                                       findings_text(result.findings) or result.outcome)
     reply = result.artifact
     assert reviewed is not None and reviewed_text is not None and reviewed_state is not None
     text = reviewed_text
     path = ticket_path(reply.stem)
-    checkout.fs.write(checkout.repo / path, text.encode())
 
     async def commit() -> str:
-        await checkout.git.add(checkout.repo, [path])
-        await checkout.git.commit(checkout.repo, f"chupa({reply.stem}): ticket", only=[path])
+        paths = [path, *author_gate.copied.get(reply.stem, [])]
+        await checkout.git.add(checkout.repo, paths)
+        await checkout.git.commit(checkout.repo, f"chupa({reply.stem}): ticket", only=paths)
         return await checkout.git.rev_parse(checkout.repo, "HEAD")
 
     try:
+        checkout.fs.write(checkout.repo / path, text.encode())
         sha = await driver.effects.run(commit, key=f"ticket-plane/{reply.stem}/author", ticket=None)
-    except Exception as exc:
+    except BaseException as exc:
+        if reply.stem in author_gate.copied:
+            paths = [path, *author_gate.copied[reply.stem]]
+            # Restore from HEAD: remove new index entries, but retain a commit
+            # that landed before the Effects completion or SHA read failed.
+            indexed = set(await checkout.git.ls_files(checkout.repo))
+            staged = [p for p in paths if p in indexed]
+            if staged:
+                await checkout.git.restore(checkout.repo, staged, source="HEAD")
+            try:
+                await checkout.git.rev_parse(checkout.repo, f"HEAD:{path}")
+            except GitError:
+                author_gate.cleanup()
+            else:
+                author_gate.copied.clear()
+        if not isinstance(exc, Exception):
+            raise
         return await failure_decision(checkout, driver, box, message, f"commit failed: {type(exc).__name__}: {exc}")
+    author_gate.copied.clear()
     checkout.journal.append(EventType.SIGNAL, {"signal": "ticket_intake", "source": f"box:{message.message_class}",
                                                 "state": reviewed_state,
                                                 "new": True, "commit": sha}, ticket=reply.stem)

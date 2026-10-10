@@ -33,6 +33,45 @@ def test_signature_recipe():
     assert signature("suggestion", BOOTSTRAP_ORIGIN, reason=line) == hashlib.sha256(compact.encode()).hexdigest()
 
 
+def test_host_report_signature(tmp_path):
+    from chupa.inbox import validate_report
+    from tests.test_inbox import raw_report
+
+    box = Box(tmp_path / "box", LocalFileSystem())
+    raw = raw_report("self_diagnosed")
+    def enqueue(raw, occurrence):
+        report = validate_report(json.dumps(raw).encode())
+        descriptor = box.custody_report(occurrence, report, {})
+        return box.enqueue_report(descriptor, occurrence_id=occurrence)
+    id, created = enqueue(raw, "original")
+    expected = hashlib.sha256(json.dumps([raw[k] for k in
+        ("game_slug", "anomaly_code", "location", "app_version")], separators=(",", ":")).encode()).hexdigest()
+    assert created and box.get(id).signature == expected
+    assert enqueue({**raw, "summary": "Different wording", "app_commit": "new evidence"}, "rereport") == (id, False)
+    assert enqueue(raw, "rereport") == (id, False)
+    for field, value in (("location", "app/view.py:124"), ("location", "other/view.py:123"),
+                         ("app_version", "1.2.4"), ("anomaly_code", "illegal43"), ("game_slug", "score3")):
+        other, created = enqueue({**raw, field: value}, field + value.replace("/", "-"))
+        assert created and other != id
+    durable = Box(box.root, LocalFileSystem()).get(id)
+    assert durable.report.report.model_dump() == validate_report(json.dumps(raw).encode()).model_dump()
+    assert durable.report.custody.replay is None and durable.has_repro is False
+    engine, _ = box.enqueue(message_class="failure_report", origin="engine", stage="check",
+        outcome="gate_failed", summary="failed at 42 /tmp/file")
+    assert box.get(engine).signature == signature("failure_report", "engine", "check", "gate_failed",
+                                                 reason="failed at 51 /other/file")
+    path = box._path(box.get(engine))
+    legacy = json.loads(path.read_text())
+    legacy.pop("report")
+    legacy.pop("report_arrivals")
+    path.write_text(json.dumps(legacy))
+    assert box.get(engine).report is None
+    player = raw_report()
+    first, _ = enqueue(player, "player1")
+    second, _ = enqueue(player, "player2")
+    assert first != second  # Semantic dedup belongs to the sequential triage consumer.
+
+
 def test_enqueue_dedup_and_validation(tmp_path):
     box = Box(tmp_path / "box", LocalFileSystem())
     first, created = box.enqueue(message_class="suggestion", origin="one", summary="hello")

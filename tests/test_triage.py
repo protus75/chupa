@@ -218,6 +218,60 @@ def test_invalid_replies_leave_pending_without_commit(tmp_path, monkeypatch):
     assert len(llm.requests) == 7
 
 
+def test_report_ingested_before_pending_scan(tmp_path, monkeypatch):
+    from tests.test_inbox import arrival
+    from chupa import inbox
+
+    root, box = root_with_box(tmp_path)
+    source = arrival(root)
+    replay = root / "replay.json"
+    data = replay.read_bytes()
+    replay.write_bytes(data + b" " * (1024 * 1024 - len(data)))
+    config = root / "config.yaml"
+    config.write_text(config.read_text() + "report_inbox: inbox\n")
+    assert box.pending() == []
+    def classify(request):
+        message, = box.pending()
+        assert message.report is not None and message.has_repro
+        assert "structured log" in request.rendered and 'initial_state' in request.rendered
+        assert "excerpt truncated" in request.rendered
+        assert (box.root / message.report.custody.replay).read_bytes() == replay.read_bytes()
+        return reply("decision")
+    llm = FakeLLM([classify])
+    assert run(root, monkeypatch, llm) == 0
+    assert len(llm.requests) == 1 and box.pending() == []
+    assert source.exists()
+    config.write_text(config.read_text().replace("report_inbox: inbox\n", ""))
+    def forbidden(path):
+        pytest.fail("absent report inbox must not read report sources")
+    monkeypatch.setattr(inbox, "validate_report", forbidden)
+    assert run(root, monkeypatch, FakeLLM([])) == 0
+
+
+def test_report_author_failure_is_decision(tmp_path, monkeypatch):
+    from tests.test_inbox import arrival
+    root, box = root_with_box(tmp_path)
+    arrival(root)
+    config = root / "config.yaml"
+    config.write_text(config.read_text() + "report_inbox: inbox\n")
+    llm = FakeLLM([reply("author"), *[json.dumps({"stem": "broken", "ticket": "bad"})] * 7])
+    assert run(root, monkeypatch, llm) == 0
+    message, = box.messages()
+    assert message.resolution == Resolution(kind="decision", link=f"decision-{message.id}")
+    assert len([e for e in events(root) if e.body.get("signal") == "author_invoked"]) == 1
+    assert len([r for r in llm.requests if r.surface == "author"]) == 7
+    assert not (root / "tickets/broken").exists()
+    assert "tickets/broken" not in git_out(root, "status", "--porcelain")
+    assert run(root, monkeypatch, FakeLLM([])) == 0
+    # A later arrival has its own allowance and can reuse the rejected stem.
+    from tests.test_author import bug_reply
+    source = root / "inbox/a.json"
+    source.rename(source.with_name("b.json"))
+    assert run(root, monkeypatch, FakeLLM([reply("author"), bug_reply("broken"),
+                                          requisition_reply("approve")])) == 0
+    assert (root / "tickets/broken/ticket.md").is_file()
+
+
 def test_lock_contention_exits_two_without_pass(tmp_path, monkeypatch):
     root, box = root_with_box(tmp_path)
     enqueue(box, "locked")

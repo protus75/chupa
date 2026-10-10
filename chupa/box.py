@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from chupa.config import load_config
 from chupa.git import Git
 from chupa.journal import EventType, Journal
+from chupa.inbox import CAPS, EvidencePaths, ReportDescriptor, SelfReport, bounded
 from chupa.seams import Clock, FileSystem, LocalFileSystem, SubprocessExec
 
 BOX_DIR = "box"
@@ -81,9 +82,17 @@ class Message(_Strict):
     proposed_spec_paths: list[Annotated[str, Field(pattern=r"^specs/[a-z0-9_-]+\.md$")]] = []
     reports: Annotated[int, Field(ge=0)] = 0
     reopen: bool = False
+    report: ReportDescriptor | None = None
+    report_arrivals: list[NonBlank] = []
 
     @model_validator(mode="after")
     def _coherent(self) -> "Message":
+        if self.report is not None and (self.message_class != "bug_report"
+                or self.bug_origin != self.report.report.origin
+                or self.has_repro != (self.report.custody.replay is not None)):
+            raise ValueError("host report descriptor must agree with bug origin and copied replay")
+        if self.report_arrivals and self.report is None:
+            raise ValueError("report arrival receipts require host report custody")
         if (self.stage is None) != (self.outcome is None):
             raise ValueError("stage and outcome must both be set or both be null")
         if (self.bug_origin is not None and self.has_repro is not None) != (self.message_class == "bug_report"):
@@ -212,21 +221,69 @@ class Box:
             )
         except ValidationError as exc:
             raise BoxError(f"invalid box message: {exc}") from exc
+        return self._enqueue(message, occurrence_id)
+
+    def _enqueue(self, message: Message, occurrence_id: str | None) -> tuple[str, bool]:
+        digest = message.signature
         existing = self.messages()
         if self._arrival is not None:
             self._arrival(signature=digest, occurrence_id=occurrence_id,
-                          emitting_stage=stage, emitting_origin=origin)
+                          emitting_stage=message.stage, emitting_origin=message.origin)
             # An arrival may publish its trip report before this source message.
             existing = self.messages()
         for prior in existing:
             if prior.signature == digest:
+                if message.report is not None and occurrence_id in prior.report_arrivals:
+                    return prior.id, False
                 self.record_rereport(prior.id, occurrence_id=occurrence_id)
+                if message.report is not None:
+                    prior = self.get(prior.id)
+                    self._write(prior.model_copy(update={"report_arrivals": [*prior.report_arrivals, occurrence_id]}))
                 return prior.id, False
         seq = max((prior.seq for prior in existing), default=0) + 1
         id = f"box-{seq:06d}-{digest[:8]}"
         message = message.model_copy(update={"id": id, "seq": seq})
         self._write(message)
         return id, True
+
+    def report_custody(self, arrival: str) -> ReportDescriptor | None:
+        if re.fullmatch(r"[a-zA-Z0-9._:-]+", arrival) is None or arrival in {".", ".."}:
+            raise BoxError("invalid arrival identity; supply a stable single filename token")
+        path = self.root / "custody" / arrival / "report.json"
+        return ReportDescriptor.model_validate_json(path.read_bytes()) if path.exists() else None
+
+    def custody_report(self, arrival: str, report, evidence: dict[str, bytes]) -> ReportDescriptor:
+        if existing := self.report_custody(arrival):
+            return existing
+        folder = Path("custody") / arrival
+        paths = {}
+        for kind, data in evidence.items():
+            if kind not in CAPS or len(data) > CAPS[kind]:
+                raise BoxError("invalid custody evidence; supply validated bounded replay/log bytes")
+            path = folder / ("replay.json" if kind == "replay" else "log.txt")
+            self.fs.write(self.root / path, data)
+            paths[kind] = path.as_posix()
+        descriptor = ReportDescriptor(report=report, custody=EvidencePaths(**paths))
+        # The manifest is the publication boundary for a complete custody snapshot.
+        self.fs.write(self.root / folder / "report.json", descriptor.model_dump_json().encode())
+        return descriptor
+
+    def enqueue_report(self, descriptor: ReportDescriptor, *, occurrence_id: str) -> tuple[str, bool]:
+        if not occurrence_id.strip():
+            raise BoxError("supply a stable nonblank report arrival identity")
+        for kind in CAPS:
+            if (value := getattr(descriptor.custody, kind)) is not None:
+                bounded(self.root, value, kind)
+        report = descriptor.report
+        fields = ([report.game_slug, report.anomaly_code, report.location, report.app_version]
+                  if isinstance(report, SelfReport) else ["bug_report", "player", occurrence_id])
+        digest = hashlib.sha256(json.dumps(fields, separators=(",", ":")).encode()).hexdigest()
+        message = Message(id=f"box-000001-{digest[:8]}", seq=1, signature=digest,
+            message_class="bug_report", summary=report.summary, origin="host-report",
+            stage=None, outcome=None, bug_origin=report.origin,
+            has_repro=descriptor.custody.replay is not None, status="pending", verdict=None,
+            resolution=None, report=descriptor, report_arrivals=[occurrence_id])
+        return self._enqueue(message, occurrence_id)
 
     def recover(self) -> None:
         if self._recover is not None:

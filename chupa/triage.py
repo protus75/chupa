@@ -12,6 +12,7 @@ from chupa.driver import Driver, LlmStage
 from chupa.effects import Effects
 from chupa.git import GitError
 from chupa.journal import EventType
+from chupa.inbox import ingest, report_data
 from chupa.llm import LLM
 from chupa.runner import Checkout, SPECS_DIR
 from chupa.specs import load_spec, render
@@ -93,8 +94,7 @@ async def triage_pass(checkout: Checkout, llm: LLM) -> list[tuple[str, str]]:
     history = checkout.journal.read()
     pass_no = sum(e.type == EventType.SIGNAL and e.body.get("signal") == "triage_pass" for e in history)
     checkout.journal.append(EventType.SIGNAL, {"signal": "triage_pass", "pass": pass_no})
-    box = Box(checkout.config.state_dir / BOX_DIR, checkout.fs,
-              rereport=RereportJournal(checkout.journal))
+    box = report_intake(checkout)
     spec = load_spec((SPECS_DIR / "triage.md").read_text())
     driver = Driver.from_config(checkout.config, llm=llm, env=checkout.env, clock=checkout.clock,
                                 sleep=checkout.sleep, fs=checkout.fs)
@@ -159,7 +159,8 @@ async def _settle_pass(checkout, driver, box, spec, history, pass_no):
                                    "outcome": message.outcome, "retro_report_key": message.retro_report_key,
                                    "fixed_failure": message.fixed_failure,
                                    "overcorrection_risk": message.overcorrection_risk,
-                                   "proposed_spec_paths": message.proposed_spec_paths, "reopen": message.reopen}),
+                                   "proposed_spec_paths": message.proposed_spec_paths, "reopen": message.reopen,
+                                   "report": report_data(message.report, box.root) if message.report else None}),
             "open_tickets": "\n".join(open_tickets),
             "merged": "\n".join(merged),
             "decisions": "\n".join(f"{r.id}: {r.kind}, link={r.link}, {body.splitlines()[0] if body else ''}"
@@ -216,3 +217,21 @@ async def _settle_pass(checkout, driver, box, spec, history, pass_no):
                                      message.summary)
         lines.append((message.id, line))
     return lines
+
+
+def report_intake(checkout: Checkout) -> Box:
+    if checkout.config.report_inbox is None:
+        return Box(checkout.config.state_dir / BOX_DIR, checkout.fs,
+                   rereport=RereportJournal(checkout.journal))
+    from chupa.daemon import storm_producer
+    from chupa.enginelog import EngineLog
+    from chupa.redact import Redactor
+
+    box = storm_producer(root=checkout.config.state_dir / BOX_DIR, fs=checkout.fs,
+                         journal=checkout.journal, clock=checkout.clock)
+    box.recover()
+    log = EngineLog(checkout.config.state_dir / "engine.log",
+                    Redactor.from_config(checkout.config, checkout.env), checkout.clock)
+    ingest(box, root=checkout.repo, inbox=checkout.config.report_inbox,
+           diagnostic=lambda error: log.event("report_intake_refused", error=error))
+    return box

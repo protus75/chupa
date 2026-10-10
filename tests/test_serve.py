@@ -146,6 +146,69 @@ async def test_serve_waits_at_quiescence_and_discovers_work(root, monkeypatch):
         await finish(rig, run)
 
 
+@pytest.mark.asyncio
+async def test_empty_box_report_intake(root, monkeypatch):
+    from tests.test_inbox import arrival
+    rig = await graph(root, monkeypatch)
+    config = root / "config.yaml"
+    config.write_text(config.read_text() + "report_inbox: inbox\n")
+    assert rig.owner.box.messages() == []
+    run = asyncio.create_task(rig.owner.run())
+    try:
+        await until(rig, rig.owner.ready.is_set)
+        arrival(root)
+        await until(rig, lambda: rig.owner.box.messages()
+                    and rig.owner.box.messages()[0].status == "resolved")
+        message, = rig.owner.box.messages()
+        assert message.report and message.has_repro
+        assert message.resolution.kind == "decision"
+        assert len([e for e in rig.journal.read() if e.body.get("signal") == "triage_pass"]) == 1
+    finally:
+        await finish(rig, run)
+
+
+@pytest.mark.asyncio
+async def test_report_consumer_is_sequential(root, monkeypatch):
+    from tests.test_inbox import arrival, raw_report
+    from chupa.driver import Driver
+    rig = await graph(root, monkeypatch)
+    config = root / "config.yaml"
+    config.write_text(config.read_text() + "report_inbox: inbox\n")
+    arrival(root)
+    (root / "inbox/b.json").write_text(json.dumps(raw_report(summary="Another material defect")))
+    entered, release = asyncio.Event(), asyncio.Event()
+    active = maximum = calls = 0
+    driving = Driver.run
+    async def observed(self, stage, consumed, **kwargs):
+        nonlocal active, maximum, calls
+        if stage.surface != "triage":
+            return await driving(self, stage, consumed, **kwargs)
+        assert rig.owner.core.admission._slot.locked()
+        active += 1
+        maximum = max(maximum, active)
+        calls += 1
+        entered.set()
+        try:
+            await release.wait()
+            return await driving(self, stage, consumed, **kwargs)
+        finally:
+            active -= 1
+    monkeypatch.setattr(Driver, "run", observed)
+    run = asyncio.create_task(rig.owner.run())
+    try:
+        await until(rig, entered.is_set)
+        for _ in range(100):
+            await turn()
+        assert maximum == calls == 1 and len(rig.owner.workers) == 4
+        assert rig.owner.tasks._consumers and len(rig.owner.tasks._consumers) == 3
+        release.set()
+        await until(rig, lambda: len(rig.owner.box.messages()) == 2 and rig.owner.box.pending() == [])
+        assert calls == 2 and maximum == 1
+    finally:
+        release.set()
+        await finish(rig, run)
+
+
 def test_serve_cli_uses_production_composition(root, monkeypatch):
     built = []
     original = serve.Serve.run

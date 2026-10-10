@@ -258,9 +258,12 @@ class Serve:
         response = self.responses[2]
         async def poll():
             async with self.mutations():
-                if self.stopping or not self.box.pending():
+                if self.stopping:
                     return
                 c = replace(self.checkout, config=snapshot_config(self.control.load_config()))
+                triage.report_intake(c)
+                if not self.box.pending():
+                    return
                 llm = ProviderLLM(c.config, exec_=c.exec_, fs=c.fs, env=c.env, cwd=c.repo,
                                   timeout=runner.call_timeout(c.config), session=self.control.providers)
                 problems = await llm.preflight() if self.control.providers.active else []
