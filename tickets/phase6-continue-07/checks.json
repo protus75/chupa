@@ -1,0 +1,143 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "c70254d9a67e63a06a7dd6f81c667b825782187c",
+  "stem": "phase6-continue-07",
+  "passed": false,
+  "changed_files": [
+    "tests/test_seeded_phase6_07.py"
+  ],
+  "inserted_lines": 808,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "requisition_review",
+      "verdict": "fail",
+      "findings": [
+        {
+          "code": "scope_fence",
+          "path": "tests/test_fixture_host.py",
+          "line": 117,
+          "message": "Criteria 4 and 9 require the loop's regression bug to pass the real BugEvidenceGate, which is `_gather_bug` in chupa/stages.py. That gate has four requirements: the ticket is `kind: bug`; it has a `## Regression` section with a `- carries:` prefix; the prefix matches a file changed on the branch whose parent directory is `tests`, `test`, `fixtures` or `fixture`; and the reproducer prints `{\"regression_result\": ...}` on stdout. The committed fixture meets none of these. In scripts.json the regression author ticket is `kind: feature` with no `## Regression`. regression_test.py sits at the host root and prints prose. `scaffold.scripted_reply` only allows `settings.json` as an edit target. Fixing the fixture under hosts/fixture/ breaks assertions in tests/test_fixture_host.py, which is not in the fence. `test_fixture_scenario_list_is_closed` pins `edits == {\"settings.json\"}`, `scope_fence == (\"settings.json\",)` and the exact row keys. `test_fixture_regression_exists_at_base` pins `diff_names(base, head) == [\"settings.json\"]`. `test_fixture_profile_loads` pins the exact `engine_plane_safety_inventory`. Verification line 4 still runs that file as a preservation suite. The 19.L contradicted-test closure was not applied.",
+          "paved_road": "Apply the 19.L caller and contradicted-test closure when authoring the ticket. Add tests/test_fixture_host.py to the Scope fence and Context. Change Scope in to say that only predecessor fixture assertions contradicted by the bug-gate shape may be migrated, and only in the same commit; list those assertions: closed edit vocabulary, settings-only regression diff, scope fence, row keys, and inventory. Make Verification run the migrated assertions. Otherwise, if the fixture must stay unchanged, reply premise_failed so the plan can define how the regression scenario satisfies the carries and protocol requirements.",
+          "kind": "authoring_error",
+          "unit": null
+        }
+      ],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [
+    {
+      "stem": "exit-receipt-machinery",
+      "ticket_sha": "397bfd6fb60327cfd8412783fadfdf47a0a34cc7",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "scope_fence",
+          "path": "tests/test_fixture_host.py",
+          "line": 117,
+          "message": "Criteria 4 and 9 require the loop's regression bug to pass the real BugEvidenceGate, which is `_gather_bug` in chupa/stages.py. That gate has four requirements: the ticket is `kind: bug`; it has a `## Regression` section with a `- carries:` prefix; the prefix matches a file changed on the branch whose parent directory is `tests`, `test`, `fixtures` or `fixture`; and the reproducer prints `{\"regression_result\": ...}` on stdout. The committed fixture meets none of these. In scripts.json the regression author ticket is `kind: feature` with no `## Regression`. regression_test.py sits at the host root and prints prose. `scaffold.scripted_reply` only allows `settings.json` as an edit target. Fixing the fixture under hosts/fixture/ breaks assertions in tests/test_fixture_host.py, which is not in the fence. `test_fixture_scenario_list_is_closed` pins `edits == {\"settings.json\"}`, `scope_fence == (\"settings.json\",)` and the exact row keys. `test_fixture_regression_exists_at_base` pins `diff_names(base, head) == [\"settings.json\"]`. `test_fixture_profile_loads` pins the exact `engine_plane_safety_inventory`. Verification line 4 still runs that file as a preservation suite. The 19.L contradicted-test closure was not applied.",
+          "paved_road": "Apply the 19.L caller and contradicted-test closure when authoring the ticket. Add tests/test_fixture_host.py to the Scope fence and Context. Change Scope in to say that only predecessor fixture assertions contradicted by the bug-gate shape may be migrated, and only in the same commit; list those assertions: closed edit vocabulary, settings-only regression diff, scope fence, row keys, and inventory. Make Verification run the migrated assertions. Otherwise, if the fixture must stay unchanged, reply premise_failed so the plan can define how the regression scenario satisfies the carries and protocol requirements.",
+          "kind": "authoring_error",
+          "unit": null
+        }
+      ],
+      "mechanical": null
+    },
+    {
+      "stem": "phase6-continue-08",
+      "ticket_sha": "43314620af43103a68ddbb0e3eec0cfea3e4f79c",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
+    }
+  ],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_seeded_phase6_07.py"
+      ],
+      "rc": 0,
+      "tail": "....                                                                     [100%]\n4 passed in 3.40s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_stages.py",
+        "tests/test_merge.py",
+        "tests/test_seed_path.py"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 38%]\n........................................................................ [ 76%]\n............................................                             [100%]\n188 passed in 27.92s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_plan_lint.py"
+      ],
+      "rc": 0,
+      "tail": "............................                                             [100%]\n28 passed in 0.18s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "................................................. [ 73%]\n........................................................................ [ 75%]\n........................................................................ [ 77%]\n........................................................................ [ 78%]\n........................................................................ [ 80%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 86%]\n........................................................................ [ 88%]\n........................................................................ [ 90%]\n........................................................................ [ 92%]\n........................................................................ [ 94%]\n........................................................................ [ 96%]\n........................................................................ [ 98%]\n....................................................................     [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase6-continue-07/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3740 passed, 1 warning in 313.43s (0:05:13)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
