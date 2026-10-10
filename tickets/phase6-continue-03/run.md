@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-Payload and escape entry units resolve, but the committed plan contains only the supervised-merge-hold registry row; git status remains clean.
+The prior supervised-merge-hold contract gap is repaired in the committed plan; no fence additions were needed.
 
 ## Dead ends
 
-Successor contract resolution stopped before seed writes; no contract was fabricated.
+Corrected snapshot extraction that initially counted test filenames as test functions.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Completed within the expected 60-minute budget.
 
