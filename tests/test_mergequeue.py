@@ -527,6 +527,25 @@ def test_squash_tree_trailers_and_retirement(ctx, monkeypatch):
     run(scenario())
 
 
+def test_escape_squash_trailer_identity(ctx):
+    async def scenario():
+        ticket = await ready(ctx)
+        reviewed = await ctx.git.rev_parse(ctx.repo, ticket.stem)
+        ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved\n")
+        await commit(ctx, ctx.repo, ["chupa/other.py"])
+        result = await admission(ctx, ticket)
+        assert result.outcome == "ok", result.findings
+        assert result.artifact.reviewed_sha == reviewed
+        [candidate] = await ctx.git.first_parent_squashes(ctx.repo, result.artifact.commit)
+        assert candidate == {"ticket": ticket.stem, "commit": result.artifact.commit,
+                             "reviewed_sha": reviewed, "paths": ["chupa/thing.py"]}
+        message = await ctx.git._run(ctx.repo, "show", "-s", "--format=%B", result.artifact.commit)
+        assert message.count("chupa-ticket:") == message.count("chupa-reviewed-sha:") == 1
+        terminal, = [e for e in ctx.driver.journal.read() if e.type == EventType.STATE_TRANSITION]
+        assert terminal.body == {"to": "merged", "commit": candidate["commit"], "reviewed_sha": reviewed}
+    run(scenario())
+
+
 def test_tree_mismatch_escalates_and_pauses(ctx, monkeypatch):
     async def scenario():
         ticket = await ready(ctx)

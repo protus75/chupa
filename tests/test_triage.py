@@ -1,6 +1,7 @@
 """Production CLI composition with a scripted provider and a real ticket-plane checkout."""
 
 import json
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -332,3 +333,197 @@ def test_reopened_message_bypasses_its_tombstone(tmp_path, monkeypatch, recorded
     assert (root / "tickets/reconsidered/ticket.md").is_file()
     count = len(llm.requests)
     assert run(root, monkeypatch, llm) == 0 and len(llm.requests) == count
+
+
+async def escape_rig(tmp_path):
+    from chupa import runner, stages
+    from chupa.tickets import validate_ticket
+    from tests.test_drain import pause_checkout
+    from tests.test_stages import implement_reply
+    root, box = root_with_box(tmp_path)
+    c = pause_checkout(root)
+    writer = runner.bind(c, FakeLLM([implement_reply()]))
+    text = confirmed().replace("uv run pytest", "true").replace("kind: feature",
+        "kind: feature\ngate_bypass:\n  - {code: scope_fence, reason: witnessed fixture}")
+    commit_ticket(root, "candidate", text)
+    ticket = validate_ticket("candidate", text, root)
+    slip = (await stages.implement(writer.ctx, ticket, attempt=0)).artifact
+    wt = writer.ctx.worktree(ticket.stem)
+    for path in ("chupa/thing.py", "outside.py"):
+        c.fs.write(wt / path, b"changed\n")
+    await c.git.add(wt, ["chupa/thing.py", "outside.py"])
+    await c.git.commit(wt, "code")
+    checked = (await stages.check(writer.ctx, ticket, slip, attempt=0)).artifact
+    assert checked.passed and "scope_fence" in checked.bypassed
+    writer.stages.driver.llm = FakeLLM([requisition_reply("approve")])
+    review = (await stages.review(writer.ctx, ticket, checked, attempt=0)).artifact
+    # A process commit forces the production admission's clean-rebase approval carry.
+    c.fs.write(root / "tickets/process/note.md", b"process\n")
+    await c.git.add(root, ["tickets/process/note.md"])
+    await c.git.commit(root, "process")
+    writer.queue.offer(ticket, attempt=0)
+    [admitted] = await writer.queue.process()
+    assert admitted.outcome == "ok", admitted.findings
+    assert admitted.artifact.reviewed_sha == review.reviewed_sha == checked.produced_at_sha
+    return c, writer, box, checked, admitted.artifact
+
+
+async def escape_report(c, *, commit, paths=(), stem="repair"):
+    from chupa import triage
+    from dataclasses import replace
+    from tests.test_inbox import arrival
+    from tests.test_author import bug_reply
+    arrival(c.repo, app_commit=commit, implicated_paths=list(paths))
+    config = c.repo / "config.yaml"
+    config.write_text(config.read_text() + "report_inbox: inbox\n")
+    from chupa.config import load_config
+    c = replace(c, config=load_config(None, cwd=c.repo))
+    llm = FakeLLM([reply("author"), bug_reply(stem), requisition_reply("approve")])
+    await triage.triage_pass(c, llm)
+    box = Box(c.config.state_dir / "box", c.fs)
+    [message] = box.messages()
+    assert message.resolution == Resolution(kind="ticket", link=stem)
+    assert message.report and message.report.custody.replay
+    return c, message, llm
+
+
+def attribution(c):
+    return [e for e in c.journal.read() if e.type == EventType.EFFECT_COMPLETION
+            and (e.key or "").startswith("escape-attribution/")]
+
+
+def test_resolved_bug_escape_attribution(tmp_path):
+    from chupa import triage
+    from chupa.retro import production_evidence, project_window
+    from chupa.scorecard import project_scorecard
+    async def scenario():
+        c, writer, box, checked, admitted = await escape_rig(tmp_path)
+        # Later evidence, unfinished lifts, and mutable copies cannot replace admission custody.
+        c.journal.append(EventType.EFFECT_INTENT, {"result": {"commit": "missing"}},
+                         ticket="candidate", key="ticket-plane/candidate/0/checks")
+        path = "tickets/candidate/checks.json"
+        c.fs.write(c.repo / path, checked.model_copy(update={"produced_at_sha": "later",
+            "reports": []}).model_dump_json().encode())
+        await c.git.add(c.repo, [path])
+        await c.git.commit(c.repo, "later attempt", only=[path])
+        c.journal.append(EventType.EFFECT_COMPLETION,
+            {"result": {"commit": await c.git.rev_parse(c.repo, "HEAD")}},
+            ticket="candidate", key="ticket-plane/candidate/1/checks")
+        c, message, llm = await escape_report(c, commit=admitted.commit, paths=["chupa/thing.py"])
+        [effect] = attribution(c)
+        assert triage.ESCAPE_ATTRIBUTION == "escape-attribution"
+        assert effect.key == f"escape-attribution/{message.id}" and effect.ticket == "repair"
+        result = effect.body["result"]
+        assert set(result) == {"box_id", "bug_ticket", "app_commit", "matches", "confidence_note"}
+        expected = sorted({r.code for r in checked.reports if r.verdict == "pass"
+                           and r.code not in checked.bypassed} | {"review"})
+        assert result["matches"] == [{"ticket": "candidate", "commit": admitted.commit,
+            "reviewed_sha": admitted.reviewed_sha, "surfaces": expected}]
+        assert "scope_fence" not in expected and "unknown" not in expected
+        assert "Single-commit" in result["confidence_note"] and "narrowed" in result["confidence_note"]
+        # Crossing a retro boundary does not require a current-window Check for an old admission.
+        c.journal.append(EventType.EFFECT_COMPLETION, {"result": {}}, key="retro/1")
+        other = message.model_copy(update={"id": "second-report"})
+        await triage.attribute_escape(c, writer.stages.driver, other)
+        window = project_window(c.journal.read())
+        await production_evidence(window, c)
+        assert all(r.escapes == 1 and r.evaluated_tickets == 0 for r in project_scorecard(window).surfaces)
+        no_paths = message.model_copy(update={"id": "wrong-path", "report": message.report.model_copy(
+            update={"report": message.report.report.model_copy(update={"implicated_paths": ["unrelated.py"]})})})
+        result = await triage.attribute_escape(c, writer.stages.driver, no_paths)
+        assert result["matches"] == [] and "unavailable" in result["confidence_note"]
+        base = await c.git.rev_parse(c.repo, f"{admitted.commit}~1")
+        end = await c.git.rev_parse(c.repo, "HEAD")
+        ranged = message.model_copy(update={"id": "bounded-range", "report": message.report.model_copy(
+            update={"report": message.report.report.model_copy(update={"app_commit": f"{base}..{end}",
+                                                                       "implicated_paths": []})})})
+        bounded = await triage.attribute_escape(c, writer.stages.driver, ranged)
+        result_match = attribution(c)[0].body["result"]["matches"]
+        assert bounded["matches"] == result_match
+        assert "Bounded-range" in bounded["confidence_note"] and "without path narrowing" in bounded["confidence_note"]
+        candidate = result_match[0]
+        history = c.journal.read()
+        # A trailer pair alone is not evidence, and an unfinished or later lift cannot prove a pass.
+        missing = [e for e in history if e.type != EventType.EFFECT_COMPLETION or
+                   not ((e.key or "").startswith("ticket-plane/candidate/0/") or
+                        (e.key or "").startswith("llm/candidate/"))]
+        assert await triage._passed_surfaces(c, candidate, missing) == []
+        assert await triage._passed_surfaces(c, {**candidate, "reviewed_sha": "f" * 40}, history) == []
+        unproven = {**candidate, "commit": await c.git.rev_parse(c.repo, "HEAD")}
+        assert await triage._passed_surfaces(c, unproven, history) == []
+        assert len(llm.requests) == 3
+    asyncio.run(scenario())
+
+
+def test_escape_attribution_retry(tmp_path, monkeypatch):
+    from chupa import triage
+    from chupa.effects import Effects
+    from chupa.git import GitError
+    async def scenario():
+        c, writer, box, checked, admitted = await escape_rig(tmp_path)
+        original = c.git.first_parent_squashes
+        async def failure(*args):
+            raise GitError(["git"], 1, "", "unreadable repository")
+        with monkeypatch.context() as patch:
+            patch.setattr(c.git, "first_parent_squashes", failure)
+            c, message, llm = await escape_report(c, commit=admitted.commit)
+        assert attribution(c) == []
+        assert any(e.type == EventType.EFFECT_INTENT and e.key == f"escape-attribution/{message.id}"
+                   for e in c.journal.read())
+        diagnostic = (c.config.state_dir / "engine.log").read_text()
+        assert "escape_attribution_incomplete" in diagnostic and "repair repository/evidence access" in diagnostic
+        assert c.git.first_parent_squashes == original
+        class Crash(BaseException):
+            pass
+        append = c.journal.append
+        def crash(type_, body, **kwargs):
+            if type_ == EventType.EFFECT_COMPLETION and (kwargs.get("key") or "").startswith("escape-attribution/"):
+                raise Crash()
+            return append(type_, body, **kwargs)
+        with monkeypatch.context() as patch:
+            patch.setattr(c.journal, "append", crash)
+            with pytest.raises(Crash):
+                await triage.triage_pass(c, FakeLLM([]))
+        assert attribution(c) == []
+        await triage.triage_pass(c, FakeLLM([]))
+        [completed] = attribution(c)
+        with monkeypatch.context() as patch:
+            patch.setattr(c.git, "first_parent_squashes", failure)
+            await triage.triage_pass(c, FakeLLM([]))
+        assert attribution(c) == [completed]
+        assert len(llm.requests) == 3
+        assert len([e for e in c.journal.read() if e.body.get("signal") == "author_invoked"]) == 1
+        from chupa.scorecard import project_scorecard
+        from chupa.retro import project_window
+        assert all(r.escapes == 1 for r in project_scorecard(project_window(c.journal.read())).surfaces)
+    asyncio.run(scenario())
+
+
+def test_escape_unattributed_reports(tmp_path):
+    from chupa import triage
+    async def scenario():
+        c, writer, box, checked, admitted = await escape_rig(tmp_path)
+        c, message, _ = await escape_report(c, commit="f" * 40)
+        assert attribution(c)[0].body["result"]["matches"] == []
+        assert attribution(c)[0].body["result"]["confidence_note"]
+        missing = message.model_copy(update={"id": "missing-report", "report": None})
+        result = await triage.attribute_escape(c, writer.stages.driver, missing)
+        assert result["matches"] == [] and "missing" in result["confidence_note"]
+        # Missing admission and absent Author completion provide no surface evidence.
+        for stem in ("missing", "candidate"):
+            item = message.model_copy(update={"id": stem, "resolution": Resolution(kind="ticket", link=stem)})
+            result = await triage.attribute_escape(c, writer.stages.driver, item)
+            assert result["matches"] == [] and result["confidence_note"]
+        before = len(attribution(c))
+        for kind in ("decision", "tombstone"):
+            id, _ = box.enqueue(message_class="bug_report", origin=kind, summary=kind,
+                                bug_origin="player", has_repro=False)
+            box.resolve(id, Resolution(kind=kind, link=kind))
+        id, _ = box.enqueue(message_class="suggestion", origin="non-bug", summary="non bug")
+        box.resolve(id, Resolution(kind="ticket", link="repair"))
+        id, _ = box.enqueue(message_class="bug_report", origin="pending", summary="pending bug",
+                            bug_origin="player", has_repro=False)
+        await triage.triage_pass(c, FakeLLM(["{}"] * 7))
+        assert box.get(id).status == "pending" and len(attribution(c)) == before
+        assert "triage" not in __import__("chupa.drain", fromlist=["drain"]).drain.__code__.co_names
+    asyncio.run(scenario())

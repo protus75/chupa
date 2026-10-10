@@ -351,3 +351,35 @@ def test_retro_itemizes_confirmed_class_tombstones(tmp_path, monkeypatch):
     assert data["tombstone_digest"] == [expected]
     assert data["tombstone_reopens"] == [{"kind": "tombstone_auto_reopened", "box_id": id,
                                          "signature": box.get(id).signature, "reports": 3}]
+
+
+def test_escape_report_projection(tmp_path, monkeypatch):
+    from tests.test_triage import escape_rig, escape_report
+    from chupa.scorecard import project_scorecard
+    from chupa.status import project, render as render_status
+    async def scenario():
+        c, writer, box, checked, admitted = await escape_rig(tmp_path)
+        c, message, _ = await escape_report(c, commit=admitted.commit, paths=["chupa/thing.py"])
+        window = project_window(c.journal.read())
+        evidence = await production_evidence(window, c)
+        before = c.journal.read()
+        def forbidden(*args, **kwargs):
+            pytest.fail("pure escape projection performed an effect or read")
+        with monkeypatch.context() as patch:
+            for target, method in ((c.fs, "write"), (c.git, "_run"), (c.journal, "append"),
+                                   (c.journal, "read"), (writer.stages.driver.llm, "call"),
+                                   (Path, "read_text"), (Path, "read_bytes"), (Box, "resolve")):
+                patch.setattr(target, method, forbidden)
+            card = project_scorecard(window)
+            receipt = render_report(window, evidence, {}, [], RetroArtifact(proposals=[]))
+            status = render_status(project(before, window=window))
+            assert card == project_scorecard(window)
+            assert receipt == render_report(window, evidence, {}, [], RetroArtifact(proposals=[]))
+            assert receipt.split("| Surface |")[1] == status.split("| Surface |")[1]
+            assert "| review | 1 | 0 | 1 | 0 | 0.0000 | 1.0000 | false |" in receipt
+        assert c.journal.read() == before
+        writer.stages.driver.llm = FakeLLM(['{"proposals": []}'])
+        result = await Retro(c, writer)(forced=True)
+        receipt = await c.git._run(c.repo, "show", f"{result['commit']}:tickets/retro/000001.md")
+        assert "| review | 1 | 0 | 1 |" in receipt
+    asyncio.run(scenario())

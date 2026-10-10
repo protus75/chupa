@@ -41,6 +41,7 @@ def project_scorecard(window: Window) -> Scorecard:
     evidence = window.evidence or measurements(window)
     evaluated, caught, bypasses, pending, used_bypasses = {}, {}, {}, {}, {}
     seen = set()
+    escapes = {}
 
     def observe(surface, ticket, failed=False, bypassed=False):
         evaluated.setdefault(surface, set()).add(ticket)
@@ -55,6 +56,11 @@ def project_scorecard(window: Window) -> Scorecard:
             if event.key in seen:
                 continue
             seen.add(event.key)
+            if (event.key or "").startswith("escape-attribution/"):
+                result = body["result"]
+                for match in result["matches"]:
+                    for surface in match["surfaces"]:
+                        escapes.setdefault(surface, set()).add((result["box_id"], match["ticket"]))
             used = set()
             for ticket, code, verdict, bypassed in window.completed_checks.get(event.key, ()):
                 observe(code, ticket, verdict == "fail", bypassed)
@@ -81,10 +87,12 @@ def project_scorecard(window: Window) -> Scorecard:
                     caught[surface].add(stem)
 
     rows = []
-    for surface in sorted(evaluated):
-        count, catches = len(evaluated[surface]), len(caught[surface])
-        rows.append(SurfaceScorecardRow(surface, count, catches, 0, bypasses[surface],
-            catches / count if count else 0, 0, count >= 25 and catches == 0))
+    for surface in sorted(evaluated.keys() | escapes.keys()):
+        count, catches = len(evaluated.get(surface, ())), len(caught.get(surface, ()))
+        escaped = len(escapes.get(surface, ()))
+        rows.append(SurfaceScorecardRow(surface, count, catches, escaped, bypasses.get(surface, 0),
+            catches / count if count else 0, escaped / count if count else 0,
+            count >= 25 and catches == escaped == 0))
     tokens = MappingProxyType({direction: MappingProxyType(dict(evidence[f"{direction}_tokens"]))
                               for direction in ("input", "output")})
     signals = MappingProxyType(dict(evidence["spikes"]))

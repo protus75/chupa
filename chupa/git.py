@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+import re
 
 from chupa.seams import ProcessExec
 
@@ -141,3 +142,36 @@ class Git:
     async def describe(self, dir: Path) -> str:
         """Diagnostics only: derives the lockfile instance_id for an untagged dev instance (section 6)."""
         return (await self._run(dir, "describe", "--tags", "--always", "--dirty")).strip()
+
+    async def first_parent_squashes(self, dir: Path, app_commit: str) -> list[dict]:
+        """Read a bounded host candidate set; invalid identities are unattributed."""
+        from chupa.tickets import stem_findings
+
+        if re.fullmatch(r"[0-9a-f]{40}(?:\.\.[0-9a-f]{40})?", app_commit) is None:
+            return []
+        ancestry = (await self._run(dir, "rev-list", "--first-parent", "--reverse", "HEAD")).splitlines()
+        endpoints = app_commit.split("..")
+        if any(sha not in ancestry for sha in endpoints):
+            return []
+        end = ancestry.index(endpoints[-1])
+        start = ancestry.index(endpoints[0]) + 1 if len(endpoints) == 2 else end
+        if start > end:
+            return []
+        result = []
+        for sha in ancestry[start:end + 1]:
+            message = (await self._run(dir, "show", "-s", "--format=%B", sha)).rstrip("\n")
+            # Only the final trailer paragraph supplies identity, never the subject.
+            trailers = message.split("\n\n")[-1].splitlines()
+            tickets = [line for line in trailers if line.lower().startswith("chupa-ticket")]
+            reviewed = [line for line in trailers if line.lower().startswith("chupa-reviewed-sha")]
+            if len(tickets) != 1 or len(reviewed) != 1:
+                continue
+            ticket = re.fullmatch(r"chupa-ticket: (\S+)", tickets[0])
+            approval = re.fullmatch(r"chupa-reviewed-sha: ([0-9a-f]{40})", reviewed[0])
+            if ticket is None or approval is None or stem_findings(ticket[1]):
+                continue
+            paths = await self._run(dir, "diff-tree", "--root", "--no-commit-id", "--name-only",
+                                    "-r", "-z", sha)
+            result.append({"ticket": ticket[1], "commit": sha, "reviewed_sha": approval[1],
+                           "paths": paths.rstrip("\0").split("\0") if paths else []})
+        return result

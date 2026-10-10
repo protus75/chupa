@@ -241,6 +241,37 @@ def test_status_is_deterministic(root, capsys):
     assert "- merged tickets: 3\n" in first
 
 
+def test_status_escape_projection(tmp_path, monkeypatch, capsys):
+    from chupa.__main__ import _status
+    from chupa.retro import production_evidence, project_window, render_report, RetroArtifact
+    from chupa.status import render
+    from tests.test_triage import escape_rig, escape_report
+    async def setup():
+        c, _, _, _, admitted = await escape_rig(tmp_path)
+        c, _, _ = await escape_report(c, commit=admitted.commit)
+        status = await _status(c)
+        window = project_window(c.journal.read())
+        evidence = await production_evidence(window, c)
+        return c, status, window, evidence
+    c, status, window, evidence = asyncio.run(setup())
+    before = c.journal.read()
+    def forbidden(*args, **kwargs):
+        pytest.fail("status escape rendering read or mutated state")
+    with monkeypatch.context() as patch:
+        for target, method in ((c.fs, "write"), (c.journal, "read"), (c.journal, "append"),
+                               (c.git, "_run"), (Path, "read_text"), (Path, "read_bytes")):
+            patch.setattr(target, method, forbidden)
+        text = render(status)
+        receipt = render_report(window, evidence, {}, [], RetroArtifact(proposals=[]))
+        assert text.split("| Surface |")[1] == receipt.split("| Surface |")[1]
+        assert "| review | 1 | 0 | 1 | 0 | 0.0000 | 1.0000 | false |" in text
+    assert c.journal.read() == before
+    assert main(["status"], cwd=c.repo, env=ENV, clock=c.clock) == 0
+    output = capsys.readouterr().out
+    assert output.split("| Surface |")[1] == text.split("| Surface |")[1]
+    assert c.journal.read() == before
+
+
 # --- run ----------------------------------------------------------------------------------------
 
 

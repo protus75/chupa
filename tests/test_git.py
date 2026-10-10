@@ -431,3 +431,77 @@ def test_rebase_continue_is_noninteractive():
     with pytest.raises(RebaseRefused):
         run(g.rebase_continue(REPO))
     assert exec_.argvs[-1][-2:] == ["rebase", "--abort"]
+
+
+def test_escape_first_parent_trailers(tmp_path):
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
+           "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    g = Git(SubprocessExec(), env=env, timeout=30)
+    async def scenario():
+        await g.init(tmp_path, branch="main")
+        (tmp_path / "base").write_text("base")
+        await g.add(tmp_path, ["base"])
+        await g.commit(tmp_path, "base")
+        base = await g.rev_parse(tmp_path, "HEAD")
+        expected = []
+        for name in ("first", "second"):
+            path = f"{name} space.py"
+            (tmp_path / path).write_text(name)
+            await g.add(tmp_path, [path])
+            await g.commit(tmp_path, f"code\n\nchupa-ticket: {name}\nchupa-reviewed-sha: {'a' * 40}")
+            expected.append({"ticket": name, "commit": await g.rev_parse(tmp_path, "HEAD"),
+                             "reviewed_sha": "a" * 40, "paths": [path]})
+        assert await g.first_parent_squashes(tmp_path, expected[0]["commit"]) == expected[:1]
+        assert await g.first_parent_squashes(tmp_path, f'{base}..{expected[1]["commit"]}') == expected
+        assert await g.first_parent_squashes(tmp_path, f'{expected[0]["commit"]}..{expected[1]["commit"]}') == expected[1:]
+    run(scenario())
+    g, seam = git((0, "a" * 40 + "\n", ""),
+                 (0, f"code\n\nchupa-ticket: one\nchupa-reviewed-sha: {'b' * 40}\n", ""),
+                 (0, "a b\0", ""))
+    assert run(g.first_parent_squashes(REPO, "a" * 40))[0]["paths"] == ["a b"]
+    assert all(call[1:] == (REPO, ENV, 30.0) for call in seam.calls)
+    assert seam.argvs[0][3:] == ["rev-list", "--first-parent", "--reverse", "HEAD"]
+
+
+def test_escape_refusals(tmp_path):
+    a, b = "a" * 40, "b" * 40
+    for value in ("", "--all", "HEAD", a.upper(), a[:39], f"{a}...{b}", f"{a}..HEAD"):
+        g, seam = git()
+        assert run(g.first_parent_squashes(REPO, value)) == []
+        assert seam.calls == []
+    for value in ("c" * 40, f"{b}..{a}", f"{a}..{a}", f"{a}..{'c' * 40}"):
+        g, seam = git((0, a + "\n" + b + "\n", ""))
+        assert run(g.first_parent_squashes(REPO, value)) == []
+        assert len(seam.calls) == 1
+    valid = f"chupa-ticket: one\nchupa-reviewed-sha: {b}"
+    for trailers in ("", "chupa-ticket: one", valid + "\nchupa-ticket: one",
+                     valid + f"\nchupa-reviewed-sha: {b}", valid.replace(b, "short"),
+                     valid.replace("one", "../bad"), valid.replace("one", ""),
+                     valid.replace(b, b.upper()), valid + " ",
+                     valid + "\nChupa-Ticket: one", valid.replace("chupa-ticket", "Chupa-Ticket")):
+        g, seam = git((0, a + "\n", ""), (0, "process\n\n" + trailers, ""))
+        assert run(g.first_parent_squashes(REPO, a)) == []
+        assert len(seam.calls) == 2
+    g, _ = git((128, "", "repository unreadable"))
+    with pytest.raises(GitError):
+        run(g.first_parent_squashes(REPO, a))
+    # A known commit on a side branch is not a first-parent endpoint.
+    env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    g = Git(SubprocessExec(), env=env, timeout=30)
+    async def scenario():
+        await g.init(tmp_path, branch="main")
+        (tmp_path / "base").write_text("base")
+        await g.add(tmp_path, ["base"])
+        await g.commit(tmp_path, "base")
+        base = await g.rev_parse(tmp_path, "HEAD")
+        await g.worktree_add(tmp_path, tmp_path / "side", "side", "main")
+        (tmp_path / "side/other").write_text("other")
+        await g.add(tmp_path / "side", ["other"])
+        await g.commit(tmp_path / "side", "side")
+        side = await g.rev_parse(tmp_path / "side", "HEAD")
+        assert await g.first_parent_squashes(tmp_path, side) == []
+        assert await g.first_parent_squashes(tmp_path, f"{base}..{side}") == []
+        await g.worktree_remove(tmp_path, tmp_path / "side")
+    run(scenario())

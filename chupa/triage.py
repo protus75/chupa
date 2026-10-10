@@ -1,10 +1,12 @@
 """One operator-triggered, sequential Suggestion Box pass (plan section 12)."""
 
 import json
+import re
 from pathlib import Path
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+import yaml
 
 from chupa.box import BOX_DIR, Box, DecisionRecord, RereportJournal, Resolution, Verdict, read_registry, record_path, render_record
 from chupa.author import author, failure_decision, recover_retro_ticket
@@ -15,11 +17,13 @@ from chupa.journal import EventType
 from chupa.inbox import ingest, report_data
 from chupa.llm import LLM
 from chupa.runner import Checkout, SPECS_DIR
+from chupa.seams import ExecutableNotFound
 from chupa.specs import load_spec, render
 from chupa.stages import findings_text
 from chupa.status import last_states
 
 TRIAGE_STUCK_S = 600.0
+ESCAPE_ATTRIBUTION = "escape-attribution"
 NonBlank = Annotated[str, Field(min_length=1, pattern=r"\S")]
 
 
@@ -103,10 +107,117 @@ async def triage_pass(checkout: Checkout, llm: LLM) -> list[tuple[str, str]]:
     if checkout.control is not None:
         checkout.control.author_driver = driver
     try:
-        return await _settle_pass(checkout, driver, box, spec, history, pass_no)
+        lines = await _settle_pass(checkout, driver, box, spec, history, pass_no)
+        for message in box.messages():
+            if (message.message_class == "bug_report" and message.resolution is not None
+                    and message.resolution.kind == "ticket"):
+                try:
+                    await attribute_escape(checkout, driver, message)
+                except (GitError, OSError, ExecutableNotFound, ValueError, KeyError, yaml.YAMLError) as exc:
+                    driver.log.event("escape_attribution_incomplete", box_id=message.id,
+                        error=str(exc), paved_road="repair repository/evidence access and retry triage")
+                    lines.append((message.id, f"{message.id}: attribution incomplete; "
+                        "repair repository/evidence access and retry triage"))
+        return lines
     finally:
         if checkout.control is not None:
             checkout.control.author_driver = None
+
+
+async def _passed_surfaces(checkout, candidate, history):
+    """Pin Check and Review to the completed admission, including clean-rebase carry."""
+    from chupa.artifacts import ReviewVerdict
+    from chupa.driver import unwrap_fence
+    from chupa.stages import ApprovedInvoice, Invoice, read_review
+
+    stem, sha = candidate["ticket"], candidate["reviewed_sha"]
+    admission = next((i for i, e in enumerate(history)
+        if e.type == EventType.EFFECT_COMPLETION and e.ticket == stem
+        and re.fullmatch(rf"merge/{re.escape(stem)}/[0-9]+", e.key or "")
+        and e.body.get("result", {}).get("commit") == candidate["commit"]), None)
+    if admission is None:
+        return []
+    before = history[:admission]
+    attempt = history[admission].key.split("/")[-1]
+    surfaces = set()
+    for kind in ("checks", "review"):
+        key = f"ticket-plane/{stem}/{attempt}/{kind}"
+        lift = next((e for e in reversed(before) if e.type == EventType.EFFECT_COMPLETION
+                     and e.ticket == stem and e.key == key), None)
+        if lift is None:
+            continue
+        commit = lift.body["result"]["commit"]
+        if re.fullmatch(r"[0-9a-f]{40}", commit) is None:
+            raise ValueError("invalid completed evidence commit")
+        if await checkout.git.merge_base(checkout.repo, commit, candidate["commit"]) != commit:
+            continue
+        path = f"tickets/{stem}/" + ("checks.json" if kind == "checks" else "review.md")
+        text = await checkout.git._run(checkout.repo, "show", f"{commit}:{path}")
+        if kind == "checks":
+            invoice = Invoice.model_validate_json(text)
+            if invoice.stem == stem and invoice.produced_at_sha == sha and invoice.passed:
+                surfaces.update(r.code for r in invoice.reports
+                                if r.verdict == "pass" and r.code not in invoice.bypassed)
+        else:
+            review = read_review(text)
+            if (not isinstance(review, ApprovedInvoice) or review.stem != stem
+                    or review.reviewed_sha != sha or review.produced_at_sha != sha):
+                continue
+            calls = [e for e in before[:before.index(lift)]
+                     if e.type == EventType.EFFECT_COMPLETION and e.ticket == stem
+                     and re.fullmatch(rf"llm/{re.escape(stem)}/[0-9]+/review/{attempt}/[0-9]+",
+                                      e.key or "")]
+            if calls:
+                verdict = ReviewVerdict.model_validate_json(unwrap_fence(calls[-1].body["result"]["text"]))
+                if verdict.verdict == "approve":
+                    surfaces.add("review")
+    return sorted(surfaces)
+
+
+async def attribute_escape(checkout, driver, message):
+    """Effects snapshots resolved report attribution once per durable Box identity."""
+    from chupa.tickets import Frontmatter, split_frontmatter
+
+    stem = message.resolution.link
+    async def collect():
+        history = checkout.journal.read()
+        result = {"box_id": message.id, "bug_ticket": stem,
+                  "app_commit": message.report.report.app_commit if message.report else None,
+                  "matches": [], "confidence_note": "Attribution unavailable: missing authored bug/report evidence."}
+        authored = next((e for e in history if e.type == EventType.EFFECT_COMPLETION
+                         and e.key == f"ticket-plane/{stem}/author"), None)
+        if authored is None:
+            return result
+        commit = authored.body["result"]
+        if not isinstance(commit, str) or re.fullmatch(r"[0-9a-f]{40}", commit) is None:
+            raise ValueError("invalid authored ticket commit")
+        text = await checkout.git._run(checkout.repo, "show", f"{commit}:tickets/{stem}/ticket.md")
+        front = split_frontmatter(text)
+        if front is None:
+            raise ValueError("authored ticket has no frontmatter; restore its committed evidence")
+        # Author already validated the committed ticket; current plan/graph changes
+        # cannot invalidate this historical origin evidence.
+        fields = Frontmatter.model_validate(yaml.safe_load(front[0]))
+        if (fields.kind != "bug" or fields.source != "box:bug_report"
+                or message.report is None):
+            return result
+        report = message.report.report
+        candidates = await checkout.git.first_parent_squashes(checkout.repo, report.app_commit)
+        for candidate in candidates:
+            if report.implicated_paths and not set(candidate["paths"]).intersection(report.implicated_paths):
+                continue
+            surfaces = await _passed_surfaces(checkout, candidate, history)
+            if surfaces:
+                result["matches"].append({k: candidate[k] for k in ("ticket", "commit", "reviewed_sha")}
+                                         | {"surfaces": surfaces})
+        if result["matches"]:
+            result["confidence_note"] = ("Bounded-range" if ".." in report.app_commit else "Single-commit") + (
+                " candidate evidence" + (", narrowed by implicated paths" if report.implicated_paths else
+                                         ", without path narrowing") + "; exact introducing commit is unproven.")
+        else:
+            result["confidence_note"] = "Attribution unavailable: no first-parent candidates with matching paths and proven passed admission surfaces."
+        return result
+    return await driver.effects.run(collect, key=f"{ESCAPE_ATTRIBUTION}/{message.id}", ticket=stem)
 
 
 async def _settle_pass(checkout, driver, box, spec, history, pass_no):

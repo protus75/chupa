@@ -70,6 +70,85 @@ def test_scorecard_entry_unit():
         assert entry_unit_gap(plan.replace(f"- **{part}:**", f"- **Missing {part}:**"), unit)
 
 
+def test_escape_entry_unit():
+    import re
+    from chupa.specs import ENTRY_PARTS, PlanContractError
+    plan = (Path(__file__).resolve().parents[1] / "CHUPA_PLAN.md").read_text()
+    units = ("19.P6.escape-column", "19.P6.bug-gate-grammar", "19.P6.report-inbox-triage")
+    assert required_units(plan, "escape-column", ("19.I", *units, "10", "14")) == units
+    assert required_units(plan, "later-consumer", units) == units
+    assert units[0] in required_units(plan, "phase6-continue-04", units)
+    assert ENTRY_PARTS == ("Owner", "Records", "Observable", "Tests")
+    resolved = resolve_plan_contract(plan, (*units, *units))
+    for uid in units:
+        assert resolved.count(f"### {uid} ") == 1
+        assert entry_unit_gap(plan, uid) is None
+        unit = resolve_plan_contract(plan, [uid])
+        for part in ENTRY_PARTS:
+            for replacement in ("", f"- **{part}:**"):
+                broken = re.sub(rf"^- \*\*{part}:\*\*.*$", replacement, unit, flags=re.M)
+                assert part in entry_unit_gap(broken, uid)
+        for broken in ("", unit + unit):
+            assert entry_unit_gap(broken, uid)
+            with pytest.raises(PlanContractError):
+                resolve_plan_contract(broken, [uid])
+
+
+def escape(journal, box_id, matches):
+    return journal.append(EventType.EFFECT_COMPLETION, {"result": {
+        "box_id": box_id, "bug_ticket": "repair", "app_commit": "a" * 40,
+        "matches": matches, "confidence_note": "Bounded candidates; introducing commit unproven."}},
+        ticket="repair", key=f"escape-attribution/{box_id}")
+
+
+def test_escape_counts_once_per_report_ticket_surface(tmp_path):
+    c, _, _, _ = rig(tmp_path)
+    match = {"ticket": "historical", "commit": "a" * 40, "reviewed_sha": "b" * 40,
+             "surfaces": ["review", "verification", "review"]}
+    merged(c.journal, "historical", match["commit"])
+    escape(c.journal, "old-window", [match])
+    completed(c.journal, 1)
+    duplicate = escape(c.journal, "one", [match, {**match, "commit": "c" * 40}, match])
+    c.journal.append(duplicate.type, duplicate.body, ticket=duplicate.ticket, key=duplicate.key)
+    escape(c.journal, "two", [match, {**match, "ticket": "another"}])
+    escape(c.journal, "unattributed", [])
+    c.journal.append(EventType.EFFECT_INTENT, duplicate.body, ticket="repair", key="escape-attribution/unfinished")
+    c.journal.append(EventType.EFFECT_COMPLETION, {"result": {}}, ticket="current",
+                     key="ticket-plane/current/0/checks")
+    window = project_window(c.journal.read())
+    window.completed_checks["ticket-plane/current/0/checks"] = (
+        ("current", "failed", "fail", False), ("current", "bypassed", "fail", True),
+        ("current", "unknown", "pass", False))
+    card = project_scorecard(window)
+    result = rows(card)
+    assert set(result) == {"review", "verification", "failed", "bypassed", "unknown"}
+    assert all(result[s].escapes == 3 and result[s].evaluated_tickets == result[s].escape_rate == 0
+               for s in ("review", "verification"))
+    assert all(result[s].escapes == 0 for s in ("failed", "bypassed", "unknown"))
+    assert result["bypassed"].bypass_count == 1
+    assert card.boundary == "retro/1" and card.merged_ticket_count == card.spend_usd == 0
+    completed(c.journal, 2)
+    assert project_scorecard(project_window(c.journal.read())).surfaces == ()
+
+
+def test_escape_rates_and_pruning(tmp_path):
+    c, _, _, _ = rig(tmp_path)
+    for n in range(25):
+        c.journal.append(EventType.EFFECT_COMPLETION, {"result": {}}, ticket=f"ticket-{n}",
+                         key=f"ticket-plane/ticket-{n}/0/checks")
+    escape(c.journal, "one", [{"ticket": "ticket-0", "commit": "a" * 40,
+        "reviewed_sha": "b" * 40, "surfaces": ["z", "historical"]}])
+    window = project_window(c.journal.read())
+    for event in window.events[:-1]:
+        window.completed_checks[event.key] = ((event.ticket, "z", "pass", False),
+                                              (event.ticket, "clean", "pass", False))
+    result = rows(project_scorecard(window))
+    assert result["z"].escapes == 1 and result["z"].escape_rate == 1 / 25
+    assert not result["z"].prune_candidate and result["clean"].prune_candidate
+    assert result["historical"].escapes == 1 and result["historical"].evaluated_tickets == 0
+    assert result["historical"].escape_rate == 0 and not result["historical"].prune_candidate
+
+
 def test_scorecard_uses_completed_check_evidence(tmp_path):
     c, writer, _, _ = rig(tmp_path)
     old = asyncio.run(invoice(c, writer, "old"))
