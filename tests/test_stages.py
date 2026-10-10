@@ -805,3 +805,61 @@ async def test_review_baseline_report_registered_checks_lift(repo, tmp_path, cas
         assert not lifts and not (repo / target).exists()
     if captured:
         assert not captured[0].exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", ["host-loop-report.json", "exit-receipt.json"])
+@pytest.mark.parametrize("case", ["valid", "purge", "missing", "invalid", "machinery"])
+async def test_host_loop_and_receipt_registered_checks_lift(repo, tmp_path, name, case):
+    from chupa.artifacts import HOST_LOOP_REPORT, EXIT_RECEIPT, HostLoopReport, ExitReceipt
+    from chupa import stages
+    from chupa.journal import EventType
+    from eval import host_loop
+    from tests.test_host_loop import loop_report
+    from tests.test_eval_harness import report_fixture
+    data_dir = tmp_path / "receipt-data"
+    data_dir.mkdir()
+    baseline, _, _ = report_fixture(data_dir)
+    source = data_dir / name
+    if name == HOST_LOOP_REPORT:
+        host_loop.write_report(source, loop_report(), fs=LocalFileSystem())
+        model = HostLoopReport
+    else:
+        host_loop.write_receipt(source, host_loop.canonical(loop_report()), host_loop.canonical(baseline),
+                               fs=LocalFileSystem())
+        model = ExitReceipt
+    assert stages.KNOWN_ARTIFACTS[HOST_LOOP_REPORT] is HostLoopReport
+    assert stages.KNOWN_ARTIFACTS[EXIT_RECEIPT] is ExitReceipt
+    target = f"tickets/{STEM}/{name}"
+    verification = (f"cp source.json {target}" if case in {"valid", "purge", "invalid"}
+                    else f"true --out={target}" if case == "missing" else "true")
+    captured = []
+    def act(req):
+        if case in {"purge", "machinery"}:
+            path = req.worktree / target
+            path.write_text('{"stale":true}')
+            captured.append(path)
+        return implement_reply()
+    ctx, ticket = await report_context(repo, verification=verification,
+        source='{"invalid":true}' if case == "invalid" else source.read_text(), script=[act, verdict()])
+    if case == "purge":
+        execute = ctx.exec_.run
+        async def observe(argv, **kwargs):
+            if argv[0] == "cp":
+                assert not (ctx.worktree(STEM) / target).exists()
+            return await execute(argv, **kwargs)
+        ctx.exec_.run = observe
+    result = await run_stages(ctx, ticket)
+    expected = "gate_failed" if case in {"missing", "invalid", "machinery"} else "ok"
+    assert result.results["check"].outcome == expected
+    lifts = [e for e in ctx.driver.journal.read() if e.type == EventType.EFFECT_COMPLETION
+             and target in e.body.get("result", {}).get("paths", [])]
+    if expected == "ok":
+        [lift] = lifts
+        assert lift.key == f"ticket-plane/{STEM}/0/checks" and lift.body["result"]["kind"] == "checks"
+        committed = await ctx.git._run(repo, "show", f"{lift.body['result']['commit']}:{target}")
+        assert model.model_validate_json(committed) == model.model_validate_json(source.read_bytes())
+    else:
+        assert not lifts and not (repo / target).exists()
+    assert not (ctx.worktree(STEM) / target).exists()
+    assert all(not p.exists() for p in captured)

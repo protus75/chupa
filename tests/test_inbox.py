@@ -228,10 +228,6 @@ def test_report_replay_to_regression(tmp_path, monkeypatch):
     asyncio.run(initialize())
     proposal = dict(scaffold.scenario(host, "regression")["responses"]["author"][0])
     stem = proposal["stem"]
-    proposal["ticket"] = proposal["ticket"].replace("kind: feature", "kind: bug")
-    proposal["ticket"] = proposal["ticket"].replace("## Scope fence\n- settings.json",
-        "## Scope fence\n- settings.json\n- fixtures/")
-    proposal["ticket"] += "\n## Regression\n```\npython fixtures/report_regression.py\n```\n- carries: fixtures/\n"
     llm = FakeLLM([reply("author"), json.dumps(proposal), requisition_reply("approve")])
     monkeypatch.setattr("chupa.__main__.ProviderLLM", lambda *args, **kwargs: llm)
     assert main(["triage"], cwd=host, env=env, clock=Clock()) == 0
@@ -246,30 +242,7 @@ def test_report_replay_to_regression(tmp_path, monkeypatch):
         [sys.executable, "replay.py", f"tickets/{stem}/evidence/replay.json"], cwd=host, env=env, timeout=30))
     assert rc == 1 and json.loads(out)["defect"] is True
 
-    wrapper = '''import json
-import subprocess
-import sys
-from pathlib import Path
-
-try:
-    for name in ("app.py", "settings.json", "replay.py", "fixtures/replay.json"):
-        if not Path(name).is_file():
-            raise ValueError("missing required replay input")
-    result = subprocess.run([sys.executable, "replay.py", "fixtures/replay.json"],
-                            capture_output=True, text=True, check=False)
-    replay = json.loads(result.stdout)
-    if set(replay) != {"final_state", "defect"} or type(replay["defect"]) is not bool:
-        raise ValueError("invalid deterministic harness result")
-    defect = replay["defect"]
-    if result.returncode != int(defect):
-        raise ValueError("harness execution failed")
-except Exception as exc:
-    print(str(exc), file=sys.stderr)
-    print(json.dumps({"regression_result": "error"}))
-    raise SystemExit(2)
-print(json.dumps({"regression_result": "defect" if defect else "pass"}))
-raise SystemExit(int(defect))
-'''
+    wrapper = scaffold.scenario(host, "regression")["edits"]["fixtures/report_regression.py"]
     ctx = replace(context(host, []), env=env, git=git)
     class Implementer(FakeLLM):
         async def call(self, request):

@@ -7,7 +7,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scaffold import scripted_reply
+from scaffold import scripted_reply, require_disposable, scenario
+import asyncio
 
 if sys.argv[1:] == ["--version"]:
     print("1.0.0 (fixture claude)")
@@ -25,12 +26,39 @@ try:
     if prompt == "Reply with the single word ok.":
         result = "ok"
     else:
-        root = Path(os.environ["CHUPA_FIXTURE_ROOT"]).resolve()
-        if Path.cwd().resolve() != root:
+        root = require_disposable(Path(os.environ["CHUPA_FIXTURE_ROOT"]))
+        selection = root / ".fixture-runtime/selection"
+        name = selection.read_text().strip() if selection.exists() else os.environ["CHUPA_FIXTURE_SCENARIO"]
+        surface = os.environ.get("CHUPA_FIXTURE_SURFACE")
+        if surface is None:
+            roles = {"You are the implementer": "implement", "You are the correctness reviewer": "review",
+                     "You triage one Suggestion": "triage", "You author one buildable": "author",
+                     "You are a read-only reviewer of one authored": "requisition_review"}
+            if "## Role\n" not in prompt:
+                raise ValueError("unknown surface; use a declared production prompt")
+            role = prompt.split("## Role\n", 1)[1].split("## Task", 1)[0].strip()
+            surface = next((s for prefix, s in roles.items() if role.startswith(prefix)), None)
+            if surface is None:
+                raise ValueError("unknown surface; use a declared production prompt")
+        scenario(root, name)  # Every surface, including admission Review, uses the closed scenarios.
+        if surface != "implement" and Path.cwd().resolve() != root:
             raise ValueError("wrong host cwd; select the disposable host root")
-        result = scripted_reply(root, os.environ["CHUPA_FIXTURE_SCENARIO"],
-                                os.environ["CHUPA_FIXTURE_SURFACE"], prompt,
-                                grant == ["--permission-mode", "bypassPermissions"])
+        if surface == "requisition_review":
+            if grant != ["--allowedTools", "Read", "Grep", "Glob", "LS"]:
+                raise ValueError("requisition review is read only")
+            result = json.dumps({"verdict": "approve", "summary": "Declared fixture ticket inspected.", "findings": []})
+        else:
+            result = scripted_reply(root, name, surface, prompt,
+                                    grant == ["--permission-mode", "bypassPermissions"],
+                                    workspace=Path.cwd() if surface == "implement" else None)
+        if surface == "implement" and Path.cwd().resolve() != root:
+            async def commit():
+                from chupa.git import Git
+                from chupa.seams import SubprocessExec
+                git = Git(SubprocessExec(), env=os.environ, timeout=10)
+                await git.add(Path.cwd(), list(scenario(root, name)["edits"]))
+                await git.commit(Path.cwd(), "fixture declared host repair")
+            asyncio.run(commit())
 except (ValueError, KeyError) as exc:
     print(json.dumps({"type": "result", "subtype": "error", "is_error": True, "result": str(exc)}))
     raise SystemExit(2)

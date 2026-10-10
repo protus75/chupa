@@ -21,7 +21,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 from chupa.artifacts import RELIABILITY_BATTERY_REPORT, ReliabilityBatteryReport, DAEMON_SOAK_REPORT, OUTCOMES, SHAKEOUT_REPORT, Artifact, Cost, DaemonSoakReport, Diagnosis, DiagnosisReply, Finding, Harvest, NonBlank, Outcome, ReviewVerdict, ShakeoutReport, StageResult
-from chupa.artifacts import REVIEW_BASELINE_REPORT, ReviewBaselineReport
+from chupa.artifacts import REVIEW_BASELINE_REPORT, ReviewBaselineReport, HOST_LOOP_REPORT, EXIT_RECEIPT, HostLoopReport, ExitReceipt
 from chupa.box import BOX_DIR
 from chupa.storm import arrival_id
 from chupa.caps import lineage
@@ -40,7 +40,8 @@ MAIN = "main"
 KNOWN_ARTIFACTS: Mapping[str, type[BaseModel]] = {SHAKEOUT_REPORT: ShakeoutReport,
                                              DAEMON_SOAK_REPORT: DaemonSoakReport,
                                              RELIABILITY_BATTERY_REPORT: ReliabilityBatteryReport,
-                                             REVIEW_BASELINE_REPORT: ReviewBaselineReport}
+                                             REVIEW_BASELINE_REPORT: ReviewBaselineReport,
+                                             HOST_LOOP_REPORT: HostLoopReport, EXIT_RECEIPT: ExitReceipt}
 # Section 7 diff budget: sized so every rendered review prompt fits the serving provider's bound.
 DIFF_BUDGET_FILES = 30
 DIFF_BUDGET_INSERTED = 1_500

@@ -110,6 +110,7 @@ def test_fixture_profile_loads(host):
     assert cfg.merge.safety_checks == ["fixture-smoke"] and cfg.merge.strategies == []
     assert cfg.engine_plane_safety_inventory == [
         "config.yaml", "CLAUDE.md", "bin/", "scripts.json", "scaffold.py", "check.py", "regression_test.py"]
+    assert not any(p.startswith("fixtures/") for p in cfg.engine_plane_safety_inventory)
     assert classify_core((host / "CLAUDE.md").read_bytes()).state == "current"
     assert not cfg.state_dir.exists() and not cfg.worktree_root.exists()
 
@@ -128,8 +129,10 @@ def test_fixture_scenario_list_is_closed(host):
         authored = row["responses"]["author"][0]
         ticket = validate_ticket(authored["stem"], stamp(stamp(authored["ticket"], "source", "box:bug_report"),
                                  "state", "draft"), host)
-        assert ticket.scope_fence == ("settings.json",)
-        assert set(row["edits"]) == {"settings.json"}
+        assert ticket.scope_fence == (("settings.json", "fixtures/") if name == "regression"
+                                      else ("settings.json",))
+        assert set(row["edits"]) == ({"settings.json", "fixtures/report_regression.py", "fixtures/replay.json"}
+                                     if name == "regression" else {"settings.json"})
         assert row["checks"][0] == {"argv": ["python", "check.py"], "base_rc": 0, "head_rc": 0}
         for key in ("replay", "log", "report"):
             assert (host / row["evidence"][key]).is_file()
@@ -175,11 +178,11 @@ def test_fixture_regression_exists_at_base(host):
             cwd=host, env=environment(host), timeout=10)
         assert rc == 1 and "add must increase score by 3" in err
         implement(host, "regression")
-        await git.add(host, ["settings.json"])
+        await git.add(host, ["settings.json", "fixtures/report_regression.py", "fixtures/replay.json"])
         await git.commit(host, "fixture scripted add repair")
         head = await git.rev_parse(host, "HEAD")
         assert await git.merge_base(host, base, head) == base
-        assert await git.diff_names(host, base, head) == ["settings.json"]
+        assert await git.diff_names(host, base, head) == ["fixtures/replay.json", "fixtures/report_regression.py", "settings.json"]
         assert (await SubprocessExec().run([sys.executable, "regression_test.py"],
             cwd=host, env=environment(host), timeout=10))[0] == 0
     asyncio.run(proof())

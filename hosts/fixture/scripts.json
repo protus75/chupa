@@ -194,7 +194,7 @@
       "author": [
         {
           "stem": "regression",
-          "ticket": "---\npriority: P1\nkind: feature\nagent_tier: medium\nagent_effort: medium\n---\n\n## Depends on\n- none\n\n## Context\n- app.py\n- settings.json\n\n## Goal / Why\nRepair the existing add regression.\n\n## Scope in / Scope out\nChange the declared score setting only.\n\n## Scope fence\n- settings.json\n\n## Acceptance criteria\n- `python check.py` exits 0 and `settings.json` has the declared setting.\n\n## Verification\n```\npython check.py\n```\n\n## Definition of rejected\nAn undeclared edit is rejected.\n\n## Time budget\n- expected: 1m\n- stuck: 2m\n"
+          "ticket": "---\npriority: P1\nkind: bug\nagent_tier: medium\nagent_effort: medium\n---\n\n## Depends on\n- none\n\n## Context\n- app.py\n- settings.json\n\n## Goal / Why\nRepair the existing add regression.\n\n## Scope in / Scope out\nChange the declared score setting only.\n\n## Scope fence\n- settings.json\n- fixtures/\n\n## Acceptance criteria\n- `python check.py` exits 0 and `settings.json` has the declared setting.\n\n## Verification\n```\npython check.py\n```\n\n## Definition of rejected\nAn undeclared edit is rejected.\n\n## Time budget\n- expected: 1m\n- stuck: 2m\n\n## Regression\n```\npython fixtures/report_regression.py\n```\n- carries: fixtures/\n"
         }
       ],
       "implement": [
@@ -231,7 +231,9 @@
     "edits": {
       "settings.json": {
         "add_scale": 1
-      }
+      },
+      "fixtures/report_regression.py": "\"\"\"Carried protocol wrapper; the existing base test owns the assertion.\"\"\"\nimport contextlib\nimport io\nimport json\nimport runpy\nimport sys\nfrom pathlib import Path\n\nroot = Path(__file__).resolve().parents[1]\nsys.path.insert(0, str(root))\ntry:\n    for name in (\"app.py\", \"settings.json\", \"regression_test.py\", \"fixtures/replay.json\"):\n        if not (root / name).is_file():\n            raise ValueError(\"missing base regression prerequisite\")\n    from app import replay\n    observed = replay(json.loads((root / \"fixtures/replay.json\").read_bytes()))\n    assert observed[\"defect\"] is False, \"carried replay still demonstrates the defect\"\n    with contextlib.redirect_stdout(io.StringIO()):\n        runpy.run_path(str(root / \"regression_test.py\"))\nexcept AssertionError:\n    result, code = \"defect\", 1\nexcept Exception as exc:\n    print(str(exc), file=sys.stderr)\n    result, code = \"error\", 2\nelse:\n    result, code = \"pass\", 0\nprint(json.dumps({\"regression_result\": result}))\nraise SystemExit(code)\n",
+      "fixtures/replay.json": "{\"initial_state\": {\"score\": 0}, \"actions\": [{\"op\": \"add\", \"amount\": 3}]}\n"
     },
     "checks": [
       {

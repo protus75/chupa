@@ -12,12 +12,16 @@ Use the chupa venv's Python and the existing process-exec seam with argv lists
 and 1 for a defect; stdout contains deterministic final state and defect JSON.
 
 For the existing Claude adapter, put the disposable `bin/` first on an explicit
-PATH that also contains the chupa venv's Python. Set `CHUPA_FIXTURE_ROOT`,
-`CHUPA_FIXTURE_SCENARIO` and `CHUPA_FIXTURE_SURFACE` in the child's environment;
+PATH that also contains the chupa venv's Python. Set `CHUPA_FIXTURE_ROOT` and `CHUPA_FIXTURE_SCENARIO` in the child's environment;
+`CHUPA_FIXTURE_SURFACE` selects a surface for direct scaffold tests, while real
+production prompts select their own surface during the host loop.
 pass no provider keys. Version, pnpm lookup and the stdin preflight probe are
 offline. Each scenario has one reply per surface. Unknown selection refuses
 with the declared list; exhaustion names the disposable response replenishment
-road. Only Implement changes settings.json. Prompts and script cursors reside
+road. Only Implement changes settings.json and the regression scenario’s declared
+fixtures/replay.json and fixtures/report_regression.py. The carried wrapper
+requires the existing defective-base test and emits the regression_result JSON
+protocol; carrying it never overlays the repaired settings. Prompts and script cursors reside
 in `.fixture-runtime/`, never engine state. Script replies carry no engine
 provenance or merge claims. The local tests validate reports directly against
 the Records contract, without a future inbox dependency.
@@ -26,5 +30,6 @@ The profile's config and conduct file cover the engine safety inventory.
 Disposable repository constructors render `CLAUDE.md` with the installed core
 renderer and commit it before later production checks. This scaffold does not
 start serve, confirm tickets, write journal events, record GO, produce exit
-reports or refresh committed fixture inputs. Later host-loop machinery owns
-those actions and runtime report production.
+reports or refresh committed fixture inputs. The merged eval/host_loop.py machinery owns those actions and runtime report
+production. Its scripted Implement commits only the declared host edits through
+the existing Git wrapper, in that scenario’s disposable worktree.

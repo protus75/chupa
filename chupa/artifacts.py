@@ -520,3 +520,76 @@ class ReviewBaselineReport(_Strict):
                                      or self.scores.clean_false_snag > MAX_FALSE_SNAG_RATE):
             raise ValueError("GO requires complete evidence and passing numerical boundaries")
         return self
+
+
+HOST_LOOP_REPORT = "host-loop-report.json"
+EXIT_RECEIPT = "exit-receipt.json"
+HOST_LOOP_MEMBERS = ("machine_ticket_merge", "report_to_regression_bug_loop", "escape_attribution")
+HOST_LOOP_EXPECTED = dict(zip(HOST_LOOP_MEMBERS, (
+    "machine_ticket_merged", "report_replayed_regression_bug_merged",
+    "escape_attributed_by_squash_trailers")))
+
+
+class HostLoopEntry(_Strict):
+    member: Literal["machine_ticket_merge", "report_to_regression_bug_loop", "escape_attribution"]
+    producing_run: NonBlank
+    expected: NonBlank
+    observed: NonBlank
+    engine_plane_edits: list[NonBlank]
+    auditor: list[NonBlank]
+    green: bool
+
+    @model_validator(mode="after")
+    def _consistent(self):
+        from chupa.tickets import stem_findings
+        stem, separator, sequence = self.producing_run.rpartition("/")
+        if not separator or not re.fullmatch(r"[0-9]+", sequence) or stem_findings(stem):
+            raise ValueError("producing_run must be <ticket stem>/<nonnegative run sequence>")
+        if self.expected != HOST_LOOP_EXPECTED[self.member]:
+            raise ValueError("use the member's fixed expected observation")
+        if self.green != (self.observed == self.expected and not self.engine_plane_edits and not self.auditor):
+            raise ValueError("green requires matching observation, no engine edits and no auditor findings")
+        return self
+
+
+class HostLoopReport(_Strict):
+    schema_version: Literal[1]
+    entries: list[HostLoopEntry]
+
+    @field_validator("schema_version", mode="before")
+    @classmethod
+    def _integer_version(cls, value):
+        if type(value) is not int:
+            raise ValueError("schema_version must be integer 1")
+        return value
+
+    @model_validator(mode="after")
+    def _ordered(self):
+        merges = self.entries[:-2]
+        if (len(merges) < 3 or any(e.member != HOST_LOOP_MEMBERS[0] for e in merges)
+                or tuple(e.member for e in self.entries[-2:]) != HOST_LOOP_MEMBERS[1:]
+                or len({e.producing_run for e in merges}) != len(merges)):
+            raise ValueError("use three distinct merge runs followed by regression and escape members")
+        return self
+
+
+class ExitReads(_Strict):
+    machine_ticket_merge: Literal["pass", "fail"]
+    report_to_regression_bug_loop: Literal["pass", "fail"]
+    escape_attribution: Literal["pass", "fail"]
+    go_grade_report: Literal["pass", "fail"]
+
+
+class ExitReceipt(_Strict):
+    schema_version: Literal[1]
+    reads: ExitReads
+    host_loop_digest: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+    baseline_report_digest: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+    verdict_signal: BaselineSignal
+
+    @field_validator("schema_version", mode="before")
+    @classmethod
+    def _integer_version(cls, value):
+        if type(value) is not int:
+            raise ValueError("schema_version must be integer 1")
+        return value

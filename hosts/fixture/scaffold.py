@@ -35,8 +35,11 @@ def scenario(root, name):
     return json.loads((Path(root) / "scripts.json").read_text())[name]
 
 
-def scripted_reply(root, name, surface, prompt, writes):
+def scripted_reply(root, name, surface, prompt, writes, *, workspace=None):
     root = require_disposable(root)
+    work = root if workspace is None else Path(workspace).resolve()
+    if work != root and work != root / ".chupa/worktrees" / name:
+        raise ValueError("select this scenario's disposable worktree")
     row = scenario(root, name)
     if surface not in SURFACES:
         raise ValueError(f"unknown surface; select one of {', '.join(SURFACES)}")
@@ -52,9 +55,10 @@ def scripted_reply(root, name, surface, prompt, writes):
         raise ValueError("permission grant disagrees with surface; use the existing Claude adapter")
     if surface == "implement":
         # Closed host edit vocabulary; no arbitrary path or code execution.
-        if set(row["edits"]) != {"settings.json"}:
-            raise ValueError("undeclared host edit; declare only settings.json edits")
-        target = root / "settings.json"
+        if set(row["edits"]) != ({"settings.json", "fixtures/report_regression.py", "fixtures/replay.json"}
+                                 if name == "regression" else {"settings.json"}):
+            raise ValueError("undeclared host edit; select the declared settings and regression fixture edits")
+        target = work / "settings.json"
         if target.is_symlink() or not target.is_file():
             raise ValueError("settings.json must be a host regular file; restore it in the disposable copy")
         settings = json.loads(target.read_text())
@@ -62,6 +66,16 @@ def scripted_reply(root, name, surface, prompt, writes):
         if not set(changes) <= {"add_scale", "bonus_scale", "floor", "spend_sign"}:
             raise ValueError("unknown setting; use the declared score settings")
         target.write_text(json.dumps({**settings, **changes}, sort_keys=True) + "\n")
+        if name == "regression":
+            target = work / "fixtures/report_regression.py"
+            target.parent.mkdir(exist_ok=True)
+            if target.is_symlink() or target.parent.is_symlink():
+                raise ValueError("restore a regular fixtures directory in the disposable host")
+            target.write_text(row["edits"]["fixtures/report_regression.py"])
+            target = work / "fixtures/replay.json"
+            if target.is_symlink():
+                raise ValueError("restore a regular carried replay in the disposable host")
+            target.write_text(row["edits"]["fixtures/replay.json"])
     (runtime / f"{name}-{surface}-{index}.prompt").write_text(prompt)
     counts[key] = index + 1
     cursor.write_text(json.dumps(counts, sort_keys=True))
