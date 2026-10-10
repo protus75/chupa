@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "fe3f7e1c5ba43d15df6749be413f542e73f1d5a3",
+  "stem": "core-drift-activation",
+  "attempt": 6,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Read the committed conduct blob as raw bytes. The SubprocessExec path decodes with errors=\"replace\", so .encode() turns \\xff project bytes into U+FFFD. Use a bytes-returning git.py seam if merged code has one; if it has none, report that missing fact.",
+    "Add a test: dirty worktree plus a current committed conduct file with non-UTF-8 (\\xff) project bytes must classify current. Classification must depend only on committed bytes.",
+    "In committed_core, catch SyntaxError and ValueError from the CORE_TEMPLATE extraction in the candidate's chupa/hostfiles.py. A gate refusal must carry a paved road (section 7), so gather_safety_evidence must not raise before gates run.",
+    "Carry a template-extraction failure to CoreDriftGate as a core_drift Finding that names chupa/hostfiles.py, with a road: define CORE_TEMPLATE as one literal bytes assignment. Test that a malformed candidate fails the gate and does not raise.",
+    "Keep the rest of the passing diff (wiring, self-host adoption, fixture repairs). Change only hostfiles.py and its tests, stay inside the scope fence and diff budget, and rerun all four Verification commands."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
