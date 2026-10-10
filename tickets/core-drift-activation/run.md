@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The untouched branch equals its merge base and contains dormant classifier code, not the previous attempt’s activation diff.
+Shakeout changes provider routing after initialization, requiring conduct adoption before subsequent drains.
 
 ## Dead ends
 
-Verified on the untouched base that Git._run replaces a committed non-UTF-8 byte with U+FFFD; encoding its output cannot recover the original bytes.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Expected 60m; completed in approximately 20m.
 
