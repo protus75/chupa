@@ -1,0 +1,150 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "b129442b708ca9e7166b40c59aeaaa5b8f517333",
+  "stem": "supervised-merge-hold",
+  "passed": true,
+  "changed_files": [
+    "chupa/__main__.py",
+    "chupa/baseline.py",
+    "chupa/control.py",
+    "chupa/daemon.py",
+    "chupa/merge.py",
+    "chupa/mergequeue.py",
+    "chupa/reconcile.py",
+    "chupa/restart.py",
+    "chupa/runner.py",
+    "chupa/serve.py",
+    "chupa/stages.py",
+    "eval/daemon_soak.py",
+    "eval/reliability_battery.py",
+    "tests/test_control.py",
+    "tests/test_control_cli.py",
+    "tests/test_daemon_composition.py",
+    "tests/test_daemon_soak_runner.py",
+    "tests/test_drain.py",
+    "tests/test_merge.py",
+    "tests/test_mergequeue.py",
+    "tests/test_reconcile.py",
+    "tests/test_restart_timers.py",
+    "tests/test_serve.py",
+    "tests/test_supervised_merge_hold.py"
+  ],
+  "inserted_lines": 1189,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_supervised_merge_hold.py"
+      ],
+      "rc": 0,
+      "tail": "....................                                                     [100%]\n20 passed in 4.80s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_merge.py",
+        "tests/test_mergequeue.py",
+        "tests/test_serve.py",
+        "tests/test_restart_timers.py",
+        "tests/test_baseline.py",
+        "tests/test_control.py",
+        "tests/test_control_cli.py",
+        "tests/test_cli.py",
+        "tests/test_drain.py",
+        "tests/test_reconcile.py",
+        "tests/test_daemon_soak_runner.py"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 11%]\n........................................................................ [ 23%]\n........................................................................ [ 35%]\n........................................................................ [ 46%]\n........................................................................ [ 58%]\n........................................................................ [ 70%]\n........................................................................ [ 82%]\n........................................................................ [ 93%]\n.....................................                                    [100%]\n613 passed in 91.36s (0:01:31)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_daemon_composition.py",
+        "tests/test_daemon_tasks.py",
+        "tests/test_kill_signal_journal.py",
+        "tests/test_storm_hold.py",
+        "tests/test_bug_gate.py",
+        "tests/test_rework.py"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 21%]\n........................................................................ [ 43%]\n........................................................................ [ 65%]\n........................................................................ [ 87%]\n...........................................                              [100%]\n331 passed in 28.63s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_plan_lint.py"
+      ],
+      "rc": 0,
+      "tail": "............................                                             [100%]\n28 passed in 0.18s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": ".............................................. [ 73%]\n........................................................................ [ 75%]\n........................................................................ [ 77%]\n........................................................................ [ 79%]\n........................................................................ [ 81%]\n........................................................................ [ 83%]\n........................................................................ [ 85%]\n........................................................................ [ 87%]\n........................................................................ [ 89%]\n........................................................................ [ 91%]\n........................................................................ [ 93%]\n........................................................................ [ 94%]\n........................................................................ [ 96%]\n........................................................................ [ 98%]\n...........................................                              [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/supervised-merge-hold/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3715 passed, 1 warning in 311.82s (0:05:11)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
