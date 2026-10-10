@@ -1,0 +1,152 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "51388c7e10ded04124928aacf13e00e68ee919a7",
+  "stem": "exit-receipt-machinery",
+  "passed": true,
+  "changed_files": [
+    "chupa/artifacts.py",
+    "chupa/stages.py",
+    "eval/host_loop.py",
+    "hosts/fixture/README.md",
+    "hosts/fixture/bin/claude",
+    "hosts/fixture/scaffold.py",
+    "hosts/fixture/scripts.json",
+    "tests/test_fixture_host.py",
+    "tests/test_gates.py",
+    "tests/test_host_loop.py",
+    "tests/test_inbox.py",
+    "tests/test_stages.py"
+  ],
+  "inserted_lines": 924,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_host_loop.py"
+      ],
+      "rc": 0,
+      "tail": ".......                                                                  [100%]\n7 passed in 10.23s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_gates.py"
+      ],
+      "rc": 0,
+      "tail": "............................                                             [100%]\n28 passed in 0.34s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_stages.py"
+      ],
+      "rc": 0,
+      "tail": "................................................................         [100%]\n64 passed in 8.55s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_fixture_host.py"
+      ],
+      "rc": 0,
+      "tail": ".........                                                                [100%]\n9 passed in 1.97s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_bug_gate.py",
+        "tests/test_inbox.py",
+        "tests/test_triage.py",
+        "tests/test_supervised_merge_hold.py",
+        "tests/test_merge.py",
+        "tests/test_seed_path.py"
+      ],
+      "rc": 0,
+      "tail": "........................................................................ [ 29%]\n........................................................................ [ 59%]\n........................................................................ [ 89%]\n..........................                                               [100%]\n242 passed in 33.43s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_plan_lint.py"
+      ],
+      "rc": 0,
+      "tail": "............................                                             [100%]\n28 passed in 0.19s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "............................................. [ 74%]\n........................................................................ [ 76%]\n........................................................................ [ 78%]\n........................................................................ [ 80%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 86%]\n........................................................................ [ 88%]\n........................................................................ [ 90%]\n........................................................................ [ 91%]\n........................................................................ [ 93%]\n........................................................................ [ 95%]\n........................................................................ [ 97%]\n........................................................................ [ 99%]\n...............                                                          [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/exit-receipt-machinery/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3759 passed, 1 warning in 325.33s (0:05:25)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
