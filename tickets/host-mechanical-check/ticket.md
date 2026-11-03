@@ -18,8 +18,6 @@ state: confirmed
 - chupa/gates.py
 - chupa/providers.py
 - chupa/seams.py
-
-## On-demand
 - chupa/stages.py
 - tests/test_merge.py
 - tests/test_stages.py
