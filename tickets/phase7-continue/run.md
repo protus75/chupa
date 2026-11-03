@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-Config accepts host_lint, but GateBypass rejects that code because it accepts only engine codes; both production files were verified identical to base dac13fa7a3306da0e978bd62c302fd520fda9a1c.
+All selected Context files fit within headroom; the larger render measures 284,795 characters.
 
 ## Dead ends
 
-Removed the draft seeds and snapshot after discovering the contract gap. Snapshot and plan-lint tests passed; the full suite was interrupted after 1219 passing tests.
+Corrected the successor’s grammar mutation probe to remove its required 19.L citation.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped within the 60-minute expected budget.
+Completed within the 60-minute expected budget.
 
