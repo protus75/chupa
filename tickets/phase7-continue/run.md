@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-Committed checks.json approves both existing seeds; tests/test_seeded_phase7_01.py is absent. Draft writes mistakenly overwrote the existing seeds, then were restored byte-for-byte; the worktree is clean.
+The corrected seed retains an On-demand partition from its earlier, wider contract; its bytes match main.
 
 ## Dead ends
 
-Stopped after confirming committed seed custody and the stale bypass requirements. No verification commands ran and no changes were committed.
+Checked historical authoring evidence, but it cannot justify the corrected seed’s current partition.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during contract and custody inspection within the expected 60-minute budget.
+Stopped during contract validation, within the 60-minute expected budget.
 
