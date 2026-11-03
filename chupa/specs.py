@@ -472,4 +472,9 @@ def _lint_registries(plan: str, found: Mapping[str, list[str]]) -> list[Finding]
                     out.append(_f("registry_cite", f"{where} seed {stem!r} cites {c!r}, which does not resolve",
                                   f"cite an integer section from {list(CITABLE_SECTIONS)}, a quoted"
                                   " `\"N.k\"` subsection, or `\"19.L\"`"))
+            listed = {str(c) for c in (cites if isinstance(cites, list) else [cites])}
+            for c in sorted(listed):
+                if "." in c and not c.startswith("19.") and c.split(".")[0] in listed:
+                    out.append(_f("registry_cite", f"{where} seed {stem!r} cites section {c.split('.')[0]} with its"
+                                  f" own subsection {c}", "cite the whole section or its subsections, not both"))
     return out

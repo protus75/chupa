@@ -209,6 +209,15 @@ def test_unresolvable_plan_contract_section_is_refused(repo):
     assert do_intake(root, g, journal).committed == ()
 
 
+def test_plan_contract_section_with_its_own_subsection_is_refused(repo):
+    # Each id resolves alone; only the set is illegal, and intake must refuse it before implement renders it.
+    root, g, journal = repo
+    (root / "CHUPA_PLAN.md").write_text(PLAN.replace("Spine prose.", "Spine prose.\n\n### 11.4 Dispatch\n\nDispatch."))
+    findings = refusal(root, VALID.replace("- section 11", "- section 11\n- section 11.4"))
+    assert len(findings) == 1 and "subsection" in findings[0].message
+    assert do_intake(root, g, journal).committed == ()
+
+
 # --- the rest of the section 13 grammar ------------------------------------------------------
 
 

@@ -387,6 +387,13 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings
                                                              "message": f"`## Plan contract`: {e.finding.message}"}))
                 continue
             plan_ids.append(pid)
+    if plan is not None and plan_ids:
+        # Implement resolves the whole list at once; a set legal only id by id must fail here, not there.
+        try:
+            resolve_plan_contract(plan, plan_ids)
+        except PlanContractError as e:
+            findings.append(e.finding.model_copy(update={"code": CODE, "path": path,
+                                                         "message": f"`## Plan contract`: {e.finding.message}"}))
     if fm is not None and fm.source == "seed":
         findings += _seed_cites(stem, plan_ids, plan or "", path)
 

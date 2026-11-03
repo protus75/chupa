@@ -119,6 +119,10 @@ def test_registry_cites_subsections_and_build_laws(cite):
     assert lint_plan(build(registry=GOOD_REGISTRY.replace("[9, 20]", cite))) == []
 
 
+def test_registry_cite_with_its_own_subsection_is_refused():
+    assert "registry_cite" in codes(lint_plan(build(registry=GOOD_REGISTRY.replace("[9, 20]", "[11, '11.4']"))))
+
+
 def test_real_plan_registries_are_linted():
     # Coverage-break the real P4 registry: lint must notice, proving the real blocks are parsed.
     broken = PLAN.replace("  - [watchdog-event-stream, notify-transport]\n", "  - [watchdog-event-stream]\n", 1)
