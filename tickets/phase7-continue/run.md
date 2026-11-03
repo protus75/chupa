@@ -1,14 +1,14 @@
 ## Outcome
 
-infra_error
+premise_failed
 
 ## Surprises / judgment calls
 
-none
+chupa/triage.py:200 directly revalidates historical frontmatter; its ValidationError reaches a retry-triage road that cannot repair rejected committed evidence. Both required entry units resolve and contain all four structural parts, but the mechanical entry supplies no triage behavior or test obligation. No files changed or committed.
 
 ## Dead ends
 
-none
+Stopped before authoring seeds because adding the missing historical-validation behavior or test in ticket prose would invent governing facts.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Stopped during initial contract inspection, within the 60-minute expected budget.
 
