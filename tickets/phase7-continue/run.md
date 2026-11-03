@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-All selected Context files fit within headroom; the larger render measures 284,795 characters.
+Used explicit active-config validation inputs with engine-only defaults to preserve historical callers; maximum recorded render is 299,607 characters.
 
 ## Dead ends
 
-Corrected the successor’s grammar mutation probe to remove its required 19.L citation.
+Resolved the initial caller-closure concern using the plan's precedent for unchanged component callers.
 
 ## Second problems filed
 
