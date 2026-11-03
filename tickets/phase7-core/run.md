@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Both payloads earned tests/test_stages.py fence additions for contradicted version assertions; Check owns seed reviews, approvals, and lift.
+Preserved both approved seeds byte-identically and refreshed snapshots against the repaired host-mechanical contract; Check owns approvals and lift.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60m expected budget; full-suite verification took 6m30s.
+Completed within the 60m expected budget; full-suite verification took 5m39s.
 
