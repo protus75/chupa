@@ -1,5 +1,5 @@
 ---
-state: confirmed
+state: rejected
 source: seed
 priority: P1
 kind: chore
