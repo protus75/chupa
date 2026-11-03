@@ -1,0 +1,136 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "1ca9c080c3774af287bae97d8a58c99199afe5b7",
+  "stem": "phase7-core",
+  "passed": false,
+  "changed_files": [
+    "tests/test_seeded_phase7_core.py"
+  ],
+  "inserted_lines": 506,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "requisition_review",
+      "verdict": "fail",
+      "findings": [
+        {
+          "code": "requisition_review",
+          "path": "CHUPA_PLAN.md",
+          "line": 2730,
+          "message": "The Records bullet says soft failures 'file their findings through the existing soft-finding Box path', and the Tests bullet requires test_soft_failure_files_and_passes, but no such path exists. Soft gate findings only come back as StageResult.findings: chupa/stages.py check() returns findings=gated.findings on ok, chupa/merge.py:366 returns soft findings, and chupa/runner.py drive() ignores findings on an ok result. The tests/test_stages.py test_gate_bypass_demotes_its_code_to_soft test asserts only that the finding is reported on the result. The box.enqueue sites cover only second problems, base-red results, failure and rework reports, flake, checkpoint, retro and storm reports; none files a soft gate finding. The unit therefore omits the writer and message shape: which module enqueues, the message_class, stage, outcome and summary, the occurrence_id domain that keeps Check retries idempotent, and whether the inline merge path files too (it re-runs HARD entries only). The ticket requires premise_failed in this case and forbids inventing the fact.",
+          "paved_road": "Harden 19.P7.host-mechanical-check through section 11.4: replace 'the existing soft-finding Box path' with the exact writer in chupa/stages.py, the box.enqueue fields, the arrival_id occurrence domain and the per-entry filing rule, and state what test_soft_failure_files_and_passes pins. Then re-author this ticket's snapshot of the entry hash against the repaired unit. No ticket text needs inventing the fact.",
+          "kind": "spec_gap",
+          "unit": "19.P7.host-mechanical-check"
+        }
+      ],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [
+    {
+      "stem": "implement-consumer-read",
+      "ticket_sha": "b7877b113aa8fa2575924b8b97fdc0e28f288ea8",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
+    },
+    {
+      "stem": "phase7-continue",
+      "ticket_sha": "0e34dd9dda0501746c9fbd4ca16eee50fee820d2",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "requisition_review",
+          "path": "CHUPA_PLAN.md",
+          "line": 2730,
+          "message": "The Records bullet says soft failures 'file their findings through the existing soft-finding Box path', and the Tests bullet requires test_soft_failure_files_and_passes, but no such path exists. Soft gate findings only come back as StageResult.findings: chupa/stages.py check() returns findings=gated.findings on ok, chupa/merge.py:366 returns soft findings, and chupa/runner.py drive() ignores findings on an ok result. The tests/test_stages.py test_gate_bypass_demotes_its_code_to_soft test asserts only that the finding is reported on the result. The box.enqueue sites cover only second problems, base-red results, failure and rework reports, flake, checkpoint, retro and storm reports; none files a soft gate finding. The unit therefore omits the writer and message shape: which module enqueues, the message_class, stage, outcome and summary, the occurrence_id domain that keeps Check retries idempotent, and whether the inline merge path files too (it re-runs HARD entries only). The ticket requires premise_failed in this case and forbids inventing the fact.",
+          "paved_road": "Harden 19.P7.host-mechanical-check through section 11.4: replace 'the existing soft-finding Box path' with the exact writer in chupa/stages.py, the box.enqueue fields, the arrival_id occurrence domain and the per-entry filing rule, and state what test_soft_failure_files_and_passes pins. Then re-author this ticket's snapshot of the entry hash against the repaired unit. No ticket text needs inventing the fact.",
+          "kind": "spec_gap",
+          "unit": "19.P7.host-mechanical-check"
+        }
+      ],
+      "mechanical": null
+    },
+    {
+      "stem": "review-spec-readonly",
+      "ticket_sha": "2f261ff74139614c0f0e1609df297fb21f2daa87",
+      "verdict": "approve",
+      "findings": [],
+      "mechanical": null
+    }
+  ],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_seeded_phase7_core.py"
+      ],
+      "rc": 0,
+      "tail": "........                                                                 [100%]\n8 passed in 0.08s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_plan_lint.py"
+      ],
+      "rc": 0,
+      "tail": ".............................                                            [100%]\n29 passed in 0.20s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "........................................................ [ 74%]\n........................................................................ [ 76%]\n........................................................................ [ 78%]\n........................................................................ [ 80%]\n........................................................................ [ 81%]\n........................................................................ [ 83%]\n........................................................................ [ 85%]\n........................................................................ [ 87%]\n........................................................................ [ 89%]\n........................................................................ [ 91%]\n........................................................................ [ 93%]\n........................................................................ [ 95%]\n........................................................................ [ 96%]\n........................................................................ [ 98%]\n.................................................                        [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase7-core/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3865 passed, 1 warning in 342.36s (0:05:42)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
