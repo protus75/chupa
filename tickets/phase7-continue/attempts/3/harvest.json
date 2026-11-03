@@ -1,0 +1,23 @@
+{
+  "attempt": 3,
+  "stage": "implement",
+  "terminal": "infra_error",
+  "findings": [
+    {
+      "code": "outage",
+      "path": null,
+      "line": null,
+      "message": "codex: nonzero exit: error event: 'Selected model is at capacity. Please try a different model.' (exit 1); stderr tail: ''",
+      "paved_road": "wait for provider 'codex' to recover from outage, then retry",
+      "kind": null,
+      "unit": null
+    }
+  ],
+  "reason": null,
+  "diff_stat": "",
+  "stage_log_tail": "ProviderCallError: codex: nonzero exit: error event: 'Selected model is at capacity. Please try a different model.' (exit 1); stderr tail: ''",
+  "events_tail": "{\"type\":\"thread.started\",\"thread_id\":\"01a1a2f1-3cf0-7131-b970-aeef9930b6a7\"}\n{\"type\":\"turn.started\"}\n{\"type\":\"error\",\"message\":\"Selected model is at capacity. Please try a different model.\"}\n{\"type\":\"turn.failed\",\"error\":{\"message\":\"Selected model is at capacity. Please try a different model.\"}}\n",
+  "wall_seconds": 4.357105,
+  "usd": 0.0,
+  "run_record": "tickets/phase7-continue/run.md"
+}
