@@ -2704,8 +2704,8 @@ admissions:
 seeds:
   review-spec-readonly: {cite: [8], fence: [specs/review.md, tests/test_specs.py], does: "Review spec states the read-only session and mechanically decided verification; drops the Verification snag clause."}
   implement-consumer-read: {cite: [8], fence: [specs/implement.md, tests/test_specs.py], does: "Implement spec requires reading consumers before changing a stored or emitted representation."}
-  host-mechanical-check: {cite: [7, "7.3"], depends: [review-spec-readonly, implement-consumer-read], fence: [chupa/stages.py, chupa/merge.py, tests/test_host_mechanical.py, tests/test_stages.py, tests/test_merge.py], does: "TRIGGER and SEVERITY contracts for review.mechanical at Check and the inline merge re-run."}
-  host-review-surfaces: {deep: true, cite: [4, 7, "7.3", 9], depends: [host-mechanical-check], fence: [chupa/stages.py, chupa/merge.py, chupa/artifacts.py, chupa/config.py, chupa/specs.py, tests/test_host_surfaces.py, tests/test_stages.py, tests/test_merge.py, tests/test_config.py, tests/test_specs.py], does: "Host review surfaces as read-only review calls; approval requires every triggered hard surface."}
+  host-mechanical-check: {cite: [7], depends: [review-spec-readonly, implement-consumer-read], fence: [chupa/stages.py, chupa/merge.py, tests/test_host_mechanical.py, tests/test_stages.py, tests/test_merge.py], does: "TRIGGER and SEVERITY contracts for review.mechanical at Check and the inline merge re-run."}
+  host-review-surfaces: {deep: true, cite: [4, 7, 9], depends: [host-mechanical-check], fence: [chupa/stages.py, chupa/merge.py, chupa/artifacts.py, chupa/config.py, chupa/specs.py, tests/test_host_surfaces.py, tests/test_stages.py, tests/test_merge.py, tests/test_config.py, tests/test_specs.py], does: "Host review surfaces as read-only review calls; approval requires every triggered hard surface."}
   phase7-exit: {exit: true, depends: [host-review-surfaces], fence: [tickets, tests/test_phase7_exit.py, tests/test_seeded_phase8_core.py], does: "Exit reads above; authors the 19.P8 core."}
 # END_REGISTRY_P7
 ```
