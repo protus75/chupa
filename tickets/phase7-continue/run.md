@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-Both required entry units resolve uniquely and contain all four structural parts, but chupa/triage.py:200 directly validates historical frontmatter and the mechanical entry contains no triage obligation. The relevant files match HEAD; the worktree is clean.
+The prior triage blocker is cleared: host-mechanical-check now leaves validation and bypass consumers unchanged. Both required entries resolve uniquely and pass structural depth checks, but the successor's governing entry still assumes mechanical bypasses are accepted.
 
 ## Dead ends
 
-Stopped before writing seeds or tests because supplying the missing governing behavior in ticket prose would violate the contract. No changes or commits; Verification commands were not run.
+Stopped before authoring seeds or tests. Confirmed the committed Frontmatter validator rejects non-engine bypass codes. Verification commands were not run; no files changed or committed.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during initial contract inspection, within the 60-minute expected budget.
+Stopped during initial contract inspection, within the expected 60-minute budget.
 
