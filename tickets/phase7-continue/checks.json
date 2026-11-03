@@ -1,0 +1,220 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "12348162e24dc63e2b789a8d6bf1810b9fa591ad",
+  "stem": "phase7-continue",
+  "passed": false,
+  "changed_files": [
+    "tests/test_seeded_phase7_01.py"
+  ],
+  "inserted_lines": 479,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "requisition_review",
+      "verdict": "fail",
+      "findings": [
+        {
+          "code": "scope_fence_closure",
+          "path": "chupa/tickets.py",
+          "line": 509,
+          "message": "Criterion 4 and the entry require bypass validation against the active configuration's `review.mechanical` codes, but `parse_ticket(stem, text, repo, *, plan, siblings)` and `validate_ticket(stem, text, repo, siblings)` receive no configuration. The active configuration can come from `--config` (`chupa/__main__.py:219,265`; `chupa/serve.py:191`), so reading `repo/config.yaml` inside `chupa/tickets.py` would validate against the wrong file when `--config` names another config: a code declared only there is refused, and a code declared only in the repo file is accepted. The criterion tests would still pass with a repo-local `config.yaml`. Supplying the codes correctly changes a public signature, and its direct production callers `chupa/mergequeue.py`, `chupa/runner.py`, `chupa/daemon.py`, `chupa/watcher.py`, `chupa/drain.py`, `chupa/author.py`, `chupa/rework.py`, `chupa/requisition.py`, `chupa/__main__.py` and `eval/reliability_battery.py` are outside the fence, as are direct test callers. The ticket's 'no public signature change' stance and premise_failed fallback defer this foreseeable fence wall to Implement.",
+          "paved_road": "Re-author the ticket to prescribe how the active configuration's mechanical codes reach `parse_ticket` and `validate_ticket`. Apply 19.L CALLER CLOSURE by grepping `chupa/`, `eval/` and `tests/`, then fence and add to Context or On-demand every direct caller the change forces. Remove the 'no public signature change' sentence, and add a named test obligation in which a `--config` path outside the repo differs from `repo/config.yaml`, proving that only the active configuration's codes are accepted.",
+          "kind": "authoring_error",
+          "unit": null
+        },
+        {
+          "code": "entry_unit_delegates_uncited_contract",
+          "path": "CHUPA_PLAN.md",
+          "line": 2730,
+          "message": "The entry says 'Severity per TRIGGER and SEVERITY (`19.P7`)', and the ticket says the entry governs trigger matching and effective severity. However, `_seed_cites` forbids a registry-row seed from citing its phase unit, so 19.P7's settled contracts are not rendered. The entry and section 7.3 omit the matching rule: a path-prefix list runs when any changed file in the committed diff matches by the scope-fence prefix rule (section 9), which is a path-boundary match rather than a raw string prefix. Under a raw `startswith`, prefix `chupa/x` wrongly triggers on `chupa/xy.py`, breaking the requirement that an untriggered entry leaves no command, report, spool or finding.",
+          "paved_road": "Harden `19.P7.host-mechanical-check` through section 11.4 by stating the TRIGGER rule in the entry itself: `always` runs on every ticket, and a path-prefix list uses the scope-fence path-boundary rule over the committed changed files. Also inline the SEVERITY rule instead of pointing to `19.P7`, and add a boundary non-match case to `test_untriggered_entry_never_runs`. Then re-author the ticket against the hardened unit.",
+          "kind": "spec_gap",
+          "unit": "19.P7.host-mechanical-check"
+        },
+        {
+          "code": "rules_doc_render_unspecified",
+          "path": "CHUPA_PLAN.md",
+          "line": 2736,
+          "message": "The Owner part says a surface call is rendered from specs/review.md with rules_doc content as a data block, but it does not say how that block reaches the render. render() requires inputs to match spec.inputs exactly, and tests/test_specs.py::test_review_spec_read_only pins those inputs to (ticket, diff, retry_findings) and the version to 1.1. The Role section also limits the reviewer to whether the diff is correct and does what the ticket asks, 'and only that', with no instruction to judge against host rules. specs/review.md is outside the row fence and 19.L rules 2-5 do not earn it. 19.P7 SPEC VERSIONS settles only the 1.0 -> 1.1 bump. The unit omits the block name and how it is supplied, whether the spec is edited (with its version and fence) or the block is composed by the stage, the instruction to apply the rules, and how the correctness render stays unchanged.",
+          "paved_road": "Harden 19.P7.host-review-surfaces to state the data-block name and owner, the mechanism that applies the rules to a surface call, any spec edit with its fence and version, and the unchanged correctness render, then regenerate this seed.",
+          "kind": "spec_gap",
+          "unit": "19.P7.host-review-surfaces"
+        },
+        {
+          "code": "surface_routing_refusal_contradicts_merged_fixtures",
+          "path": "CHUPA_PLAN.md",
+          "line": 2737,
+          "message": "The Records part refuses a declared surface with no routing row for any tier a ticket may run at, and the Tests part says existing fixtures stay green. Merged fixtures declare surfaces with no matching row: tests/test_config.py declares `correctness` with only a medium implement route, and the docs/host-contract.md example declares `host-review` with only medium review and implement routes. tests/test_host_contract.py::test_host_contract_example_loads loads that example. docs/host-contract.md is outside the row fence and is not a test or caller that rules 2-5 can earn. chupa/providers.py resolve() and candidates() also fall back to the review row for an unrouted surface, and that file is outside the fence too. The unit does not say which tiers are required, whether a surface may be satisfied by the review fallback, whether `correctness` collides (section 7.3 calls it engine-shipped, ENGINE_LLM_SURFACES omits it), or who updates these fixtures and the doc.",
+          "paved_road": "Harden the unit to state the exact tier set, the fate of the review fallback, the collision vocabulary including `correctness`, and the fence and migration of tests/test_config.py, tests/test_host_contract.py and docs/host-contract.md, or a refusal rule those fixtures satisfy.",
+          "kind": "spec_gap",
+          "unit": "19.P7.host-review-surfaces"
+        },
+        {
+          "code": "soft_surface_box_contract_conflict",
+          "path": "CHUPA_PLAN.md",
+          "line": 2737,
+          "message": "19.P7 SEVERITY covers a host 'entry' and says a soft failure is reported without a Suggestion Box message, with no carve-out for surfaces. The entry unit's Records part and section 7.3 file soft-surface findings to the Box, and test_soft_surface_findings_filed requires it. The unit also omits the exact record: box.enqueue needs message_class, stage, outcome, summary and occurrence_id, and the unit gives no class or arrival identity, so retries cannot be shown to deduplicate.",
+          "paved_road": "Harden the unit and 19.P7 SEVERITY to scope the Box exception to surfaces and to state the message class, stage, outcome, summary and occurrence_id, including per-finding or per-surface granularity across attempts.",
+          "kind": "spec_gap",
+          "unit": "19.P7.host-review-surfaces"
+        },
+        {
+          "code": "surface_gate_bypass_unspecified",
+          "path": "CHUPA_PLAN.md",
+          "line": 2737,
+          "message": "19.P7 SEVERITY lets a ticket gate_bypass naming the entry's code demote it to soft, but a ReviewSurface has a `name` and no `code`. The hardened 19.P7.host-mechanical-check limits accepted bypass codes to ENGINE_GATE_CODES plus review.mechanical codes and refuses anything else, in chupa/tickets.py, which is outside this row's fence. The unit does not say whether a surface can be bypassed. If it can, it does not give the identifier, the validator change and fence, the demoted severity recorded in review.md, or the merge behavior. No named test covers the rule.",
+          "paved_road": "Harden the unit to state whether surfaces accept gate_bypass. If they do, state the identifier, the chupa/tickets.py and tests/test_tickets.py fence, the recorded effective severity, the merge rule and a named test. If they do not, scope SEVERITY's bypass clause to mechanical entries.",
+          "kind": "spec_gap",
+          "unit": "19.P7.host-review-surfaces"
+        }
+      ],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [
+    {
+      "stem": "host-mechanical-check",
+      "ticket_sha": "af3b252bcd9a84c6d2dd42ff56d9bb90be625570",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "scope_fence_closure",
+          "path": "chupa/tickets.py",
+          "line": 509,
+          "message": "Criterion 4 and the entry require bypass validation against the active configuration's `review.mechanical` codes, but `parse_ticket(stem, text, repo, *, plan, siblings)` and `validate_ticket(stem, text, repo, siblings)` receive no configuration. The active configuration can come from `--config` (`chupa/__main__.py:219,265`; `chupa/serve.py:191`), so reading `repo/config.yaml` inside `chupa/tickets.py` would validate against the wrong file when `--config` names another config: a code declared only there is refused, and a code declared only in the repo file is accepted. The criterion tests would still pass with a repo-local `config.yaml`. Supplying the codes correctly changes a public signature, and its direct production callers `chupa/mergequeue.py`, `chupa/runner.py`, `chupa/daemon.py`, `chupa/watcher.py`, `chupa/drain.py`, `chupa/author.py`, `chupa/rework.py`, `chupa/requisition.py`, `chupa/__main__.py` and `eval/reliability_battery.py` are outside the fence, as are direct test callers. The ticket's 'no public signature change' stance and premise_failed fallback defer this foreseeable fence wall to Implement.",
+          "paved_road": "Re-author the ticket to prescribe how the active configuration's mechanical codes reach `parse_ticket` and `validate_ticket`. Apply 19.L CALLER CLOSURE by grepping `chupa/`, `eval/` and `tests/`, then fence and add to Context or On-demand every direct caller the change forces. Remove the 'no public signature change' sentence, and add a named test obligation in which a `--config` path outside the repo differs from `repo/config.yaml`, proving that only the active configuration's codes are accepted.",
+          "kind": "authoring_error",
+          "unit": null
+        },
+        {
+          "code": "entry_unit_delegates_uncited_contract",
+          "path": "CHUPA_PLAN.md",
+          "line": 2730,
+          "message": "The entry says 'Severity per TRIGGER and SEVERITY (`19.P7`)', and the ticket says the entry governs trigger matching and effective severity. However, `_seed_cites` forbids a registry-row seed from citing its phase unit, so 19.P7's settled contracts are not rendered. The entry and section 7.3 omit the matching rule: a path-prefix list runs when any changed file in the committed diff matches by the scope-fence prefix rule (section 9), which is a path-boundary match rather than a raw string prefix. Under a raw `startswith`, prefix `chupa/x` wrongly triggers on `chupa/xy.py`, breaking the requirement that an untriggered entry leaves no command, report, spool or finding.",
+          "paved_road": "Harden `19.P7.host-mechanical-check` through section 11.4 by stating the TRIGGER rule in the entry itself: `always` runs on every ticket, and a path-prefix list uses the scope-fence path-boundary rule over the committed changed files. Also inline the SEVERITY rule instead of pointing to `19.P7`, and add a boundary non-match case to `test_untriggered_entry_never_runs`. Then re-author the ticket against the hardened unit.",
+          "kind": "spec_gap",
+          "unit": "19.P7.host-mechanical-check"
+        }
+      ],
+      "mechanical": null
+    },
+    {
+      "stem": "phase7-continue-02",
+      "ticket_sha": "70c9ff465b1fa7fd9479eb0db7dc841b96eb250f",
+      "verdict": "snag",
+      "findings": [
+        {
+          "code": "rules_doc_render_unspecified",
+          "path": "CHUPA_PLAN.md",
+          "line": 2736,
+          "message": "The Owner part says a surface call is rendered from specs/review.md with rules_doc content as a data block, but it does not say how that block reaches the render. render() requires inputs to match spec.inputs exactly, and tests/test_specs.py::test_review_spec_read_only pins those inputs to (ticket, diff, retry_findings) and the version to 1.1. The Role section also limits the reviewer to whether the diff is correct and does what the ticket asks, 'and only that', with no instruction to judge against host rules. specs/review.md is outside the row fence and 19.L rules 2-5 do not earn it. 19.P7 SPEC VERSIONS settles only the 1.0 -> 1.1 bump. The unit omits the block name and how it is supplied, whether the spec is edited (with its version and fence) or the block is composed by the stage, the instruction to apply the rules, and how the correctness render stays unchanged.",
+          "paved_road": "Harden 19.P7.host-review-surfaces to state the data-block name and owner, the mechanism that applies the rules to a surface call, any spec edit with its fence and version, and the unchanged correctness render, then regenerate this seed.",
+          "kind": "spec_gap",
+          "unit": "19.P7.host-review-surfaces"
+        },
+        {
+          "code": "surface_routing_refusal_contradicts_merged_fixtures",
+          "path": "CHUPA_PLAN.md",
+          "line": 2737,
+          "message": "The Records part refuses a declared surface with no routing row for any tier a ticket may run at, and the Tests part says existing fixtures stay green. Merged fixtures declare surfaces with no matching row: tests/test_config.py declares `correctness` with only a medium implement route, and the docs/host-contract.md example declares `host-review` with only medium review and implement routes. tests/test_host_contract.py::test_host_contract_example_loads loads that example. docs/host-contract.md is outside the row fence and is not a test or caller that rules 2-5 can earn. chupa/providers.py resolve() and candidates() also fall back to the review row for an unrouted surface, and that file is outside the fence too. The unit does not say which tiers are required, whether a surface may be satisfied by the review fallback, whether `correctness` collides (section 7.3 calls it engine-shipped, ENGINE_LLM_SURFACES omits it), or who updates these fixtures and the doc.",
+          "paved_road": "Harden the unit to state the exact tier set, the fate of the review fallback, the collision vocabulary including `correctness`, and the fence and migration of tests/test_config.py, tests/test_host_contract.py and docs/host-contract.md, or a refusal rule those fixtures satisfy.",
+          "kind": "spec_gap",
+          "unit": "19.P7.host-review-surfaces"
+        },
+        {
+          "code": "soft_surface_box_contract_conflict",
+          "path": "CHUPA_PLAN.md",
+          "line": 2737,
+          "message": "19.P7 SEVERITY covers a host 'entry' and says a soft failure is reported without a Suggestion Box message, with no carve-out for surfaces. The entry unit's Records part and section 7.3 file soft-surface findings to the Box, and test_soft_surface_findings_filed requires it. The unit also omits the exact record: box.enqueue needs message_class, stage, outcome, summary and occurrence_id, and the unit gives no class or arrival identity, so retries cannot be shown to deduplicate.",
+          "paved_road": "Harden the unit and 19.P7 SEVERITY to scope the Box exception to surfaces and to state the message class, stage, outcome, summary and occurrence_id, including per-finding or per-surface granularity across attempts.",
+          "kind": "spec_gap",
+          "unit": "19.P7.host-review-surfaces"
+        },
+        {
+          "code": "surface_gate_bypass_unspecified",
+          "path": "CHUPA_PLAN.md",
+          "line": 2737,
+          "message": "19.P7 SEVERITY lets a ticket gate_bypass naming the entry's code demote it to soft, but a ReviewSurface has a `name` and no `code`. The hardened 19.P7.host-mechanical-check limits accepted bypass codes to ENGINE_GATE_CODES plus review.mechanical codes and refuses anything else, in chupa/tickets.py, which is outside this row's fence. The unit does not say whether a surface can be bypassed. If it can, it does not give the identifier, the validator change and fence, the demoted severity recorded in review.md, or the merge behavior. No named test covers the rule.",
+          "paved_road": "Harden the unit to state whether surfaces accept gate_bypass. If they do, state the identifier, the chupa/tickets.py and tests/test_tickets.py fence, the recorded effective severity, the merge rule and a named test. If they do not, scope SEVERITY's bypass clause to mechanical entries.",
+          "kind": "spec_gap",
+          "unit": "19.P7.host-review-surfaces"
+        }
+      ],
+      "mechanical": null
+    }
+  ],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_seeded_phase7_01.py"
+      ],
+      "rc": 0,
+      "tail": ".......                                                                  [100%]\n7 passed in 0.09s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_plan_lint.py"
+      ],
+      "rc": 0,
+      "tail": ".............................                                            [100%]\n29 passed in 0.21s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": ".................................................... [ 74%]\n........................................................................ [ 76%]\n........................................................................ [ 78%]\n........................................................................ [ 79%]\n........................................................................ [ 81%]\n........................................................................ [ 83%]\n........................................................................ [ 85%]\n........................................................................ [ 87%]\n........................................................................ [ 89%]\n........................................................................ [ 91%]\n........................................................................ [ 92%]\n........................................................................ [ 94%]\n........................................................................ [ 96%]\n........................................................................ [ 98%]\n............................................................             [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/phase7-continue/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3876 passed, 1 warning in 365.69s (0:06:05)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
