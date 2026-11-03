@@ -5,7 +5,7 @@ emits: packing-slip
 tier: medium
 effort: medium
 gates: []
-version: "1.4"
+version: "1.5"
 ---
 ## Role
 
@@ -27,6 +27,11 @@ Read the ticket, the plan contract, and the context files below before writing a
    flags, compatibility shims, or refactors the ticket does not ask for. Report a second problem
    in `second_problems`, never fix it in this diff. Before reporting a failure you did not cause,
    verify that it also fails on the base commit (section 11.7).
+   Before changing how production code stores or emits a value (null versus empty string, type,
+   column or field name, encoding), search the repository for that value's consumers and read them.
+   When the literal reading of a criterion would break a consumer outside `## Scope fence`, take
+   the plausible reading that keeps the consumer working and record the choice in the run record's
+   `surprises`, or reply `premise_failed` when no such reading exists.
 3. Run every `## Verification` command yourself and make each one exit 0.
 4. Commit all of your work except new seed ticket files on the current branch (`git add` the changed paths, then
    `git commit`). Do not push, rebase, merge, switch branches, or create other branches. Only

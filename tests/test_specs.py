@@ -7,6 +7,8 @@ from chupa.specs import (
     QUOTED_DELIM,
     RENDER_BOUND_CHARS,
     REQ_RENDER_HEADROOM,
+    SPEC_MAX_LINES,
+    SPEC_SECTIONS,
     PlanContractError,
     RenderOverBound,
     SpecError,
@@ -163,10 +165,52 @@ def test_implement_spec_defines_both_premise_kinds():
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parent.parent / "specs"
-    for name, version in (("implement", "1.4"), ("requisition_review", "2.2")):
+    for name, version in (("implement", "1.5"), ("requisition_review", "2.2")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
+
+
+def test_implement_spec_consumer_read():
+    text = (Path(__file__).resolve().parent.parent / "specs/implement.md").read_text()
+    assert lint_spec(text) == []
+    assert len(text.splitlines()) <= SPEC_MAX_LINES
+    spec = load_spec(text)
+    assert spec.meta.version == "1.5"
+    assert spec.meta.model_dump(exclude={"version"}) == {
+        "llm_surface": "implement", "consumes": "ticket", "emits": "packing-slip",
+        "tier": "medium", "effort": "medium", "gates": [],
+    }
+    assert spec.inputs == ("ticket", "plan_contract", "context", "retry_findings")
+    assert tuple(line[3:] for line in spec.body.splitlines() if line.startswith("## ")) == SPEC_SECTIONS
+    rendered = render(spec, {name: f"fixture {name}" for name in spec.inputs})
+    task = " ".join(rendered.split("## Task\n", 1)[1].split("## Inputs\n", 1)[0].split())
+    assert (
+        "Before changing how production code stores or emits a value (null versus empty string, type, "
+        "column or field name, encoding), search the repository for that value's consumers and read them."
+    ) in task
+    assert (
+        "When the literal reading of a criterion would break a consumer outside `## Scope fence`, take "
+        "the plausible reading that keeps the consumer working and record the choice in the run record's "
+        "`surprises`, or reply `premise_failed` when no such reading exists."
+    ) in task
+    assert validate_data_blocks(rendered) == []
+
+
+def test_implement_consumer_read_entry_unit():
+    plan = (Path(__file__).resolve().parent.parent / "CHUPA_PLAN.md").read_text()
+    uid = "19.P7.implement-consumer-read"
+    assert required_units(plan, "implement-consumer-read", ("19.I", uid, "8")) == (uid,)
+    unit = resolve_plan_contract(plan, [uid])
+    assert unit.startswith(f"### {uid} ") and unit in plan
+    assert resolve_plan_contract(plan, [uid, uid]) == unit
+    with pytest.raises(PlanContractError):
+        resolve_plan_contract(plan + unit, [uid])
+    assert entry_unit_gap(plan, uid) is None
+    for part in ("Owner", "Records", "Observable", "Tests"):
+        line = next(line for line in unit.splitlines() if line.startswith(f"- **{part}:** "))
+        incomplete = plan.replace(line, f"- **{part}:**", 1)
+        assert entry_unit_gap(incomplete, uid) == f"entry unit {uid} lacks its {part} part(s)"
 
 
 FRONT = """---
