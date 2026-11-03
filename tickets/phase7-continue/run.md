@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The prior triage blocker is cleared: host-mechanical-check now leaves validation and bypass consumers unchanged. Both required entries resolve uniquely and pass structural depth checks, but the successor's governing entry still assumes mechanical bypasses are accepted.
+Committed checks.json approves both existing seeds; tests/test_seeded_phase7_01.py is absent. Draft writes mistakenly overwrote the existing seeds, then were restored byte-for-byte; the worktree is clean.
 
 ## Dead ends
 
-Stopped before authoring seeds or tests. Confirmed the committed Frontmatter validator rejects non-engine bypass codes. Verification commands were not run; no files changed or committed.
+Stopped after confirming committed seed custody and the stale bypass requirements. No verification commands ran and no changes were committed.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during initial contract inspection, within the expected 60-minute budget.
+Stopped during contract and custody inspection within the expected 60-minute budget.
 
