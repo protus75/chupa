@@ -241,7 +241,7 @@ def _seed_cites(stem: str, plan_ids: list[str], plan: str, path: str) -> list[Fi
     else:
         road = "a seeding seed cites `19.L` and its phase unit"
         need = {"19.L"}
-        if not any(re.fullmatch(r"19\.P[0-6]", p) for p in cited):
+        if not any(re.fullmatch(r"19\.P[0-8]", p) for p in cited):
             out.append(_f("a `source: seed` ticket's `## Plan contract` must cite `19.L` and its phase unit",
                           road, path))
     if missing := sorted(need - cited):
@@ -342,7 +342,7 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings
         for item in items:
             if "#" in item:  # `CHUPA_PLAN.md#<unit id>`: plan edits confined to one unit (section 9)
                 file, _, unit = item.partition("#")
-                if file != PLAN_FILE or not re.fullmatch(r"19\.P[0-6]\.[a-z0-9][a-z0-9-]*", unit):
+                if file != PLAN_FILE or not re.fullmatch(r"19\.P[0-8]\.[a-z0-9][a-z0-9-]*", unit):
                     findings.append(_f(f"`## Scope fence` anchor {item!r} is not `{PLAN_FILE}#19.P<n>.<stem>`",
                                        "anchor only the plan file, to one entry unit", path))
                     continue

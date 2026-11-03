@@ -307,7 +307,7 @@ class _Drain:
                 return self.report
             if self.c.clock() >= self.deadline:
                 return self._halt(scan, events, last, held)
-            if self.retro is not None and re.fullmatch(r"phase[0-6]-exit", pick.stem):
+            if self.retro is not None and re.fullmatch(r"phase[0-8]-exit", pick.stem):
                 before = self.c.journal.read()
                 await self._run_retro(forced=True)
                 if self.c.journal.read() != before:

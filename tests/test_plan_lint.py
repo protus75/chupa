@@ -27,7 +27,7 @@ def build(*, section=10, registry: str | None = None, entries: str = "", extra="
         if n == 11:
             parts.append("### 11.4 Dispatch\n\nd\n\n")
     parts.append("## 19. Phases\n\n### 19.L Laws\n\nl\n\n### 19.I Implementation laws\n\ni\n\n")
-    for p in range(7):
+    for p in range(9):
         parts.append(f"### 19.P{p} Phase {p}\n\np\n\n")
         if p == 3 and registry is not None:
             parts.append("```yaml\n# BEGIN_REGISTRY_P3\n" + registry + "\n# END_REGISTRY_P3\n```\n\n" + entries)

@@ -232,14 +232,14 @@ def check_render_bound(rendered: str) -> None:
 
 # --- Plan contract resolver ---------------------------------------------------------------------
 
-PLAN_UNITS = ("19.L", "19.I") + tuple(f"19.P{n}" for n in range(7))
+PLAN_UNITS = ("19.L", "19.I") + tuple(f"19.P{n}" for n in range(9))
 REFUSED_SECTIONS = frozenset({22})  # uncited rationale appendix: never resolves
 ENTRY_PARTS = ("Owner", "Records", "Observable", "Tests")  # section 19 SPEC DEPTH
 _SECTION_HEAD = re.compile(r"## (\d+)\. ")
 _UNIT_HEAD = re.compile(r"### (\d+\.\d+|19\.\S+) ")
-_PLAN_ID = re.compile(r"section (\d+(?:\.\d+)?)|(19\.(?:L|I|P[0-6](?:\.[a-z0-9][a-z0-9-]*)?))")
-_CANONICAL_PLAN_ID = re.compile(r"(?:0|[1-9]\d*)(?:\.[1-9]\d*)?|19\.(?:L|I|P[0-6](?:\.[a-z0-9][a-z0-9-]*)?)")
-_ENTRY_ID = re.compile(r"19\.P([0-6])\.([a-z0-9][a-z0-9-]*)")
+_PLAN_ID = re.compile(r"section (\d+(?:\.\d+)?)|(19\.(?:L|I|P[0-8](?:\.[a-z0-9][a-z0-9-]*)?))")
+_CANONICAL_PLAN_ID = re.compile(r"(?:0|[1-9]\d*)(?:\.[1-9]\d*)?|19\.(?:L|I|P[0-8](?:\.[a-z0-9][a-z0-9-]*)?)")
+_ENTRY_ID = re.compile(r"19\.P([0-8])\.([a-z0-9][a-z0-9-]*)")
 
 
 def plan_id(text: str) -> str:

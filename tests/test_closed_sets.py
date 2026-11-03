@@ -153,7 +153,7 @@ def test_specs_closed_sets_and_constants():
     assert specs.ENGINE_LLM_SURFACES == frozenset({'author', 'diagnose', 'implement', 'requisition_review', 'retro', 'review', 'rework', 'triage'})
     assert specs.ENTRY_PARTS == ('Owner', 'Records', 'Observable', 'Tests')
     assert specs.MAX_ADMISSION_PAYLOADS == 2
-    assert specs.PLAN_UNITS == ('19.L', '19.I', '19.P0', '19.P1', '19.P2', '19.P3', '19.P4', '19.P5', '19.P6')
+    assert specs.PLAN_UNITS == ('19.L', '19.I', '19.P0', '19.P1', '19.P2', '19.P3', '19.P4', '19.P5', '19.P6', '19.P7', '19.P8')
     assert specs.REFUSED_SECTIONS == frozenset({22})
     assert specs.RENDER_BOUND_CHARS == 400000
     assert specs.REQ_RENDER_HEADROOM == 0.75
