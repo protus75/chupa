@@ -213,6 +213,52 @@ def test_implement_consumer_read_entry_unit():
         assert entry_unit_gap(incomplete, uid) == f"entry unit {uid} lacks its {part} part(s)"
 
 
+def test_review_spec_read_only():
+    text = (Path(__file__).resolve().parent.parent / "specs/review.md").read_text()
+    assert lint_spec(text) == []
+    assert len(text.splitlines()) <= SPEC_MAX_LINES
+    spec = load_spec(text)
+    assert spec.meta.version == "1.1"
+    assert spec.meta.model_dump(exclude={"version"}) == {
+        "llm_surface": "review", "consumes": "invoice",
+        "emits": {"approve": "approved-invoice", "snag": "snag-list", "rma": "rma"},
+        "tier": "high", "effort": "high", "gates": ["correctness_review"],
+    }
+    assert spec.inputs == ("ticket", "diff", "retry_findings")
+    assert tuple(line[3:] for line in spec.body.splitlines() if line.startswith("## ")) == SPEC_SECTIONS
+    rendered = render(spec, {name: f"fixture {name}" for name in spec.inputs})
+    role = " ".join(rendered.split("## Role\n", 1)[1].split("## Task\n", 1)[0].split())
+    assert "are read-only, with the Read, Grep, Glob, and LS tools only." in role
+    assert (
+        "The ticket's `## Verification` commands and host mechanical checks (scope fence, diff budget) "
+        "are run and decided at Check before Review."
+    ) in role
+    assert "Do not attempt commands or qualify a verdict for not running them." in role
+    body = " ".join(rendered.split())
+    assert "a `## Verification` command that would not pass" not in body
+    assert (
+        "`acceptance`: an acceptance criterion is unmet, partly met, or met only in a test while the "
+        "real code path differs."
+    ) in body
+    assert validate_data_blocks(rendered) == []
+
+
+def test_review_spec_readonly_entry_unit():
+    plan = (Path(__file__).resolve().parent.parent / "CHUPA_PLAN.md").read_text()
+    uid = "19.P7.review-spec-readonly"
+    assert required_units(plan, "review-spec-readonly", ("19.I", uid, "8")) == (uid,)
+    unit = resolve_plan_contract(plan, [uid])
+    assert unit.startswith(f"### {uid} ") and unit in plan
+    assert resolve_plan_contract(plan, [uid, uid]) == unit
+    with pytest.raises(PlanContractError):
+        resolve_plan_contract(plan + unit, [uid])
+    assert entry_unit_gap(plan, uid) is None
+    for part in ("Owner", "Records", "Observable", "Tests"):
+        line = next(line for line in unit.splitlines() if line.startswith(f"- **{part}:** "))
+        incomplete = plan.replace(line, f"- **{part}:**", 1)
+        assert entry_unit_gap(incomplete, uid) == f"entry unit {uid} lacks its {part} part(s)"
+
+
 FRONT = """---
 llm_surface: implement
 consumes: Ticket
