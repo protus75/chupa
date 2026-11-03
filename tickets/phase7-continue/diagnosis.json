@@ -1,15 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "535240928c84734d1575bc5c1293242951302bf0",
+  "produced_at_sha": "b859467fd49c6960214145ff511d8ab6db9e3aa5",
   "stem": "phase7-continue",
-  "attempt": 3,
-  "terminal": "infra_error",
+  "attempt": 7,
+  "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "retry",
+  "verdict": "reject",
   "lessons": [
-    "No ticket defect shown: finding `outage` is the codex error 'Selected model is at capacity' (chupa/providers.py classifies 'at capacity' as outage), 4s in with an empty diff. Follow its paved road: wait for provider 'codex' to recover, then rerun Implement unchanged.",
-    "Do not change the ticket's scope, fence or criteria because of this failure, and do not treat it as a capability shortfall: the attempt ended at turn.failed before any work, so it gives no evidence on the ticket's size or difficulty."
+    "Unsatisfiable as written: lifted seed tickets/host-mechanical-check/ticket.md:51 adds mechanical_codes host bypass validation; CHUPA_PLAN.md:2730 leaves ticket validation and every bypass consumer unchanged; specs/implement.md:25 bars editing an existing ticket. Retrying Implement cannot clear this.",
+    "Release per plan section 13 Reject queue: edit is not a verb, so the operator edits ticket.md, then runs confirm. Remove the mechanical_codes threading, bypass tests (test_gate_bypass_*, test_inline_merge_excludes_bypassed_entry) and earned fence additions from the seed.",
+    "Also repair this ticket's stale premise: 'Write only the two new seed files' is false, as 97682ae lifted both. Plan section 19 treats a stem's own lifted seeds as already emitted. Next attempt must not overwrite them; it writes only the absent tests/test_seeded_phase7_01.py.",
+    "After the seed edit, its bytes no longer match the approved ticket_sha, so Check re-reviews it (chupa/stages.py:1145-1157). Pin the snapshot test to the edited bytes. Leave phase7-continue-02 verbatim unless the edit requires a change; its approval holds while its ticket_sha matches.",
+    "Drop the earlier review snag asking to add chupa/triage.py to the fence: it presumes host codes reach GateBypass, and CHUPA_PLAN.md:2730 now says they are not gate_bypass codes. Do not add triage.py or a closure scan for Frontmatter.model_validate."
   ],
   "mechanical": null,
   "spec_version": "1.1",
