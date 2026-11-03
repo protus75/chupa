@@ -1,18 +1,15 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "4f809b2d0f738999ec477e4bb19a9aeddfcb9ab3",
+  "produced_at_sha": "535240928c84734d1575bc5c1293242951302bf0",
   "stem": "phase7-continue",
-  "attempt": 2,
-  "terminal": "gate_failed",
-  "stage": "review",
+  "attempt": 3,
+  "terminal": "infra_error",
+  "stage": "implement",
   "verdict": "retry",
   "lessons": [
-    "Widen the 19.L rule 5 caller grep across chupa/, eval/ and tests/ to direct Frontmatter.model_validate consumers, not only ticket-validation entry points. chupa/triage.py:200 (attribute_escape) validates committed frontmatter directly and the last scan missed it.",
-    "Fence chupa/triage.py in host-mechanical-check under its Owner clause on direct callers and 19.L rule 5. Record its exact caller evidence in the admission snapshot, and place it in Context or On-demand with its recorded size under 19.L rule 1.",
-    "Keep a declared host bypass code from breaking triage. chupa/triage.py:198 says later changes cannot invalidate historical evidence, but a ValidationError at :200 hits the ValueError catch at :116, whose 'retry triage' road cannot succeed for that ticket.",
-    "The 19.P7.host-mechanical-check Tests list names no triage test or triage behavior. If the seed needs either and the plan does not supply it, stop with premise_failed, kind: spec_gap, on that unit, naming the missing fact. Do not supply it in ticket prose.",
-    "Re-author only the snagged host-mechanical-check seed, then update the snapshot's recorded text, entry hashes, sizes and render operands. Keep phase7-continue-02 bytes unchanged unless its own content must change, per the ticket's rule on re-authoring snagged seeds."
+    "No ticket defect shown: finding `outage` is the codex error 'Selected model is at capacity' (chupa/providers.py classifies 'at capacity' as outage), 4s in with an empty diff. Follow its paved road: wait for provider 'codex' to recover, then rerun Implement unchanged.",
+    "Do not change the ticket's scope, fence or criteria because of this failure, and do not treat it as a capability shortfall: the attempt ended at turn.failed before any work, so it gives no evidence on the ticket's size or difficulty."
   ],
   "mechanical": null,
   "spec_version": "1.1",
