@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "b859467fd49c6960214145ff511d8ab6db9e3aa5",
+  "produced_at_sha": "f565e3e97c87f86d9e0f224147aab7ebd5951554",
   "stem": "phase7-continue",
-  "attempt": 7,
+  "attempt": 8,
   "terminal": "premise_failed",
   "stage": "implement",
   "verdict": "reject",
   "lessons": [
-    "Unsatisfiable as written: lifted seed tickets/host-mechanical-check/ticket.md:51 adds mechanical_codes host bypass validation; CHUPA_PLAN.md:2730 leaves ticket validation and every bypass consumer unchanged; specs/implement.md:25 bars editing an existing ticket. Retrying Implement cannot clear this.",
-    "Release per plan section 13 Reject queue: edit is not a verb, so the operator edits ticket.md, then runs confirm. Remove the mechanical_codes threading, bypass tests (test_gate_bypass_*, test_inline_merge_excludes_bypassed_entry) and earned fence additions from the seed.",
-    "Also repair this ticket's stale premise: 'Write only the two new seed files' is false, as 97682ae lifted both. Plan section 19 treats a stem's own lifted seeds as already emitted. Next attempt must not overwrite them; it writes only the absent tests/test_seeded_phase7_01.py.",
-    "After the seed edit, its bytes no longer match the approved ticket_sha, so Check re-reviews it (chupa/stages.py:1145-1157). Pin the snapshot test to the edited bytes. Leave phase7-continue-02 verbatim unless the edit requires a change; its approval holds while its ticket_sha matches.",
-    "Drop the earlier review snag asking to add chupa/triage.py to the fence: it presumes host codes reach GateBypass, and CHUPA_PLAN.md:2730 now says they are not gate_bypass codes. Do not add triage.py or a closure scan for Frontmatter.model_validate."
+    "Unsatisfiable as written: host-mechanical-check lines 22-25 keep 3 files On-demand, but embedding all gives 266,357 chars, under the 300,000 headroom (specs.py:22,24). CHUPA_PLAN.md:1645 forbids that partition; this ticket's line 42 bars changing the seed. Retrying Implement cannot clear this.",
+    "Release through operator ticket intake: in tickets/host-mechanical-check/ticket.md, move chupa/stages.py, tests/test_merge.py and tests/test_stages.py from On-demand to Context and delete the then-empty On-demand section. Change no other bytes. CHUPA_PLAN.md:1658 makes Context the default.",
+    "The move does not break the delimiter rule at CHUPA_PLAN.md:1658: none of the three paths contains the chupa-data delimiter on main. Keep all three in the Scope fence, because Context does not replace fencing and the seed's criteria force edits there.",
+    "After the seed edit, write only tests/test_seeded_phase7_01.py, recording the corrected seed's bytes, full-embedding size and empty On-demand partition. Re-measure from the committed seed rather than reusing 266,357. Do not rewrite either seed in this ticket.",
+    "The edit changes the seed's ticket_sha, so Check owns its requisition_review, per this ticket's line 42. Do not enqueue Box messages or record approvals. Leave phase7-continue-02 byte-identical so its approval holds while its bytes match."
   ],
   "mechanical": null,
   "spec_version": "1.1",
