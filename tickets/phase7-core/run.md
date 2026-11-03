@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-All required entry-depth checks passed, and plan lint passed 28 tests, but combined citation resolution failed on the untouched base.
+Both payloads earned tests/test_stages.py fence additions for contradicted version assertions; Check owns seed reviews, approvals, and lift.
 
 ## Dead ends
 
-Omitting either conflicting citation fails the registry-role grammar.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during pre-authoring validation, within the 60-minute budget.
+Completed within the 60m expected budget; full-suite verification took 6m30s.
 
