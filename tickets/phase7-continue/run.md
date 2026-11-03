@@ -4,15 +4,15 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The corrected seed retains an On-demand partition from its earlier, wider contract; its bytes match main.
+The new snapshot’s 7 tests and plan lint’s 29 tests pass. Both seeds remain unchanged; tests/test_seeded_phase7_01.py remains uncommitted.
 
 ## Dead ends
 
-Checked historical authoring evidence, but it cannot justify the corrected seed’s current partition.
+Stopped after full-suite verification returned 2 failed and 3874 passed; historical fixtures were preserved.
 
 ## Second problems filed
 
-none
+- box-000298-e19e582a: The corrected phase7-continue ticket invalidates the historical core fixture’s byte and custody-wording assertions; both failures reproduce on untouched base 92a36e732621b545e1e315abdc542469dea10fa1.
 
 ## Resolved engine/model
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Stopped during contract validation, within the 60-minute expected budget.
+Stopped within the expected 60-minute budget.
 
