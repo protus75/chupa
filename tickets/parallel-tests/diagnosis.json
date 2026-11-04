@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "da74a1abd8996c2b76556e55540aac8928c2e8b8",
+  "produced_at_sha": "d4e9cc002ea22383a6c1d604cd283e361b528f94",
   "stem": "parallel-tests",
-  "attempt": 1,
+  "attempt": 2,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "tests/test_providers.py:843 sets timeout=0.15 for `timeout`/`callback_timeout`, and chupa/seams.py:141 arms asyncio.timeout just after spawn, so the line 834 readiness gate races two interpreter startups. Make the timeout fire only after `received` is set, not a window from spawn.",
-    "Keep the real SubprocessExec group kill and leave chupa/ unchanged. An outer asyncio.timeout around run would break `callback_timeout`: seams.py:163 sets __cause__ on the inner exception, so the outer TimeoutError's __cause__ would not be `error` as test line 869 asserts.",
-    "Line 859's `asyncio.wait_for(received.wait(), 5)` raises the finding's uncaught TimeoutError and still spans two interpreter startups. Wait on `received` via the `wait_until` helper used at line 882, against the ticket's 60-second-minimum deadline, instead of a fixed 5s window.",
-    "Keep the grandchild readiness wait at line 834 and the `group_exited` check at line 882, as the finding's paved road says. Then rerun `uv run pytest -q` three times and confirm each run exits 0 in under 120 seconds."
+    "tests/test_git.py:265 and tests/test_providers.py:850: stop replacing asyncio.timeout with a lambda that drops its argument. Let the real asyncio.timeout(timeout) at chupa/seams.py:141 expire, so the test fails if the seam stops honoring timeout.",
+    "To keep the kill tests free of fixed sleeps, wait for the child's marker file before the timeout matters: pick a child that hangs until killed, then assert TimeoutError and the group gone via wall-clock wait. Do not lengthen a bound or add a sleep; both are rejection grounds in the ticket.",
+    "tests/test_serve.py:1589: do not let the fake clock advancing 10s stand in for a poll. After the journal append, wait on a counted wrapper around notifications.poll (chupa/notify.py:104) with the clock still inside the retry window, then assert len(intents()) == len(deliveries(root)) == 1.",
+    "Before finishing, check every converted wait in tests/test_serve.py for the same weakness: if the old loop forced work, such as owner.maintenance(), the new wait must still prove that work completed after the triggering event. A passing until() on time alone leaves the assertion vacuous.",
+    "Keep what already passed: pytest-xdist and -n auto in pyproject.toml, the docs section 2.2 update, and tests/waiting.py. Re-run `uv run pytest -q` three times after the fixes; each run must exit 0 in under 120 seconds. The previous attempt's runs took about 72 seconds."
   ],
   "mechanical": null,
   "spec_version": "1.1",
