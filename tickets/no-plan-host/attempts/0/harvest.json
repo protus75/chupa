@@ -1,0 +1,32 @@
+{
+  "attempt": 0,
+  "stage": "implement",
+  "terminal": "premise_failed",
+  "findings": [
+    {
+      "code": "premise",
+      "path": "chupa/drain.py",
+      "line": 336,
+      "message": "Acceptance criterion 3 prohibits plan read_text() calls outside the shared function, but Drain._scan reads the plan here and this file is outside the scope fence.",
+      "paved_road": "Add chupa/drain.py to the scope fence so its plan read can use the shared function.",
+      "kind": "authoring_error",
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "chupa/__main__.py",
+      "line": 263,
+      "message": "Acceptance criterion 3 also requires replacing the serve entry point's guarded plan read_text(), but this file is outside the scope fence.",
+      "paved_road": "Add chupa/__main__.py to the scope fence so its plan read can use the shared function.",
+      "kind": "authoring_error",
+      "unit": null
+    }
+  ],
+  "reason": null,
+  "diff_stat": "",
+  "stage_log_tail": "{\"outcome\":\"premise_failed\",\"summary\":\"Acceptance criterion 3 requires edits to chupa/drain.py and chupa/__main__.py, which are outside the scope fence.\",\"surprises\":\"The evidence mentions guarded plan reads, but the scope fence excludes two files containing them.\",\"second_problems\":[],\"dead_ends\":\"none\",\"predicted_vs_actual\":\"Stopped during initial inspection, before any changes or commits.\",\"findings\":[{\"code\":\"premise\",\"path\":\"chupa/drain.py\",\"line\":336,\"message\":\"Acceptance criterion 3 prohibits plan read_text() calls outside the shared function, but Drain._scan reads the plan here and this file is outside the scope fence.\",\"paved_road\":\"Add chupa/drain.py to the scope fence so its plan read can use the shared function.\",\"kind\":\"authoring_error\",\"unit\":null},{\"code\":\"premise\",\"path\":\"chupa/__main__.py\",\"line\":263,\"message\":\"Acceptance criterion 3 also requires replacing the serve entry point's guarded plan read_text(), but this file is outside the scope fence.\",\"paved_road\":\"Add chupa/__main__.py to the scope fence so its plan read can use the shared function.\",\"kind\":\"authoring_error\",\"unit\":null}]}",
+  "events_tail": "urrent spec, not history. (sections 17, 22)\\n- **Track open threads.** A reply that raises several questions or options owns that list until it is empty. Restate unresolved threads every turn; the user engaging on one thread never closes the others.\\n  Why: a dropped thread is a silently lost decision.\\n- **Announce unsolicited dives.** Name any investigation or authoring the user did not request in 1-2 sentences and get a now / after / skip decision before spending the time; the requested task always runs first. (Autonomous pipeline stages are exempt: they file same-turn via the Suggestion Box.)\\n  Why: unrequested work spends the user's time without consent.\\n- **Supervising session.** A session the user directs to run the conductor or drain and repair its stops is an operator under the section 19 recovery order and the closed touchpoint list. Run the conductor with `--auto` and the drain as a background process; act only when the process exits. Recovery-order work at a stop is requested work, never an unsolicited dive.\\n  - Stop for the user on: a plan edit changing a section 3 decision, a section 18 refusal, a section 20 open decision, or the 19.L bootstrap contract; an expired agent login; a Reject-queue keep or kill (diagnose and propose; a ticket edit following a committed plan fix is applied directly); a stem stopping again on a cause already repaired (one repair per cause).\\n  - Each recovery reports the plan commit, any hand-fix commit, the filed cause ticket, and the continuing command.\\n  Why: an unattended drain stalls without an operator; bounded authority keeps design decisions with the user. (section 19)\\n- **Instance first, cause captured.** A reported problem gets the minimal unblock first, and a separately filed cause ticket in the same session. (section 14)\\n  Why: unblocking without capturing the cause guarantees a repeat.\\n- **Git session safety.**\\n  - Respect the single-writer lockfile: never mutate git state in a checkout whose lock a daemon holds. Authoring ticket FILES in the working tree is the sanctioned intake path and needs no git. (section 13)\\n  - Stage and commit only files authored this session, by explicit path.\\n  - Never a tree-wide destructive verb (`clean`, `reset --hard`, `checkout -- .`) in a shared checkout.\\n  - Never push or remote-mutate unless the user explicitly says push; pushes are the checkpoint Effect's job. (section 10)\\n  Why: a chat session sharing a checkout with the daemon can destroy work the journal believes exists.\\n\",\"exit_code\":0,\"status\":\"completed\"}}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_9\",\"type\":\"agent_message\",\"text\":\"{\\\"outcome\\\":\\\"premise_failed\\\",\\\"summary\\\":\\\"Acceptance criterion 3 requires edits to chupa/drain.py and chupa/__main__.py, which are outside the scope fence.\\\",\\\"surprises\\\":\\\"The evidence mentions guarded plan reads, but the scope fence excludes two files containing them.\\\",\\\"second_problems\\\":[],\\\"dead_ends\\\":\\\"none\\\",\\\"predicted_vs_actual\\\":\\\"Stopped during initial inspection, before any changes or commits.\\\",\\\"findings\\\":[{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"chupa/drain.py\\\",\\\"line\\\":336,\\\"message\\\":\\\"Acceptance criterion 3 prohibits plan read_text() calls outside the shared function, but Drain._scan reads the plan here and this file is outside the scope fence.\\\",\\\"paved_road\\\":\\\"Add chupa/drain.py to the scope fence so its plan read can use the shared function.\\\",\\\"kind\\\":\\\"authoring_error\\\",\\\"unit\\\":null},{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"chupa/__main__.py\\\",\\\"line\\\":263,\\\"message\\\":\\\"Acceptance criterion 3 also requires replacing the serve entry point's guarded plan read_text(), but this file is outside the scope fence.\\\",\\\"paved_road\\\":\\\"Add chupa/__main__.py to the scope fence so its plan read can use the shared function.\\\",\\\"kind\\\":\\\"authoring_error\\\",\\\"unit\\\":null}]}\"}}\n{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":224114,\"cached_input_tokens\":154624,\"cache_write_input_tokens\":0,\"output_tokens\":668,\"reasoning_output_tokens\":100}}\n",
+  "wall_seconds": 21.891355,
+  "usd": 1.0,
+  "run_record": "tickets/no-plan-host/run.md"
+}
