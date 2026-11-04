@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The evidence mentions guarded plan reads, but the scope fence excludes two files containing them.
+Drain’s byte-level change detection retains its existing byte reads to preserve fingerprint behavior.
 
 ## Dead ends
 
-none
+The first focused test run exposed proposal whitespace normalization; the assertion was corrected and the suite passed.
 
 ## Second problems filed
 
@@ -17,10 +17,10 @@ none
 ## Resolved engine/model
 
 - provider: codex
-- model: gpt-6.1-sol
+- model: gpt-6.1-terra
 - spec: implement 1.5
 
 ## Predicted vs actual
 
-Stopped during initial inspection, before any changes or commits.
+Expected 45 minutes; completed within the budget.
 
