@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Both verification commands passed; the full suite reported 3,914 passed and one existing serializer warning.
+Both verification commands passed: 72 drain tests and 3924 full-suite tests; the merge-base suite was also green, so the prior box-000304-331e614a base-red warning did not apply.
 
 ## Dead ends
 
-none
+Narrowed squash-tree recovery checks after an initial change disrupted first-admission verification.
 
 ## Second problems filed
 
@@ -17,10 +17,10 @@ none
 ## Resolved engine/model
 
 - provider: codex
-- model: gpt-6.1-terra
+- model: gpt-6.1-sol
 - spec: implement 1.5
 
 ## Predicted vs actual
 
-Expected 60 minutes; completed within the ticket budget.
+Completed within the 60-minute expected budget.
 
