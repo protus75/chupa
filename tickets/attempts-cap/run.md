@@ -1,18 +1,18 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-Focused cap/config verification passed (106 tests); implementation edits remain uncommitted.
+Tests requiring multiple hardening rounds, additional diagnosis budget, or premise content release now configure explicit limits; the merge-base suite was green.
 
 ## Dead ends
 
-Stopped implementation after confirming the full-suite blocker on a detached base checkout.
+The first full-suite run overlapped ongoing edits and invalidated a source-snapshot test; the final run used stable files and passed.
 
 ## Second problems filed
 
-- box-000300-868b5f24: Four tests in tests/test_seeded_phase7_core.py fail because tickets/phase7-continue/ticket.md is missing, reproduced on base commit fa8f5a5429f7caa39d7b7f93682c2f0837d151c7.
+none
 
 ## Resolved engine/model
 
@@ -22,5 +22,5 @@ Stopped implementation after confirming the full-suite blocker on a detached bas
 
 ## Predicted vs actual
 
-Stopped before the expected 60-minute budget.
+Completed within the 60-minute expected budget.
 
