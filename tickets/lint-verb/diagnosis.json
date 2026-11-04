@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "4270c76643cdd88021ae1587734b188dbc640547",
+  "stem": "lint-verb",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "In `_lint`, apply `chupa/tickets.py` `_intake_claims(stem, text, new)` before `validate_ticket`, as `intake` does at tickets.py:651-655. Treat returned findings as lint findings, validate the stamped text, and never write it to disk.",
+    "Derive `new` as intake does: `_pending` over `_porcelain(await git.status_porcelain(repo))` is read-only (tickets.py:630-631). A stem absent from pending is committed, so pass new=False. Keep reads pinned through `checkout.git`; add no second definition of newness.",
+    "Fix exit codes: in `_lint`, a named stem with no `tickets/<stem>/ticket.md` exits 2 before `stem_findings` runs, including `../escape`, `Bad_Stem`, and `retro`. Keep exit 1 for an invalid stem whose ticket file exists. Check the path safely so `../escape` never reads outside tickets/.",
+    "Add tests to `tests/test_lint_verb.py`: a new ticket omitting `source`/`state` is valid; a new `source: seed` and a new `state: merged` each give a finding and exit 1. Change `test_lint_named_stems_and_missing_stem` to assert exit 2 for `../escape`. Remove the keys `valid_ticket()` adds.",
+    "Keep the rest of the attempt: the settled-stem skip, the evidence path query, output format, docs, and `dev.py` were not faulted by review. Rerun `uv run pytest -q tests/test_lint_verb.py` and `uv run pytest -q`, and confirm the read-only test still shows no file, journal, or git change."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
