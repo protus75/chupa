@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "51b206c087bc838669605643b251b2ba9578e3f6",
+  "stem": "parallel-tests",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "retry",
+  "lessons": [
+    "Fix the race in `group_exited` (tests/waiting.py:18): `/proc/<pid>/stat` can vanish between open and read, so `read_text()` raises ProcessLookupError. Treat that error as the process being gone, as the ticket's 'process group being gone' event requires.",
+    "Check every other `/proc` read in tests/waiting.py for the same race. A process can exit at any point during the check, so each read must treat its disappearance as exited rather than let the error escape the `wait_until` predicate.",
+    "Keep the fix in the helper. The failures, `test_event_callback_unwind_kills_group[abort-claude]` and `[cancel-codex]`, hit the same line. The ticket's Definition of rejected forbids skipping, retrying, marking serial, or lengthening a bound.",
+    "Three clean runs did not prove this fix: the attempt's own runs passed, then Check failed on a timing race. After the fix, rerun the Verification commands and confirm each of the three runs exits 0 in under 120 seconds, and treat any new failure as a root cause to fix."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
