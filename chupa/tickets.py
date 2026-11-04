@@ -525,6 +525,25 @@ def validate_ticket(stem: str, text: str, repo: Path, siblings: Collection[str] 
 # --- intake -------------------------------------------------------------------------------------
 
 
+def _regular_evidence(path: Path, directory: Path) -> bool:
+    return path.is_file() and not any(p.is_symlink() for p in (path, *path.parents)
+                                     if p.is_relative_to(directory))
+
+
+def evidence_findings(ticket: Ticket, repo: Path, *, paths: Collection[str] | None = None) -> list[Finding]:
+    """Check durable bug evidence; intake supplies only paths it can commit."""
+    if ticket.frontmatter.kind != "bug" or ticket.frontmatter.state in {"merged", "rejected"}:
+        return []
+    directory = repo / TICKETS_DIR / ticket.stem / "evidence"
+    candidates = directory.rglob("*") if paths is None else (repo / p for p in paths)
+    if any(p.is_relative_to(directory) and _regular_evidence(p, directory) for p in candidates):
+        return []
+    rel = directory.relative_to(repo).as_posix()
+    return [_f("a `kind: bug` ticket has no evidence file",
+               "add the observed failure (output, log excerpt, or captured command output) as a file under "
+               f"{rel}; the evidence file must not be gitignored", rel)]
+
+
 @dataclass(frozen=True)
 class IntakeResult:
     committed: tuple[str, ...]
@@ -611,9 +630,19 @@ async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem) -> Inta
     entries = _porcelain(await git.status_porcelain(repo))
     pending = _pending(repo, entries)
     pending_paths = {ticket_path(s) for s in pending}
-    if stray := sorted(p for st, p in entries if st[0] not in " ?" and p not in pending_paths):
+    evidence = {}
+    for stem in pending:
+        directory = repo / TICKETS_DIR / stem / "evidence"
+        paths = await git._run(repo, "ls-files", "--cached", "--others", "--exclude-standard", "-z",
+                               "--", f"{TICKETS_DIR}/{stem}/evidence/")
+        evidence[stem] = sorted({p for p in paths.split("\0") if p and _regular_evidence(repo / p, directory)})
+    allowed = pending_paths | {p for paths in evidence.values() for p in paths}
+    if stray := sorted(p for st, p in entries if st[0] not in " ?" and (p not in allowed or "D" in st)):
         raise IntakeRefused(_f(f"staged changes outside pending ticket files: {', '.join(stray)}",
-                               "unstage them; a ticket-plane commit carries only `tickets/<stem>/ticket.md`"))
+                               "unstage them; a ticket-plane commit carries only `tickets/<stem>/ticket.md`"
+                               " and regular, non-symlink evidence files for that pending stem"))
+    states = {e.ticket: e.body["to"] for e in journal.read()
+              if e.type == EventType.STATE_TRANSITION and e.ticket is not None and "to" in e.body}
     committed: list[str] = []
     refused: dict[str, list[Finding]] = {}
     for stem in sorted(pending):
@@ -623,15 +652,20 @@ async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem) -> Inta
         try:
             if findings:
                 raise TicketInvalid(findings)
-            fm = validate_ticket(stem, stamped, repo).frontmatter
+            ticket = validate_ticket(stem, stamped, repo)
+            fm = ticket.frontmatter
+            if states.get(stem) not in {"merged", "already_satisfied", "rejected"}:
+                if findings := evidence_findings(ticket, repo, paths=evidence[stem]):
+                    raise TicketInvalid(findings)
         except TicketInvalid as e:
             refused[stem] = e.findings
             continue
         if stamped != text:
             fs.write(repo / rel, stamped.encode())
-        await git.add(repo, [rel])
+        paths = [rel, *evidence[stem]]
+        await git.add(repo, paths)
         # Pathspec-limited: a refused ticket left staged must never ride along in another stem's commit.
-        await git.commit(repo, f"chupa({stem}): ticket", only=[rel])
+        await git.commit(repo, f"chupa({stem}): ticket", only=paths)
         sha = await git.rev_parse(repo, "HEAD")
         journal.append(EventType.SIGNAL, {"signal": INTAKE_SIGNAL, "source": fm.source, "state": fm.state,
                                           "new": pending[stem], "commit": sha}, ticket=stem)

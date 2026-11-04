@@ -10,8 +10,8 @@ what content its tickets carry, never the format.
 1. `chupa new <stem>` writes `tickets/<stem>/ticket.md` and lints it. Every finding names the
    fix to apply.
 2. Fill each section with the content below, re-lint, and repeat until it is clean.
-3. For a bug, commit the evidence file (see Bug tickets) with the ticket.
-4. Commit the ticket. `chupa drain` runs committed tickets only.
+3. For a bug, add the evidence file (see Bug tickets) beside the ticket.
+4. Run `chupa drain`: intake commits the ticket and its evidence together before running it.
 
 ## What each section is for
 
@@ -49,8 +49,11 @@ A `kind: bug` ticket must prove the defect existed and is fixed. Three things ca
 ### Evidence
 
 At least one file under `tickets/<stem>/evidence/`, committed with the ticket before it runs:
-the observed wrong output, a log excerpt, or the failing command's captured output. Any file
-there counts, so it must be real evidence, never a placeholder.
+the observed wrong output, a log excerpt, or the failing command's captured output. The file
+must be a regular, non-symlink file and must not be gitignored. Intake refuses a bug ticket
+without such a file, leaving it untouched and uncommitted; when admitted, its new or changed
+evidence files are committed with the ticket in the same commit. Settled and rejected tickets
+are exempt from this intake check. Supply real evidence, never a placeholder.
 
 ### The regression command
 

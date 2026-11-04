@@ -30,7 +30,7 @@ from chupa.seams import CommandNotifications
 from chupa.status import project, render
 from chupa.storm import StormLedger
 from chupa.timers import Timers
-from chupa.tickets import IntakeRefused, Ticket, TicketInvalid, stem_findings, template, ticket_path, validate_ticket
+from chupa.tickets import IntakeRefused, Ticket, TicketInvalid, evidence_findings, stem_findings, template, ticket_path, validate_ticket
 
 GIT_TIMEOUT_S = 30.0
 
@@ -417,11 +417,15 @@ def _new(repo: Path, stem: str) -> int:
     text = template()
     LocalFileSystem().write(repo / rel, text.encode())
     print(f"authored {rel}")
+    findings = []
     try:
-        validate_ticket(stem, text, repo)
+        ticket = validate_ticket(stem, text, repo)
+        findings = evidence_findings(ticket, repo)
     except TicketInvalid as e:
+        findings = e.findings
+    if findings:
         print(f"fill these before `run {stem}`:")
-        for f in e.findings:
+        for f in findings:
             print(f"- {f.message} ({f.paved_road})")
     return 0
 

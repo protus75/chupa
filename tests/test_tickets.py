@@ -448,3 +448,149 @@ def test_nothing_pending_is_a_no_op(repo):
     root, g, journal = repo
     result = do_intake(root, g, journal)
     assert result.committed == () and not result.refused
+
+
+# --- bug evidence at intake ------------------------------------------------------------------
+
+
+def bug_text():
+    return VALID.replace("kind: feature", "kind: bug").replace(
+        "## Time budget", "## Regression\n```\nuv run pytest tests/test_thing.py\n```\n"
+        "- carries: tests/\n\n## Time budget")
+
+
+def evidence_file(root, stem="t-bug", name="failure.txt"):
+    path = root / "tickets" / stem / "evidence" / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("observed failure\n")
+    return path
+
+
+@pytest.mark.parametrize("changed", [False, True])
+def test_bug_without_evidence_refused_at_intake(repo, changed):
+    root, g, journal = repo
+    path = write(root, "t-bug", complete(bug_text()) if changed else bug_text())
+    if changed:
+        run(g.add(root, ["tickets/t-bug/ticket.md"]))
+        run(g.commit(root, "existing bug"))
+        path.write_text(path.read_text().replace("Operators need it.", "Operators still need it."))
+    original = path.read_bytes()
+    head = run(g.rev_parse(root, "HEAD"))
+    result = do_intake(root, g, journal)
+    assert result.committed == ()
+    [finding] = result.refused["t-bug"]
+    assert "add the observed failure" in finding.paved_road
+    assert "tickets/t-bug/evidence" in finding.paved_road
+    assert run(g.rev_parse(root, "HEAD")) == head
+    assert path.read_bytes() == original
+    assert journal.read() == []
+
+
+@pytest.mark.parametrize("changed", [False, True])
+def test_bug_evidence_committed_with_ticket(repo, changed):
+    root, g, journal = repo
+    path = write(root, "t-bug", bug_text())
+    evidence = evidence_file(root, name="nested/failure.txt")
+    if changed:
+        assert do_intake(root, g, journal).committed == ("t-bug",)
+        path.write_text(path.read_text().replace("Operators need it.", "Operators still need it."))
+        evidence.write_text("another observed failure\n")
+    head = run(g.rev_parse(root, "HEAD"))
+    run(g.add(root, [str(evidence.relative_to(root))]))
+    result = do_intake(root, g, journal)
+    assert result.committed == ("t-bug",) and not result.refused
+    assert run(g._run(root, "rev-list", "--count", f"{head}..HEAD")).strip() == "1"
+    assert set(run(g._run(root, "show", "--name-only", "--format=", "HEAD")).splitlines()) == {
+        "tickets/t-bug/ticket.md", "tickets/t-bug/evidence/nested/failure.txt"}
+    assert run(g.status_porcelain(root)) == ""
+
+
+def test_feature_needs_no_evidence(repo):
+    root, g, journal = repo
+    write(root, "t-feature", VALID)
+    result = do_intake(root, g, journal)
+    assert result.committed == ("t-feature",) and not result.refused
+
+
+@pytest.mark.parametrize("directory_link", [False, True])
+def test_symlink_is_not_evidence(repo, directory_link):
+    from chupa.tickets import evidence_findings
+
+    root, g, journal = repo
+    write(root, "t-bug", bug_text())
+    target = root / "observed.txt"
+    target.write_text("observed failure\n")
+    directory = root / "tickets/t-bug/evidence"
+    if directory_link:
+        directory.symlink_to(root, target_is_directory=True)
+    else:
+        directory.mkdir()
+        (directory / "failure.txt").symlink_to(target)
+    ticket = validate_ticket("t-bug", complete(bug_text()), root)
+    assert len(evidence_findings(ticket, root)) == 1
+    assert "t-bug" in do_intake(root, g, journal).refused
+    assert journal.read() == []
+
+
+def test_gitignored_only_evidence_is_refused_untouched(repo):
+    root, g, journal = repo
+    (root / ".gitignore").write_text("*.log\n")
+    run(g.add(root, [".gitignore"]))
+    run(g.commit(root, "ignore logs"))
+    path = write(root, "t-bug", bug_text())
+    evidence = evidence_file(root, name="failure.log")
+    original = path.read_bytes(), evidence.read_bytes()
+    head = run(g.rev_parse(root, "HEAD"))
+    result = do_intake(root, g, journal)
+    assert result.committed == ()
+    assert "must not be gitignored" in messages(result.refused["t-bug"])
+    assert (path.read_bytes(), evidence.read_bytes()) == original
+    assert run(g.rev_parse(root, "HEAD")) == head
+    assert journal.read() == []
+
+
+@pytest.mark.parametrize(("front_state", "journal_state"), [
+    ("merged", None), ("rejected", None),
+    ("confirmed", "merged"), ("confirmed", "already_satisfied"), ("confirmed", "rejected"),
+])
+def test_settled_bug_is_not_rejudged_for_evidence(repo, front_state, journal_state):
+    root, g, journal = repo
+    text = complete(bug_text()).replace("state: confirmed", f"state: {front_state}")
+    path = write(root, "t-bug", text)
+    run(g.add(root, ["tickets/t-bug/ticket.md"]))
+    run(g.commit(root, "historical bug without evidence"))
+    if journal_state:
+        journal.append(EventType.STATE_TRANSITION, {"to": journal_state}, ticket="t-bug")
+    path.write_text(text.replace("Operators need it.", "Operators still need it."))
+    result = do_intake(root, g, journal)
+    assert result.committed == ("t-bug",) and not result.refused
+
+
+@pytest.mark.parametrize("staged_kind", ["deletion", "symlink"])
+def test_staged_uncommittable_evidence_refuses_before_any_commit(repo, staged_kind):
+    root, g, journal = repo
+    evidence = evidence_file(root)
+    if staged_kind == "deletion":
+        run(g.add(root, [str(evidence.relative_to(root))]))
+        run(g.commit(root, "old evidence"))
+        evidence.unlink()
+    else:
+        evidence.unlink()
+        evidence.symlink_to(root / "chupa/thing.py")
+    run(g.add(root, [str(evidence.relative_to(root))]))
+    write(root, "t-bug", bug_text())
+    write(root, "a-good", VALID)
+    head = run(g.rev_parse(root, "HEAD"))
+    with pytest.raises(IntakeRefused):
+        do_intake(root, g, journal)
+    assert run(g.rev_parse(root, "HEAD")) == head
+    assert journal.read() == []
+
+
+def test_new_prints_bug_evidence_finding(repo, monkeypatch, capsys):
+    from chupa import __main__ as cli
+
+    root, _, _ = repo
+    monkeypatch.setattr(cli, "template", lambda: complete(bug_text()))
+    assert cli._new(root, "t-bug") == 0
+    assert "add the observed failure" in capsys.readouterr().out

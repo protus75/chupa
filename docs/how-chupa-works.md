@@ -89,10 +89,14 @@ Frontmatter fields that drive behavior:
 - It finds new or modified `tickets/<stem>/ticket.md` files in the working tree (`git status`).
 - A new hand-written stem must be `draft` or `confirmed` and must not claim a machine `source`;
   intake stamps it `source: human`, `state: confirmed`.
-- Each ticket that lints clean is committed alone as `chupa(<stem>): ticket` and journaled as
+- Intake refuses a bug ticket without a regular, non-symlink evidence file that is not gitignored
+  under `tickets/<stem>/evidence/`. Settled and rejected tickets are exempt from this check.
+- Each ticket that lints clean is committed with its new or changed regular, non-symlink evidence
+  files as `chupa(<stem>): ticket` and journaled as
   `ticket_intake`. A ticket that fails lint stays on disk uncommitted, and the refusal names the
   fix.
-- If anything other than pending ticket files is staged, intake refuses entirely.
+- If anything other than pending ticket files and their committable evidence files is staged,
+  intake refuses entirely; staged evidence deletions and symlinks must be unstaged first.
 - An existing stem is never restamped.
 
 So writing a ticket file is enough: the next `drain` commits it. After intake, the drain only
@@ -208,8 +212,10 @@ A `kind: bug` ticket must prove the defect: at least one file under `tickets/<st
 a `## Regression` command that prints `{"regression_result": "pass"}` with exit 0 on the branch
 head, and `{"regression_result": "defect"}` with a non-zero exit on the merge base with the
 carried test or fixture files copied over it. Only files under `tests/`, `test/`, `fixtures/`, or
-`fixture/` can be carried. `docs/host-authoring.md` explains the protocol for authors. Today the
-missing-evidence case is only caught at Check, after an Implement run.
+`fixture/` can be carried. `docs/host-authoring.md` explains the protocol for authors. Intake
+refuses a bug ticket without a regular, non-symlink evidence file that is not gitignored and
+commits its evidence in the same commit as the ticket. Settled and rejected tickets are exempt
+from the intake evidence check. The Check gate still verifies the regression proof.
 
 ### 5.3 Severity and bypass
 
