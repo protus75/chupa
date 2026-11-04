@@ -25,6 +25,7 @@ none
 - In: `./dev.py` gains a `confirm STEM...` subcommand matching `reject`, passing stdin through so the prompt reaches the person.
 - In: tests add `test_verdict_refused_without_terminal` (both verbs, no journal or inbox write) and `test_verdict_requires_typed_stem` (exact stem proceeds; a mismatch or empty answer aborts unchanged); existing CLI tests that run these verbs supply the seam as a terminal answering the stem.
 - In: update `docs/how-chupa-works.md` sections 2.1, 2.2 (`./dev.py confirm`), and 6.6 (keep and kill require a person at a terminal typing the stem), so the doc matches the code when this merges.
+- In: if `uv run pytest -q` fails only on tests that also fail on the merge base, those failures are pre-existing: Check excuses them (base-red). Commit the work and list them in the run record; never stop with `premise_failed` for them.
 - Out: `runner.verdict` semantics, the control-inbox request format, the machine actor's scripted confirms in the Phase 6 exit harness, and cap rules.
 
 ## Scope fence

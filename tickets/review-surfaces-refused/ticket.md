@@ -23,6 +23,7 @@ Config accepts host review surfaces (`review.surfaces`, `ReviewSurface` in `chup
 - In: `tests/test_config.py`'s `VALID` fixture drops its `surfaces` entry; add `test_review_surfaces_refused` (a non-empty list refuses with that message and road; an empty list loads).
 - In: `docs/host-contract.md`'s copyable example sets `surfaces: []` with a comment saying surfaces are not supported yet, and the prose says config refuses a declared surface; `tests/test_host_contract.py::test_host_contract_example_loads` drops its `surfaces[0]` assertion and asserts the example's `surfaces` is empty.
 - In: update `docs/how-chupa-works.md` sections 5.4 and 11 (a declared `review.surfaces` entry is refused at config load), so the doc matches the code when this merges.
+- In: if `uv run pytest -q` fails only on tests that also fail on the merge base, those failures are pre-existing: Check excuses them (base-red). Commit the work and list them in the run record; never stop with `premise_failed` for them.
 - Out: removing the `ReviewSurface` model or the `surfaces` key, any surface execution, routing, specs, and the plan text.
 
 ## Scope fence

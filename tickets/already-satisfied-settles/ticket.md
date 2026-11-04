@@ -27,6 +27,8 @@ none
 - In: `tests/test_status.py` adds `test_settled_stem_never_awaits_verdict` (a journal whose `already_satisfied` terminal carries `routed: reject_queue` yields an empty `reject_queue`, and a `merged` stem never appears either).
 - In: `tests/regress_already_satisfied.py`, the carried reproducer: it feeds `status.reject_queue` a journal whose `already_satisfied` terminal carries `routed: reject_queue` (the shape in the evidence file). It prints `{"regression_result": "pass"}` and exits 0 when the stem is absent, prints `{"regression_result": "defect"}` and exits 1 when it is present, and prints `{"regression_result": "error"}` and exits 2 on any other failure. Diagnostics go to stderr only.
 - In: update `docs/how-chupa-works.md` sections 6.1 (drop the known-defect note), 6.6, and 10.3 (`already_satisfied` is settled, never awaiting a verdict), so the doc matches the code when this merges.
+- In: `tests/test_kill_cli_activation.py` stops expecting a `diagnose` request after an `already_satisfied` result, and drops the diagnosis replies it queues after one; those expectations pin the defect this ticket removes.
+- In: if `uv run pytest -q` fails only on tests that also fail on the merge base, those failures are pre-existing: Check excuses them (base-red). Commit the work and list them in the run record; never stop with `premise_failed` for them.
 - Out: the outcome vocabulary, the `already_satisfied` proof rule in Implement, journal history, and every other failure-path behavior.
 
 ## Scope fence
@@ -37,6 +39,7 @@ none
 - tests/test_drain.py
 - tests/test_status.py
 - tests/regress_already_satisfied.py
+- tests/test_kill_cli_activation.py
 
 ## Acceptance criteria
 1. `uv run python tests/regress_already_satisfied.py` prints exactly `{"regression_result": "pass"}` and exits 0.

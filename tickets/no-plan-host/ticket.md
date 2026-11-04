@@ -32,6 +32,8 @@ none
 - In: `tests/test_no_plan_host.py` adds, each in a temp repo with no `CHUPA_PLAN.md`: `test_author_without_plan` (Author writes and reviews a ticket from a Box message with a scripted model), `test_rework_without_plan` (a Rework `update` proposal is validated and reviewed), and `test_kill_without_plan_files_dead_dependency` (`reject` of a stem with a confirmed dependent files its dead-dependency report).
 - In: `tests/regress_no_plan_host.py`, the carried reproducer: in a temp repo with no `CHUPA_PLAN.md` it runs the dead-dependency path of `reject`; it prints `{"regression_result": "pass"}` and exits 0 when that completes, prints `{"regression_result": "defect"}` and exits 1 on a `FileNotFoundError` naming `CHUPA_PLAN.md`, and prints `{"regression_result": "error"}` and exits 2 on any other failure. Diagnostics go to stderr only.
 - In: update `docs/how-chupa-works.md` section 13 (plan reads go through one function and tolerate an absent plan), so the doc matches the code when this merges.
+- In: the already-guarded plan reads in `chupa/drain.py` and `chupa/__main__.py` also go through the one function, so no `read_text()` of the plan remains elsewhere in `chupa/`.
+- In: if `uv run pytest -q` fails only on tests that also fail on the merge base, those failures are pre-existing: Check excuses them (base-red). Commit the work and list them in the run record; never stop with `premise_failed` for them.
 - Out: removing the bootstrap plan machinery, plan lint, `## Plan contract` grammar, and every behavior when the plan file exists.
 
 ## Scope fence
@@ -45,6 +47,8 @@ none
 - chupa/requisition.py
 - tests/test_no_plan_host.py
 - tests/regress_no_plan_host.py
+- chupa/drain.py
+- chupa/__main__.py
 
 ## Acceptance criteria
 1. `uv run python tests/regress_no_plan_host.py` prints exactly `{"regression_result": "pass"}` and exits 0.

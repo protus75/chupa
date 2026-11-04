@@ -24,12 +24,15 @@ Tickets must update the docs that describe the behavior they change (`docs/host-
 - In: the Admissibility paragraph allows this one finding without a changed line: it names the stale doc as `path` with `line` null, and quotes the outdated statement in `message`. Every other finding still attaches to a changed line.
 - In: `tests/test_specs.py` adds `test_review_spec_checks_docs` (version "1.2", the doc rule and its admissibility exception present, placeholder set unchanged) and updates the version assertion in `test_review_spec_read_only` to "1.2".
 - In: update `docs/how-chupa-works.md` section 4.4 to say Review also snags a stale or missing doc update.
+- In: `tests/test_stages.py` assertions on the recorded review spec version change from "1.1" to "1.2"; no other assertion in that file changes.
+- In: if `uv run pytest -q` fails only on tests that also fail on the merge base, those failures are pre-existing: Check excuses them (base-red). Commit the work and list them in the run record; never stop with `premise_failed` for them.
 - Out: the verdict vocabulary, finding codes, output schema, review inputs, `specs/implement.md`, and any engine code.
 
 ## Scope fence
 - specs/review.md
 - tests/test_specs.py
 - docs/how-chupa-works.md
+- tests/test_stages.py
 
 ## Acceptance criteria
 1. `uv run pytest -q tests/test_specs.py` exits 0, including `test_review_spec_checks_docs`.

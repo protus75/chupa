@@ -26,6 +26,7 @@ A run takes its ticket's content at dispatch, but nothing notices when `tickets/
 - In: changes the engine itself writes under `tickets/<stem>/` other than `ticket.md` (run record, `checks.json`, `review.md`, attempts) never trigger it; Rework's ticket updates between attempts are not mid-run.
 - In: tests add `test_ticket_edit_mid_run_holds` (an edit committed between Implement and Check stops before Check with `ticket_changed`, makes no further model call, draws no cap, and lands in the Reject queue), `test_uncommitted_ticket_edit_mid_run_holds` (an uncommitted edit in the main checkout does the same), and `test_engine_artifacts_do_not_trigger` (ticket-plane lifts of `run.md` and `checks.json` during the run do not).
 - In: update `docs/how-chupa-works.md` sections 3.2 and 6.7 (a `ticket.md` changed during a run stops it with `ticket_changed` and holds it), so the doc matches the code when this merges.
+- In: if `uv run pytest -q` fails only on tests that also fail on the merge base, those failures are pre-existing: Check excuses them (base-red). Commit the work and list them in the run record; never stop with `premise_failed` for them.
 - Out: the closed outcome vocabulary, cap values, the verdict verbs, and the plan text.
 
 ## Scope fence

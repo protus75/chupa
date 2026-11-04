@@ -25,6 +25,7 @@ A `kind: bug` ticket must have at least one file under `tickets/<stem>/evidence/
 - In: the check is never applied to tickets already settled or rejected; existing merged bug tickets without evidence stay as they are.
 - In: tests in `tests/test_tickets.py`: `test_bug_without_evidence_refused_at_intake` (refused, nothing committed, files left on disk), `test_bug_evidence_committed_with_ticket` (one commit holds `ticket.md` and the evidence file), `test_feature_needs_no_evidence`, and `test_symlink_is_not_evidence`.
 - In: update `docs/how-chupa-works.md` sections 3.2 and 5.2 (intake refuses a bug ticket without evidence and commits its evidence with it) and the Evidence part of `docs/host-authoring.md`.
+- In: if `uv run pytest -q` fails only on tests that also fail on the merge base, those failures are pre-existing: Check excuses them (base-red). Commit the work and list them in the run record; never stop with `premise_failed` for them.
 - Out: the `bug_evidence` gate at Check, the regression protocol, and `chupa lint` (a separate ticket uses this function).
 
 ## Scope fence
