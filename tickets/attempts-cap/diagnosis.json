@@ -1,20 +1,15 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "c7c53f9d9835eef2a4aeffc05d650631faf6a8b2",
+  "produced_at_sha": "d540f7019fa1604abf9853760d4d35d3155fcb00",
   "stem": "attempts-cap",
-  "attempt": 4,
-  "terminal": "gate_failed",
-  "stage": "review",
-  "verdict": "reject",
-  "lessons": [
-    "Add eval/shakeout/drain.py to the Scope fence. Plan section 13's authoring rule says a fence includes every file the acceptance criteria force, and premise_bounce 1 breaks `_premise_park_release` there, so `uv run pytest -q` cannot pass honestly inside the current fence.",
-    "In `_premise_park_release`, after `_configure_diagnosis(bench)`, set premise_bounce 2 with `bench.configure(bench.config.model_copy(update=...))`, the pattern at eval/shakeout/stages.py:91. The member needs a second drain to park and a third to release the stem.",
-    "Remove the `Bench.initialize` monkeypatch from tests/test_shakeout.py. It makes `premise_park_release` pass only in that test, while the real member still fails through `eval.shakeout.run` at `assert stem in released.merged`.",
-    "In `_admit` in chupa/runner.py, move the attempts check below the 'already merged' and `state != \"confirmed\"` refusals, so a merged stem keeps its road to author a new stem with `new`. Add a test: a merged stem with five prior failures gets the 'already merged' refusal."
-  ],
-  "mechanical": null,
+  "attempt": 5,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "abandon-human",
+  "lessons": [],
+  "mechanical": "premise_bounce cap spent",
   "spec_version": "1.1",
-  "provider": "claude",
-  "model": "claude-opus-5-5"
+  "provider": null,
+  "model": null
 }
