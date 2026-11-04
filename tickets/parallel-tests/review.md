@@ -1,10 +1,11 @@
 # Review: snag
 
-The diff meets the structural criteria, but its new readiness gate in the provider kill test adds a second interpreter startup to a fixed 0.15s window, so the timeout variants can fail when every core is busy.
+The parallel-run changes meet the ticket's mechanical requirements, but they weaken coverage in the only tests of the real subprocess timeout path and in the failed-notify backoff test.
 
 ## Findings
 
-- [logic] tests/test_providers.py:834 The scripted child now blocks on `child.stdout.readline()` until the grandchild interpreter has started, and only then prints the `{"type": "tool"}` event. For the `timeout` and `callback_timeout` params, line 843 still sets the provider timeout to 0.15s, and `SubprocessExec.run` starts that timeout at spawn. Two Python interpreter startups must therefore finish within 0.15s of wall-clock time, where the old script needed only one before printing. If they don't, for example when `-n auto` has every core busy, the group is killed before the event arrives, `received` is never set, and `asyncio.wait_for(received.wait(), 5)` at line 859 raises an uncaught TimeoutError that fails the test. This is the load-dependent flake the ticket exists to remove, and it undermines acceptance criterion 2's reliable repeated runs. (do instead: Make the timeout variants independent of how fast the processes start, without lengthening the bound: raise the timeout from the observed event instead of a fixed window measured from spawn. For example, have a test exec wrapper in `tests/` run the real group-kill path under a deadline armed once `received` is set. Keep the wait for grandchild readiness and the `group_exited` check, and do not change `chupa/`.)
+- [logic] tests/test_git.py:265 `monkeypatch.setattr(asyncio, "timeout", lambda _: deadline)` discards the `timeout=0.3` argument and fires the deadline by hand, so the test no longer shows that `SubprocessExec.run` honors its `timeout`. If `chupa/seams.py:141` became `asyncio.timeout(None)`, this test would still pass. It also pins the implementation: a seam that enforced the same timeout through another mechanism would never see the manual deadline and would fail at the 60-second `wait_until`. The same patch in `tests/test_providers.py:850` drops `timeout=0.15` in the same way, and a search of `tests/` found no other test where the real seam's timeout expires. (do instead: Have the patched factory record the value it receives and assert it equals the configured timeout (0.3 here, 0.15 in `test_providers.py`). Better, drive the timeout without replacing `asyncio.timeout`, so the test checks behavior and not the mechanism.)
+- [logic] tests/test_serve.py:1589 The backoff check used to call `await rig.owner.maintenance()` on each of 100 steps, which forced a poll after the unrelated journal append. It now only waits for the fake clock to advance 10 seconds, which `until` does after about 2,000 spins, and nothing requires a maintenance or notification poll to finish in that window. `until` advances the clock on loop iterations rather than on completed passes, so on a loaded machine the run loop may not reach `notifications.poll()` before the window closes. A regression that resets `retry_at` on journal arrival would then still pass `len(intents()) == len(deliveries(root)) == 1`. This is an iteration-count dependence of the kind the ticket removes, and it makes the assertion vacuous under load. (do instead: After the journal append, wait for a real completed boundary before asserting, such as a counted wrapper around `notifications.poll` that has run after the append while the fake clock stays inside the retry window. `test_report_consumer_is_sequential` uses a similar approach with its heartbeat-change wait.)
 
 ## Record
 
@@ -12,17 +13,26 @@ The diff meets the structural criteria, but its new readiness gate in the provid
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "da74a1abd8996c2b76556e55540aac8928c2e8b8",
+  "produced_at_sha": "d4e9cc002ea22383a6c1d604cd283e361b528f94",
   "stem": "parallel-tests",
-  "reviewed_sha": "da74a1abd8996c2b76556e55540aac8928c2e8b8",
-  "summary": "The diff meets the structural criteria, but its new readiness gate in the provider kill test adds a second interpreter startup to a fixed 0.15s window, so the timeout variants can fail when every core is busy.",
+  "reviewed_sha": "d4e9cc002ea22383a6c1d604cd283e361b528f94",
+  "summary": "The parallel-run changes meet the ticket's mechanical requirements, but they weaken coverage in the only tests of the real subprocess timeout path and in the failed-notify backoff test.",
   "findings": [
     {
       "code": "logic",
-      "path": "tests/test_providers.py",
-      "line": 834,
-      "message": "The scripted child now blocks on `child.stdout.readline()` until the grandchild interpreter has started, and only then prints the `{\"type\": \"tool\"}` event. For the `timeout` and `callback_timeout` params, line 843 still sets the provider timeout to 0.15s, and `SubprocessExec.run` starts that timeout at spawn. Two Python interpreter startups must therefore finish within 0.15s of wall-clock time, where the old script needed only one before printing. If they don't, for example when `-n auto` has every core busy, the group is killed before the event arrives, `received` is never set, and `asyncio.wait_for(received.wait(), 5)` at line 859 raises an uncaught TimeoutError that fails the test. This is the load-dependent flake the ticket exists to remove, and it undermines acceptance criterion 2's reliable repeated runs.",
-      "paved_road": "Make the timeout variants independent of how fast the processes start, without lengthening the bound: raise the timeout from the observed event instead of a fixed window measured from spawn. For example, have a test exec wrapper in `tests/` run the real group-kill path under a deadline armed once `received` is set. Keep the wait for grandchild readiness and the `group_exited` check, and do not change `chupa/`.",
+      "path": "tests/test_git.py",
+      "line": 265,
+      "message": "`monkeypatch.setattr(asyncio, \"timeout\", lambda _: deadline)` discards the `timeout=0.3` argument and fires the deadline by hand, so the test no longer shows that `SubprocessExec.run` honors its `timeout`. If `chupa/seams.py:141` became `asyncio.timeout(None)`, this test would still pass. It also pins the implementation: a seam that enforced the same timeout through another mechanism would never see the manual deadline and would fail at the 60-second `wait_until`. The same patch in `tests/test_providers.py:850` drops `timeout=0.15` in the same way, and a search of `tests/` found no other test where the real seam's timeout expires.",
+      "paved_road": "Have the patched factory record the value it receives and assert it equals the configured timeout (0.3 here, 0.15 in `test_providers.py`). Better, drive the timeout without replacing `asyncio.timeout`, so the test checks behavior and not the mechanism.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "logic",
+      "path": "tests/test_serve.py",
+      "line": 1589,
+      "message": "The backoff check used to call `await rig.owner.maintenance()` on each of 100 steps, which forced a poll after the unrelated journal append. It now only waits for the fake clock to advance 10 seconds, which `until` does after about 2,000 spins, and nothing requires a maintenance or notification poll to finish in that window. `until` advances the clock on loop iterations rather than on completed passes, so on a loaded machine the run loop may not reach `notifications.poll()` before the window closes. A regression that resets `retry_at` on journal arrival would then still pass `len(intents()) == len(deliveries(root)) == 1`. This is an iteration-count dependence of the kind the ticket removes, and it makes the assertion vacuous under load.",
+      "paved_road": "After the journal append, wait for a real completed boundary before asserting, such as a counted wrapper around `notifications.poll` that has run after the append while the fake clock stays inside the retry window. `test_report_consumer_is_sequential` uses a similar approach with its heartbeat-change wait.",
       "kind": null,
       "unit": null
     }
