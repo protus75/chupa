@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Explicitly named stems are validated even when settled; the default scan skips settled and rejected stems. Evidence uses intake's git filtering so ignored files do not count.
+Reused intake's claims and new-stem detection without writing stamps; disabled optional git locks. The first full run hit a snapshot assertion because edits overlapped testing; the unchanged rerun passed.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the expected 30-minute budget; the full suite took 5m43s.
+Expected 30m; completed within budget, including a full-suite rerun.
 
