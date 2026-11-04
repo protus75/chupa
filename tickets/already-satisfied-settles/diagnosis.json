@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "5fd64ee45dc99d06a4047356b656d990cafecfe4",
+  "stem": "already-satisfied-settles",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "The criteria conflict with the fence: `uv run pytest -q` must exit 0, but tests/test_kill_cli_activation.py:632 asserts requests [\"implement\", \"diagnose\"] after already_satisfied. Add that file to the scope fence before another attempt.",
+    "With that file fenced, change the line 632 expectation to [\"implement\"] and drop the queued verdict replies after already_satisfied at lines 470 and 612. Line 470's reply goes unused once no diagnosis call is made; its test asserts no request list.",
+    "Criterion 3 also fails without this ticket: tests/test_seeded_phase7_core.py:376 reads tickets/phase7-continue/ticket.md, which is absent from the tree (filed as box-000299-84e19a9f). Make that fix a dependency in Depends on, or narrow criterion 3 to exclude these tests.",
+    "Do not fold the phase7 seeded test fix into this diff: CLAUDE.md requires a second problem to be filed, not fixed here. It lies outside this ticket's fence and subject, so resolve it through the ticket's dependency or criterion wording.",
+    "The scoped fix was not the failure: the run record says the regression and all 76 drain/status tests passed before the attempt reverted it. Reimplement the same scope once the ticket is corrected; only the out-of-fence test and the missing ticket file blocked it."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
