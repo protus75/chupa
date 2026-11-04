@@ -56,6 +56,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 ### 2.2 `./dev.py`
 
 The repo's one dev command; standard library only, every task through `uv`.
+`./dev.py test` runs the suite in parallel on the available cores by default.
 
 | Subcommand | Runs |
 |---|---|

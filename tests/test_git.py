@@ -8,6 +8,7 @@ import pytest
 
 from chupa.git import Git, GitError, RebaseRefused
 from chupa.seams import ExecutableNotFound, GroupExec, ProcessExec, SubprocessExec
+from tests.waiting import group_exited, ready_before_returning_spawn, wait_until
 
 ENV = {"PATH": "/usr/bin"}
 REPO = Path("/repo")
@@ -247,33 +248,51 @@ def test_subprocess_exec_feeds_stdin_path_and_captures(tmp_path):
 
 
 def _spawns_grandchild(marker: Path) -> list[str]:
-    # The grandchild outlives a direct-child kill; only a group kill stops it writing.
-    grandchild = "import sys, time; time.sleep(1.0); open(sys.argv[1], 'w').close()"
+    # Establish a live grandchild before exercising the group's unwind.
+    grandchild = "import sys, signal; open(sys.argv[1], 'w').close(); signal.pause()"
     script = (
-        "import subprocess, sys, time\n"
+        "import subprocess, sys, signal\n"
         "subprocess.Popen([sys.executable, '-c', sys.argv[1], sys.argv[2]])\n"
-        "time.sleep(30)\n"
+        "signal.pause()\n"
     )
     return [sys.executable, "-c", script, grandchild, str(marker)]
 
 
-def test_subprocess_exec_timeout_kills_the_process_group(tmp_path):
+def test_subprocess_exec_timeout_kills_the_process_group(tmp_path, monkeypatch):
     marker = tmp_path / "grandchild-alive"
-    started = time.monotonic()
-    with pytest.raises(TimeoutError):
-        run(SubprocessExec().run(_spawns_grandchild(marker), cwd=tmp_path, env=dict(os.environ), timeout=0.3))
-    assert time.monotonic() - started < 5
-    time.sleep(1.5)
-    assert not marker.exists()
+    ready_before_returning_spawn(monkeypatch, marker.exists)
+
+    async def scenario():
+        pgids, started = [], []
+        task = asyncio.create_task(SubprocessExec().run(
+            _spawns_grandchild(marker), cwd=tmp_path, env=dict(os.environ), timeout=0.3,
+            on_spawn=lambda pgid: (pgids.append(pgid), started.append(time.monotonic()))))
+        await wait_until(task.done)
+        with pytest.raises(TimeoutError):
+            await task
+        assert 0.3 <= time.monotonic() - started[0] < 5
+        assert marker.exists()
+        await wait_until(lambda: group_exited(pgids[0]))
+
+    run(scenario())
 
 
 def test_subprocess_exec_outer_cancellation_kills_the_process_group(tmp_path):
     marker = tmp_path / "grandchild-alive"
-    call = SubprocessExec().run(_spawns_grandchild(marker), cwd=tmp_path, env=dict(os.environ), timeout=None)
-    with pytest.raises(TimeoutError):
-        run(asyncio.wait_for(call, 0.3))
-    time.sleep(1.5)
-    assert not marker.exists()
+
+    async def scenario():
+        pgids = []
+        task = asyncio.create_task(SubprocessExec().run(
+            _spawns_grandchild(marker), cwd=tmp_path, env=dict(os.environ), timeout=None,
+            on_spawn=pgids.append))
+        await wait_until(marker.exists)
+        task.cancel()
+        await wait_until(task.done)
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        await wait_until(lambda: group_exited(pgids[0]))
+
+    run(scenario())
 
 
 def test_subprocess_exec_publishes_pgid_for_a_synchronous_group_kill(tmp_path):
@@ -282,22 +301,22 @@ def test_subprocess_exec_publishes_pgid_for_a_synchronous_group_kill(tmp_path):
     assert isinstance(seam, GroupExec)
 
     async def scenario():
-        spawned = asyncio.Event()
         pgids = []
         task = asyncio.ensure_future(
             seam.run(
                 _spawns_grandchild(marker), cwd=tmp_path, env=dict(os.environ), timeout=30,
-                on_spawn=lambda pgid: (pgids.append(pgid), spawned.set()),
+                on_spawn=pgids.append,
             )
         )
-        await spawned.wait()
+        await wait_until(marker.exists)
         seam.kill_group(pgids[0])
-        return await asyncio.wait_for(task, 5)
+        await wait_until(task.done)
+        result = await task
+        await wait_until(lambda: group_exited(pgids[0]))
+        return result
 
     rc, _, _ = run(scenario())
     assert rc != 0
-    time.sleep(1.5)
-    assert not marker.exists()
 
 
 # --- real repository ----------------------------------------------------------

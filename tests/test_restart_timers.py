@@ -20,6 +20,7 @@ from tests.test_cli import ENV, PLAN, root
 from tests.test_daemon_composition import CoreRig, assert_startup_pause_wiring
 from tests.test_providers import CONFIG
 from tests.test_scheduler import Time, turn
+from tests.waiting import wait_until
 
 
 @pytest.mark.parametrize("case", ["held", "confirmed", "decision", "moved", "conflict", "ready-crash", "go", "revoked", "revoked-crash", "before-squash", "after-squash", "terminal", "report-terminal", "partial", "missing", "corrupt", "review-missing", "review-corrupt", "contradictory"])
@@ -113,11 +114,9 @@ def test_restart_reconstructs_supervised_admission(tmp_path, monkeypatch, case):
         if case == "conflict":
             consumer = asyncio.create_task(owner.merge())
             try:
-                for _ in range(10000):
-                    if owner.mutating is None and any(e.ticket == ticket.stem and e.body.get("to") == "gate_failed"
-                                                     for e in ctx.driver.journal.read()): break
-                    await asyncio.sleep(0.001)
-                else: pytest.fail("recovered conflict did not settle through serve")
+                await wait_until(lambda: owner.mutating is None and any(
+                    e.ticket == ticket.stem and e.body.get("to") == "gate_failed"
+                    for e in ctx.driver.journal.read()))
                 assert [r.surface for r in model.requests] == ["rework"]
                 assert not ctx.worktree(ticket.stem).exists() and audit_journal(ctx.driver.journal) == []
             finally:

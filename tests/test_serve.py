@@ -3,6 +3,7 @@
 import asyncio
 import json
 import signal
+import time
 from dataclasses import replace
 from datetime import timedelta
 from types import SimpleNamespace
@@ -27,10 +28,13 @@ from tests.test_daemon_composition import sources
 from tests.test_restart_timers import orphan, repository
 from tests.test_scheduler import import_closure, text, turn
 from tests.test_triage import reply
+from tests.waiting import wait_until
 
 
 async def until(rig, predicate):
-    for n in range(20000):
+    deadline = time.monotonic() + 60
+    n = 0
+    while time.monotonic() < deadline:
         if getattr(rig, "fixture_confirm", False):
             from chupa.control import AdmissionRequest
             from chupa.mergequeue import held_admissions
@@ -44,6 +48,7 @@ async def until(rig, predicate):
         if n % 20 == 0:
             rig.time.advance(serve.SERVE_POLL_S)
         await turn()
+        n += 1
     raise AssertionError("production graph did not reach the scripted boundary")
 
 
@@ -205,8 +210,10 @@ async def test_report_consumer_is_sequential(root, monkeypatch):
     run = asyncio.create_task(rig.owner.run())
     try:
         await until(rig, entered.is_set)
-        for _ in range(100):
-            await turn()
+        heartbeat = rig.checkout.config.state_dir / "heartbeat"
+        await until(rig, heartbeat.exists)
+        stamp = heartbeat.stat().st_mtime_ns
+        await until(rig, lambda: heartbeat.stat().st_mtime_ns != stamp)
         assert maximum == calls == 1 and len(rig.owner.workers) == 4
         assert rig.owner.tasks._consumers and len(rig.owner.tasks._consumers) == 3
         release.set()
@@ -637,6 +644,7 @@ async def test_serve_heartbeat_requires_responsive_components(root, monkeypatch,
     try:
         await until(rig, lambda: len(refreshed) >= 2)
         release, entered = asyncio.Event(), asyncio.Event()
+        maintenance = rig.owner.maintenance
         original_wait = None if component == "main" else rig.owner.responses[component].wait
         async def wedge(work=None):
             entered.set()
@@ -652,15 +660,29 @@ async def test_serve_heartbeat_requires_responsive_components(root, monkeypatch,
         else:
             monkeypatch.setattr(rig.owner.responses[component], "wait", wedge)
         await until(rig, entered.is_set)
-        for _ in range(100):
-            rig.time.advance(0.1)
-            await turn()
-        saved = list(refreshed)
-        for _ in range(100):
-            rig.time.advance(0.1)
-            await turn()
+        if component == "main":
+            saved = list(refreshed)
+            for response in rig.owner.responses:
+                response.ask()
+            await until(rig, lambda: all(r.responsive() for r in rig.owner.responses))
+        else:
+            response = rig.owner.responses[component]
+            await until(rig, lambda: response.sent > response.answered)
+            saved = list(refreshed)
+            checked = []
+            cycle = rig.owner.heartbeat.cycle
+            def observed_cycle():
+                result = cycle()
+                checked.append(result)
+                return result
+            monkeypatch.setattr(rig.owner.heartbeat, "cycle", observed_cycle)
+            await until(rig, lambda: bool(checked))
+            assert checked == [False]
         assert refreshed == saved
+        if component == "main":
+            monkeypatch.setattr(rig.owner, "maintenance", maintenance)
         release.set()
+        await until(rig, lambda: len(refreshed) > len(saved))
     finally:
         await finish(rig, run)
 
@@ -1525,13 +1547,13 @@ async def test_serve_reconciles_notifications_at_startup_and_poll(root, monkeypa
         await finish(rig, run)
     prior = rig.owner
     rig.owner = cli.build_serve(rig.checkout, plan=PLAN, read=prior.read, stems=prior.stems)
+    heartbeat = rig.checkout.config.state_dir / "heartbeat"
+    stamp = heartbeat.stat().st_mtime_ns
     restarted = asyncio.create_task(rig.owner.run())
     try:
-        await until(rig, lambda: (rig.checkout.config.state_dir / "heartbeat").exists()
+        await until(rig, lambda: heartbeat.stat().st_mtime_ns != stamp
                     and rig.owner.ready.is_set())
-        for _ in range(50):
-            rig.time.advance(.1)
-            await turn()
+        assert rig.owner.notifications.task is None
         assert len(deliveries(root)) == len(notify_completions(rig)) == 6
     finally:
         await finish(rig, restarted)
@@ -1547,9 +1569,9 @@ async def test_serve_unset_notify_warns_once_and_preserves_pending(root, monkeyp
     run = asyncio.create_task(rig.owner.run())
     try:
         await until(rig, lambda: (rig.checkout.config.state_dir / "heartbeat").exists())
-        for _ in range(50):
-            rig.time.advance(.1)
-            await turn()
+        heartbeat = rig.checkout.config.state_dir / "heartbeat"
+        stamp = heartbeat.stat().st_mtime_ns
+        await until(rig, lambda: heartbeat.stat().st_mtime_ns != stamp)
         warnings = [json.loads(line) for line in rig.owner.log.path.read_text().splitlines()
                     if json.loads(line)["event"] == "notify_unset"]
         assert len(warnings) == 1 and "push is off" in warnings[0]["warning"]
@@ -1583,13 +1605,18 @@ async def test_serve_failed_notify_backoff_and_restart(root, monkeypatch):
                           and e.key.startswith("notify/")]
         assert len(intents()) == 1 and not notify_completions(rig)
         # Unrelated journal arrivals do not reset this key's failed-command backoff.
+        retry_at = dict(rig.owner.notifications.retry_at)
         rig.journal.append(EventType.SIGNAL, {"kind": "author_invoked"})
-        for _ in range(100):
-            rig.time.advance(.1)
+        rig.time.advance(10)
+        # Complete a poll after the arrival while the fake clock stays inside the retry window.
+        async with asyncio.timeout(60):
             await rig.owner.maintenance()
-            await turn()
+        assert rig.owner.notifications.retry_at == retry_at
+        assert rig.owner.notifications.task is None
         assert len(intents()) == len(deliveries(root)) == 1
         assert len(pending_escalations(rig.journal.read())) == 1 and terminals(rig) == []
+        # Restart notification delivery after the fixture's storm reports have committed.
+        await wait_until(lambda: not rig.owner.box.pending())
         rig.time.advance(NOTIFY_RETRY_S)
         await until(rig, lambda: len(deliveries(root)) == 2 and rig.owner.notifications.task.done())
         assert len(intents()) == 2 and not notify_completions(rig)

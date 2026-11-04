@@ -14,7 +14,7 @@ from chupa.redact import Redactor
 from chupa.seams import CommandNotifications, NotificationFailed, SubprocessExec
 from tests.test_config import VALID
 from tests.test_scheduler import Time
-from tests.test_scheduler import turn
+from tests.waiting import wait_until
 
 
 @pytest.mark.asyncio
@@ -140,19 +140,18 @@ async def test_notify_timeout_backoff_and_unchanged_poll_cache(tmp_path, monkeyp
         load=load, compose=lambda _: seam, log=log)
     try:
         reconciler.poll(startup=True)
-        await turn()
+        await wait_until(reconciler.task.done)
         reconciler.poll()
         snapshot = len(reads), len(loads)
-        for _ in range(100):
-            reconciler.poll()
-            clock.advance(.1)
-            await turn()
+        clock.advance(10)
+        reconciler.poll()
+        assert reconciler.task is None
         assert (len(reads), len(loads)) == snapshot and len(calls) == 1
         assert len(reconciler.pending) == 1 and not any(
             e.type == EventType.EFFECT_COMPLETION for e in read())
         clock.advance(NOTIFY_RETRY_S)
         reconciler.poll()
-        await turn()
+        await wait_until(reconciler.task.done)
         assert len(calls) == 2
         assert "retry pending evidence" in log.path.read_text()
     finally:

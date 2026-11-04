@@ -3,7 +3,6 @@ import json
 import os
 import sys
 import textwrap
-import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -27,6 +26,7 @@ from chupa.journal import Journal
 from chupa.timers import Timers
 from chupa.seams import GroupExec, LocalFileSystem, SubprocessExec
 from chupa.watchdog import EventConsumer
+from tests.waiting import group_exited, ready_before_returning_spawn, wait_until
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -824,19 +824,22 @@ def test_inflight_events_are_scrubbed_and_capture_is_preserved(tmp_path, name):
 
 @pytest.mark.parametrize("name", ["claude", "codex"])
 @pytest.mark.parametrize("unwind", ["timeout", "cancel", "callback_timeout", "callback_cancel", "abort"])
-def test_event_callback_unwind_kills_group(tmp_path, name, unwind):
-    marker = tmp_path / "grandchild-wrote"
-    grandchild = "import time; time.sleep(0.5); open(" + repr(str(marker)) + ", 'w').close(); time.sleep(30)"
+def test_event_callback_unwind_kills_group(tmp_path, monkeypatch, name, unwind):
+    marker = tmp_path / "provider-ready"
+    grandchild = "import signal; print('ready', flush=True); signal.pause()"
     script = (
-        "import os, subprocess, sys, time\n"
-        f"subprocess.Popen([sys.executable, '-c', {grandchild!r}])\n"
+        "import os, subprocess, sys, signal\n"
+        f"child = subprocess.Popen([sys.executable, '-c', {grandchild!r}], stdout=subprocess.PIPE)\n"
+        "assert child.stdout.readline() == b'ready\\n'\n"
         "print('{\"type\": \"tool\"}', flush=True)\n"
+        f"open({str(marker)!r}, 'w').close()\n"
         # Fill both pipes: exceptional cleanup must drain even if the callback reader failed.
         "os.write(1, b'x' * 300000)\n"
         "os.write(2, b'e' * 300000)\n"
-        "time.sleep(30)\n"
+        "signal.pause()\n"
     )
     process = PythonProviderExec(script)
+    ready_before_returning_spawn(monkeypatch, marker.exists)
     cfg = config(tmp_path)
     client = python_client(cfg, process, tmp_path, timeout=0.15 if unwind in {"timeout", "callback_timeout"} else 10)
     error = RuntimeError("consumer failed")
@@ -854,15 +857,16 @@ def test_event_callback_unwind_kills_group(tmp_path, name, unwind):
                 raise error
 
         task = asyncio.create_task(client.call(provider_request(name, tmp_path), consumer=EventConsumer(consume)))
-        await asyncio.wait_for(received.wait(), 5)
+        await wait_until(received.is_set)
         if unwind in {"cancel", "callback_cancel"}:
             task.cancel()
         elif unwind == "abort":
             client.abort_current()
         expected = {"timeout": TimeoutError, "cancel": asyncio.CancelledError,
                     "callback_timeout": TimeoutError, "callback_cancel": asyncio.CancelledError, "abort": ProviderCallError}[unwind]
+        await wait_until(task.done)
         with pytest.raises(expected) as caught:
-            await asyncio.wait_for(task, 5)
+            await task
         if unwind.startswith("callback_"):
             assert caught.value.__cause__ is error
             [capture] = (cfg.state_dir / "spools/providers/t-1").iterdir()
@@ -877,10 +881,10 @@ def test_event_callback_unwind_kills_group(tmp_path, name, unwind):
         client.abort_current()
         with pytest.raises(ProcessLookupError):
             os.kill(process.pgids[-1], 0)  # The direct child was reaped.
+        assert marker.exists()
+        await wait_until(lambda: group_exited(process.pgids[-1]))
 
     asyncio.run(scenario())
-    time.sleep(0.6)
-    assert not marker.exists()  # A direct-child-only kill would leave the grandchild writing.
 
 
 @pytest.mark.parametrize('names,expected', [
