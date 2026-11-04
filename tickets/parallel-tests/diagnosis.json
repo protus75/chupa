@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "51b206c087bc838669605643b251b2ba9578e3f6",
+  "produced_at_sha": "da74a1abd8996c2b76556e55540aac8928c2e8b8",
   "stem": "parallel-tests",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "gate_failed",
-  "stage": "check",
+  "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "Fix the race in `group_exited` (tests/waiting.py:18): `/proc/<pid>/stat` can vanish between open and read, so `read_text()` raises ProcessLookupError. Treat that error as the process being gone, as the ticket's 'process group being gone' event requires.",
-    "Check every other `/proc` read in tests/waiting.py for the same race. A process can exit at any point during the check, so each read must treat its disappearance as exited rather than let the error escape the `wait_until` predicate.",
-    "Keep the fix in the helper. The failures, `test_event_callback_unwind_kills_group[abort-claude]` and `[cancel-codex]`, hit the same line. The ticket's Definition of rejected forbids skipping, retrying, marking serial, or lengthening a bound.",
-    "Three clean runs did not prove this fix: the attempt's own runs passed, then Check failed on a timing race. After the fix, rerun the Verification commands and confirm each of the three runs exits 0 in under 120 seconds, and treat any new failure as a root cause to fix."
+    "tests/test_providers.py:843 sets timeout=0.15 for `timeout`/`callback_timeout`, and chupa/seams.py:141 arms asyncio.timeout just after spawn, so the line 834 readiness gate races two interpreter startups. Make the timeout fire only after `received` is set, not a window from spawn.",
+    "Keep the real SubprocessExec group kill and leave chupa/ unchanged. An outer asyncio.timeout around run would break `callback_timeout`: seams.py:163 sets __cause__ on the inner exception, so the outer TimeoutError's __cause__ would not be `error` as test line 869 asserts.",
+    "Line 859's `asyncio.wait_for(received.wait(), 5)` raises the finding's uncaught TimeoutError and still spans two interpreter startups. Wait on `received` via the `wait_until` helper used at line 882, against the ticket's 60-second-minimum deadline, instead of a fixed 5s window.",
+    "Keep the grandchild readiness wait at line 834 and the `group_exited` check at line 882, as the finding's paved road says. Then rerun `uv run pytest -q` three times and confirm each run exits 0 in under 120 seconds."
   ],
   "mechanical": null,
   "spec_version": "1.1",
