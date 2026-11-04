@@ -22,6 +22,7 @@ The **Supervising session** rule in `CLAUDE.md` (section B) lets an agent runnin
   - Why: the queue keeps moving on obvious fixes while every judgment call stays with the user.
 - In: add a rule to `CLAUDE.md` section B: commands a session runs or gives the user are `./dev.py` subcommands, never raw `uv run python -m chupa ...`; a missing command becomes a new `./dev.py` subcommand. Commands for the user to run are given in a copy/paste code block. Why: one memorable command surface.
 - In: no new paragraph opens with `chupa` followed by a directive ("chupa must ..."): the `core_drift` gate (`chupa/hostfiles.py` `classify_core`) refuses such a paragraph outside the managed block. Write the rules with "A session" as the subject.
+- In: outside the managed `chupa:core` block, `CLAUDE.md` stops treating `CHUPA_PLAN.md` as current: the **Read first** line says `docs/how-chupa-works.md` describes the code and is maintained by tickets, and `CHUPA_PLAN.md` is the frozen bootstrap design record; section A's **The plan is the seed** and **Generated files** rules and section B's **Plan prose is pure spec** rule are rewritten to match (a ticket updates the docs its change affects; the plan is never edited). Do not edit `CHUPA_PLAN.md`; it is history, not a spec this change must keep in step with.
 - Out: section A engine conduct, the managed `chupa:core` block, `AGENTS.md` (it carries no session rules), `CHUPA_PLAN.md`, and any code.
 
 ## Scope fence
@@ -37,7 +38,7 @@ uv run pytest -q
 ```
 
 ## Definition of rejected
-Reject the branch if `CLAUDE.md` still lets a session run `confirm`/`reject`, re-feed a spent stem, or edit a running ticket, or if anything outside the two named rules changes.
+Reject the branch if `CLAUDE.md` still lets a session run `confirm`/`reject`, re-feed a spent stem, or edit a running ticket, or if anything outside the named rules and the plan references above changes, or if the managed block changes.
 
 ## Time budget
 - expected: 20m

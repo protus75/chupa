@@ -7,6 +7,7 @@
     ./dev.py lint [STEM...]   validate tickets without running or writing anything
     ./dev.py status           the engine's projected state
     ./dev.py drain            run every eligible ticket to quiescence
+    ./dev.py watch [--once]   live view: running ticket, step, model, and the queue
     ./dev.py kill             hard-stop the running drain or serve
     ./dev.py confirm STEM...  keep each named ticket
     ./dev.py reject STEM...   kill each named Reject-queue ticket
@@ -43,6 +44,7 @@ def main() -> None:
     new.add_argument("--kind", choices=("feature", "bug", "chore"), default="feature")
     sub.add_parser("drain", help="run every eligible ticket to quiescence")
     sub.add_parser("kill", help="hard-stop the running drain or serve")
+    sub.add_parser("watch", help="live view of the drain and the queue").add_argument("--once", action="store_true")
     for verb in ("confirm", "reject"):
         sub.add_parser(verb, help=f"{verb} each named ticket").add_argument("stems", nargs="+")
     args = parser.parse_args()
@@ -54,6 +56,12 @@ def main() -> None:
         chupa("new", args.stem, "--kind", args.kind)
     elif args.task == "lint":
         chupa("lint", *args.stems)
+    elif args.task == "watch":
+        # watch.py is read-only and stdlib-only: no uv environment needed, and Ctrl-C is a normal exit.
+        try:
+            subprocess.run([sys.executable, str(ROOT / "watch.py"), *(["--once"] if args.once else [])], cwd=ROOT)
+        except KeyboardInterrupt:
+            pass
     elif args.task in {"confirm", "reject"}:
         for stem in args.stems:
             chupa(args.task, stem)
