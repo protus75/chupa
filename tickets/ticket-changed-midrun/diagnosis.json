@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "ef2ceca3e93de7b4481ef584f3ba7c0b13bc4787",
+  "stem": "ticket-changed-midrun",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "retry",
+  "lessons": [
+    "Reply ok, not premise_failed, if the only full-suite failures are the four tests/test_seeded_phase7_core.py tests. stages.py:847 marks a command that is also red on the merge base as base_red, and stages.py:971 excludes base_red results from gate failures.",
+    "Commit the scoped change on the branch. specs/implement.md step 4 says uncommitted edits are discarded with the worktree, and the worktree has no ticket_changed code now, so redo the implementation, tests and docs.",
+    "Do not restore tickets/phase7-continue/ticket.md or edit tests/test_seeded_phase7_core.py to clear this. The ticket file is outside the fence, and specs/implement.md step 2 sends second problems to second_problems. Cite box-000304-331e614a in surprises.",
+    "Fix test_production_consumes_conflict_handoff_after_unwind (tests/test_daemon_composition.py:1148), red in the last full run and not one of the four. It re-runs writer(fresh) after a Rework ticket update; the ticket scope says those updates are not mid-run, so no hold may fire.",
+    "Let one full uv run pytest -q finish with no chupa/ edits. tests/test_fixture_host.py:382 compares chupa/ bytes to an import-time snapshot, and the last run was interrupted. base_red is per command and would hide your failures, so confirm only the four tests are red."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
