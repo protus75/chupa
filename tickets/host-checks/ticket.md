@@ -31,6 +31,8 @@ A host declares its own checks under `review.mechanical` (`code`, `argv`, `trigg
 - In: update `docs/how-chupa-works.md` sections 4.3, 4.5, 5.4, and 7.2.1 (host checks at Check and at every merge, through the one shared runner), and the host-check part of `docs/host-contract.md` `## Checks and injectable seams`, so the doc matches the code when this merges.
 - In: `tests/test_host_contract.py`'s source inspection of `MergeQueue._command` checks the shared runner in `chupa/stages.py` instead; `MergeQueue` keeps only a call into it. Change no other assertion in that file.
 - In: if `uv run pytest -q` fails only on tests that also fail on the merge base, those failures are pre-existing: Check excuses them (base-red). Commit the work and list them in the run record; never stop with `premise_failed` for them.
+- In: `MergeQueue._command` stays as the queue's one command method and delegates to the shared runner: it also runs `regenerate` merge strategies (`mergequeue.py` strategy resolution), and `tests/test_mergequeue.py` replaces `queue._command` to script results.
+- In: `tests/test_serve.py`'s `host-red` admission case (an always-failing hard entry) now fails at Check, before merge admission; update only that case's expected stage and outcome. `eval/daemon_soak.py` and `eval/reliability_battery.py` change only where an expected spool list or stage changes because Check now runs their `always` entries.
 - Out: config schema, ticket validation, `gate_bypass` (host check codes are not bypass codes), Suggestion Box messages for soft failures, `review.surfaces`, and the merge queue's selection rules.
 
 ## Scope fence
@@ -43,6 +45,9 @@ A host declares its own checks under `review.mechanical` (`code`, `argv`, `trigg
 - tests/test_stages.py
 - tests/test_merge.py
 - tests/test_host_contract.py
+- tests/test_serve.py
+- eval/daemon_soak.py
+- eval/reliability_battery.py
 
 ## Acceptance criteria
 1. `uv run pytest -q tests/test_host_mechanical.py` exits 0 with every test named above.

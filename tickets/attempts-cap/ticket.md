@@ -3,12 +3,16 @@ priority: P1
 kind: feature
 source: human
 state: confirmed
+agent_tier: high
+agent_effort: high
 ---
 
 ## Depends on
 none
 
 ## Context
+- chupa/status.py
+- chupa/daemon.py
 - docs/how-chupa-works.md
 - chupa/config.py
 - chupa/caps.py
@@ -23,7 +27,9 @@ Each spine cap (`chupa/caps.py`) counts on its own and nothing bounds a ticket's
 
 ## Scope in / Scope out
 - In: a new `caps.attempts` (shipped default 5): the total failed attempts per lineage. A failed attempt is a non-ok terminal `state_transition` of the stem (`gate_failed`, `premise_failed`, `infra_error`, `timeout`) inside the existing `lineage` window. Cost-free parks do not count: an `infra_error` with reason `provider_drought`, `budget_exceeded`, an `abandoned` reap, and settled or `rejected` terminals.
-- In: `spent` treats `attempts` like the other spine caps, so a stem at its total routes to the Reject queue with the recorded reason "attempts cap spent", the drain stops re-offering it, and no further model call is made.
+- In: the attempts count lives inside `caps.spent` (and is reported by `caps.spent_reason`), the one function every cap consumer already calls: `runner.drive` and `failure_terminal`, `daemon.TicketWriter.consume_handoff` (the merge-conflict path), and `drain._select` / `_settle`. Add no separate attempts check in any caller, `_admit`, or the scheduler. `serve`'s scheduler holds Reject-queue stems, so routing at the terminal is what stops a spent stem there.
+- In: `failure_terminal` counts the terminal it is about to journal, so the failure that reaches `caps.attempts` is itself routed to the Reject queue with reason "attempts cap spent"; no further attempt and no further model call follows.
+- In: the drain report's spent-cap line (`drain._settle`) shows the failed-attempt count for `attempts` ("attempts cap spent (5/5)"), not a `cap_consumed` draw count; attempts are derived from terminals and journal no `cap_consumed` event, so `audit`'s declared-cap check is unchanged.
 - In: new shipped defaults in `Caps`: `diagnosis: 3`, `retry: 3`, `infra: 3`, `premise_bounce: 1`, `hardening: 1`, `attempts: 5`; `quarantine` and `poison` unchanged. The existing `retry <= diagnosis` load check stays.
 - In: an operator keep (`confirm`) still resets every count through `lineage`, `attempts` included; the machine auto-keep still never resets one.
 - In: `docs/host-contract.md` shows the new keys and defaults in both places it lists `caps`.
@@ -31,6 +37,7 @@ Each spine cap (`chupa/caps.py`) counts on its own and nothing bounds a ticket's
 - In: existing tests change only where they assert or rely on the old default values.
 - In: update `docs/how-chupa-works.md` section 6.4 (the `attempts` cap, new defaults, what counts as a failed attempt), so the doc matches the code when this merges.
 - In: if `uv run pytest -q` fails only on tests that also fail on the merge base, those failures are pre-existing: Check excuses them (base-red). Commit the work and list them in the run record; never stop with `premise_failed` for them.
+- In: `eval/shakeout/runner.py`'s `_premise_false` scenario sets `premise_bounce: 2` on its own bench config (as `_identical_terminals` already sets `retry` and `diagnosis`), so the shakeout battery keeps proving one premise bounce without a re-offer under the new defaults.
 - Out: the escalation ladder's rung order, quarantine and poison caps, THRESH spend budgets, and the plan text.
 
 ## Scope fence
@@ -41,6 +48,8 @@ Each spine cap (`chupa/caps.py`) counts on its own and nothing bounds a ticket's
 - chupa/drain.py
 - docs/host-contract.md
 - tests/
+- eval/shakeout/runner.py
+- chupa/daemon.py
 
 ## Acceptance criteria
 1. `uv run pytest -q tests/test_caps.py tests/test_config.py` exits 0, including `test_attempts_cap_counts_every_failed_terminal` and `test_attempts_cap_routes_to_reject_queue`.

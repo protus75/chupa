@@ -10,6 +10,7 @@ state: confirmed
 
 ## Context
 - chupa/tickets.py
+- tests/test_cli.py
 - chupa/__main__.py
 - dev.py
 - docs/how-chupa-works.md
@@ -24,6 +25,7 @@ state: confirmed
 - In: `./dev.py new STEM [--kind K]` runs it.
 - In: tests in `tests/test_tickets.py`: `test_template_per_kind` (each kind's template, with every `<...>` placeholder replaced by sample content and its Context paths created, passes `validate_ticket`; only `bug` has `## Regression`) and `test_new_bug_creates_no_evidence`.
 - In: update `docs/how-chupa-works.md` sections 2.1 and 2.2 and the Workflow in `docs/host-authoring.md` to start from `chupa new <stem> --kind ...`.
+- In: `tests/test_cli.py::test_new_templates_a_ticket_and_lints_it` keeps asserting that `new` lints and names what is left to fill, adjusted to the placeholder templates; add `test_new_kind_flag` there (`--kind bug` writes `kind: bug` with `## Regression`; an unknown kind is refused with exit 2). `_new` already prints the evidence finding for a bug ticket.
 - Out: the ticket grammar, intake, and the `lint` verb.
 
 ## Scope fence
@@ -33,15 +35,16 @@ state: confirmed
 - tests/test_tickets.py
 - docs/how-chupa-works.md
 - docs/host-authoring.md
+- tests/test_cli.py
 
 ## Acceptance criteria
-1. `uv run pytest -q tests/test_tickets.py` exits 0, including `test_template_per_kind` and `test_new_bug_creates_no_evidence`.
+1. `uv run pytest -q tests/test_tickets.py tests/test_cli.py` exits 0, including `test_template_per_kind`, `test_new_bug_creates_no_evidence`, and `test_new_kind_flag`.
 2. `docs/how-chupa-works.md` sections 2.1 and 2.2 and `docs/host-authoring.md` name `chupa new <stem> --kind feature|bug|chore` and `./dev.py new`.
 3. `uv run pytest -q` exits 0.
 
 ## Verification
 ```
-uv run pytest -q tests/test_tickets.py
+uv run pytest -q tests/test_tickets.py tests/test_cli.py
 uv run pytest -q
 ```
 

@@ -21,6 +21,7 @@ The **Supervising session** rule in `CLAUDE.md` (section B) lets an agent runnin
   - A session may not: run `confirm` or `reject`; retry or re-feed a stem whose caps are spent; edit a ticket while it is running; change a ticket's goal or scope; hand-rewrite a ticket the engine authored. Those go to the user.
   - Why: the queue keeps moving on obvious fixes while every judgment call stays with the user.
 - In: add a rule to `CLAUDE.md` section B: commands a session runs or gives the user are `./dev.py` subcommands, never raw `uv run python -m chupa ...`; a missing command becomes a new `./dev.py` subcommand. Commands for the user to run are given in a copy/paste code block. Why: one memorable command surface.
+- In: no new paragraph opens with `chupa` followed by a directive ("chupa must ..."): the `core_drift` gate (`chupa/hostfiles.py` `classify_core`) refuses such a paragraph outside the managed block. Write the rules with "A session" as the subject.
 - Out: section A engine conduct, the managed `chupa:core` block, `AGENTS.md` (it carries no session rules), `CHUPA_PLAN.md`, and any code.
 
 ## Scope fence
