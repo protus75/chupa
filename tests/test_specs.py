@@ -218,7 +218,7 @@ def test_review_spec_read_only():
     assert lint_spec(text) == []
     assert len(text.splitlines()) <= SPEC_MAX_LINES
     spec = load_spec(text)
-    assert spec.meta.version == "1.1"
+    assert spec.meta.version == "1.2"
     assert spec.meta.model_dump(exclude={"version"}) == {
         "llm_surface": "review", "consumes": "invoice",
         "emits": {"approve": "approved-invoice", "snag": "snag-list", "rma": "rma"},
@@ -241,6 +241,22 @@ def test_review_spec_read_only():
         "real code path differs."
     ) in body
     assert validate_data_blocks(rendered) == []
+
+
+def test_review_spec_checks_docs():
+    text = (Path(__file__).resolve().parent.parent / "specs/review.md").read_text()
+    spec = load_spec(text)
+    assert spec.meta.version == "1.2"
+    assert spec.inputs == ("ticket", "diff", "retry_findings")
+    body = " ".join(spec.body.split())
+    for rule in (
+        "a doc named in the ticket's acceptance criteria or `Scope in / Scope out` is not updated to match the diff",
+        "the diff changes behavior described by a file under `docs/` or `README.md` and leaves it stating the old behavior",
+        "You may search and read those files to find such a statement.",
+        "For a stale doc finding only, use the stale doc as `path`, set `line` to null, and quote the outdated statement in `message`",
+        "every other finding must attach to a line the diff adds or changes.",
+    ):
+        assert rule in body
 
 
 def test_review_spec_readonly_entry_unit():

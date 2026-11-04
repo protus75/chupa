@@ -166,7 +166,8 @@ continues. `already_satisfied` stops here: there is no diff to review.
 The `review` prompt (`specs/review.md`) gets the ticket and the branch diff, in a read-only
 session. Verdicts: `approve`, `snag` (findings: `logic`, `acceptance`, `scope`, `leak`), or `rma`
 (the ticket itself is wrong). `review.md` records the verdict and the reviewed branch head
-(`reviewed_sha`). Only `approve` continues; `snag` and `rma` end the attempt `gate_failed`.
+(`reviewed_sha`). Review also snags a stale or missing doc update. Only `approve` continues;
+`snag` and `rma` end the attempt `gate_failed`.
 
 ### 4.5 Merge
 
