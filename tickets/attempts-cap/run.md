@@ -4,15 +4,16 @@ ok
 
 ## Surprises / judgment calls
 
-Tests requiring multiple hardening rounds, additional diagnosis budget, or premise content release now configure explicit limits; the merge-base suite was green.
+Preserved published rework on direct daemon results and documented that path’s limitation; the shakeout test now supplies an explicit premise budget.
 
 ## Dead ends
 
-The first full-suite run overlapped ongoing edits and invalidated a source-snapshot test; the final run used stable files and passed.
+none
 
 ## Second problems filed
 
-none
+- box-000306-c41256c4: TicketWriter.consume_result bypasses drive’s pending-failure check and can call rework on the fifth failure; fixing it requires chupa/daemon.py outside the fence.
+- box-000307-356acaee: The standalone eval/shakeout premise_park_release member needs an explicit premise_bounce budget above the new default; eval/ is outside the fence.
 
 ## Resolved engine/model
 
@@ -22,5 +23,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60-minute expected budget.
+Completed within the expected 60-minute budget.
 
