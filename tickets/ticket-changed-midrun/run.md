@@ -1,10 +1,10 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The implementation remains uncommitted; all 77 drain tests passed.
+Serve now dispatches only tickets whose checkout text matches the committed ticket, closing a race with intake. The full suite passed without the previously reported failures associated with box-000304-331e614a.
 
 ## Dead ends
 
@@ -12,15 +12,15 @@ none
 
 ## Second problems filed
 
-- box-000304-331e614a: Base commit ef2ceca3e93de7b4481ef584f3ba7c0b13bc4787 lacks tickets/phase7-continue/ticket.md, causing four test_seeded_phase7_core.py tests to fail.
+none
 
 ## Resolved engine/model
 
 - provider: codex
-- model: gpt-6.1-sol
+- model: gpt-6.1-terra
 - spec: implement 1.5
 
 ## Predicted vs actual
 
-60m expected; stopped after verification exposed the confirmed base failure.
+Expected 60 minutes; completed within the budget.
 
