@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Seed review uses empty plan text for its string-based helpers while ticket validation retains None to report citations against an absent plan.
+A spec-gap finding cannot create a hardening hold when the plan is absent, so normal failure handling continues instead. All verification commands passed; the full suite passed 3,906 tests.
 
 ## Dead ends
 
-none
+An initial full-suite run failed because a whitespace edit occurred during a snapshot test; the stable rerun passed.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Expected 45 minutes; completed within the budget.
 
