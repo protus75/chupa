@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Production timeout values remain unchanged; readiness markers exclude child startup delays, and process-group checks treat zombies as exited.
+Child scripts now block until signaled so natural exits cannot mask missed group kills; /proc checks handle disappearing processes and zombies. All 3,908 tests passed three consecutive runs in 72.45s, 71.04s, and 66.42s.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60 minutes; completed in about 12 minutes.
+Expected 60m; completed within budget, including 210s for the three final verification runs.
 
