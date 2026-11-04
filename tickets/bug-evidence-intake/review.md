@@ -1,10 +1,11 @@
 # Review: snag
 
-Intake can admit a bug ticket whose only evidence file is gitignored, because the check counts that file but the commit path leaves it out.
+The diff exempts journal-settled tickets but re-judges journal-rejected ones, and its widened stray guard admits staged evidence changes that the commit leaves behind, blocking the next intake.
 
 ## Findings
 
-- [logic] chupa/tickets.py:655 `evidence_findings` accepts any regular file on disk, but the staging list comes from `git ls-files --cached --others --exclude-standard`, which omits ignored files. If a host ignores `*.log` (through `.gitignore`, `.git/info/exclude`, or a global excludes file) and the only evidence is `tickets/<stem>/evidence/failure.log`, the check passes. Intake then commits `ticket.md` alone and journals `ticket_intake`, so a bug ticket is admitted with no evidence committed. This hits the ticket's Definition of rejected and its goal of committing evidence with the ticket. The evidence never reaches the commit or a fresh clone, and the Check gate cannot catch it because `_gather_bug` also accepts files in the `ctx.repo` working tree. (do instead: Decide admission from the same set intake commits. For example, list the stem's evidence paths with `ls-files` before admitting, keep only regular non-symlink files, and refuse with the evidence finding if none remain. Alternatively, have the evidence check reject ignored files and say so in the paved road. Add a test where the only evidence file is gitignored: the ticket is refused, nothing is committed, and the files stay on disk.)
+- [acceptance] chupa/tickets.py:657 The ticket says the check is never applied to rejected tickets, but the journal exemption covers only {"merged", "already_satisfied"}. `mergequeue.py:383` appends `{"to": "rejected"}` without stamping the frontmatter, so that ticket stays `state: confirmed`. If a stem rejected this way is a bug ticket with no evidence file in the repo, editing its `ticket.md` gets it refused at intake because `evidence_findings` sees neither a rejected frontmatter state nor evidence. `test_settled_bug_is_not_rejudged_for_evidence` covers only frontmatter rejection, so it misses this path. (do instead: Exempt the journal `rejected` state as well, for example `states.get(stem) not in SETTLED | {"rejected"}` using `chupa.status.SETTLED` if the import is safe, otherwise a literal set. Add a parametrized case that journals `{"to": "rejected"}` while the frontmatter stays `confirmed`.)
+- [logic] chupa/tickets.py:635 The stray guard now passes any staged entry under a pending stem's `evidence/`, including entries the commit does not carry. A staged deletion or a staged symlink is filtered out of `evidence` by the `ls-files` and `is_file` checks, so `commit --only` leaves it in the index. The stem is no longer pending on the next drain, so that entry counts as stray and `IntakeRefused` blocks intake for every ticket. Before this diff the same entry was refused at once, before any commit. (do instead: Exempt only staged paths that this intake will commit, meaning regular non-symlink files with a non-deletion status. Leave staged deletions and symlinks to the stray refusal, and add a test that a staged evidence deletion is refused up front with nothing committed.)
 
 ## Record
 
@@ -12,17 +13,26 @@ Intake can admit a bug ticket whose only evidence file is gitignored, because th
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "43862c04c1583a404dc39f67e59e6135bd2d3a64",
+  "produced_at_sha": "83db88545a87fac0cb687f71431045b262799707",
   "stem": "bug-evidence-intake",
-  "reviewed_sha": "43862c04c1583a404dc39f67e59e6135bd2d3a64",
-  "summary": "Intake can admit a bug ticket whose only evidence file is gitignored, because the check counts that file but the commit path leaves it out.",
+  "reviewed_sha": "83db88545a87fac0cb687f71431045b262799707",
+  "summary": "The diff exempts journal-settled tickets but re-judges journal-rejected ones, and its widened stray guard admits staged evidence changes that the commit leaves behind, blocking the next intake.",
   "findings": [
+    {
+      "code": "acceptance",
+      "path": "chupa/tickets.py",
+      "line": 657,
+      "message": "The ticket says the check is never applied to rejected tickets, but the journal exemption covers only {\"merged\", \"already_satisfied\"}. `mergequeue.py:383` appends `{\"to\": \"rejected\"}` without stamping the frontmatter, so that ticket stays `state: confirmed`. If a stem rejected this way is a bug ticket with no evidence file in the repo, editing its `ticket.md` gets it refused at intake because `evidence_findings` sees neither a rejected frontmatter state nor evidence. `test_settled_bug_is_not_rejudged_for_evidence` covers only frontmatter rejection, so it misses this path.",
+      "paved_road": "Exempt the journal `rejected` state as well, for example `states.get(stem) not in SETTLED | {\"rejected\"}` using `chupa.status.SETTLED` if the import is safe, otherwise a literal set. Add a parametrized case that journals `{\"to\": \"rejected\"}` while the frontmatter stays `confirmed`.",
+      "kind": null,
+      "unit": null
+    },
     {
       "code": "logic",
       "path": "chupa/tickets.py",
-      "line": 655,
-      "message": "`evidence_findings` accepts any regular file on disk, but the staging list comes from `git ls-files --cached --others --exclude-standard`, which omits ignored files. If a host ignores `*.log` (through `.gitignore`, `.git/info/exclude`, or a global excludes file) and the only evidence is `tickets/<stem>/evidence/failure.log`, the check passes. Intake then commits `ticket.md` alone and journals `ticket_intake`, so a bug ticket is admitted with no evidence committed. This hits the ticket's Definition of rejected and its goal of committing evidence with the ticket. The evidence never reaches the commit or a fresh clone, and the Check gate cannot catch it because `_gather_bug` also accepts files in the `ctx.repo` working tree.",
-      "paved_road": "Decide admission from the same set intake commits. For example, list the stem's evidence paths with `ls-files` before admitting, keep only regular non-symlink files, and refuse with the evidence finding if none remain. Alternatively, have the evidence check reject ignored files and say so in the paved road. Add a test where the only evidence file is gitignored: the ticket is refused, nothing is committed, and the files stay on disk.",
+      "line": 635,
+      "message": "The stray guard now passes any staged entry under a pending stem's `evidence/`, including entries the commit does not carry. A staged deletion or a staged symlink is filtered out of `evidence` by the `ls-files` and `is_file` checks, so `commit --only` leaves it in the index. The stem is no longer pending on the next drain, so that entry counts as stray and `IntakeRefused` blocks intake for every ticket. Before this diff the same entry was refused at once, before any commit.",
+      "paved_road": "Exempt only staged paths that this intake will commit, meaning regular non-symlink files with a non-deletion status. Leave staged deletions and symlinks to the stray refusal, and add a test that a staged evidence deletion is refused up front with nothing committed.",
       "kind": null,
       "unit": null
     }
