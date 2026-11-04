@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The full suite passed with 3,932 tests; the previously reported base failures did not recur.
+The full suite passed with one Pydantic serialization warning.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 45 minutes; completed within the budget.
+none
 
