@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "951e157e42108b9c9441cdb113b571c097dd3fa4",
+  "stem": "verdict-human-only",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Criterion 2 (`uv run pytest -q` exits 0) cannot pass as written: four tests in tests/test_seeded_phase7_core.py read tickets/phase7-continue/ticket.md (lines 364, 376, 532), which commit 347c970 deleted. Add a `depends` on a separate repair; this ticket says `none`.",
+    "Do not restore tickets/phase7-continue/ticket.md as the finding's paved road suggests: 347c970 retired it deliberately ('post-bootstrap work is authored as ordinary tickets'). The repair ticket should reconcile tests/test_seeded_phase7_core.py with that retirement.",
+    "Do not fold the test repair into this diff, even though `tests/` is in the scope fence. CLAUDE.md says second problems are filed, never folded; it is already filed as box-000305-12bad014, verified on base commit 951e157.",
+    "Once the repair has merged, rerun the unchanged scope. The run record says all 73 targeted tests passed and the only full-suite failures were these four, so the verdict gate design needs no change, though those edits were left uncommitted and may need redoing."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
