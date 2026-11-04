@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Direct merge handoffs preserve published rework: splits retire their parent; updates and escalations route to Reject at the cap. Tests requiring larger budgets now configure them explicitly.
+Previously exhausted, unrouted stems receive a non-counting abandoned terminal so daemon dispatch continues normally; the merge-base suite was also green.
 
 ## Dead ends
 
@@ -12,7 +12,8 @@ none
 
 ## Second problems filed
 
-none
+- box-000308-5f89e28a: The standalone eval/shakeout/drain.py premise-release scenario passes on the base but fails under premise_bounce=1; its required budget needs an explicit override outside this fence.
+- box-000309-3677fa33: Direct daemon merge-result delivery can still invoke rework before recording the final allowed failure; suppressing that call requires a separate chupa/daemon.py change.
 
 ## Resolved engine/model
 
@@ -22,5 +23,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the expected 60-minute budget.
+60 minutes expected; approximately 20 minutes actual.
 
