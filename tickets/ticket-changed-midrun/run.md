@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Serve now dispatches only tickets whose checkout text matches the committed ticket, closing a race with intake. The full suite passed without the previously reported failures associated with box-000304-331e614a.
+Both verification commands passed; the full suite reported 3,914 passed and one existing serializer warning.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60 minutes; completed within the budget.
+Expected 60 minutes; completed within the ticket budget.
 
