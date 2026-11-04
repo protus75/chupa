@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Admission uses the same Git-visible regular files that intake commits, excluding ignored and symlink evidence; settled and rejected tickets skip the evidence check. Both verification commands passed: 57 ticket tests and 3877 full-suite tests.
+Intake validates only committable evidence so ignored-only evidence refuses without rewriting the ticket; journal-only rejected states are exempt. Both verification commands passed: 59 targeted tests and 3,879 full-suite tests.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the expected 45-minute budget.
+Completed within the 45-minute expected budget; full-suite verification took about six minutes.
 
