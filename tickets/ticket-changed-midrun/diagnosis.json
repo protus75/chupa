@@ -1,17 +1,16 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "956b6a3d2624237a582295079d5d61d8c1dcbc8e",
+  "produced_at_sha": "5ea748d9343f3adb9b6667e609f6f415b125c38d",
   "stem": "ticket-changed-midrun",
-  "attempt": 1,
+  "attempt": 2,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "serve.py scan: keep main's `{stem: self.read(stem) for stem in self.stems()}` with no committed-blob filter. An uncommitted ticket refused by intake must still reach the Watcher so `watcher_parse_failure` is journaled. Add a serve test with an invalid new stem.",
-    "mergequeue.py `_admit`: for a retained stem, check `ticket_changed` only on the path that still admits: after the `reject` release branch and the `completed` squash branch, before `_finish` and the rebase. Main's order there is retained_ticket, reject, completed, then admit.",
-    "mergequeue.py `reconstruct`: do not hold a stem whose hold has a reject release or a completed squash effect; let `_admit` settle both. An edited ticket must not lose an operator kill or journal `gate_failed` for work already squashed onto main.",
-    "Add mergequeue tests with an edited ticket on a held stem: a `reject` release still reaches `rejected`, `_dead_dependents` and retire; a completed `merge/<stem>/<attempt>` squash still reaches `merged`. Keep the three named test_drain.py tests and rerun `uv run pytest -q`."
+    "Review of chupa/serve.py:121: `rev_parse main:tickets/<stem>/ticket.md` raises `GitError` for an uncommitted stem and exits serve. Check for a committed blob before setting `self.writers` and appending `running`; if none, return without dispatching. Add a refused-bug-ticket serve test.",
+    "Review of chupa/serve.py:120: remove the dispatch-time `await intake(...)`; `scan` already runs intake under the same admission slot. It commits an edit that the Watcher's `ticket` predates, so the recorded `ticket_sha` hides the change from `ticket_changed`.",
+    "Tie `ticket_sha` to the dispatched ticket: compare main's blob with the content `ticket` was parsed from. If they differ, republish the fresh ticket with `scheduler.update` and return without dispatching. Add a serve test editing the ticket after publication and before dispatch."
   ],
   "mechanical": null,
   "spec_version": "1.1",
