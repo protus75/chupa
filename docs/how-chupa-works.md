@@ -39,6 +39,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | Verb | Lock | What it does |
 |---|---|---|
 | `status` | no | Prints the journal projection (section 10.3). Read-only. |
+| `lint [stem ...]` | no | Validates ticket grammar, intake claims, and committable bug evidence without running tickets or writing files, journal events, or git state. With no stems, checks every ticket except those settled or rejected in the journal; with no journal, checks all tickets. Prints each finding and its fix, then `lint: <valid>/<total> tickets valid`. Exits 0 when valid, 1 for findings, or 2 for a missing named ticket or unreadable tickets directory. |
 | `doctor` | no | Checks venv, git, config load, lock probe, journal readability. Exit 2 on any failure. |
 | `core` | no | Rewrites the managed `chupa:core` block in each routed agent's conduct file (section 12). |
 | `migrate-config` | no | Migrates a `schema_version: 0` config to the current schema. |
@@ -61,6 +62,7 @@ The repo's one dev command; standard library only, every task through `uv`.
 | (none) | `uv run pytest -q` |
 | `test [args]` | pytest with those args |
 | `new STEM [--kind K]` | `chupa new <stem> --kind feature\|bug\|chore` (default `feature`) |
+| `lint [STEM...]` | `chupa lint [stem ...]` (read-only; no writer lock) |
 | `status`, `drain`, `kill` | the matching chupa verb |
 | `reject STEM...` | `chupa reject` once per stem |
 

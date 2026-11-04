@@ -11,7 +11,12 @@ what content its tickets carry, never the format.
    In this repo, use `./dev.py new STEM [--kind K]`. It writes `tickets/<stem>/ticket.md` with
    section placeholders and lints it. Every finding names the fix to apply. A bug includes
    `## Regression` and reports missing evidence; the command creates no evidence files.
-2. Fill each section with the content below, re-lint, and repeat until it is clean.
+2. Fill each section with the content below, run `chupa lint <stem>`, and repeat until it is
+   clean. In this repo, use `./dev.py lint [STEM...]`. Omit stems to check all tickets that are
+   not settled or rejected in the journal (all tickets when there is no journal). Lint applies
+   intake's claims and evidence checks without taking the lock or writing anything; it prints
+   findings with fixes and a valid/total summary. Exit 0 means all valid, 1 means findings, and
+   2 means a named ticket is missing or the tickets directory is unreadable.
 3. For a bug, add the evidence file (see Bug tickets) beside the ticket.
 4. Run `chupa drain`: intake commits the ticket and its evidence together before running it.
 

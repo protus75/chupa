@@ -18,7 +18,7 @@ from chupa import control, drain, hostfiles, runner, serve, triage
 from chupa.config import ConfigError, ConfigSnapshot, load_config, migrate_config
 from chupa.daemon import DaemonCore, PauseConsumer, daemon_core
 from chupa.daemon import StartupBoundary
-from chupa.git import Git
+from chupa.git import Git, GitError
 from chupa.journal import Journal, JournalCorruption
 from chupa.lockfile import LockHeld, Lockfile
 from chupa.notify import NOTIFY_TIMEOUT_S, NotificationReconciler
@@ -27,10 +27,11 @@ from chupa.redact import Redactor
 from chupa.restart import Restart
 from chupa.seams import Clock, ExecutableNotFound, LocalFileSystem, ProcessExec, SubprocessExec
 from chupa.seams import CommandNotifications
-from chupa.status import project, render
+from chupa.status import SETTLED, last_states, project, render
 from chupa.storm import StormLedger
 from chupa.timers import Timers
 from chupa.tickets import IntakeRefused, Ticket, TicketInvalid, evidence_findings, missing_evidence_findings, stem_findings, template, ticket_path, validate_ticket
+from chupa.tickets import _intake_claims, _pending, _porcelain
 
 GIT_TIMEOUT_S = 30.0
 
@@ -171,6 +172,7 @@ def _parser() -> argparse.ArgumentParser:
     ap.add_argument("--config", type=Path, help="config path (default: config.yaml at the checkout root)")
     sub = ap.add_subparsers(dest="verb", required=True)
     sub.add_parser("status", help="project current state from the journal (read-only)")
+    sub.add_parser("lint", help="validate tickets without running or writing anything").add_argument("stems", nargs="*")
     sub.add_parser("retro", help="force a retro report under the writer lock")
     sub.add_parser("doctor", help="inspect setup without changing state")
     sub.add_parser("core", help="refresh managed conduct in every routed agent's root file")
@@ -224,9 +226,12 @@ def main(
         exec_ = SubprocessExec()
         checkout = runner.Checkout(
             repo=repo, config=config, env=env, exec_=exec_,
-            git=Git(exec_, env=child_env(env, config), timeout=GIT_TIMEOUT_S),
+            git=Git(exec_, env={**child_env(env, config), **({"GIT_OPTIONAL_LOCKS": "0"}
+                if args.verb == "lint" else {})}, timeout=GIT_TIMEOUT_S),
             journal=Journal(config.state_dir, clock), fs=LocalFileSystem(), clock=clock,
         )
+        if args.verb == "lint":
+            return asyncio.run(_lint(checkout, args.stems))
         if args.verb == "status":
             print(render(asyncio.run(_status(checkout))), end="")
             return 0
@@ -324,6 +329,55 @@ async def _retro(checkout, dispatch):
             await checkout.control.providers.close()
         finally:
             lock.release()
+
+
+async def _lint(checkout: runner.Checkout, stems: Sequence[str]) -> int:
+    root = checkout.repo / "tickets"
+    valid = total = 0
+    exit_code = 0
+    try:
+        entries = list(root.iterdir())  # Unlike glob, unreadable directories must refuse.
+        selected = list(dict.fromkeys(stems)) if stems else sorted(
+            p.name for p in entries if (p / "ticket.md").is_file())
+        states = last_states(checkout.journal.read())
+        pending = _pending(checkout.repo, _porcelain(await checkout.git.status_porcelain(checkout.repo)))
+        for stem in selected:
+            rel = ticket_path(stem)
+            path = checkout.repo / rel
+            # Check existence before the stem grammar, without following an escaped path.
+            inside = (Path(stem).name == stem and stem not in {".", ".."}
+                      and path.resolve().is_relative_to(root.resolve()))
+            if not inside or not path.is_file():
+                print(f"{rel}: no ticket file (create tickets/<stem>/ticket.md with chupa new <stem>)")
+                total += 1
+                exit_code = 2
+                continue
+            if states.get(stem) in SETTLED | {"rejected"}:
+                continue
+            total += 1
+            text, findings = _intake_claims(stem, path.read_text(), pending.get(stem, False))
+            try:
+                if findings:
+                    raise TicketInvalid(findings)
+                ticket = validate_ticket(stem, text, checkout.repo)
+                paths = await checkout.git._run(checkout.repo, "ls-files", "--cached", "--others",
+                    "--exclude-standard", "-z", "--", f"tickets/{stem}/evidence/")
+                findings = evidence_findings(ticket, checkout.repo, paths=paths.split("\0"))
+            except TicketInvalid as exc:
+                findings = exc.findings
+            for finding in findings:
+                message = " ".join(finding.message.splitlines())
+                road = " ".join(finding.paved_road.splitlines())
+                print(f"{finding.path or rel}: {message} ({road})")
+            if findings:
+                exit_code = max(exit_code, 1)
+            else:
+                valid += 1
+    except (OSError, UnicodeError, GitError) as exc:
+        print(f"{root}: {exc} (restore ticket and repository readability, then retry chupa lint)")
+        exit_code = 2
+    print(f"lint: {valid}/{total} tickets valid")
+    return exit_code
 
 
 async def _status(checkout: runner.Checkout):
