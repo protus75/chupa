@@ -1,7 +1,7 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "f7c128944bbdcd596db6705576e1ea4f42d0fdb8",
+  "produced_at_sha": "7080be1e046fe8cfb105b5a05d6cd9f625071768",
   "stem": "no-plan-host",
   "passed": true,
   "changed_files": [
@@ -18,7 +18,7 @@
     "tests/regress_no_plan_host.py",
     "tests/test_no_plan_host.py"
   ],
-  "inserted_lines": 162,
+  "inserted_lines": 147,
   "bypassed": [],
   "reports": [
     {
@@ -63,8 +63,8 @@
           "python",
           "tests/regress_no_plan_host.py"
         ],
-        "head_sha": "f7c128944bbdcd596db6705576e1ea4f42d0fdb8",
-        "base_sha": "f9b490038990e8c2b9a9491d80ce90ad19c8ef1e",
+        "head_sha": "7080be1e046fe8cfb105b5a05d6cd9f625071768",
+        "base_sha": "60a1f6a6479b51922206f64df81f7eb9397e94bd",
         "overlay_paths": [
           "tests/regress_no_plan_host.py"
         ],
@@ -79,7 +79,7 @@
         "base": {
           "rc": 1,
           "regression_result": "defect",
-          "tail": "~~~~~~~~~^^^^^^\n  File \"/home/djp/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/runners.py\", line 128, in run\n    return self._loop.run_until_complete(task)\n           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^\n  File \"/home/djp/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/asyncio/base_events.py\", line 719, in run_until_complete\n    return future.result()\n           ~~~~~~~~~~~~~^^\n  File \"/home/djp/source/chupa/.chupa/state/worktrees/.regression-base/no-plan-host/chupa/__main__.py\", line 447, in _verdict\n    return await runner.verdict(stem, checkout, kill=verb == \"reject\")\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/djp/source/chupa/.chupa/state/worktrees/.regression-base/no-plan-host/chupa/runner.py\", line 569, in verdict\n    changed = await reject_ticket(stem, checkout)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/djp/source/chupa/.chupa/state/worktrees/.regression-base/no-plan-host/chupa/runner.py\", line 648, in reject_ticket\n    await _dead_dependents(stem, checkout)\n  File \"/home/djp/source/chupa/.chupa/state/worktrees/.regression-base/no-plan-host/chupa/runner.py\", line 672, in _dead_dependents\n    plan=(checkout.repo / \"CHUPA_PLAN.md\").read_text())\n         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^\n  File \"/home/djp/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/pathlib/__init__.py\", line 787, in read_text\n    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:\n         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/djp/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/pathlib/__init__.py\", line 771, in open\n    return io.open(self, mode, buffering, encoding, errors, newline)\n           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nFileNotFoundError: [Errno 2] No such file or directory: '/tmp/tmp526mmwb9/repo/CHUPA_PLAN.md'\n"
+          "tail": "{\"regression_result\": \"defect\"}\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\nUsing CPython 3.14.6\nCreating virtual environment at: .venv\nInstalled 14 packages in 8ms\n[Errno 2] No such file or directory: '/tmp/tmp48tcaa7v/repo/CHUPA_PLAN.md'\n"
         }
       }
     }
@@ -106,7 +106,7 @@
         "tests/test_no_plan_host.py"
       ],
       "rc": 0,
-      "tail": "bringing up nodes...\nbringing up nodes...\n\n....                                                                     [100%]\n4 passed in 4.02s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "bringing up nodes...\nbringing up nodes...\n\n....                                                                     [100%]\n4 passed in 1.15s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -117,7 +117,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "........................................................ [ 75%]\n........................................................................ [ 77%]\n........................................................................ [ 79%]\n........................................................................ [ 81%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 86%]\n........................................................................ [ 88%]\n........................................................................ [ 90%]\n........................................................................ [ 92%]\n........................................................................ [ 94%]\n........................................................................ [ 95%]\n........................................................................ [ 97%]\n........................................................................ [ 99%]\n..................                                                       [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/no-plan-host/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3906 passed, 1 warning in 65.88s (0:01:05)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................ [ 75%]\n........................................................................ [ 77%]\n........................................................................ [ 79%]\n........................................................................ [ 81%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 86%]\n........................................................................ [ 88%]\n........................................................................ [ 90%]\n........................................................................ [ 92%]\n........................................................................ [ 94%]\n........................................................................ [ 95%]\n........................................................................ [ 97%]\n........................................................................ [ 99%]\n..................                                                       [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/no-plan-host/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3906 passed, 1 warning in 66.50s (0:01:06)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
