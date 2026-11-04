@@ -173,7 +173,7 @@ def test_operator_confirm_resets_effective_rung(repo):
     consume(Journal(repo / ".chupa" / "state", clock), STEM, "retry", sha, rung=rung)
     second = run_one([agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("reject")])
     assert next(r for r in second.requests if r.surface == "implement").tier == "high"
-    assert main(["confirm", STEM], cwd=repo, env=ENV, clock=clock) == 0
+    assert main(["confirm", STEM], cwd=repo, env=ENV, clock=clock, terminal=(lambda: True, lambda _: STEM)) == 0
     third = run_one([agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("reject")])
     assert (next(r for r in third.requests if r.surface == "implement").tier,
             next(r for r in third.requests if r.surface == "implement").effort) == ("medium", "medium")

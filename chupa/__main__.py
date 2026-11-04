@@ -27,12 +27,12 @@ from chupa.redact import Redactor
 from chupa.restart import Restart
 from chupa.seams import Clock, ExecutableNotFound, LocalFileSystem, ProcessExec, SubprocessExec
 from chupa.seams import CommandNotifications
-from chupa.status import SETTLED, last_states, project, render
+from chupa.status import SETTLED, last_states, project, render, reject_queue
 from chupa.storm import StormLedger
 from chupa.timers import Timers
 from chupa.tickets import read_plan
 from chupa.tickets import IntakeRefused, Ticket, TicketInvalid, evidence_findings, missing_evidence_findings, stem_findings, template, ticket_path, validate_ticket
-from chupa.tickets import _intake_claims, _pending, _porcelain
+from chupa.tickets import _intake_claims, _pending, _porcelain, _load_frontmatter, split_frontmatter
 
 GIT_TIMEOUT_S = 30.0
 
@@ -204,11 +204,17 @@ def main(
     clock: Clock = _clock,
     pipeline: runner.Pipeline = runner.pipeline,
     reexec: ProcessExec | None = None,
+    terminal: tuple[Callable[[], bool], Callable[[str], str]] | None = None,
 ) -> int:
     args = _parser().parse_args(argv)
     repo = Path(cwd) if cwd is not None else Path.cwd()
     env = dict(os.environ) if env is None else env
     try:
+        if args.verb in {"confirm", "reject"}:
+            isatty, read_input = terminal if terminal is not None else (sys.stdin.isatty, input)
+            if not isatty():
+                raise runner.Refusal("verdict requires an interactive terminal",
+                    "a human runs this in a terminal: ./dev.py confirm|reject <stem>")
         if args.verb == "migrate-config":
             migrate_config(args.config, cwd=repo, fs=LocalFileSystem())
             return 0
@@ -239,7 +245,7 @@ def main(
         if args.verb in {"pause", "resume", "kill"}:
             return asyncio.run(_control(checkout, args.verb))
         if args.verb in {"confirm", "reject"}:
-            return asyncio.run(_verdict(checkout, args.stem, args.verb))
+            return asyncio.run(_verdict(checkout, args.stem, args.verb, read_input))
         if args.verb == "triage":
             async def one_pass() -> list[tuple[str, str]]:
                 lock = Lockfile(config.state_dir, instance_id=await checkout.git.describe(repo), clock=clock)
@@ -436,12 +442,35 @@ async def _control(checkout: runner.Checkout, verb: str) -> int:
     return 0
 
 
-async def _verdict(checkout, stem, verb):
+async def _verdict(checkout, stem, verb, read_input):
     from chupa.mergequeue import held_admissions
 
     if findings := stem_findings(stem):
         raise runner.Refusal(findings[0].message, findings[0].paved_road)
-    held = held_admissions(checkout.journal.read()).get(stem)
+    history = checkout.journal.read()
+    held = held_admissions(history).get(stem)
+    queued = reject_queue(history).get(stem)
+    path = checkout.repo / ticket_path(stem)
+    if held is not None:
+        preview = "held admission"
+    elif queued is not None:
+        preview = f"Reject queue: {queued.get('to', 'unknown')} -- {queued.get('reason', 'reason unavailable')}"
+    elif path.is_file():
+        split = split_frontmatter(path.read_text())
+        data, errors = _load_frontmatter(split[0], str(path)) if split else (None, [True])
+        if errors:
+            raise runner.Refusal(f"{ticket_path(stem)} has invalid frontmatter", "fix the ticket and retry the verdict")
+        preview = f"ticket state: {data.get('state', 'unknown')}"
+    else:
+        preview = "no ticket file"
+    print(f"{stem}: {preview}")
+    try:
+        answer = read_input(f"Type {stem} to {verb}: ")
+    except EOFError:
+        answer = ""
+    if answer != stem:
+        print("verdict aborted")
+        return 1
     if held is None:
         try:
             return await runner.verdict(stem, checkout, kill=verb == "reject")

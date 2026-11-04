@@ -8,6 +8,7 @@
     ./dev.py status           the engine's projected state
     ./dev.py drain            run every eligible ticket to quiescence
     ./dev.py kill             hard-stop the running drain or serve
+    ./dev.py confirm STEM...  keep each named ticket
     ./dev.py reject STEM...   kill each named Reject-queue ticket
 
 Standard library only, so any python3 starts it; every task runs through uv in this repo's environment.
@@ -42,7 +43,8 @@ def main() -> None:
     new.add_argument("--kind", choices=("feature", "bug", "chore"), default="feature")
     sub.add_parser("drain", help="run every eligible ticket to quiescence")
     sub.add_parser("kill", help="hard-stop the running drain or serve")
-    sub.add_parser("reject", help="kill each named Reject-queue ticket").add_argument("stems", nargs="+")
+    for verb in ("confirm", "reject"):
+        sub.add_parser(verb, help=f"{verb} each named ticket").add_argument("stems", nargs="+")
     args = parser.parse_args()
     if args.task is None:
         run(["uv", "run", "pytest", "-q"])
@@ -52,9 +54,9 @@ def main() -> None:
         chupa("new", args.stem, "--kind", args.kind)
     elif args.task == "lint":
         chupa("lint", *args.stems)
-    elif args.task == "reject":
+    elif args.task in {"confirm", "reject"}:
         for stem in args.stems:
-            chupa("reject", stem)
+            chupa(args.task, stem)
     else:
         chupa(args.task)
 

@@ -19,7 +19,7 @@ def run():
         git_out(root, "commit", "-m", "remove plan")
         commit_ticket(root, "parent", confirmed())
         commit_ticket(root, "child", confirmed(depends="- parent"))
-        if main(["reject", "parent"], cwd=root, env=ENV, clock=Clock()) != 0:
+        if main(["reject", "parent"], cwd=root, env=ENV, clock=Clock(), terminal=(lambda: True, lambda _: "parent")) != 0:
             raise RuntimeError("reject failed")
         if not list((root / ".chupa/state/box").glob("*.json")):
             raise RuntimeError("dead dependency report missing")

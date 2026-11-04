@@ -50,8 +50,8 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `retro` | yes | Forces a retro report (section 9.5). |
 | `triage` | yes | One sequential pass over pending Suggestion Box messages (section 9.2). |
 | `pause` / `resume` / `kill` | try | With a running engine, publish a control request to it (section 7.3). With none: `kill` refuses (exit 2); `pause`/`resume` print "nothing running". |
-| `confirm <stem>` | yes | Keep: promotes a draft to confirmed, keeps a Reject-queue item, or releases a held merge (section 6.6). |
-| `reject <stem>` | yes | Kill: stamps the ticket `rejected` (section 6.6). Refuses settled stems. |
+| `confirm <stem>` | yes | A person at a terminal types the stem to keep: promotes a draft to confirmed, keeps a Reject-queue item, or releases a held merge (section 6.6). |
+| `reject <stem>` | yes | A person at a terminal types the stem to kill: stamps the ticket `rejected` (section 6.6). Refuses settled stems. |
 
 ### 2.2 `./dev.py`
 
@@ -65,7 +65,7 @@ The repo's one dev command; standard library only, every task through `uv`.
 | `new STEM [--kind K]` | `chupa new <stem> --kind feature\|bug\|chore` (default `feature`) |
 | `lint [STEM...]` | `chupa lint [stem ...]` (read-only; no writer lock) |
 | `status`, `drain`, `kill` | the matching chupa verb |
-| `reject STEM...` | `chupa reject` once per stem |
+| `confirm STEM...`, `reject STEM...` | `chupa confirm` or `chupa reject` once per stem; a person at a terminal types each stem |
 
 ## 3. Tickets
 
@@ -331,7 +331,7 @@ terminal carries a Reject routing marker. `reject` refuses settled stems.
   journaling `keep actor: machine` and drawing `retry`. A machine keep never resets caps.
 - `confirm` on a `draft` ticket promotes it to `confirmed` instead.
 
-Anything can run `confirm` and `reject` today; nothing checks that a person typed them.
+Keep and kill require a person at an interactive terminal to type the exact stem before the verdict proceeds.
 
 ### 6.7 Other holds
 
