@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "43862c04c1583a404dc39f67e59e6135bd2d3a64",
+  "produced_at_sha": "83db88545a87fac0cb687f71431045b262799707",
   "stem": "bug-evidence-intake",
-  "attempt": 1,
+  "attempt": 2,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "Intake checks evidence_findings (tickets.py:647) on disk, then stages from ls-files --exclude-standard (655). Fix: admit from the set it commits; run that listing before admission, keep regular non-symlink files, and refuse with the evidence finding if none remain.",
-    "Do the ls-files evidence check before fs.write stamps the ticket (tickets.py:653). The intake docstring says a refused ticket stays on disk, uncommitted, untouched, so a gitignored-only refusal must not rewrite ticket.md.",
-    "Add a test to tests/test_tickets.py: a bug ticket whose only evidence file is gitignored (for example *.log) is refused, nothing is committed, and both files stay on disk unchanged. The review finding's paved road requires this case.",
-    "Make the refusal for ignored-only evidence actionable: its paved road, and docs/host-authoring.md's Evidence part, should say the evidence file must not be gitignored. The current text says only to add a file, which an author with an ignored file has already done.",
-    "Leave _gather_bug and the Check gate unchanged: the ticket's Definition of rejected forbids changing that gate, and the fence excludes chupa/stages.py. The fix belongs entirely in the chupa/tickets.py intake path, plus tests and docs."
+    "In intake at chupa/tickets.py:657, also exempt journal state `rejected`: mergequeue.py:383 and runner.py:647 journal {\"to\": \"rejected\"} without stamping frontmatter. The ticket says the check is never applied to rejected tickets. SETTLED (status.py:16) lacks `rejected`, so add it.",
+    "Add a parametrized case to test_settled_bug_is_not_rejudged_for_evidence that journals {\"to\": \"rejected\"} while the frontmatter stays `state: confirmed`, then edits ticket.md and asserts intake admits it. The current test covers only frontmatter rejection.",
+    "Narrow the stray guard at chupa/tickets.py:634-635: exempt a staged evidence path only if this intake will commit it, meaning a non-deletion status and a regular non-symlink file. Reuse the symlink and is_file test from lines 654-656. Staged deletions and symlinks must stay stray.",
+    "Add tests that a staged deletion and a staged symlink under a pending stem's evidence/ raise IntakeRefused up front with nothing committed. Otherwise `commit --only` leaves them in the index, the stem stops being pending, and the next intake refuses every ticket.",
+    "Keep the rest of the diff: both findings are narrow oversights in chupa/tickets.py, and 3877 tests passed. Rerun `uv run pytest -q tests/test_tickets.py` and `uv run pytest -q`, and leave the bug_evidence gate at Check unchanged."
   ],
   "mechanical": null,
   "spec_version": "1.1",
