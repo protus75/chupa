@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "5aa690fa2b78cdba1f9a2e9106ad27c61751586f",
+  "stem": "bug-evidence-intake",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "retry",
+  "lessons": [
+    "Commit the finished work: premise_failed was wrong and uncommitted edits are discarded. specs/implement.md step 4 requires committing; plan section 11 says a pre-existing failure is verified on base, filed, not fixed. Redo all edits, since the prior ones were lost.",
+    "Do not stop on the four tests/test_seeded_phase7_core.py failures. VerificationGate in chupa/stages.py skips any command with base_red set, and gather_evidence sets that when the command also fails on the merge base, filing the failure against main.",
+    "Do not repair the missing tickets/phase7-continue/ticket.md: commit 347c970 deleted it, tests/test_seeded_phase7_core.py is outside the fence, and specs/implement.md forbids writing existing tickets. Report it only in second_problems; box-000301-18c81719 already records it.",
+    "Before replying ok, confirm tests/test_tickets.py passes and the full-suite failures are only those four tests. Any other failure must be fixed. Rerun the full suite after the last edit, since editing tickets.py during verification caused a spurious fifth failure.",
+    "Say in surprises that criterion 3 does not exit 0 only because of the four base-red tests, naming base-commit reproduction as the proof, so Review can see the failures are not caused by this diff."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
