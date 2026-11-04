@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "fa8f5a5429f7caa39d7b7f93682c2f0837d151c7",
+  "stem": "attempts-cap",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Criterion 3 cannot pass at this base: commit 347c970 retired tickets/phase7-continue/ticket.md, but tests/test_seeded_phase7_core.py:364 and :376 still require it. Keep this ticket queued until that test or ticket conflict lands in a separate change.",
+    "Do not restore the ticket or edit tests/test_seeded_phase7_core.py in this ticket: Definition of rejected allows test changes only for the new defaults or the new cap, and CHUPA_PLAN.md section 11 says to file a pre-existing failure, not fix it. box-000300-868b5f24 records it.",
+    "Before rerunning, confirm that the base no longer has the four test_seeded_phase7_core failures (exact_admission, closure, recorded_ticket_bytes, check_owns_seed_custody). Compare any remaining full-suite failures against the base commit before attributing them to this diff.",
+    "The next attempt must reimplement the work: the harvest diff_stat is empty because the edits stayed uncommitted, though focused cap and config verification passed (106 tests). Do not assume any of that work carries over; re-run both Verification commands."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
