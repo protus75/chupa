@@ -1,10 +1,11 @@
 # Review: snag
 
-The new `drive` refusal stops `serve` and strands the stem in `running` when a stem at its attempts total was never routed; separately and not blocking, `eval/shakeout/drain.py` (outside the fence) appears to go red by reading under `premise_bounce: 1` while `tests/test_shakeout.py` overrides that cap, so it should be filed.
+The attempts cap and new defaults are implemented, but the new premise_bounce default breaks the real shakeout member while a test patch hides it, and the new `_admit` check gives settled stems a dead-end refusal.
 
 ## Findings
 
-- [logic] chupa/runner.py:150 `Scheduler.dispatch_next` holds only stems in `reject_queue` and never checks caps, and `_settle`'s routing of spent stems exists only in drain. A stem at its attempts total with no routed terminal therefore still reaches `serve`'s dispatch. This happens when the journal already holds at least `caps.attempts` failures from before this change, or when an operator lowers `caps.attempts`. `serve.py:120` journals `running`, then this guard raises `Refusal`. Nothing between `drive` and `guarded()` catches it, so `serve` exits with code 2, the stem stays `running` with no terminal, and it never routes to the Reject queue. Once reconcile reaps the stem as `abandoned`, it is not in `reject_queue`, so the next `serve` can dispatch it and fail the same way. The ticket requires a stem at its total to route to the Reject queue with reason "attempts cap spent". No test covers this guard on the `serve` path. (do instead: Replace the raise in `drive` with a single routed terminal that does not count as a failed attempt, for example `{"to": "abandoned", "reason": spent_reason("attempts"), "dispatch": "reject_queue", "routed": "reject_queue"}`, and return its state. `_admit` can keep refusing for `chupa run`, which refuses before journaling `running`. Add a test that drives an unrouted stem at its total through the daemon dispatch path and asserts it lands in the Reject queue, makes no model call, and does not stop the worker.)
+- [acceptance] tests/test_shakeout.py:220 The test monkeypatches `Bench.initialize` to set `premise_bounce: 2`, so `premise_park_release` passes only in this test. The real member in `eval/shakeout/drain.py` still runs on the shipped default of 1 through `eval.shakeout.run`. There, the first `premise_failed` spends the cap and routes the stem to Reject. `_next` then never re-offers it after the ticket edit, so `assert stem in released.merged` fails and the battery goes red. (do instead: Remove the monkeypatch and set `premise_bounce: 2` inside `_premise_park_release` with `bench.configure`, as other members already override caps. `eval/` is outside this ticket's Scope fence, so a human must widen the fence to include `eval/shakeout/drain.py` before this can land.)
+- [logic] chupa/runner.py:722 The attempts-spent refusal in `_admit` runs before the already-merged and non-confirmed state checks. A merged or otherwise settled stem with five or more failed terminals in its lineage is told to run drain and then `confirm`. `_settle` skips settled stems, so it is never routed, and `confirm` then refuses because the stem is not in the Reject queue. The operator should have received the existing 'already merged' refusal and its road to author a new stem. (do instead: Move the attempts check below the merged and `state != confirmed` refusals in `_admit`, and add a test that runs a merged stem with five prior failures and expects the 'already merged' refusal.)
 
 ## Record
 
@@ -12,17 +13,26 @@ The new `drive` refusal stops `serve` and strands the stem in `running` when a s
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "c2d56ad43ac876135ca8579bf237f307ecf58e6e",
+  "produced_at_sha": "c7c53f9d9835eef2a4aeffc05d650631faf6a8b2",
   "stem": "attempts-cap",
-  "reviewed_sha": "c2d56ad43ac876135ca8579bf237f307ecf58e6e",
-  "summary": "The new `drive` refusal stops `serve` and strands the stem in `running` when a stem at its attempts total was never routed; separately and not blocking, `eval/shakeout/drain.py` (outside the fence) appears to go red by reading under `premise_bounce: 1` while `tests/test_shakeout.py` overrides that cap, so it should be filed.",
+  "reviewed_sha": "c7c53f9d9835eef2a4aeffc05d650631faf6a8b2",
+  "summary": "The attempts cap and new defaults are implemented, but the new premise_bounce default breaks the real shakeout member while a test patch hides it, and the new `_admit` check gives settled stems a dead-end refusal.",
   "findings": [
+    {
+      "code": "acceptance",
+      "path": "tests/test_shakeout.py",
+      "line": 220,
+      "message": "The test monkeypatches `Bench.initialize` to set `premise_bounce: 2`, so `premise_park_release` passes only in this test. The real member in `eval/shakeout/drain.py` still runs on the shipped default of 1 through `eval.shakeout.run`. There, the first `premise_failed` spends the cap and routes the stem to Reject. `_next` then never re-offers it after the ticket edit, so `assert stem in released.merged` fails and the battery goes red.",
+      "paved_road": "Remove the monkeypatch and set `premise_bounce: 2` inside `_premise_park_release` with `bench.configure`, as other members already override caps. `eval/` is outside this ticket's Scope fence, so a human must widen the fence to include `eval/shakeout/drain.py` before this can land.",
+      "kind": null,
+      "unit": null
+    },
     {
       "code": "logic",
       "path": "chupa/runner.py",
-      "line": 150,
-      "message": "`Scheduler.dispatch_next` holds only stems in `reject_queue` and never checks caps, and `_settle`'s routing of spent stems exists only in drain. A stem at its attempts total with no routed terminal therefore still reaches `serve`'s dispatch. This happens when the journal already holds at least `caps.attempts` failures from before this change, or when an operator lowers `caps.attempts`. `serve.py:120` journals `running`, then this guard raises `Refusal`. Nothing between `drive` and `guarded()` catches it, so `serve` exits with code 2, the stem stays `running` with no terminal, and it never routes to the Reject queue. Once reconcile reaps the stem as `abandoned`, it is not in `reject_queue`, so the next `serve` can dispatch it and fail the same way. The ticket requires a stem at its total to route to the Reject queue with reason \"attempts cap spent\". No test covers this guard on the `serve` path.",
-      "paved_road": "Replace the raise in `drive` with a single routed terminal that does not count as a failed attempt, for example `{\"to\": \"abandoned\", \"reason\": spent_reason(\"attempts\"), \"dispatch\": \"reject_queue\", \"routed\": \"reject_queue\"}`, and return its state. `_admit` can keep refusing for `chupa run`, which refuses before journaling `running`. Add a test that drives an unrouted stem at its total through the daemon dispatch path and asserts it lands in the Reject queue, makes no model call, and does not stop the worker.",
+      "line": 722,
+      "message": "The attempts-spent refusal in `_admit` runs before the already-merged and non-confirmed state checks. A merged or otherwise settled stem with five or more failed terminals in its lineage is told to run drain and then `confirm`. `_settle` skips settled stems, so it is never routed, and `confirm` then refuses because the stem is not in the Reject queue. The operator should have received the existing 'already merged' refusal and its road to author a new stem.",
+      "paved_road": "Move the attempts check below the merged and `state != confirmed` refusals in `_admit`, and add a test that runs a merged stem with five prior failures and expects the 'already merged' refusal.",
       "kind": null,
       "unit": null
     }
