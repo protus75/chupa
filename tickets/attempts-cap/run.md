@@ -1,19 +1,18 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-Previously exhausted, unrouted stems receive a non-counting abandoned terminal so daemon dispatch continues normally; the merge-base suite was also green.
+Untouched merge base d540f701 passed both Verification commands: 104 focused tests and 3863 full-suite tests. Applying premise_bounce=1 only in memory reproduced the shakeout failure, so it is not base-red.
 
 ## Dead ends
 
-none
+No test-only override was added because it would leave the standalone shakeout battery broken.
 
 ## Second problems filed
 
-- box-000308-5f89e28a: The standalone eval/shakeout/drain.py premise-release scenario passes on the base but fails under premise_bounce=1; its required budget needs an explicit override outside this fence.
-- box-000309-3677fa33: Direct daemon merge-result delivery can still invoke rework before recording the final allowed failure; suppressing that call requires a separate chupa/daemon.py change.
+none
 
 ## Resolved engine/model
 
@@ -23,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-60 minutes expected; approximately 20 minutes actual.
+60m expected; approximately 9m spent validating the scope blocker.
 
