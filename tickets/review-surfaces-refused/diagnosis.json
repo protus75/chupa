@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "a1da6a0c8c5183de26c5acceb545dc3a7fb7b458",
+  "stem": "review-surfaces-refused",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "retry",
+  "lessons": [
+    "Reply ok, not premise_failed, if the only full-suite failures are the four tests/test_seeded_phase7_core.py tests. stages.py gather_evidence reruns a red command on the merge base and sets base_red; VerificationGate ignores base_red results, so these do not block.",
+    "Commit the scoped change on the branch. specs/implement.md step 4 says uncommitted edits are discarded with the worktree, so the last attempt's work is lost: redo all five fenced files.",
+    "Do not touch tests/test_seeded_phase7_core.py or restore tickets/phase7-continue/ticket.md; both are outside the fence. List the failure in second_problems and in surprises (specs/implement.md step 2), citing box-000303-e18fccb1.",
+    "Run uv run pytest -q and confirm the failures are exactly those four tests. base_red is judged per command, so it would also hide a failure you caused: fix any other failure on the branch.",
+    "Require the focused command to exit 0: uv run pytest -q tests/test_config.py tests/test_host_contract.py, including test_review_surfaces_refused. It is green on base, so base_red cannot excuse it."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
