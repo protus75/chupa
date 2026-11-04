@@ -599,8 +599,8 @@ remains and does not apply to ordinary tickets:
 - **Spec-gap hardening:** a `spec_gap` finding holds the stem and files a `plan-gap-<n>` ticket
   that edits `CHUPA_PLAN.md` (`chupa/hardening.py`, `runner.hold_on_hardening`); the `hardening`
   cap; `plan_units` on terminals.
-- **Plan reads:** the Author stage, Rework, dead-dependency handling, and `serve` read
-  `CHUPA_PLAN.md`; some read it with no fallback, which would fail on a host without the file.
+- **Plan reads:** runtime reads of `CHUPA_PLAN.md` go through one function; an absent plan is
+  tolerated for hosts that do not have the file.
 - **Phase exits:** a forced retro before any `phase<N>-exit` stem; eval report artifacts
   (shakeout, soak, reliability battery, host loop, exit receipt).
 - **Bootstrap files:** `bootstrap/` (conductor, state, operator setup) and the box's bootstrap

@@ -34,6 +34,7 @@ from chupa.journal import EVENT_VERSIONS, TERMINAL_STATES, EventType, run_seq
 from chupa.providers import child_env
 from chupa.seams import ExecutableNotFound, FileSystem, ProcessExec
 from chupa.specs import PlanContractError, RenderOverBound, Spec, entry_unit_gap, hardenable_units, load_spec, plan_id, render, required_units, resolve_plan_contract, without_unit
+from chupa.tickets import read_plan
 from chupa.tickets import _HEADING, _bullets, _sections, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, TicketInvalid, ticket_path, validate_ticket
 
 MAIN = "main"
@@ -560,7 +561,7 @@ def implement_stage(ctx: StageContext, ticket: Ticket, worktree: Path,
     from chupa.requisition import validate_finding_units
 
     spec = _spec(ctx, "implement")
-    plan = (ctx.repo / PLAN_FILE).read_text() if (ctx.repo / PLAN_FILE).is_file() else ""
+    plan = read_plan(ctx.repo) or ""
     units = hardenable_units(plan, ticket.stem, ticket.plan_contract)
 
     class TicketImplementReply(ImplementReply):
@@ -909,8 +910,8 @@ async def gather_safety_evidence(
         verification=[],
         is_bug=ticket.frontmatter.kind == "bug",
         run_record=run_md.read_text() if run_md.is_file() else None,
-        plan_main=(ctx.repo / PLAN_FILE).read_text() if anchored else None,
-        plan_head=(worktree / PLAN_FILE).read_text() if anchored else None,
+        plan_main=read_plan(ctx.repo) if anchored else None,
+        plan_head=read_plan(worktree) if anchored else None,
         **await committed_core(worktree, ctx.config, ctx.git),
     )
 
@@ -1126,7 +1127,7 @@ async def _review_seeds(ctx: StageContext, ticket: Ticket, *, attempt: int,
     """Judge only new or changed ticket.md files; an identical foreign main file is not a candidate."""
     stem = ticket.stem
     worktree = ctx.worktree(stem)
-    plan = (ctx.repo / PLAN_FILE).read_text()
+    plan = read_plan(ctx.repo) or ""
     verdicts = _seed_verdicts(ctx, stem)
     reviews = dict(prior)
     new_paths: list[Path] = []

@@ -36,6 +36,7 @@ from chupa.specs import registry_rows, unit_sha
 from chupa.stages import (DiagnosisMaterial, StageContext, diagnose, lift_outbox,
                           run_stages, write_diagnosis)
 from chupa.status import SETTLED, last_states, reject_queue
+from chupa.tickets import read_plan
 from chupa.tickets import (INTAKE_SIGNAL, PLAN_FILE, TICKETS_DIR, Ticket, TicketInvalid, intake,
                            parse_ticket, split_frontmatter, stamp, stem_findings, ticket_path, validate_ticket)
 
@@ -191,7 +192,7 @@ async def drive(ctx: StageContext, ticket: Ticket, *, admission=None, consume_ha
         for finding in result.findings:
             if finding.kind == "spec_gap" and finding.unit is not None:
                 gaps.setdefault(finding.unit, []).append(finding.message)
-    if gaps and hardener_round(ctx.driver.journal.read(), ticket.stem) is None:
+    if gaps and read_plan(ctx.repo) is not None and hardener_round(ctx.driver.journal.read(), ticket.stem) is None:
         await hold_on_hardening(ctx, ticket, gaps, attempt=run.attempt, to=result.outcome, stage=stage)
         if ctx.worktree(ticket.stem).exists():
             await ctx.git.worktree_remove(ctx.repo, ctx.worktree(ticket.stem))
@@ -365,7 +366,7 @@ async def hold_on_hardening(ctx: StageContext, ticket: Ticket, gaps: dict[str, l
                             to: str = "gate_failed", stage: str | None = "check") -> None:
     """Join the engine's open round or file one covering this terminal's gapped units."""
     history = ctx.driver.journal.read()
-    plan = (ctx.repo / PLAN_FILE).read_text()
+    plan = read_plan(ctx.repo) or ""
     plan_units = {uid: unit_sha(plan, uid) for uid in sorted(gaps)}
     # Round-less Reject terminals must not erase the last round's unchanged coverage.
     prior = next((e.body for e in reversed(lineage(history, ticket.stem))
@@ -669,7 +670,7 @@ async def _dead_dependents(dead: str, checkout: Checkout) -> None:
         if stem == dead or _ticket_state(path) != "confirmed" or last.get(stem) in SETTLED | {"rejected"}:
             continue
         ticket = parse_ticket(stem, path.read_text(), checkout.repo,
-                              plan=(checkout.repo / "CHUPA_PLAN.md").read_text())
+                              plan=read_plan(checkout.repo))
         for dependency in sorted(set(ticket.depends) & deaths):
             if not any(e.type == EventType.SIGNAL and e.ticket == stem
                    and e.body.get("signal") == "dead_dependency" and e.body.get("dead") == dependency

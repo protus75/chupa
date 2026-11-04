@@ -21,6 +21,7 @@ from chupa.requisition import RequisitionVerdict, review_ticket
 from chupa.runner import Checkout, SPECS_DIR
 from chupa.specs import Spec, load_spec, render
 from chupa.stages import findings_text
+from chupa.tickets import read_plan
 from chupa.tickets import TicketInvalid, split_frontmatter, stamp, stem_findings, ticket_path, validate_ticket
 
 AUTHOR_STUCK_S = 900.0
@@ -241,7 +242,7 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
                             reopen=message.reopen)
         text = stamp(provisional, "state", state)
         reviewed = await review_ticket(
-            driver, repo=checkout.repo, plan=(checkout.repo / "CHUPA_PLAN.md").read_text(),
+            driver, repo=checkout.repo, plan=read_plan(checkout.repo),
             stem=artifact.stem, text=text, specs_dir=SPECS_DIR,
             tier=checkout.config.routing_default_tier, stem_slot="author", run_seq=pass_no,
             attempt=message.seq, call_seq=call_seq,

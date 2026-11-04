@@ -20,6 +20,7 @@ from chupa.requisition import review_ticket
 from chupa.specs import RenderOverBound, load_spec, render
 from chupa.stages import StageContext
 from chupa.status import last_states
+from chupa.tickets import read_plan
 from chupa.tickets import Ticket, TicketInvalid, stem_findings, ticket_path, validate_ticket
 
 REWORK_ORDER = "rework_order"
@@ -132,7 +133,7 @@ async def rework(ctx: StageContext, ticket: Ticket, text: str, findings: list[Fi
             if errors:
                 return GateReport(code="ticket_schema", verdict="fail", findings=errors)
 
-            plan = (tree / "CHUPA_PLAN.md").read_text()
+            plan = read_plan(tree)
             for proposal in artifact.tickets:
                 review_seq += 1
                 verdict = await review_ticket(

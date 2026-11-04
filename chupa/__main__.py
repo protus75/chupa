@@ -30,6 +30,7 @@ from chupa.seams import CommandNotifications
 from chupa.status import SETTLED, last_states, project, render
 from chupa.storm import StormLedger
 from chupa.timers import Timers
+from chupa.tickets import read_plan
 from chupa.tickets import IntakeRefused, Ticket, TicketInvalid, evidence_findings, missing_evidence_findings, stem_findings, template, ticket_path, validate_ticket
 from chupa.tickets import _intake_claims, _pending, _porcelain
 
@@ -264,9 +265,8 @@ def main(
             print("\n".join(line for _, line in lines) if lines else "no pending suggestions")
             return 0
         if args.verb == "serve":
-            plan_path = repo / "CHUPA_PLAN.md"
             return asyncio.run(serve.serve(checkout, config_path=args.config,
-                plan=plan_path.read_text() if plan_path.is_file() else None, signals=_serve_signals))
+                plan=read_plan(repo), signals=_serve_signals))
         checkout = replace(checkout, control=build_control(checkout))
         checkout.control.load_config = lambda: load_config(args.config, cwd=repo)
         dispatch = pipeline(checkout)

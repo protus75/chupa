@@ -29,6 +29,7 @@ from chupa.scheduler import Scheduler
 from chupa.seams import Clock, FileSystem, Sleep
 from chupa.stages import StageContext, StageName, Stages, StagesRun
 from chupa.storm import StormBreaker
+from chupa.tickets import read_plan
 from chupa.tickets import Ticket, parse_ticket, ticket_path
 from chupa.watcher import Watcher
 
@@ -366,7 +367,7 @@ async def apply_rework(ctx: StageContext, ticket: Ticket, findings: list[Finding
     try:
         text = await ctx.git._run(ctx.repo, "show", f"HEAD:{ticket_path(ticket.stem)}")
         original = parse_ticket(ticket.stem, text, ctx.repo,
-                                plan=(ctx.repo / "CHUPA_PLAN.md").read_text())
+                                plan=read_plan(ctx.repo))
         tier, effort = runner.capability(original, ctx.driver.journal.read())
         result = await rework(ctx, original, text, findings, attempt=attempt, workspace=workspace,
                               tier=tier, effort=effort, stuck_budget=original.stuck_minutes * 60,

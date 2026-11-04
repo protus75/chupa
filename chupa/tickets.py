@@ -24,6 +24,13 @@ from chupa.specs import PlanContractError, plan_id, registry_rows, resolve_plan_
 TICKETS_DIR = "tickets"
 TICKET_FILE = "ticket.md"
 PLAN_FILE = "CHUPA_PLAN.md"
+
+
+def read_plan(root: Path) -> str | None:
+    path = root / PLAN_FILE
+    return path.read_text() if path.is_file() else None
+
+
 STEM = re.compile(r"^[a-z0-9][a-z0-9-]{1,63}$")
 RESERVED_STEMS = frozenset({"decisions", "retro"})  # sibling dirs that match the stem regex (sections 14, 15)
 INTAKE_SIGNAL = "ticket_intake"
@@ -511,8 +518,7 @@ def validate_ticket(stem: str, text: str, repo: Path, siblings: Collection[str] 
 
     `siblings` are the other seeds of a seeding batch: a seed may depend on one before the batch lifts (19.L).
     """
-    plan_file = repo / PLAN_FILE
-    ticket = parse_ticket(stem, text, repo, plan=plan_file.read_text() if plan_file.is_file() else None,
+    ticket = parse_ticket(stem, text, repo, plan=read_plan(repo),
                           siblings=siblings)
     edges = _graph(repo)
     edges[stem] = list(ticket.depends)

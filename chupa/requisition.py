@@ -79,12 +79,13 @@ def base_render_chars(repo: Path, plan: str, ticket: Ticket, text: str, specs_di
         return int(re.search(r"rendered prompt is (\d+) characters", exc.finding.message).group(1))
 
 
-async def review_ticket(driver: Driver, *, repo: Path, plan: str, stem: str, text: str,
+async def review_ticket(driver: Driver, *, repo: Path, plan: str | None, stem: str, text: str,
                         specs_dir: Path, tier: AgentTier, stem_slot: str, run_seq: int,
                         attempt: int, call_seq: int, expected_budget: float | Literal['surface', 'eval'],
                         prior: str = "none",
                         siblings: Collection[str] = ()) -> RequisitionVerdict:
     ticket = review_target(repo, stem, text, siblings)
+    plan = plan if plan is not None else ""
     units = hardenable_units(plan, stem, ticket.plan_contract)
     spec = load_spec((specs_dir / "requisition_review.md").read_text())
     ticket_bytes = text.encode()

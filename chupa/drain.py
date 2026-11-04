@@ -30,6 +30,7 @@ from chupa.runner import EXIT_MERGED, EXIT_TICKET, Checkout, Dispatch, Refusal, 
 from chupa.seams import ProcessExec
 from chupa.specs import unit_sha
 from chupa.status import SETTLED, last_states, reject_queue
+from chupa.tickets import read_plan
 from chupa.tickets import (
     INTAKE_SIGNAL, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, TicketInvalid, _porcelain, depends_cycle, intake,
     parse_ticket, ticket_path,
@@ -330,8 +331,7 @@ class _Drain:
         """Committed tickets only: a ticket file dirty in the working tree is not yet on the ticket plane."""
         repo = self.c.repo
         dirty = {p for _, p in _porcelain(await self.c.git.status_porcelain(repo))}
-        plan_file = repo / PLAN_FILE
-        plan = plan_file.read_text() if plan_file.is_file() else None
+        plan = read_plan(repo)
         tickets: dict[str, Ticket] = {}
         invalid: dict[str, str] = {}
         drafts: list[str] = []
