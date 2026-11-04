@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Preserved published rework on direct daemon results and documented that path’s limitation; the shakeout test now supplies an explicit premise budget.
+Direct merge handoffs preserve published rework: splits retire their parent; updates and escalations route to Reject at the cap. Tests requiring larger budgets now configure them explicitly.
 
 ## Dead ends
 
@@ -12,13 +12,12 @@ none
 
 ## Second problems filed
 
-- box-000306-c41256c4: TicketWriter.consume_result bypasses drive’s pending-failure check and can call rework on the fifth failure; fixing it requires chupa/daemon.py outside the fence.
-- box-000307-356acaee: The standalone eval/shakeout premise_park_release member needs an explicit premise_bounce budget above the new default; eval/ is outside the fence.
+none
 
 ## Resolved engine/model
 
 - provider: codex
-- model: gpt-6.1-sol
+- model: gpt-6-astra
 - spec: implement 1.5
 
 ## Predicted vs actual
