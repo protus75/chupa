@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Drain’s byte-level change detection retains its existing byte reads to preserve fingerprint behavior.
+Seed review uses empty plan text for its string-based helpers while ticket validation retains None to report citations against an absent plan.
 
 ## Dead ends
 
-The first focused test run exposed proposal whitespace normalization; the assertion was corrected and the suite passed.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 45 minutes; completed within the budget.
+none
 
