@@ -81,7 +81,7 @@ def test_host_contract_example_loads(tmp_path):
     assert cfg.providers[0].package == "@openai/codex"
     assert cfg.review.mechanical[0].argv == ["uv", "run", "pytest", "-q"]
     assert cfg.review.mechanical[1].trigger == ["src/"]
-    assert cfg.review.surfaces[0].rules_doc == Path("docs/review.md")
+    assert cfg.review.surfaces == []
     assert cfg.review.trigger_map == {"src/": ["scope_fence"]}
     assert cfg.review.gate_severity == {"scope_fence": "hard"}
     assert cfg.merge.safety_checks == ["host-test"]

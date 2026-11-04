@@ -257,6 +257,9 @@ def load_config(config_path: Path | None, *, cwd: Path) -> Config:
         raise ConfigError(
             path, null_key, "explicit null is refused; omit the key to take its shipped default, or set a value"
         )
+    review = raw.get("review")
+    if isinstance(review, dict) and isinstance(review.get("surfaces"), list) and review["surfaces"]:
+        raise ConfigError(path, "review.surfaces", "remove review.surfaces entries; host review surfaces are not supported yet")
     try:
         cfg = Config.model_validate(raw, context={"base": path.parent})
     except ValidationError as e:

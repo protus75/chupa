@@ -31,8 +31,7 @@ review:
   mechanical: # argv lists, never shell commands; choose your host's checks
     - {code: host-test, argv: [uv, run, pytest, -q], trigger: always, severity: hard}
     - {code: host-style, argv: [uv, run, ruff, check], trigger: [src/], severity: soft}
-  surfaces: # project rules are prompt data
-    - {name: host-review, trigger: [src/], rules_doc: docs/review.md, severity: hard}
+  surfaces: [] # host review surfaces are not supported yet
   trigger_map: {src/: [scope_fence]} # engine gate codes only; host entries use their own triggers
   gate_severity: {scope_fence: hard} # merge overrides; engine defaults are all hard
 merge:
@@ -145,6 +144,8 @@ Candidates name declared providers and are ordered primary-until-pressure;
 absent `model` selects `models_by_tier[tier]`. Non-review surfaces fall back to
 the review routing row. Surface names and host check codes are strings; engine
 gate overrides use engine codes. `trigger` is `always` or a path-prefix list.
+Config load refuses a declared `review.surfaces` entry; remove the entries because
+host review surfaces are not supported yet.
 Regenerate requires argv; union accepts no argv and only resolves append-only
 conflicts. A conflict path must match exactly one strategy, and regenerated
 paths must be outside the ticket fence; otherwise resolve through Rework with a

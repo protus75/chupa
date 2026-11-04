@@ -21,8 +21,6 @@ VALID = textwrap.dedent(
       mechanical:
         - {code: pytest, argv: [uv, run, pytest], trigger: always, severity: hard}
         - {code: ruff, argv: [uv, run, ruff, check], trigger: [chupa/], severity: soft}
-      surfaces:
-        - {name: correctness, trigger: always, rules_doc: docs/review.md, severity: hard}
       trigger_map: {chupa/: [scope_fence]}
       gate_severity: {scope_fence: hard}
     merge:
@@ -94,6 +92,15 @@ def test_config_flag_path_overrides_cwd(tmp_path):
     path = write(other, edit(VALID, "state_dir: .chupa", "state_dir: /var/chupa"), "host.yaml")
     cfg = load_config(path, cwd=tmp_path)
     assert cfg.state_dir == Path("/var/chupa")
+
+
+def test_review_surfaces_refused(tmp_path):
+    entry = "  surfaces: [{name: correctness, trigger: always, rules_doc: docs/review.md, severity: hard}]\n"
+    err = refusal(tmp_path, edit(VALID, "review:\n", "review:\n" + entry))
+    assert err.key == "review.surfaces"
+    assert "remove review.surfaces entries; host review surfaces are not supported yet" in str(err)
+    cfg = load_config(write(tmp_path, edit(VALID, "review:\n", "review:\n  surfaces: []\n")), cwd=tmp_path)
+    assert cfg.review.surfaces == []
 
 
 def test_explicit_values_override_defaults_and_partial_blocks_keep_the_rest(tmp_path):

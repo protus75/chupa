@@ -237,7 +237,8 @@ queue** (section 7.2): the safety tier runs the hard entries named in `merge.saf
 the integration tier runs every `trigger: always` + `severity: hard` entry. They never run at
 Check or in `run`/`drain` merges, and path-triggered or soft entries never run anywhere.
 
-`review.surfaces` (host review prompts) is accepted by config and never executed.
+Config load refuses a declared `review.surfaces` entry (host review prompts); remove
+the entries because host review surfaces are not supported yet.
 `review.trigger_map` is accepted by config and read by nothing.
 
 ## 6. When a run fails
@@ -568,7 +569,7 @@ with the fix. The full field inventory is in `docs/host-contract.md`.
 |---|---|
 | `schema_version`, `state_dir`, `worktree_root` | config version; where state and worktrees live |
 | `providers`, `routing`, `routing_default_tier` | models and which serves what (section 8) |
-| `review` | `gate_severity`, host `mechanical` checks; `surfaces` and `trigger_map` (accepted, unused) |
+| `review` | `gate_severity`, host `mechanical` checks; declared `surfaces` entries are refused at config load; `trigger_map` is accepted, unused |
 | `merge` | `safety_checks`, conflict `strategies` (serve only) |
 | `caps`, `circuit_breaker` | failure bounds (section 6.4, 8.3) |
 | `scheduler`, `drain` | `max_unmerged`; `max_runtime_hours`, `max_ticket_minutes` |
