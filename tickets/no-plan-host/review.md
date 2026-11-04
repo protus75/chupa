@@ -1,10 +1,10 @@
 # Review: snag
 
-Seed review still crashes on a host with no plan: `_review_seeds` passes the `None` from `read_plan` to `_review_one`, which requires a plan string.
+The runtime plan reads are correctly routed through read_plan and tolerate an absent plan, but the carried reproducer breaks its specified protocol when an import fails, exiting 1 with empty stdout instead of printing the error result and exiting 2.
 
 ## Findings
 
-- [logic] chupa/stages.py:1129 `plan = read_plan(ctx.repo)` yields `None` when `CHUPA_PLAN.md` is absent, and `_review_seeds` passes it unchanged to `_review_one` (declared `plan: str`). `_review_one` then calls `required_units(plan, seed_stem, citations)`, which reaches `registry_rows` and `_REGISTRY.findall(None)` and raises `TypeError`. `resolve_plan_contract(plan, ...)` on the same path would also fail, on `plan.splitlines`. So any ticket with `tickets` in its scope fence that adds a seed candidate on a no-plan host still crashes at seed review. The diff only replaces the `FileNotFoundError` with a `TypeError`. The ticket names `stages.py` seed review as in scope and its Definition of rejected covers any path that can still raise because the plan is absent. No test covers this path. (do instead: Make the seed-review path tolerate an absent plan the way `implement_stage` and `hold_on_hardening` do: use `plan = read_plan(ctx.repo) or ""` at this line, so `required_units` returns no units and citations fall through to `validate_ticket`, which reports a `## Plan contract` citation against an absent plan as a ticket finding. Add a no-plan seed-review test to `tests/test_no_plan_host.py` that fails on the current code.)
+- [acceptance] tests/regress_no_plan_host.py:14 The chupa and tests helper imports run at module level, outside main_result's try block. If any of them fails (for example a later rename of tests.test_drain.make_root or tests.test_cli.ENV, which this carried reproducer depends on), Python prints a traceback and exits 1 with nothing on stdout. The ticket requires `{"regression_result": "error"}` and exit 2 on any failure other than a FileNotFoundError naming CHUPA_PLAN.md. Exit 1 is also the code the ticket reserves for `defect`. (do instead: Move the chupa and tests imports into a function called inside main_result's try block (for example at the top of run() and no_plan()), so an import failure reaches `except Exception` and returns ("error", 2). Keep the sys.path insert at module level, and leave the JSON print as the only stdout output.)
 
 ## Record
 
@@ -12,17 +12,17 @@ Seed review still crashes on a host with no plan: `_review_seeds` passes the `No
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "3f9a1f5c43bf0f10bb996588e91653a93b7ea314",
+  "produced_at_sha": "f7c128944bbdcd596db6705576e1ea4f42d0fdb8",
   "stem": "no-plan-host",
-  "reviewed_sha": "3f9a1f5c43bf0f10bb996588e91653a93b7ea314",
-  "summary": "Seed review still crashes on a host with no plan: `_review_seeds` passes the `None` from `read_plan` to `_review_one`, which requires a plan string.",
+  "reviewed_sha": "f7c128944bbdcd596db6705576e1ea4f42d0fdb8",
+  "summary": "The runtime plan reads are correctly routed through read_plan and tolerate an absent plan, but the carried reproducer breaks its specified protocol when an import fails, exiting 1 with empty stdout instead of printing the error result and exiting 2.",
   "findings": [
     {
-      "code": "logic",
-      "path": "chupa/stages.py",
-      "line": 1129,
-      "message": "`plan = read_plan(ctx.repo)` yields `None` when `CHUPA_PLAN.md` is absent, and `_review_seeds` passes it unchanged to `_review_one` (declared `plan: str`). `_review_one` then calls `required_units(plan, seed_stem, citations)`, which reaches `registry_rows` and `_REGISTRY.findall(None)` and raises `TypeError`. `resolve_plan_contract(plan, ...)` on the same path would also fail, on `plan.splitlines`. So any ticket with `tickets` in its scope fence that adds a seed candidate on a no-plan host still crashes at seed review. The diff only replaces the `FileNotFoundError` with a `TypeError`. The ticket names `stages.py` seed review as in scope and its Definition of rejected covers any path that can still raise because the plan is absent. No test covers this path.",
-      "paved_road": "Make the seed-review path tolerate an absent plan the way `implement_stage` and `hold_on_hardening` do: use `plan = read_plan(ctx.repo) or \"\"` at this line, so `required_units` returns no units and citations fall through to `validate_ticket`, which reports a `## Plan contract` citation against an absent plan as a ticket finding. Add a no-plan seed-review test to `tests/test_no_plan_host.py` that fails on the current code.",
+      "code": "acceptance",
+      "path": "tests/regress_no_plan_host.py",
+      "line": 14,
+      "message": "The chupa and tests helper imports run at module level, outside main_result's try block. If any of them fails (for example a later rename of tests.test_drain.make_root or tests.test_cli.ENV, which this carried reproducer depends on), Python prints a traceback and exits 1 with nothing on stdout. The ticket requires `{\"regression_result\": \"error\"}` and exit 2 on any failure other than a FileNotFoundError naming CHUPA_PLAN.md. Exit 1 is also the code the ticket reserves for `defect`.",
+      "paved_road": "Move the chupa and tests imports into a function called inside main_result's try block (for example at the top of run() and no_plan()), so an import failure reaches `except Exception` and returns (\"error\", 2). Keep the sys.path insert at module level, and leave the JSON print as the only stdout output.",
       "kind": null,
       "unit": null
     }
