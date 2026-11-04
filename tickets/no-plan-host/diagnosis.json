@@ -1,0 +1,19 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "b2aa2fa895eecdd9bc30b27a3e81715b5e34c818",
+  "stem": "no-plan-host",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Acceptance criterion 3 and Scope-in's 'every runtime read of the plan in chupa/' cover chupa/drain.py:336 and chupa/__main__.py:263, but the Scope fence omits both. Add both files to the fence before rerunning; no attempt can satisfy the ticket as written.",
+    "Both out-of-fence reads are already guarded with is_file(), so they cannot raise. The finding comes only from criterion 3's 'no read_text() outside the one function'. Keep that criterion and widen the fence; route both reads through the new chupa/tickets.py function, which returns None when absent.",
+    "Criterion 3 also catches guarded reads inside the fence: chupa/tickets.py:515 and chupa/stages.py:563, 912, 913. Convert them too. stages.py:563 falls back to \"\", not None, so keep that fallback at the call site to leave behavior unchanged when the plan exists."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
