@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "868d2b4f06009685b2c4312e30299b7f7b27f5d4",
+  "stem": "review-checks-docs",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Criterion 2 forces review version \"1.2\", but tests/test_stages.py:353 asserts review.spec_version == \"1.1\" and is outside the fence, so criterion 4 fails. Per plan's CONTRADICTED TESTS rule, the ticket must fence that file and authorize the assertion update.",
+    "Do not edit tests/test_stages.py under the current fence. Plan's CONTRADICTED TESTS rule makes a fence wall on a criteria-forced path an authoring defect whose implement outcome is premise_failed, so repair the ticket first.",
+    "When re-authoring, grep tests/ for the old recorded review version, as the CONTRADICTED TESTS rule requires, and fence every assertion the bump contradicts, not only test_review_spec_read_only in tests/test_specs.py.",
+    "Criterion 4 also fails for a second cause: tests/test_seeded_phase7_core.py needs tickets/phase7-continue/ticket.md, absent from this tree; the attempt reproduced 4 failures on base 868d2b4. It is filed as box-000302-0c13ca18; do not fix it in this diff."
+  ],
+  "mechanical": null,
+  "spec_version": "1.1",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
