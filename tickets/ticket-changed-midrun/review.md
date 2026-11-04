@@ -1,11 +1,10 @@
 # Review: snag
 
-The hold works on the stage and merge-admission paths, but the intake and sha read added to `serve` dispatch can stop the daemon on a refused new ticket and can let an edit made just before dispatch escape the hold.
+The `ticket_changed` stop and hold are correct on every path I traced, but `docs/how-chupa-works.md` section 6.1 still states the old failure-handling order, which this diff makes false.
 
 ## Findings
 
-- [logic] chupa/serve.py:121 Serve dispatch discards `intake`'s `refused` result and then runs `rev_parse main:tickets/<stem>/ticket.md`, which raises `GitError` when the stem has no committed blob. The Watcher publishes on `parse_ticket` alone, and the evidence and source claim checks run only in intake. A new `kind: bug`, `state: confirmed` ticket with no evidence file therefore parses, gets published and reaches dispatch, then intake refuses it. The `GitError` propagates through `DaemonAdmission.dispatch` and `Serve.dispatch` to `guarded`, which calls `self.stop()` and exits serve with code 1. The file is still on disk, so a restarted serve can hit the same failure. Before this diff the same dispatch journaled `running` and did not raise. `self.writers[stem]` is also left set, because the raise happens before the `try/finally` that pops it. (do instead: Do not let a refused or uncommitted stem kill the worker. Check for a committed blob before setting `self.writers` and appending `running`. If there is none, return without dispatching and leave the refusal to the existing intake reporting. Add a serve test where a parseable new bug ticket with no evidence is refused and serve keeps running.)
-- [logic] chupa/serve.py:120 `await intake(...)` commits any pending edit at dispatch, and the next line records that new blob as `ticket_sha`, but `ticket` is still the object the Watcher parsed before the edit. If `ticket.md` is edited after the last `scan` and before dispatch, the run uses the old fence, criteria and verification with a sha that matches the new bytes. `ticket_changed` then never fires, so the run continues against a ticket it did not start with, and the Definition of rejected names that outcome. Without this intake call, the same uncommitted edit would differ from the committed blob and hold at the first stage. An edit committed in that window has the same problem, because the sha is read from main instead of being tied to the dispatched ticket's content. (do instead: Remove the dispatch-time intake, since `scan` already runs intake under the same admission slot. Make the recorded sha correspond to the dispatched ticket: compare the blob on main with the content `ticket` was parsed from, and if they differ, republish the fresh ticket with `scheduler.update` and return without dispatching. Add a serve test that edits the ticket after publication and before dispatch, and assert the run never proceeds on the old `Ticket` with the new sha.)
+- [acceptance] docs/how-chupa-works.md:- Stale doc: section 6.1 says "After any other non-ok terminal, `runner.drive` does, in order" and lists "4. **Diagnosis** (section 6.3), unless the outcome is `budget_exceeded` or an over-bound render." and "5. **Rework** if diagnosis said `split`...". The diff adds an early return in `runner.drive`: after Harvest, a `ticket_changed` terminal goes straight to `failure_terminal` with no diagnosis or Rework, and is routed to the Reject queue. An outcome of `gate_failed` with `ticket_changed` is a non-ok terminal that section 6.1 still says gets diagnosed, which contradicts the new section 6.7 text. (do instead: Update the section 6.1 list to include the `ticket_changed` exit: after Harvest, it journals a `gate_failed` terminal routed to the Reject queue, removes the worktree, and skips the cap, Diagnosis and Rework steps. For example, add a step beside step 2 and point it to section 6.7.)
 
 ## Record
 
@@ -13,26 +12,17 @@ The hold works on the stage and merge-admission paths, but the intake and sha re
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "5ea748d9343f3adb9b6667e609f6f415b125c38d",
+  "produced_at_sha": "5c7970ca41632e91bf3f7d6932b76274446052a9",
   "stem": "ticket-changed-midrun",
-  "reviewed_sha": "5ea748d9343f3adb9b6667e609f6f415b125c38d",
-  "summary": "The hold works on the stage and merge-admission paths, but the intake and sha read added to `serve` dispatch can stop the daemon on a refused new ticket and can let an edit made just before dispatch escape the hold.",
+  "reviewed_sha": "5c7970ca41632e91bf3f7d6932b76274446052a9",
+  "summary": "The `ticket_changed` stop and hold are correct on every path I traced, but `docs/how-chupa-works.md` section 6.1 still states the old failure-handling order, which this diff makes false.",
   "findings": [
     {
-      "code": "logic",
-      "path": "chupa/serve.py",
-      "line": 121,
-      "message": "Serve dispatch discards `intake`'s `refused` result and then runs `rev_parse main:tickets/<stem>/ticket.md`, which raises `GitError` when the stem has no committed blob. The Watcher publishes on `parse_ticket` alone, and the evidence and source claim checks run only in intake. A new `kind: bug`, `state: confirmed` ticket with no evidence file therefore parses, gets published and reaches dispatch, then intake refuses it. The `GitError` propagates through `DaemonAdmission.dispatch` and `Serve.dispatch` to `guarded`, which calls `self.stop()` and exits serve with code 1. The file is still on disk, so a restarted serve can hit the same failure. Before this diff the same dispatch journaled `running` and did not raise. `self.writers[stem]` is also left set, because the raise happens before the `try/finally` that pops it.",
-      "paved_road": "Do not let a refused or uncommitted stem kill the worker. Check for a committed blob before setting `self.writers` and appending `running`. If there is none, return without dispatching and leave the refusal to the existing intake reporting. Add a serve test where a parseable new bug ticket with no evidence is refused and serve keeps running.",
-      "kind": null,
-      "unit": null
-    },
-    {
-      "code": "logic",
-      "path": "chupa/serve.py",
-      "line": 120,
-      "message": "`await intake(...)` commits any pending edit at dispatch, and the next line records that new blob as `ticket_sha`, but `ticket` is still the object the Watcher parsed before the edit. If `ticket.md` is edited after the last `scan` and before dispatch, the run uses the old fence, criteria and verification with a sha that matches the new bytes. `ticket_changed` then never fires, so the run continues against a ticket it did not start with, and the Definition of rejected names that outcome. Without this intake call, the same uncommitted edit would differ from the committed blob and hold at the first stage. An edit committed in that window has the same problem, because the sha is read from main instead of being tied to the dispatched ticket's content.",
-      "paved_road": "Remove the dispatch-time intake, since `scan` already runs intake under the same admission slot. Make the recorded sha correspond to the dispatched ticket: compare the blob on main with the content `ticket` was parsed from, and if they differ, republish the fresh ticket with `scheduler.update` and return without dispatching. Add a serve test that edits the ticket after publication and before dispatch, and assert the run never proceeds on the old `Ticket` with the new sha.",
+      "code": "acceptance",
+      "path": "docs/how-chupa-works.md",
+      "line": null,
+      "message": "Stale doc: section 6.1 says \"After any other non-ok terminal, `runner.drive` does, in order\" and lists \"4. **Diagnosis** (section 6.3), unless the outcome is `budget_exceeded` or an over-bound render.\" and \"5. **Rework** if diagnosis said `split`...\". The diff adds an early return in `runner.drive`: after Harvest, a `ticket_changed` terminal goes straight to `failure_terminal` with no diagnosis or Rework, and is routed to the Reject queue. An outcome of `gate_failed` with `ticket_changed` is a non-ok terminal that section 6.1 still says gets diagnosed, which contradicts the new section 6.7 text.",
+      "paved_road": "Update the section 6.1 list to include the `ticket_changed` exit: after Harvest, it journals a `gate_failed` terminal routed to the Reject queue, removes the worktree, and skips the cap, Diagnosis and Rework steps. For example, add a step beside step 2 and point it to section 6.7.",
       "kind": null,
       "unit": null
     }
