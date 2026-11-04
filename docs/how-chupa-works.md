@@ -42,7 +42,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `doctor` | no | Checks venv, git, config load, lock probe, journal readability. Exit 2 on any failure. |
 | `core` | no | Rewrites the managed `chupa:core` block in each routed agent's conduct file (section 12). |
 | `migrate-config` | no | Migrates a `schema_version: 0` config to the current schema. |
-| `new <stem>` | no | Writes `tickets/<stem>/ticket.md` from the skeleton (every required section empty, `kind: feature`) and lints it. Refuses a bad, reserved, or existing stem. Always exit 0. |
+| `new <stem> --kind feature\|bug\|chore` | no | Writes `tickets/<stem>/ticket.md` with section placeholders for the selected kind (default `feature`) and lints it. Bugs include `## Regression` and a missing-evidence finding; no evidence files are created. Refuses a bad, reserved, or existing stem, or unknown kind (exit 2); successful authorship exits 0. |
 | `run <stem>` | yes | Reconciles orphans, runs intake, then drives the one named ticket through every stage. Refuses a stem that failed intake, is missing, invalid, merged, not `confirmed`, or has unmerged dependencies. |
 | `drain` | yes | Runs every eligible ticket to quiescence (section 7.1). |
 | `serve` | yes | Runs the continuous daemon until `kill` or a signal (section 7.2). |
@@ -60,6 +60,7 @@ The repo's one dev command; standard library only, every task through `uv`.
 |---|---|
 | (none) | `uv run pytest -q` |
 | `test [args]` | pytest with those args |
+| `new STEM [--kind K]` | `chupa new <stem> --kind feature\|bug\|chore` (default `feature`) |
 | `status`, `drain`, `kill` | the matching chupa verb |
 | `reject STEM...` | `chupa reject` once per stem |
 

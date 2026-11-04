@@ -7,8 +7,10 @@ what content its tickets carry, never the format.
 
 ## Workflow
 
-1. `chupa new <stem>` writes `tickets/<stem>/ticket.md` and lints it. Every finding names the
-   fix to apply.
+1. Start with `chupa new <stem> --kind feature|bug|chore`, choosing one kind (default `feature`).
+   In this repo, use `./dev.py new STEM [--kind K]`. It writes `tickets/<stem>/ticket.md` with
+   section placeholders and lints it. Every finding names the fix to apply. A bug includes
+   `## Regression` and reports missing evidence; the command creates no evidence files.
 2. Fill each section with the content below, re-lint, and repeat until it is clean.
 3. For a bug, add the evidence file (see Bug tickets) beside the ticket.
 4. Run `chupa drain`: intake commits the ticket and its evidence together before running it.

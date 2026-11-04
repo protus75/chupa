@@ -534,7 +534,12 @@ def evidence_findings(ticket: Ticket, repo: Path, *, paths: Collection[str] | No
     """Check durable bug evidence; intake supplies only paths it can commit."""
     if ticket.frontmatter.kind != "bug" or ticket.frontmatter.state in {"merged", "rejected"}:
         return []
-    directory = repo / TICKETS_DIR / ticket.stem / "evidence"
+    return missing_evidence_findings(ticket.stem, repo, paths=paths)
+
+
+def missing_evidence_findings(stem: str, repo: Path, *, paths: Collection[str] | None = None) -> list[Finding]:
+    """Check evidence even while a newly authored bug still has grammar placeholders."""
+    directory = repo / TICKETS_DIR / stem / "evidence"
     candidates = directory.rglob("*") if paths is None else (repo / p for p in paths)
     if any(p.is_relative_to(directory) and _regular_evidence(p, directory) for p in candidates):
         return []
@@ -676,7 +681,25 @@ async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem) -> Inta
 # --- new ----------------------------------------------------------------------------------------
 
 
-def template() -> str:
-    """The `new <stem>` skeleton: every required section, empty, so the synchronous lint lists what to fill."""
-    body = "".join(f"\n## {name}\n{'none' if name == 'Depends on' else ''}\n" for name in REQUIRED_SECTIONS)
-    return "---\nstate: confirmed\nsource: human\npriority: P2\nkind: feature\n---\n" + body
+def template(kind: Literal["feature", "bug", "chore"]) -> str:
+    """Authoring placeholders beside the grammar, with a regression proof only for bugs."""
+    if kind not in {"feature", "bug", "chore"}:
+        raise ValueError("kind must be feature, bug, or chore")
+    sections = {
+        "Depends on": "<none or bullets of existing ticket stems>",
+        "Context": "- <existing repo-relative read-first path>",
+        "Goal / Why": "<observable outcome and why it matters>",
+        "Scope in / Scope out": "<what changes and what stays outside this ticket>",
+        "Scope fence": "- <repo-relative writable path prefix>",
+        "Acceptance criteria": "1. <measurable outcome naming a check in backticks>",
+        "Verification": "```\n<argv command that exits 0>\n```",
+        "Definition of rejected": "<outcome that rejects the branch>",
+        "Time budget": "- expected: <estimated integer minutes>m\n- stuck: <larger deadline in integer minutes>m",
+    }
+    if kind == "bug":
+        sections["Regression"] = (
+            "```\n<one argv command emitting the regression_result JSON protocol>\n```\n"
+            "- carries: <test or fixture path prefix needed by the command>"
+        )
+    body = "".join(f"\n## {name}\n{content}\n" for name, content in sections.items())
+    return f"---\nstate: confirmed\nsource: human\npriority: P2\nkind: {kind}\n---\n" + body

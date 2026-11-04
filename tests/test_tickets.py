@@ -1,4 +1,5 @@
 import asyncio
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from chupa.tickets import (
     TicketInvalid,
     depends_cycle,
     intake,
+    template,
     validate_ticket,
 )
 
@@ -587,10 +589,50 @@ def test_staged_uncommittable_evidence_refuses_before_any_commit(repo, staged_ki
     assert journal.read() == []
 
 
+@pytest.mark.parametrize("kind", ["feature", "bug", "chore"])
+def test_template_per_kind(tmp_path, kind):
+    text = template(kind)
+    assert ("## Regression" in text) == (kind == "bug")
+    samples = {
+        "none or bullets of existing ticket stems": "none",
+        "existing repo-relative read-first path": "src/thing.py",
+        "observable outcome and why it matters": "The command prints ok for operators.",
+        "what changes and what stays outside this ticket": "In: the command. Out: other commands.",
+        "repo-relative writable path prefix": "src/thing.py",
+        "measurable outcome naming a check in backticks": "`uv run pytest` exits 0.",
+        "argv command that exits 0": "uv run pytest",
+        "outcome that rejects the branch": "The command needs a new dependency.",
+        "estimated integer minutes": "10",
+        "larger deadline in integer minutes": "20",
+        "one argv command emitting the regression_result JSON protocol": "uv run python tests/reproduce.py",
+        "test or fixture path prefix needed by the command": "tests/reproduce.py",
+    }
+    filled = re.sub(r"<([^<>]+)>", lambda match: samples[match[1]], text)
+    assert "<" not in filled
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src/thing.py").write_text("")
+    ticket = validate_ticket("t-template", filled, tmp_path)
+    assert ticket.frontmatter.kind == kind
+    assert ticket.context == ("src/thing.py",)
+    assert ticket.regression == (("uv", "run", "python", "tests/reproduce.py") if kind == "bug" else ())
+    assert ticket.carries == (("tests/reproduce.py",) if kind == "bug" else ())
+
+
+def test_new_bug_creates_no_evidence(repo, capsys):
+    from chupa import __main__ as cli
+
+    root, _, _ = repo
+    assert cli.main(["new", "t-bug", "--kind", "bug"], cwd=root) == 0
+    assert (root / "tickets/t-bug/ticket.md").read_text() == template("bug")
+    assert sorted(p.relative_to(root).as_posix() for p in (root / "tickets/t-bug").rglob("*")) == [
+        "tickets/t-bug/ticket.md"]
+    assert "add the observed failure" in capsys.readouterr().out
+
+
 def test_new_prints_bug_evidence_finding(repo, monkeypatch, capsys):
     from chupa import __main__ as cli
 
     root, _, _ = repo
-    monkeypatch.setattr(cli, "template", lambda: complete(bug_text()))
-    assert cli._new(root, "t-bug") == 0
+    monkeypatch.setattr(cli, "template", lambda kind: complete(bug_text()))
+    assert cli._new(root, "t-bug", "bug") == 0
     assert "add the observed failure" in capsys.readouterr().out

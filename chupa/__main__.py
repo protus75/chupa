@@ -30,7 +30,7 @@ from chupa.seams import CommandNotifications
 from chupa.status import project, render
 from chupa.storm import StormLedger
 from chupa.timers import Timers
-from chupa.tickets import IntakeRefused, Ticket, TicketInvalid, evidence_findings, stem_findings, template, ticket_path, validate_ticket
+from chupa.tickets import IntakeRefused, Ticket, TicketInvalid, evidence_findings, missing_evidence_findings, stem_findings, template, ticket_path, validate_ticket
 
 GIT_TIMEOUT_S = 30.0
 
@@ -181,6 +181,7 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("triage", help="make one sequential pass over pending suggestions under the lock")
     new = sub.add_parser("new", help="template tickets/<stem>/ticket.md and lint it")
     new.add_argument("stem")
+    new.add_argument("--kind", choices=("feature", "bug", "chore"), default="feature")
     run = sub.add_parser("run", help="drive one ticket through intake and the stage pipeline under the lock")
     run.add_argument("stem")
     for verb in ("confirm", "reject"):
@@ -209,7 +210,7 @@ def main(
             migrate_config(args.config, cwd=repo, fs=LocalFileSystem())
             return 0
         if args.verb == "new":
-            return _new(repo, args.stem)
+            return _new(repo, args.stem, args.kind)
         if args.verb == "doctor":
             from chupa import doctor
             results = asyncio.run(doctor.check(repo=repo, config_path=args.config, env=env,
@@ -407,14 +408,14 @@ async def _verdict(checkout, stem, verb):
     return 0
 
 
-def _new(repo: Path, stem: str) -> int:
+def _new(repo: Path, stem: str, kind: str = "feature") -> int:
     """Author the ticket file only: authorship is outside the lock fence; intake commits it on the next run."""
     if findings := stem_findings(stem):
         raise runner.Refusal(findings[0].message, findings[0].paved_road)
     rel = ticket_path(stem)
     if (repo / rel).exists():
         raise runner.Refusal(f"{rel} already exists", "edit it in place, or pick a new stem")
-    text = template()
+    text = template(kind)
     LocalFileSystem().write(repo / rel, text.encode())
     print(f"authored {rel}")
     findings = []
@@ -423,6 +424,8 @@ def _new(repo: Path, stem: str) -> int:
         findings = evidence_findings(ticket, repo)
     except TicketInvalid as e:
         findings = e.findings
+        if kind == "bug":
+            findings += missing_evidence_findings(stem, repo)
     if findings:
         print(f"fill these before `run {stem}`:")
         for f in findings:

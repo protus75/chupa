@@ -170,11 +170,25 @@ def test_new_templates_a_ticket_and_lints_it(root, capsys):
     path = root / "tickets" / "add-thing" / "ticket.md"
     text = path.read_text()
     assert "## Acceptance criteria" in text and "## Verification" in text
+    assert "kind: feature" in text and "## Regression" not in text
+    assert "<measurable outcome naming a check in backticks>" in text
     out = capsys.readouterr().out
     assert "tickets/add-thing/ticket.md" in out
-    assert "`## Acceptance criteria`" in out  # synchronous lint names what is left to fill
+    assert "`## Context`" in out and "`## Time budget`" in out  # lint names what is left to fill
     assert git_out(root, "status", "--porcelain", "--", "tickets").startswith("??")  # authored, not committed
     assert not (root / ".chupa").exists()  # file authorship is outside the lock fence
+
+
+def test_new_kind_flag(root, capsys):
+    assert cli(root, "new", "fix-thing", "--kind", "bug") == 0
+    text = (root / "tickets/fix-thing/ticket.md").read_text()
+    assert "kind: bug" in text and "## Regression" in text
+    assert "regression_result" in text
+    assert "no evidence file" in capsys.readouterr().out
+    with pytest.raises(SystemExit) as exc:
+        cli(root, "new", "unknown-kind", "--kind", "unknown")
+    assert exc.value.code == 2
+    assert not (root / "tickets/unknown-kind").exists()
 
 
 def test_new_refuses_an_existing_stem(root, capsys):
