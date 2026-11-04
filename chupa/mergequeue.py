@@ -188,7 +188,10 @@ class MergeQueue:
         ctx = self.ctx
         road = "restore the retained committed ticket, reviewed evidence and candidate; then restart serve"
         try:
-            text = await ctx.git._run(ctx.repo, "show", f"main:{ticket_path(stem)}")
+            lifts = [e.body["result"] for e in ctx.driver.journal.read()
+                     if e.type == EventType.EFFECT_COMPLETION and e.key == f"ticket-plane/{stem}/{receipt['attempt']}/review"]
+            source = lifts[-1]["commit"] if lifts else "main"
+            text = await ctx.git._run(ctx.repo, "show", f"{source}:{ticket_path(stem)}")
             ticket = validate_ticket(stem, text, ctx.repo)
             review = stages.read_review(await ctx.git._run(ctx.repo, "show", f"main:tickets/{stem}/review.md"))
             if (not isinstance(review, stages.ApprovedInvoice) or review.stem != stem
@@ -196,13 +199,10 @@ class MergeQueue:
                     or await stages.dirty_code(ctx, stem)
                     or await ctx.git.rev_parse(ctx.worktree(stem), "HEAD") != await ctx.git.rev_parse(ctx.repo, stem)):
                 raise ValueError(road)
-            lifts = [e.body["result"] for e in ctx.driver.journal.read()
-                     if e.type == EventType.EFFECT_COMPLETION and e.key == f"ticket-plane/{stem}/{receipt['attempt']}/review"]
             if lifts:
-                commit = lifts[-1]["commit"]
-                for path in (ticket_path(stem), f"tickets/{stem}/review.md"):
-                    if await ctx.git.rev_parse(ctx.repo, f"main:{path}") != await ctx.git.rev_parse(ctx.repo, f"{commit}:{path}"):
-                        raise ValueError(road)
+                path = f"tickets/{stem}/review.md"
+                if await ctx.git.rev_parse(ctx.repo, f"main:{path}") != await ctx.git.rev_parse(ctx.repo, f"{source}:{path}"):
+                    raise ValueError(road)
             if any(receipt[k] is not None for k in ("review_provider", "review_model")):
                 if await stages.served_review(ctx, stem, receipt["attempt"], receipt["reviewed_sha"]) != (
                         receipt["review_provider"], receipt["review_model"]):
@@ -240,8 +240,12 @@ class MergeQueue:
                 await merge.retire(self.ctx, stem)
 
     async def _finish(self, ticket, attempt, reviewed, checked_tree, started, findings=()):
+        completed = any(e.type == EventType.EFFECT_COMPLETION and e.key == f"merge/{ticket.stem}/{attempt}"
+                        for e in self.ctx.driver.journal.read())
         admission = await merge.write_squash(self.ctx, ticket, reviewed, attempt=attempt)
-        main_tree = await self.ctx.git.rev_parse(self.ctx.repo, "main^{tree}")
+        # Recovery proves the completed squash; later ticket commits may already have moved main.
+        source = admission.commit if completed and admission.commit is not None else "main"
+        main_tree = await self.ctx.git.rev_parse(self.ctx.repo, source + "^{tree}")
         if main_tree != checked_tree:
             self._hold(ticket.stem, {"kind": TREE_MISMATCH, "checked_tree": checked_tree, "main_tree": main_tree})
             raise TreeMismatch(f"{ticket.stem}: checked tree {checked_tree} differs from main tree {main_tree}")
@@ -393,6 +397,9 @@ class MergeQueue:
                          and e.key == f"merge/{stem}/{attempt}"]
             if completed:
                 return await self._finish(ticket, attempt, reviewed, receipt["checked_tree"], started)
+            if findings := await stages.ticket_change_findings(ctx, stem):
+                self.held.pop(stem, None)
+                return merge._refused(findings, Cost())
             if not release and not covered:
                 return merge.Held(stem, attempt, hold)
             if (await ctx.git.rev_parse(ctx.repo, "main") == receipt["candidate_base_sha"]
@@ -403,6 +410,9 @@ class MergeQueue:
 
         def refused(findings: list[Finding]) -> StageResult:
             return merge._refused(findings, Cost(seconds=(ctx.driver.clock() - started).total_seconds()))
+
+        if findings := await stages.ticket_change_findings(ctx, stem):
+            return refused(findings)
 
         try:
             reviewed = receipt["reviewed_sha"] if retained else await ctx.git.rev_parse(ctx.repo, stem)

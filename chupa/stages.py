@@ -260,6 +260,32 @@ class StageContext:
                     raise result
 
 
+def ticket_blob(data: bytes) -> str:
+    return hashlib.sha1(f"blob {len(data)}\0".encode() + data).hexdigest()
+
+
+async def ticket_change_findings(ctx: StageContext, stem: str, *, expected: str | None = None) -> list[Finding]:
+    """Only ticket.md belongs to the dispatch identity; lifts may freely move main."""
+    if expected is None:
+        latest = next((e.body for e in reversed(ctx.driver.journal.read())
+                       if e.type == EventType.STATE_TRANSITION and e.ticket == stem), {})
+        if latest.get("to") == "running":
+            expected = latest.get("ticket_sha")
+    if expected is None:
+        return []
+    rel = ticket_path(stem)
+    try:
+        committed = await ctx.git.rev_parse(ctx.repo, f"{MAIN}:{rel}")
+        unchanged = committed == expected and ticket_blob((ctx.repo / rel).read_bytes()) == expected
+    except (GitError, OSError):
+        unchanged = False
+    if unchanged:
+        return []
+    return [Finding(code="ticket_changed", path=rel, message=f"{stem}: ticket.md changed during the run",
+                    paved_road=f"review the change to {rel}, then keep (./dev.py confirm {stem})"
+                               f" or kill (./dev.py reject {stem})")]
+
+
 class ArtifactInvalid(Exception):
     def __init__(self, path: Path, error: Exception) -> None:
         super().__init__(f"{path}: {error}")
@@ -1401,6 +1427,7 @@ class StagesRun:
 
     attempt: int
     results: dict[StageName, StageResult] = field(default_factory=dict)
+    ticket_sha: str | None = None
 
     @property
     def last(self) -> tuple[StageName, StageResult]:
@@ -1414,7 +1441,11 @@ async def run_stages(ctx: StageContext, ticket: Ticket) -> StagesRun:
     there is no diff to review and the ticket settles as a no-op (section 5 invariant 4).
     """
     boundary = ctx.boundary
-    run = boundary.run or StagesRun(attempt=run_seq(ctx.driver.journal.read(), ticket.stem))
+    dispatched = next((e.body for e in reversed(ctx.driver.journal.read())
+                       if e.type == EventType.STATE_TRANSITION and e.ticket == ticket.stem), {})
+    run = boundary.run or StagesRun(attempt=run_seq(ctx.driver.journal.read(), ticket.stem),
+        ticket_sha=(dispatched.get("ticket_sha") if dispatched.get("to") == "running" else None)
+        or await ctx.git.rev_parse(ctx.repo, f"{MAIN}:{ticket_path(ticket.stem)}"))
     boundary.ticket, boundary.next_stage = ticket, None
     for stage in ("implement", "check", "review"):
         if stage in run.results:
@@ -1423,6 +1454,9 @@ async def run_stages(ctx: StageContext, ticket: Ticket) -> StagesRun:
             continue
         if boundary.select is not None and not boundary.select(ticket, stage):
             boundary.run, boundary.next_stage = run, stage
+            return run
+        if findings := await ticket_change_findings(ctx, ticket.stem, expected=run.ticket_sha):
+            run.results[stage] = StageResult(outcome="gate_failed", artifact=None, findings=findings, cost=Cost())
             return run
         if stage == "implement":
             operation = implement(ctx, ticket, attempt=run.attempt)

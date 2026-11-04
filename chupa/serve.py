@@ -24,7 +24,9 @@ from chupa.journal import JournalCorruption
 from chupa.seams import ExecutableNotFound
 from chupa.redact import Redactor
 from chupa.storm import StormLedger
-from chupa.tickets import Ticket, intake
+from chupa.tickets import Ticket, intake, ticket_path, parse_ticket, TicketInvalid
+from chupa.git import GitError
+from chupa.stages import ticket_blob
 
 SERVE_POLL_S = 0.1
 
@@ -84,6 +86,7 @@ class Serve:
         self.prepare = prepare
         self.config_path = config_path
         self.writers: dict[str, TicketWriter] = {}
+        self.published: dict[str, tuple[Ticket, str]] = {}
         self.queue = None
         self.stopping = False
         self.wake = asyncio.Event()
@@ -116,8 +119,22 @@ class Serve:
                 if not self.select(ticket, "implement"):
                     self.core.scheduler.update(ticket)
                     return "running"
+                try:
+                    sha = await local.git.rev_parse(local.repo, f"main:{ticket_path(ticket.stem)}")
+                    committed = await local.git._run(local.repo, "show", f"main:{ticket_path(ticket.stem)}")
+                except GitError:
+                    self.core.scheduler.update(ticket)
+                    return "running"
+                published = self.published.get(ticket.stem)
+                if published is not None and published[0] is ticket and published[1] != sha:
+                    try:
+                        fresh = parse_ticket(ticket.stem, committed, local.repo, plan=plan)
+                    except TicketInvalid:
+                        return "running"
+                    self.publish(fresh, committed)
+                    return "running"
                 self.writers[ticket.stem] = callback
-                local.journal.append(EventType.STATE_TRANSITION, {"to": "running"},
+                local.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": sha},
                                      ticket=ticket.stem, key=None)
                 try:
                     return await callback(ticket)
@@ -136,6 +153,16 @@ class Serve:
             debounce=SERVE_POLL_S, quarantined=lambda: set(), drought_parked=lambda: set(),
             completed_unmerged=lambda: len(set(self.queue.pending) | set(self.queue.held)) if self.queue is not None else 0,
             prepare=prepared)
+        publication: dict[str, str] = {}
+        def watched_read(stem):
+            text = self.read(stem)
+            if text is not None:
+                publication[stem] = text
+            return text
+        def watched_publish(ticket):
+            self.publish(ticket, publication.pop(ticket.stem))
+        self.core.watcher.read = watched_read
+        self.core.watcher.publish = watched_publish
         self.checkout = replace(checkout, control=self.core.control)
         self.control = self.core.control
         assert self.control is not None and self.core.restart is not None
@@ -158,6 +185,10 @@ class Serve:
             fs=checkout.fs), workers=lambda: self.healthy(0),
             merge_queue=lambda: self.healthy(1), box_consumer=lambda: self.healthy(2),
             watcher=lambda: self.healthy(3))
+
+    def publish(self, ticket: Ticket, text: str) -> None:
+        self.published[ticket.stem] = ticket, ticket_blob(text.encode())
+        self.core.scheduler.update(ticket)
 
     async def reconstruct_admissions(self):
         events = self.checkout.journal.read()

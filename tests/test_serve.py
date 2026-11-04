@@ -1676,3 +1676,67 @@ async def test_serve_hung_notify_keeps_maintenance_and_cleanup_responsive(root, 
         assert rig.owner.notifications.task is None
     finally:
         await finish(rig, run)
+
+
+@pytest.mark.asyncio
+async def test_refused_uncommitted_bug_does_not_stop_serve(root, monkeypatch):
+    calls, _, _ = script(monkeypatch)
+    rig = await graph(root, monkeypatch)
+    bug = text().replace("kind: feature", "kind: bug")
+    bug += '\n## Regression\n```\npython -c \'print(1)\'\n```\n- carries: tests/\n'
+    write(root, "no-evidence", bug)
+    run = asyncio.create_task(rig.owner.run())
+    try:
+        await until(rig, rig.owner.ready.is_set)
+        # Ensure the parseable refused stem actually reaches dispatch, rather than being filtered.
+        await until(rig, lambda: "no-evidence" in rig.owner.core.watcher.cache)
+        await rig.owner.core.admission.dispatch(rig.owner.core.watcher.cache["no-evidence"])
+        assert not run.done() and not rig.owner.stopping
+        assert "no-evidence" not in rig.owner.writers
+        assert calls == []
+        assert not any(e.body.get("to") == "running" for e in rig.journal.read())
+    finally:
+        await finish(rig, run)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("committed", [False, True])
+async def test_dispatch_republishes_ticket_changed_after_publication(root, monkeypatch, committed):
+    calls, _, _ = script(monkeypatch)
+    rig = await graph(root, monkeypatch)
+    write(root, "work", text())
+    await rig.owner.scan()
+    original = (root / "tickets/work/ticket.md").read_text()
+    from chupa.tickets import parse_ticket
+    ticket = parse_ticket("work", original, root, plan=PLAN)
+    rig.owner.publish(ticket, original)
+    revised = original.replace("## Scope fence\n- chupa/", "## Scope fence\n- revised/")
+    assert revised != original
+    path = "tickets/work/ticket.md"
+    rig.fs.write(root / path, revised.encode())
+    if committed:
+        await rig.checkout.git.add(root, [path])
+        await rig.checkout.git.commit(root, "edit after publication", only=[path])
+    await rig.owner.core.admission.dispatch(ticket)
+    assert not calls and not rig.owner.writers
+    if committed:
+        fresh = rig.owner.core.scheduler.pending["work"]
+        assert fresh.scope_fence != ticket.scope_fence
+        assert not any(e.body.get("to") == "running" for e in rig.journal.read())
+    else:
+        assert terminals(rig, "work")[-1].body["reason"] == "ticket_changed"
+    await rig.owner.control.providers.close()
+
+
+@pytest.mark.asyncio
+async def test_invalid_new_ticket_reaches_watcher(root, monkeypatch):
+    script(monkeypatch)
+    rig = await graph(root, monkeypatch)
+    write(root, "invalid-new", "not a ticket")
+    run = asyncio.create_task(rig.owner.run())
+    try:
+        await until(rig, lambda: any(e.ticket == "invalid-new"
+                    and e.body.get("signal") == "watcher_parse_failure" for e in rig.journal.read()))
+        assert not run.done()
+    finally:
+        await finish(rig, run)

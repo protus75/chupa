@@ -35,6 +35,7 @@ from chupa.stages import (
     Invoice,
     StageContext,
     check_severity,
+    ticket_change_findings,
     gather_evidence,
     dirty_code,
     read_review,
@@ -216,6 +217,8 @@ class AdmissionBoundary:
 
     async def __call__(self, ticket: Ticket, *, attempt: int) -> "StageResult | ConflictHandoff | Held":
         ctx = self.ctx
+        if findings := await ticket_change_findings(ctx, ticket.stem):
+            return _refused(findings, Cost())
         if self.mode == "inline":
             return await merge(ctx, ticket, attempt=attempt)
         started = ctx.driver.clock()
@@ -335,6 +338,8 @@ async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResu
     stem = ticket.stem
     started = ctx.driver.clock()
     worktree = ctx.worktree(stem)
+    if findings := await ticket_change_findings(ctx, stem):
+        return _refused(findings, Cost())
     reviewed = await ctx.git.rev_parse(ctx.repo, stem)
     seeds, checks_text = await gather_seeds(ctx, ticket)
 

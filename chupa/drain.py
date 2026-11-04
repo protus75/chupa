@@ -392,6 +392,8 @@ class _Drain:
         self.storm_waiting = False
         self.provider_deadlines = []
         for t in ready:
+            if t.stem in awaiting and "ticket_changed" in awaiting[t.stem].get("reason", "").split(","):
+                continue
             bound = t.stem in awaiting and "plan_units" in awaiting[t.stem]
             if bound and (t.stem not in scan.plan_changed
                           or caps.remaining(self.c.config.caps, events, t.stem, "retry") <= 0):
@@ -595,7 +597,11 @@ class _Drain:
                                  " ticket if provably not the plan's) and author a successor stem -- a"
                                  " `ticket.md` edit never re-arms the cap")
                 if stem in awaiting:
-                    if "plan_units" in awaiting[stem]:
+                    if "ticket_changed" in awaiting[stem].get("reason", "").split(","):
+                        why = f"{to}{where}; ticket_changed; held for an operator"
+                        road = (f"review the change to {ticket_path(stem)}, then keep (./dev.py confirm {stem})"
+                                f" or kill (./dev.py reject {stem})")
+                    elif "plan_units" in awaiting[stem]:
                         units = awaiting[stem]["plan_units"]
                         coverage = []
                         for uid in units:

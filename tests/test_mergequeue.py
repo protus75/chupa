@@ -1101,3 +1101,83 @@ def test_admission_durability_probes(ctx, monkeypatch, ordering):
         monkeypatch.setattr(control.ControlInbox, "consume", early)
         with pytest.raises(AssertionError):
             test_admission_resume_decision_precedes_release(ctx, monkeypatch)
+
+
+@pytest.mark.parametrize("restart", [False, True])
+@pytest.mark.parametrize("ending", ["confirm", "reject", "completed"])
+def test_edited_held_ticket_settles_release(ctx, monkeypatch, restart, ending):
+    from tests.test_supervised_merge_hold import hold, confirm
+    from tests.test_effects import Crash
+    async def exercise():
+        ticket, queue, held = await hold(ctx)
+        rel = f"tickets/{ticket.stem}/ticket.md"
+        sha = await ctx.git.rev_parse(ctx.repo, f"main:{rel}")
+        ctx.driver.journal.append(EventType.STATE_TRANSITION,
+            {"to": "running", "ticket_sha": sha}, ticket=ticket.stem)
+        if ending == "completed":
+            confirm(queue, held)
+            append = ctx.driver.journal.append
+            def crash(kind, body, **kwargs):
+                event = append(kind, body, **kwargs)
+                if kind == EventType.EFFECT_COMPLETION and kwargs.get("key") == f"merge/{ticket.stem}/0":
+                    raise Crash()
+                return event
+            with monkeypatch.context() as patch:
+                patch.setattr(ctx.driver.journal, "append", crash)
+                with pytest.raises(Crash):
+                    await queue.process()
+            from chupa.effects import Effects
+            ctx.driver.effects = Effects(ctx.driver.journal)
+        path = ctx.repo / rel
+        ctx.fs.write(path, path.read_bytes().replace(b"holds the word ok", b"holds revised ok"))
+        assert path.read_bytes() != (await ctx.git._run(ctx.repo, "show", f"main:{rel}")).encode()
+        await commit(ctx, ctx.repo, [rel], "operator changes ticket")
+        if ending != "completed":
+            confirm(queue, held, verdict="reject" if ending == "reject" else "confirm")
+        if restart:
+            recovered = MergeQueue(ctx, escalate=lambda _: None, control=queue.control)
+            recovered.supervised = True
+            await recovered.reconstruct()
+            queue = recovered
+        deaths = []
+        from chupa import runner
+        original = runner._dead_dependents
+        async def dependents(stem, checkout):
+            deaths.append(stem)
+            await original(stem, checkout)
+        monkeypatch.setattr(runner, "_dead_dependents", dependents)
+        results = await queue.process()
+        result, = results
+        if ending == "confirm":
+            assert result.outcome == "gate_failed"
+            assert [f.code for f in result.findings] == ["ticket_changed"]
+            assert ctx.worktree(ticket.stem).exists()
+            assert not any(e.body.get("to") == "merged" for e in ctx.driver.journal.read())
+        else:
+            assert result.outcome == "ok"
+            assert not ctx.worktree(ticket.stem).exists()
+            assert deaths == ([ticket.stem] if ending == "reject" else [])
+            assert [e.body["to"] for e in ctx.driver.journal.read()
+                    if e.type == EventType.STATE_TRANSITION][-1] == ("rejected" if ending == "reject" else "merged")
+            assert not any(e.body.get("reason") == "ticket_changed" for e in ctx.driver.journal.read())
+    run(exercise())
+
+
+@pytest.mark.parametrize("daemon", [False, True])
+def test_admission_boundary_refuses_changed_ticket(ctx, daemon):
+    async def exercise():
+        ticket = await ready(ctx)
+        rel = f"tickets/{ticket.stem}/ticket.md"
+        sha = await ctx.git.rev_parse(ctx.repo, f"main:{rel}")
+        ctx.driver.journal.append(EventType.STATE_TRANSITION,
+            {"to": "running", "ticket_sha": sha}, ticket=ticket.stem)
+        ctx.fs.write(ctx.repo / rel, (ctx.repo / rel).read_bytes() + b"\n")
+        queue = MergeQueue(ctx, escalate=lambda _: None)
+        boundary = merge.AdmissionBoundary(ctx, mode="daemon" if daemon else "inline", queue=queue)
+        result = await boundary(ticket, attempt=0)
+        assert [f.code for f in result.findings] == ["ticket_changed"]
+        assert not queue.pending
+        queue.offer(ticket, attempt=0)
+        [result] = await queue.process()
+        assert [f.code for f in result.findings] == ["ticket_changed"]
+    run(exercise())

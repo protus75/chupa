@@ -34,7 +34,7 @@ from chupa.reconcile import reconcile
 from chupa.seams import Clock, FileSystem, GroupExec, Sleep
 from chupa.specs import registry_rows, unit_sha
 from chupa.stages import (DiagnosisMaterial, StageContext, diagnose, lift_outbox,
-                          run_stages, write_diagnosis)
+                          run_stages, write_diagnosis, ticket_change_findings)
 from chupa.status import SETTLED, last_states, reject_queue
 from chupa.tickets import read_plan
 from chupa.tickets import (INTAKE_SIGNAL, PLAN_FILE, TICKETS_DIR, Ticket, TicketInvalid, intake,
@@ -156,6 +156,8 @@ async def drive(ctx: StageContext, ticket: Ticket, *, admission=None, consume_ha
     if ctx.boundary.next_stage is not None:
         return "running"
     stage, result = run.last
+    if findings := await ticket_change_findings(ctx, ticket.stem, expected=run.ticket_sha):
+        result = StageResult(outcome="gate_failed", artifact=None, findings=findings, cost=result.cost)
     if stage == "review" and result.outcome == "ok":
         from chupa.mergequeue import ConflictHandoff
 
@@ -178,6 +180,9 @@ async def drive(ctx: StageContext, ticket: Ticket, *, admission=None, consume_ha
     await harvest_failure(ctx, ticket, attempt=run.attempt, stage=stage, outcome=result.outcome,
                           findings=result.findings, results=(*run.results.values(),)
                           + ((result,) if stage == "merge" else ()))
+    if any(f.code == "ticket_changed" for f in result.findings):
+        return await failure_terminal(ctx, ticket, outcome="gate_failed", stage=stage,
+                                      findings=result.findings, attempt=run.attempt)
     drought = getattr(result, 'provider_drought', None)
     quota = any(f.code == 'quota_exhausted' for f in result.findings)
     if drought is not None or quota:
@@ -287,7 +292,7 @@ async def failure_terminal(ctx: StageContext, ticket: Ticket, *, outcome: str, s
     history = ctx.driver.journal.read()
     tier, effort = capability(ticket, history)
     split = False
-    dispatch: JournalDispatch | None = None
+    dispatch: JournalDispatch | None = "reject_queue" if any(f.code == "ticket_changed" for f in findings) else None
     if rework_requested:
         if reworked is not None and reworked.outcome == "ok":
             order = reworked.artifact
@@ -531,7 +536,8 @@ async def run_ticket(stem: str, checkout: Checkout, dispatch: Dispatch) -> int:
             if drought:
                 checkout.control.providers.park(stem, drought)
                 return EXIT_TICKET
-        checkout.journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket=stem)
+        ticket_sha = await checkout.git.rev_parse(checkout.repo, f"main:{ticket_path(stem)}")
+        checkout.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": ticket_sha}, ticket=stem)
         terminal = await dispatch(ticket)
         if terminal not in TERMINAL_STATES:
             raise ValueError(f"stage seam returned {terminal!r}, not a terminal state {sorted(TERMINAL_STATES)}")

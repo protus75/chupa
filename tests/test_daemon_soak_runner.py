@@ -46,7 +46,7 @@ async def test_daemon_soak_runs_production_serve(tmp_path, monkeypatch):
         writer = owner.writers[ticket.stem]
         assert writer.admission.mode == "daemon" and writer.queue is owner.queue is queue
         assert owner.core.scheduler.dispatch == owner.core.admission.dispatch
-        assert owner.core.watcher.publish == owner.core.scheduler.update
+        assert owner.published[ticket.stem][0].sections == ticket.sections
         assert owner.control.inbox.journal is queue.ctx.driver.journal
         offers.append((queue, ticket.stem, attempt))
         offer(queue, ticket, attempt=attempt)

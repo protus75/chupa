@@ -74,7 +74,8 @@ def test_a_review_snag_journals_its_terminal_and_exits_1(repo):
     code, llm = run(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis_reply()])
 
     assert code == runner.EXIT_TICKET
-    assert transitions(repo) == [{"to": "running"}, {"to": "gate_failed", "stage": "review",
+    assert transitions(repo) == [{"to": "running", "ticket_sha": git(repo, "rev-parse",
+        f"main:tickets/{STEM}/ticket.md").strip()}, {"to": "gate_failed", "stage": "review",
                                                        "reason": "logic", "dispatch": "retry"}]
     left_in_place(repo)
     assert git(repo, "show", f"{STEM}:chupa/thing.py") == "ok\n"  # the branch keeps the work

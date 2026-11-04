@@ -103,8 +103,11 @@ Frontmatter fields that drive behavior:
   intake refuses entirely; staged evidence deletions and symlinks must be unstaged first.
 - An existing stem is never restamped.
 
-So writing a ticket file is enough: the next `drain` commits it. After intake, the drain only
-reads committed tickets; an uncommitted edit to a ticket is ignored until the next intake.
+So writing a ticket file is enough: the next `drain` commits it. After intake,
+dispatch pins the committed `ticket.md` blob on `main`. Before each stage and
+merge admission, both main's committed blob and its checkout bytes must still match. A committed
+or uncommitted edit during the run stops it with `ticket_changed` and holds it for an operator.
+Engine artifacts such as `run.md` and `checks.json` do not affect this identity.
 
 ### 3.3 What the engine writes back
 
@@ -252,12 +255,14 @@ and records no dispatch or Reject routing marker.
 After any other non-ok terminal, `runner.drive` does, in order:
 
 1. **Harvest** the attempt (section 6.2).
-2. A provider **drought** or quota result parks the stem with no diagnosis (section 8.3).
-3. `infra_error` / `timeout` draw the `infra` cap; `premise_failed` draws `premise_bounce`.
-4. **Diagnosis** (section 6.3), unless the outcome is `budget_exceeded` or an over-bound render.
-5. **Rework** if diagnosis said `split`, or the render was over bound (section 6.5).
-6. Decide the dispatch (retry, escalate, or the Reject queue) and journal the terminal.
-7. Remove the worktree.
+2. **`ticket_changed`** journals a `gate_failed` terminal routed to the Reject queue, removes
+   the worktree, and stops (section 6.7), skipping the cap, Diagnosis, and Rework steps.
+3. A provider **drought** or quota result parks the stem with no diagnosis (section 8.3).
+4. `infra_error` / `timeout` draw the `infra` cap; `premise_failed` draws `premise_bounce`.
+5. **Diagnosis** (section 6.3), unless the outcome is `budget_exceeded` or an over-bound render.
+6. **Rework** if diagnosis said `split`, or the render was over bound (section 6.5).
+7. Decide the dispatch (retry, escalate, or the Reject queue) and journal the terminal.
+8. Remove the worktree.
 
 ### 6.2 Harvest
 
@@ -329,6 +334,13 @@ terminal carries a Reject routing marker. `reject` refuses settled stems.
 Anything can run `confirm` and `reject` today; nothing checks that a person typed them.
 
 ### 6.7 Other holds
+
+- **`ticket_changed`:** a committed or uncommitted change to `ticket.md` during a run ends the
+  attempt `gate_failed` and holds it in the Reject queue, with no diagnosis, Rework, or cap draw.
+  Review the change to `tickets/<stem>/ticket.md`, then keep (`./dev.py confirm <stem>`) to run
+  the changed ticket as a fresh attempt, or kill (`./dev.py reject <stem>`). Machine keeps do
+  not release this hold. Stage boundaries, admission, and queued or confirmed merge admissions
+  all check the dispatch identity. Rework updates between attempts are fresh ticket inputs.
 
 - **Premise park:** after `premise_failed`, the stem waits until its committed `ticket.md`
   changes. The re-offer draws no retry.

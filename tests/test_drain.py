@@ -1329,3 +1329,87 @@ def test_plan_in_worktree_but_not_head_does_not_abort_drain(root, bound, monkeyp
     script = Script()
     assert drain(root, script) == 0 and script.calls == []
     assert machine_keeps(root) == []
+
+
+async def _edit_after_implement(ctx, ticket, *, committed):
+    rel = f"tickets/{ticket.stem}/ticket.md"
+    path = ctx.repo / rel
+    ctx.fs.write(path, path.read_text().replace("holds the word ok", "holds ok after operator revision").encode())
+    if committed:
+        await ctx.git.add(ctx.repo, [rel])
+        await ctx.git.commit(ctx.repo, "edit ticket", only=[rel])
+
+
+def _mid_run_hold(repo, monkeypatch, *, committed, failed=False):
+    from chupa import runner, stages
+    from chupa.llm import FakeLLM
+    from chupa.status import reject_queue
+    from tests.test_stages import STEM, agent, verdict
+    from tests.test_terminal import author, clock
+    author(repo)
+    original = stages.implement
+    async def implement(ctx, ticket, *, attempt):
+        result = await original(ctx, ticket, attempt=attempt)
+        await _edit_after_implement(ctx, ticket, committed=committed)
+        return replace(result, outcome="gate_failed") if failed else result
+    monkeypatch.setattr(stages, "implement", implement)
+    llm = FakeLLM([agent({"chupa/thing.py": "ok\n"})])
+    assert main(["drain"], cwd=repo, env=ENV, clock=clock,
+                pipeline=lambda c: runner.bind(c, llm)) == 0
+    events = Journal(repo / ".chupa/state", clock).read()
+    assert [r.surface for r in llm.requests] == ["implement"]
+    assert not any(e.type == EventType.CAP_CONSUMED for e in events)
+    assert not any(e.body.get("signal") == "diagnosis" for e in events)
+    assert reject_queue(events)[STEM] == {
+        "to": "gate_failed", "stage": "implement" if failed else "check", "reason": "ticket_changed",
+        "dispatch": "reject_queue", "routed": "reject_queue"}
+    import json
+    harvest = json.loads((repo / f"tickets/{STEM}/attempts/0/harvest.json").read_text())
+    finding, = harvest["findings"]
+    assert finding["code"] == "ticket_changed" and STEM in finding["message"]
+    assert finding["paved_road"] == (f"review the change to tickets/{STEM}/ticket.md, then keep "
+                                     f"(./dev.py confirm {STEM}) or kill (./dev.py reject {STEM})")
+    assert not (repo / f"tickets/{STEM}/checks.json").exists()
+    # Even a subsequent intake/daemon lifetime must wait for an explicit keep.
+    assert main(["drain"], cwd=repo, env=ENV, clock=clock,
+                pipeline=lambda c: runner.bind(c, llm)) == 0
+    assert len(llm.requests) == 1
+    monkeypatch.setattr(stages, "implement", original)
+    assert main(["confirm", STEM], cwd=repo, env=ENV, clock=clock) == 0
+    fresh = FakeLLM([agent({"chupa/thing.py": "ok\n"}), verdict()])
+    from tests.test_drain_reentry import NoChild
+    assert main(["drain"], cwd=repo, env=ENV, clock=clock,
+                pipeline=lambda c: runner.bind(c, fresh), reexec=NoChild()) == 0
+    assert [r.surface for r in fresh.requests] == ["implement", "review"]
+    assert STEM not in reject_queue(Journal(repo / ".chupa/state", clock).read())
+
+
+def test_ticket_edit_mid_run_holds(rework_repo, monkeypatch):
+    _mid_run_hold(rework_repo, monkeypatch, committed=True)
+
+
+def test_uncommitted_ticket_edit_mid_run_holds(rework_repo, monkeypatch):
+    _mid_run_hold(rework_repo, monkeypatch, committed=False)
+
+
+def test_engine_artifacts_do_not_trigger(rework_repo):
+    from chupa import runner
+    from chupa.llm import FakeLLM
+    from tests.test_stages import STEM, agent, verdict
+    from tests.test_terminal import author, clock
+    from tests.test_drain_reentry import NoChild
+    repo = rework_repo
+    author(repo)
+    llm = FakeLLM([agent({"chupa/thing.py": "ok\n"}), verdict()])
+    assert main(["drain"], cwd=repo, env=ENV, clock=clock,
+                pipeline=lambda c: runner.bind(c, llm), reexec=NoChild()) == 0
+    events = Journal(repo / ".chupa/state", clock).read()
+    assert [r.surface for r in llm.requests] == ["implement", "review"]
+    assert [e.body["to"] for e in events if e.type == EventType.STATE_TRANSITION][-1] == "merged"
+    lifted = [e.body["result"]["kind"] for e in events if e.type == EventType.EFFECT_COMPLETION
+              and (e.key or "").startswith(f"ticket-plane/{STEM}/")]
+    assert "run-record" in lifted and "checks" in lifted
+
+
+def test_ticket_edit_during_failed_implement_skips_diagnosis(rework_repo, monkeypatch):
+    _mid_run_hold(rework_repo, monkeypatch, committed=True, failed=True)
