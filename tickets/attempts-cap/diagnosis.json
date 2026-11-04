@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "82748a23a88be5107b6d90cb0f3d60ffab450bad",
+  "produced_at_sha": "6001420e5a860272e0f0a6752c398380f6c6f539",
   "stem": "attempts-cap",
-  "attempt": 1,
+  "attempt": 2,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "`chupa/runner.py:165-167` `drive` returns `consume_handoff` before any attempts check. Before that call, test whether this conflict is the stem's final allowed failure; if so, harvest and call `failure_terminal` with `handoff.findings` and verdict abandon-human, so no rework model call runs.",
-    "Keep the fix inside the fence: `chupa/daemon.py` is not in it. `DaemonPipeline.consume_result` (`daemon.py:478-480`) calls `consume_handoff` directly, bypassing `drive`. If that path cannot avoid the call from fenced files, correct the 6.4 sentence and file the gap as a second problem.",
-    "In `failure_terminal`, the attempts override must not clear `rework_requested` when `reworked.outcome == 'ok'`: `runner.py:290-295` is what sets `split` and the verdict from the order. A split already published must still retire its parent, and a published update must not be overwritten as rejected.",
-    "Add a test that drives a conflict handoff as the fifth failure and asserts no rework call, Reject-queue routing and reason 'attempts cap spent'. Add a second test where a split is published on the fifth failure through `consume_result` and assert the parent is retired.",
-    "Keep `docs/how-chupa-works.md` 6.4 true for every path: the claim 'without another diagnosis or rework call' must hold on conflict handoffs or be narrowed to what the code does. Change only this; the rest of the diff drew no findings, and the full suite passed."
+    "In chupa/runner.py failure_terminal, exempt only a published split from the attempts override: that is the case where `split` is set (runner.py:294) and reject_ticket retires the parent (runner.py:355-358). A published update or ok escalate at the cap must still route.",
+    "On the failure that spends the attempts cap, journal reason `attempts cap spent` (spent_reason, caps.py:88), dispatch `reject_queue` and routed `reject_queue`. status.py:43 queues only terminals with routed set, so an unrouted terminal leaves the stem dispatchable for a 6th failure.",
+    "Fix this in failure_terminal, not chupa/daemon.py, which is outside the fence. consume_handoff (daemon.py:499-503) checks `spent` before the fifth failure, runs apply_rework, then calls failure_terminal with rework_requested=True, so the override must count the terminal being journaled.",
+    "Leave the published ticket text in place when the update or escalate case routes at the cap; the review's paved road asks only for the routing to change. Do not revert the rework or retire the stem in these cases.",
+    "Change the update case of test_attempts_cap_preserves_published_rework_on_direct_merge_result to assert the stem is in reject_queue(events) with reason `attempts cap spent`, add an ok-escalate case, and update the docs/how-chupa-works.md section 6.4 note to match."
   ],
   "mechanical": null,
   "spec_version": "1.1",
