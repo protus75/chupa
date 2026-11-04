@@ -9,6 +9,7 @@ state: confirmed
 none
 
 ## Context
+- docs/how-chupa-works.md
 - tickets/already-satisfied-settles/evidence/journal-excerpt.txt
 - chupa/runner.py
 - chupa/status.py
@@ -25,9 +26,11 @@ none
 - In: `tests/test_drain.py` adds `test_already_satisfied_settles_without_diagnosis` (a scripted `already_satisfied` Implement makes no further LLM call, journals no `cap_consumed` and no `routed` marker, and leaves no worktree), and drops the `diagnosis_reply()` steps its existing scripts queue after `already_satisfied` results.
 - In: `tests/test_status.py` adds `test_settled_stem_never_awaits_verdict` (a journal whose `already_satisfied` terminal carries `routed: reject_queue` yields an empty `reject_queue`, and a `merged` stem never appears either).
 - In: `tests/regress_already_satisfied.py`, the carried reproducer: it feeds `status.reject_queue` a journal whose `already_satisfied` terminal carries `routed: reject_queue` (the shape in the evidence file). It prints `{"regression_result": "pass"}` and exits 0 when the stem is absent, prints `{"regression_result": "defect"}` and exits 1 when it is present, and prints `{"regression_result": "error"}` and exits 2 on any other failure. Diagnostics go to stderr only.
+- In: update `docs/how-chupa-works.md` sections 6.1 (drop the known-defect note), 6.6, and 10.3 (`already_satisfied` is settled, never awaiting a verdict), so the doc matches the code when this merges.
 - Out: the outcome vocabulary, the `already_satisfied` proof rule in Implement, journal history, and every other failure-path behavior.
 
 ## Scope fence
+- docs/how-chupa-works.md
 - chupa/runner.py
 - chupa/status.py
 - chupa/drain.py

@@ -9,6 +9,7 @@ state: confirmed
 none
 
 ## Context
+- docs/how-chupa-works.md
 - chupa/config.py
 - tests/test_config.py
 - docs/host-contract.md
@@ -21,9 +22,11 @@ Config accepts host review surfaces (`review.surfaces`, `ReviewSurface` in `chup
 - In: loading a config whose `review.surfaces` is non-empty raises the existing `ConfigError` naming `review.surfaces`, with the paved road "remove review.surfaces entries; host review surfaces are not supported yet". An absent key or `surfaces: []` loads as today.
 - In: `tests/test_config.py`'s `VALID` fixture drops its `surfaces` entry; add `test_review_surfaces_refused` (a non-empty list refuses with that message and road; an empty list loads).
 - In: `docs/host-contract.md`'s copyable example sets `surfaces: []` with a comment saying surfaces are not supported yet, and the prose says config refuses a declared surface; `tests/test_host_contract.py::test_host_contract_example_loads` drops its `surfaces[0]` assertion and asserts the example's `surfaces` is empty.
+- In: update `docs/how-chupa-works.md` sections 5.4 and 11 (a declared `review.surfaces` entry is refused at config load), so the doc matches the code when this merges.
 - Out: removing the `ReviewSurface` model or the `surfaces` key, any surface execution, routing, specs, and the plan text.
 
 ## Scope fence
+- docs/how-chupa-works.md
 - chupa/config.py
 - tests/test_config.py
 - docs/host-contract.md

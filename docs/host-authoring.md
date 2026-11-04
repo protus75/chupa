@@ -25,7 +25,9 @@ what content its tickets carry, never the format.
 - `Scope in / Scope out`: what the agent changes, and what it must leave alone.
 - `Scope fence`: every path the agent may write. Fence every file the acceptance criteria force
   it to change, including existing tests whose assertions flip; a forced file outside the fence
-  makes the ticket impossible.
+  makes the ticket impossible. A ticket that changes documented behavior also fences that
+  document and says in `Scope in / Scope out` which part to update, so docs and code land
+  together.
 - `Acceptance criteria`: each criterion is a check someone can run or a path someone can read,
   never a judgment word.
 - `Verification`: the commands Check runs; every one must exit 0.

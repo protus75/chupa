@@ -9,6 +9,7 @@ state: confirmed
 none
 
 ## Context
+- docs/how-chupa-works.md
 - tickets/no-plan-host/evidence/unguarded-plan-reads.txt
 - chupa/tickets.py
 - chupa/author.py
@@ -30,9 +31,11 @@ none
 - In: `requisition.review_ticket` accepts `plan=None`; with no plan, the ticket has no plan units to resolve or harden, and review proceeds on the ticket and its Context alone.
 - In: `tests/test_no_plan_host.py` adds, each in a temp repo with no `CHUPA_PLAN.md`: `test_author_without_plan` (Author writes and reviews a ticket from a Box message with a scripted model), `test_rework_without_plan` (a Rework `update` proposal is validated and reviewed), and `test_kill_without_plan_files_dead_dependency` (`reject` of a stem with a confirmed dependent files its dead-dependency report).
 - In: `tests/regress_no_plan_host.py`, the carried reproducer: in a temp repo with no `CHUPA_PLAN.md` it runs the dead-dependency path of `reject`; it prints `{"regression_result": "pass"}` and exits 0 when that completes, prints `{"regression_result": "defect"}` and exits 1 on a `FileNotFoundError` naming `CHUPA_PLAN.md`, and prints `{"regression_result": "error"}` and exits 2 on any other failure. Diagnostics go to stderr only.
+- In: update `docs/how-chupa-works.md` section 13 (plan reads go through one function and tolerate an absent plan), so the doc matches the code when this merges.
 - Out: removing the bootstrap plan machinery, plan lint, `## Plan contract` grammar, and every behavior when the plan file exists.
 
 ## Scope fence
+- docs/how-chupa-works.md
 - chupa/tickets.py
 - chupa/author.py
 - chupa/rework.py

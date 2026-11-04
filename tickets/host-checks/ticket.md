@@ -9,6 +9,8 @@ state: confirmed
 none
 
 ## Context
+- docs/host-contract.md
+- docs/how-chupa-works.md
 - chupa/mergequeue.py
 - chupa/merge.py
 - chupa/stages.py
@@ -26,9 +28,12 @@ A host declares its own checks under `review.mechanical` (`code`, `argv`, `trigg
 - In: inline merge (`merge` in `chupa/merge.py`) runs every triggered HARD entry on the rebased candidate through the same runner, spool `merge/host-<nn>.txt`; any failure refuses admission with main untouched.
 - In: an untriggered entry leaves no command, report, spool, or finding.
 - In: `tests/test_host_mechanical.py` covers, through production Check and inline merge: `test_triggered_entries_run_at_check`, `test_untriggered_entry_never_runs` (including `chupa/x` against `chupa/xy.py`), `test_hard_failure_fails_check`, `test_soft_failure_reported_and_passes`, `test_base_red_entry_is_preexisting`, `test_timeout_and_missing_executable_fail_closed` (provider keys absent from the child env, secrets scrubbed from spool and findings), and `test_inline_merge_reruns_triggered_hard_entries` (soft and untriggered entries excluded; a red hard entry refuses without moving main).
+- In: update `docs/how-chupa-works.md` sections 4.3, 4.5, 5.4, and 7.2.1 (host checks at Check and at every merge, through the one shared runner), and the host-check part of `docs/host-contract.md` `## Checks and injectable seams`, so the doc matches the code when this merges.
 - Out: config schema, ticket validation, `gate_bypass` (host check codes are not bypass codes), Suggestion Box messages for soft failures, `review.surfaces`, and the merge queue's selection rules.
 
 ## Scope fence
+- docs/host-contract.md
+- docs/how-chupa-works.md
 - chupa/stages.py
 - chupa/merge.py
 - chupa/mergequeue.py

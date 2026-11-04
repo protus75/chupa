@@ -9,6 +9,7 @@ state: confirmed
 none
 
 ## Context
+- docs/how-chupa-works.md
 - chupa/__main__.py
 - chupa/runner.py
 - tests/test_control_cli.py
@@ -23,9 +24,11 @@ none
 - In: the terminal check and prompt read through one injectable seam in `chupa/__main__.py` (an `isatty` predicate and an input reader), so tests drive both paths without a real terminal.
 - In: `./dev.py` gains a `confirm STEM...` subcommand matching `reject`, passing stdin through so the prompt reaches the person.
 - In: tests add `test_verdict_refused_without_terminal` (both verbs, no journal or inbox write) and `test_verdict_requires_typed_stem` (exact stem proceeds; a mismatch or empty answer aborts unchanged); existing CLI tests that run these verbs supply the seam as a terminal answering the stem.
+- In: update `docs/how-chupa-works.md` sections 2.1, 2.2 (`./dev.py confirm`), and 6.6 (keep and kill require a person at a terminal typing the stem), so the doc matches the code when this merges.
 - Out: `runner.verdict` semantics, the control-inbox request format, the machine actor's scripted confirms in the Phase 6 exit harness, and cap rules.
 
 ## Scope fence
+- docs/how-chupa-works.md
 - chupa/__main__.py
 - dev.py
 - tests/

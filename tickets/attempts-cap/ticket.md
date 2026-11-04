@@ -9,6 +9,7 @@ state: confirmed
 none
 
 ## Context
+- docs/how-chupa-works.md
 - chupa/config.py
 - chupa/caps.py
 - chupa/runner.py
@@ -28,9 +29,11 @@ Each spine cap (`chupa/caps.py`) counts on its own and nothing bounds a ticket's
 - In: `docs/host-contract.md` shows the new keys and defaults in both places it lists `caps`.
 - In: `tests/test_caps.py` adds `test_attempts_cap_counts_every_failed_terminal` (five mixed failures spend it; drought, budget, abandoned, and settled terminals do not count; an operator keep resets it) and `test_attempts_cap_routes_to_reject_queue` (the stem routes with reason "attempts cap spent" and makes no model call).
 - In: existing tests change only where they assert or rely on the old default values.
+- In: update `docs/how-chupa-works.md` section 6.4 (the `attempts` cap, new defaults, what counts as a failed attempt), so the doc matches the code when this merges.
 - Out: the escalation ladder's rung order, quarantine and poison caps, THRESH spend budgets, and the plan text.
 
 ## Scope fence
+- docs/how-chupa-works.md
 - chupa/config.py
 - chupa/caps.py
 - chupa/runner.py
