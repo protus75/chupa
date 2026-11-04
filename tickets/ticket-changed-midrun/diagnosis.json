@@ -1,16 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "5ea748d9343f3adb9b6667e609f6f415b125c38d",
+  "produced_at_sha": "5c7970ca41632e91bf3f7d6932b76274446052a9",
   "stem": "ticket-changed-midrun",
-  "attempt": 2,
+  "attempt": 3,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "Review of chupa/serve.py:121: `rev_parse main:tickets/<stem>/ticket.md` raises `GitError` for an uncommitted stem and exits serve. Check for a committed blob before setting `self.writers` and appending `running`; if none, return without dispatching. Add a refused-bug-ticket serve test.",
-    "Review of chupa/serve.py:120: remove the dispatch-time `await intake(...)`; `scan` already runs intake under the same admission slot. It commits an edit that the Watcher's `ticket` predates, so the recorded `ticket_sha` hides the change from `ticket_changed`.",
-    "Tie `ticket_sha` to the dispatched ticket: compare main's blob with the content `ticket` was parsed from. If they differ, republish the fresh ticket with `scheduler.update` and return without dispatching. Add a serve test editing the ticket after publication and before dispatch."
+    "Keep the code as it is: review traced the `ticket_changed` stop and hold as correct on every path, and 3924 tests passed. The only finding is the stale section 6.1 in docs/how-chupa-works.md, so limit this attempt to that doc fix and rerun verification.",
+    "In docs/how-chupa-works.md section 6.1, the sentence \"After any other non-ok terminal, `runner.drive` does, in order\" and steps 3-5 still imply diagnosis. Add a `ticket_changed` exit beside step 2, as the finding's paved road says, and point it to section 6.7.",
+    "State the exit as the review finding does: after Harvest, `ticket_changed` journals a `gate_failed` terminal routed to the Reject queue, removes the worktree, and skips the cap, Diagnosis and Rework steps. Make sure this wording agrees with the new section 6.7 text.",
+    "Before committing, reread sections 3.2, 6.1 and 6.7 together with the `runner.drive` early return so all three describe one order. Acceptance criterion 3 names 3.2 and 6.7, but review also rejects a stale 6.1, which the diff makes false."
   ],
   "mechanical": null,
   "spec_version": "1.1",
