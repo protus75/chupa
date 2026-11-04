@@ -1,18 +1,18 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The new snapshot’s 7 tests and plan lint’s 29 tests pass. Both seeds remain unchanged; tests/test_seeded_phase7_01.py remains uncommitted.
+Both seeds were already lifted, so their bytes were preserved under the plan's rerun rule; reported historical failures did not reproduce on the untouched base.
 
 ## Dead ends
 
-Stopped after full-suite verification returned 2 failed and 3874 passed; historical fixtures were preserved.
+none
 
 ## Second problems filed
 
-- box-000298-e19e582a: The corrected phase7-continue ticket invalidates the historical core fixture’s byte and custody-wording assertions; both failures reproduce on untouched base 92a36e732621b545e1e315abdc542469dea10fa1.
+none
 
 ## Resolved engine/model
 
@@ -22,5 +22,5 @@ Stopped after full-suite verification returned 2 failed and 3874 passed; histori
 
 ## Predicted vs actual
 
-Stopped within the expected 60-minute budget.
+Completed in approximately 10 minutes against the 60-minute expected budget.
 
