@@ -1,0 +1,11 @@
+Unconditional reads of CHUPA_PLAN.md at runtime (grep of chupa/ on main at c531691):
+
+chupa/author.py:244:            driver, repo=checkout.repo, plan=(checkout.repo / "CHUPA_PLAN.md").read_text(),
+chupa/runner.py:362:    plan = (ctx.repo / PLAN_FILE).read_text()
+chupa/runner.py:666:                              plan=(checkout.repo / "CHUPA_PLAN.md").read_text())
+chupa/daemon.py:369:                                plan=(ctx.repo / "CHUPA_PLAN.md").read_text())
+chupa/rework.py:135:            plan = (tree / "CHUPA_PLAN.md").read_text()
+chupa/stages.py:1129:    plan = (ctx.repo / PLAN_FILE).read_text()
+
+Each calls Path.read_text() with no existence check, so a host repo without CHUPA_PLAN.md raises FileNotFoundError there.
+Guarded reads for comparison: chupa/tickets.py:514 (validate_ticket), chupa/stages.py:563, chupa/drain.py:327.

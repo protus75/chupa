@@ -1,0 +1,13 @@
+Journal events (state_transition and diagnosis) for the three stems listed in the Reject queue:
+
+harden-serve-activation-3 state_transition {"to": "running", "ticket_sha": "a42b1dab2ed0cdefe392cfaa8c100a37ebdbed27"}
+harden-serve-activation-3 signal {"signal": "diagnosis", "attempt": 0, "verdict": "reject", "mechanical": null}
+harden-serve-activation-3 state_transition {"to": "already_satisfied", "stage": "check", "reason": "already_satisfied", "dispatch": "reject_queue", "routed": "reject_queue"}
+plan-gap-32 state_transition {"to": "running", "ticket_sha": "e68505e14a938ec328bf0cd0d2d31e7e2e255a12"}
+plan-gap-32 signal {"signal": "diagnosis", "attempt": 0, "verdict": "reject", "mechanical": null}
+plan-gap-32 state_transition {"to": "already_satisfied", "stage": "check", "reason": "already_satisfied", "dispatch": "reject_queue", "routed": "reject_queue"}
+plan-gap-34 state_transition {"to": "running", "ticket_sha": "7e839e1af5ff795a6f85cddfdf711d83d78c0655"}
+plan-gap-34 signal {"signal": "diagnosis", "attempt": 0, "verdict": "reject", "mechanical": null}
+plan-gap-34 state_transition {"to": "already_satisfied", "stage": "check", "reason": "already_satisfied", "dispatch": "reject_queue", "routed": "reject_queue"}
+
+`chupa reject <stem>` on each: "<stem> is settled -- leave settled work in place" (exit 2), while `chupa status` lists them under Reject queue.
