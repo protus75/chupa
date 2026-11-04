@@ -1,20 +1,15 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "adc2cd5ed294436a53659ca4254a25bfb13abd7d",
+  "produced_at_sha": "2999950783460f46c56fb1247b0e00805f20d4e8",
   "stem": "host-checks",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "reject",
-  "lessons": [
-    "Ticket contradicts itself: tests/test_host_contract.py:260 requires 'rc == 0', 'spool.write' and 'redactor.scrub' in MergeQueue._command source, scope moves them to chupa/stages.py, and criterion 4 needs full pytest green with that file outside the fence. Amend the ticket first.",
-    "Ticket repair: add tests/test_host_contract.py to the scope fence and allow changing only line 260's source inspection, so it checks the shared runner in chupa/stages.py. Do not pad _command with those strings just to satisfy the assertion.",
-    "Keep MergeQueue._command as a thin delegate: tests/test_host_contract.py:253 calls it directly and expects (result, report) and the capture name. chupa/mergequeue.py:358 also uses it for post_rebase_regate, so that call must keep working through it.",
-    "The earlier full-suite run was killed at about 83% (exit 137), so the remainder is unproven. After the ticket repair, run uv run pytest -q to completion before reporting, per criterion 4, and treat any further out-of-fence assertion as a new finding."
-  ],
-  "mechanical": null,
+  "verdict": "abandon-human",
+  "lessons": [],
+  "mechanical": "premise_bounce cap spent",
   "spec_version": "1.1",
-  "provider": "claude",
-  "model": "claude-opus-5-5"
+  "provider": null,
+  "model": null
 }
