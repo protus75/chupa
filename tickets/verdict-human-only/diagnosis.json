@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "951e157e42108b9c9441cdb113b571c097dd3fa4",
+  "produced_at_sha": "ae396c081abc493c345f797be9108c2b1fcc3c77",
   "stem": "verdict-human-only",
-  "attempt": 0,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "reject",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
   "lessons": [
-    "Criterion 2 (`uv run pytest -q` exits 0) cannot pass as written: four tests in tests/test_seeded_phase7_core.py read tickets/phase7-continue/ticket.md (lines 364, 376, 532), which commit 347c970 deleted. Add a `depends` on a separate repair; this ticket says `none`.",
-    "Do not restore tickets/phase7-continue/ticket.md as the finding's paved road suggests: 347c970 retired it deliberately ('post-bootstrap work is authored as ordinary tickets'). The repair ticket should reconcile tests/test_seeded_phase7_core.py with that retirement.",
-    "Do not fold the test repair into this diff, even though `tests/` is in the scope fence. CLAUDE.md says second problems are filed, never folded; it is already filed as box-000305-12bad014, verified on base commit 951e157.",
-    "Once the repair has merged, rerun the unchanged scope. The run record says all 73 targeted tests passed and the only full-suite failures were these four, so the verdict gate design needs no change, though those edits were left uncommitted and may need redoing."
+    "Review finding at chupa/__main__.py:458: the verdict preview calls runner._ticket_state, whose unguarded yaml.safe_load(...).get(\"state\") lets YAMLError or AttributeError escape main on malformed frontmatter. Make the preview tolerate unparseable frontmatter.",
+    "Keep intake's outcome for a bad ticket: exit 2 with the paved road \"fix the ticket and retry the verdict\". The review's paved road suggests _load_frontmatter or validate_ticket semantics, showing an 'invalid ticket' state or raising runner.Refusal.",
+    "Add a test running a verdict on a stem with malformed frontmatter, per the review's paved road: assert exit 2, the paved road text, and no state change. Cover both invalid YAML and non-mapping frontmatter, since the finding names both failure types.",
+    "Keep the rest of the diff: review found the gating, typed-stem prompt, dev.py and docs meet the ticket. Fix only the preview path, and leave runner.verdict and the control-inbox format unchanged, as the ticket's Definition of rejected requires."
   ],
   "mechanical": null,
   "spec_version": "1.1",
