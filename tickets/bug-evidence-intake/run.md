@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Kept evidence checking separate from grammar validation to preserve existing callers; both verification commands passed: 54 ticket tests and 3,874 full-suite tests.
+Admission uses the same Git-visible regular files that intake commits, excluding ignored and symlink evidence; settled and rejected tickets skip the evidence check. Both verification commands passed: 57 ticket tests and 3877 full-suite tests.
 
 ## Dead ends
 
