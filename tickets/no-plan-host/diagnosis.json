@@ -1,16 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "b2aa2fa895eecdd9bc30b27a3e81715b5e34c818",
+  "produced_at_sha": "3f9a1f5c43bf0f10bb996588e91653a93b7ea314",
   "stem": "no-plan-host",
-  "attempt": 0,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "reject",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
   "lessons": [
-    "Acceptance criterion 3 and Scope-in's 'every runtime read of the plan in chupa/' cover chupa/drain.py:336 and chupa/__main__.py:263, but the Scope fence omits both. Add both files to the fence before rerunning; no attempt can satisfy the ticket as written.",
-    "Both out-of-fence reads are already guarded with is_file(), so they cannot raise. The finding comes only from criterion 3's 'no read_text() outside the one function'. Keep that criterion and widen the fence; route both reads through the new chupa/tickets.py function, which returns None when absent.",
-    "Criterion 3 also catches guarded reads inside the fence: chupa/tickets.py:515 and chupa/stages.py:563, 912, 913. Convert them too. stages.py:563 falls back to \"\", not None, so keep that fallback at the call site to leave behavior unchanged when the plan exists."
+    "In `_review_seeds` (chupa/stages.py:1129), coerce an absent plan to \"\": `_review_one` declares `plan: str`, and `required_units` reaches `registry_rows`, whose `_REGISTRY.findall(plan)` raises TypeError on None. Keep `_review_one`'s signature unchanged.",
+    "With plan \"\", `registry_rows` is empty, so `required_units` returns no units and no entry-unit gap fires. `resolve_plan_contract` then raises PlanContractError, which `_review_one` already catches at stages.py:1214 (\"Grammar reports ids that do not resolve\"). Add no new no-plan branch.",
+    "Add a seed-review test to tests/test_no_plan_host.py: temp repo with no CHUPA_PLAN.md, a ticket with `tickets` in its scope fence adding a seed candidate, run through `_review_seeds`. Confirm it fails with TypeError before the fix; the finding says no test covers this path.",
+    "Before finishing, check every other consumer of the plan-read function's result in chupa/ for the same None hazard: the ticket's Definition of rejected covers any path that can still raise because CHUPA_PLAN.md is absent, not only FileNotFoundError."
   ],
   "mechanical": null,
   "spec_version": "1.1",
