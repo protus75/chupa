@@ -45,6 +45,7 @@ Each spine cap (`chupa/caps.py`) counts on its own and nothing bounds a ticket's
 1. `uv run pytest -q tests/test_caps.py tests/test_config.py` exits 0, including `test_attempts_cap_counts_every_failed_terminal` and `test_attempts_cap_routes_to_reject_queue`.
 2. `load_config` with no `caps` key yields `diagnosis 3, retry 3, infra 3, premise_bounce 1, hardening 1, attempts 5, quarantine 5, poison 2`.
 3. `uv run pytest -q` exits 0.
+4. `docs/how-chupa-works.md` section 6.4 and `docs/host-contract.md` show the `attempts` cap and the new defaults.
 
 ## Verification
 ```

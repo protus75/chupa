@@ -51,6 +51,7 @@ none
 2. `uv run pytest -q tests/test_no_plan_host.py` exits 0 with `test_author_without_plan`, `test_rework_without_plan`, and `test_kill_without_plan_files_dead_dependency`.
 3. `chupa/` contains no `read_text()` of the plan file outside the one function in `chupa/tickets.py`.
 4. `uv run pytest -q` exits 0.
+5. `docs/how-chupa-works.md` section 13 says plan reads go through one function and an absent plan is tolerated.
 
 ## Verification
 ```

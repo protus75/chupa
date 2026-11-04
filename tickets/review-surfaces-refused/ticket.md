@@ -35,6 +35,7 @@ Config accepts host review surfaces (`review.surfaces`, `ReviewSurface` in `chup
 ## Acceptance criteria
 1. `uv run pytest -q tests/test_config.py tests/test_host_contract.py` exits 0, including `test_review_surfaces_refused`.
 2. `uv run pytest -q` exits 0.
+3. `docs/how-chupa-works.md` sections 5.4 and 11 and `docs/host-contract.md` say a declared `review.surfaces` entry is refused at config load.
 
 ## Verification
 ```

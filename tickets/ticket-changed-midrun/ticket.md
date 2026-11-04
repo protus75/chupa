@@ -40,6 +40,7 @@ A run takes its ticket's content at dispatch, but nothing notices when `tickets/
 ## Acceptance criteria
 1. `uv run pytest -q tests/test_drain.py` exits 0, including `test_ticket_edit_mid_run_holds`, `test_uncommitted_ticket_edit_mid_run_holds`, and `test_engine_artifacts_do_not_trigger`.
 2. `uv run pytest -q` exits 0.
+3. `docs/how-chupa-works.md` sections 3.2 and 6.7 describe the `ticket_changed` stop and hold.
 
 ## Verification
 ```

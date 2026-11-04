@@ -36,6 +36,7 @@ none
 ## Acceptance criteria
 1. `uv run pytest -q tests/test_control_cli.py tests/test_reject_queue.py` exits 0, including `test_verdict_refused_without_terminal` and `test_verdict_requires_typed_stem`.
 2. `uv run pytest -q` exits 0.
+3. `docs/how-chupa-works.md` sections 2.1, 2.2 and 6.6 say keep and kill need a person at a terminal typing the stem, and list `./dev.py confirm`.
 
 ## Verification
 ```

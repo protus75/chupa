@@ -42,6 +42,7 @@ none
 1. `uv run python tests/regress_already_satisfied.py` prints exactly `{"regression_result": "pass"}` and exits 0.
 2. `uv run pytest -q tests/test_drain.py tests/test_status.py` exits 0, including `test_already_satisfied_settles_without_diagnosis` and `test_settled_stem_never_awaits_verdict`.
 3. `uv run pytest -q` exits 0.
+4. `docs/how-chupa-works.md` sections 6.1, 6.6 and 10.3 describe `already_satisfied` as settled, never diagnosed or held for a verdict.
 
 ## Verification
 ```

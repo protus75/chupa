@@ -46,6 +46,7 @@ A host declares its own checks under `review.mechanical` (`code`, `argv`, `trigg
 2. `uv run pytest -q tests/test_mergequeue.py` exits 0 with that file unchanged, proving the merge queue keeps its behavior on the shared runner.
 3. `chupa/mergequeue.py` no longer calls `ctx.exec_.run` for host checks; the only host-check execution is the shared function in `chupa/stages.py`.
 4. `uv run pytest -q` exits 0. `tests/test_stages.py` and `tests/test_merge.py` change only where an existing assertion contradicts host checks now running.
+5. `docs/how-chupa-works.md` sections 4.3, 4.5, 5.4 and 7.2.1, and the checks section of `docs/host-contract.md`, describe host checks running at Check and at every merge through the one shared runner.
 
 ## Verification
 ```
