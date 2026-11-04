@@ -1,18 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "c2d56ad43ac876135ca8579bf237f307ecf58e6e",
+  "produced_at_sha": "c7c53f9d9835eef2a4aeffc05d650631faf6a8b2",
   "stem": "attempts-cap",
-  "attempt": 3,
+  "attempt": 4,
   "terminal": "gate_failed",
   "stage": "review",
-  "verdict": "retry",
+  "verdict": "reject",
   "lessons": [
-    "In `drive` (runner.py:150), replace `raise Refusal` with one journaled routed terminal and return its state. Review's paved road: `to: abandoned`, `reason: spent_reason(\"attempts\")`, `dispatch` and `routed` both `reject_queue`. `failed_attempt` does not count `abandoned`.",
-    "Keep the `_admit` refusal: `chupa run` refuses there before journaling `running`. Change only the `drive` guard, because `serve.py:120` journals `running` before calling it and review found nothing between `drive` and `guarded()` that catches `Refusal`, so serve exits 2.",
-    "Add a test that sends a stem at its attempts total, with no routed terminal in the journal, through the daemon dispatch path. Assert `reject_queue(...)` holds it with reason \"attempts cap spent\", no model call is made, and the worker does not stop.",
-    "Keep the fix inside the scope fence: `chupa/runner.py` and `tests/`. `serve.py` is outside the fence and the paved road does not need it changed, so leave it alone.",
-    "Review flagged `eval/shakeout/drain.py` (outside the fence) as likely red under `premise_bounce: 1`, since `tests/test_shakeout.py` overrides that cap. Do not edit it. File it as a second problem and list it in the run record, per CLAUDE.md's second-problem rule."
+    "Add eval/shakeout/drain.py to the Scope fence. Plan section 13's authoring rule says a fence includes every file the acceptance criteria force, and premise_bounce 1 breaks `_premise_park_release` there, so `uv run pytest -q` cannot pass honestly inside the current fence.",
+    "In `_premise_park_release`, after `_configure_diagnosis(bench)`, set premise_bounce 2 with `bench.configure(bench.config.model_copy(update=...))`, the pattern at eval/shakeout/stages.py:91. The member needs a second drain to park and a third to release the stem.",
+    "Remove the `Bench.initialize` monkeypatch from tests/test_shakeout.py. It makes `premise_park_release` pass only in that test, while the real member still fails through `eval.shakeout.run` at `assert stem in released.merged`.",
+    "In `_admit` in chupa/runner.py, move the attempts check below the 'already merged' and `state != \"confirmed\"` refusals, so a merged stem keeps its road to author a new stem with `new`. Add a test: a merged stem with five prior failures gets the 'already merged' refusal."
   ],
   "mechanical": null,
   "spec_version": "1.1",
