@@ -35,7 +35,7 @@ from chupa.seams import Clock, FileSystem, GroupExec, Sleep
 from chupa.specs import registry_rows, unit_sha
 from chupa.stages import (DiagnosisMaterial, StageContext, diagnose, lift_outbox,
                           run_stages, write_diagnosis)
-from chupa.status import last_states, reject_queue
+from chupa.status import SETTLED, last_states, reject_queue
 from chupa.tickets import (INTAKE_SIGNAL, PLAN_FILE, TICKETS_DIR, Ticket, TicketInvalid, intake,
                            parse_ticket, split_frontmatter, stamp, stem_findings, ticket_path, validate_ticket)
 
@@ -167,10 +167,16 @@ async def drive(ctx: StageContext, ticket: Ticket, *, admission=None, consume_ha
             return await consume_handoff(ticket, result, attempt=run.attempt)
         if result.outcome == "ok":
             return "merged"
-    if result.outcome != "already_satisfied":
-        await harvest_failure(ctx, ticket, attempt=run.attempt, stage=stage, outcome=result.outcome,
-                              findings=result.findings, results=(*run.results.values(),)
-                              + ((result,) if stage == "merge" else ()))
+    if result.outcome == "already_satisfied":
+        ctx.driver.journal.append(EventType.STATE_TRANSITION,
+                                  {"to": "already_satisfied", "stage": stage, "reason": "already_satisfied"},
+                                  ticket=ticket.stem)
+        if ctx.worktree(ticket.stem).exists():
+            await ctx.git.worktree_remove(ctx.repo, ctx.worktree(ticket.stem))
+        return result.outcome
+    await harvest_failure(ctx, ticket, attempt=run.attempt, stage=stage, outcome=result.outcome,
+                          findings=result.findings, results=(*run.results.values(),)
+                          + ((result,) if stage == "merge" else ()))
     drought = getattr(result, 'provider_drought', None)
     quota = any(f.code == 'quota_exhausted' for f in result.findings)
     if drought is not None or quota:
@@ -558,7 +564,7 @@ async def verdict(stem: str, checkout: Checkout, *, kill: bool) -> int:
         if last == "running":
             raise Refusal(f"{stem} is running", "wait for its terminal, then retry")
         if kill:
-            if last in {"merged", "already_satisfied"}:
+            if last in SETTLED:
                 raise Refusal(f"{stem} is settled", "leave settled work in place")
             changed = await reject_ticket(stem, checkout)
             print(f"rejected {stem}" if changed else f"already rejected {stem}")
@@ -660,7 +666,7 @@ async def _dead_dependents(dead: str, checkout: Checkout) -> None:
                          journal=checkout.journal, clock=checkout.clock)
     for path in sorted((checkout.repo / "tickets").glob("*/ticket.md")):
         stem = path.parent.name
-        if stem == dead or _ticket_state(path) != "confirmed" or last.get(stem) in {"merged", "already_satisfied", "rejected"}:
+        if stem == dead or _ticket_state(path) != "confirmed" or last.get(stem) in SETTLED | {"rejected"}:
             continue
         ticket = parse_ticket(stem, path.read_text(), checkout.repo,
                               plan=(checkout.repo / "CHUPA_PLAN.md").read_text())

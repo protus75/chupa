@@ -29,7 +29,7 @@ from chupa.reconcile import reconcile
 from chupa.runner import EXIT_MERGED, EXIT_TICKET, Checkout, Dispatch, Refusal, harvest_orphan
 from chupa.seams import ProcessExec
 from chupa.specs import unit_sha
-from chupa.status import last_states, reject_queue
+from chupa.status import SETTLED, last_states, reject_queue
 from chupa.tickets import (
     INTAKE_SIGNAL, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, TicketInvalid, _porcelain, depends_cycle, intake,
     parse_ticket, ticket_path,
@@ -37,8 +37,6 @@ from chupa.tickets import (
 
 HALT_SIGNAL = "drain_halted"
 CEILING = "drain.max_runtime_hours"
-# `already_satisfied` settles the stem as a no-op (section 7): it satisfies `depends` and is never re-offered.
-SETTLED = frozenset({"merged", "already_satisfied"})
 # A `rejected` stem is retired (section 11.2): never dispatched again.
 RETIRED = frozenset({"rejected"})
 PRIORITY = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}

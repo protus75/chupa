@@ -466,8 +466,7 @@ async def test_kill_application_is_once_and_identity_bound(root, monkeypatch, po
                 consumer.inbox.files = lambda: ()
             if point == "rejected":
                 (c.config.state_dir / "control/inbox/kill.json").write_bytes(b"{}")
-        llm = FakeLLM([implement_reply("already_satisfied"),
-                      json.dumps({"verdict": "abandon-human", "lessons": ["Preserve the terminal."]})])
+        llm = FakeLLM([implement_reply("already_satisfied")])
         writer = runner.bind(c, llm)
         writer.ctx.driver.sleep = Timer()
         report = await live.run(writer)
@@ -608,8 +607,7 @@ async def test_kill_cleanup_is_atomic_and_failures_propagate(root, monkeypatch, 
                 return await super().call(req)
             def abort_current(self):
                 pytest.fail("failed decision authorized executor mutation")
-        llm = Completing([implement_reply("already_satisfied"),
-                          json.dumps({"verdict": "abandon-human", "lessons": ["Keep the settled terminal."]})])
+        llm = Completing([implement_reply("already_satisfied")])
         writer = runner.bind(c, llm)
         writer.ctx.driver.sleep = Timer()
         append = c.journal.append
@@ -629,7 +627,7 @@ async def test_kill_cleanup_is_atomic_and_failures_propagate(root, monkeypatch, 
             finish.set()
             with pytest.raises(RuntimeError, match="decision append failed"):
                 await task
-            assert llm.aborted == 0 and [r.surface for r in llm.requests] == ["implement", "diagnose"]
+            assert llm.aborted == 0 and [r.surface for r in llm.requests] == ["implement"]
             assert last_states(c.journal.read())["work"] == "already_satisfied"
             assert applications(c.journal) == [] and audit_journal(c.journal) == []
             assert live.trace[-2:] == [("discovery", None), "unlock"]

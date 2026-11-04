@@ -233,7 +233,11 @@ Check or in `run`/`drain` merges, and path-triggered or soft entries never run a
 
 ### 6.1 Order of handling
 
-After a non-ok terminal, `runner.drive` does, in order:
+`already_satisfied` is settled after Check proves it: `runner.drive` journals its stage and
+`already_satisfied` reason, then removes the worktree. It makes no diagnosis call, draws no cap,
+and records no dispatch or Reject routing marker.
+
+After any other non-ok terminal, `runner.drive` does, in order:
 
 1. **Harvest** the attempt (section 6.2).
 2. A provider **drought** or quota result parks the stem with no diagnosis (section 8.3).
@@ -242,9 +246,6 @@ After a non-ok terminal, `runner.drive` does, in order:
 5. **Rework** if diagnosis said `split`, or the render was over bound (section 6.5).
 6. Decide the dispatch (retry, escalate, or the Reject queue) and journal the terminal.
 7. Remove the worktree.
-
-Known defect: `already_satisfied` skips only the harvest and then falls through steps 4-6, paying
-for a diagnosis and possibly landing in the Reject queue, even though it is a settled outcome.
 
 ### 6.2 Harvest
 
@@ -300,6 +301,8 @@ journals `supersedes` and retires the original: its dependents wait on the succe
 
 The Reject queue holds stems whose latest terminal was routed there, plus stems the drain finds
 with a spent cap at quiescence. `status` lists them.
+Settled stems (`merged` and `already_satisfied`) never await a verdict, even when a historical
+terminal carries a Reject routing marker. `reject` refuses settled stems.
 
 - **`confirm <stem>` (keep)** journals `reject_verdict keep actor: operator`. That resets the
   lineage, so every cap starts over. A second keep at the same ticket content is refused: edit the
@@ -537,6 +540,8 @@ and notifications are Effects, so a crash never repeats one.
 
 1. Stems by last state: merged, in flight, blocked (every other state, including
    `already_satisfied`).
+   `already_satisfied` remains in this state listing as a settled no-op; it is never diagnosed
+   or awaiting a verdict in the Reject queue.
 2. Every intake.
 3. Total spend.
 4. The Reject queue.

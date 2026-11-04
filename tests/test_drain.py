@@ -132,6 +132,42 @@ def tos(root: Path, stem: str) -> list[str]:
     return [e.body["to"] for e in journal(root).read() if e.type == EventType.STATE_TRANSITION and e.ticket == stem]
 
 
+def test_already_satisfied_settles_without_diagnosis(rework_repo):
+    from chupa import runner
+    from chupa.llm import FakeLLM
+    from chupa.status import reject_queue
+    from tests.test_stages import STEM, agent
+    from tests.test_terminal import author, clock
+
+    repo = rework_repo
+    (repo / "chupa/thing.py").write_text("ok base\n")
+    git = Git(SubprocessExec(), env=ENV, timeout=30)
+    async def green_base():
+        await git.add(repo, ["chupa/thing.py"])
+        await git.commit(repo, "green base", only=["chupa/thing.py"])
+    asyncio.run(green_base())
+    author(repo)
+    llm = FakeLLM([agent({}, outcome="already_satisfied")])
+    writers = []
+    def bind(checkout):
+        writer = runner.bind(checkout, llm)
+        writers.append(writer)
+        return writer
+
+    assert main(["drain"], cwd=repo, env=ENV, clock=clock, pipeline=bind) == 0
+    assert [r.surface for r in llm.requests] == ["implement"]
+    events = Journal(repo / ".chupa/state", clock).read()
+    history = [e for e in events if e.ticket == STEM]
+    assert [e.body for e in history if e.type == EventType.STATE_TRANSITION][-1] == {
+        "to": "already_satisfied", "stage": "check", "reason": "already_satisfied"}
+    assert not any(e.type == EventType.CAP_CONSUMED for e in history)
+    assert not any("routed" in e.body or "dispatch" in e.body for e in history)
+    assert not any(e.body.get("signal") in {"diagnosis", "reject_arrival"} for e in history)
+    assert not (repo / f"tickets/{STEM}/attempts/0/harvest.json").exists()
+    assert reject_queue(events) == {}
+    assert not writers[0].ctx.worktree(STEM).exists()
+
+
 # --- ordering -----------------------------------------------------------------------------------
 
 
@@ -554,7 +590,7 @@ def test_rework_split_preserves_dispatch_terminal_invariant(rework_repo, monkeyp
     from chupa.llm import FakeLLM
     from tests.test_rework import order, requisition, successors
     from tests.test_stages import ENV, SNAG, STEM, agent, verdict
-    from tests.test_terminal import author, clock, diagnosis_reply
+    from tests.test_terminal import author, clock
     repo = rework_repo
     (repo / "chupa/thing.py").write_text("ok base\n")
     git_out(repo, "add", "chupa/thing.py")
@@ -570,7 +606,7 @@ def test_rework_split_preserves_dispatch_terminal_invariant(rework_repo, monkeyp
         first = [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]),
                  json.dumps({"verdict": "split", "lessons": ["Split the work."]})]
     llm = FakeLLM([*first, split, requisition(), requisition(),
-                  agent({}, outcome="already_satisfied"), diagnosis_reply(), agent({}, outcome="already_satisfied"), diagnosis_reply(), agent({}, outcome="already_satisfied"), diagnosis_reply()])
+                  agent({}, outcome="already_satisfied"), agent({}, outcome="already_satisfied"), agent({}, outcome="already_satisfied")])
     returns, held = [], []
     def bind(checkout):
         writer = runner.bind(checkout, llm)
@@ -620,7 +656,7 @@ def test_render_over_bound_dispatches_rework_without_diagnosis(rework_repo, monk
     from chupa.status import reject_queue
     from tests.test_rework import order, requisition, successors
     from tests.test_stages import ENV, STEM, agent, verdict
-    from tests.test_terminal import author, clock, diagnosis_reply
+    from tests.test_terminal import author, clock
     repo = rework_repo
     author(repo)
     if action == "exhausted":
@@ -656,7 +692,7 @@ def test_render_over_bound_dispatches_rework_without_diagnosis(rework_repo, monk
         (repo / "chupa/thing.py").write_text("ok base\n")
         git_out(repo, "add", "chupa/thing.py")
         git_out(repo, "commit", "-m", "green base")
-        script += [agent({}, outcome="already_satisfied"), diagnosis_reply(), agent({}, outcome="already_satisfied"), diagnosis_reply()]
+        script += [agent({}, outcome="already_satisfied"), agent({}, outcome="already_satisfied")]
     llm = FakeLLM(script)
     returned = []
     def bind(checkout):

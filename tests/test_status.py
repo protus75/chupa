@@ -17,12 +17,26 @@ from chupa.lockfile import Lockfile
 from chupa.retro import Retro, RetroArtifact, measurements, production_evidence, project_window, render_report
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.specs import entry_unit_gap, load_spec, required_units, resolve_plan_contract
-from chupa.status import project, render
+from chupa.status import project, reject_queue, render
 from tests.test_cli import ENV
 from tests.test_drain import Clock, make_root
 from tests.test_retro_box import PROPOSAL
 from tests.test_retro import completed, merged, rig
 from tests.test_scorecard import invoice, review, rows
+
+
+def test_settled_stem_never_awaits_verdict(tmp_path):
+    journal = Journal(tmp_path, Clock())
+    for terminal in ("already_satisfied", "merged"):
+        journal.append(EventType.STATE_TRANSITION,
+            {"to": "gate_failed", "routed": "reject_queue"}, ticket=terminal)
+        journal.append(EventType.STATE_TRANSITION,
+            {"to": terminal, "stage": "check", "reason": terminal,
+             "dispatch": "reject_queue", "routed": "reject_queue"}, ticket=terminal)
+        assert reject_queue(journal.read()) == {}
+        journal.append(EventType.SIGNAL, {"signal": "reject_arrival"}, ticket=terminal)
+        assert reject_queue(journal.read()) == {}
+    assert project(journal.read()).reject == ()
 
 
 def test_status_surfaces_confirmed_class_tombstones(tmp_path, monkeypatch, capsys):

@@ -12,6 +12,9 @@ from chupa.retro import Window, project_window
 from chupa.scorecard import Scorecard, project_scorecard
 from chupa.tickets import INTAKE_SIGNAL
 
+# A no-op proof settles a stem just as a merge does.
+SETTLED = frozenset({"merged", "already_satisfied"})
+
 
 @dataclass(frozen=True)
 class Status:
@@ -44,7 +47,8 @@ def reject_queue(events: Iterable[Event]) -> dict[str, Mapping]:
                 waiting[e.ticket] = terminals[e.ticket]
         elif e.type == EventType.SIGNAL and e.body.get("signal") == "reject_verdict":
             waiting.pop(e.ticket, None)
-    return waiting
+    return {stem: body for stem, body in waiting.items()
+            if terminals[stem].get("to") not in SETTLED}
 
 
 def last_states(events: Iterable[Event]) -> dict[str, str]:
