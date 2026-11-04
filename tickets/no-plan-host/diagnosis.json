@@ -1,17 +1,16 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "3f9a1f5c43bf0f10bb996588e91653a93b7ea314",
+  "produced_at_sha": "f7c128944bbdcd596db6705576e1ea4f42d0fdb8",
   "stem": "no-plan-host",
-  "attempt": 1,
+  "attempt": 2,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "In `_review_seeds` (chupa/stages.py:1129), coerce an absent plan to \"\": `_review_one` declares `plan: str`, and `required_units` reaches `registry_rows`, whose `_REGISTRY.findall(plan)` raises TypeError on None. Keep `_review_one`'s signature unchanged.",
-    "With plan \"\", `registry_rows` is empty, so `required_units` returns no units and no entry-unit gap fires. `resolve_plan_contract` then raises PlanContractError, which `_review_one` already catches at stages.py:1214 (\"Grammar reports ids that do not resolve\"). Add no new no-plan branch.",
-    "Add a seed-review test to tests/test_no_plan_host.py: temp repo with no CHUPA_PLAN.md, a ticket with `tickets` in its scope fence adding a seed candidate, run through `_review_seeds`. Confirm it fails with TypeError before the fix; the finding says no test covers this path.",
-    "Before finishing, check every other consumer of the plan-read function's result in chupa/ for the same None hazard: the ticket's Definition of rejected covers any path that can still raise because CHUPA_PLAN.md is absent, not only FileNotFoundError."
+    "In tests/regress_no_plan_host.py, move the chupa and tests helper imports (line 14 area, including tests.test_drain.make_root and tests.test_cli.ENV) into a function called inside main_result's try block, so an import failure reaches `except Exception` and returns (\"error\", 2).",
+    "Keep the sys.path insert at module level and keep the JSON print as the only stdout output; the ticket's Definition of rejected rejects any other stdout from the reproducer, and diagnostics go to stderr only.",
+    "Confirm the exit-code protocol from the ticket scope: exit 1 only for a FileNotFoundError naming CHUPA_PLAN.md, exit 2 for any other failure including ImportError. Leave the rest of the diff alone; the full suite passed (3906) and the review's only finding is this one."
   ],
   "mechanical": null,
   "spec_version": "1.1",
