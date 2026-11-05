@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-The handoff waits for merge-result delivery so the ticket terminal is recorded before shutdown; policy-held candidates do not block it.
+Policy-held merge candidates do not block handoff and remain recoverable after restart.
 
 ## Dead ends
 
-none
+Overlapping test runs caused timing failures; both required commands passed when run without overlapping suites.
 
 ## Second problems filed
 
