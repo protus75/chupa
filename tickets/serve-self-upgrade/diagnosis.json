@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "18c212885cd2df5854e213804223f4b011712612",
+  "produced_at_sha": "6de2f7c88aa8466e64a8368246055b0bccd6552f",
   "stem": "serve-self-upgrade",
-  "attempt": 2,
+  "attempt": 3,
   "terminal": "gate_failed",
-  "stage": "merge",
+  "stage": "check",
   "verdict": "retry",
   "lessons": [
-    "tests/test_serve.py::test_serve_heartbeat_requires_responsive_components[3] fails: the graph never reaches the scripted boundary. Run it alone on the branch and on the base commit, and find which new admission or merge-boundary engine-tree check stops serve from reaching it.",
-    "The engine-tree re-read at admission and after each merge-queue pass must not block or wait on a component the heartbeat test wedges (the watcher wait in serve.py changes()). Keep the check a single git-seam read at those boundaries, per the ticket's Scope in.",
-    "Existing serve tests whose engine dir is not a git checkout, or whose tree ids never change, must behave exactly as before. Make sure the new startup tree record and the 'self-upgrade off' path do not change the order or timing of the heartbeat's component callbacks.",
-    "tests/test_daemon_soak_runner.py::test_daemon_soak_requires_member_local_evidence[1-main] crashed an xdist worker. Rerun it on the base commit. If it also fails there, file it to the Suggestion Box as pre-existing; if it fails only on the branch, fix it in this diff.",
-    "Before committing, run the full `uv run pytest -q` until it exits 0 (ticket criterion 7). Running only tests/test_serve.py and tests/test_drain_upgrade.py missed this failure."
+    "tests/test_serve.py::test_report_consumer_is_sequential failed in both gate runs: the heartbeat mtime never advanced while triage held the admission slot. Treat this as a regression from this diff, not timing flakiness. 'Passed without overlapping suites' is not acceptable evidence.",
+    "The engine-tree check before admission must not block or delay the serve loop's heartbeat while a ticket holds the admission slot. Keep the tree-id read off the path that stamps the heartbeat, or make sure it returns before the next SERVE_POLL_S tick.",
+    "Find out what git seam the CoreRig in tests/test_daemon_composition.py gives serve. If its engine checkout is not a git repo or its fake exec does not answer the tree-id reads, startup must log self-upgrade off once and stop watching. It must not hang or retry on each admission.",
+    "Before committing, run `uv run pytest tests/test_serve.py -k report_consumer_is_sequential` several times in a row on its own. Then run both Verification commands in sequence, never in parallel, and confirm each exits 0.",
+    "If the test also fails on the base commit, verify that and file it as a second problem rather than changing the test. Otherwise do not loosen the test's heartbeat assertion to make the suite pass."
   ],
   "mechanical": null,
   "spec_version": "1.2",
