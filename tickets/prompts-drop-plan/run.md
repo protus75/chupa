@@ -4,7 +4,7 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The required grep matches the preserved resolve_plan_contract function and plan_contract grammar in chupa/specs.py, as well as preserved seed-review uses in chupa/stages.py.
+The same failure was reproduced on the base commit; the implementation changes remain uncommitted.
 
 ## Dead ends
 
@@ -12,7 +12,7 @@ none
 
 ## Second problems filed
 
-none
+- box-000318-8bfc4261: tests/test_cli.py::test_retro_doctor_entry_unit fails because tickets/phase5-continue-04/ticket.md references the missing tests/test_seeded_phase3_core.py.
 
 ## Resolved engine/model
 
