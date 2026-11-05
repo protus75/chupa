@@ -1,15 +1,20 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "d540f7019fa1604abf9853760d4d35d3155fcb00",
+  "produced_at_sha": "68839572b388d754b2c7a4ebf94aeedab7e8bb01",
   "stem": "attempts-cap",
-  "attempt": 5,
+  "attempt": 6,
   "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "premise_bounce cap spent",
+  "verdict": "reject",
+  "lessons": [
+    "Criteria conflict: criterion 3 needs `uv run pytest -q` green with default premise_bounce 1, but the fix is outside the fence. caps.spent treats remaining <= 0 as spent, so the first bounce spends the cap in eval/shakeout/drain.py `_premise_park_release`.",
+    "Ticket edit needed: add eval/shakeout/drain.py to the Scope fence and an In line letting `_premise_park_release` set premise_bounce: 2 on its bench config, matching what the ticket already does for `_premise_false` in eval/shakeout/runner.py.",
+    "Do not retry the unchanged ticket. tests/test_shakeout.py:220 runs the real member, and the harvest shows the base is green at 3946 passed, so this is not base-red and the ticket's excuse clause does not apply.",
+    "Do not bypass the member from tests/: per the run record, a test-only override leaves the standalone shakeout member broken. Make the bench-config change in eval/shakeout/drain.py after `_configure_diagnosis`, as `_identical_terminals` does with bench.configure."
+  ],
+  "mechanical": null,
   "spec_version": "1.1",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
