@@ -1,9 +1,9 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "399d2986ad3270ccc354d97597636ea28d1f2bf1",
+  "produced_at_sha": "6de2f7c88aa8466e64a8368246055b0bccd6552f",
   "stem": "serve-self-upgrade",
-  "passed": true,
+  "passed": false,
   "changed_files": [
     "chupa/__main__.py",
     "chupa/drain.py",
@@ -16,7 +16,7 @@
     "tests/test_drain_upgrade.py",
     "tests/test_serve.py"
   ],
-  "inserted_lines": 294,
+  "inserted_lines": 209,
   "bypassed": [],
   "reports": [
     {
@@ -27,8 +27,27 @@
     },
     {
       "code": "verification",
-      "verdict": "pass",
-      "findings": [],
+      "verdict": "fail",
+      "findings": [
+        {
+          "code": "verification",
+          "path": null,
+          "line": null,
+          "message": "`uv run pytest tests/test_serve.py tests/test_drain_upgrade.py tests/test_closed_sets.py tests/test_vocabularies.py` exited 1: t until(rig, heartbeat.exists)\n            stamp = heartbeat.stat().st_mtime_ns\n>           await until(rig, lambda: heartbeat.stat().st_mtime_ns != stamp)\n\ntests/test_serve.py:222: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nrig = <tests.test_daemon_composition.CoreRig object at 0x7c5b8a6d63c0>\npredicate = <function test_report_consumer_is_sequential.<locals>.<lambda> at 0x7c5b8a419640>\n\n    async def until(rig, predicate):\n        deadline = time.monotonic() + 60\n        n = 0\n        while time.monotonic() < deadline:\n            if getattr(rig, \"fixture_confirm\", False):\n                from chupa.control import AdmissionRequest\n                from chupa.mergequeue import held_admissions\n    \n                for stem, (hold, receipt) in held_admissions(rig.journal.read()).items():\n                    request = AdmissionRequest(f\"fixture-{stem}-{receipt['attempt']}\", rig.owner.control.inbox.lifecycle_id, \"confirm\", stem, hold, \"operator\")\n                    if not (rig.checkout.config.state_dir / f\"control/inbox/{request.request_id}.json\").exists():\n                        publish_request(rig.checkout.config.state_dir, request, rig.fs)\n            if predicate():\n                return\n            if n % 20 == 0:\n                rig.time.advance(serve.SERVE_POLL_S)\n            await turn()\n            n += 1\n>       raise AssertionError(\"production graph did not reach the scripted boundary\")\nE       AssertionError: production graph did not reach the scripted boundary\n\ntests/test_serve.py:53: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_serve.py::test_report_consumer_is_sequential - AssertionErr...\n=================== 1 failed, 162 passed in 64.93s (0:01:04) ===================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead",
+          "paved_road": "make `uv run pytest tests/test_serve.py tests/test_drain_upgrade.py tests/test_closed_sets.py tests/test_vocabularies.py` exit 0 on the branch and commit the fix",
+          "kind": null,
+          "unit": null
+        },
+        {
+          "code": "verification",
+          "path": null,
+          "line": null,
+          "message": "`uv run pytest -q` exited 1: if getattr(rig, \"fixture_confirm\", False):\n                from chupa.control import AdmissionRequest\n                from chupa.mergequeue import held_admissions\n    \n                for stem, (hold, receipt) in held_admissions(rig.journal.read()).items():\n                    request = AdmissionRequest(f\"fixture-{stem}-{receipt['attempt']}\", rig.owner.control.inbox.lifecycle_id, \"confirm\", stem, hold, \"operator\")\n                    if not (rig.checkout.config.state_dir / f\"control/inbox/{request.request_id}.json\").exists():\n                        publish_request(rig.checkout.config.state_dir, request, rig.fs)\n            if predicate():\n                return\n            if n % 20 == 0:\n                rig.time.advance(serve.SERVE_POLL_S)\n            await turn()\n            n += 1\n>       raise AssertionError(\"production graph did not reach the scripted boundary\")\nE       AssertionError: production graph did not reach the scripted boundary\n\ntests/test_serve.py:53: AssertionError\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/serve-self-upgrade/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED tests/test_serve.py::test_report_consumer_is_sequential - AssertionErr...\n1 failed, 3220 passed, 1 warning in 98.37s (0:01:38)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead",
+          "paved_road": "make `uv run pytest -q` exit 0 on the branch and commit the fix",
+          "kind": null,
+          "unit": null
+        }
+      ],
       "autofix_applied": false
     },
     {
@@ -68,8 +87,8 @@
         "tests/test_closed_sets.py",
         "tests/test_vocabularies.py"
       ],
-      "rc": 0,
-      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/serve-self-upgrade\nconfigfile: pyproject.toml\nplugins: xdist-3.8.0, asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncreated: 20/20 workers\n20 workers [165 items]\n\n........................................................................ [ 43%]\n........................................................................ [ 87%]\n.....................                                                    [100%]\n============================= 165 passed in 7.67s ==============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "rc": 1,
+      "tail": "t until(rig, heartbeat.exists)\n            stamp = heartbeat.stat().st_mtime_ns\n>           await until(rig, lambda: heartbeat.stat().st_mtime_ns != stamp)\n\ntests/test_serve.py:222: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nrig = <tests.test_daemon_composition.CoreRig object at 0x7c5b8a6d63c0>\npredicate = <function test_report_consumer_is_sequential.<locals>.<lambda> at 0x7c5b8a419640>\n\n    async def until(rig, predicate):\n        deadline = time.monotonic() + 60\n        n = 0\n        while time.monotonic() < deadline:\n            if getattr(rig, \"fixture_confirm\", False):\n                from chupa.control import AdmissionRequest\n                from chupa.mergequeue import held_admissions\n    \n                for stem, (hold, receipt) in held_admissions(rig.journal.read()).items():\n                    request = AdmissionRequest(f\"fixture-{stem}-{receipt['attempt']}\", rig.owner.control.inbox.lifecycle_id, \"confirm\", stem, hold, \"operator\")\n                    if not (rig.checkout.config.state_dir / f\"control/inbox/{request.request_id}.json\").exists():\n                        publish_request(rig.checkout.config.state_dir, request, rig.fs)\n            if predicate():\n                return\n            if n % 20 == 0:\n                rig.time.advance(serve.SERVE_POLL_S)\n            await turn()\n            n += 1\n>       raise AssertionError(\"production graph did not reach the scripted boundary\")\nE       AssertionError: production graph did not reach the scripted boundary\n\ntests/test_serve.py:53: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_serve.py::test_report_consumer_is_sequential - AssertionErr...\n=================== 1 failed, 162 passed in 64.93s (0:01:04) ===================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -79,8 +98,8 @@
         "pytest",
         "-q"
       ],
-      "rc": 0,
-      "tail": ".................................................. [ 69%]\n........................................................................ [ 71%]\n........................................................................ [ 73%]\n........................................................................ [ 75%]\n........................................................................ [ 78%]\n........................................................................ [ 80%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 87%]\n........................................................................ [ 89%]\n........................................................................ [ 91%]\n........................................................................ [ 93%]\n........................................................................ [ 96%]\n........................................................................ [ 98%]\n.......................................................                  [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/serve-self-upgrade/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3223 passed, 1 warning in 65.62s (0:01:05)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "rc": 1,
+      "tail": "        if getattr(rig, \"fixture_confirm\", False):\n                from chupa.control import AdmissionRequest\n                from chupa.mergequeue import held_admissions\n    \n                for stem, (hold, receipt) in held_admissions(rig.journal.read()).items():\n                    request = AdmissionRequest(f\"fixture-{stem}-{receipt['attempt']}\", rig.owner.control.inbox.lifecycle_id, \"confirm\", stem, hold, \"operator\")\n                    if not (rig.checkout.config.state_dir / f\"control/inbox/{request.request_id}.json\").exists():\n                        publish_request(rig.checkout.config.state_dir, request, rig.fs)\n            if predicate():\n                return\n            if n % 20 == 0:\n                rig.time.advance(serve.SERVE_POLL_S)\n            await turn()\n            n += 1\n>       raise AssertionError(\"production graph did not reach the scripted boundary\")\nE       AssertionError: production graph did not reach the scripted boundary\n\ntests/test_serve.py:53: AssertionError\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/serve-self-upgrade/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED tests/test_serve.py::test_report_consumer_is_sequential - AssertionErr...\n1 failed, 3220 passed, 1 warning in 98.37s (0:01:38)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
