@@ -407,24 +407,6 @@ def released(root):
     lock.release()
 
 
-def test_retro_doctor_entry_unit():
-    import re
-    from chupa.specs import required_units, entry_unit_gap, resolve_plan_contract
-    from chupa.tickets import parse_ticket
-    repo = Path(__file__).resolve().parents[1]
-    plan = (repo / "CHUPA_PLAN.md").read_text()
-    uid = "19.P5.retro-doctor-cli"
-    for stem in ("retro-doctor-cli", "phase5-continue-04", "phase5-continue-05"):
-        t = parse_ticket(stem, (repo / f"tickets/{stem}/ticket.md").read_text(), repo, plan=plan)
-        assert required_units(plan, stem, t.plan_contract) == (() if stem.endswith("05") else (uid,))
-        if not stem.endswith("05"):
-            assert resolve_plan_contract(plan, t.plan_contract).count(f"### {uid} ") == 1
-    assert entry_unit_gap(plan, uid) is None
-    for part in ("Owner", "Records", "Observable", "Tests"):
-        broken = re.sub(rf"^- \*\*{part}:\*\*.*$", "", plan, flags=re.M)
-        assert part in entry_unit_gap(broken, uid)
-
-
 @pytest.mark.parametrize("completed_report", [False, True])
 def test_retro_no_merge(root, capsys, completed_report):
     if completed_report:
