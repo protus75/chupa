@@ -41,6 +41,8 @@ Module docstrings, comments, and a few operator messages in these files cite the
 - In: operator-facing messages and paved roads in these files drop their plan citations the same way (for example `(section 6 provider preflight)` becomes `(provider preflight)`).
 - In: a pointer may name `docs/how-chupa-works.md` where that doc describes the behavior, but never by section number.
 - In: `docs/how-chupa-works.md`: section 13 drops its opening sentence about building from the plan; if only the eval report artifacts line remains, retitle the section "Eval report artifacts".
+- In: gate and intake paved roads (e.g. `RunRecordGate`'s road in `chupa/stages.py`) are operator messages, not artifact values: reword them. Already-committed artifacts stay untouched.
+- In: `docs/how-chupa-works.md`: drop any remaining `(bootstrap-era, section 13)` pointer.
 - Out: behavior, names, identifiers, string values written to the journal or to artifacts, files outside the fence, `tests/` except as listed, `CHUPA_PLAN.md`.
 
 ## Scope fence
