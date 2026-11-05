@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-The idle check also waits for held running candidates and merge-result delivery before handoff.
+The handoff waits for merge-result delivery so the ticket terminal is recorded before shutdown; policy-held candidates do not block it.
 
 ## Dead ends
 
-An initial full-suite run was invalidated by an edit during the run; later runs exposed and helped fix a merge-result handoff race.
+none
 
 ## Second problems filed
 
