@@ -6,7 +6,7 @@ kind: chore
 ---
 
 ## Depends on
-- serve-self-upgrade
+- none
 
 ## Context
 - chupa/drain.py
