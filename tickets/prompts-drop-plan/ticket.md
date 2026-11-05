@@ -56,7 +56,7 @@ Every Implement, requisition-review, and Diagnose call is told to read or judge 
 
 ## Acceptance criteria
 1. `grep -n -i -E "plan|seed|spec_gap|unit|19\.|section [0-9]" specs/implement.md specs/requisition_review.md specs/diagnose.md` prints nothing.
-2. `grep -n -E "hardenable_units|validate_finding_units|plan_contract" chupa/stages.py chupa/requisition.py chupa/specs.py` prints nothing.
+2. `grep -n -E "hardenable_units|validate_finding_units|\"plan_contract\"" chupa/stages.py chupa/requisition.py` and `grep -n hardenable_units chupa/specs.py` print nothing. (The `## Plan contract` grammar, `resolve_plan_contract`, and the seed review keep their own `plan_contract` text; later tickets remove them.)
 3. `docs/how-chupa-works.md` section 13 states that prompts carry no plan text.
 4. `uv run pytest -q` exits 0.
 
