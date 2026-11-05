@@ -108,6 +108,11 @@ class MechanicalCheck(_Strict):
     severity: Severity
 
 
+class AutofixCommand(_Strict):
+    code: str
+    argv: Argv
+
+
 class ReviewSurface(_Strict):
     name: str
     trigger: Trigger
@@ -116,6 +121,7 @@ class ReviewSurface(_Strict):
 
 
 class Review(_Strict):
+    autofix: list[AutofixCommand] = []
     mechanical: list[MechanicalCheck] = []
     surfaces: list[ReviewSurface] = []
     trigger_map: dict[str, list[str]] = {}

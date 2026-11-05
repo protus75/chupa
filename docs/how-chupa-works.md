@@ -154,13 +154,14 @@ the Suggestion Box as a `suggestion`.
 
 ### 4.3 Check
 
-1. Runs each `## Verification` command in the worktree (provider keys removed from the
+1. Runs configured autofix commands on existing changed files outside `tickets/` and commits changes.
+2. Runs each `## Verification` command in the worktree (provider keys removed from the
    environment, timeout = the ticket's stuck budget, output spooled to `check/verify-NN.txt`).
-2. A failing command is rerun at the merge base. If it also fails there it is **base-red**: a
+3. A failing command is rerun at the merge base. If it also fails there it is **base-red**: a
    pre-existing failure, excluded from the verdict and filed once to the Suggestion Box.
-3. Runs the engine Check gates (section 5.1).
-4. Runs triggered host checks in config order, attributing failures also red at base to main.
-5. Writes and lifts `checks.json`.
+4. Runs the engine Check gates (section 5.1).
+5. Runs triggered host checks in config order, attributing failures also red at base to main.
+6. Writes and lifts `checks.json`.
 
 A hard gate failure ends the attempt `gate_failed`. Soft failures are recorded and the run
 continues. `already_satisfied` stops here: there is no diff to review.
@@ -596,7 +597,7 @@ with the fix. The full field inventory is in `docs/host-contract.md`.
 |---|---|
 | `schema_version`, `state_dir`, `worktree_root` | config version; where state and worktrees live |
 | `providers`, `routing`, `routing_default_tier` | models and which serves what (section 8) |
-| `review` | `gate_severity`, host `mechanical` checks; declared `surfaces` entries are refused at config load; `trigger_map` is accepted, unused |
+| `review` | `gate_severity`, host `autofix` commands and `mechanical` checks; declared `surfaces` entries are refused at config load; `trigger_map` is accepted, unused |
 | `merge` | `safety_checks`, conflict `strategies` (serve only) |
 | `caps`, `circuit_breaker` | failure bounds (section 6.4, 8.3) |
 | `scheduler`, `drain` | `max_unmerged`; `max_runtime_hours`, `max_ticket_minutes` |

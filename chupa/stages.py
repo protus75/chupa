@@ -1346,6 +1346,28 @@ async def lift_seeds(ctx: StageContext, stem: str, paths: list[Path], *, attempt
                                       ticket=seed_stem)
 
 
+async def check_autofix(ctx, ticket, attempt):
+    worktree = ctx.worktree(ticket.stem)
+    files = [path for path in await ctx.git.diff_names(ctx.repo, MAIN, ticket.stem)
+             if not _in_fence(path, [TICKETS_DIR]) and (worktree / path).is_file()]
+    if not files:
+        return [], []
+    before = {path: (worktree / path).read_bytes() for path in files}
+    reports = []
+    for n, entry in enumerate(ctx.config.review.autofix, 1):
+        result, report = await run_host_command(ctx, ticket, attempt, [*entry.argv, *files],
+                                                entry.code, f"check/autofix-{n:02d}.txt")
+        reports.append(report)
+        if result.rc != 0:
+            await ctx.git.restore(worktree, files, source=ticket.stem)
+            return reports, report.findings
+    changed = [path for path in files if (worktree / path).read_bytes() != before[path]]
+    if changed:
+        await ctx.git.add(worktree, changed)
+        await ctx.git.commit(worktree, f"chupa({ticket.stem}): autofix", only=changed)
+    return reports, []
+
+
 async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt: int) -> StageResult:
     """Invoicing: run the mechanical gates on the branch head, write + lift `checks.json`."""
     stem = ticket.stem
@@ -1355,9 +1377,12 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
         return max(0, (ctx.driver.clock() - started).total_seconds()
                    - (ctx.driver.provider_wait(stem, attempt) - prior_wait))
     outbox = ctx.worktree(stem) / TICKETS_DIR / stem
+    autofix_reports, autofix_hard = (await check_autofix(ctx, ticket, attempt)
+                                      if slip.outcome == "ok" and ctx.config.review.autofix else ([], []))
     evidence = await gather_evidence(ctx, ticket, slip.outcome, attempt=attempt)
     gated = run_gates(CHECK_GATES, evidence, ctx.worktree(stem), severity=check_severity(ctx, ticket))
     host_reports, host_hard = await check_hosts(ctx, ticket, evidence.changed_files, attempt)
+    host_hard.extend(autofix_hard)
     required = [name for name in KNOWN_ARTIFACTS
                 if any(f"{TICKETS_DIR}/{stem}/{name}" in arg
                        for argv in ticket.verification for arg in argv)]
@@ -1382,7 +1407,7 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
         produced_by_spec_version=CHECK_SPEC_VERSION, produced_at_sha=evidence.head_sha, stem=stem,
         passed=passed, changed_files=evidence.changed_files, inserted_lines=evidence.inserted_lines,
         bypassed=sorted({b.code for b in ticket.frontmatter.gate_bypass}),
-        reports=[*gated.reports, *host_reports, *([required_report] if required_report is not None else []),
+        reports=[*autofix_reports, *gated.reports, *host_reports, *([required_report] if required_report is not None else []),
                  *([seed_report] if seed_report is not None else [])], seeds=seeds,
         verification=evidence.verification,
     )
@@ -1408,6 +1433,7 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
     cost = Cost(seconds=active_seconds())
     if not passed:
         hard = [f for r in gated.hard_failures for f in r.findings]
+        hard.extend(autofix_hard)
         hard.extend(f for r in host_reports for f in r.findings)
         if required_report is not None:
             hard.extend(required_report.findings)

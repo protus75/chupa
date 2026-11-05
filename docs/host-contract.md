@@ -28,6 +28,8 @@ routing:
   - {tier: medium, surface: review, candidates: [{provider: codex}]}
   - {tier: medium, surface: implement, candidates: [{provider: codex, model: host-model}]}
 review:
+  autofix: # changed files are appended to each argv
+    - {code: host-fix, argv: [uv, run, ruff, format]}
   mechanical: # argv lists, never shell commands; choose your host's checks
     - {code: host-test, argv: [uv, run, pytest, -q], trigger: always, severity: hard}
     - {code: host-style, argv: [uv, run, ruff, check], trigger: [src/], severity: soft}
@@ -85,7 +87,10 @@ Candidate:
   defaults: {model: unset}
 Review:
   required: []
-  defaults: {mechanical: [], surfaces: [], trigger_map: {}, gate_severity: {}}
+  defaults: {autofix: [], mechanical: [], surfaces: [], trigger_map: {}, gate_severity: {}}
+AutofixCommand:
+  required: [code, argv]
+  defaults: {}
 MechanicalCheck:
   required: [code, argv, trigger, severity]
   defaults: {}
@@ -219,6 +224,11 @@ code, `pass | fail` verdict, findings (default []), autofix_applied (default
 false). Failure requires findings with paved roads; code must match the gate.
 Severity belongs to the runner, with all engine codes hard at merge unless
 `review.gate_severity` overrides them.
+
+Check first runs `review.autofix` entries in order on existing changed files outside `tickets/`,
+appending those paths to each argv. If their bytes change, it commits them as
+`chupa(<stem>): autofix` before Verification and gates. On failure it stops, restores
+the listed files to the branch head, records a hard failure and continues Check.
 
 Check runs every triggered `review.mechanical` entry in config order after engine gates.
 An always trigger matches every change; a path prefix matches an equal path or a descendant.

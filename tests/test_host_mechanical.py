@@ -98,3 +98,119 @@ def test_inline_merge_reruns_triggered_hard_entries(ctx, monkeypatch):
         assert await ctx.git.rev_parse(ctx.repo, "main") == before
         assert (ctx.config.state_dir / f"spools/{ticket.stem}/0/merge/host-01.txt").exists()
     asyncio.run(run())
+
+
+def test_autofix_config_loading(ctx, tmp_path):
+    import yaml
+    from chupa.config import ConfigError, load_config
+
+    raw = yaml.safe_load((ctx.repo / "config.yaml").read_text())
+    raw["review"]["autofix"] = [{"code": "fix", "argv": ["fix"]}]
+    path = tmp_path / "config.yaml"
+    def load():
+        path.write_text(yaml.safe_dump(raw))
+        return load_config(path, cwd=tmp_path)
+    assert load().review.autofix[0].argv == ["fix"]
+    for entry in ({"code": "fix", "argv": []}, {"code": "fix", "argv": ["fix"], "extra": 1}):
+        raw["review"]["autofix"] = [entry]
+        with pytest.raises(ConfigError):
+            load()
+
+
+def test_autofix_commits_selected_files_and_evaluates_head(ctx, monkeypatch):
+    from chupa.config import AutofixCommand
+    from tests.test_mergequeue import commit
+
+    async def run():
+        ticket = await ready(ctx, changes={"chupa/thing.py": "before\n", "tickets/extra.txt": "ticket\n"},
+                             fence=("chupa/thing.py", "tickets"))
+        root = ctx.worktree(ticket.stem)
+        (root / "chupa/other.py").unlink()
+        await commit(ctx, root, ["chupa/other.py"], "delete")
+        ctx.config.review.autofix = [AutofixCommand(code="fix", argv=["host", "fix"])]
+        original = ctx.exec_.run
+        calls = []
+        async def execute(argv, **kw):
+            if argv[0] == "host":
+                calls.append(argv)
+                (root / "chupa/thing.py").write_text("fixed\n")
+                return 0, "", ""
+            return await original(argv, **kw)
+        monkeypatch.setattr(ctx.exec_, "run", execute)
+        monkeypatch.setattr(stages, "_review_seeds", lambda *a, **kw: asyncio.sleep(0, result=([], [])))
+        result = await checked(ctx, ticket)
+        head = await ctx.git.rev_parse(ctx.repo, ticket.stem)
+        assert calls == [["host", "fix", "chupa/thing.py"]]
+        assert result.artifact.produced_at_sha == head
+        assert "chupa/thing.py" in await ctx.git.diff_names(ctx.repo, "main", ticket.stem)
+        assert (await ctx.git._run(root, "log", "-1", "--format=%s")).strip() == f"chupa({ticket.stem}): autofix"
+        assert (await ctx.git._run(root, "show", "--format=", "--name-only", "HEAD")).strip() == "chupa/thing.py"
+        assert result.artifact.reports[0].verdict == "pass"
+    asyncio.run(run())
+
+
+def test_autofix_no_change_and_already_satisfied(ctx, monkeypatch):
+    from chupa.config import AutofixCommand
+    async def run():
+        ticket = await ready(ctx)
+        root = ctx.worktree(ticket.stem)
+        head = await ctx.git.rev_parse(ctx.repo, ticket.stem)
+        (root / "chupa/thing.py").write_text("uncommitted\n")
+        ctx.config.review.autofix = [AutofixCommand(code="fix", argv=["host", "fix"])]
+        calls = scripted(ctx, monkeypatch, [(0, "", "")])
+        await checked(ctx, ticket)
+        assert len(calls) == 1 and await ctx.git.rev_parse(ctx.repo, ticket.stem) == head
+        assert (root / "chupa/thing.py").read_text() == "uncommitted\n"
+        slip = stages.PackingSlip(produced_by_spec_version=1, produced_at_sha=head, stem=ticket.stem,
+                                  branch=ticket.stem, outcome="already_satisfied", summary="done", run_record="run.md")
+        await stages.check(ctx, ticket, slip, attempt=1)
+        assert len(calls) == 1
+    asyncio.run(run())
+
+
+def test_autofix_failure_restores_and_blocks_seeds(ctx, monkeypatch):
+    from chupa.config import AutofixCommand
+    from tests.test_mergequeue import commit
+    async def run():
+        ticket = await ready(ctx, fence=("chupa/thing.py", "tickets"))
+        root = ctx.worktree(ticket.stem)
+        path = root / "chupa/thing.py"
+        path.chmod(0o755)
+        await commit(ctx, root, ["chupa/thing.py"], "executable")
+        head = await ctx.git.rev_parse(ctx.repo, ticket.stem)
+        ctx.config.review.autofix = [AutofixCommand(code="bad", argv=["host", "bad"]),
+                                     AutofixCommand(code="later", argv=["host", "later"])]
+        original = ctx.exec_.run
+        calls = []
+        async def execute(argv, **kw):
+            if argv[0] == "host":
+                calls.append(argv)
+                path.write_text("broken")
+                path.chmod(0o644)
+                return 1, "", "failed"
+            return await original(argv, **kw)
+        async def seeds(*args, **kwargs):
+            pytest.fail("seed review ran")
+        monkeypatch.setattr(ctx.exec_, "run", execute)
+        monkeypatch.setattr(stages, "_review_seeds", seeds)
+        result = await checked(ctx, ticket)
+        assert result.outcome == "gate_failed" and any(f.code == "bad" for f in result.findings)
+        assert len(calls) == 1 and await ctx.git.rev_parse(ctx.repo, ticket.stem) == head
+        assert "chupa/thing.py" not in await ctx.git.status_porcelain(root)
+        assert path.stat().st_mode & 0o111
+    asyncio.run(run())
+
+
+def test_autofix_skips_when_no_files(ctx, monkeypatch):
+    from chupa.config import AutofixCommand
+    from tests.test_mergequeue import commit
+    async def run():
+        ticket = await ready(ctx)
+        root = ctx.worktree(ticket.stem)
+        (root / "chupa/thing.py").unlink()
+        await commit(ctx, root, ["chupa/thing.py"], "delete")
+        ctx.config.review.autofix = [AutofixCommand(code="fix", argv=["host", "fix"])]
+        calls = scripted(ctx, monkeypatch, [])
+        await checked(ctx, ticket)
+        assert not calls
+    asyncio.run(run())
