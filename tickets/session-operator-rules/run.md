@@ -4,7 +4,7 @@ premise_failed
 
 ## Surprises / judgment calls
 
-CHUPA_PLAN.md section 17 contains the existing supervising-session rule, so changing the rendered rule alone would leave the plan unable to reproduce it.
+none
 
 ## Dead ends
 
