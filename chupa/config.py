@@ -106,12 +106,13 @@ class MechanicalCheck(_Strict):
     trigger: Trigger
     severity: Severity
     results: str | None = None
+    coverage: str | None = None
 
-    @field_validator("results")
+    @field_validator("results", "coverage")
     @classmethod
-    def _results_path(cls, value: str | None) -> str | None:
+    def _results_path(cls, value: str | None, info: ValidationInfo) -> str | None:
         if value is not None and (not value.strip() or Path(value).is_absolute() or ".." in Path(value).parts):
-            raise ValueError("results must be a worktree-relative file path")
+            raise ValueError(f"{info.field_name} must be a worktree-relative file path")
         return value
 
 
@@ -398,6 +399,9 @@ def _from_validation(path: Path, e: ValidationError) -> ConfigError:
 
 
 def _check_references(path: Path, cfg: Config) -> None:
+    for i, entry in enumerate(cfg.review.mechanical):
+        if entry.coverage is not None and entry.results is None:
+            raise ConfigError(path, f"review.mechanical.{i}.coverage", "coverage requires results on the same entry; declare results")
     kinds = {p.name: p.kind for p in cfg.providers}
     # Before the api refusal: routing Implement to api stays wrong after the api client ships.
     for i, route in enumerate(cfg.routing):

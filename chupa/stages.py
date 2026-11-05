@@ -9,6 +9,7 @@ The run's terminal `state_transition` is not written here: that is the runner's 
 """
 
 import asyncio
+import ast
 import difflib
 import fnmatch
 import hashlib
@@ -1019,6 +1020,63 @@ def _detection_letters(number):
     return letters
 
 
+def _changed_lines(diff: str) -> dict[str, set[int]]:
+    lines: dict[str, set[int]] = {}
+    path = None
+    new_line = 0
+    in_hunk = False
+    body = diff.splitlines()
+    for i, line in enumerate(body):
+        if line.startswith("diff --git "):
+            path = None
+            new_line = 0
+            in_hunk = False
+        elif not in_hunk and line.startswith("+++ "):
+            name = line[4:]
+            if name.startswith('"'):
+                name = ast.literal_eval("b" + name).decode("utf-8")
+            path = name[2:] if name.startswith("b/") else None
+        elif line.startswith("@@ "):
+            in_hunk = True
+            match = re.match(r"@@ -\d+(?:,\d+)? \+(\d+)", line)
+            new_line = int(match[1]) if match else 0
+        elif path is not None and new_line:
+            if line.startswith("+"):
+                lines.setdefault(path, set()).add(new_line)
+                new_line += 1
+            elif line.startswith("-"):
+                if (i == 0 or body[i - 1][:1] not in "+-"):
+                    end = i
+                    while end < len(body) and body[end].startswith("-"):
+                        end += 1
+                    if end == len(body) or not body[end].startswith("+"):
+                        lines.setdefault(path, set()).update((max(1, new_line - 1), max(1, new_line)))
+            elif line.startswith(" "):
+                new_line += 1
+    return lines
+
+
+def _coverage_contexts(path: Path) -> dict[str, dict[str, list[str]]]:
+    report = json.loads(path.read_text())
+    files = report["files"]
+    if not isinstance(files, dict):
+        raise ValueError("invalid files")
+    contexts = {}
+    has_test_context = False
+    for name, data in files.items():
+        mapping = data["contexts"]
+        if not isinstance(mapping, dict):
+            raise ValueError("invalid contexts")
+        for line, values in mapping.items():
+            if not isinstance(line, str) or not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+                raise ValueError("invalid contexts")
+            has_test_context |= any("|" in value for value in values)
+        contexts[name] = mapping
+    if not has_test_context:
+        raise ValueError("no test contexts")
+    return contexts
+
+
 async def _check_host_results(ctx, ticket, entry, n, attempt, changed_files):
     from chupa.daemon import flake_detection, storm_producer
     from chupa.flake import GreenRerunEvidence, RerunEvidence
@@ -1053,10 +1111,18 @@ async def _check_host_results(ctx, ticket, entry, n, attempt, changed_files):
         projection = flake.quarantine()
         findings = []
         flaky = {test for test, outcome in first.items() if outcome == "failed" and last.get(test) == "passed"}
+        covered = set()
+        if flaky and entry.coverage is not None:
+            try:
+                contexts = _coverage_contexts(root / entry.coverage)
+            except (OSError, UnicodeError, ValueError, KeyError, TypeError):
+                return _report(entry.code, [Finding(code=entry.code, path=entry.coverage, message=f"Missing or invalid coverage contexts: {entry.coverage}", paved_road="run with --cov-context=test, and set [tool.coverage.json] show_contexts = true and [tool.coverage.run] core = \"ctrace\"")])
+            changed = _changed_lines(await ctx.git.diff(ctx.repo, MAIN, ticket.stem))
+            covered = {context.split("|", 1)[0] for name, numbers in changed.items() for number in numbers for context in contexts.get(name, {}).get(str(number), []) if "|" in context}
         for test in sorted(flaky):
-            edited = test.split("::", 1)[0] in changed_files
+            edited = test.split("::", 1)[0] in changed_files or test in covered
             if edited:
-                findings.append(Finding(code=entry.code, message=f"{test} is flaky and its file was edited", paved_road="make it deterministic by faking time, IO and ordering"))
+                findings.append(Finding(code=entry.code, message=f"{test} is flaky and touches edited code", paved_road="make it deterministic by faking time, IO and ordering"))
             elif test not in projection.tests:
                 count = 1 + sum(identity.test_id == test and box_id not in projection.active for box_id, identity in projection.detected.items())
                 projection = flake.detect(test_id=test, evidence=RerunEvidence(test, "fail", "pass", True, True, True), summary=f"{test} failed then passed for {ticket.stem}", reason=f"failed then passed on a bare rerun; detection {_detection_letters(count)}", occurrence_id=arrival_id("flake-detection", ticket.stem, attempt, test, n))

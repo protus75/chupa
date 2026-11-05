@@ -93,7 +93,7 @@ AutofixCommand:
   defaults: {}
 MechanicalCheck:
   required: [code, argv, trigger, severity]
-  defaults: {results: unset}
+  defaults: {results: unset, coverage: unset}
 ReviewSurface:
   required: [name, trigger, rules_doc, severity]
   defaults: {}
@@ -253,7 +253,7 @@ command with failed tests runs once more; failed-then-passed tests in changed fi
 flaky, while unedited flakes enter quarantine unless its cap is full. Failed tests block unless
 quarantined and unedited. A passing quarantined test is released after its report resolves to a
 merged fix ticket. Missing or invalid results after a successful run or rerun fail the entry.
-Merge-time checks continue to use exit status alone.
+An entry with `results` may also declare a worktree-relative `coverage` report. A flaky test is edited if its test file changed or its coverage context appears on a changed line (or a line adjacent to a pure deletion). Generate coverage.py JSON with `pytest-cov --cov-context=test`, `[tool.coverage.json] show_contexts = true`, and `[tool.coverage.run] core = "ctrace"`. When a flaky test needs classification, missing or invalid coverage contexts fail the entry. Merge-time checks continue to use exit status alone.
 
 The minimal seams in `chupa/seams.py` are:
 

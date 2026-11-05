@@ -407,3 +407,90 @@ def test_results_edited_quarantine_and_cap(ctx, monkeypatch, edited, cap):
             assert test not in flake.quarantine().tests
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("deletion,covered,expected", [(False, 3, "gate_failed"), (False, 2, "ok"), (False, 9, "ok"), (True, 5, "gate_failed"), (True, 2, "ok")])
+def test_coverage_changed_lines(ctx, monkeypatch, deletion, covered, expected):
+    import json
+
+    from tests.test_mergequeue import commit
+
+    async def run():
+        test = "tests/test_a.py::test_x"
+        original_lines = [f"line {i}\n" for i in range(1, 11)]
+        ctx.fs.write(ctx.repo / "pkg/m.py", "".join(original_lines).encode())
+        await commit(ctx, ctx.repo, ["pkg/m.py"], "base code")
+        changed = original_lines.copy()
+        if deletion:
+            del changed[4]
+        else:
+            changed[2] = "edited\n"
+        ticket = await ready(ctx, changes={"pkg/m.py": "".join(changed)}, fence=("pkg/m.py",))
+        ctx.config.review.mechanical = [host("tests").model_copy(update={"results": "results.json", "coverage": "coverage.json"})]
+        original = ctx.exec_.run
+        calls = 0
+
+        async def execute(argv, **kw):
+            nonlocal calls
+            if argv[0] != "host":
+                return await original(argv, **kw)
+            calls += 1
+            outcomes = {test: "failed" if calls == 1 else "passed"}
+            (kw["cwd"] / "results.json").write_text(json.dumps({"schema_version": 1, "tests": outcomes}))
+            (kw["cwd"] / "coverage.json").write_text(json.dumps({"files": {"pkg/m.py": {"contexts": {str(covered): [test + "|run"]}}}}))
+            return (1 if calls == 1 else 0), "", ""
+
+        monkeypatch.setattr(ctx.exec_, "run", execute)
+        result = await checked(ctx, ticket)
+        assert result.outcome == expected
+        detected = [e for e in ctx.driver.journal.read() if e.body.get("kind") == "flake_detected"]
+        assert bool(detected) == (expected == "ok")
+        if expected == "gate_failed":
+            assert any(test in f.message for f in result.findings)
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("coverage,flaky,expected", [(None, True, "gate_failed"), ({"files": {"x": {"contexts": {"1": [""]}}}}, True, "gate_failed"), (None, False, "ok")])
+def test_coverage_fail_closed(ctx, monkeypatch, coverage, flaky, expected):
+    import json
+
+    async def run():
+        test = "tests/test_a.py::test_x"
+        ticket = await ready(ctx)
+        ctx.config.review.mechanical = [host("tests").model_copy(update={"results": "results.json", "coverage": "coverage.json"})]
+        original = ctx.exec_.run
+        calls = 0
+
+        async def execute(argv, **kw):
+            nonlocal calls
+            if argv[0] != "host":
+                return await original(argv, **kw)
+            calls += 1
+            (kw["cwd"] / "results.json").write_text(json.dumps({"schema_version": 1, "tests": {test: "failed" if flaky and calls == 1 else "passed"}}))
+            if coverage is not None:
+                (kw["cwd"] / "coverage.json").write_text(json.dumps(coverage))
+            return (1 if flaky and calls == 1 else 0), "", ""
+
+        monkeypatch.setattr(ctx.exec_, "run", execute)
+        result = await checked(ctx, ticket)
+        assert result.outcome == expected
+        assert not any(e.body.get("kind") == "flake_detected" for e in ctx.driver.journal.read())
+        if flaky:
+            assert any("coverage.json" in f.message for f in result.findings)
+
+    asyncio.run(run())
+
+
+def test_coverage_requires_results(ctx, tmp_path):
+    import yaml
+
+    from chupa.config import ConfigError, load_config
+
+    raw = yaml.safe_load((ctx.repo / "config.yaml").read_text())
+    raw["review"]["mechanical"] = [{"code": "tests", "argv": ["pytest"], "trigger": "always", "severity": "hard", "coverage": "coverage.json"}]
+    path = tmp_path / "config.yaml"
+    path.write_text(yaml.safe_dump(raw))
+    with pytest.raises(ConfigError) as exc:
+        load_config(path, cwd=tmp_path)
+    assert exc.value.key == "review.mechanical.0.coverage"

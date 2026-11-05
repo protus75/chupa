@@ -104,7 +104,7 @@ def test_fixture_profile_loads(host):
     assert [(r.tier, r.surface, r.candidates[0].provider) for r in cfg.routing] == [("medium", surface, "claude") for surface in SURFACES]
     assert cfg.providers[0].auth is None
     assert cfg.providers[0].package == "@anthropic-ai/claude-code"
-    assert cfg.review.mechanical[0].model_dump() == {"code": "fixture-smoke", "argv": ["python", "check.py"], "trigger": "always", "severity": "hard", "results": None}
+    assert cfg.review.mechanical[0].model_dump() == {"code": "fixture-smoke", "argv": ["python", "check.py"], "trigger": "always", "severity": "hard", "results": None, "coverage": None}
     assert cfg.review.surfaces == [] and cfg.review.gate_severity == {} and cfg.review.trigger_map == {}
     assert cfg.merge.safety_checks == ["fixture-smoke"] and cfg.merge.strategies == []
     assert cfg.engine_plane_safety_inventory == ["config.yaml", "CLAUDE.md", "bin/", "scripts.json", "scaffold.py", "check.py", "regression_test.py"]

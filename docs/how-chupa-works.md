@@ -248,7 +248,7 @@ An entry may declare a worktree-relative `results` file written by `chupa.testre
 clears it before each run and reruns a failing command with failed tests once. Edited flakes
 block; unedited flakes are quarantined unless the cap is full. Quarantined unedited failures
 do not block, and a passing quarantined test is released when its resolved fix has merged.
-Missing or invalid results after a successful run or rerun fail the entry.
+Missing or invalid results after a successful run or rerun fail the entry. With a declared coverage.py JSON report, a flake also counts as edited when its test context covers a changed line or a line adjacent to a pure deletion. The host must run with `--cov-context=test`, `[tool.coverage.json] show_contexts = true` and `[tool.coverage.run] core = "ctrace"`; missing or invalid contexts fail classification.
 
 Config load refuses a declared `review.surfaces` entry (host review prompts); remove
 the entries because host review surfaces are not supported yet.
