@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from pathlib import Path
 
 import pytest
 
@@ -9,11 +10,19 @@ from chupa.box import Box, Resolution, Verdict, parse_record, record_path
 from chupa.journal import EventType, Journal
 from chupa.llm import FakeLLM
 from chupa.seams import LocalFileSystem
+from chupa.specs import load_spec
 from chupa.tickets import validate_ticket
 from tests.test_cli import ENV, git_out
 from tests.test_drain import Clock, commit_ticket, confirmed, make_root
 from tests.test_triage import author_reply, reply
 from chupa.__main__ import main
+
+
+def test_author_spec_requires_criteria_to_name_wrong_results():
+    spec = load_spec((Path(__file__).resolve().parent.parent / "specs/author.md").read_text())
+    assert spec.meta.version == "1.1"
+    assert "a criterion checked by a test names the wrong result the test rules out" in spec.body
+    assert "A test that also passes on the wrong result checks nothing." in spec.body
 
 
 def _run(root, monkeypatch, llm):

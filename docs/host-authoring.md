@@ -36,7 +36,9 @@ what content its tickets carry, never the format.
   document and says in `Scope in / Scope out` which part to update, so docs and code land
   together.
 - `Acceptance criteria`: each criterion is a check someone can run or a path someone can read,
-  never a judgment word.
+  never a judgment word. A criterion checked by a test names the wrong result the test rules out,
+  for example, `parse('')` returns `[]`, not `None`. A test that also passes on the wrong result
+  checks nothing.
 - `Verification`: the commands Check runs; every one must exit 0.
 - `Definition of rejected`: outcomes that mean the branch is thrown away even if it passes.
 - `Time budget`: `expected` is your estimate; `stuck` is the deadline that stops the run.
