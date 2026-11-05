@@ -75,8 +75,7 @@ def validate_report(data: bytes) -> PlayerReport | SelfReport:
     try:
         return REPORT.validate_json(data)
     except ValueError as exc:
-        raise ReportError(f"report_schema: {exc}; emit the closed version-1 report schema "
-                          "(version 0 accepts the same fields)") from None
+        raise ReportError(f"report_schema: {exc}; emit the closed version-1 report schema (version 0 accepts the same fields)") from None
 
 
 def bounded(root: Path, value: str, kind: str, *, metadata=Path.stat, read=Path.read_bytes) -> bytes:
@@ -93,8 +92,7 @@ def bounded(root: Path, value: str, kind: str, *, metadata=Path.stat, read=Path.
             raise ValueError("evidence grew beyond bound after metadata read")
         if kind == "replay":
             record = json.loads(data)
-            if (not isinstance(record, dict) or "initial_state" not in record
-                    or not isinstance(record.get("actions"), list)):
+            if not isinstance(record, dict) or "initial_state" not in record or not isinstance(record.get("actions"), list):
                 raise ValueError("replay needs initial_state and an ordered actions list")
         return data
     except (OSError, ValueError) as exc:
@@ -112,16 +110,14 @@ def report_data(descriptor: ReportDescriptor, root: Path) -> dict:
         text = bounded(root, value, kind).decode(errors="replace")
         excerpt = text[:budget]
         while len(json.dumps(excerpt)) > budget:
-            excerpt = excerpt[:len(excerpt) // 2]
+            excerpt = excerpt[: len(excerpt) // 2]
         if excerpt != text:
             excerpt += f"\n[excerpt truncated; full evidence retained at {value}]"
         evidence[kind] = excerpt
-    return {"report": descriptor.report.model_dump(), "custody": descriptor.custody.model_dump(),
-            "evidence": evidence}
+    return {"report": descriptor.report.model_dump(), "custody": descriptor.custody.model_dump(), "evidence": evidence}
 
 
-def ingest(box, *, root: Path, inbox: Path | None, diagnostic: Callable[[str], None],
-           metadata=Path.stat, read=Path.read_bytes) -> list[str]:
+def ingest(box, *, root: Path, inbox: Path | None, diagnostic: Callable[[str], None], metadata=Path.stat, read=Path.read_bytes) -> list[str]:
     if inbox is None:
         return []
     settled = []
@@ -135,8 +131,7 @@ def ingest(box, *, root: Path, inbox: Path | None, diagnostic: Callable[[str], N
             descriptor = box.report_custody(arrival)
             if descriptor is None:
                 report = validate_report(read(path))
-                evidence = {kind: bounded(root, value, kind, metadata=metadata, read=read) for kind in CAPS
-                            if (value := getattr(report.evidence, kind)) is not None}
+                evidence = {kind: bounded(root, value, kind, metadata=metadata, read=read) for kind in CAPS if (value := getattr(report.evidence, kind)) is not None}
                 descriptor = box.custody_report(arrival, report, evidence)
             id, _ = box.enqueue_report(descriptor, occurrence_id=arrival)
             box.fs.write(receipt, id.encode())

@@ -9,7 +9,9 @@ from unittest.mock import Mock
 import pytest
 import pytest_asyncio
 
-from chupa import __main__ as cli, caps, daemon, journal as journal_module
+from chupa import __main__ as cli
+from chupa import caps, daemon
+from chupa import journal as journal_module
 from chupa.control import CONTROL_DECISION, ControlRequest, publish_request, read_active
 from chupa.drain import HALT_SIGNAL, drain
 from chupa.journal import EventType, Journal, JournalCorruption
@@ -21,7 +23,7 @@ from tests.test_cli import ENV
 from tests.test_daemon_composition import CoreRig
 from tests.test_drain import Script, commit_ticket, confirmed, make_root, pause_checkout
 from tests.test_drain_reentry import NoChild
-from tests.test_journal import FakeClock, T0
+from tests.test_journal import T0, FakeClock
 from tests.test_storm import SIG, snapshot
 from tests.test_storm_notification_activation import digest, occurrences, six, trips
 from tests.test_storm_producer import ARRIVAL
@@ -42,8 +44,7 @@ class LiveStorm:
 
     def rebuild(self):
         checkout = pause_checkout(self.root)
-        self.c = replace(checkout, clock=self.clock, journal=Journal(checkout.config.state_dir, self.clock),
-                         sleep=self.sleep, control=None)
+        self.c = replace(checkout, clock=self.clock, journal=Journal(checkout.config.state_dir, self.clock), sleep=self.sleep, control=None)
         self.c = replace(self.c, control=cli.build_control(self.c))
         self.consumer = self.c.control
         self.box = self.consumer._recover.__self__
@@ -60,13 +61,10 @@ class LiveStorm:
 
     @property
     def offers(self):
-        return [e for e in self.c.journal.read()
-                if e.type in {EventType.CAP_CONSUMED, EventType.STATE_TRANSITION}
-                or e.body.get("signal") == "reject_verdict"]
+        return [e for e in self.c.journal.read() if e.type in {EventType.CAP_CONSUMED, EventType.STATE_TRANSITION} or e.body.get("signal") == "reject_verdict"]
 
     def trip(self, *, origin="one", stage="implement", reason=None, prefix="arrival"):
-        incoming = dict(ARRIVAL, origin=origin, stage=stage,
-                        outcome=None if stage is None else "gate_failed")
+        incoming = dict(ARRIVAL, origin=origin, stage=stage, outcome=None if stage is None else "gate_failed")
         if reason is not None:
             incoming["reason"] = reason
         for n in range(6):
@@ -74,13 +72,12 @@ class LiveStorm:
         return trips(self.c.journal)[-1].body["trip_id"]
 
     def request(self, identity, verb="resume", hold=None, life=None, *, wake=True):
-        publish_request(self.c.config.state_dir,
-                        ControlRequest(identity, life or self.consumer.inbox.lifecycle_id, verb, hold), self.c.fs)
+        publish_request(self.c.config.state_dir, ControlRequest(identity, life or self.consumer.inbox.lifecycle_id, verb, hold), self.c.fs)
         if wake:
             self.wake.put_nowait(None)
 
     async def sleep(self, delay):
-        assert delay == .1
+        assert delay == 0.1
         contender = Lockfile(self.c.config.state_dir, instance_id="contender", clock=self.clock)
         with pytest.raises(LockHeld):
             contender.acquire()
@@ -103,14 +100,15 @@ class LiveStorm:
     def start(self, *, before_dispatch=None):
         # Match the production dispatch object's abort surface without replacing its owner.
         rig = self
+
         class Dispatch:
             async def __call__(self, ticket):
                 return await rig.dispatch(ticket)
 
             async def abort_current(self):
                 await rig.abort()
-        task = asyncio.create_task(drain(self.c, Dispatch(), reexec=NoChild(),
-                                         before_dispatch=before_dispatch))
+
+        task = asyncio.create_task(drain(self.c, Dispatch(), reexec=NoChild(), before_dispatch=before_dispatch))
         self.tasks.append(task)
         return task
 
@@ -133,19 +131,16 @@ async def live(tmp_path):
 @pytest.mark.parametrize("stage", ["implement", "check", "review"])
 def test_live_drain_holds_only_emitting_stem(tmp_path, monkeypatch, stage):
     root = make_root(tmp_path)
-    for stem, priority, depends in (("one", "P0", "none"), ("urgent", "P0", "none"),
-                                   ("aaa-new", "P1", "none"), ("zzz-old", "P1", "none"),
-                                   ("child", "P0", "- one")):
+    for stem, priority, depends in (("one", "P0", "none"), ("urgent", "P0", "none"), ("aaa-new", "P1", "none"), ("zzz-old", "P1", "none"), ("child", "P0", "- one")):
         commit_ticket(root, stem, confirmed(priority=priority, depends=depends))
     clock = FakeClock(T0)
     journal = Journal(root / ".chupa/state", clock)
     journal.append(EventType.SIGNAL, {"signal": INTAKE_SIGNAL}, ticket="zzz-old")
     clock.advance(1)
     journal.append(EventType.SIGNAL, {"signal": INTAKE_SIGNAL}, ticket="aaa-new")
-    box = daemon.storm_producer(root=root / ".chupa/state/box", fs=LocalFileSystem(),
-                                journal=journal, clock=clock)
+    box = daemon.storm_producer(root=root / ".chupa/state/box", fs=LocalFileSystem(), journal=journal, clock=clock)
     six(box, stage=stage)
-    trip, = trips(journal)
+    (trip,) = trips(journal)
     assert len(occurrences(journal, trip.body["signature"])) == 6
     assert len(box.messages()) == 2
     script, consumers = Script(), []
@@ -154,15 +149,16 @@ def test_live_drain_holds_only_emitting_stem(tmp_path, monkeypatch, stage):
     def build(checkout):
         consumer = original(checkout)
         consumers.append(consumer)
+
         async def sleep(_):
             assert script.calls == ["urgent", "zzz-old", "aaa-new"]
-            assert read_active(checkout.config.state_dir, Path.read_bytes) == (
-                consumer.inbox.lifecycle_id, trip.body["trip_id"])
-            assert not any(e.ticket == "one" and e.type in
-                           {EventType.CAP_CONSUMED, EventType.STATE_TRANSITION} for e in journal.read())
+            assert read_active(checkout.config.state_dir, Path.read_bytes) == (consumer.inbox.lifecycle_id, trip.body["trip_id"])
+            assert not any(e.ticket == "one" and e.type in {EventType.CAP_CONSUMED, EventType.STATE_TRANSITION} for e in journal.read())
             await cli._control(checkout, "resume")
+
         consumer.sleep = sleep
         return consumer
+
     monkeypatch.setattr(cli, "build_control", build)
     monkeypatch.setattr("chupa.triage.triage_pass", Mock(side_effect=AssertionError("consumed Box")))
     assert cli.main(["drain"], cwd=root, env=ENV, clock=clock, pipeline=script, reexec=NoChild()) == 0
@@ -196,7 +192,7 @@ async def test_storm_hold_precedes_all_dispatch_accounting(live, kind):
     live.clock.advance(1)
     live.request("release", hold=identity)
     assert (await task).merged == ["unrelated", "one"]
-    after = [e for e in live.offers if e.ticket == "one"][len(before):]
+    after = [e for e in live.offers if e.ticket == "one"][len(before) :]
     if kind == "reject":
         keep = after.pop(0)
         assert keep.body == {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}
@@ -204,25 +200,24 @@ async def test_storm_hold_precedes_all_dispatch_accounting(live, kind):
         assert after.pop(0).type == EventType.CAP_CONSUMED
     assert [e.body["to"] for e in after] == ["running", "merged"]
     events = live.c.journal.read()
-    assert all(events.index(live.decisions[-1]) < events.index(e)
-               for e in live.offers if e.ticket == "one" and e not in before)
+    assert all(events.index(live.decisions[-1]) < events.index(e) for e in live.offers if e.ticket == "one" and e not in before)
     assert caps.draws(events, "one", "retry") == (0 if kind == "fresh" else 3)
     assert (live.root / ticket_path("one")).read_bytes() == ticket_bytes
     assert snapshot(live.box.root) == box_bytes
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("stage,origin", [(None, "one"), ("unknown", "one"),
-    ("depends", "one"), ("", "one"), ("implement", None),
-    ("check", "tests/test_host.py::test_example"), ("review", "decisions"),
-    ("review", "nonexistent")])
+@pytest.mark.parametrize(
+    "stage,origin",
+    [(None, "one"), ("unknown", "one"), ("depends", "one"), ("", "one"), ("implement", None), ("check", "tests/test_host.py::test_example"), ("review", "decisions"), ("review", "nonexistent")],
+)
 async def test_non_pipeline_and_non_ticket_trips_do_not_hold(live, stage, origin):
     commit_ticket(live.root, "one", confirmed())
     ledger = StormLedger(journal=live.c.journal, clock=live.clock)
     for n in range(6):
         ledger.record(signature=SIG, occurrence_id=str(n), emitting_stage=stage, emitting_origin=origin)
     live.box.recover()
-    trip, = trips(live.c.journal)
+    (trip,) = trips(live.c.journal)
     assert trip.body["emitting_stage"] == stage and trip.body["emitting_origin"] == origin
     before = snapshot(live.box.root)
     report = await live.start()
@@ -246,19 +241,18 @@ async def test_live_resume_releases_in_same_drain(live):
     before = live.offers
     live.clock.advance(1)
     assert await asyncio.to_thread(cli.main, ["resume"], cwd=live.root, env=ENV, clock=live.clock) == 0
-    request, = list((live.c.config.state_dir / "control/inbox").glob("*.json"))
+    (request,) = list((live.c.config.state_dir / "control/inbox").glob("*.json"))
     value = json.loads(request.read_bytes())
     assert value == asdict(ControlRequest(request.stem, lifecycle, "resume", identity))
     assert live.offers == before and live.decisions == []
     live.wake.put_nowait(None)
     report = await task
     assert report.merged == ["one"] and live.calls == ["one"]
-    decision, = live.decisions
+    (decision,) = live.decisions
     assert decision.ticket is decision.key is None and decision.type == EventType.SIGNAL
-    assert decision.body == {"kind": CONTROL_DECISION, **value,
-                             "decision": "accepted", "reason": "matching lifecycle and hold identities"}
+    assert decision.body == {"kind": CONTROL_DECISION, **value, "decision": "accepted", "reason": "matching lifecycle and hold identities"}
     events = live.c.journal.read()
-    draw = next(e for e in live.offers[len(before):] if e.type == EventType.CAP_CONSUMED)
+    draw = next(e for e in live.offers[len(before) :] if e.type == EventType.CAP_CONSUMED)
     assert events.index(decision) < events.index(draw)
     assert caps.draws(events, "one", "retry") == 3
     assert live.holds == {} and live.consumer.projection.pause_id is None
@@ -276,8 +270,7 @@ async def test_storm_resume_is_identity_bound_and_once(live):
     commit_ticket(live.root, "one", confirmed())
     task = live.start()
     await live.waiting.get()
-    for name, hold, lifecycle in (("10-wrong", "unknown", None),
-                                  ("20-old-life", identity, "retired")):
+    for name, hold, lifecycle in (("10-wrong", "unknown", None), ("20-old-life", identity, "retired")):
         live.request(name, hold=hold, life=lifecycle)
         assert (await live.waiting.get())[1] == identity
         assert live.decisions[-1].body["decision"] == "stale"
@@ -401,7 +394,7 @@ async def test_storm_release_rearms_on_new_arrivals_only(live, monkeypatch):
     reports = [m for m in live.box.messages() if m.origin.startswith("storm-breaker/")]
     assert [m.origin for m in reports] == ["storm-breaker/" + first, "storm-breaker/" + second]
     events = live.c.journal.read()
-    release, = [e for e in live.decisions if e.body["decision"] == "accepted"]
+    (release,) = [e for e in live.decisions if e.body["decision"] == "accepted"]
     assert events.index(release) < events.index(occurrences(live.c.journal, SIG)[12])
     assert len(occurrences(live.c.journal, SIG)) == 18
 
@@ -412,6 +405,7 @@ async def test_storm_release_rearms_on_new_arrivals_only(live, monkeypatch):
 async def test_storm_hold_crash_and_corrupt_evidence(live, monkeypatch, point, after):
     class Crash(BaseException):
         pass
+
     append, write = live.c.journal.append, live.c.fs.write
     if point == "trip":
         for n in range(5):
@@ -493,6 +487,7 @@ async def test_storm_hold_crash_and_corrupt_evidence(live, monkeypatch, point, a
 async def test_storm_discovery_failure_recovers_without_another_trip(live, monkeypatch, after):
     identity = live.trip()
     write = live.c.fs.write
+
     def failed(path, data):
         if path.name == "active.json":
             assert trips(live.c.journal)[0].body["trip_id"] == identity
@@ -500,6 +495,7 @@ async def test_storm_discovery_failure_recovers_without_another_trip(live, monke
                 write(path, data)
             raise OSError("publication failed")
         return write(path, data)
+
     events = live.c.journal.read()
     with monkeypatch.context() as patch:
         patch.setattr(live.c.fs, "write", failed)
@@ -517,14 +513,15 @@ async def test_storm_discovery_failure_recovers_without_another_trip(live, monke
 @pytest.mark.asyncio
 @pytest.mark.parametrize("stop", ["kill", "budget", "resume"])
 async def test_storm_wait_preserves_kill_budget_and_quiescence(live, stop):
-    for stem, depends in (("active", "none"), ("one", "none"),
-                           ("unrelated", "none"), ("child", "- one")):
+    for stem, depends in (("active", "none"), ("one", "none"), ("unrelated", "none"), ("child", "- one")):
         commit_ticket(live.root, stem, confirmed(depends=depends, priority="P0" if stem == "active" else "P2"))
     active, finish = asyncio.Event(), asyncio.Event()
+
     async def hook(ticket):
         if ticket.stem == "active":
             active.set()
             await finish.wait()
+
     live.hook = hook
     task = live.start()
     await active.wait()
@@ -548,8 +545,7 @@ async def test_storm_wait_preserves_kill_budget_and_quiescence(live, stop):
     if stop == "kill":
         assert report.killed and report.exit_code == 1 and live.aborted == 1
         assert live.calls == ["active", "unrelated"]
-        assert [e.body["kind"] for e in live.c.journal.read()
-                if e.body.get("kind") in {CONTROL_DECISION, daemon.KILL_APPLIED}] == [CONTROL_DECISION, daemon.KILL_APPLIED]
+        assert [e.body["kind"] for e in live.c.journal.read() if e.body.get("kind") in {CONTROL_DECISION, daemon.KILL_APPLIED}] == [CONTROL_DECISION, daemon.KILL_APPLIED]
     elif stop == "budget":
         assert report.halted and report.exit_code == 1 and live.aborted == 0
         assert live.calls == ["active", "unrelated"]
@@ -613,9 +609,7 @@ async def test_storm_hold_without_dispatchable_work_is_quiescent(live, ineligibl
     sha = await live.c.git.rev_parse(live.root, "HEAD:" + ticket_path("one"))
     if ineligible in {"spent", "premise", "settled"}:
         live.c.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": sha}, ticket="one")
-        live.c.journal.append(EventType.STATE_TRANSITION,
-            {"to": {"spent": "gate_failed", "premise": "premise_failed", "settled": "merged"}[ineligible]},
-            ticket="one")
+        live.c.journal.append(EventType.STATE_TRANSITION, {"to": {"spent": "gate_failed", "premise": "premise_failed", "settled": "merged"}[ineligible]}, ticket="one")
     if ineligible == "spent":
         for _ in range(live.c.config.caps.retry):
             caps.consume(live.c.journal, "one", "retry", sha)
@@ -625,8 +619,7 @@ async def test_storm_hold_without_dispatchable_work_is_quiescent(live, ineligibl
     assert live.waiting.empty() and live.calls == [] and live.offers == offers
     assert live.holds == {identity: "one"}
     if ineligible == "spent":
-        assert any(e.ticket == "one" and e.body.get("signal") == "reject_arrival"
-                   for e in live.c.journal.read())
+        assert any(e.ticket == "one" and e.body.get("signal") == "reject_arrival" for e in live.c.journal.read())
 
 
 def test_storm_projection_construction_is_idle(tmp_path, monkeypatch):
@@ -651,7 +644,7 @@ async def test_corrupt_release_evidence_refuses_without_dispatch(live, damage, m
     identity = live.trip()
     live.request("release", hold=identity, wake=False)
     live.consumer.inbox.consume()
-    decision, = live.decisions
+    (decision,) = live.decisions
     body, type, key = dict(decision.body), EventType.SIGNAL, None
     if damage == "shape":
         body.pop("reason")
@@ -671,7 +664,6 @@ async def test_corrupt_release_evidence_refuses_without_dispatch(live, damage, m
     if damage != "rolled":
         live.c.journal.append(type, body, key=key)
     before = snapshot(live.c.config.state_dir)
-    with pytest.raises(JournalCorruption if damage == "rolled" else ValueError,
-                       match="restore.*backup" if damage == "rolled" else "repair.*evidence.*never overwrite"):
+    with pytest.raises(JournalCorruption if damage == "rolled" else ValueError, match="restore.*backup" if damage == "rolled" else "repair.*evidence.*never overwrite"):
         live.consumer.publish()
     assert snapshot(live.c.config.state_dir) == before and live.calls == []

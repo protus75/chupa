@@ -7,8 +7,8 @@ import pytest
 
 from chupa import daemon
 from chupa.llm import FakeLLM, LLMAborted
-from tests.test_driver import ECHO, Stub, build, echo_json, log_events, spool
 from tests.test_cli import root
+from tests.test_driver import ECHO, Stub, build, echo_json, log_events, spool
 from tests.test_kill_signal_journal import Rig, decision
 
 
@@ -81,9 +81,9 @@ class Timer:
 
 
 def invoke(driver, stage=ECHO, *, attempt=1):
-    return driver.run(stage, Stub(text="hi"), ticket="t-echo", attempt=attempt,
-                      workspace=driver.spool.root.parent, tier="medium", effort="low",
-                      stuck_budget=600, expected_budget=300.0, scope_fence=())
+    return driver.run(
+        stage, Stub(text="hi"), ticket="t-echo", attempt=attempt, workspace=driver.spool.root.parent, tier="medium", effort="low", stuck_budget=600, expected_budget=300.0, scope_fence=()
+    )
 
 
 async def active(tmp_path, *, held=False):
@@ -181,10 +181,12 @@ async def test_executor_abort_idle_and_completion_race(tmp_path):
     assert driver.llm.aborted == 0 and driver._active is None
     # Complete the call and request abort before the stage consumes its outcome.
     ready, complete = asyncio.Event(), asyncio.Event()
+
     async def review(artifact, seq):
         ready.set()
         await complete.wait()
         raise LLMAborted("completed review race")
+
     task = asyncio.create_task(invoke(driver, replace(ECHO, review=review), attempt=2))
     await ready.wait()
     race = driver._active.race
@@ -211,9 +213,11 @@ async def test_external_abort_does_not_reprompt_or_report_success(tmp_path, revi
     if review_wait:
         driver, state = build(tmp_path, FakeLLM([echo_json("hi")]))
         ready = asyncio.Event()
+
         async def review(artifact, seq):
             ready.set()
             await asyncio.Event().wait()
+
         task = asyncio.create_task(invoke(driver, replace(ECHO, review=review)))
         await ready.wait()
     else:
@@ -222,10 +226,8 @@ async def test_external_abort_does_not_reprompt_or_report_success(tmp_path, revi
     await daemon.executor_abort(driver.abort_current)
     await cancelled(task)
     assert driver.journal.read() == before
-    assert [e.type for e in before] == (["effect_intent", "effect_completion"] if review_wait
-                                      else ["effect_intent"])
-    assert not any(e["event"] in {"stage_end", "llm_error", "review_error", "gate_failed"}
-                   for e in log_events(state))
+    assert [e.type for e in before] == (["effect_intent", "effect_completion"] if review_wait else ["effect_intent"])
+    assert not any(e["event"] in {"stage_end", "llm_error", "review_error", "gate_failed"} for e in log_events(state))
     assert not (spool(state) / "implement/call-02").exists()
     assert driver._active is None
 
@@ -234,8 +236,10 @@ async def test_external_abort_does_not_reprompt_or_report_success(tmp_path, revi
 async def test_executor_abort_failure_propagates(tmp_path):
     driver, _, writer, _, task, _ = await active(tmp_path)
     stop = writer.abort_current
+
     def refused():
         raise RuntimeError("cannot stop writer")
+
     writer.abort_current = refused
     with pytest.raises(RuntimeError, match="cannot stop writer"):
         await daemon.executor_abort(driver.abort_current)
@@ -249,6 +253,7 @@ async def test_executor_abort_failure_propagates(tmp_path):
 
 def test_executor_abort_is_active_in_drain(root, tmp_path, monkeypatch):
     from tests.test_kill_cli_activation import exercise_live_cli_kill
+
     checkout, writer = exercise_live_cli_kill(root, monkeypatch)
     assert writer.ctx.driver._active is None
     assert writer.ctx.driver.llm.aborts == 1
@@ -260,12 +265,14 @@ async def test_executor_abort_owns_stage_not_calling_worker(tmp_path):
     writer = Writer()
     driver, _ = build(tmp_path, writer)
     caught, release_worker = asyncio.Event(), asyncio.Event()
+
     async def worker():
         try:
             await invoke(driver)
         except asyncio.CancelledError:
             caught.set()
         await release_worker.wait()
+
     worker_task = asyncio.create_task(worker())
     await writer.started.wait()
     owned = driver._active
@@ -297,8 +304,10 @@ async def test_executor_abort_observes_unwind_failure(tmp_path):
 @pytest.mark.asyncio
 async def test_stage_cancellation_keeps_external_abort_dormant(tmp_path, monkeypatch):
     driver, _, writer, timer, task, race = await active(tmp_path)
+
     async def probe():
         raise AssertionError("external abort invoked by ordinary cancellation")
+
     monkeypatch.setattr(driver, "abort_current", probe)
     task.cancel()
     await cancelled(task)

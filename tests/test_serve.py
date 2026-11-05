@@ -10,14 +10,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from chupa import __main__ as cli, daemon, runner, serve, stages, triage
+from chupa import __main__ as cli
+from chupa import daemon, runner, serve, stages, triage
 from chupa.artifacts import Cost, StageResult
 from chupa.audit import audit_journal
 from chupa.control import ControlRequest, publish_request
 from chupa.daemon import TicketWriter
 from chupa.driver import LlmStage
 from chupa.journal import EventType, run_seq
-from chupa.llm import FakeLLM, HANG
+from chupa.llm import HANG, FakeLLM
 from chupa.lockfile import Lockfile, LockHeld
 from chupa.merge import Admission, Held
 from chupa.mergequeue import CONFLICT_FACTS, RED_STREAK, TREE_MISMATCH, MergeQueue, TreeMismatch
@@ -38,9 +39,9 @@ async def until(rig, predicate):
         if getattr(rig, "fixture_confirm", False):
             from chupa.control import AdmissionRequest
             from chupa.mergequeue import held_admissions
+
             for stem, (hold, receipt) in held_admissions(rig.journal.read()).items():
-                request = AdmissionRequest(f"fixture-{stem}-{receipt['attempt']}",
-                    rig.owner.control.inbox.lifecycle_id, "confirm", stem, hold, "operator")
+                request = AdmissionRequest(f"fixture-{stem}-{receipt['attempt']}", rig.owner.control.inbox.lifecycle_id, "confirm", stem, hold, "operator")
                 if not (rig.checkout.config.state_dir / f"control/inbox/{request.request_id}.json").exists():
                     publish_request(rig.checkout.config.state_dir, request, rig.fs)
         if predicate():
@@ -56,16 +57,20 @@ async def graph(root, monkeypatch, **kwargs):
     rig = await repository(root, monkeypatch)
     rig.fs.publish = LocalFileSystem().publish
     rig.exec.reply = reply("decision")
-    owner = serve.Serve(rig.checkout, plan=PLAN,
-        read=lambda stem: (root / f"tickets/{stem}/ticket.md").read_text()
-            if (root / f"tickets/{stem}/ticket.md").is_file() else None,
-        stems=lambda: (p.parent.name for p in (root / "tickets").glob("*/ticket.md")), **kwargs)
+    owner = serve.Serve(
+        rig.checkout,
+        plan=PLAN,
+        read=lambda stem: (root / f"tickets/{stem}/ticket.md").read_text() if (root / f"tickets/{stem}/ticket.md").is_file() else None,
+        stems=lambda: (p.parent.name for p in (root / "tickets").glob("*/ticket.md")),
+        **kwargs,
+    )
     rig.owner = owner
     return rig
 
 
 def script(monkeypatch, *, worktree=False, before=None, terminal="already_satisfied"):
     calls, contexts, artifacts = [], {}, {}
+
     async def implement(ctx, ticket, *, attempt):
         calls.append((ticket.stem, "implement", attempt))
         contexts[ticket.stem] = ctx
@@ -73,28 +78,31 @@ def script(monkeypatch, *, worktree=False, before=None, terminal="already_satisf
             await stages.prepare_worktree(ctx, ticket.stem)
         if before is not None:
             await before(ctx, ticket, "implement", attempt)
-        artifact = PackingSlip(produced_by_spec_version=1, produced_at_sha="fixture",
-            stem=ticket.stem, branch=ticket.stem, outcome="ok", summary="scripted",
-            run_record=f"tickets/{ticket.stem}/run.md")
+        artifact = PackingSlip(
+            produced_by_spec_version=1, produced_at_sha="fixture", stem=ticket.stem, branch=ticket.stem, outcome="ok", summary="scripted", run_record=f"tickets/{ticket.stem}/run.md"
+        )
         artifacts[ticket.stem] = artifact
         return StageResult(outcome="ok", artifact=artifact, cost=Cost(), findings=[])
+
     async def check(ctx, ticket, slip, *, attempt):
         assert slip is artifacts[ticket.stem] and ctx is contexts[ticket.stem]
         calls.append((ticket.stem, "check", attempt))
         if before is not None:
             await before(ctx, ticket, "check", attempt)
-        invoice = Invoice(produced_by_spec_version=1, produced_at_sha="fixture", stem=ticket.stem,
-            passed=True, changed_files=[], inserted_lines=0, bypassed=[], reports=[])
+        invoice = Invoice(produced_by_spec_version=1, produced_at_sha="fixture", stem=ticket.stem, passed=True, changed_files=[], inserted_lines=0, bypassed=[], reports=[])
         artifacts[ticket.stem] = invoice
         return StageResult(outcome=terminal, artifact=invoice, cost=Cost(), findings=[])
+
     async def review(ctx, ticket, invoice, *, attempt):
         assert invoice is artifacts[ticket.stem]
         calls.append((ticket.stem, "review", attempt))
         if before is not None:
             await before(ctx, ticket, "review", attempt)
         return StageResult(outcome="budget_exceeded", artifact=None, cost=Cost(), findings=[])
+
     async def diagnosis(*args, **kwargs):
         return SimpleNamespace(verdict="abandon-human", lessons=[], mechanical=None)
+
     monkeypatch.setattr(stages, "implement", implement)
     monkeypatch.setattr(stages, "check", check)
     monkeypatch.setattr(stages, "review", review)
@@ -103,22 +111,18 @@ def script(monkeypatch, *, worktree=False, before=None, terminal="already_satisf
 
 
 def terminals(rig, stem=None):
-    return [e for e in rig.journal.read() if e.type == EventType.STATE_TRANSITION
-            and e.body.get("to") != "running" and (stem is None or e.ticket == stem)]
+    return [e for e in rig.journal.read() if e.type == EventType.STATE_TRANSITION and e.body.get("to") != "running" and (stem is None or e.ticket == stem)]
 
 
 def request(rig, verb, identity, hold=None, lifecycle=None):
     owner = rig.owner
-    publish_request(rig.checkout.config.state_dir,
-        ControlRequest(identity, lifecycle or owner.control.projection.lifecycle_id, verb, hold), rig.fs)
+    publish_request(rig.checkout.config.state_dir, ControlRequest(identity, lifecycle or owner.control.projection.lifecycle_id, verb, hold), rig.fs)
 
 
 def trip(rig, stem="work", stage="check", signature="a"):
     for index in range(6):
-        rig.owner.box.enqueue(message_class="failure_report", origin=stem, stage=stage,
-            outcome="gate_failed", summary=signature, occurrence_id=f"{signature}/{index}")
-    return [identity for identity, target in rig.owner.storm.held_stages().items()
-            if target == {"emitting_origin": stem, "emitting_stage": stage}][-1]
+        rig.owner.box.enqueue(message_class="failure_report", origin=stem, stage=stage, outcome="gate_failed", summary=signature, occurrence_id=f"{signature}/{index}")
+    return [identity for identity, target in rig.owner.storm.held_stages().items() if target == {"emitting_origin": stem, "emitting_stage": stage}][-1]
 
 
 async def finish(rig, run):
@@ -153,8 +157,7 @@ async def test_serve_waits_at_quiescence_and_discovers_work(root, monkeypatch):
         assert not run.done()
         write(root, "later", text(depends="- initial"))
         await until(rig, lambda: len(terminals(rig, "later")) == 1)
-        assert [(stem, stage) for stem, stage, _ in calls] == [
-            ("initial", "implement"), ("initial", "check"), ("later", "implement"), ("later", "check")]
+        assert [(stem, stage) for stem, stage, _ in calls] == [("initial", "implement"), ("initial", "check"), ("later", "implement"), ("later", "check")]
     finally:
         await finish(rig, run)
 
@@ -162,6 +165,7 @@ async def test_serve_waits_at_quiescence_and_discovers_work(root, monkeypatch):
 @pytest.mark.asyncio
 async def test_empty_box_report_intake(root, monkeypatch):
     from tests.test_inbox import arrival
+
     rig = await graph(root, monkeypatch)
     config = root / "config.yaml"
     config.write_text(config.read_text() + "report_inbox: inbox\n")
@@ -170,9 +174,8 @@ async def test_empty_box_report_intake(root, monkeypatch):
     try:
         await until(rig, rig.owner.ready.is_set)
         arrival(root)
-        await until(rig, lambda: rig.owner.box.messages()
-                    and rig.owner.box.messages()[0].status == "resolved")
-        message, = rig.owner.box.messages()
+        await until(rig, lambda: rig.owner.box.messages() and rig.owner.box.messages()[0].status == "resolved")
+        (message,) = rig.owner.box.messages()
         assert message.report and message.has_repro
         assert message.resolution.kind == "decision"
         assert len([e for e in rig.journal.read() if e.body.get("signal") == "triage_pass"]) == 1
@@ -182,8 +185,9 @@ async def test_empty_box_report_intake(root, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_report_consumer_is_sequential(root, monkeypatch):
-    from tests.test_inbox import arrival, raw_report
     from chupa.driver import Driver
+    from tests.test_inbox import arrival, raw_report
+
     rig = await graph(root, monkeypatch)
     config = root / "config.yaml"
     config.write_text(config.read_text() + "report_inbox: inbox\n")
@@ -192,6 +196,7 @@ async def test_report_consumer_is_sequential(root, monkeypatch):
     entered, release = asyncio.Event(), asyncio.Event()
     active = maximum = calls = 0
     driving = Driver.run
+
     async def observed(self, stage, consumed, **kwargs):
         nonlocal active, maximum, calls
         if stage.surface != "triage":
@@ -206,6 +211,7 @@ async def test_report_consumer_is_sequential(root, monkeypatch):
             return await driving(self, stage, consumed, **kwargs)
         finally:
             active -= 1
+
     monkeypatch.setattr(Driver, "run", observed)
     run = asyncio.create_task(rig.owner.run())
     try:
@@ -227,6 +233,7 @@ async def test_report_consumer_is_sequential(root, monkeypatch):
 def test_serve_cli_uses_production_composition(root, monkeypatch):
     built = []
     original = serve.Serve.run
+
     async def run(self):
         assert self.workers == () and self.tasks.tasks == ()
         assert self.checkout.journal.read() == []
@@ -237,6 +244,7 @@ def test_serve_cli_uses_production_composition(root, monkeypatch):
         assert command.exec_ is not self.checkout.exec_
         built.append(self)
         return await original(self)
+
     monkeypatch.setattr(serve.Serve, "run", run)
     monkeypatch.setattr(cli, "_serve_signals", lambda stop: (stop(), lambda: None)[1])
     assert cli.main(["serve"], cwd=root, env=ENV) == 0
@@ -249,9 +257,11 @@ async def test_serve_holds_lock_through_cleanup(root, monkeypatch):
     rig = await graph(root, monkeypatch)
     owner = rig.owner
     entering, release = asyncio.Event(), asyncio.Event()
+
     async def abort():
         entering.set()
         await release.wait()
+
     monkeypatch.setattr(owner, "abort", abort)
     contender = Lockfile(rig.checkout.config.state_dir, instance_id="contender", clock=rig.time)
     run = asyncio.create_task(owner.run())
@@ -291,11 +301,13 @@ async def test_serve_startup_precedes_all_work(root, monkeypatch):
     write(root, "work", text())
     original = runner.harvest_orphan
     harvested, release = asyncio.Event(), asyncio.Event()
+
     async def harvest(checkout, stem, attempt):
         assert checkout.journal is rig.journal
         harvested.set()
         await release.wait()
         await original(checkout, stem, attempt)
+
     monkeypatch.setattr(runner, "harvest_orphan", harvest)
     run = asyncio.create_task(rig.owner.run())
     await until(rig, harvested.is_set)
@@ -336,8 +348,7 @@ async def test_serve_control_precedes_offer_accounting(root, monkeypatch):
     write(root, "work", text())
     run = asyncio.create_task(rig.owner.run())
     try:
-        await until(rig, lambda: rig.owner.control.projection.pause_id == "pause"
-                    and "work" in rig.owner.core.scheduler.pending)
+        await until(rig, lambda: rig.owner.control.projection.pause_id == "pause" and "work" in rig.owner.core.scheduler.pending)
         assert calls == [] and not any(e.body.get("to") == "running" for e in rig.journal.read())
         assert not any(e.type == EventType.CAP_CONSUMED for e in rig.journal.read())
         request(rig, "resume", "resume", hold="pause")
@@ -345,10 +356,8 @@ async def test_serve_control_precedes_offer_accounting(root, monkeypatch):
         request(rig, "kill", "stop")
         await until(rig, run.done)
         assert await run == 0
-        decisions = {e.body["request_id"]: e.body["decision"] for e in rig.journal.read()
-                     if e.body.get("kind") == "control_decision"}
-        assert decisions == {"old": "stale", "pause": "accepted", "wrong": "stale",
-                             "resume": "accepted", "stop": "accepted"}
+        decisions = {e.body["request_id"]: e.body["decision"] for e in rig.journal.read() if e.body.get("kind") == "control_decision"}
+        assert decisions == {"old": "stale", "pause": "accepted", "wrong": "stale", "resume": "accepted", "stop": "accepted"}
     finally:
         await finish(rig, run)
 
@@ -361,6 +370,7 @@ async def test_serve_worker_failure_and_kill_suppression(root, monkeypatch, endi
     entered, release = asyncio.Event(), asyncio.Event()
     error = ValueError("scripted consumer failure")
     cancellation = asyncio.CancelledError("scripted consumer cancellation")
+
     async def bad():
         entered.set()
         await release.wait()
@@ -368,6 +378,7 @@ async def test_serve_worker_failure_and_kill_suppression(root, monkeypatch, endi
             raise error
         if ending == "cancel":
             raise cancellation
+
     rig.owner.tasks._consumers = (bad, rig.owner.merge, rig.owner.triage)
     run = asyncio.create_task(rig.owner.run())
     await until(rig, entered.is_set)
@@ -409,8 +420,7 @@ async def test_serve_storm_suspends_stage_and_frees_selection(root, monkeypatch,
     run = asyncio.create_task(rig.owner.run())
     try:
         await until(rig, lambda: terminals(rig, "other"))
-        await until(rig, lambda: rig.owner.core.admission.active is None
-                    and rig.owner.core.scheduler.active is None)
+        await until(rig, lambda: rig.owner.core.admission.active is None and rig.owner.core.scheduler.active is None)
         assert not terminals(rig, "work")
         assert not rig.owner.core.admission._slot.locked() or rig.owner.core.admission.active is None
         assert rig.owner.core.scheduler.active is None
@@ -418,8 +428,7 @@ async def test_serve_storm_suspends_stage_and_frees_selection(root, monkeypatch,
         assert [s for stem, s, _ in calls if stem == "work"] == expected
         prior = rig.owner.resume(SimpleNamespace(stem="work"))
         if stage == "implement":
-            assert prior is None and not any(e.ticket == "work" and e.body.get("to") == "running"
-                                             for e in rig.journal.read())
+            assert prior is None and not any(e.ticket == "work" and e.body.get("to") == "running" for e in rig.journal.read())
         else:
             assert isinstance(prior, TicketWriter)
             retained = prior.continuations["work"]
@@ -427,8 +436,7 @@ async def test_serve_storm_suspends_stage_and_frees_selection(root, monkeypatch,
             assert retained.run.results[expected[-1]].artifact is artifacts["work"]
         request(rig, "resume", "release", hold=hold)
         await until(rig, lambda: terminals(rig, "work"))
-        assert [s for stem, s, _ in calls if stem == "work"] == expected + (
-            ["implement", "check"] if stage == "implement" else [stage])
+        assert [s for stem, s, _ in calls if stem == "work"] == expected + (["implement", "check"] if stage == "implement" else [stage])
         assert sum(e.ticket == "work" and e.body.get("to") == "running" for e in rig.journal.read()) == 1
         assert len([e for e in rig.journal.read() if e.body.get("kind") == "storm_breaker_trip"]) == 1
     finally:
@@ -444,6 +452,7 @@ class HeldLLM(FakeLLM):
     def __init__(self):
         super().__init__([HANG])
         self.entered, self.cleaning, self.release = (asyncio.Event() for _ in range(3))
+
     async def call(self, request):
         self.entered.set()
         try:
@@ -455,15 +464,27 @@ class HeldLLM(FakeLLM):
 
 async def active_graph(root, monkeypatch, *, signals=None, failure=None):
     llm = HeldLLM()
+
     async def prepare(local):
         return runner.bind(local, llm)
+
     rig = await graph(root, monkeypatch, prepare=prepare, signals=signals, failure=failure)
+
     async def implementing(ctx, ticket, *, attempt):
         await stages.prepare_worktree(ctx, ticket.stem)
-        return await ctx.driver.run(LlmStage(surface="implement", emits=PackingSlip, gates=[],
-            render=lambda *_: "scripted implement"), ticket, ticket=ticket.stem,
-            attempt=attempt, workspace=ctx.worktree(ticket.stem), tier="medium", effort="medium",
-            stuck_budget=1200, expected_budget=300.0, scope_fence=())
+        return await ctx.driver.run(
+            LlmStage(surface="implement", emits=PackingSlip, gates=[], render=lambda *_: "scripted implement"),
+            ticket,
+            ticket=ticket.stem,
+            attempt=attempt,
+            workspace=ctx.worktree(ticket.stem),
+            tier="medium",
+            effort="medium",
+            stuck_budget=1200,
+            expected_budget=300.0,
+            scope_fence=(),
+        )
+
     monkeypatch.setattr(stages, "implement", implementing)
     write(root, "work", text())
     run = asyncio.create_task(rig.owner.run())
@@ -484,8 +505,7 @@ async def test_serve_kill_unwinds_executor_before_workers(root, monkeypatch):
     request(rig, "kill", "stop")
     await until(rig, llm.cleaning.is_set)
     assert order == [] and llm.aborted == 1
-    assert any(e.body.get("request_id") == "stop" and e.body.get("decision") == "accepted"
-               for e in rig.journal.read())
+    assert any(e.body.get("request_id") == "stop" and e.body.get("decision") == "accepted" for e in rig.journal.read())
     assert not any(e.body.get("kind") == "kill_applied" for e in rig.journal.read())
     for _ in range(3):
         run.cancel()
@@ -495,8 +515,7 @@ async def test_serve_kill_unwinds_executor_before_workers(root, monkeypatch):
     llm.release.set()
     await finish(rig, run)
     assert order == ["worker"] * 4 and failures == []
-    assert {e.body["request_id"] for e in rig.journal.read() if e.body.get("kind") == "kill_applied"} == {
-        "stop", "stop-again"}
+    assert {e.body["request_id"] for e in rig.journal.read() if e.body.get("kind") == "kill_applied"} == {"stop", "stop-again"}
     assert not terminals(rig, "work")
     assert rig.checkout.config.worktree_root.joinpath("work").exists()
 
@@ -509,8 +528,7 @@ async def test_serve_signal_stop_and_restart_recovery(root, monkeypatch, mode):
     monkeypatch.setattr(loop, "add_signal_handler", lambda sig, handler: delivered.__setitem__(sig, handler))
     monkeypatch.setattr(loop, "remove_signal_handler", lambda sig: removed.append(sig))
     failures = []
-    rig, llm, run = await active_graph(root, monkeypatch, signals=cli._serve_signals,
-                                       failure=failures.append)
+    rig, llm, run = await active_graph(root, monkeypatch, signals=cli._serve_signals, failure=failures.append)
     if mode == "cancel":
         run.cancel()
     else:
@@ -543,8 +561,7 @@ async def test_serve_storm_resume_retains_producing_run(root, monkeypatch):
     write(root, "work", text(priority="P0"))
     run = asyncio.create_task(rig.owner.run())
     try:
-        await until(rig, lambda: "work" in rig.owner.writers
-                    and "work" in rig.owner.writers["work"].continuations)
+        await until(rig, lambda: "work" in rig.owner.writers and "work" in rig.owner.writers["work"].continuations)
         writer = rig.owner.writers["work"]
         retained = writer.continuations["work"]
         snapshot, artifact = retained.ctx.config, artifacts["work"]
@@ -575,8 +592,7 @@ async def test_serve_suspended_run_cleanup_and_restart(root, monkeypatch, mode):
     write(root, "work", text())
     run = asyncio.create_task(rig.owner.run())
     try:
-        await until(rig, lambda: "work" in rig.owner.writers
-                    and "work" in rig.owner.writers["work"].continuations)
+        await until(rig, lambda: "work" in rig.owner.writers and "work" in rig.owner.writers["work"].continuations)
         retained = rig.owner.writers["work"].continuations["work"]
         await until(rig, lambda: rig.owner.core.admission.active is None)
         assert await rig.owner.core.sweep_orphans() == []
@@ -610,11 +626,13 @@ async def test_serve_suspended_run_cleanup_and_restart(root, monkeypatch, mode):
 async def test_serve_recurring_maintenance_uses_injected_time(root, monkeypatch):
     rig = await graph(root, monkeypatch)
     pushes, original = [], rig.exec.run
+
     async def execute(argv, **kwargs):
         if argv[3:4] == ["push"]:
             pushes.append(list(argv))
             return (1, "", "scripted push failed") if len(pushes) == 1 else (0, "", "")
         return await original(argv, **kwargs)
+
     monkeypatch.setattr(rig.exec, "run", execute)
     run = asyncio.create_task(rig.owner.run())
     try:
@@ -622,8 +640,7 @@ async def test_serve_recurring_maintenance_uses_injected_time(root, monkeypatch)
         rig.time.advance(24 * 3600)
         await until(rig, lambda: len(pushes) == 2)
         assert any(e.body.get("kind") == "checkpoint_push_failed" for e in rig.journal.read())
-        assert any(e.key == "checkpoint-push/0" and e.type == EventType.EFFECT_COMPLETION
-                   and e.body == {"result": {"merged": 0}} for e in rig.journal.read())
+        assert any(e.key == "checkpoint-push/0" and e.type == EventType.EFFECT_COMPLETION and e.body == {"result": {"merged": 0}} for e in rig.journal.read())
         assert len([e for e in rig.journal.read() if e.type == EventType.TIMER_FIRED]) == 1
     finally:
         await finish(rig, run)
@@ -635,10 +652,12 @@ async def test_serve_heartbeat_requires_responsive_components(root, monkeypatch,
     rig = await graph(root, monkeypatch)
     refreshed = []
     original = rig.fs.write
+
     def write_fs(path, data):
         if path.name == "heartbeat":
             refreshed.append(rig.time())
         original(path, data)
+
     monkeypatch.setattr(rig.fs, "write", write_fs)
     run = asyncio.create_task(rig.owner.run())
     try:
@@ -646,6 +665,7 @@ async def test_serve_heartbeat_requires_responsive_components(root, monkeypatch,
         release, entered = asyncio.Event(), asyncio.Event()
         maintenance = rig.owner.maintenance
         original_wait = None if component == "main" else rig.owner.responses[component].wait
+
         async def wedge(work=None):
             entered.set()
             try:
@@ -655,6 +675,7 @@ async def test_serve_heartbeat_requires_responsive_components(root, monkeypatch,
             finally:
                 if work is not None and hasattr(work, "close"):
                     work.close()
+
         if component == "main":
             monkeypatch.setattr(rig.owner, "maintenance", wedge)
         else:
@@ -671,10 +692,12 @@ async def test_serve_heartbeat_requires_responsive_components(root, monkeypatch,
             saved = list(refreshed)
             checked = []
             cycle = rig.owner.heartbeat.cycle
+
             def observed_cycle():
                 result = cycle()
                 checked.append(result)
                 return result
+
             monkeypatch.setattr(rig.owner.heartbeat, "cycle", observed_cycle)
             await until(rig, lambda: bool(checked))
             assert checked == [False]
@@ -691,9 +714,11 @@ async def test_serve_heartbeat_requires_responsive_components(root, monkeypatch,
 async def test_serve_consumers_use_existing_writers(root, monkeypatch):
     from chupa.driver import Driver
     from tests.test_mergequeue import ready
+
     calls, contexts, _ = script(monkeypatch)
     rig = await graph(root, monkeypatch)
     original = stages.implement
+
     async def implementing(ctx, ticket, *, attempt):
         if ticket.stem == "source":
             assert ctx.driver.journal is ctx.driver.effects._journal is rig.journal
@@ -706,11 +731,13 @@ async def test_serve_consumers_use_existing_writers(root, monkeypatch):
                 rig.transition(work.stem, "running")
                 writer.queue.offer(work, attempt=0)
         return await original(ctx, ticket, attempt=attempt)
+
     monkeypatch.setattr(stages, "implement", implementing)
     rig.fixture_confirm = True
     rig.owner.core.scheduler.drought_parked = lambda: {f"candidate-{n}" for n in range(5)}
     triaged, pushes = [], []
     driving = Driver.run
+
     async def driver_run(self, stage, consumed, **kwargs):
         if stage.surface == "triage":
             assert self.journal is self.effects._journal is rig.journal
@@ -718,21 +745,22 @@ async def test_serve_consumers_use_existing_writers(root, monkeypatch):
             assert rig.owner.core.admission.active is None
             triaged.append(self)
         return await driving(self, stage, consumed, **kwargs)
+
     monkeypatch.setattr(Driver, "run", driver_run)
     execute = rig.exec.run
+
     async def execution(argv, **kwargs):
         if argv[3:4] == ["push"]:
             pushes.append(list(argv))
             return 0, "", ""
         return await execute(argv, **kwargs)
+
     monkeypatch.setattr(rig.exec, "run", execution)
-    rig.owner.box.enqueue(message_class="suggestion", origin="operator", stage=None,
-                          outcome=None, summary="a policy decision", occurrence_id="fixture-arrival")
+    rig.owner.box.enqueue(message_class="suggestion", origin="operator", stage=None, outcome=None, summary="a policy decision", occurrence_id="fixture-arrival")
     write(root, "source", text())
     run = asyncio.create_task(rig.owner.run())
     try:
-        await until(rig, lambda: len([e for e in terminals(rig) if e.body.get("to") == "merged"]) == 5
-                    and pushes and triaged)
+        await until(rig, lambda: len([e for e in terminals(rig) if e.body.get("to") == "merged"]) == 5 and pushes and triaged)
         merged = [e for e in terminals(rig) if e.body.get("to") == "merged"]
         assert all(e.body["commit"] and e.body["reviewed_sha"] for e in merged)
         assert rig.owner.box.pending() == []
@@ -740,8 +768,7 @@ async def test_serve_consumers_use_existing_writers(root, monkeypatch):
         write(root, "dependent", text(depends="- candidate-4"))
         await until(rig, lambda: terminals(rig, "dependent"))
         assert [stem for stem, stage, _ in calls if stage == "implement"] == ["source", "dependent"]
-        assert any(e.type == EventType.EFFECT_COMPLETION and e.body == {"result": {"merged": 5}}
-                   for e in rig.journal.read())
+        assert any(e.type == EventType.EFFECT_COMPLETION and e.body == {"result": {"merged": 5}} for e in rig.journal.read())
     finally:
         await finish(rig, run)
 
@@ -750,27 +777,30 @@ async def test_serve_consumers_use_existing_writers(root, monkeypatch):
 async def test_serve_author_uses_shared_journal(root, monkeypatch):
     from chupa.driver import Driver
     from tests.test_triage import author_reply, requisition_reply
+
     llm = FakeLLM([reply("author"), author_reply("drafted"), requisition_reply("approve")])
     observed = []
     run_driver = Driver.run
     rig = await graph(root, monkeypatch)
     from chupa.config import load_config
+
     config = root / "config.yaml"
-    config.write_text(config.read_text().replace("routing:\n", "routing:\n"
-        "  - {tier: high, surface: review, candidates: [{provider: claude}]}\n"
-        "  - {tier: max, surface: review, candidates: [{provider: claude}]}\n"))
+    config.write_text(
+        config.read_text().replace("routing:\n", "routing:\n  - {tier: high, surface: review, candidates: [{provider: claude}]}\n  - {tier: max, surface: review, candidates: [{provider: claude}]}\n")
+    )
     rig.checkout = replace(rig.checkout, config=load_config(None, cwd=root))
     old = rig.owner
     rig.owner = serve.Serve(rig.checkout, plan=PLAN, read=old.read, stems=old.stems)
+
     async def driving(self, stage, consumed, **kwargs):
         assert self.journal is self.effects._journal is rig.journal
         assert rig.owner.control.author_driver is self
         self.llm = llm
         observed.append((self, stage.surface))
         return await run_driver(self, stage, consumed, **kwargs)
+
     monkeypatch.setattr(Driver, "run", driving)
-    rig.owner.box.enqueue(message_class="suggestion", origin="operator", stage=None,
-        outcome=None, summary="an authored repair", occurrence_id="author-fixture")
+    rig.owner.box.enqueue(message_class="suggestion", origin="operator", stage=None, outcome=None, summary="an authored repair", occurrence_id="author-fixture")
     run = asyncio.create_task(rig.owner.run())
     try:
         await until(rig, lambda: rig.owner.box.pending() == [])
@@ -778,8 +808,7 @@ async def test_serve_author_uses_shared_journal(root, monkeypatch):
         assert observed[0][0] is observed[1][0]
         assert [r.surface for r in llm.requests] == ["triage", "author", "requisition_review"]
         assert (root / "tickets/drafted/ticket.md").is_file()
-        assert any(e.type == EventType.EFFECT_COMPLETION and e.key == "ticket-plane/drafted/author"
-                   for e in rig.journal.read())
+        assert any(e.type == EventType.EFFECT_COMPLETION and e.key == "ticket-plane/drafted/author" for e in rig.journal.read())
     finally:
         await finish(rig, run)
 
@@ -787,6 +816,7 @@ async def test_serve_author_uses_shared_journal(root, monkeypatch):
 @pytest.mark.asyncio
 async def test_serve_kill_unwinds_check_cleanup(root, monkeypatch):
     entered, cleaning, release = (asyncio.Event() for _ in range(3))
+
     async def before(ctx, ticket, stage, attempt):
         if stage == "check":
             entered.set()
@@ -795,6 +825,7 @@ async def test_serve_kill_unwinds_check_cleanup(root, monkeypatch):
             finally:
                 cleaning.set()
                 await release.wait()
+
     script(monkeypatch, before=before)
     rig = await graph(root, monkeypatch)
     write(root, "work", text())
@@ -820,8 +851,7 @@ async def test_serve_watcher_edits_deletions_and_last_good(root, monkeypatch):
         await until(rig, lambda: "work" in rig.owner.core.watcher.cache)
         original = rig.owner.core.watcher.cache["work"]
         write(root, "work", "---\ninvalid: [\n")
-        await until(rig, lambda: any(e.body.get("signal") == "watcher_parse_failure"
-                                    for e in rig.journal.read()))
+        await until(rig, lambda: any(e.body.get("signal") == "watcher_parse_failure" for e in rig.journal.read()))
         assert rig.owner.core.watcher.cache["work"] is original
         assert rig.owner.core.scheduler.pending["work"] is original
         write(root, "work", text(priority="P0"))
@@ -836,6 +866,7 @@ async def test_serve_watcher_edits_deletions_and_last_good(root, monkeypatch):
 @pytest.mark.asyncio
 async def test_serve_kill_unwinds_preparation(root, monkeypatch):
     entered, cleaning, release = (asyncio.Event() for _ in range(3))
+
     async def prepare(local):
         entered.set()
         try:
@@ -843,6 +874,7 @@ async def test_serve_kill_unwinds_preparation(root, monkeypatch):
         finally:
             cleaning.set()
             await release.wait()
+
     rig = await graph(root, monkeypatch, prepare=prepare)
     write(root, "work", text())
     run = asyncio.create_task(rig.owner.run())
@@ -860,8 +892,10 @@ async def test_serve_kill_unwinds_preparation(root, monkeypatch):
 @pytest.mark.asyncio
 async def test_serve_abort_failure_does_not_apply_kill(root, monkeypatch):
     rig = await graph(root, monkeypatch)
+
     async def abort():
         raise OSError("scripted abort cleanup failure")
+
     monkeypatch.setattr(rig.owner, "abort", abort)
     run = asyncio.create_task(rig.owner.run())
     await until(rig, rig.owner.ready.is_set)
@@ -874,9 +908,11 @@ async def test_serve_abort_failure_does_not_apply_kill(root, monkeypatch):
 
 async def admission_graph(root, monkeypatch, changes, *, endings=None, settled=None):
     """The merged CoreRig, actual CLI serve composition and real stages with scripted model replies."""
-    from tests.test_stages import implement_reply, verdict, SNAG
+    from tests.test_stages import SNAG, implement_reply, verdict
+
     endings = endings if endings is not None else {}
     models, contexts, returns = [], {}, []
+
     class Model(FakeLLM):
         async def call(self, req):
             stem = req.ticket
@@ -887,10 +923,10 @@ async def admission_graph(root, monkeypatch, changes, *, endings=None, settled=N
                     await rig.checkout.git.add(req.worktree, list(changes[stem]))
                     await rig.checkout.git.commit(req.worktree, "scripted implementation")
                 failed = endings.get(stem) == "implement"
-                value = implement_reply("premise_failed" if failed else
-                                        "already_satisfied" if endings.get(stem) == "noop" else "ok", [{
-                    "code": "premise", "message": "scripted premise refusal",
-                    "paved_road": "revise this ticket"}] if failed else [])
+                value = implement_reply(
+                    "premise_failed" if failed else "already_satisfied" if endings.get(stem) == "noop" else "ok",
+                    [{"code": "premise", "message": "scripted premise refusal", "paved_road": "revise this ticket"}] if failed else [],
+                )
             elif req.surface == "review":
                 value = verdict("snag", [SNAG]) if endings.get(stem) == "review" else verdict()
             elif req.surface == "diagnose":
@@ -901,48 +937,59 @@ async def admission_graph(root, monkeypatch, changes, *, endings=None, settled=N
                 raise AssertionError(f"unexpected scripted surface {req.surface}")
             self.script.append(value)
             return await super().call(req)
+
     async def prepare(local):
         llm = Model([])
         models.append(llm)
         writer = runner.bind(local, llm)
         return writer
+
     rig = await graph(root, monkeypatch, prepare=prepare)
     rig.prepare, rig.models, rig.contexts, rig.returns = prepare, models, contexts, returns
     rig.fixture_confirm = True
     rig.held_returns = []
     process, scripted = SubprocessExec(), rig.exec.run
+
     async def execute(argv, **kwargs):
         if argv[0] in {"git", "true", "false", "grep", "python3"}:
             return await process.run(argv, **kwargs)
         return await scripted(argv, **kwargs)
+
     monkeypatch.setattr(rig.exec, "run", execute)
     review = stages.review
+
     async def reviewed(ctx, ticket, invoice, *, attempt):
         result = await review(ctx, ticket, invoice, attempt=attempt)
         contexts[ticket.stem] = ctx
         if result.outcome == "ok" and settled is not None:
             await settled(rig, ctx, ticket, attempt)
         return result
+
     monkeypatch.setattr(stages, "review", reviewed)
     drive = runner.drive
+
     async def driving(ctx, ticket, **kwargs):
         result = await drive(ctx, ticket, **kwargs)
         (rig.held_returns if result == "running" else returns).append((ticket.stem, result))
         return result
+
     monkeypatch.setattr(runner, "drive", driving)
     consume = TicketWriter.consume_result
+
     async def consumed(writer, ticket, result, *, attempt):
         live = (ticket.stem, attempt) in writer.admission.results
         await consume(writer, ticket, result, attempt=attempt)
         if not live and not isinstance(result, Held):
             terminal = terminals(rig, ticket.stem)[-1].body["to"]
             returns.append((ticket.stem, terminal))
+
     monkeypatch.setattr(TicketWriter, "consume_result", consumed)
     return rig
 
 
 def admission_ticket(root, stem, *, paths=("chupa/thing.py",), verification="true", depends="none", priority="P2"):
     from tests.test_stages import TICKET
+
     raw = TICKET.format(bypass="").replace("priority: P2", f"priority: {priority}")
     raw = raw.replace("## Depends on\nnone", f"## Depends on\n{depends}")
     raw = raw.replace("## Scope fence\n- chupa/thing.py", "## Scope fence\n" + "\n".join(f"- {p}" for p in paths))
@@ -952,9 +999,11 @@ def admission_ticket(root, stem, *, paths=("chupa/thing.py",), verification="tru
 
 async def start_admission(rig, monkeypatch):
     build = cli.build_serve
+
     def built(*args, **kwargs):
         rig.owner = build(*args, **kwargs)
         return rig.owner
+
     monkeypatch.setattr(cli, "build_serve", built)
     run = asyncio.create_task(serve.serve(rig.checkout, plan=PLAN, prepare=rig.prepare))
     await until(rig, lambda: rig.owner.ready.is_set())
@@ -965,6 +1014,7 @@ async def start_admission(rig, monkeypatch):
 async def test_supervised_hold_allows_other_work(root, monkeypatch):
     from chupa.control import AdmissionRequest
     from chupa.mergequeue import held_admissions
+
     changes = {stem: {f"chupa/{stem}.py": "ok\n"} for stem in ("a-held", "b-other", "c-next")}
     rig = await admission_graph(root, monkeypatch, changes)
     rig.fixture_confirm = False
@@ -979,21 +1029,21 @@ async def test_supervised_hold_allows_other_work(root, monkeypatch):
         assert not any(r.ticket == "c-next" for m in rig.models for r in m.requests)
         heartbeats = []
         written = rig.fs.write
+
         def observe_heartbeat(path, data):
             written(path, data)
             if path == rig.checkout.config.state_dir / "heartbeat":
                 heartbeats.append(rig.time())
+
         monkeypatch.setattr(rig.fs, "write", observe_heartbeat)
-        rig.owner.box.enqueue(message_class="suggestion", origin="operator", stage=None, outcome=None,
-                              summary="bounded fixture decision", occurrence_id="held-triage")
+        rig.owner.box.enqueue(message_class="suggestion", origin="operator", stage=None, outcome=None, summary="bounded fixture decision", occurrence_id="held-triage")
         await until(rig, lambda: not rig.owner.box.pending() and bool(heartbeats))
         request(rig, "pause", "held-pause")
         await until(rig, lambda: rig.owner.control.projection.pause_id == "held-pause")
         request(rig, "resume", "held-resume", hold="held-pause")
         await until(rig, lambda: rig.owner.control.projection.pause_id is None)
         identity = held_admissions(rig.journal.read())["b-other"][0]
-        publish_request(rig.checkout.config.state_dir, AdmissionRequest("confirm-other",
-            rig.owner.control.inbox.lifecycle_id, "confirm", "b-other", identity, "operator"), rig.fs)
+        publish_request(rig.checkout.config.state_dir, AdmissionRequest("confirm-other", rig.owner.control.inbox.lifecycle_id, "confirm", "b-other", identity, "operator"), rig.fs)
         await until(rig, lambda: ("b-other", "merged") in rig.returns and len(rig.held_returns) == 3)
         assert not terminals(rig, "a-held") and not terminals(rig, "c-next")
         assert (root / "chupa/b-other.py").read_text() == "ok\n" and not (root / "chupa/a-held.py").exists()
@@ -1013,6 +1063,7 @@ async def test_serve_routes_settled_run_to_composed_queue_once(root, monkeypatch
     offers, results = [], []
     entered, release = asyncio.Event(), asyncio.Event()
     offer, admit = MergeQueue.offer, MergeQueue._admit
+
     def offered(queue, ticket, *, attempt):
         writer = rig.owner.writers[ticket.stem]
         assert queue is writer.queue is rig.owner.queue
@@ -1020,12 +1071,14 @@ async def test_serve_routes_settled_run_to_composed_queue_once(root, monkeypatch
         assert queue.ctx.driver.journal is queue.control.inbox.journal is rig.journal
         offers.append((ticket, attempt))
         offer(queue, ticket, attempt=attempt)
+
     async def admitted(queue, ticket, attempt):
         entered.set()
         await release.wait()
         result = await admit(queue, ticket, attempt)
         results.append(result)
         return result
+
     monkeypatch.setattr(MergeQueue, "offer", offered)
     monkeypatch.setattr(MergeQueue, "_admit", admitted)
     run = await start_admission(rig, monkeypatch)
@@ -1046,8 +1099,7 @@ async def test_serve_routes_settled_run_to_composed_queue_once(root, monkeypatch
             assert await rig.checkout.git.rev_parse(root, "main") == results[-1].artifact.commit
         else:
             assert offers == [] and not any(r == "merged" for _, r in rig.returns)
-            assert terminal.body["to"] == ("already_satisfied" if ending == "noop" else
-                                           "premise_failed" if ending == "implement" else "gate_failed")
+            assert terminal.body["to"] == ("already_satisfied" if ending == "noop" else "premise_failed" if ending == "implement" else "gate_failed")
     finally:
         release.set()
         await finish(rig, run)
@@ -1056,6 +1108,7 @@ async def test_serve_routes_settled_run_to_composed_queue_once(root, monkeypatch
 @pytest.mark.asyncio
 async def test_serve_admission_rebases_regates_and_retires(root, monkeypatch):
     endings = {"work": "review"}
+
     async def moved(rig, ctx, ticket, attempt):
         if ticket.stem == "work":
             rig.pinned = await ctx.git.rev_parse(root, ticket.stem)
@@ -1063,9 +1116,8 @@ async def test_serve_admission_rebases_regates_and_retires(root, monkeypatch):
             rig.fs.write(root / "chupa/other.py", b"moved\n")
             await ctx.git.add(root, ["chupa/other.py"])
             await ctx.git.commit(root, "main moves after approval")
-    rig = await admission_graph(root, monkeypatch,
-        {"work": {"chupa/thing.py": "ok\n"}, "dependent": {"chupa/dependent.py": "ok\n"}},
-        endings=endings, settled=moved)
+
+    rig = await admission_graph(root, monkeypatch, {"work": {"chupa/thing.py": "ok\n"}, "dependent": {"chupa/dependent.py": "ok\n"}}, endings=endings, settled=moved)
     # The tracked ticket-plane copies come from a real failed producing run, never a ready fixture.
     admission_ticket(root, "work")
     first = await start_admission(rig, monkeypatch)
@@ -1074,24 +1126,29 @@ async def test_serve_admission_rebases_regates_and_retires(root, monkeypatch):
     await runner.verdict("work", rig.checkout, kill=False)
     endings.clear()
     config = root / "config.yaml"
-    config.write_text(config.read_text().replace("review: {}", "review: {mechanical: [{code: host, argv: ['true'], trigger: always, severity: hard}]}")
-                      .replace("merge: {}", "merge: {safety_checks: [host]}"))
+    config.write_text(
+        config.read_text().replace("review: {}", "review: {mechanical: [{code: host, argv: ['true'], trigger: always, severity: hard}]}").replace("merge: {}", "merge: {safety_checks: [host]}")
+    )
     admission_ticket(root, "dependent", paths=("chupa/dependent.py",), depends="- work")
     trace, trees = [], []
     for name in ("gather_safety_evidence", "gather_evidence"):
         original = getattr(stages, name)
+
         async def evidence(ctx, ticket, *args, _name=name, _original=original, **kwargs):
             if ticket.stem == "work" and rig.owner.queue.active == "work":
                 trace.append(_name)
                 assert (ctx.worktree(ticket.stem) / "chupa/other.py").read_text() == "moved\n"
             return await _original(ctx, ticket, *args, **kwargs)
+
         monkeypatch.setattr(stages, name, evidence)
     original = rig.checkout.git.rev_parse
+
     async def rev_parse(path, ref):
         sha = await original(path, ref)
         if ref.endswith("^{tree}"):
             trees.append((ref, sha))
         return sha
+
     monkeypatch.setattr(rig.checkout.git, "rev_parse", rev_parse)
     run = await start_admission(rig, monkeypatch)
     try:
@@ -1121,23 +1178,32 @@ async def test_serve_admission_rebases_regates_and_retires(root, monkeypatch):
 @pytest.mark.parametrize("case", ["red-streak", "tree-mismatch", "exception", "cancel", "kill"])
 async def test_serve_admission_holds_and_cleanup(root, monkeypatch, case):
     if case == "red-streak":
-        changes = {stem: {f"chupa/{stem}.py": "red\n" if stem != "green" else "ok\n"}
-                   for stem in ("one", "two", "three", "green")}
+        changes = {stem: {f"chupa/{stem}.py": "red\n" if stem != "green" else "ok\n"} for stem in ("one", "two", "three", "green")}
+
         async def moved(rig, ctx, ticket, attempt):
             if ticket.stem != "green":
                 rig.fs.write(root / "chupa/integration-marker", b"moved\n")
                 await ctx.git.add(root, ["chupa/integration-marker"])
                 await ctx.git.commit(root, "move main after check")
+
         rig = await admission_graph(root, monkeypatch, changes, settled=moved)
-        admission_config(root, command=["python3", "-c", "from pathlib import Path; import sys; "
-            "sys.exit(int(Path('chupa/integration-marker').exists() and any(p.read_text().startswith('red') for p in Path('chupa').glob('*.py'))))"])
+        admission_config(
+            root,
+            command=[
+                "python3",
+                "-c",
+                "from pathlib import Path; import sys; sys.exit(int(Path('chupa/integration-marker').exists() and any(p.read_text().startswith('red') for p in Path('chupa').glob('*.py'))))",
+            ],
+        )
         for stem, priority in zip(changes, ("P0", "P1", "P2", "P3"), strict=True):
             admission_ticket(root, stem, paths=(f"chupa/{stem}.py",), priority=priority)
         offers, empty = [], asyncio.Event()
         offer, process = MergeQueue.offer, MergeQueue.process
+
         def offered(queue, ticket, **kwargs):
             offers.append((queue, ticket.stem, kwargs["attempt"]))
             offer(queue, ticket, **kwargs)
+
         async def processed(queue):
             if "green" in queue.pending and not empty.is_set():
                 assert not any(e.body.get("to") == "merged" for e in terminals(rig, "green"))
@@ -1151,6 +1217,7 @@ async def test_serve_admission_holds_and_cleanup(root, monkeypatch, case):
                 await rig.checkout.git.add(root, ["chupa/integration-marker"])
                 await rig.checkout.git.commit(root, "reset integration marker")
             return result
+
         monkeypatch.setattr(MergeQueue, "offer", offered)
         monkeypatch.setattr(MergeQueue, "process", processed)
         run = await start_admission(rig, monkeypatch)
@@ -1170,8 +1237,7 @@ async def test_serve_admission_holds_and_cleanup(root, monkeypatch, case):
             request(rig, "pause", "operator-pause")
             await until(rig, lambda: rig.owner.control.projection.pause_id == "operator-pause")
             assert queue.paused and not terminals(rig, "green")
-            decisions = {e.body["request_id"]: e.body["decision"] for e in rig.journal.read()
-                         if e.body.get("kind") == "control_decision"}
+            decisions = {e.body["request_id"]: e.body["decision"] for e in rig.journal.read() if e.body.get("kind") == "control_decision"}
             assert decisions == {"wrong-hold": "stale", "wrong-life": "stale", "operator-pause": "accepted"}
             request(rig, "resume", "admission-release", hold=identity)
             await until(rig, lambda: identity in rig.owner.control.projection.released_hold_ids)
@@ -1197,6 +1263,7 @@ async def test_serve_admission_holds_and_cleanup(root, monkeypatch, case):
             await ctx.git.add(root, ["chupa/generated.txt"])
             await ctx.git.commit(root, "main conflicts")
         rig.before = await ctx.git.rev_parse(root, "main")
+
     changes = {"chupa/thing.py": "ok\n"}
     if case != "tree-mismatch":
         changes["chupa/generated.txt"] = "base\nbranch\n"
@@ -1211,6 +1278,7 @@ async def test_serve_admission_holds_and_cleanup(root, monkeypatch, case):
     failures, chronology = [], []
     error = RuntimeError("injected admission failure")
     call = rig.checkout.git._call
+
     async def called(path, *args, **kwargs):
         if args == ("rebase", "--abort"):
             cleaning.set()
@@ -1218,16 +1286,20 @@ async def test_serve_admission_holds_and_cleanup(root, monkeypatch, case):
                 await abort_release.wait()
             chronology.append("abort")
         return await call(path, *args, **kwargs)
+
     monkeypatch.setattr(rig.checkout.git, "_call", called)
     if case == "tree-mismatch":
         squash = rig.checkout.git.merge_squash
+
         async def corrupted(path, stem):
             await squash(path, stem)
             # A real staged-tree defect produces a real mismatching commit, not a fake hash or terminal.
             rig.fs.write(path / "chupa/engine-defect.py", b"unexpected staged content\n")
             await rig.checkout.git.add(path, ["chupa/engine-defect.py"])
+
         monkeypatch.setattr(rig.checkout.git, "merge_squash", corrupted)
         admit = MergeQueue._admit
+
         async def admitted(queue, ticket, attempt):
             try:
                 return await admit(queue, ticket, attempt)
@@ -1235,14 +1307,17 @@ async def test_serve_admission_holds_and_cleanup(root, monkeypatch, case):
                 entered.set()
                 await release.wait()
                 raise
+
         monkeypatch.setattr(MergeQueue, "_admit", admitted)
     else:
+
         async def resolve(*args):
             entered.set()
             if case == "exception":
                 raise error
             await release.wait()
             raise AssertionError("cancel the admission before releasing this resolution barrier")
+
         monkeypatch.setattr(MergeQueue, "_resolve", resolve)
     run = await start_admission(rig, monkeypatch)
     rig.owner.failure = failures.append
@@ -1306,10 +1381,10 @@ async def test_serve_admission_holds_and_cleanup(root, monkeypatch, case):
 
 def admission_config(root, *, command=None, safety=False, strategies=()):
     import yaml
+
     path = root / "config.yaml"
     config = yaml.safe_load(path.read_text())
-    config["review"] = {"mechanical": [{"code": "combined", "argv": command or ["true"],
-        "trigger": "always", "severity": "hard"}]}
+    config["review"] = {"mechanical": [{"code": "combined", "argv": command or ["true"], "trigger": "always", "severity": "hard"}]}
     config["merge"] = {"safety_checks": ["combined"] if safety else [], "strategies": list(strategies)}
     path.write_text(yaml.safe_dump(config))
 
@@ -1317,8 +1392,8 @@ def admission_config(root, *, command=None, safety=False, strategies=()):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("failure", ["precheck", "safety", "integration", "host-red"])
 async def test_serve_admission_refusal_keeps_main_green(root, monkeypatch, failure):
-    command = ["python3", "-c", "from pathlib import Path; import sys; "
-        "sys.exit(int('red' in Path('chupa/thing.py').read_text() and Path('chupa/other.py').exists()))"]
+    command = ["python3", "-c", "from pathlib import Path; import sys; sys.exit(int('red' in Path('chupa/thing.py').read_text() and Path('chupa/other.py').exists()))"]
+
     async def settled(rig, ctx, ticket, attempt):
         if ticket.stem == "work":
             if failure == "precheck":
@@ -1326,11 +1401,9 @@ async def test_serve_admission_refusal_keeps_main_green(root, monkeypatch, failu
                 await ctx.git.add(ctx.worktree(ticket.stem), ["tickets/forbidden.md"])
                 await ctx.git.commit(ctx.worktree(ticket.stem), "committed ticket-plane violation")
             rig.before = await ctx.git.rev_parse(root, "main")
-    rig = await admission_graph(root, monkeypatch, {
-        "work": {"chupa/thing.py": "ok red\n"}, "main-side": {"chupa/other.py": "moved\n"},
-        "next": {"chupa/next.py": "ok\n"}}, settled=settled)
-    admission_config(root, command=["false"] if failure == "host-red" else command,
-                     safety=failure == "safety")
+
+    rig = await admission_graph(root, monkeypatch, {"work": {"chupa/thing.py": "ok red\n"}, "main-side": {"chupa/other.py": "moved\n"}, "next": {"chupa/next.py": "ok\n"}}, settled=settled)
+    admission_config(root, command=["false"] if failure == "host-red" else command, safety=failure == "safety")
     admission_ticket(root, "work", priority="P0", verification="grep -q absent chupa/thing.py" if failure == "host-red" else "true")
     # Stage selection suspends a genuine producing run while another genuine run moves main.
     hold = trip(rig, stage="review") if failure in {"safety", "integration"} else None
@@ -1339,6 +1412,7 @@ async def test_serve_admission_refusal_keeps_main_green(root, monkeypatch, failu
     preserved, offers = [], []
     harvest, offer = runner.harvest_failure, MergeQueue.offer
     admit = MergeQueue._admit
+
     async def admitted(queue, ticket, attempt):
         before = await queue.ctx.git.rev_parse(root, "main")
         result = await admit(queue, ticket, attempt)
@@ -1347,7 +1421,9 @@ async def test_serve_admission_refusal_keeps_main_green(root, monkeypatch, failu
             assert await queue.ctx.git.rev_parse(root, "main") == before
             assert queue.ctx.worktree(ticket.stem).exists()
         return result
+
     monkeypatch.setattr(MergeQueue, "_admit", admitted)
+
     async def harvested(ctx, ticket, **kwargs):
         if ticket.stem == "work" and kwargs["stage"] == "merge":
             if failure == "precheck":
@@ -1356,9 +1432,11 @@ async def test_serve_admission_refusal_keeps_main_green(root, monkeypatch, failu
             assert "red" not in (root / "chupa/thing.py").read_text()
             preserved.append(kwargs)
         await harvest(ctx, ticket, **kwargs)
+
     def offered(queue, ticket, **kwargs):
         offers.append(ticket.stem)
         offer(queue, ticket, **kwargs)
+
     monkeypatch.setattr(runner, "harvest_failure", harvested)
     monkeypatch.setattr(MergeQueue, "offer", offered)
     run = await start_admission(rig, monkeypatch)
@@ -1404,31 +1482,35 @@ async def test_serve_conflict_handoff_runs_after_admission_unwinds(root, monkeyp
         await ctx.git.add(root, ["chupa/generated.txt"])
         await ctx.git.commit(root, "main conflicts after review")
         rig.before = await ctx.git.rev_parse(root, "main")
-    rig = await admission_graph(root, monkeypatch,
-        {"work": {"chupa/thing.py": "ok\n", "chupa/generated.txt": "base\nbranch\n"}}, settled=settled)
+
+    rig = await admission_graph(root, monkeypatch, {"work": {"chupa/thing.py": "ok\n", "chupa/generated.txt": "base\nbranch\n"}}, settled=settled)
     rig.fs.write(root / "chupa/generated.txt", b"base\n")
     await rig.checkout.git.add(root, ["chupa/generated.txt"])
     await rig.checkout.git.commit(root, "generated base")
-    admission_config(root, safety=True, strategies=[{"paths": ["chupa/generated.txt"], "strategy": "union"}]
-                     if resolution == "mechanical" else [])
+    admission_config(root, safety=True, strategies=[{"paths": ["chupa/generated.txt"], "strategy": "union"}] if resolution == "mechanical" else [])
     admission_ticket(root, "work", paths=("chupa/thing.py", "chupa/generated.txt"), verification="grep -q ok chupa/thing.py")
     chronology, gates = [], []
     call = rig.checkout.git._call
+
     async def called(path, *args, **kwargs):
         result = await call(path, *args, **kwargs)
         if args == ("rebase", "--abort"):
             chronology.append("abort")
         return result
+
     monkeypatch.setattr(rig.checkout.git, "_call", called)
     process = MergeQueue.process
+
     async def processed(queue):
         result = await process(queue)
         if result:
             assert queue.active is None and not queue._slot.locked()
             chronology.append("unwind")
         return result
+
     monkeypatch.setattr(MergeQueue, "process", processed)
     apply = daemon.apply_rework
+
     async def reworked(ctx, ticket, findings, **kwargs):
         queue = rig.owner.queue
         handoff = kwargs["handoff"]
@@ -1442,29 +1524,53 @@ async def test_serve_conflict_handoff_runs_after_admission_unwinds(root, monkeyp
         assert await ctx.git.status_porcelain(ctx.worktree(ticket.stem)) == ""
         chronology.append("rework")
         return await apply(ctx, ticket, findings, **kwargs)
+
     monkeypatch.setattr(daemon, "apply_rework", reworked)
     from chupa import merge as merge_owner
+
     for gate in stages.CHECK_GATES + merge_owner.MERGE_GATES:
         check = gate.check
+
         def checked(*args, _gate=gate, _check=check):
             if rig.owner.queue is not None and rig.owner.queue.active == "work":
                 gates.append(_gate.code)
             return _check(*args)
+
         monkeypatch.setattr(gate, "check", checked)
     run = await start_admission(rig, monkeypatch)
     try:
         await until(rig, lambda: rig.returns)
         [facts] = [e for e in rig.journal.read() if e.body.get("kind") == CONFLICT_FACTS]
         assert facts.ticket == "work" and facts.key is None and facts.type == EventType.SIGNAL
-        assert facts.body == {"kind": CONFLICT_FACTS, "conflicted_paths": ["chupa/generated.txt"],
+        assert facts.body == {
+            "kind": CONFLICT_FACTS,
+            "conflicted_paths": ["chupa/generated.txt"],
             "resolving_rung": "mechanical" if resolution == "mechanical" else "rework",
-            "strategy_paths": ["chupa/generated.txt"] if resolution == "mechanical" else [], "integration_red_paths": []}
+            "strategy_paths": ["chupa/generated.txt"] if resolution == "mechanical" else [],
+            "integration_red_paths": [],
+        }
         [terminal] = terminals(rig, "work")
         if resolution == "mechanical":
             assert rig.returns == [("work", "merged")] and chronology == ["unwind", "unwind"]
             assert (root / "chupa/generated.txt").read_text() == "base\nmain\nbranch\n"
-            assert gates == ["scope_fence", "run_record", "ticket_schema", "post_rebase_regate", "correctness_review", "requisition_review",
-                "scope_fence", "verification", "run_record", "diff_budget", "core_drift", "bug_evidence", "ticket_schema", "post_rebase_regate", "correctness_review", "requisition_review"]
+            assert gates == [
+                "scope_fence",
+                "run_record",
+                "ticket_schema",
+                "post_rebase_regate",
+                "correctness_review",
+                "requisition_review",
+                "scope_fence",
+                "verification",
+                "run_record",
+                "diff_budget",
+                "core_drift",
+                "bug_evidence",
+                "ticket_schema",
+                "post_rebase_regate",
+                "correctness_review",
+                "requisition_review",
+            ]
             for tier in ("safety", "integration"):
                 assert "exit 0" in (rig.checkout.config.state_dir / f"spools/work/0/merge-{tier}/host-01.txt").read_text()
             assert terminal.body["reviewed_sha"] == rig.pinned
@@ -1481,15 +1587,17 @@ async def test_serve_conflict_handoff_runs_after_admission_unwinds(root, monkeyp
 
 def notify_command(root, *, enabled=True):
     import sys
+
     import yaml
+
     path = root / "config.yaml"
     raw = yaml.safe_load(path.read_text())
     if enabled:
-        raw["notify"] = [sys.executable, "-c",
-            "import sys; from pathlib import Path; "
-            "p=Path('deliveries.jsonl'); "
-            "p.open('a').write(sys.argv[-1]+'\\n'); "
-            "sys.exit(1 if Path('notify-fails').exists() else 0)"]
+        raw["notify"] = [
+            sys.executable,
+            "-c",
+            "import sys; from pathlib import Path; p=Path('deliveries.jsonl'); p.open('a').write(sys.argv[-1]+'\\n'); sys.exit(1 if Path('notify-fails').exists() else 0)",
+        ]
     else:
         raw.pop("notify", None)
     path.write_text(yaml.safe_dump(raw))
@@ -1501,8 +1609,7 @@ def deliveries(root):
 
 
 def notify_completions(rig):
-    return [e for e in rig.journal.read() if e.type == EventType.EFFECT_COMPLETION
-            and e.key.startswith("notify/")]
+    return [e for e in rig.journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key.startswith("notify/")]
 
 
 def escalation_batch(rig, label):
@@ -1526,11 +1633,13 @@ async def test_serve_reconciles_notifications_at_startup_and_poll(root, monkeypa
     assert not deliveries(root)
     original = rig.owner.notifications.poll
     polled = []
+
     def poll(**kwargs):
         if kwargs.get("startup"):
             assert rig.owner.core.restart.ready and not rig.owner.ready.is_set()
         polled.append(kwargs.get("startup", False))
         original(**kwargs)
+
     monkeypatch.setattr(rig.owner.notifications, "poll", poll)
     run = asyncio.create_task(rig.owner.run())
     try:
@@ -1562,8 +1671,7 @@ async def test_serve_reconciles_notifications_at_startup_and_poll(root, monkeypa
     stamp = heartbeat.stat().st_mtime_ns
     restarted = asyncio.create_task(rig.owner.run())
     try:
-        await until(rig, lambda: heartbeat.stat().st_mtime_ns != stamp
-                    and rig.owner.ready.is_set())
+        await until(rig, lambda: heartbeat.stat().st_mtime_ns != stamp and rig.owner.ready.is_set())
         assert rig.owner.notifications.task is None
         assert len(deliveries(root)) == len(notify_completions(rig)) == 6
     finally:
@@ -1574,6 +1682,7 @@ async def test_serve_reconciles_notifications_at_startup_and_poll(root, monkeypa
 async def test_serve_unset_notify_warns_once_and_preserves_pending(root, monkeypatch):
     from chupa.notify import pending_escalations
     from chupa.status import project
+
     rig = await graph(root, monkeypatch)
     identities = escalation_batch(rig, "pending")
     status = project(rig.journal.read())
@@ -1583,8 +1692,7 @@ async def test_serve_unset_notify_warns_once_and_preserves_pending(root, monkeyp
         heartbeat = rig.checkout.config.state_dir / "heartbeat"
         stamp = heartbeat.stat().st_mtime_ns
         await until(rig, lambda: heartbeat.stat().st_mtime_ns != stamp)
-        warnings = [json.loads(line) for line in rig.owner.log.path.read_text().splitlines()
-                    if json.loads(line)["event"] == "notify_unset"]
+        warnings = [json.loads(line) for line in rig.owner.log.path.read_text().splitlines() if json.loads(line)["event"] == "notify_unset"]
         assert len(warnings) == 1 and "push is off" in warnings[0]["warning"]
         assert not deliveries(root) and not notify_completions(rig)
         current = project(rig.journal.read())
@@ -1596,8 +1704,7 @@ async def test_serve_unset_notify_warns_once_and_preserves_pending(root, monkeyp
         await until(rig, lambda: len(notify_completions(rig)) == 3)
         assert len(deliveries(root)) == 3 and not pending_escalations(rig.journal.read())
         assert identities[0] in rig.owner.storm.holds() and rig.owner.queue.paused
-        assert sum(json.loads(line)["event"] == "notify_unset"
-                   for line in rig.owner.log.path.read_text().splitlines()) == 1
+        assert sum(json.loads(line)["event"] == "notify_unset" for line in rig.owner.log.path.read_text().splitlines()) == 1
     finally:
         await finish(rig, run)
 
@@ -1605,6 +1712,7 @@ async def test_serve_unset_notify_warns_once_and_preserves_pending(root, monkeyp
 @pytest.mark.asyncio
 async def test_serve_failed_notify_backoff_and_restart(root, monkeypatch):
     from chupa.notify import NOTIFY_RETRY_S, pending_escalations
+
     rig = await graph(root, monkeypatch)
     notify_command(root)
     (root / "notify-fails").touch()
@@ -1612,8 +1720,7 @@ async def test_serve_failed_notify_backoff_and_restart(root, monkeypatch):
     run = asyncio.create_task(rig.owner.run())
     try:
         await until(rig, lambda: rig.owner.notifications.retry_at)
-        intents = lambda: [e for e in rig.journal.read() if e.type == EventType.EFFECT_INTENT
-                          and e.key.startswith("notify/")]
+        intents = lambda: [e for e in rig.journal.read() if e.type == EventType.EFFECT_INTENT and e.key.startswith("notify/")]
         assert len(intents()) == 1 and not notify_completions(rig)
         # Unrelated journal arrivals do not reset this key's failed-command backoff.
         retry_at = dict(rig.owner.notifications.retry_at)
@@ -1652,23 +1759,28 @@ async def test_serve_hung_notify_keeps_maintenance_and_cleanup_responsive(root, 
     escalation_batch(rig, "hung")
     entered, cancelled = asyncio.Event(), asyncio.Event()
     compose = rig.owner.notifications.compose
+
     async def hang(argv, **kwargs):
         entered.set()
         try:
             await asyncio.Event().wait()
         finally:
             cancelled.set()
+
     def composed(config):
         seam = compose(config)
         monkeypatch.setattr(seam.exec_, "run", hang)
         return seam
+
     monkeypatch.setattr(rig.owner.notifications, "compose", composed)
     refreshed = []
     write_fs = rig.fs.write
+
     def written(path, data):
         if path.name == "heartbeat":
             refreshed.append(rig.time())
         write_fs(path, data)
+
     monkeypatch.setattr(rig.fs, "write", written)
     run = asyncio.create_task(rig.owner.run())
     try:
@@ -1679,8 +1791,7 @@ async def test_serve_hung_notify_keeps_maintenance_and_cleanup_responsive(root, 
         rig.owner.core.restart.timers.arm("during-notify", rig.time(), ticket=None)
         await until(rig, lambda: "during-notify" in rig.owner.core.restart.timers.fired)
         assert terminals(rig) == []
-        assert len([e for e in rig.journal.read() if e.type == EventType.EFFECT_INTENT
-                    and e.key.startswith("notify/")]) == 1
+        assert len([e for e in rig.journal.read() if e.type == EventType.EFFECT_INTENT and e.key.startswith("notify/")]) == 1
         request(rig, "kill", "kill-during-notify")
         await until(rig, run.done)
         assert await run == 0 and cancelled.is_set()
@@ -1694,7 +1805,7 @@ async def test_refused_uncommitted_bug_does_not_stop_serve(root, monkeypatch):
     calls, _, _ = script(monkeypatch)
     rig = await graph(root, monkeypatch)
     bug = text().replace("kind: feature", "kind: bug")
-    bug += '\n## Regression\n```\npython -c \'print(1)\'\n```\n- carries: tests/\n'
+    bug += "\n## Regression\n```\npython -c 'print(1)'\n```\n- carries: tests/\n"
     write(root, "no-evidence", bug)
     run = asyncio.create_task(rig.owner.run())
     try:
@@ -1719,6 +1830,7 @@ async def test_dispatch_republishes_ticket_changed_after_publication(root, monke
     await rig.owner.scan()
     original = (root / "tickets/work/ticket.md").read_text()
     from chupa.tickets import parse_ticket
+
     ticket = parse_ticket("work", original, root, plan=PLAN)
     rig.owner.publish(ticket, original)
     revised = original.replace("## Scope fence\n- chupa/", "## Scope fence\n- revised/")
@@ -1746,8 +1858,7 @@ async def test_invalid_new_ticket_reaches_watcher(root, monkeypatch):
     write(root, "invalid-new", "not a ticket")
     run = asyncio.create_task(rig.owner.run())
     try:
-        await until(rig, lambda: any(e.ticket == "invalid-new"
-                    and e.body.get("signal") == "watcher_parse_failure" for e in rig.journal.read()))
+        await until(rig, lambda: any(e.ticket == "invalid-new" and e.body.get("signal") == "watcher_parse_failure" for e in rig.journal.read()))
         assert not run.done()
     finally:
         await finish(rig, run)

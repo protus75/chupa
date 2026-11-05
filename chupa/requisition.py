@@ -14,7 +14,7 @@ from chupa.gates import GateReport
 from chupa.llm import AgentTier, LLMRequest, LLMResult
 from chupa.llmeffect import llm_call
 from chupa.providers import ProviderCallError, ProviderDrought
-from chupa.specs import REQ_RENDER_HEADROOM, RENDER_BOUND_CHARS, RenderOverBound, load_spec, render
+from chupa.specs import RENDER_BOUND_CHARS, REQ_RENDER_HEADROOM, RenderOverBound, load_spec, render
 from chupa.stages import implement_inputs
 from chupa.tickets import Ticket, validate_ticket
 
@@ -68,11 +68,22 @@ def base_render_chars(repo: Path, ticket: Ticket, text: str, specs_dir: Path) ->
         return int(re.search(r"rendered prompt is (\d+) characters", exc.finding.message).group(1))
 
 
-async def review_ticket(driver: Driver, *, repo: Path, stem: str, text: str,
-                        specs_dir: Path, tier: AgentTier, stem_slot: str, run_seq: int,
-                        attempt: int, call_seq: int, expected_budget: float | Literal['surface', 'eval'],
-                        prior: str = "none",
-                        siblings: Collection[str] = ()) -> RequisitionVerdict:
+async def review_ticket(
+    driver: Driver,
+    *,
+    repo: Path,
+    stem: str,
+    text: str,
+    specs_dir: Path,
+    tier: AgentTier,
+    stem_slot: str,
+    run_seq: int,
+    attempt: int,
+    call_seq: int,
+    expected_budget: float | Literal["surface", "eval"],
+    prior: str = "none",
+    siblings: Collection[str] = (),
+) -> RequisitionVerdict:
     ticket = review_target(repo, stem, text, siblings)
     spec = load_spec((specs_dir / "requisition_review.md").read_text())
     ticket_bytes = text.encode()
@@ -83,47 +94,46 @@ async def review_ticket(driver: Driver, *, repo: Path, stem: str, text: str,
     except RenderOverBound as exc:
         base = None
         chars = int(re.search(r"rendered prompt is (\d+) characters", exc.finding.message).group(1))
-    common = dict(produced_by_spec_version=int(spec.meta.version.split(".")[0]),
-                  produced_at_sha=sha, stem=stem, ticket_sha=sha, render_chars=chars,
-                  spec_version=spec.meta.version)
+    common = dict(produced_by_spec_version=int(spec.meta.version.split(".")[0]), produced_at_sha=sha, stem=stem, ticket_sha=sha, render_chars=chars, spec_version=spec.meta.version)
 
-    def snag(message: str, mechanical: str, code: str = "requisition_review",
-             road: str = "repair the ticket or review response and retry") -> RequisitionVerdict:
-        return RequisitionVerdict(**common, verdict="snag", summary=message,
-                                  findings=[Finding(code=code, message=message, paved_road=road,
-                                                    kind="authoring_error")],
-                                  mechanical=mechanical, provider=None, model=None)
+    def snag(message: str, mechanical: str, code: str = "requisition_review", road: str = "repair the ticket or review response and retry") -> RequisitionVerdict:
+        return RequisitionVerdict(
+            **common, verdict="snag", summary=message, findings=[Finding(code=code, message=message, paved_road=road, kind="authoring_error")], mechanical=mechanical, provider=None, model=None
+        )
 
     if chars > REQ_RENDER_HEADROOM * RENDER_BOUND_CHARS:
-        return snag(f"base Implement render has {chars} characters, over authoring headroom",
-                    "render over headroom", "render_feasibility", "shrink or split the ticket at authoring")
+        return snag(f"base Implement render has {chars} characters, over authoring headroom", "render over headroom", "render_feasibility", "shrink or split the ticket at authoring")
     assert base is not None
 
     try:
-        prompt = render(spec, {"ticket": text,
-                               "context": "included in render", "render": base,
-                               "prior_review": prior, "retry_findings": "none"})
+        prompt = render(spec, {"ticket": text, "context": "included in render", "render": base, "prior_review": prior, "retry_findings": "none"})
     except RenderOverBound as exc:
         return snag(str(exc), "review render over bound", road="shrink or split the ticket at authoring")
 
     name = f"requisition_review/call-{call_seq:02d}"
     spool_stem = f"{stem_slot}/{run_seq}"
     driver.spool.write(spool_stem, attempt, f"{name}/prompt.md", prompt)
-    req = LLMRequest(surface="requisition_review", rendered=prompt, tier=tier,
-                     effort=spec.meta.effort, ticket=None, worktree=None)
+    req = LLMRequest(surface="requisition_review", rendered=prompt, tier=tier, effort=spec.meta.effort, ticket=None, worktree=None)
     if driver._active is None:
-        driver.begin_watch(owner=stem_slot, ticket=None, run_sequence=run_seq,
-            surface='requisition_review', workspace=repo, expected_budget=expected_budget,
-            stuck_budget=REQUISITION_STUCK_S, scope_fence=(), attempt=attempt)
+        driver.begin_watch(
+            owner=stem_slot,
+            ticket=None,
+            run_sequence=run_seq,
+            surface="requisition_review",
+            workspace=repo,
+            expected_budget=expected_budget,
+            stuck_budget=REQUISITION_STUCK_S,
+            scope_fence=(),
+            attempt=attempt,
+        )
     try:
         recorded = await driver.race(
-            lambda: llm_call(driver.effects, driver.watched_llm(), req, driver.redactor, ticket=stem,
-                             stem=stem_slot, run_seq=run_seq, attempt=attempt, call_seq=call_seq),
+            lambda: llm_call(driver.effects, driver.watched_llm(), req, driver.redactor, ticket=stem, stem=stem_slot, run_seq=run_seq, attempt=attempt, call_seq=call_seq),
             REQUISITION_STUCK_S,
         )
     except _StuckBudget:
         return snag("requisition review timed out", "timeout", road="retry the authoring review")
-    except (ProviderDrought, ProviderCallError):
+    except ProviderDrought, ProviderCallError:
         raise
     except Exception as exc:
         message = f"requisition review provider failed: {type(exc).__name__}: {exc}"
@@ -135,19 +145,20 @@ async def review_ticket(driver: Driver, *, repo: Path, stem: str, text: str,
         reply = RequisitionReply.model_validate_json(unwrap_fence(result.text))
     except ValidationError as exc:
         message = f"invalid requisition review reply: {exc.error_count()} schema error(s)"
-        return RequisitionVerdict(**common, verdict="snag", summary=message,
-                                  findings=[Finding(code="requisition_review", message=message,
-                                                    paved_road="reply with a schema-valid requisition verdict",
-                                                    kind="authoring_error")],
-                                  mechanical="invalid reply", provider=result.provider, model=result.model)
-    return RequisitionVerdict(**common, verdict=reply.verdict, summary=reply.summary,
-                              findings=reply.findings, mechanical=None,
-                              provider=result.provider, model=result.model)
+        return RequisitionVerdict(
+            **common,
+            verdict="snag",
+            summary=message,
+            findings=[Finding(code="requisition_review", message=message, paved_road="reply with a schema-valid requisition verdict", kind="authoring_error")],
+            mechanical="invalid reply",
+            provider=result.provider,
+            model=result.model,
+        )
+    return RequisitionVerdict(**common, verdict=reply.verdict, summary=reply.summary, findings=reply.findings, mechanical=None, provider=result.provider, model=result.model)
 
 
 class RequisitionGate:
     code = "requisition_review"
 
     def check(self, artifact: RequisitionVerdict, workspace: Path) -> GateReport:
-        return GateReport(code=self.code, verdict="pass" if artifact.verdict == "approve" else "fail",
-                          findings=[] if artifact.verdict == "approve" else artifact.findings)
+        return GateReport(code=self.code, verdict="pass" if artifact.verdict == "approve" else "fail", findings=[] if artifact.verdict == "approve" else artifact.findings)

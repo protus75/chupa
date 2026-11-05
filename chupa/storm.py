@@ -1,8 +1,8 @@
 """Journal-backed storm occurrences, escalation, holds and re-arming (19.P3.storm-dispatch-hold)."""
 
-import re
 import hashlib
 import json
+import re
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
@@ -20,8 +20,7 @@ _FIELDS = {"kind", "signature", "occurrence_id", "emitting_stage", "emitting_ori
 
 
 def _invalid(reason: str) -> ValueError:
-    return ValueError(f"invalid storm occurrence: {reason}; supply a fresh id for a distinct arrival "
-                      "or repair the producing evidence, never overwrite journal history")
+    return ValueError(f"invalid storm occurrence: {reason}; supply a fresh id for a distinct arrival or repair the producing evidence, never overwrite journal history")
 
 
 def _key(body: dict[str, Any]) -> str:
@@ -32,8 +31,7 @@ def _key(body: dict[str, Any]) -> str:
         raise _invalid("signature must be the producer's 64-character lowercase SHA-256 digest")
     if not isinstance(identity, str) or not identity.strip():
         raise _invalid("occurrence_id must be a nonblank producer-supplied string")
-    if any(body[field] is not None and not isinstance(body[field], str)
-           for field in ("emitting_stage", "emitting_origin")):
+    if any(body[field] is not None and not isinstance(body[field], str) for field in ("emitting_stage", "emitting_origin")):
         raise _invalid("emitting_stage and emitting_origin must be strings or null")
     return f"{_PREFIX}{signature}/{identity}"
 
@@ -49,9 +47,7 @@ class StormLedger:
         for event in self.journal.read():
             if event.type != EventType.SIGNAL:
                 continue
-            if event.body.get("kind") != "storm_occurrence" and not (
-                event.key is not None and event.key.startswith(_PREFIX)
-            ):
+            if event.body.get("kind") != "storm_occurrence" and not (event.key is not None and event.key.startswith(_PREFIX)):
                 continue
             key = _key(event.body)
             if event.key != key or event.ticket is not None:
@@ -63,11 +59,8 @@ class StormLedger:
                 history[key] = event
         return history
 
-    def record(self, *, signature: str, occurrence_id: str,
-               emitting_stage: str | None, emitting_origin: str | None) -> Event:
-        body = {"kind": "storm_occurrence", "signature": signature,
-                "occurrence_id": occurrence_id, "emitting_stage": emitting_stage,
-                "emitting_origin": emitting_origin}
+    def record(self, *, signature: str, occurrence_id: str, emitting_stage: str | None, emitting_origin: str | None) -> Event:
+        body = {"kind": "storm_occurrence", "signature": signature, "occurrence_id": occurrence_id, "emitting_stage": emitting_stage, "emitting_origin": emitting_origin}
         key = _key(body)
         prior = self._history().get(key)
         if prior is not None:
@@ -78,13 +71,10 @@ class StormLedger:
 
     def occurrences(self, signature: str) -> tuple[Event, ...]:
         # Validate the requested digest by the same law as the durable evidence.
-        _key({"kind": "storm_occurrence", "signature": signature, "occurrence_id": "projection",
-              "emitting_stage": None, "emitting_origin": None})
+        _key({"kind": "storm_occurrence", "signature": signature, "occurrence_id": "projection", "emitting_stage": None, "emitting_origin": None})
         history = self._history()
         now = datetime.fromisoformat(render_ts(self.clock()))
-        return tuple(event for event in history.values()
-                     if event.body["signature"] == signature
-                     and now - STORM_WINDOW < datetime.fromisoformat(event.ts) <= now)
+        return tuple(event for event in history.values() if event.body["signature"] == signature and now - STORM_WINDOW < datetime.fromisoformat(event.ts) <= now)
 
     def count(self, signature: str) -> int:
         return len(self.occurrences(signature))
@@ -105,41 +95,39 @@ class StormLedger:
             if event is decision:
                 body = event.body
                 identity = body["hold_id"]
-                if (body["decision"] == "accepted" and body["verb"] == "resume"
-                        and identity in recorded and identity not in released):
+                if body["decision"] == "accepted" and body["verb"] == "resume" and identity in recorded and identity not in released:
                     signature = expected[identity][0]["signature"]
                     released.add(identity)
                     active.pop(signature, None)
                     # Journal order, not timestamps, fences the newly armed window.
-                    live_history = [item for item in live_history
-                                    if item.body["signature"] != signature]
+                    live_history = [item for item in live_history if item.body["signature"] != signature]
                 decision = next(controls, None)
             if event.key in occurrences and event == occurrences[event.key] and event.key not in seen:
                 seen.add(event.key)
                 live_history.append(event)
                 signature = event.body["signature"]
                 now = datetime.fromisoformat(event.ts)
-                live = [item for item in live_history if item.body["signature"] == signature
-                        and now - STORM_WINDOW < datetime.fromisoformat(item.ts) <= now]
-                if (now <= now_limit and len(live) > STORM_THRESHOLD
-                        and signature not in active):
+                live = [item for item in live_history if item.body["signature"] == signature and now - STORM_WINDOW < datetime.fromisoformat(item.ts) <= now]
+                if now <= now_limit and len(live) > STORM_THRESHOLD and signature not in active:
                     first, crossing = live[0].body["occurrence_id"], event.body["occurrence_id"]
                     stage, origin = event.body["emitting_stage"], event.body["emitting_origin"]
-                    body = dict(kind=STORM_TRIP, signature=signature,
-                                trip_id=_digest([signature, first, crossing]),
-                                first_occurrence_id=first, crossing_occurrence_id=crossing,
-                                emitting_stage=stage, emitting_origin=origin,
-                                held=(dict(emitting_stage=stage, emitting_origin=origin)
-                                      if stage in {"implement", "check", "review"} else None))
+                    body = dict(
+                        kind=STORM_TRIP,
+                        signature=signature,
+                        trip_id=_digest([signature, first, crossing]),
+                        first_occurrence_id=first,
+                        crossing_occurrence_id=crossing,
+                        emitting_stage=stage,
+                        emitting_origin=origin,
+                        held=(dict(emitting_stage=stage, emitting_origin=origin) if stage in {"implement", "check", "review"} else None),
+                    )
                     expected[body["trip_id"]] = body, len(live)
                     active[signature] = body["trip_id"]
             reserved = event.key is not None and event.key.startswith("storm-trip/")
             if event.body.get("kind") != STORM_TRIP and not reserved:
                 continue
             candidate = expected.get(event.body.get("trip_id")) if isinstance(event.body.get("trip_id"), str) else None
-            if (candidate is None or event.type != EventType.SIGNAL or event.ticket is not None
-                    or event.body != candidate[0]
-                    or event.key != "storm-trip/" + candidate[0]["trip_id"]):
+            if candidate is None or event.type != EventType.SIGNAL or event.ticket is not None or event.body != candidate[0] or event.key != "storm-trip/" + candidate[0]["trip_id"]:
                 raise _invalid("malformed or conflicting storm trip evidence")
             recorded.setdefault(candidate[0]["trip_id"], event)
         return expected, recorded, released
@@ -147,11 +135,14 @@ class StormLedger:
     def holds(self) -> dict[str, str]:
         """Ordered live ticket identities; expiry never releases a journaled trip."""
         expected, recorded, released = self._evidence()
-        return {identity: expected[identity][0]["emitting_origin"] for identity in recorded
-                if identity not in released
-                and expected[identity][0]["held"] is not None
-                and isinstance(expected[identity][0]["emitting_origin"], str)
-                and not stem_findings(expected[identity][0]["emitting_origin"])}
+        return {
+            identity: expected[identity][0]["emitting_origin"]
+            for identity in recorded
+            if identity not in released
+            and expected[identity][0]["held"] is not None
+            and isinstance(expected[identity][0]["emitting_origin"], str)
+            and not stem_findings(expected[identity][0]["emitting_origin"])
+        }
 
     def held_stages(self) -> dict[str, dict[str, str]]:
         """Preserve each trip's exact stage and ticket target for continuous selection."""
@@ -164,15 +155,13 @@ def arrival_id(*parts: str | int) -> str:
 
 
 def _digest(parts: list) -> str:
-    return hashlib.sha256(json.dumps(parts, separators=(",", ":"), ensure_ascii=True)
-                          .encode("utf-8")).hexdigest()
+    return hashlib.sha256(json.dumps(parts, separators=(",", ":"), ensure_ascii=True).encode("utf-8")).hexdigest()
 
 
 class StormBreaker(StormLedger):
     """Recover the write-ahead escalation through the existing Box publisher."""
 
-    def __init__(self, *, journal: Journal, clock: Clock,
-                 publish: Callable[[dict[str, Any], int], object]) -> None:
+    def __init__(self, *, journal: Journal, clock: Clock, publish: Callable[[dict[str, Any], int], object]) -> None:
         super().__init__(journal=journal, clock=clock)
         self.publish = publish
         self._recovering = False
@@ -185,8 +174,7 @@ class StormBreaker(StormLedger):
         try:
             for body, count in expected.values():
                 if body["trip_id"] not in recorded:
-                    self.journal.append(EventType.SIGNAL, body, ticket=None,
-                                        key="storm-trip/" + body["trip_id"])
+                    self.journal.append(EventType.SIGNAL, body, ticket=None, key="storm-trip/" + body["trip_id"])
                 self.publish(body, count)
         finally:
             self._recovering = False

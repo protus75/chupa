@@ -3,8 +3,8 @@
 import pytest
 
 from chupa import runner
-from chupa.artifacts import Cost, Finding, StageResult
 from chupa.__main__ import main
+from chupa.artifacts import Cost, Finding, StageResult
 from chupa.caps import CAPS, capability, consume, draws, failed_attempts, remaining, spent, spent_reason
 from chupa.config import Caps
 from chupa.journal import EventType, Journal
@@ -13,19 +13,25 @@ from chupa.stages import StagesRun
 from chupa.status import reject_queue
 from chupa.tickets import validate_ticket
 from tests.test_cli import git_out
-from tests.test_drain import Clock, Script, commit_ticket, confirmed, drain, journal, make_root
-from tests.test_terminal import ENV, STEM, author, clock, diagnosis_reply, repo
-from tests.test_mergequeue import ctx as admission_context, ready
 from tests.test_daemon_composition import production_writer
+from tests.test_drain import Clock, Script, commit_ticket, confirmed, drain, journal, make_root
+from tests.test_mergequeue import ctx as admission_context
+from tests.test_mergequeue import ready
+from tests.test_terminal import ENV, STEM, author, clock, diagnosis_reply, repo
 
 
 def test_attempts_cap_counts_every_failed_terminal(tmp_path):
     j = Journal(tmp_path, clock)
     config = Caps()
     for body in [
-        {"to": "running"}, {"to": "infra_error", "reason": "provider_drought"},
-        {"to": "budget_exceeded"}, {"to": "abandoned"}, {"to": "merged"},
-        {"to": "already_satisfied"}, {"to": "rejected"}, {"to": "invalid_artifact"},
+        {"to": "running"},
+        {"to": "infra_error", "reason": "provider_drought"},
+        {"to": "budget_exceeded"},
+        {"to": "abandoned"},
+        {"to": "merged"},
+        {"to": "already_satisfied"},
+        {"to": "rejected"},
+        {"to": "invalid_artifact"},
     ]:
         j.append(EventType.STATE_TRANSITION, body, ticket="red")
     j.append(EventType.STATE_TRANSITION, {"to": "gate_failed"}, ticket="other")
@@ -57,21 +63,22 @@ def test_attempts_cap_routes_to_reject_queue(repo, monkeypatch, capsys, outcome)
         j.append(EventType.STATE_TRANSITION, {"to": prior}, ticket=STEM)
 
     async def stage_seam(ctx, ticket):
-        return StagesRun(attempt=4, results={"implement": StageResult(
-            outcome=outcome, artifact=None, cost=Cost(), findings=[Finding(
-                code="premise", kind="spec_gap", unit="19.P3.example",
-                message="still failing", paved_road="repair the ticket")])})
+        return StagesRun(
+            attempt=4,
+            results={
+                "implement": StageResult(
+                    outcome=outcome, artifact=None, cost=Cost(), findings=[Finding(code="premise", kind="spec_gap", unit="19.P3.example", message="still failing", paved_road="repair the ticket")]
+                )
+            },
+        )
 
     monkeypatch.setattr(runner, "run_stages", stage_seam)
     llm = FakeLLM([])
-    assert main(["drain"], cwd=repo, env=ENV, clock=clock,
-                pipeline=lambda c: runner.bind(c, llm)) == 0
+    assert main(["drain"], cwd=repo, env=ENV, clock=clock, pipeline=lambda c: runner.bind(c, llm)) == 0
     events = j.read()
     assert llm.requests == []
     assert failed_attempts(events, STEM) == 5
-    assert reject_queue(events)[STEM] == {
-        "to": outcome, "stage": "implement", "reason": "attempts cap spent",
-        "dispatch": "reject_queue", "routed": "reject_queue"}
+    assert reject_queue(events)[STEM] == {"to": outcome, "stage": "implement", "reason": "attempts cap spent", "dispatch": "reject_queue", "routed": "reject_queue"}
     assert not any(e.type == EventType.CAP_CONSUMED and e.body["cap"] != "retry" for e in events)
     assert "attempts cap spent (5/5)" in capsys.readouterr().out
 
@@ -86,18 +93,17 @@ async def test_attempts_cap_skips_conflict_rework(admission_context, monkeypatch
     ticket = await ready(ctx)
     for _ in range(4):
         ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed"}, ticket=ticket.stem)
-    handoff = ConflictHandoff(stem=ticket.stem, reviewed_sha="reviewed", conflicted_paths=[],
-                              findings=[Finding(code="post_rebase_regate", message="conflict",
-                                                paved_road="fresh review")])
+    handoff = ConflictHandoff(stem=ticket.stem, reviewed_sha="reviewed", conflicted_paths=[], findings=[Finding(code="post_rebase_regate", message="conflict", paved_road="fresh review")])
     if delivery == "drive":
+
         async def stages(ctx, ticket):
-            return StagesRun(attempt=4, results={"review": StageResult(
-                outcome="ok", artifact=None, findings=[], cost=Cost())})
+            return StagesRun(attempt=4, results={"review": StageResult(outcome="ok", artifact=None, findings=[], cost=Cost())})
+
         async def admission(ticket, *, attempt):
             return handoff
+
         monkeypatch.setattr(runner, "run_stages", stages)
-        assert await runner.drive(ctx, ticket, admission=admission,
-                                  consume_handoff=writer.consume_handoff) == "gate_failed"
+        assert await runner.drive(ctx, ticket, admission=admission, consume_handoff=writer.consume_handoff) == "gate_failed"
     else:
         await writer.consume_result(ticket, handoff, attempt=4)
     events = ctx.driver.journal.read()
@@ -118,14 +124,11 @@ async def test_attempts_cap_preserves_published_rework(admission_context, action
     for _ in range(4):
         ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed"}, ticket=ticket.stem)
     text = (ctx.repo / f"tickets/{ticket.stem}/ticket.md").read_text()
-    proposals = (successors(text.strip()) if action == "split" else
-                 [(ticket.stem, text.strip().replace("holds the word ok", "holds ok after narrowing"))]
-                 if action == "update" else [])
+    proposals = successors(text.strip()) if action == "split" else [(ticket.stem, text.strip().replace("holds the word ok", "holds ok after narrowing"))] if action == "update" else []
     ctx.driver.llm = FakeLLM([order(action, proposals), *[requisition() for _ in proposals]])
     reworked = await apply_rework(ctx, ticket, [], attempt=4)
     assert reworked.outcome == "ok"
-    result = await runner.failure_terminal(ctx, ticket, outcome="gate_failed", stage="merge",
-        findings=[], attempt=4, reworked=reworked, rework_requested=True)
+    result = await runner.failure_terminal(ctx, ticket, outcome="gate_failed", stage="merge", findings=[], attempt=4, reworked=reworked, rework_requested=True)
     events = ctx.driver.journal.read()
     assert failed_attempts(events, ticket.stem) == 5
     if action == "split":
@@ -133,9 +136,7 @@ async def test_attempts_cap_preserves_published_rework(admission_context, action
         assert "state: rejected" in (ctx.repo / f"tickets/{ticket.stem}/ticket.md").read_text()
     else:
         assert result == "gate_failed"
-        assert reject_queue(events)[ticket.stem] == {
-            "to": "gate_failed", "stage": "merge", "reason": "attempts cap spent",
-            "dispatch": "reject_queue", "routed": "reject_queue"}
+        assert reject_queue(events)[ticket.stem] == {"to": "gate_failed", "stage": "merge", "reason": "attempts cap spent", "dispatch": "reject_queue", "routed": "reject_queue"}
     for stem, proposal in proposals:
         assert await ctx.git._run(ctx.repo, "show", f"HEAD:tickets/{stem}/ticket.md") == proposal
 
@@ -175,7 +176,7 @@ def test_invalid_cap_refuses_all_accounting_and_writer(tmp_path):
             operation()
     assert j.read() == []
     consume(j, "red", "infra", "sha")
-    event, = j.read()
+    (event,) = j.read()
     assert event.type == EventType.CAP_CONSUMED
     assert event.ticket == "red" and event.body == {"cap": "infra", "ticket_sha": "sha"}
 
@@ -201,20 +202,20 @@ def test_retry_rung_is_rejected_on_other_caps_and_operator_keep_resets_it(repo):
 def test_crashing_implement_draws_infra_immediately_before_terminal(repo):
     author(repo)
     llm = FakeLLM([RuntimeError("provider crashed"), diagnosis_reply()])
-    assert main(["run", STEM], cwd=repo, env=ENV, clock=clock,
-                pipeline=lambda c: runner.bind(c, llm)) == runner.EXIT_TICKET
+    assert main(["run", STEM], cwd=repo, env=ENV, clock=clock, pipeline=lambda c: runner.bind(c, llm)) == runner.EXIT_TICKET
     assert [request.surface for request in llm.requests if request.surface != "diagnose"] == ["implement"]
     events = [e for e in Journal(repo / ".chupa" / "state", clock).read() if e.ticket == STEM]
-    terminal = next(i for i, e in enumerate(events)
-                    if e.type == EventType.STATE_TRANSITION and e.body.get("to") == "infra_error")
+    terminal = next(i for i, e in enumerate(events) if e.type == EventType.STATE_TRANSITION and e.body.get("to") == "infra_error")
     sha = git_out(repo, "rev-parse", f"HEAD:tickets/{STEM}/ticket.md").strip()
     infra = next(i for i, e in enumerate(events) if e.type == EventType.CAP_CONSUMED and e.body["cap"] == "infra")
     assert infra < terminal
     assert events[infra].body == {"cap": "infra", "ticket_sha": sha}
-    assert all((e.type == EventType.CAP_CONSUMED and e.body["cap"] == "diagnosis")
-               or (e.type == EventType.SIGNAL and e.body.get("signal") == "diagnosis")
-               or (e.key is not None and ("/diagnose/" in e.key or e.key.endswith("/diagnosis")))
-               for e in events[infra + 1:terminal])
+    assert all(
+        (e.type == EventType.CAP_CONSUMED and e.body["cap"] == "diagnosis")
+        or (e.type == EventType.SIGNAL and e.body.get("signal") == "diagnosis")
+        or (e.key is not None and ("/diagnose/" in e.key or e.key.endswith("/diagnosis")))
+        for e in events[infra + 1 : terminal]
+    )
     assert draws(events, STEM, "infra") == 1
 
 
@@ -223,15 +224,12 @@ def test_other_terminals_draw_only_when_infra(repo, monkeypatch, outcome, expect
     author(repo)
 
     async def stage_seam(ctx, ticket):
-        return StagesRun(attempt=0, results={"implement": StageResult(
-            outcome=outcome, artifact=None, findings=[], cost=Cost())})
+        return StagesRun(attempt=0, results={"implement": StageResult(outcome=outcome, artifact=None, findings=[], cost=Cost())})
 
     monkeypatch.setattr(runner, "run_stages", stage_seam)
-    assert main(["run", STEM], cwd=repo, env=ENV, clock=clock,
-                pipeline=lambda c: runner.bind(c, FakeLLM([]))) == runner.EXIT_TICKET
+    assert main(["run", STEM], cwd=repo, env=ENV, clock=clock, pipeline=lambda c: runner.bind(c, FakeLLM([]))) == runner.EXIT_TICKET
     events = [e for e in Journal(repo / ".chupa" / "state", clock).read() if e.ticket == STEM]
-    assert events[-1].body == {"to": outcome, "stage": "implement", "reason": outcome,
-                               "dispatch": "reject_queue", "routed": "reject_queue"}
+    assert events[-1].body == {"to": outcome, "stage": "implement", "reason": outcome, "dispatch": "reject_queue", "routed": "reject_queue"}
     assert draws(events, STEM, "infra") == expected_draws
     if expected_draws:
         sha = git_out(repo, "rev-parse", f"HEAD:tickets/{STEM}/ticket.md").strip()

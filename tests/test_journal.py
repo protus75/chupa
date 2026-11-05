@@ -22,9 +22,7 @@ T0 = datetime(2026, 8, 4, 12, 0, 0, tzinfo=UTC)
 
 
 def line(type_: str, n: int, ts: str = "2026-08-04T12:00:00+00:00") -> str:
-    return json.dumps(
-        {"v": 1, "type": type_, "ts": ts, "ticket": None, "key": None, "body": {"n": n}}
-    )
+    return json.dumps({"v": 1, "type": type_, "ts": ts, "ticket": None, "key": None, "body": {"n": n}})
 
 
 def seed(state_dir, name: str, *lines: str) -> None:
@@ -243,15 +241,15 @@ def test_append_fsyncs_before_returning(tmp_path, monkeypatch):
 
 def test_run_sequence_counts_mid_run_drought_but_not_runless_parks(tmp_path):
     from chupa.journal import EventType, run_seq
+
     journal = Journal(tmp_path, FakeClock(T0))
-    park = {'to': 'infra_error', 'reason': 'provider_drought',
-            'provider_drought': {'tier': 'high', 'surface': 'implement', 'providers': ['claude']}}
-    journal.append(EventType.STATE_TRANSITION, park, ticket='work')
-    assert run_seq(journal.read(), 'work') == 0
-    journal.append(EventType.STATE_TRANSITION, {'to': 'running'}, ticket='work')
-    journal.append(EventType.STATE_TRANSITION, park, ticket='work')
-    journal.append(EventType.STATE_TRANSITION, park, ticket='work')
-    assert run_seq(journal.read(), 'work') == 1
-    journal.append(EventType.STATE_TRANSITION, {'to': 'running'}, ticket='work')
-    journal.append(EventType.STATE_TRANSITION, {'to': 'abandoned'}, ticket='work')
-    assert run_seq(journal.read(), 'work') == 2
+    park = {"to": "infra_error", "reason": "provider_drought", "provider_drought": {"tier": "high", "surface": "implement", "providers": ["claude"]}}
+    journal.append(EventType.STATE_TRANSITION, park, ticket="work")
+    assert run_seq(journal.read(), "work") == 0
+    journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket="work")
+    journal.append(EventType.STATE_TRANSITION, park, ticket="work")
+    journal.append(EventType.STATE_TRANSITION, park, ticket="work")
+    assert run_seq(journal.read(), "work") == 1
+    journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket="work")
+    journal.append(EventType.STATE_TRANSITION, {"to": "abandoned"}, ticket="work")
+    assert run_seq(journal.read(), "work") == 2

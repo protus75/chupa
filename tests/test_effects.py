@@ -124,9 +124,7 @@ def test_completed_key_is_not_reexecuted_after_restart(tmp_path):
 def test_crash_after_completion_journaled_does_not_double_execute(tmp_path):
     exec_ = FakeExec()
     with pytest.raises(Crash):
-        asyncio.run(
-            Effects(CrashAfterCompletion(tmp_path, FakeClock())).run(git_push(exec_), key="k", ticket="t")
-        )
+        asyncio.run(Effects(CrashAfterCompletion(tmp_path, FakeClock())).run(git_push(exec_), key="k", ticket="t"))
     assert len(exec_.calls) == 1
 
     exec_.result = (9, "would differ", "")

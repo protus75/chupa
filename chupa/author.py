@@ -8,17 +8,17 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from chupa.artifacts import Finding
+from chupa.baseline import resolve_baseline
 from chupa.box import Box, BoxError, DecisionRecord, Message, Resolution, record_path, render_record
 from chupa.driver import Driver, LlmStage, unwrap_fence
 from chupa.gates import GateReport
 from chupa.git import GitError
-from chupa.artifacts import Finding
 from chupa.inbox import CAPS, bounded, report_data
 from chupa.journal import EventType
-from chupa.baseline import resolve_baseline
 from chupa.policy import policy_row, start_state
 from chupa.requisition import RequisitionVerdict, review_ticket
-from chupa.runner import Checkout, SPECS_DIR
+from chupa.runner import SPECS_DIR, Checkout
 from chupa.specs import Spec, load_spec, render
 from chupa.stages import findings_text
 from chupa.tickets import TicketInvalid, split_frontmatter, stamp, stem_findings, ticket_path, validate_ticket
@@ -59,11 +59,9 @@ class AuthorGate:
         findings = list(stem_findings(artifact.stem))
         path = ticket_path(artifact.stem)
         if (self.checkout.repo / "tickets" / artifact.stem).exists() and artifact.stem not in self.copied:
-            findings.append(Finding(code=self.code, path=path, message=f"stem {artifact.stem!r} already exists",
-                                    paved_road="choose a new, never-before-used ticket stem"))
+            findings.append(Finding(code=self.code, path=path, message=f"stem {artifact.stem!r} already exists", paved_road="choose a new, never-before-used ticket stem"))
         if any(event.ticket == artifact.stem for event in self.checkout.journal.read()):
-            findings.append(Finding(code=self.code, path=path, message=f"stem {artifact.stem!r} is already named in the journal",
-                                    paved_road="choose a new, never-before-used ticket stem"))
+            findings.append(Finding(code=self.code, path=path, message=f"stem {artifact.stem!r} is already named in the journal", paved_road="choose a new, never-before-used ticket stem"))
         try:
             message = self.message
             if message is not None and message.report is not None and not findings:
@@ -86,16 +84,15 @@ class AuthorGate:
             parsed = validate_ticket(artifact.stem, candidate, self.checkout.repo)
             if message is not None and message.report is not None:
                 if parsed.frontmatter.kind != "bug":
-                    findings.append(Finding(code=self.code, path=path, message="host report requires kind: bug",
-                        paved_road="author a bug ticket with one regression command and carries prefixes"))
+                    findings.append(Finding(code=self.code, path=path, message="host report requires kind: bug", paved_road="author a bug ticket with one regression command and carries prefixes"))
                 if message.bug_origin == "player" and message.summary in split_frontmatter(candidate)[1]:
-                    findings.append(Finding(code=self.code, path=path, message="raw player prose appears in ticket body",
-                        paved_road="write your own summary; cite the delimited evidence file instead"))
+                    findings.append(
+                        Finding(code=self.code, path=path, message="raw player prose appears in ticket body", paved_road="write your own summary; cite the delimited evidence file instead")
+                    )
         except TicketInvalid as exc:
             findings.extend(exc.findings)
         except (OSError, ValueError) as exc:
-            findings.append(Finding(code=self.code, path=path, message=f"report custody refused: {exc}",
-                paved_road="repair bounded Box custody before authoring a bug ticket"))
+            findings.append(Finding(code=self.code, path=path, message=f"report custody refused: {exc}", paved_road="repair bounded Box custody before authoring a bug ticket"))
         if findings:
             self.cleanup()
         return GateReport(code=self.code, verdict="fail" if findings else "pass", findings=findings)
@@ -113,8 +110,7 @@ def _goal(text: str) -> str:
 
 
 async def _open_tickets(checkout: Checkout) -> str:
-    states = {event.ticket: event.body.get("to") for event in checkout.journal.read()
-              if event.type == EventType.STATE_TRANSITION and event.ticket is not None}
+    states = {event.ticket: event.body.get("to") for event in checkout.journal.read() if event.type == EventType.STATE_TRANSITION and event.ticket is not None}
     lines = []
     for name in await checkout.git.ls_files(checkout.repo):
         path = Path(name)
@@ -148,15 +144,11 @@ async def failure_decision(checkout: Checkout, driver: Driver, box: Box, message
 def record_retro_ticket(journal, message: Message, stem: str) -> None:
     if message.message_class != "retro_finding":
         return
-    body = {"kind": "retro_ticket_authored", "box_id": message.id,
-            "retro_report_key": message.retro_report_key, "ticket_stem": stem}
+    body = {"kind": "retro_ticket_authored", "box_id": message.id, "retro_report_key": message.retro_report_key, "ticket_stem": stem}
     key = f"retro-ticket/{stem}"
-    prior = [e for e in journal.read() if e.key == key or
-             (e.body.get("kind") == "retro_ticket_authored" and
-              (e.body.get("ticket_stem") == stem or e.body.get("box_id") == message.id))]
+    prior = [e for e in journal.read() if e.key == key or (e.body.get("kind") == "retro_ticket_authored" and (e.body.get("ticket_stem") == stem or e.body.get("box_id") == message.id))]
     if prior:
-        if (len(prior) != 1 or prior[0].type != EventType.SIGNAL or prior[0].key != key
-                or prior[0].ticket != stem or prior[0].body != body):
+        if len(prior) != 1 or prior[0].type != EventType.SIGNAL or prior[0].key != key or prior[0].ticket != stem or prior[0].body != body:
             raise BoxError("conflicting retro ticket provenance; restore the Author-produced bridge before resolving the Box")
         return
     journal.append(EventType.SIGNAL, body, ticket=stem, key=key)
@@ -170,18 +162,15 @@ async def recover_retro_ticket(checkout: Checkout, box: Box, message: Message) -
     stems = set()
     for event in history:
         parts = (event.key or "").split("/")
-        if (event.type != EventType.EFFECT_COMPLETION or len(parts) != 6
-                or parts[:2] != ["llm", "author"] or parts[3:5] != ["author", str(message.seq)]):
+        if event.type != EventType.EFFECT_COMPLETION or len(parts) != 6 or parts[:2] != ["llm", "author"] or parts[3:5] != ["author", str(message.seq)]:
             continue
         try:
             proposal = AuthorReply.model_validate_json(unwrap_fence(event.body["result"]["text"]))
         except ValueError:
             continue
-        commit = next((e for e in history if e.type == EventType.EFFECT_COMPLETION
-                       and e.key == f"ticket-plane/{proposal.stem}/author"), None)
+        commit = next((e for e in history if e.type == EventType.EFFECT_COMPLETION and e.key == f"ticket-plane/{proposal.stem}/author"), None)
         if commit is not None:
-            text = await checkout.git._run(checkout.repo, "show",
-                f"{commit.body['result']}:{ticket_path(proposal.stem)}")
+            text = await checkout.git._run(checkout.repo, "show", f"{commit.body['result']}:{ticket_path(proposal.stem)}")
             if validate_ticket(proposal.stem, text, checkout.repo).frontmatter.source != "box:retro_finding":
                 raise BoxError("conflicting committed retro ticket source; restore the Author-produced ticket and bridge")
             stems.add(proposal.stem)
@@ -208,16 +197,22 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
         report = report_data(message.report, box.root) if message.report else None
     except (OSError, ValueError) as exc:
         return await failure_decision(checkout, driver, box, message, f"report custody refused: {exc}")
-    request = json.dumps({"class": message.message_class, "rationale": message.verdict.rationale,
-                          "summary": message.summary, "retro_report_key": message.retro_report_key,
-                          "fixed_failure": message.fixed_failure,
-                          "overcorrection_risk": message.overcorrection_risk,
-                          "proposed_spec_paths": message.proposed_spec_paths, "reopen": message.reopen,
-                          "report": report})
+    request = json.dumps(
+        {
+            "class": message.message_class,
+            "rationale": message.verdict.rationale,
+            "summary": message.summary,
+            "retro_report_key": message.retro_report_key,
+            "fixed_failure": message.fixed_failure,
+            "overcorrection_risk": message.overcorrection_risk,
+            "proposed_spec_paths": message.proposed_spec_paths,
+            "reopen": message.reopen,
+            "report": report,
+        }
+    )
 
     def render_author(_: object, findings: list) -> str:
-        inputs = {"request": request, "files": files, "open_tickets": open_tickets,
-                  "retry_findings": findings_text(findings)}
+        inputs = {"request": request, "files": files, "open_tickets": open_tickets, "retry_findings": findings_text(findings)}
         return render(spec, inputs)
 
     open_tickets = await _open_tickets(checkout)
@@ -235,17 +230,28 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
             return GateReport(code="requisition_review", verdict="pass")
         provisional = stamp(stamp(artifact.ticket, "source", f"box:{message.message_class}"), "state", "draft")
         parsed = validate_ticket(artifact.stem, provisional, checkout.repo)
-        state = start_state(checkout.config, row=row, fence=parsed.scope_fence,
-                            gate_bypass=parsed.frontmatter.gate_bypass,
-                            go=resolve_baseline(checkout.config, checkout.journal.read(), specs_dir=SPECS_DIR).binds,
-                            reopen=message.reopen)
+        state = start_state(
+            checkout.config,
+            row=row,
+            fence=parsed.scope_fence,
+            gate_bypass=parsed.frontmatter.gate_bypass,
+            go=resolve_baseline(checkout.config, checkout.journal.read(), specs_dir=SPECS_DIR).binds,
+            reopen=message.reopen,
+        )
         text = stamp(provisional, "state", state)
         reviewed = await review_ticket(
-            driver, repo=checkout.repo,
-            stem=artifact.stem, text=text, specs_dir=SPECS_DIR,
-            tier=checkout.config.routing_default_tier, stem_slot="author", run_seq=pass_no,
-            attempt=message.seq, call_seq=call_seq,
-         expected_budget=AUTHOR_STUCK_S / 2)
+            driver,
+            repo=checkout.repo,
+            stem=artifact.stem,
+            text=text,
+            specs_dir=SPECS_DIR,
+            tier=checkout.config.routing_default_tier,
+            stem_slot="author",
+            run_seq=pass_no,
+            attempt=message.seq,
+            call_seq=call_seq,
+            expected_budget=AUTHOR_STUCK_S / 2,
+        )
         reviewed_text = text
         reviewed_state = state
         findings = reviewed.findings
@@ -253,25 +259,29 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
             author_gate.cleanup()
         if reviewed.verdict == "rma":
             findings = [finding.model_copy(update={"code": "requisition_rma"}) for finding in findings]
-        return GateReport(code="requisition_review", verdict="pass" if reviewed.verdict == "approve" else "fail",
-                          findings=findings)
+        return GateReport(code="requisition_review", verdict="pass" if reviewed.verdict == "approve" else "fail", findings=findings)
 
     checkout.journal.append(EventType.SIGNAL, {"signal": "author_invoked", "message": message.id})
     try:
         result = await driver.run(
-            LlmStage(surface="author", emits=AuthorReply, gates=[author_gate],
-                     render=render_author, review=review_candidate,
-                     terminal_findings=frozenset({"requisition_rma"})), None,
-            ticket=None, run_seq=pass_no, attempt=message.seq, workspace=checkout.repo,
-            tier=checkout.config.routing_default_tier, effort=spec.meta.effort, stuck_budget=AUTHOR_STUCK_S,
-            expected_budget='surface', scope_fence=())
+            LlmStage(surface="author", emits=AuthorReply, gates=[author_gate], render=render_author, review=review_candidate, terminal_findings=frozenset({"requisition_rma"})),
+            None,
+            ticket=None,
+            run_seq=pass_no,
+            attempt=message.seq,
+            workspace=checkout.repo,
+            tier=checkout.config.routing_default_tier,
+            effort=spec.meta.effort,
+            stuck_budget=AUTHOR_STUCK_S,
+            expected_budget="surface",
+            scope_fence=(),
+        )
     except BaseException:
         author_gate.cleanup()
         raise
     if result.outcome != "ok" or not isinstance(result.artifact, AuthorReply):
         author_gate.cleanup()
-        return await failure_decision(checkout, driver, box, message,
-                                      findings_text(result.findings) or result.outcome)
+        return await failure_decision(checkout, driver, box, message, findings_text(result.findings) or result.outcome)
     reply = result.artifact
     assert reviewed is not None and reviewed_text is not None and reviewed_state is not None
     text = reviewed_text
@@ -305,13 +315,12 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
             raise
         return await failure_decision(checkout, driver, box, message, f"commit failed: {type(exc).__name__}: {exc}")
     author_gate.copied.clear()
-    checkout.journal.append(EventType.SIGNAL, {"signal": "ticket_intake", "source": f"box:{message.message_class}",
-                                                "state": reviewed_state,
-                                                "new": True, "commit": sha}, ticket=reply.stem)
-    checkout.journal.append(EventType.SIGNAL, {"signal": "requisition_verdict", "verdict": "approve",
-                                                "ticket_sha": reviewed.ticket_sha, "provider": reviewed.provider,
-                                                "model": reviewed.model, "spec_version": reviewed.spec_version},
-                            ticket=reply.stem)
+    checkout.journal.append(EventType.SIGNAL, {"signal": "ticket_intake", "source": f"box:{message.message_class}", "state": reviewed_state, "new": True, "commit": sha}, ticket=reply.stem)
+    checkout.journal.append(
+        EventType.SIGNAL,
+        {"signal": "requisition_verdict", "verdict": "approve", "ticket_sha": reviewed.ticket_sha, "provider": reviewed.provider, "model": reviewed.model, "spec_version": reviewed.spec_version},
+        ticket=reply.stem,
+    )
     record_retro_ticket(checkout.journal, message, reply.stem)
     box.resolve(message.id, Resolution(kind="ticket", link=reply.stem))
     return AuthorOutcome(stem=reply.stem)

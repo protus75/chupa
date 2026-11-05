@@ -20,8 +20,13 @@ from chupa.llm import LLMRequest
 from chupa.providers import ClaudeAdapter, ProviderCallError, ProviderLLM
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.specs import (
-    ENTRY_PARTS, PlanContractError, entry_unit_gap, load_spec, render,
-    required_units, resolve_plan_contract,
+    ENTRY_PARTS,
+    PlanContractError,
+    entry_unit_gap,
+    load_spec,
+    render,
+    required_units,
+    resolve_plan_contract,
 )
 from chupa.stages import ImplementReply
 from chupa.tickets import parse_ticket, stamp, validate_ticket
@@ -35,13 +40,11 @@ scaffold = ModuleType("fixture_scaffold")
 scaffold.__file__ = str(SOURCE / "scaffold.py")
 exec(compile((SOURCE / "scaffold.py").read_text(), scaffold.__file__, "exec"), scaffold.__dict__)
 SCENARIOS = ("merge-add", "merge-bonus", "merge-floor", "regression", "escape")
-SURFACES = {"author": AuthorReply, "implement": ImplementReply,
-            "review": ReviewVerdict, "triage": TriageReply}
+SURFACES = {"author": AuthorReply, "implement": ImplementReply, "review": ReviewVerdict, "triage": TriageReply}
 
 
 def snapshot(root):
-    return {p.relative_to(root).as_posix(): p.read_bytes()
-            for p in root.rglob("*") if p.is_file() and "__pycache__" not in p.parts}
+    return {p.relative_to(root).as_posix(): p.read_bytes() for p in root.rglob("*") if p.is_file() and "__pycache__" not in p.parts}
 
 
 INPUT_BYTES = snapshot(SOURCE)
@@ -54,8 +57,7 @@ def host(tmp_path):
 
 
 def environment(host, **extra):
-    return {"PATH": str(host / "bin") + ":" + str(Path(sys.executable).parent) + ":/usr/bin:/bin",
-            "PYTHONDONTWRITEBYTECODE": "1", "CHUPA_FIXTURE_ROOT": str(host), **extra}
+    return {"PATH": str(host / "bin") + ":" + str(Path(sys.executable).parent) + ":/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1", "CHUPA_FIXTURE_ROOT": str(host), **extra}
 
 
 def run(host, argv):
@@ -73,8 +75,7 @@ def implement(host, name):
 def test_fixture_host_entry_units():
     own = "19.P6.fixture-host-scaffold"
     cited = ("19.P6.host-contract-doc", "19.P6.core-drift-activation")
-    ticket = parse_ticket("fixture-host-scaffold",
-        (ROOT / "tickets/fixture-host-scaffold/ticket.md").read_text(), ROOT, plan=PLAN)
+    ticket = parse_ticket("fixture-host-scaffold", (ROOT / "tickets/fixture-host-scaffold/ticket.md").read_text(), ROOT, plan=PLAN)
     assert required_units(PLAN, ticket.stem, ticket.plan_contract) == (own, *cited)
     assert required_units(PLAN, "later-consumer", (own, *cited)) == (own, *cited)
     resolved = resolve_plan_contract(PLAN, (*ticket.plan_contract, own))
@@ -100,16 +101,13 @@ def test_fixture_profile_loads(host):
     assert cfg.worktree_root == host / ".chupa/worktrees"
     assert cfg.report_inbox == host / "reports"
     assert cfg.routing_default_tier == "medium"
-    assert [(r.tier, r.surface, r.candidates[0].provider) for r in cfg.routing] == [
-        ("medium", surface, "claude") for surface in SURFACES]
+    assert [(r.tier, r.surface, r.candidates[0].provider) for r in cfg.routing] == [("medium", surface, "claude") for surface in SURFACES]
     assert cfg.providers[0].auth is None
     assert cfg.providers[0].package == "@anthropic-ai/claude-code"
-    assert cfg.review.mechanical[0].model_dump() == {
-        "code": "fixture-smoke", "argv": ["python", "check.py"], "trigger": "always", "severity": "hard"}
+    assert cfg.review.mechanical[0].model_dump() == {"code": "fixture-smoke", "argv": ["python", "check.py"], "trigger": "always", "severity": "hard"}
     assert cfg.review.surfaces == [] and cfg.review.gate_severity == {} and cfg.review.trigger_map == {}
     assert cfg.merge.safety_checks == ["fixture-smoke"] and cfg.merge.strategies == []
-    assert cfg.engine_plane_safety_inventory == [
-        "config.yaml", "CLAUDE.md", "bin/", "scripts.json", "scaffold.py", "check.py", "regression_test.py"]
+    assert cfg.engine_plane_safety_inventory == ["config.yaml", "CLAUDE.md", "bin/", "scripts.json", "scaffold.py", "check.py", "regression_test.py"]
     assert not any(p.startswith("fixtures/") for p in cfg.engine_plane_safety_inventory)
     assert classify_core((host / "CLAUDE.md").read_bytes()).state == "current"
     assert not cfg.state_dir.exists() and not cfg.worktree_root.exists()
@@ -127,12 +125,9 @@ def test_fixture_scenario_list_is_closed(host):
             assert len(row["responses"][surface]) == 1
             model.model_validate(row["responses"][surface][0])
         authored = row["responses"]["author"][0]
-        ticket = validate_ticket(authored["stem"], stamp(stamp(authored["ticket"], "source", "box:bug_report"),
-                                 "state", "draft"), host)
-        assert ticket.scope_fence == (("settings.json", "fixtures/") if name == "regression"
-                                      else ("settings.json",))
-        assert set(row["edits"]) == ({"settings.json", "fixtures/report_regression.py", "fixtures/replay.json"}
-                                     if name == "regression" else {"settings.json"})
+        ticket = validate_ticket(authored["stem"], stamp(stamp(authored["ticket"], "source", "box:bug_report"), "state", "draft"), host)
+        assert ticket.scope_fence == (("settings.json", "fixtures/") if name == "regression" else ("settings.json",))
+        assert set(row["edits"]) == ({"settings.json", "fixtures/report_regression.py", "fixtures/replay.json"} if name == "regression" else {"settings.json"})
         assert row["checks"][0] == {"argv": ["python", "check.py"], "base_rc": 0, "head_rc": 0}
         for key in ("replay", "log", "report"):
             assert (host / row["evidence"][key]).is_file()
@@ -165,17 +160,18 @@ def test_fixture_replay_is_deterministic(host):
 
 def test_fixture_regression_exists_at_base(host):
     async def proof():
-        git = Git(SubprocessExec(), env={**environment(host), "GIT_AUTHOR_NAME": "Fixture",
-            "GIT_AUTHOR_EMAIL": "fixture@example.invalid", "GIT_COMMITTER_NAME": "Fixture",
-            "GIT_COMMITTER_EMAIL": "fixture@example.invalid"}, timeout=10)
+        git = Git(
+            SubprocessExec(),
+            env={**environment(host), "GIT_AUTHOR_NAME": "Fixture", "GIT_AUTHOR_EMAIL": "fixture@example.invalid", "GIT_COMMITTER_NAME": "Fixture", "GIT_COMMITTER_EMAIL": "fixture@example.invalid"},
+            timeout=10,
+        )
         await git.init(host, branch="main")
         await git.add(host, ["app.py", "settings.json", "regression_test.py"])
         await git.commit(host, "fixture defective base")
         base = await git.rev_parse(host, "HEAD")
         assert await git._run(host, "show", f"{base}:regression_test.py") == (host / "regression_test.py").read_text()
         # Existing tracked test, actual defective base and unchanged regression at fixed head.
-        rc, out, err = await SubprocessExec().run([sys.executable, "regression_test.py"],
-            cwd=host, env=environment(host), timeout=10)
+        rc, out, err = await SubprocessExec().run([sys.executable, "regression_test.py"], cwd=host, env=environment(host), timeout=10)
         assert rc == 1 and "add must increase score by 3" in err
         implement(host, "regression")
         await git.add(host, ["settings.json", "fixtures/report_regression.py", "fixtures/replay.json"])
@@ -183,8 +179,8 @@ def test_fixture_regression_exists_at_base(host):
         head = await git.rev_parse(host, "HEAD")
         assert await git.merge_base(host, base, head) == base
         assert await git.diff_names(host, base, head) == ["fixtures/replay.json", "fixtures/report_regression.py", "settings.json"]
-        assert (await SubprocessExec().run([sys.executable, "regression_test.py"],
-            cwd=host, env=environment(host), timeout=10))[0] == 0
+        assert (await SubprocessExec().run([sys.executable, "regression_test.py"], cwd=host, env=environment(host), timeout=10))[0] == 0
+
     asyncio.run(proof())
 
 
@@ -258,9 +254,12 @@ def validate_report(raw, host):
             raise ValueError(f"{kind} exceeds {limit} bytes; attach a bounded excerpt")
         if kind == "replay":
             record = json.loads(path.read_bytes())
-            if (not isinstance(record, dict) or not isinstance(record.get("initial_state"), dict)
-                    or not isinstance(record.get("actions"), list)
-                    or any(not isinstance(a, dict) for a in record["actions"])):
+            if (
+                not isinstance(record, dict)
+                or not isinstance(record.get("initial_state"), dict)
+                or not isinstance(record.get("actions"), list)
+                or any(not isinstance(a, dict) for a in record["actions"])
+            ):
                 raise ValueError("replay needs initial_state and an ordered actions list")
     return report
 
@@ -283,12 +282,18 @@ def test_fixture_reports_are_bounded(host, tmp_path):
         for field in ("schema_version", "origin", "summary", "app_commit", "app_version"):
             bad.append({k: v for k, v in raw.items() if k != field})
     for field in ("game_slug", "anomaly_code", "location"):
-        bad.extend([{**self_report, field: " "}, {k: v for k, v in self_report.items() if k != field},
-                    {**minimal, field: "unexpected"}])
+        bad.extend([{**self_report, field: " "}, {k: v for k, v in self_report.items() if k != field}, {**minimal, field: "unexpected"}])
     bad.extend({**minimal, "schema_version": v} for v in (0, 2, -1, True, False, 1.0, "1", None))
-    bad.extend([{**minimal, "origin": "unknown"}, {**minimal, "signature": "invented"},
-                {**minimal, "extra": True}, {**minimal, "evidence": {"extra": "x"}},
-                {**minimal, "evidence": None}, {**minimal, "implicated_paths": None}])
+    bad.extend(
+        [
+            {**minimal, "origin": "unknown"},
+            {**minimal, "signature": "invented"},
+            {**minimal, "extra": True},
+            {**minimal, "evidence": {"extra": "x"}},
+            {**minimal, "evidence": None},
+            {**minimal, "implicated_paths": None},
+        ]
+    )
     for raw in bad:
         with pytest.raises((ValueError, ValidationError)):
             validate_report(raw, host)
@@ -312,8 +317,7 @@ def test_fixture_reports_are_bounded(host, tmp_path):
         boundary.write_bytes(boundary.read_bytes() + b" ")
         with pytest.raises(ValueError, match="exceeds"):
             validate_report(raw, host)
-    for record in ({}, {"initial_state": {}, "actions": {}}, {"initial_state": [], "actions": []},
-                   {"initial_state": {}, "actions": [1]}):
+    for record in ({}, {"initial_state": {}, "actions": {}}, {"initial_state": [], "actions": []}, {"initial_state": {}, "actions": [1]}):
         boundary.write_text(json.dumps(record))
         with pytest.raises(ValueError, match="ordered actions"):
             validate_report({**minimal, "evidence": {"replay": "evidence/boundary"}}, host)
@@ -326,8 +330,7 @@ class RecordedExec(SubprocessExec):
     async def run(self, argv, **kwargs):
         assert argv[0] in {"claude", "pnpm"}
         assert kwargs["cwd"] == self.host
-        assert set(kwargs["env"]) <= set(environment(self.host)) | {
-            "CHUPA_FIXTURE_SCENARIO", "CHUPA_FIXTURE_SURFACE"}
+        assert set(kwargs["env"]) <= set(environment(self.host)) | {"CHUPA_FIXTURE_SCENARIO", "CHUPA_FIXTURE_SURFACE"}
         assert all("secret" not in v.lower() for v in kwargs["env"].values())
         self.calls.append((list(argv), dict(kwargs)))
         return await super().run(argv, **kwargs)
@@ -337,8 +340,7 @@ def test_fixture_cli_adapter_roundtrip(host):
     async def proof():
         cfg = load_config(None, cwd=host)
         exec_ = RecordedExec(host)
-        session = SimpleNamespace(active=False, thresh=SimpleNamespace(configure=lambda cfg: None),
-                                  exclusions=lambda: set(), preflight_passed=lambda: None)
+        session = SimpleNamespace(active=False, thresh=SimpleNamespace(configure=lambda cfg: None), exclusions=lambda: set(), preflight_passed=lambda: None)
         env = environment(host)
         llm = ProviderLLM(cfg, exec_=exec_, fs=LocalFileSystem(), env=env, cwd=host, timeout=10, session=session)
         assert type(llm._adapters["claude"]) is ClaudeAdapter
@@ -354,8 +356,7 @@ def test_fixture_cli_adapter_roundtrip(host):
                 spec = load_spec((ROOT / "specs" / f"{surface}.md").read_text())
                 prompt = render(spec, {key: "fixture data " + key for key in spec.inputs})
                 before = (host / "settings.json").read_bytes()
-                result = await llm.call(LLMRequest(surface, prompt, "medium", "medium", name,
-                                                 host if surface == "implement" else None))
+                result = await llm.call(LLMRequest(surface, prompt, "medium", "medium", name, host if surface == "implement" else None))
                 assert result.usd == 0 and result.provider == "claude" and result.model == "fixture"
                 model.model_validate_json(result.text)
                 argv, kwargs = exec_.calls[-1]
@@ -363,8 +364,7 @@ def test_fixture_cli_adapter_roundtrip(host):
                 assert (host / ".fixture-runtime" / f"{name}-{surface}-0.prompt").read_text() == prompt
                 if surface == "implement":
                     assert "bypassPermissions" in argv
-                    assert json.loads((host / "settings.json").read_text()) == {
-                        **json.loads(base_settings), **scaffold.scenario(host, name)["edits"]["settings.json"]}
+                    assert json.loads((host / "settings.json").read_text()) == {**json.loads(base_settings), **scaffold.scenario(host, name)["edits"]["settings.json"]}
                 else:
                     assert "--allowedTools" in argv and (host / "settings.json").read_bytes() == before
         env.update(CHUPA_FIXTURE_SCENARIO="unknown", CHUPA_FIXTURE_SURFACE="review")
@@ -375,6 +375,7 @@ def test_fixture_cli_adapter_roundtrip(host):
             await llm.call(LLMRequest("review", "exhausted", "medium", "low", None, None))
         assert not (cfg.state_dir / "journal").exists()
         assert all("--max-budget-usd" not in argv for argv, _ in exec_.calls)
+
     asyncio.run(proof())
 
 
@@ -390,8 +391,7 @@ def test_fixture_scaffold_is_dormant(host):
     implement(host, "merge-add")
     after = snapshot(host)
     assert {p for p in before if before[p] != after[p]} == {"settings.json"}
-    assert {p for p in after if p not in before} <= {
-        ".fixture-runtime/cursors.json", ".fixture-runtime/merge-add-implement-0.prompt"}
+    assert {p for p in after if p not in before} <= {".fixture-runtime/cursors.json", ".fixture-runtime/merge-add-implement-0.prompt"}
     assert not (host / ".chupa").exists()
     # Production code has no edge to these host inputs (either import idiom or path lookup).
     for path, data in ENGINE_BYTES.items():
@@ -399,6 +399,5 @@ def test_fixture_scaffold_is_dormant(host):
             assert b"hosts.fixture" not in data and b"hosts/fixture" not in data
     for path in after:
         assert not any(word in Path(path).parts for word in ("GO", "journal", "host-loop-report.json"))
-    assert not any("serve" in call for row in json.loads((host / "scripts.json").read_text()).values()
-                   for check in row["checks"] for call in check["argv"])
+    assert not any("serve" in call for row in json.loads((host / "scripts.json").read_text()).values() for check in row["checks"] for call in check["argv"])
     assert snapshot(SOURCE) == INPUT_BYTES and snapshot(ROOT / "chupa") == ENGINE_BYTES

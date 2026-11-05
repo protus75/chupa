@@ -5,19 +5,18 @@ import asyncio
 import pytest
 
 from chupa import runner
-from chupa.artifacts import Cost, Finding, StageResult
 from chupa.__main__ import main
+from chupa.artifacts import Cost, Finding, StageResult
 from chupa.caps import CAPS, draws, remaining
 from chupa.config import Caps
 from chupa.journal import EventType
 from chupa.llm import FakeLLM
-from chupa.status import reject_queue
 from chupa.stages import StagesRun
+from chupa.status import reject_queue
 from tests.test_cli import ENV, git_out
-from tests.test_drain import Clock, Script, commit_ticket, confirmed, drain, journal, make_root
-from tests.test_drain import bound_arrival, commit_plan
-from tests.test_terminal import author, clock, diagnosis_reply, implement_reply, repo
+from tests.test_drain import Clock, Script, bound_arrival, commit_plan, commit_ticket, confirmed, drain, journal, make_root
 from tests.test_stages import STEM
+from tests.test_terminal import author, clock, diagnosis_reply, implement_reply, repo
 
 
 def _events(root, stem):
@@ -26,8 +25,7 @@ def _events(root, stem):
 
 def _queued(root, stem, cap="retry"):
     j = journal(root)
-    j.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "stage": "check", "routed": "reject_queue"},
-             ticket=stem)
+    j.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "stage": "check", "routed": "reject_queue"}, ticket=stem)
     j.append(EventType.CAP_CONSUMED, {"cap": cap, "ticket_sha": "old"}, ticket=stem)
 
 
@@ -39,21 +37,17 @@ def test_two_premise_terminals_draw_and_route_after_cap(repo, capsys):
         answers = [implement_reply("premise_failed", [finding])]
         if attempt == 0:
             answers.append(diagnosis_reply())
-        assert main(["run", STEM], cwd=repo, env=ENV, clock=clock,
-                    pipeline=lambda c, a=answers: runner.bind(c, FakeLLM(a))) == 1
+        assert main(["run", STEM], cwd=repo, env=ENV, clock=clock, pipeline=lambda c, a=answers: runner.bind(c, FakeLLM(a))) == 1
         if attempt == 0:
             path = repo / "tickets" / STEM / "ticket.md"
-            path.write_text(path.read_text().replace("`thing.py` holds the word ok.",
-                                                     "`thing.py` holds the word ok, after correction."))
+            path.write_text(path.read_text().replace("`thing.py` holds the word ok.", "`thing.py` holds the word ok, after correction."))
             git_out(repo, "add", f"tickets/{STEM}/ticket.md")
             git_out(repo, "commit", "-m", "edit ticket")
     events = _events(repo, STEM)
-    terminals = [(i, e) for i, e in enumerate(events) if e.type == EventType.STATE_TRANSITION
-                 and e.body.get("to") == "premise_failed"]
+    terminals = [(i, e) for i, e in enumerate(events) if e.type == EventType.STATE_TRANSITION and e.body.get("to") == "premise_failed"]
     assert len(terminals) == 2
     assert draws(events, STEM, "premise_bounce") == 2
-    assert sum(e.type == EventType.CAP_CONSUMED and e.body.get("cap") == "premise_bounce"
-               for e in events[:terminals[0][0]]) == 1
+    assert sum(e.type == EventType.CAP_CONSUMED and e.body.get("cap") == "premise_bounce" for e in events[: terminals[0][0]]) == 1
     assert terminals[-1][1].body["routed"] == "reject_queue"
     assert main(["status"], cwd=repo, env=ENV, clock=clock) == 0
     assert f"Reject queue:\n- {STEM}: premise_failed" in capsys.readouterr().out
@@ -63,13 +57,13 @@ def test_over_bound_premise_draws_nothing(repo, monkeypatch):
     author(repo)
 
     async def over_bound(ctx, ticket):
-        return StagesRun(attempt=0, results={"implement": StageResult(
-            outcome="premise_failed", artifact=None, cost=Cost(), findings=[Finding(
-                code="render_over_bound", message="too long", paved_road="edit ticket")])})
+        return StagesRun(
+            attempt=0,
+            results={"implement": StageResult(outcome="premise_failed", artifact=None, cost=Cost(), findings=[Finding(code="render_over_bound", message="too long", paved_road="edit ticket")])},
+        )
 
     monkeypatch.setattr(runner, "run_stages", over_bound)
-    assert main(["run", STEM], cwd=repo, env=ENV, clock=clock,
-                pipeline=lambda c: runner.bind(c, FakeLLM([]))) == 1
+    assert main(["run", STEM], cwd=repo, env=ENV, clock=clock, pipeline=lambda c: runner.bind(c, FakeLLM([]))) == 1
     assert draws(_events(repo, STEM), STEM, "premise_bounce") == 0
     assert STEM not in reject_queue(journal(repo).read())
 
@@ -154,14 +148,14 @@ def test_draft_confirm_commits_and_next_drain_dispatches(tmp_path):
 
 def test_dirless_ghost_can_be_kept(tmp_path):
     root = make_root(tmp_path)
-    journal(root).append(EventType.STATE_TRANSITION,
-                         {"to": "gate_failed", "stage": "check", "routed": "reject_queue"}, ticket="ghost")
+    journal(root).append(EventType.STATE_TRANSITION, {"to": "gate_failed", "stage": "check", "routed": "reject_queue"}, ticket="ghost")
     assert main(["confirm", "ghost"], cwd=root, env=ENV, clock=Clock(), terminal=(lambda: True, lambda _: "y")) == 0
     assert _events(root, "ghost")[-1].body["ticket_sha"] is None
 
 
 def test_confirm_after_a_plan_fix_of_a_bound_unit_is_not_a_double_confirm(tmp_path, capsys):
     from chupa.specs import unit_sha
+
     root = make_root(tmp_path)
     blob = bound_arrival(root)
     body = _events(root, "held")[-1].body
@@ -178,10 +172,8 @@ def test_confirm_after_a_plan_fix_of_a_bound_unit_is_not_a_double_confirm(tmp_pa
     assert _events(root, "held")[-1].body["ticket_sha"] == blob
     assert "held" not in reject_queue(journal(root).read())
     # A fresh terminal binds the fixed input, so another unchanged confirm is refused.
-    journal(root).append(EventType.STATE_TRANSITION,
-                         {**body, "plan_units": {"19.P3.held": unit_sha(fixed, "19.P3.held")}}, ticket="held")
+    journal(root).append(EventType.STATE_TRANSITION, {**body, "plan_units": {"19.P3.held": unit_sha(fixed, "19.P3.held")}}, ticket="held")
     assert main(["confirm", "held"], cwd=root, env=ENV, clock=Clock(), terminal=(lambda: True, lambda _: "y")) == 2
-
 
 
 @pytest.mark.parametrize("leaf_state", ["rejected", "abandoned"])
@@ -189,9 +181,9 @@ def test_dead_dependencies_resolve_through_supersedes(tmp_path, leaf_state):
     from chupa.config import load_config
     from chupa.git import Git
     from chupa.seams import LocalFileSystem, SubprocessExec
+
     root = make_root(tmp_path)
-    for stem, depends in [("original", "none"), ("one", "none"), ("two", "none"),
-                           ("leaf", "none"), ("leaf-other", "none"), ("dependent", "- original")]:
+    for stem, depends in [("original", "none"), ("one", "none"), ("two", "none"), ("leaf", "none"), ("leaf-other", "none"), ("dependent", "- original")]:
         commit_ticket(root, stem, confirmed(depends))
     j = journal(root)
     for stem, successors in [("original", ["one", "two"]), ("one", ["leaf", "leaf-other"])]:
@@ -203,8 +195,7 @@ def test_dead_dependencies_resolve_through_supersedes(tmp_path, leaf_state):
         assert main(["reject", "leaf"], cwd=root, env=ENV, clock=Clock(), terminal=(lambda: True, lambda _: "y")) == 0
     else:
         j.append(EventType.STATE_TRANSITION, {"to": "abandoned"}, ticket="leaf")
-        checkout = runner.Checkout(root, load_config(None, cwd=root), ENV, SubprocessExec(),
-                                   Git(SubprocessExec(), env=ENV, timeout=30), j, LocalFileSystem(), Clock())
+        checkout = runner.Checkout(root, load_config(None, cwd=root), ENV, SubprocessExec(), Git(SubprocessExec(), env=ENV, timeout=30), j, LocalFileSystem(), Clock())
         asyncio.run(runner._dead_dependents("leaf", checkout))
     [signal] = [e for e in _events(root, "dependent") if e.body.get("signal") == "dead_dependency"]
     assert signal.body == {"signal": "dead_dependency", "dead": "original"}
@@ -217,15 +208,17 @@ def test_dead_dependencies_resolve_through_supersedes(tmp_path, leaf_state):
 
 @pytest.mark.parametrize("verb", ["confirm", "reject"])
 def test_verdict_refused_without_terminal(tmp_path, monkeypatch, capsys, verb):
-    from chupa.lockfile import Lockfile
     from chupa.journal import Journal
+    from chupa.lockfile import Lockfile
+
     root = make_root(tmp_path)
+
     def forbidden(*args, **kwargs):
         pytest.fail("verdict accessed state before terminal check")
+
     monkeypatch.setattr(Lockfile, "acquire", forbidden)
     monkeypatch.setattr(Journal, "read", forbidden)
-    assert main([verb, "held"], cwd=root, env=ENV, clock=Clock(),
-                terminal=(lambda: False, forbidden)) == 2
+    assert main([verb, "held"], cwd=root, env=ENV, clock=Clock(), terminal=(lambda: False, forbidden)) == 2
     assert "a human runs this in a terminal: ./dev.py confirm|reject <stem>" in capsys.readouterr().err
     assert not (root / ".chupa/state/control/inbox").exists()
 
@@ -240,8 +233,7 @@ def test_verdict_requires_yes(tmp_path, capsys, verb, answer):
     path = root / "tickets/held/ticket.md"
     original = path.read_bytes()
     head = git_out(root, "rev-parse", "HEAD")
-    result = main([verb, "held"], cwd=root, env=ENV, clock=Clock(),
-                  terminal=(lambda: True, lambda _: answer))
+    result = main([verb, "held"], cwd=root, env=ENV, clock=Clock(), terminal=(lambda: True, lambda _: answer))
     assert "held: Reject queue:" in capsys.readouterr().out
     if answer == " Y ":
         assert result == 0 and journal(root).read() != before
@@ -261,8 +253,7 @@ def test_verdict_invalid_frontmatter_refuses(tmp_path, capsys, verb, frontmatter
     original = path.read_bytes()
     before = journal(root).read()
     head = git_out(root, "rev-parse", "HEAD")
-    assert main([verb, "held"], cwd=root, env=ENV, clock=Clock(),
-                terminal=(lambda: True, lambda _: "y")) == 2
+    assert main([verb, "held"], cwd=root, env=ENV, clock=Clock(), terminal=(lambda: True, lambda _: "y")) == 2
     assert "fix the ticket and retry the verdict" in capsys.readouterr().err
     assert path.read_bytes() == original and journal(root).read() == before
     assert git_out(root, "rev-parse", "HEAD") == head

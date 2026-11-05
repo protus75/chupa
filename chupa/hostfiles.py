@@ -2,10 +2,10 @@
 
 import ast
 import hashlib
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-import re
 from typing import Literal
 
 from chupa.seams import FileSystem
@@ -27,9 +27,11 @@ Engine rules govern how work runs; project rules govern what to build. Project c
 
 class MarkerCorruption(ValueError):
     def __init__(self) -> None:
-        super().__init__("invalid chupa:core marker structure -- repair to exactly one complete begin line"
-                         " followed by one complete end line; retain all project content, moving it outside"
-                         " the pair and escaping stray marker text, then retry core")
+        super().__init__(
+            "invalid chupa:core marker structure -- repair to exactly one complete begin line"
+            " followed by one complete end line; retain all project content, moving it outside"
+            " the pair and escaping stray marker text, then retry core"
+        )
 
 
 def parse(data: bytes) -> tuple[bytes, bytes] | None:
@@ -43,10 +45,9 @@ def parse(data: bytes) -> tuple[bytes, bytes] | None:
         if content in (BEGIN, END):
             markers.append((content, offset, offset + len(content)))
         offset += len(line)
-    if (data.count(b"chupa:core") != 2 or len(markers) != 2
-            or markers[0][0] != BEGIN or markers[1][0] != END):
+    if data.count(b"chupa:core") != 2 or len(markers) != 2 or markers[0][0] != BEGIN or markers[1][0] != END:
         raise MarkerCorruption()
-    return data[:markers[0][1]], data[markers[1][2]:]
+    return data[: markers[0][1]], data[markers[1][2] :]
 
 
 def render(data: bytes, *, template: bytes | None = None) -> bytes:
@@ -58,10 +59,8 @@ def render(data: bytes, *, template: bytes | None = None) -> bytes:
     return prefix + block + suffix
 
 
-_MODALS = ("must", "must not", "should", "should not", "shall", "shall not",
-           "will", "will not", "may", "may not")
-_IMPERATIVES = ("author", "implement", "check", "review", "merge", "commit", "dispatch",
-                "confirm", "reject", "kill", "pause", "resume", "triage", "rework", "drain")
+_MODALS = ("must", "must not", "should", "should not", "shall", "shall not", "will", "will not", "may", "may not")
+_IMPERATIVES = ("author", "implement", "check", "review", "merge", "commit", "dispatch", "confirm", "reject", "kill", "pause", "resume", "triage", "rework", "drain")
 _PROCESS_OPENING = re.compile(r"^chupa\s+(?:" + "|".join((*_MODALS, *_IMPERATIVES)) + r")\b", re.I)
 _LIST_PREFIX = re.compile(r"^\s*(?:[-+*]|[0-9]+[.)])\s+")
 
@@ -80,7 +79,7 @@ def _process_override(remainder: bytes) -> bool:
             paragraphs.append(" ".join(continuation))
             continuation = []
         if line.strip():
-            continuation.append(line[item.end():] if item else line)
+            continuation.append(line[item.end() :] if item else line)
     paragraphs.append(" ".join(continuation))
     return any(_PROCESS_OPENING.match(" ".join(paragraph.split())) for paragraph in paragraphs)
 
@@ -94,8 +93,7 @@ def classify_core(data: bytes | None, *, template: bytes | None = None) -> CoreC
         return CoreClassification("refused", str(exc))
     remainder = previous if project is None else b"".join(project)
     if _process_override(remainder):
-        return CoreClassification("refused", "move engine-process rules to the engine core template"
-                                  " or rewrite them as project-content rules")
+        return CoreClassification("refused", "move engine-process rules to the engine core template or rewrite them as project-content rules")
     if project is None:
         return CoreClassification("missing", "run `chupa core` to insert the managed block")
     if previous != render(previous, template=template):
@@ -133,19 +131,15 @@ async def committed_core(workspace, config, git):
         pass  # External hosts have no engine source; the installed template owns their core.
     else:
         try:
-            assignments = [node.value for node in ast.parse(source).body
-                           if isinstance(node, ast.Assign)
-                           and any(isinstance(t, ast.Name) and t.id == "CORE_TEMPLATE" for t in node.targets)]
+            assignments = [node.value for node in ast.parse(source).body if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "CORE_TEMPLATE" for t in node.targets)]
             if len(assignments) != 1 or not isinstance(assignments[0], ast.Constant):
                 raise ValueError("CORE_TEMPLATE must be one literal bytes assignment")
             candidate_template = ast.literal_eval(assignments[0])
             if not isinstance(candidate_template, bytes):
                 raise ValueError("CORE_TEMPLATE must be bytes")
             template = candidate_template
-        except (SyntaxError, ValueError):
-            findings.append(Finding(code="core_drift", path=source_path,
-                message="cannot extract candidate chupa core template",
-                paved_road="define CORE_TEMPLATE as one literal bytes assignment"))
+        except SyntaxError, ValueError:
+            findings.append(Finding(code="core_drift", path=source_path, message="cannot extract candidate chupa core template", paved_road="define CORE_TEMPLATE as one literal bytes assignment"))
     for path in routed_conduct_paths(config, workspace):
         rel = path.relative_to(workspace).as_posix()
         try:
@@ -158,9 +152,7 @@ async def committed_core(workspace, config, git):
             data = None
         digest = None if data is None else hashlib.sha1(f"blob {len(data)}\0".encode() + data).hexdigest()
         if digest != blob:
-            findings.append(Finding(code="core_drift", path=rel,
-                message=f"{rel} differs from its committed candidate bytes",
-                paved_road=f"commit or restore {rel}, then rerun Check"))
+            findings.append(Finding(code="core_drift", path=rel, message=f"{rel} differs from its committed candidate bytes", paved_road=f"commit or restore {rel}, then rerun Check"))
         else:
             files[rel] = data
     return dict(core_files=files, core_template=template, core_findings=findings)
@@ -179,6 +171,5 @@ class CoreDriftGate:
         for path, data in artifact.core_files.items():
             result = classify_core(data, template=artifact.core_template)
             if result.state != "current":
-                findings.append(Finding(code=self.code, path=path,
-                    message=f"{path}: chupa core is {result.state}", paved_road=result.paved_road))
+                findings.append(Finding(code=self.code, path=path, message=f"{path}: chupa core is {result.state}", paved_road=result.paved_road))
         return GateReport(code=self.code, verdict="fail" if findings else "pass", findings=findings)

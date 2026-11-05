@@ -1,11 +1,12 @@
 """Artifact base model and stage result types (CHUPA_PLAN.md sections 4, 5)."""
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 from typing import Annotated, Literal, get_args
-from chupa.llm import AgentTier, AgentEffort
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
+
+from chupa.llm import AgentEffort, AgentTier
 
 ARTIFACT_SCHEMA_VERSION = 1
 
@@ -87,10 +88,7 @@ class Artifact(_Strict):
     @classmethod
     def _refuse_newer(cls, v: int) -> int:
         if v > ARTIFACT_SCHEMA_VERSION:
-            raise ValueError(
-                f"artifact_schema_version {v} is newer than this engine's {ARTIFACT_SCHEMA_VERSION};"
-                " upgrade chupa to a release that reads it"
-            )
+            raise ValueError(f"artifact_schema_version {v} is newer than this engine's {ARTIFACT_SCHEMA_VERSION}; upgrade chupa to a release that reads it")
         return v
 
 
@@ -147,8 +145,7 @@ _DAEMON_SOAK_EXPECTED = {
 class DaemonSoakEntry(_Strict):
     """One closed member's observation (CHUPA_PLAN.md 19.P3.daemon-soak)."""
 
-    member: Literal["worker_killed_mid_run", "conflict_resolution_rungs",
-                    "semantic_conflict_integration_red"]
+    member: Literal["worker_killed_mid_run", "conflict_resolution_rungs", "semantic_conflict_integration_red"]
     planted_fault: NonBlank
     expected: NonBlank
     observed: NonBlank
@@ -196,8 +193,7 @@ _RELIABILITY_BATTERY_EXPECTED = (
 
 
 class ReliabilityBatteryEntry(_Strict):
-    member: Literal["classified_quota_exhaustion", "all_candidates_cooling_recovery",
-                    "unclassified_failure_preservation"]
+    member: Literal["classified_quota_exhaustion", "all_candidates_cooling_recovery", "unclassified_failure_preservation"]
     planted_fault: NonBlank
     expected: NonBlank
     observed: NonBlank
@@ -260,9 +256,7 @@ DIAGNOSIS_LESSON_CHARS = 300
 
 class DiagnosisReply(_Strict):
     verdict: DiagnosisVerdictName
-    lessons: Annotated[list[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1,
-                                                              max_length=DIAGNOSIS_LESSON_CHARS)]],
-                       Field(min_length=1, max_length=DIAGNOSIS_MAX_LESSONS)]
+    lessons: Annotated[list[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=DIAGNOSIS_LESSON_CHARS)]], Field(min_length=1, max_length=DIAGNOSIS_MAX_LESSONS)]
 
 
 class Diagnosis(Artifact):
@@ -317,8 +311,7 @@ class Expected(_Strict):
     def _clean_iff_approve(self) -> "Expected":
         clean = self.defect_class == "none"
         if clean != (self.expected_verdict == "approve") or (self.defect != "" if clean else not self.defect.strip()):
-            raise ValueError("a clean fixture is defect_class none, verdict approve, empty defect; a planted one"
-                             " names its class, expects snag, and describes the defect")
+            raise ValueError("a clean fixture is defect_class none, verdict approve, empty defect; a planted one names its class, expects snag, and describes the defect")
         return self
 
 
@@ -370,6 +363,7 @@ class AuthorGraph(_Strict):
             if stem_findings(t.stem) or len(t.depends) != len(set(t.depends)) or not set(t.depends) <= set(stems):
                 raise ValueError("use valid stems and unique resolving dependencies")
         visiting, visited = set(), set()
+
         def visit(stem):
             if stem in visiting:
                 raise ValueError("author graph must be acyclic")
@@ -380,6 +374,7 @@ class AuthorGraph(_Strict):
                 visit(dep)
             visiting.remove(stem)
             visited.add(stem)
+
         for stem in stems:
             visit(stem)
         return self
@@ -470,7 +465,9 @@ class BaselineSignal(_Strict):
     @classmethod
     def _timestamp(cls, value):
         from datetime import datetime
+
         from chupa.journal import render_ts
+
         if render_ts(datetime.fromisoformat(value)) != value:
             raise ValueError("use the journal UTC timestamp rendering")
         return value
@@ -495,7 +492,7 @@ class ReviewBaselineReport(_Strict):
 
     @model_validator(mode="after")
     def _consistent(self):
-        from eval.harness import GO_MIN_DEFECTS, GO_MIN_CLEAN, MIN_CATCH_RATE, MAX_FALSE_SNAG_RATE, score
+        from eval.harness import GO_MIN_CLEAN, GO_MIN_DEFECTS, MAX_FALSE_SNAG_RATE, MIN_CATCH_RATE, score
 
         names = [r.name for r in self.results]
         if len(set(names)) != len(names):
@@ -503,21 +500,19 @@ class ReviewBaselineReport(_Strict):
         calculated = score(self.results)
         if self.scores.model_dump() != calculated or self.verdict_signal.body.scores.model_dump() != calculated:
             raise ValueError("report and signal scores must equal results")
-        complete = (self.scores.planted >= GO_MIN_DEFECTS and self.scores.clean >= GO_MIN_CLEAN
-                    and all(r.verdict is not None for r in self.results) and self.author_graph is not None)
+        complete = self.scores.planted >= GO_MIN_DEFECTS and self.scores.clean >= GO_MIN_CLEAN and all(r.verdict is not None for r in self.results) and self.author_graph is not None
         if self.complete != complete:
             raise ValueError("complete requires the GO floors, every verdict, and a completed graph")
         body = self.verdict_signal.body
         authors = sorted({r.expected.author for r in self.results}, key=lambda a: (a.provider, a.model, a.tier))
         if body.fixture_authors != authors:
             raise ValueError("signal fixture authors must match the results")
-        if int(body.exercised.spec_version.split('.')[0]) != body.identity.review.spec_major:
+        if int(body.exercised.spec_version.split(".")[0]) != body.identity.review.spec_major:
             raise ValueError("exercised review spec major must match identity")
         reviewer = body.identity.review.rows[body.exercised.tier]
         if any((a.provider, a.model) == (reviewer.provider, reviewer.model) for a in authors):
             raise ValueError("fixture author must differ from reviewer")
-        if body.verdict == "GO" and (not self.complete or self.scores.catch_rate < MIN_CATCH_RATE
-                                     or self.scores.clean_false_snag > MAX_FALSE_SNAG_RATE):
+        if body.verdict == "GO" and (not self.complete or self.scores.catch_rate < MIN_CATCH_RATE or self.scores.clean_false_snag > MAX_FALSE_SNAG_RATE):
             raise ValueError("GO requires complete evidence and passing numerical boundaries")
         return self
 
@@ -525,9 +520,7 @@ class ReviewBaselineReport(_Strict):
 HOST_LOOP_REPORT = "host-loop-report.json"
 EXIT_RECEIPT = "exit-receipt.json"
 HOST_LOOP_MEMBERS = ("machine_ticket_merge", "report_to_regression_bug_loop", "escape_attribution")
-HOST_LOOP_EXPECTED = dict(zip(HOST_LOOP_MEMBERS, (
-    "machine_ticket_merged", "report_replayed_regression_bug_merged",
-    "escape_attributed_by_squash_trailers")))
+HOST_LOOP_EXPECTED = dict(zip(HOST_LOOP_MEMBERS, ("machine_ticket_merged", "report_replayed_regression_bug_merged", "escape_attributed_by_squash_trailers")))
 
 
 class HostLoopEntry(_Strict):
@@ -542,6 +535,7 @@ class HostLoopEntry(_Strict):
     @model_validator(mode="after")
     def _consistent(self):
         from chupa.tickets import stem_findings
+
         stem, separator, sequence = self.producing_run.rpartition("/")
         if not separator or not re.fullmatch(r"[0-9]+", sequence) or stem_findings(stem):
             raise ValueError("producing_run must be <ticket stem>/<nonnegative run sequence>")
@@ -566,9 +560,12 @@ class HostLoopReport(_Strict):
     @model_validator(mode="after")
     def _ordered(self):
         merges = self.entries[:-2]
-        if (len(merges) < 3 or any(e.member != HOST_LOOP_MEMBERS[0] for e in merges)
-                or tuple(e.member for e in self.entries[-2:]) != HOST_LOOP_MEMBERS[1:]
-                or len({e.producing_run for e in merges}) != len(merges)):
+        if (
+            len(merges) < 3
+            or any(e.member != HOST_LOOP_MEMBERS[0] for e in merges)
+            or tuple(e.member for e in self.entries[-2:]) != HOST_LOOP_MEMBERS[1:]
+            or len({e.producing_run for e in merges}) != len(merges)
+        ):
             raise ValueError("use three distinct merge runs followed by regression and escape members")
         return self
 

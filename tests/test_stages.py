@@ -9,9 +9,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from chupa.config import load_config
 from chupa.artifacts import SHAKEOUT_REPORT, ShakeoutEntry, ShakeoutReport
 from chupa.box import BOX_DIR, Box
+from chupa.config import load_config
 from chupa.driver import Driver
 from chupa.git import Git
 from chupa.llm import FakeLLM, LLMRequest
@@ -38,6 +38,7 @@ def test_retro_driver_access_is_public_and_read_only(repo):
     from chupa import runner
     from chupa.retro import Retro, RetroConstructionError
     from tests.test_drain import pause_checkout
+
     checkout = pause_checkout(repo)
     writer = runner.bind(checkout, FakeLLM([]))
     driver = writer.stages.driver
@@ -52,9 +53,11 @@ def test_retro_driver_access_is_public_and_read_only(repo):
 
 def test_exit_window_is_materialized_before_the_real_implement_call(repo, monkeypatch):
     from dataclasses import asdict
+
     from chupa import stages
     from chupa.journal import EventType
     from tests.test_merge import context
+
     author(repo)
     path = repo / f"tickets/{STEM}/ticket.md"
     text = path.read_text() + "\n## Exit-read window\n-  signal:  current retro window  \n- state_transition: current retro window\n"
@@ -62,24 +65,29 @@ def test_exit_window_is_materialized_before_the_real_implement_call(repo, monkey
     git(repo, "add", f"tickets/{STEM}/ticket.md")
     git(repo, "commit", "-m", "exit declaration")
     seen = []
+
     def act(req):
         data = json.loads((req.worktree / ".chupa/exit-read-window.json").read_text())
         assert data == {"signal: current retro window": [asdict(first)], "state_transition: current retro window": []}
-        assert '.chupa/exit-read-window.json' in req.rendered
+        assert ".chupa/exit-read-window.json" in req.rendered
         seen.append(data)
         return implement_reply(outcome="already_satisfied")
+
     ctx = context(repo, [act])
     first = ctx.driver.journal.append(EventType.SIGNAL, {"kind": "drain_handoff"}, ticket=None)
     prepare = stages.prepare_worktree
+
     async def append_during_prepare(*args):
         result = await prepare(*args)
         ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="later")
         ctx.driver.journal.append(EventType.SIGNAL, {"kind": "drain_handoff"}, ticket="later")
         return result
+
     monkeypatch.setattr(stages, "prepare_worktree", append_during_prepare)
     ticket = validate_ticket(STEM, text, repo)
     assert asyncio.run(stages.implement(ctx, ticket, attempt=0)).outcome == "ok"
     assert len(seen) == 1
+
 
 SPECS = Path(__file__).resolve().parent.parent / "specs"
 SECRET = "sk-test-not-for-children"
@@ -154,8 +162,7 @@ STEM = "add-thing"
 
 
 def git(root: Path, *args: str) -> str:
-    return subprocess.run(["git", "-C", str(root), *args], env=ENV, capture_output=True, text=True,
-                          check=True).stdout
+    return subprocess.run(["git", "-C", str(root), *args], env=ENV, capture_output=True, text=True, check=True).stdout
 
 
 def adopt_conduct(root: Path) -> list[str]:
@@ -193,10 +200,20 @@ def author(repo: Path, bypass: str = "", plan_contract: str = "") -> None:
 
 
 def implement_reply(outcome: str = "ok", findings: list | None = None) -> str:
-    return "```json\n" + json.dumps({
-        "outcome": outcome, "summary": "wrote ok", "surprises": "", "dead_ends": "none",
-        "predicted_vs_actual": "10m predicted, 2m actual", "findings": findings or [],
-    }) + "\n```"
+    return (
+        "```json\n"
+        + json.dumps(
+            {
+                "outcome": outcome,
+                "summary": "wrote ok",
+                "surprises": "",
+                "dead_ends": "none",
+                "predicted_vs_actual": "10m predicted, 2m actual",
+                "findings": findings or [],
+            }
+        )
+        + "\n```"
+    )
 
 
 def agent(files: dict[str, str], outcome: str = "ok"):
@@ -233,8 +250,7 @@ def run(repo: Path, script: list, bypass: str = "", plan_contract: str = ""):
 
     exec_ = SubprocessExec()
     driver = Driver.from_config(config, llm=llm, env=ENV, clock=clock, sleep=never)
-    ctx = StageContext(repo=repo, config=config, env=ENV, exec_=exec_, git=Git(exec_, env=ENV, timeout=30.0),
-                       fs=LocalFileSystem(), driver=driver, specs_dir=SPECS)
+    ctx = StageContext(repo=repo, config=config, env=ENV, exec_=exec_, git=Git(exec_, env=ENV, timeout=30.0), fs=LocalFileSystem(), driver=driver, specs_dir=SPECS)
     ticket = validate_ticket(STEM, (repo / "tickets" / STEM / "ticket.md").read_text(), repo)
     return asyncio.run(run_stages(ctx, ticket)), llm, config
 
@@ -248,14 +264,12 @@ def outcomes(result) -> dict[str, str]:
 
 
 def _report_bytes() -> str:
-    entry = ShakeoutEntry(member="member_one", group="first", planted_fault="fault", expected="ok",
-                          observed="ok", producing_run="member_one/0", auditor=[], green=True)
+    entry = ShakeoutEntry(member="member_one", group="first", planted_fault="fault", expected="ok", observed="ok", producing_run="member_one/0", auditor=[], green=True)
     return ShakeoutReport(produced_by_spec_version=1, produced_at_sha="abc", entries=[entry]).model_dump_json()
 
 
 def _report_ticket(monkeypatch, verification: str) -> None:
-    monkeypatch.setattr(__import__(__name__, fromlist=["TICKET"]), "TICKET",
-                        TICKET.replace("env\n", verification + "\n"))
+    monkeypatch.setattr(__import__(__name__, fromlist=["TICKET"]), "TICKET", TICKET.replace("env\n", verification + "\n"))
 
 
 def _write_outbox_report(path: str, body: str):
@@ -268,6 +282,7 @@ def _write_outbox_report(path: str, body: str):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(body)
         return implement_reply()
+
     return act
 
 
@@ -457,11 +472,9 @@ def test_base_red_command_is_recorded_and_filed_without_failing_check(repo, monk
     assert invoice.verification[1].base_red is False and invoice.verification[1].rc == 0
     messages = Box(config.state_dir / BOX_DIR, LocalFileSystem()).messages()
     assert len(messages) == 1
-    assert (messages[0].message_class, messages[0].outcome, messages[0].origin) == (
-        "failure_report", "base_red", STEM)
+    assert (messages[0].message_class, messages[0].outcome, messages[0].origin) == ("failure_report", "base_red", STEM)
     assert "grep -q ok chupa/thing.py" in messages[0].summary
-    assert (config.state_dir / "spools" / STEM / str(result.attempt) / "check" /
-            "verify-01-base.txt").is_file()
+    assert (config.state_dir / "spools" / STEM / str(result.attempt) / "check" / "verify-01-base.txt").is_file()
     assert not (config.worktree_root / ".base" / STEM).exists()
 
 
@@ -523,8 +536,7 @@ def test_a_fresh_run_tears_down_the_prior_worktree_and_branch(repo):
 
 
 def evidence(**kw) -> Evidence:
-    base = dict(stem=STEM, head_sha="abc", claimed="ok", scope_fence=["chupa/"], changed_files=["chupa/a.py"],
-                inserted_lines=1, verification=[], run_record=None)
+    base = dict(stem=STEM, head_sha="abc", claimed="ok", scope_fence=["chupa/"], changed_files=["chupa/a.py"], inserted_lines=1, verification=[], run_record=None)
     return Evidence(**{**base, **kw})
 
 
@@ -561,8 +573,10 @@ def test_run_record_gate_requires_every_section_and_a_closed_outcome(tmp_path):
 
 def test_gather_safety_evidence_runs_no_verification(repo, monkeypatch):
     import dataclasses
+
     from chupa import stages
     from tests.test_merge import context
+
     author(repo)
     ctx = context(repo, [])
     ticket = validate_ticket(STEM, (repo / "tickets" / STEM / "ticket.md").read_text(), repo)
@@ -580,9 +594,11 @@ def test_gather_safety_evidence_runs_no_verification(repo, monkeypatch):
         await ctx.git.commit(ctx.worktree(STEM), "work")
         original = ctx.exec_.run
         calls = []
+
         async def recording(argv, **kw):
             calls.append((argv, kw))
             return await original(argv, **kw)
+
         monkeypatch.setattr(ctx.exec_, "run", recording)
         safety = await stages.gather_safety_evidence(ctx, ticket, "ok")
         assert safety.verification == []
@@ -592,21 +608,25 @@ def test_gather_safety_evidence_runs_no_verification(repo, monkeypatch):
         full = await stages.gather_evidence(ctx, ticket, "ok", attempt=0)
         assert full.model_copy(update={"verification": []}) == safety
         assert len(full.verification) == len(ticket.verification)
+
     asyncio.run(scenario())
 
 
 def test_full_gather_evidence_reuses_safety_gatherer(repo, monkeypatch):
     from chupa import stages
     from tests.test_merge import context
+
     author(repo)
     ctx = context(repo, [])
     ticket = validate_ticket(STEM, (repo / "tickets" / STEM / "ticket.md").read_text(), repo)
     original = stages.gather_safety_evidence
     gathered = []
+
     async def recording(*args):
         evidence = await original(*args)
         gathered.append(evidence)
         return evidence
+
     monkeypatch.setattr(stages, "gather_safety_evidence", recording)
 
     async def scenario():
@@ -621,6 +641,7 @@ def test_full_gather_evidence_reuses_safety_gatherer(repo, monkeypatch):
         assert result.verification[1].rc == 0
         assert (ctx.config.state_dir / "spools" / STEM / "4/check/verify-01-base.txt").is_file()
         assert not (ctx.config.worktree_root / ".base" / STEM).exists()
+
     asyncio.run(scenario())
 
 
@@ -628,8 +649,7 @@ def test_scope_fence_admits_a_plan_edit_confined_to_all_anchored_units(tmp_path)
     gate = ScopeFenceGate()
     main = UNIT_HEAD.replace("### 19.P4 Next", "### 19.P3.other Other\n\nold\n\n### 19.P4 Next")
     head = main.replace("- **Owner:** o", "- **Owner:** changed").replace("old\n", "new\n")
-    anchored = dict(scope_fence=["CHUPA_PLAN.md#19.P3.row", "CHUPA_PLAN.md#19.P3.other"],
-                    changed_files=["CHUPA_PLAN.md"], plan_main=main)
+    anchored = dict(scope_fence=["CHUPA_PLAN.md#19.P3.row", "CHUPA_PLAN.md#19.P3.other"], changed_files=["CHUPA_PLAN.md"], plan_main=main)
     assert gate.check(evidence(**anchored, plan_head=head), tmp_path).verdict == "pass"
     assert gate.check(evidence(**anchored, plan_head=head.replace("reg\n", "escaped\n")), tmp_path).verdict == "fail"
     inserted = main.replace("### 19.P4 Next", "### 19.P3.missing Missing\n\nadded\n\n### 19.P4 Next")
@@ -640,6 +660,7 @@ def test_scope_fence_admits_a_plan_edit_confined_to_all_anchored_units(tmp_path)
 async def report_context(repo, *, verification=None, source=None, script=None):
     """A disposable producer whose report is written by real Verification, never by its agent."""
     from tests.test_merge import context
+
     ctx = context(repo, script if script is not None else [agent({}), verdict()])
     ctx.fs.write(repo / "chupa/thing.py", b"ok\n")
     ctx.fs.write(repo / "source.json", (source if source is not None else _report_bytes()).encode())
@@ -656,6 +677,7 @@ async def report_context(repo, *, verification=None, source=None, script=None):
 @pytest.mark.parametrize("nested", [False, True])
 async def test_outbox_only_check_accepts_registered_report(repo, nested):
     from chupa.journal import EventType
+
     name = f"nested/{SHAKEOUT_REPORT}" if nested else SHAKEOUT_REPORT
     commands = (f"mkdir -p tickets/{STEM}/nested\n" if nested else "") + f"cp source.json tickets/{STEM}/{name}"
     ctx, ticket = await report_context(repo, verification=commands)
@@ -676,8 +698,7 @@ async def test_outbox_only_check_accepts_registered_report(repo, nested):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("case", ["none", "records", "unknown", "foreign", "malformed", "implement",
-                                  "inherited", "equal-copy", "dirty-tracked", "dirty-untracked"])
+@pytest.mark.parametrize("case", ["none", "records", "unknown", "foreign", "malformed", "implement", "inherited", "equal-copy", "dirty-tracked", "dirty-untracked"])
 async def test_outbox_only_check_requires_current_report(repo, case):
     commands = {
         "records": f"cp source.json tickets/{STEM}/review.md",
@@ -688,6 +709,7 @@ async def test_outbox_only_check_requires_current_report(repo, case):
         "dirty-tracked": f"cp source.json tickets/{STEM}/{SHAKEOUT_REPORT}",
         "dirty-untracked": f"cp source.json tickets/{STEM}/{SHAKEOUT_REPORT}",
     }
+
     def act(req):
         if case == "implement":
             (req.worktree / f"tickets/{STEM}/{SHAKEOUT_REPORT}").write_text(_report_bytes())
@@ -695,8 +717,8 @@ async def test_outbox_only_check_requires_current_report(repo, case):
             path = "chupa/thing.py" if case == "dirty-tracked" else "chupa/untracked.py"
             (req.worktree / path).write_text("uncommitted\n")
         return implement_reply()
-    ctx, ticket = await report_context(repo, verification=commands.get(case, "true"), script=[act],
-                                       source='{"invalid":true}' if case == "malformed" else None)
+
+    ctx, ticket = await report_context(repo, verification=commands.get(case, "true"), script=[act], source='{"invalid":true}' if case == "malformed" else None)
     if case in {"inherited", "equal-copy"}:
         rel = f"tickets/{STEM}/{SHAKEOUT_REPORT}"
         ctx.fs.write(repo / rel, _report_bytes().encode())
@@ -716,19 +738,21 @@ async def test_outbox_only_check_requires_current_report(repo, case):
 async def test_outbox_only_check_failure_never_admits(repo, monkeypatch, failure):
     from chupa.git import GitError
     from chupa.journal import EventType
+
     commands = f"cp source.json tickets/{STEM}/{SHAKEOUT_REPORT}"
     if failure == "red":
         commands += "\nfalse"
     elif failure == "missing":
         commands = f"true --out=tickets/{STEM}/{SHAKEOUT_REPORT}"
-    ctx, ticket = await report_context(repo, verification=commands, script=[agent({})],
-                                      source='{"invalid":true}' if failure == "invalid" else None)
+    ctx, ticket = await report_context(repo, verification=commands, script=[agent({})], source='{"invalid":true}' if failure == "invalid" else None)
     if failure == "lift":
         commit = ctx.git.commit
+
         async def failing(root, message, **kwargs):
             if message == f"chupa({STEM}): checks":
                 raise GitError(["git", "commit"], 1, "", "injected checks failure")
             await commit(root, message, **kwargs)
+
         monkeypatch.setattr(ctx.git, "commit", failing)
     run = await run_stages(ctx, ticket)
     assert outcomes(run) == {"implement": "ok", "check": "gate_failed"}
@@ -739,18 +763,18 @@ async def test_outbox_only_check_failure_never_admits(repo, monkeypatch, failure
     assert not any((e.key or "").startswith("merge/") for e in events)
 
     if failure in {"invalid", "lift"}:
-        assert not any(e.type == EventType.EFFECT_COMPLETION and e.key == f"ticket-plane/{STEM}/0/checks"
-                       for e in events)
+        assert not any(e.type == EventType.EFFECT_COMPLETION and e.key == f"ticket-plane/{STEM}/0/checks" for e in events)
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("case", ["valid", "purge", "missing", "invalid", "machinery"])
 async def test_review_baseline_report_registered_checks_lift(repo, tmp_path, case):
+    from chupa import stages
     from chupa.artifacts import REVIEW_BASELINE_REPORT, ReviewBaselineReport
     from chupa.journal import EventType
-    from chupa import stages
     from eval import harness
     from tests.test_eval_harness import report_fixture
+
     data_dir = tmp_path / "grade"
     data_dir.mkdir()
     report, _, _ = report_fixture(data_dir)
@@ -759,30 +783,31 @@ async def test_review_baseline_report_registered_checks_lift(repo, tmp_path, cas
     assert ReviewBaselineReport.model_validate_json(source.read_bytes()) == report
     assert stages.KNOWN_ARTIFACTS[REVIEW_BASELINE_REPORT] is ReviewBaselineReport
     target = f"tickets/{STEM}/{REVIEW_BASELINE_REPORT}"
-    verification = (f"cp source.json {target}" if case in {"valid", "purge", "invalid"}
-                    else f"true --out={target}" if case == "missing" else "true")
+    verification = f"cp source.json {target}" if case in {"valid", "purge", "invalid"} else f"true --out={target}" if case == "missing" else "true"
     captured = []
+
     def act(req):
         if case in {"purge", "machinery"}:
             path = req.worktree / target
             path.write_text('{"stale":true}')
             captured.append(path)
         return implement_reply()
-    ctx, ticket = await report_context(repo, verification=verification,
-        source='{"invalid":true}' if case == "invalid" else source.read_text(), script=[act, verdict()])
+
+    ctx, ticket = await report_context(repo, verification=verification, source='{"invalid":true}' if case == "invalid" else source.read_text(), script=[act, verdict()])
     if case == "purge":
         execute = ctx.exec_.run
+
         async def observe(argv, **kwargs):
             if argv[0] == "cp":
                 assert not (ctx.worktree(STEM) / target).exists()
             return await execute(argv, **kwargs)
+
         ctx.exec_.run = observe
     result = await run_stages(ctx, ticket)
     expected = "gate_failed" if case in {"missing", "invalid", "machinery"} else "ok"
     assert result.results["check"].outcome == expected
     events = ctx.driver.journal.read()
-    lifts = [e for e in events if e.type == EventType.EFFECT_COMPLETION
-             and target in e.body.get("result", {}).get("paths", [])]
+    lifts = [e for e in events if e.type == EventType.EFFECT_COMPLETION and target in e.body.get("result", {}).get("paths", [])]
     if expected == "ok":
         [lift] = lifts
         assert lift.key == f"ticket-plane/{STEM}/0/checks"
@@ -800,12 +825,13 @@ async def test_review_baseline_report_registered_checks_lift(repo, tmp_path, cas
 @pytest.mark.parametrize("name", ["host-loop-report.json", "exit-receipt.json"])
 @pytest.mark.parametrize("case", ["valid", "purge", "missing", "invalid", "machinery"])
 async def test_host_loop_and_receipt_registered_checks_lift(repo, tmp_path, name, case):
-    from chupa.artifacts import HOST_LOOP_REPORT, EXIT_RECEIPT, HostLoopReport, ExitReceipt
     from chupa import stages
+    from chupa.artifacts import EXIT_RECEIPT, HOST_LOOP_REPORT, ExitReceipt, HostLoopReport
     from chupa.journal import EventType
     from eval import host_loop
-    from tests.test_host_loop import loop_report
     from tests.test_eval_harness import report_fixture
+    from tests.test_host_loop import loop_report
+
     data_dir = tmp_path / "receipt-data"
     data_dir.mkdir()
     baseline, _, _ = report_fixture(data_dir)
@@ -814,35 +840,35 @@ async def test_host_loop_and_receipt_registered_checks_lift(repo, tmp_path, name
         host_loop.write_report(source, loop_report(), fs=LocalFileSystem())
         model = HostLoopReport
     else:
-        host_loop.write_receipt(source, host_loop.canonical(loop_report()), host_loop.canonical(baseline),
-                               fs=LocalFileSystem())
+        host_loop.write_receipt(source, host_loop.canonical(loop_report()), host_loop.canonical(baseline), fs=LocalFileSystem())
         model = ExitReceipt
     assert stages.KNOWN_ARTIFACTS[HOST_LOOP_REPORT] is HostLoopReport
     assert stages.KNOWN_ARTIFACTS[EXIT_RECEIPT] is ExitReceipt
     target = f"tickets/{STEM}/{name}"
-    verification = (f"cp source.json {target}" if case in {"valid", "purge", "invalid"}
-                    else f"true --out={target}" if case == "missing" else "true")
+    verification = f"cp source.json {target}" if case in {"valid", "purge", "invalid"} else f"true --out={target}" if case == "missing" else "true"
     captured = []
+
     def act(req):
         if case in {"purge", "machinery"}:
             path = req.worktree / target
             path.write_text('{"stale":true}')
             captured.append(path)
         return implement_reply()
-    ctx, ticket = await report_context(repo, verification=verification,
-        source='{"invalid":true}' if case == "invalid" else source.read_text(), script=[act, verdict()])
+
+    ctx, ticket = await report_context(repo, verification=verification, source='{"invalid":true}' if case == "invalid" else source.read_text(), script=[act, verdict()])
     if case == "purge":
         execute = ctx.exec_.run
+
         async def observe(argv, **kwargs):
             if argv[0] == "cp":
                 assert not (ctx.worktree(STEM) / target).exists()
             return await execute(argv, **kwargs)
+
         ctx.exec_.run = observe
     result = await run_stages(ctx, ticket)
     expected = "gate_failed" if case in {"missing", "invalid", "machinery"} else "ok"
     assert result.results["check"].outcome == expected
-    lifts = [e for e in ctx.driver.journal.read() if e.type == EventType.EFFECT_COMPLETION
-             and target in e.body.get("result", {}).get("paths", [])]
+    lifts = [e for e in ctx.driver.journal.read() if e.type == EventType.EFFECT_COMPLETION and target in e.body.get("result", {}).get("paths", [])]
     if expected == "ok":
         [lift] = lifts
         assert lift.key == f"ticket-plane/{STEM}/0/checks" and lift.body["result"]["kind"] == "checks"

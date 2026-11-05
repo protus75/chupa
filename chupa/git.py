@@ -1,8 +1,8 @@
 """All git access (CHUPA_PLAN.md section 10, D1): argv lists, dir-pinned, through the process-exec seam."""
 
+import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-import re
 
 from chupa.seams import ProcessExec
 
@@ -33,11 +33,9 @@ class Git:
         self._env = env
         self._timeout = timeout
 
-    async def _call(self, dir: Path, *args: str,
-                    env: Mapping[str, str] | None = None) -> tuple[list[str], int, str, str]:
+    async def _call(self, dir: Path, *args: str, env: Mapping[str, str] | None = None) -> tuple[list[str], int, str, str]:
         argv = ["git", "-C", str(dir), *args]
-        rc, out, err = await self._exec.run(argv, cwd=dir, env=self._env if env is None else env,
-                                          timeout=self._timeout)
+        rc, out, err = await self._exec.run(argv, cwd=dir, env=self._env if env is None else env, timeout=self._timeout)
         return argv, rc, out, err
 
     async def _run(self, dir: Path, *args: str) -> str:
@@ -122,8 +120,7 @@ class Git:
 
     async def rebase_continue(self, dir: Path) -> None:
         # GIT_EDITOR overrides core.editor, including an inherited interactive editor.
-        await self._rebase_step(dir, "-c", "core.editor=true", "rebase", "--continue",
-                                env={**self._env, "GIT_EDITOR": "true"})
+        await self._rebase_step(dir, "-c", "core.editor=true", "rebase", "--continue", env={**self._env, "GIT_EDITOR": "true"})
 
     async def _rebase_step(self, dir: Path, *args: str, env: Mapping[str, str] | None = None) -> None:
         argv, rc, out, err = await self._call(dir, *args, env=env)
@@ -158,7 +155,7 @@ class Git:
         if start > end:
             return []
         result = []
-        for sha in ancestry[start:end + 1]:
+        for sha in ancestry[start : end + 1]:
             message = (await self._run(dir, "show", "-s", "--format=%B", sha)).rstrip("\n")
             # Only the final trailer paragraph supplies identity, never the subject.
             trailers = message.split("\n\n")[-1].splitlines()
@@ -170,8 +167,6 @@ class Git:
             approval = re.fullmatch(r"chupa-reviewed-sha: ([0-9a-f]{40})", reviewed[0])
             if ticket is None or approval is None or stem_findings(ticket[1]):
                 continue
-            paths = await self._run(dir, "diff-tree", "--root", "--no-commit-id", "--name-only",
-                                    "-r", "-z", sha)
-            result.append({"ticket": ticket[1], "commit": sha, "reviewed_sha": approval[1],
-                           "paths": paths.rstrip("\0").split("\0") if paths else []})
+            paths = await self._run(dir, "diff-tree", "--root", "--no-commit-id", "--name-only", "-r", "-z", sha)
+            result.append({"ticket": ticket[1], "commit": sha, "reviewed_sha": approval[1], "paths": paths.rstrip("\0").split("\0") if paths else []})
         return result

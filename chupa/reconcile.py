@@ -17,6 +17,7 @@ RECOVERY_ALERT = "recovery_alert"
 def orphans(events: Iterable[Event]) -> list[str]:
     """Stems whose run is still open: a `running`, or an intent with no completion, since their last terminal."""
     from chupa.mergequeue import held_admissions
+
     events = tuple(events)
     held = held_admissions(events)
     running: set[str] = set()
@@ -37,8 +38,7 @@ def orphans(events: Iterable[Event]) -> list[str]:
     return sorted((running | {stem for stem, keys in intents.items() if keys}) - held.keys())
 
 
-async def reconcile(journal: Journal, git: Git, repo: Path, worktree_root: Path,
-                    harvest: OrphanHarvest) -> list[str]:
+async def reconcile(journal: Journal, git: Git, repo: Path, worktree_root: Path, harvest: OrphanHarvest) -> list[str]:
     """Reap every orphan to `abandoned` and remove its worktree; return the reaped stems (empty: a no-op)."""
     reaped = orphans(journal.read())
     for stem in reaped:
@@ -48,13 +48,9 @@ async def reconcile(journal: Journal, git: Git, repo: Path, worktree_root: Path,
             try:
                 await harvest(stem, sequence)
             except Exception as e:
-                journal.append(EventType.SIGNAL,
-                               {"signal": "harvest_failed", "error": f"{type(e).__name__}: {e}"},
-                               ticket=stem)
+                journal.append(EventType.SIGNAL, {"signal": "harvest_failed", "error": f"{type(e).__name__}: {e}"}, ticket=stem)
         journal.append(EventType.STATE_TRANSITION, {"to": "abandoned"}, ticket=stem)
-        journal.append(EventType.SIGNAL,
-                       {"kind": RECOVERY_ALERT, "disposition": "alert", "outcome": "abandoned",
-                        "reason": "orphaned run", "run_seq": sequence}, ticket=stem)
+        journal.append(EventType.SIGNAL, {"kind": RECOVERY_ALERT, "disposition": "alert", "outcome": "abandoned", "reason": "orphaned run", "run_seq": sequence}, ticket=stem)
         # Journal before wipe: a wipe that fails leaves a leftover the next run's teardown-and-create removes.
         if path.exists():
             await git.worktree_remove(repo, path)

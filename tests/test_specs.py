@@ -43,10 +43,8 @@ seeds:
 - **Tests:** t
 ### 19.P4.orphan Orphan
 """
-    cites = ("19.P4", "19.P4.present", "19.P4.own", "19.P4.missing", "19.P4.present",
-             "19.P4.exit", "19.P4.orphan", "19.P3.present", "19.L")
-    assert required_units(plan, "own", iter(cites)) == (
-        "19.P4.own", "19.P4.present", "19.P4.missing")
+    cites = ("19.P4", "19.P4.present", "19.P4.own", "19.P4.missing", "19.P4.present", "19.P4.exit", "19.P4.orphan", "19.P3.present", "19.L")
+    assert required_units(plan, "own", iter(cites)) == ("19.P4.own", "19.P4.present", "19.P4.missing")
     assert required_units(plan, "exit", cites) == ("19.P4.present", "19.P4.own", "19.P4.missing")
     assert required_units(plan, "own", ()) == ("19.P4.own",)
     assert required_units(plan, "unregistered", ("19.P4", "19.L")) == ()
@@ -68,16 +66,19 @@ def test_implement_spec_consumer_read():
     spec = load_spec(text)
     assert spec.meta.version == "2.0"
     assert spec.meta.model_dump(exclude={"version"}) == {
-        "llm_surface": "implement", "consumes": "ticket", "emits": "packing-slip",
-        "tier": "medium", "effort": "medium", "gates": [],
+        "llm_surface": "implement",
+        "consumes": "ticket",
+        "emits": "packing-slip",
+        "tier": "medium",
+        "effort": "medium",
+        "gates": [],
     }
     assert spec.inputs == ("ticket", "context", "retry_findings")
     assert tuple(line[3:] for line in spec.body.splitlines() if line.startswith("## ")) == SPEC_SECTIONS
     rendered = render(spec, {name: f"fixture {name}" for name in spec.inputs})
     task = " ".join(rendered.split("## Task\n", 1)[1].split("## Inputs\n", 1)[0].split())
     assert (
-        "Before changing how production code stores or emits a value (null versus empty string, type, "
-        "column or field name, encoding), search the repository for that value's consumers and read them."
+        "Before changing how production code stores or emits a value (null versus empty string, type, column or field name, encoding), search the repository for that value's consumers and read them."
     ) in task
     assert (
         "When the literal reading of a criterion would break a consumer outside `## Scope fence`, take "
@@ -110,26 +111,23 @@ def test_review_spec_read_only():
     spec = load_spec(text)
     assert spec.meta.version == "1.2"
     assert spec.meta.model_dump(exclude={"version"}) == {
-        "llm_surface": "review", "consumes": "invoice",
+        "llm_surface": "review",
+        "consumes": "invoice",
         "emits": {"approve": "approved-invoice", "snag": "snag-list", "rma": "rma"},
-        "tier": "high", "effort": "high", "gates": ["correctness_review"],
+        "tier": "high",
+        "effort": "high",
+        "gates": ["correctness_review"],
     }
     assert spec.inputs == ("ticket", "diff", "retry_findings")
     assert tuple(line[3:] for line in spec.body.splitlines() if line.startswith("## ")) == SPEC_SECTIONS
     rendered = render(spec, {name: f"fixture {name}" for name in spec.inputs})
     role = " ".join(rendered.split("## Role\n", 1)[1].split("## Task\n", 1)[0].split())
     assert "are read-only, with the Read, Grep, Glob, and LS tools only." in role
-    assert (
-        "The ticket's `## Verification` commands and host mechanical checks (scope fence, diff budget) "
-        "are run and decided at Check before Review."
-    ) in role
+    assert ("The ticket's `## Verification` commands and host mechanical checks (scope fence, diff budget) are run and decided at Check before Review.") in role
     assert "Do not attempt commands or qualify a verdict for not running them." in role
     body = " ".join(rendered.split())
     assert "a `## Verification` command that would not pass" not in body
-    assert (
-        "`acceptance`: an acceptance criterion is unmet, partly met, or met only in a test while the "
-        "real code path differs."
-    ) in body
+    assert ("`acceptance`: an acceptance criterion is unmet, partly met, or met only in a test while the real code path differs.") in body
     assert validate_data_blocks(rendered) == []
 
 
@@ -228,7 +226,7 @@ def test_lint_fails_injected_content_outside_the_data_block_form():
 
 
 def test_lint_fails_placeholder_inline_in_prose():
-    inline = "\n".join([f"Implement {{{{ticket}}}} now.", data_open("ticket"), "{{ticket}}", data_close("ticket")])
+    inline = "\n".join(["Implement {{ticket}} now.", data_open("ticket"), "{{ticket}}", data_close("ticket")])
     assert "data_outside_block" in codes(lint_spec(spec_text(inline)))
 
 
@@ -291,9 +289,7 @@ def test_delimiter_bearing_payload_renders_quoted():
 
 
 def test_payload_is_not_rescanned_for_other_placeholders():
-    two = "\n".join(
-        [data_open("ticket"), "{{ticket}}", data_close("ticket"), data_open("context"), "{{context}}", data_close("context")]
-    )
+    two = "\n".join([data_open("ticket"), "{{ticket}}", data_close("ticket"), data_open("context"), "{{context}}", data_close("context")])
     out = render(load_spec(spec_text(two)), {"ticket": "{{context}}", "context": "CTX"})
     assert out.count("CTX") == 1
     assert "\n".join([data_open("ticket"), "{{context}}", data_close("ticket")]) in out
@@ -374,9 +370,7 @@ def test_unit_id_resolves_to_exactly_its_unit():
 
 def test_resolution_is_verbatim_in_first_citation_order():
     out = resolve_plan_contract(PLAN, ["20", "19.L", "20", "1"])
-    assert out == (
-        "## 20. Open\n\nopen body\n\n" + "### 19.L Laws\n\nlaws body\n\n" + "## 1. One\n\none body\n\n"
-    )
+    assert out == ("## 20. Open\n\nopen body\n\n" + "### 19.L Laws\n\nlaws body\n\n" + "## 1. One\n\none body\n\n")
 
 
 @pytest.mark.parametrize("bad", ["7", "19.P5", "19.P9", "19.X", "section", "CHUPA_PLAN.md", "2"])
@@ -459,16 +453,18 @@ def test_section_cited_with_its_own_subsection_is_refused():
     assert "not both" in e.value.finding.paved_road
 
 
-@pytest.mark.parametrize("text, pid", [("section 11.4", "11.4"), ("section 11", "11"), ("19.I", "19.I"),
-                                       ("19.P3.rework-stage", "19.P3.rework-stage")])
+@pytest.mark.parametrize("text, pid", [("section 11.4", "11.4"), ("section 11", "11"), ("19.I", "19.I"), ("19.P3.rework-stage", "19.P3.rework-stage")])
 def test_plan_id_canonicalizes_new_forms(text, pid):
     from chupa.specs import plan_id
+
     assert plan_id(text) == pid
 
 
 def test_unit_sha_is_absent_for_a_missing_unit_and_tracks_unit_bytes():
     import hashlib
+
     from chupa.specs import unit_sha
+
     uid = "19.P3.rework-stage"
     assert unit_sha(SUB_PLAN, "19.P3.missing") == "absent"
     expected = hashlib.sha256(resolve_plan_contract(SUB_PLAN, [uid]).encode()).hexdigest()

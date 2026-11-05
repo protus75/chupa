@@ -11,9 +11,14 @@ from chupa.tickets import Ticket
 
 class Scheduler:
     def __init__(
-        self, journal: Journal, dispatch: Callable[[Ticket], Awaitable[object]], *,
-        quarantined: Callable[[], Set[str]], drought_parked: Callable[[], Set[str]],
-        completed_unmerged: Callable[[], int], max_unmerged: int,
+        self,
+        journal: Journal,
+        dispatch: Callable[[Ticket], Awaitable[object]],
+        *,
+        quarantined: Callable[[], Set[str]],
+        drought_parked: Callable[[], Set[str]],
+        completed_unmerged: Callable[[], int],
+        max_unmerged: int,
     ) -> None:
         self.journal = journal
         self.dispatch = dispatch
@@ -49,12 +54,17 @@ class Scheduler:
             authored = authored_at(events)
             retained = {t.stem: t for t in self.continuations()}
             candidates = {**self.pending, **retained}
-            ready = [t for t in candidates.values()
-                     if t.frontmatter.state == "confirmed"
-                     and last.get(t.stem) not in SETTLED | {"rejected"}
-                     and (last.get(t.stem) != "running" or t.stem in retained)
-                     and t.stem not in held and t.stem not in maps and set(t.depends) <= settled
-                     and self.select(t, self.next_stage(t))]
+            ready = [
+                t
+                for t in candidates.values()
+                if t.frontmatter.state == "confirmed"
+                and last.get(t.stem) not in SETTLED | {"rejected"}
+                and (last.get(t.stem) != "running" or t.stem in retained)
+                and t.stem not in held
+                and t.stem not in maps
+                and set(t.depends) <= settled
+                and self.select(t, self.next_stage(t))
+            ]
             if not ready:
                 return None
             ticket = min(ready, key=lambda t: sort_key(t, authored))

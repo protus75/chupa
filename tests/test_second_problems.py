@@ -13,14 +13,16 @@ from chupa.stages import ImplementReply
 from tests.test_stages import ENV, STEM, agent, verdict
 from tests.test_terminal import author, clock, diagnosis_reply, repo  # noqa: F401 -- fixture
 
-
 FINDING = {"code": "premise", "message": "the premise is false", "paved_road": "correct the ticket"}
 
 
 def reply(outcome: str, problems: list[str] | None) -> str:
     data = {
-        "outcome": outcome, "summary": "handled the ticket", "surprises": "none",
-        "dead_ends": "none", "predicted_vs_actual": "none",
+        "outcome": outcome,
+        "summary": "handled the ticket",
+        "surprises": "none",
+        "dead_ends": "none",
+        "predicted_vs_actual": "none",
         "findings": [FINDING] if outcome == "premise_failed" else [],
     }
     if problems is not None:
@@ -30,8 +32,7 @@ def reply(outcome: str, problems: list[str] | None) -> str:
 
 def run(repo: Path, script: list) -> int:
     llm = FakeLLM(script)
-    return main(["run", STEM], cwd=repo, env=ENV, clock=clock,
-                pipeline=lambda checkout: runner.bind(checkout, llm))
+    return main(["run", STEM], cwd=repo, env=ENV, clock=clock, pipeline=lambda checkout: runner.bind(checkout, llm))
 
 
 def box(repo: Path) -> Box:
@@ -59,8 +60,7 @@ def test_ok_reply_files_two_problems_and_lifts_ids_in_order(repo):
         ("suggestion", STEM, "implement", "ok"),
         ("suggestion", STEM, "implement", "ok"),
     ]
-    assert filed_lines(repo) == [f"- {messages[0].id}: {summaries[0]}",
-                                 f"- {messages[1].id}: Second issue has a newline"]
+    assert filed_lines(repo) == [f"- {messages[0].id}: {summaries[0]}", f"- {messages[1].id}: Second issue has a newline"]
 
 
 def test_repeated_line_number_dedups_and_absent_key_means_none(repo):

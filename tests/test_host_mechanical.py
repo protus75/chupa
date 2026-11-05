@@ -1,4 +1,5 @@
 """Host checks through production Check and inline admission."""
+
 import asyncio
 
 import pytest
@@ -11,8 +12,7 @@ from tests.test_stages import SECRET
 
 
 async def checked(ctx, ticket):
-    slip = stages.PackingSlip(produced_by_spec_version=1, produced_at_sha="head", stem=ticket.stem,
-                              branch=ticket.stem, outcome="ok", summary="work", run_record="run.md")
+    slip = stages.PackingSlip(produced_by_spec_version=1, produced_at_sha="head", stem=ticket.stem, branch=ticket.stem, outcome="ok", summary="work", run_record="run.md")
     return await stages.check(ctx, ticket, slip, attempt=0)
 
 
@@ -25,6 +25,7 @@ def test_triggered_entries_run_at_check(ctx, monkeypatch):
         assert result.outcome == "ok" and [c[0][1] for c in calls] == ["always", "path"]
         assert [r.code for r in result.artifact.reports[-2:]] == ["always", "path"]
         assert (ctx.config.state_dir / f"spools/{ticket.stem}/0/check/host-02.txt").exists()
+
     asyncio.run(run())
 
 
@@ -37,6 +38,7 @@ def test_untriggered_entry_never_runs(ctx, monkeypatch):
         assert result.outcome == "ok" and not calls
         assert "skip" not in [r.code for r in result.artifact.reports]
         assert not list((ctx.config.state_dir / f"spools/{ticket.stem}/0").rglob("host-*"))
+
     asyncio.run(run())
 
 
@@ -49,6 +51,7 @@ def test_failure(ctx, monkeypatch, severity):
         result = await checked(ctx, ticket)
         assert result.outcome == ("gate_failed" if severity == "hard" else "ok")
         assert result.artifact.reports[-1].verdict == "fail" and result.findings[-1].code == "bad"
+
     asyncio.run(run())
 
 
@@ -71,6 +74,7 @@ def test_base_red_entry_is_preexisting(ctx, monkeypatch):
         assert report.verdict == "pass" and not report.findings
         assert [f.code for f in stages._prior_findings(ctx, ticket.stem, "check")] == ["scope_fence"]
         assert Box(ctx.config.state_dir / BOX_DIR, ctx.fs).messages()[0].outcome == "base_red"
+
     asyncio.run(run())
 
 
@@ -84,6 +88,7 @@ def test_timeout_and_missing_executable_fail_closed(ctx, monkeypatch, failure):
         assert result.outcome == "gate_failed" and "FAKE_KEY" not in calls[0][1]["env"]
         assert SECRET not in result.findings[-1].message
         assert SECRET not in (ctx.config.state_dir / f"spools/{ticket.stem}/0/check/host-01.txt").read_text()
+
     asyncio.run(run())
 
 
@@ -97,19 +102,23 @@ def test_inline_merge_reruns_triggered_hard_entries(ctx, monkeypatch):
         assert result.outcome == "gate_failed" and [c[0][1] for c in calls] == ["red"]
         assert await ctx.git.rev_parse(ctx.repo, "main") == before
         assert (ctx.config.state_dir / f"spools/{ticket.stem}/0/merge/host-01.txt").exists()
+
     asyncio.run(run())
 
 
 def test_autofix_config_loading(ctx, tmp_path):
     import yaml
+
     from chupa.config import ConfigError, load_config
 
     raw = yaml.safe_load((ctx.repo / "config.yaml").read_text())
     raw["review"]["autofix"] = [{"code": "fix", "argv": ["fix"]}]
     path = tmp_path / "config.yaml"
+
     def load():
         path.write_text(yaml.safe_dump(raw))
         return load_config(path, cwd=tmp_path)
+
     assert load().review.autofix[0].argv == ["fix"]
     for entry in ({"code": "fix", "argv": []}, {"code": "fix", "argv": ["fix"], "extra": 1}):
         raw["review"]["autofix"] = [entry]
@@ -122,20 +131,21 @@ def test_autofix_commits_selected_files_and_evaluates_head(ctx, monkeypatch):
     from tests.test_mergequeue import commit
 
     async def run():
-        ticket = await ready(ctx, changes={"chupa/thing.py": "before\n", "tickets/extra.txt": "ticket\n"},
-                             fence=("chupa/thing.py", "tickets"))
+        ticket = await ready(ctx, changes={"chupa/thing.py": "before\n", "tickets/extra.txt": "ticket\n"}, fence=("chupa/thing.py", "tickets"))
         root = ctx.worktree(ticket.stem)
         (root / "chupa/other.py").unlink()
         await commit(ctx, root, ["chupa/other.py"], "delete")
         ctx.config.review.autofix = [AutofixCommand(code="fix", argv=["host", "fix"])]
         original = ctx.exec_.run
         calls = []
+
         async def execute(argv, **kw):
             if argv[0] == "host":
                 calls.append(argv)
                 (root / "chupa/thing.py").write_text("fixed\n")
                 return 0, "", ""
             return await original(argv, **kw)
+
         monkeypatch.setattr(ctx.exec_, "run", execute)
         monkeypatch.setattr(stages, "_review_seeds", lambda *a, **kw: asyncio.sleep(0, result=([], [])))
         result = await checked(ctx, ticket)
@@ -146,11 +156,13 @@ def test_autofix_commits_selected_files_and_evaluates_head(ctx, monkeypatch):
         assert (await ctx.git._run(root, "log", "-1", "--format=%s")).strip() == f"chupa({ticket.stem}): autofix"
         assert (await ctx.git._run(root, "show", "--format=", "--name-only", "HEAD")).strip() == "chupa/thing.py"
         assert result.artifact.reports[0].verdict == "pass"
+
     asyncio.run(run())
 
 
 def test_autofix_no_change_and_already_satisfied(ctx, monkeypatch):
     from chupa.config import AutofixCommand
+
     async def run():
         ticket = await ready(ctx)
         root = ctx.worktree(ticket.stem)
@@ -161,16 +173,17 @@ def test_autofix_no_change_and_already_satisfied(ctx, monkeypatch):
         await checked(ctx, ticket)
         assert len(calls) == 1 and await ctx.git.rev_parse(ctx.repo, ticket.stem) == head
         assert (root / "chupa/thing.py").read_text() == "uncommitted\n"
-        slip = stages.PackingSlip(produced_by_spec_version=1, produced_at_sha=head, stem=ticket.stem,
-                                  branch=ticket.stem, outcome="already_satisfied", summary="done", run_record="run.md")
+        slip = stages.PackingSlip(produced_by_spec_version=1, produced_at_sha=head, stem=ticket.stem, branch=ticket.stem, outcome="already_satisfied", summary="done", run_record="run.md")
         await stages.check(ctx, ticket, slip, attempt=1)
         assert len(calls) == 1
+
     asyncio.run(run())
 
 
 def test_autofix_failure_restores_and_blocks_seeds(ctx, monkeypatch):
     from chupa.config import AutofixCommand
     from tests.test_mergequeue import commit
+
     async def run():
         ticket = await ready(ctx, fence=("chupa/thing.py", "tickets"))
         root = ctx.worktree(ticket.stem)
@@ -178,10 +191,10 @@ def test_autofix_failure_restores_and_blocks_seeds(ctx, monkeypatch):
         path.chmod(0o755)
         await commit(ctx, root, ["chupa/thing.py"], "executable")
         head = await ctx.git.rev_parse(ctx.repo, ticket.stem)
-        ctx.config.review.autofix = [AutofixCommand(code="bad", argv=["host", "bad"]),
-                                     AutofixCommand(code="later", argv=["host", "later"])]
+        ctx.config.review.autofix = [AutofixCommand(code="bad", argv=["host", "bad"]), AutofixCommand(code="later", argv=["host", "later"])]
         original = ctx.exec_.run
         calls = []
+
         async def execute(argv, **kw):
             if argv[0] == "host":
                 calls.append(argv)
@@ -189,8 +202,10 @@ def test_autofix_failure_restores_and_blocks_seeds(ctx, monkeypatch):
                 path.chmod(0o644)
                 return 1, "", "failed"
             return await original(argv, **kw)
+
         async def seeds(*args, **kwargs):
             pytest.fail("seed review ran")
+
         monkeypatch.setattr(ctx.exec_, "run", execute)
         monkeypatch.setattr(stages, "_review_seeds", seeds)
         result = await checked(ctx, ticket)
@@ -198,12 +213,14 @@ def test_autofix_failure_restores_and_blocks_seeds(ctx, monkeypatch):
         assert len(calls) == 1 and await ctx.git.rev_parse(ctx.repo, ticket.stem) == head
         assert "chupa/thing.py" not in await ctx.git.status_porcelain(root)
         assert path.stat().st_mode & 0o111
+
     asyncio.run(run())
 
 
 def test_autofix_skips_when_no_files(ctx, monkeypatch):
     from chupa.config import AutofixCommand
     from tests.test_mergequeue import commit
+
     async def run():
         ticket = await ready(ctx)
         root = ctx.worktree(ticket.stem)
@@ -213,4 +230,5 @@ def test_autofix_skips_when_no_files(ctx, monkeypatch):
         calls = scripted(ctx, monkeypatch, [])
         await checked(ctx, ticket)
         assert not calls
+
     asyncio.run(run())

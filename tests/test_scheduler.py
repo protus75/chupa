@@ -43,8 +43,7 @@ async def turn():
 
 
 def text(priority="P2", state="confirmed", depends="none"):
-    return TICKET.format(depends=depends).replace(
-        "priority: P2", f"state: {state}\nsource: human\npriority: {priority}", 1)
+    return TICKET.format(depends=depends).replace("priority: P2", f"state: {state}\nsource: human\npriority: {priority}", 1)
 
 
 class Rig:
@@ -59,15 +58,24 @@ class Rig:
         self.unmerged = 0
         self.calls = []
         self.scheduler = Scheduler(
-            self.journal, self.dispatch, quarantined=lambda: self.quarantine,
-            drought_parked=lambda: self.drought, completed_unmerged=lambda: self.unmerged,
+            self.journal,
+            self.dispatch,
+            quarantined=lambda: self.quarantine,
+            drought_parked=lambda: self.drought,
+            completed_unmerged=lambda: self.unmerged,
             max_unmerged=2,
         )
         self.files = {}
         self.watcher = Watcher(
-            root, plan=PLAN, read=self.files.get, journal=self.journal,
-            publish=self.scheduler.update, remove=self.scheduler.remove,
-            clock=self.time, sleep=self.time.sleep, debounce=5,
+            root,
+            plan=PLAN,
+            read=self.files.get,
+            journal=self.journal,
+            publish=self.scheduler.update,
+            remove=self.scheduler.remove,
+            clock=self.time,
+            sleep=self.time.sleep,
+            debounce=5,
         )
 
     async def dispatch(self, ticket):
@@ -87,9 +95,7 @@ class Rig:
         self.journal.append(EventType.STATE_TRANSITION, {"to": to, **body}, ticket=stem)
 
     def intake(self, stem):
-        self.journal.append(EventType.SIGNAL,
-                            {"signal": INTAKE_SIGNAL, "source": "human", "state": "confirmed",
-                             "new": True, "commit": "abc"}, ticket=stem)
+        self.journal.append(EventType.SIGNAL, {"signal": INTAKE_SIGNAL, "source": "human", "state": "confirmed", "new": True, "commit": "abc"}, ticket=stem)
 
     async def publish(self, *stems):
         for stem in stems:
@@ -201,8 +207,7 @@ async def test_eligibility_and_hold_release(rig):
             rig.add(stem)
             rig.transition(stem, "gate_failed", routed="reject_queue")
             assert await rig.scheduler.dispatch_next() is None
-        rig.journal.append(EventType.SIGNAL,
-                           {"signal": "reject_verdict", "verdict": "keep", "actor": actor}, ticket=stem)
+        rig.journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": actor}, ticket=stem)
         assert (await rig.scheduler.dispatch_next()).stem == stem
     rig.quarantine.clear()
     assert (await rig.scheduler.dispatch_next()).stem == "quarantined"
@@ -214,9 +219,7 @@ async def test_eligibility_and_hold_release(rig):
 
 @pytest.mark.asyncio
 async def test_priority_age_and_stem_order(rig):
-    for stem, priority in (("zzz-old", "P2"), ("aaa-new", "P2"), ("aaa-missing", "P2"),
-                           ("bbb-missing", "P2"), ("urgent", "P0"), ("low", "P3"),
-                           ("mid", "P1"), ("tie-aa", "P2"), ("tie-bb", "P2")):
+    for stem, priority in (("zzz-old", "P2"), ("aaa-new", "P2"), ("aaa-missing", "P2"), ("bbb-missing", "P2"), ("urgent", "P0"), ("low", "P3"), ("mid", "P1"), ("tie-aa", "P2"), ("tie-bb", "P2")):
         rig.add(stem, priority)
     rig.intake("low")
     rig.intake("zzz-old")
@@ -229,8 +232,7 @@ async def test_priority_age_and_stem_order(rig):
     for n, stem in enumerate(reversed(list(rig.scheduler.pending))):
         os.utime(rig.root / "tickets" / stem / "ticket.md", (n + 1, n + 1))
     await rig.drain()
-    assert rig.calls == ["urgent", "mid", "zzz-old", "aaa-new", "tie-aa", "tie-bb",
-                         "aaa-missing", "bbb-missing", "low"]
+    assert rig.calls == ["urgent", "mid", "zzz-old", "aaa-new", "tie-aa", "tie-bb", "aaa-missing", "bbb-missing", "low"]
 
 
 @pytest.mark.asyncio
@@ -282,6 +284,7 @@ async def test_watcher_debounce(rig):
     await turn()
     assert rig.watcher.cache["partial"] == rig.scheduler.pending["partial"]
     assert not rig.journal.read()
+
     # Also consume injected change delivery through the component's async entry.
     async def changes():
         rig.files["second"] = text("P0")
@@ -338,8 +341,7 @@ async def test_watcher_parse_failure_preserves_last_good(rig):
     assert len(signals) == 2
     for event, stem in zip(signals, ("old", "new-invalid"), strict=True):
         assert event.type == EventType.SIGNAL and event.ticket == stem and event.key is None
-        assert event.body == {"signal": WATCHER_PARSE_FAILURE,
-                              "path": f"tickets/{stem}/ticket.md", "reason": event.body["reason"]}
+        assert event.body == {"signal": WATCHER_PARSE_FAILURE, "path": f"tickets/{stem}/ticket.md", "reason": event.body["reason"]}
         assert isinstance(event.body["reason"], str) and event.body["reason"].strip()
     assert (await rig.scheduler.dispatch_next()).stem == "other"
     assert (await rig.scheduler.dispatch_next()).stem == "old"  # Old P2 position survived.
@@ -381,7 +383,7 @@ def import_closure(sources):
             elif isinstance(node, ast.ImportFrom):
                 base = node.module or ""
                 if node.level:
-                    package = module.split(".")[:-node.level]
+                    package = module.split(".")[: -node.level]
                     base = ".".join([*package, *([base] if base else [])])
                 if base == "chupa" or base.startswith("chupa."):
                     pending.append(base)
@@ -397,8 +399,7 @@ def test_scheduler_and_watcher_are_dormant(tmp_path):
     from tests.test_daemon_composition import CoreRig, assert_core_wiring, without_core_import
 
     root = Path(__file__).resolve().parents[1]
-    sources = {".".join(p.relative_to(root).with_suffix("").parts): p.read_text()
-               for p in (root / "chupa").rglob("*.py")}
+    sources = {".".join(p.relative_to(root).with_suffix("").parts): p.read_text() for p in (root / "chupa").rglob("*.py")}
     sources["chupa"] = sources.pop("chupa.__init__")
     assert_reachable(sources)
     removed = without_core_import(sources)
@@ -416,12 +417,16 @@ def test_scheduler_and_watcher_are_dormant(tmp_path):
 @pytest.mark.asyncio
 async def test_superseded_dependencies_require_all_successor_leaves(tmp_path):
     from tests.test_daemon_composition import CoreRig
+
     calls = []
+
     async def prepare(local):
         async def dispatch(ticket):
             calls.append(ticket.stem)
             return "merged"
+
         return dispatch
+
     rig = CoreRig(tmp_path, prepare=prepare)
     await rig.add("original")
     child = await rig.add("dependent", depends="- original")

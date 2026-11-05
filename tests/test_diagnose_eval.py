@@ -12,7 +12,7 @@ from chupa.artifacts import DIAGNOSIS_VERDICTS, Harvest
 from chupa.config import load_config
 from chupa.driver import Driver
 from chupa.journal import Journal
-from chupa.llm import FakeLLM, HANG, LLMResult
+from chupa.llm import HANG, FakeLLM, LLMResult
 from chupa.specs import load_spec
 from chupa.stages import DiagnosisMaterial, diagnose_stage
 from eval import diagnose
@@ -40,8 +40,7 @@ def cases():
 
 
 def answer(verdict, usd=0.0):
-    return LLMResult(text=json.dumps({"verdict": verdict, "lessons": ["Follow the evidence."]}),
-                     input_tokens=1, output_tokens=1, provider="fake", model="fake", usd=usd)
+    return LLMResult(text=json.dumps({"verdict": verdict, "lessons": ["Follow the evidence."]}), input_tokens=1, output_tokens=1, provider="fake", model="fake", usd=usd)
 
 
 def setup(tmp_path, script, *, clock=None, sleep=None):
@@ -60,8 +59,7 @@ def setup(tmp_path, script, *, clock=None, sleep=None):
 
 def execute(setup_result, corpus=None):
     config, driver, journal, _, path, clock = setup_result
-    return asyncio.run(diagnose.run_eval(config=config, driver=driver, journal=journal,
-                                         cases=corpus or cases(), clock=clock, report_path=path))
+    return asyncio.run(diagnose.run_eval(config=config, driver=driver, journal=journal, cases=corpus or cases(), clock=clock, report_path=path))
 
 
 def disk(path):
@@ -103,8 +101,7 @@ def test_reachability_uses_production_render_and_writes_valid_report(tmp_path):
     assert diagnose.verify(state[4], corpus) == []
     spec = load_spec((ROOT / "specs" / "diagnose.md").read_text())
     for case, req in zip(corpus, state[3].requests, strict=True):
-        material = DiagnosisMaterial(ticket=case.ticket, terminal=case.harvest.terminal,
-                                     stage=case.harvest.stage, harvest=case.harvest, run_record=case.run_record)
+        material = DiagnosisMaterial(ticket=case.ticket, terminal=case.harvest.terminal, stage=case.harvest.stage, harvest=case.harvest, run_record=case.run_record)
         assert req.surface == "diagnose"
         assert req.rendered == diagnose_stage(spec, material).render(material, [])
 
@@ -126,8 +123,7 @@ def deadline_report(tmp_path):
         now[0] += timedelta(seconds=2000)
         return answer(corpus[0].expected, 0.25)
 
-    state = setup(tmp_path, [first, HANG],
-                  clock=lambda: now[0], sleep=sleep)
+    state = setup(tmp_path, [first, HANG], clock=lambda: now[0], sleep=sleep)
     holder["llm"] = state[3]
     execute(state, corpus)
     return state, corpus
@@ -169,12 +165,15 @@ def test_resume_only_deadline_skips_and_refuses_changed_corpus(tmp_path):
         execute(resumed, corpus)
 
 
-@pytest.mark.parametrize("field,change,fragment", [
-    ("complete", False, "complete"),
-    ("cases", "missing", "cases"),
-    ("usd_spent", 6.0, "usd_spent"),
-    ("agreement", "wrong", "agreement"),
-])
+@pytest.mark.parametrize(
+    "field,change,fragment",
+    [
+        ("complete", False, "complete"),
+        ("cases", "missing", "cases"),
+        ("usd_spent", 6.0, "usd_spent"),
+        ("agreement", "wrong", "agreement"),
+    ],
+)
 def test_verify_names_each_broken_check(tmp_path, field, change, fragment):
     corpus = cases()
     state = setup(tmp_path, [answer(c.expected) for c in corpus])

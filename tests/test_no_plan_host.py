@@ -44,6 +44,7 @@ def test_rework_without_plan(ctx):
         result, requests = await invoke(ctx, ticket, text, [order("update", [("original", revised)]), requisition()])
         assert result.outcome == "ok"
         assert [r.surface for r in requests] == ["rework", "requisition_review"]
+
     asyncio.run(scenario())
 
 
@@ -69,4 +70,5 @@ def test_seed_review_without_plan(ctx):
         ctx.fs.write(ctx.worktree(ticket.stem) / "tickets/new-seed/ticket.md", candidate.encode())
         reviews, _ = await _review_seeds(ctx, ticket, attempt=0, own=set(), prior={})
         assert len(reviews) == 1 and reviews[0].mechanical == "ticket lint failed"
+
     asyncio.run(scenario())

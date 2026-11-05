@@ -5,7 +5,8 @@ import gc
 
 import pytest
 
-from chupa import __main__ as cli, triage
+from chupa import __main__ as cli
+from chupa import triage
 from chupa.artifacts import Cost, StageResult
 from chupa.daemon import DaemonTasks
 from chupa.journal import EventType
@@ -13,7 +14,8 @@ from chupa.mergequeue import ConflictHandoff, MergeQueue
 from chupa.runner import Checkout
 from tests.test_cli import ENV, Clock, Stages, root, ticket, write
 from tests.test_daemon_composition import CoreRig, assert_core_wiring
-from tests.test_mergequeue import ctx as admission_context, ready
+from tests.test_mergequeue import ctx as admission_context
+from tests.test_mergequeue import ready
 from tests.test_scheduler import turn
 
 
@@ -41,11 +43,11 @@ class Consumers:
                 self.cleaned.append(index)
                 if index in self.cleanup_errors:
                     raise self.cleanup_errors[index]
+
         return consume
 
     def owner_for(self, first=None):
-        self.owner = DaemonTasks(watcher=first or self.callback(0),
-                                 merge_queue=self.callback(1), box_consumer=self.callback(2))
+        self.owner = DaemonTasks(watcher=first or self.callback(0), merge_queue=self.callback(1), box_consumer=self.callback(2))
         return self.owner
 
     async def all_entered(self):
@@ -182,8 +184,7 @@ async def test_watcher_debounce_tasks_do_not_outlive_owner(tmp_path):
     async def wait():
         await asyncio.Event().wait()
 
-    owner = DaemonTasks(watcher=lambda: rig.core.watcher.run(changes()),
-                        merge_queue=wait, box_consumer=wait)
+    owner = DaemonTasks(watcher=lambda: rig.core.watcher.run(changes()), merge_queue=wait, box_consumer=wait)
     run = asyncio.create_task(owner.run())
     await sleeping.wait()
     tasks = owner.tasks
@@ -265,9 +266,11 @@ async def test_merge_results_remain_consumer_owned(admission_context, monkeypatc
     queue.offer(work, attempt=0)
     expected = None
     if outcome != "ok":
-        expected = (ConflictHandoff(stem=work.stem, reviewed_sha="reviewed", conflicted_paths=[], findings=[])
-                    if outcome == "handoff" else
-                    StageResult(outcome="gate_failed", artifact=None, findings=[], cost=Cost()))
+        expected = (
+            ConflictHandoff(stem=work.stem, reviewed_sha="reviewed", conflicted_paths=[], findings=[])
+            if outcome == "handoff"
+            else StageResult(outcome="gate_failed", artifact=None, findings=[], cost=Cost())
+        )
 
         async def admit(original, attempt):
             assert original is work and attempt == 0 and queue.active == work.stem
@@ -286,8 +289,7 @@ async def test_merge_results_remain_consumer_owned(admission_context, monkeypatc
         return results
 
     async def box_consumer():
-        checkout = Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git,
-                            ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
+        checkout = Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git, ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
         box_results.append(await triage.triage_pass(checkout, ctx.driver.llm))
         box_done.set()
         return box_results[0]
@@ -330,15 +332,16 @@ def test_background_consumers_are_dormant(root, monkeypatch, verb):
     def deliberately_run(checkout):
         async def dispatch(_):
             await dormant.run()
+
         return dispatch
 
     def deliberately_triage(checkout):
         async def dispatch(_):
             await triage.triage_pass(checkout, None)
+
         return dispatch
 
-    for pipeline, message in [(deliberately_run, "background run wired"),
-                              (deliberately_triage, "box consumption wired")]:
+    for pipeline, message in [(deliberately_run, "background run wired"), (deliberately_triage, "box consumption wired")]:
         with pytest.raises(AssertionError, match=message):
             cli.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=pipeline)
 
@@ -365,12 +368,12 @@ def test_background_consumers_are_dormant(root, monkeypatch, verb):
     assert cli.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=stages) == 0
     assert stages.calls == ["work"] and stages.lock_held == [True]
     assert not any(e.body.get("signal") == "triage_pass" for e in stages.checkout.journal.read())
-    assert any(e.type == EventType.STATE_TRANSITION and e.body.get("to") == "merged"
-               for e in stages.checkout.journal.read())
+    assert any(e.type == EventType.STATE_TRANSITION and e.body.get("to") == "merged" for e in stages.checkout.journal.read())
 
 
 @pytest.mark.asyncio
 async def test_background_consumers_are_active_in_serve(root, monkeypatch):
     from tests.test_serve import activated_graph
+
     rig = await activated_graph(root, monkeypatch)
     assert len(rig.owner.workers) == 4 and rig.owner.tasks.tasks == ()

@@ -5,13 +5,14 @@ from functools import partial
 
 import pytest
 
-from chupa import __main__ as main, daemon
+from chupa import __main__ as main
+from chupa import daemon
 from chupa.control import ControlProjection
 from chupa.llm import FakeLLM
 from tests.test_cli import ENV, Clock, Stages, root, ticket, write
 from tests.test_daemon_composition import CoreRig, LiveDrain, assert_core_wiring
 from tests.test_driver import build
-from tests.test_kill_executor_abort import Writer, Timer, invoke, cancelled, turn
+from tests.test_kill_executor_abort import Timer, Writer, cancelled, invoke, turn
 from tests.test_kill_signal_journal import Rig, decision
 
 
@@ -26,9 +27,7 @@ def accepted(state):
 
 
 def boundary(driver, projection, workers):
-    return daemon.WorkerStop(lifecycle_id=projection.lifecycle_id,
-                            abort=partial(daemon.executor_abort, driver.abort_current),
-                            workers=workers)
+    return daemon.WorkerStop(lifecycle_id=projection.lifecycle_id, abort=partial(daemon.executor_abort, driver.abort_current), workers=workers)
 
 
 class Worker:
@@ -84,8 +83,7 @@ async def test_executor_unwinds_before_worker_cancel(tmp_path):
             dispatch_cleaning.set()
             await dispatch_release.wait()
 
-    owner = daemon.DaemonTasks(watcher=dispatch, merge_queue=peers[0].run,
-                               box_consumer=peers[1].run)
+    owner = daemon.DaemonTasks(watcher=dispatch, merge_queue=peers[0].run, box_consumer=peers[1].run)
     run = asyncio.create_task(owner.run())
     stop = None
     tasks = ()
@@ -147,15 +145,16 @@ async def test_worker_stop_requires_matching_kill(tmp_path, case):
     driver, _ = build(tmp_path / "executor", FakeLLM([]))
     aborts = []
     original = driver.abort_current
+
     async def abort():
         aborts.append(True)
         await daemon.executor_abort(original)
+
     worker = Worker()
     task = asyncio.create_task(worker.run())
     await worker.started.wait()
     before = rig.journal.read()
-    stopper = daemon.WorkerStop(lifecycle_id="replacement" if case == "other" else rig.life,
-                                abort=abort, workers=[task])
+    stopper = daemon.WorkerStop(lifecycle_id="replacement" if case == "other" else rig.life, abort=abort, workers=[task])
     try:
         await stopper.stop(projection)
         assert aborts == [] and not task.done() and task.cancelling() == 0
@@ -174,13 +173,13 @@ async def test_worker_stop_observes_all_workers(tmp_path, mode):
     baseline = asyncio.all_tasks()
     workers = [Worker(), Worker(failure=RuntimeError("cleanup failed"))]
     live = [asyncio.create_task(worker.run()) for worker in workers] if mode == "mixed" else []
+
     async def completed(failure=False):
         if failure:
             raise ValueError("already failed")
         return "already finished"
-    finished = [] if mode == "empty" else [asyncio.create_task(completed()),
-                                asyncio.create_task(completed(True)),
-                                asyncio.create_task(asyncio.Event().wait())]
+
+    finished = [] if mode == "empty" else [asyncio.create_task(completed()), asyncio.create_task(completed(True)), asyncio.create_task(asyncio.Event().wait())]
     if finished:
         finished[-1].cancel()
         await turn()
@@ -189,11 +188,13 @@ async def test_worker_stop_observes_all_workers(tmp_path, mode):
     tasks = (*live, *finished)
     abort_entered, abort_release = asyncio.Event(), asyncio.Event()
     aborts = []
+
     async def abort():
         aborts.append(True)
         abort_entered.set()
         await abort_release.wait()
         await daemon.executor_abort(driver.abort_current)
+
     stopping = daemon.WorkerStop(lifecycle_id=projection.lifecycle_id, abort=abort, workers=tasks)
     stop = None
     try:
@@ -287,8 +288,10 @@ async def test_executor_abort_failure_does_not_cancel_workers(tmp_path):
     await worker.started.wait()
     error = RuntimeError("executor abort refused")
     original = writer.abort_current
+
     def refused():
         raise error
+
     writer.abort_current = refused
     stopping = boundary(driver, projection, [task, invocation])
     before = driver.journal.read()
@@ -315,23 +318,30 @@ async def test_executor_abort_failure_does_not_cancel_workers(tmp_path):
 def test_kill_worker_stop_is_dormant(root, tmp_path, monkeypatch, verb):
     async def probe(*args, **kwargs):
         raise AssertionError("worker stop wired")
+
     monkeypatch.setattr(daemon.WorkerStop, "stop", probe)
     dormant = daemon.WorkerStop(lifecycle_id="life", abort=probe, workers=())
     projection = ControlProjection("life", kill_requested=True)
     write(root, "work", ticket())
     argv = ["run", "work"] if verb == "run" else ["drain"]
+
     def deliberate(checkout):
         async def dispatch(_):
             await dormant.stop(projection)
+
         return dispatch
+
     with pytest.raises(AssertionError, match="worker stop wired"):
         main.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=deliberate)
 
     def construction_probe(*args, **kwargs):
         raise AssertionError("worker stop bound")
+
     monkeypatch.setattr(daemon.WorkerStop, "__init__", construction_probe)
+
     def bind(checkout):
         daemon.WorkerStop(lifecycle_id="life", abort=probe, workers=())
+
     with pytest.raises(AssertionError, match="worker stop bound"):
         main.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=bind)
     stages = Stages()
@@ -342,10 +352,13 @@ def test_kill_worker_stop_is_dormant(root, tmp_path, monkeypatch, verb):
         before = asyncio.all_tasks()
         directory = tmp_path / "graph"
         directory.mkdir()
+
         async def prepare(local):
             async def dispatch(_):
                 return "merged"
+
             return dispatch
+
         rig = CoreRig(directory, prepare=prepare)
         assert_core_wiring(rig)
         assert asyncio.all_tasks() == before and rig.journal.read() == []
@@ -354,9 +367,11 @@ def test_kill_worker_stop_is_dormant(root, tmp_path, monkeypatch, verb):
         # Calibrate both probes through the real production graph's dispatch binding.
         original = rig.core.admission._dispatch
         for binding, message in ((deliberate, "worker stop wired"), (bind, "worker stop bound")):
+
             async def wired(work, binding=binding):
                 callback = binding(rig.checkout)
                 return await callback(work)
+
             rig.core.admission._dispatch = wired
             with pytest.raises(AssertionError, match=message):
                 await rig.core.admission.dispatch(rig.core.scheduler.pending["composed"])
@@ -367,12 +382,14 @@ def test_kill_worker_stop_is_dormant(root, tmp_path, monkeypatch, verb):
             live = LiveDrain(root, patch, pause=False)
             assert (await live.run()).merged == []
             assert asyncio.all_tasks() == before
+
     asyncio.run(production())
 
 
 @pytest.mark.asyncio
 async def test_worker_stop_is_active_in_serve(root, monkeypatch):
     from tests.test_serve import activated_graph
+
     rig = await activated_graph(root, monkeypatch)
     assert rig.owner.stopper.workers == rig.owner.workers
     assert rig.owner.stopper._stop.done()

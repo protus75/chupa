@@ -12,13 +12,12 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from chupa.artifacts import (HOST_LOOP_MEMBERS, HOST_LOOP_EXPECTED, HostLoopReport, ExitReceipt,
-                            ReviewBaselineReport)
+from chupa.artifacts import HOST_LOOP_EXPECTED, HOST_LOOP_MEMBERS, ExitReceipt, HostLoopReport, ReviewBaselineReport
 from chupa.audit import Violation
 from chupa.seams import LocalFileSystem, SubprocessExec
-from chupa.specs import ENTRY_PARTS, PlanContractError, required_units, resolve_plan_contract, entry_unit_gap
+from chupa.specs import ENTRY_PARTS, PlanContractError, entry_unit_gap, required_units, resolve_plan_contract
 from eval import host_loop
-from tests.test_eval_harness import report_fixture, corpus_results
+from tests.test_eval_harness import corpus_results, report_fixture
 from tests.test_stages import repo
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,20 +25,20 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def loop_report():
     members = [HOST_LOOP_MEMBERS[0]] * 3 + list(HOST_LOOP_MEMBERS[1:])
-    return HostLoopReport(schema_version=1, entries=[dict(member=m, producing_run=f"member-{i}/0",
-        expected=HOST_LOOP_EXPECTED[m], observed=HOST_LOOP_EXPECTED[m], engine_plane_edits=[],
-        auditor=[], green=True) for i, m in enumerate(members)])
+    return HostLoopReport(
+        schema_version=1,
+        entries=[
+            dict(member=m, producing_run=f"member-{i}/0", expected=HOST_LOOP_EXPECTED[m], observed=HOST_LOOP_EXPECTED[m], engine_plane_edits=[], auditor=[], green=True) for i, m in enumerate(members)
+        ],
+    )
 
 
 def test_exit_receipt_entry_unit(repo):
     plan = (ROOT / "CHUPA_PLAN.md").read_text()
     own = "19.P6.exit-receipt-machinery"
-    ids = (own, "19.P6.fixture-host-scaffold", "19.P6.supervised-merge-hold",
-           "19.P6.go-grade-machinery", "19.P6.go-grade-run")
+    ids = (own, "19.P6.fixture-host-scaffold", "19.P6.supervised-merge-hold", "19.P6.go-grade-machinery", "19.P6.go-grade-run")
     assert required_units(plan, "exit-receipt-machinery", ("19.I", *ids)) == ids
-    assert required_units(plan, "phase6-exit", ("19.I", "19.L", "19.P6", own,
-                          "19.P6.go-grade-run", "19.P6.go-grade-machinery")) == (
-                          own, "19.P6.go-grade-run", "19.P6.go-grade-machinery")
+    assert required_units(plan, "phase6-exit", ("19.I", "19.L", "19.P6", own, "19.P6.go-grade-run", "19.P6.go-grade-machinery")) == (own, "19.P6.go-grade-run", "19.P6.go-grade-machinery")
     assert ENTRY_PARTS == ("Owner", "Records", "Observable", "Tests")
     resolved = resolve_plan_contract(plan, (*ids, *ids))
     for uid in ids:
@@ -66,25 +65,39 @@ def test_exit_receipt_entry_unit(repo):
     # Enter the production admission check with the terminal successor's citations.
     # Every missing part refuses before grammar, model review, or seed lift can write.
     from types import SimpleNamespace
+
     from chupa import stages
     from tests.test_merge import context
+
     ctx = context(repo, [])
     data = ("## Plan contract\n" + "".join(f"- {u}\n" for u in ids)).encode()
+
     async def admission():
         for uid in ids:
             unit = resolve_plan_contract(plan, (uid,))
             for part in ENTRY_PARTS:
                 broken = re.sub(rf"^- \*\*{part}:\*\*.*$", "", unit, flags=re.M)
-                verdict = await stages._review_one(ctx, SimpleNamespace(stem="continuation"),
-                    "phase6-exit", "tickets/phase6-exit/ticket.md", data, "blob", None,
-                    plan.replace(unit, broken), ctx.worktree("continuation"), None,
-                    siblings=set(), attempt=0, call_seq=1)
+                verdict = await stages._review_one(
+                    ctx,
+                    SimpleNamespace(stem="continuation"),
+                    "phase6-exit",
+                    "tickets/phase6-exit/ticket.md",
+                    data,
+                    "blob",
+                    None,
+                    plan.replace(unit, broken),
+                    ctx.worktree("continuation"),
+                    None,
+                    siblings=set(),
+                    attempt=0,
+                    call_seq=1,
+                )
                 assert verdict.verdict == "snag" and verdict.mechanical == "entry unit gap"
-                assert any(f.kind == "spec_gap" and f.unit == uid and part in f.message
-                           for f in verdict.findings)
+                assert any(f.kind == "spec_gap" and f.unit == uid and part in f.message for f in verdict.findings)
         assert ctx.driver.llm.requests == []
         assert not (repo / "tickets/phase6-exit").exists()
         assert ctx.driver.journal.read() == []
+
     asyncio.run(admission())
 
 
@@ -92,16 +105,18 @@ def test_host_loop_closed_schema():
     valid = loop_report().model_dump()
     HostLoopReport.model_validate(valid)
     invalid = [{**valid, "unknown": True}, {**valid, "schema_version": True}]
-    for mutate in (lambda rows: rows.reverse(),
-                   lambda rows: rows[1].update(producing_run=rows[0]["producing_run"]),
-                   lambda rows: rows[0].update(observed="unproven"),
-                   lambda rows: rows[0].update(green=False),
-                   lambda rows: rows[0].update(auditor=["red"]),
-                   lambda rows: rows[0].update(engine_plane_edits=["config.yaml"]),
-                   lambda rows: rows[0].update(extra=True),
-                   lambda rows: rows[0].update(expected="invented", observed="invented"),
-                   lambda rows: rows[0].update(producing_run="invalid/negative"),
-                   lambda rows: rows.pop(0)):
+    for mutate in (
+        lambda rows: rows.reverse(),
+        lambda rows: rows[1].update(producing_run=rows[0]["producing_run"]),
+        lambda rows: rows[0].update(observed="unproven"),
+        lambda rows: rows[0].update(green=False),
+        lambda rows: rows[0].update(auditor=["red"]),
+        lambda rows: rows[0].update(engine_plane_edits=["config.yaml"]),
+        lambda rows: rows[0].update(extra=True),
+        lambda rows: rows[0].update(expected="invented", observed="invented"),
+        lambda rows: rows[0].update(producing_run="invalid/negative"),
+        lambda rows: rows.pop(0),
+    ):
         data = copy.deepcopy(valid)
         mutate(data["entries"])
         invalid.append(data)
@@ -121,9 +136,11 @@ class RecordingExec(SubprocessExec):
         self.calls.append((list(argv), kwargs))
         if argv[1:3] == ["-m", "chupa"]:
             callback = kwargs["on_spawn"]
+
             def spawn(pid):
                 self.spawned.append(pid)
                 callback(pid)
+
             kwargs["on_spawn"] = spawn
         return await super().run(argv, **kwargs)
 
@@ -137,10 +154,10 @@ def production(tmp_path_factory):
     root = tmp_path_factory.mktemp("host-loop")
     exec_ = RecordingExec()
     members = []
+
     async def exercise():
         for name in host_loop.scaffold.SCENARIOS:
-            loop = host_loop.FixtureLoop(root / name, name, exec_=exec_, fs=LocalFileSystem(),
-                clock=lambda: datetime.now(UTC), sleep=asyncio.sleep, notifications=None, timeout=30)
+            loop = host_loop.FixtureLoop(root / name, name, exec_=exec_, fs=LocalFileSystem(), clock=lambda: datetime.now(UTC), sleep=asyncio.sleep, notifications=None, timeout=30)
             try:
                 await loop.initialize()
                 await loop.exercise()
@@ -148,6 +165,7 @@ def production(tmp_path_factory):
                 await loop.stop()
             members.append(loop)
         return HostLoopReport(schema_version=1, entries=[await m.observe() for m in members])
+
     report = asyncio.run(exercise())
     return report, members, exec_
 
@@ -162,13 +180,12 @@ def test_host_loop_drives_supervised_fixture_serve(production, tmp_path):
     for member in members:
         assert member.task.done()
         assert json.loads((member.root / ".chupa/state/control/active.json").read_bytes()) is None
-        costs = [e.body["cost"]["usd"] for e in member.journal.read()
-                 if e.type == "effect_completion" and (e.key or "").startswith("llm/")]
+        costs = [e.body["cost"]["usd"] for e in member.journal.read() if e.type == "effect_completion" and (e.key or "").startswith("llm/")]
         assert costs and all(c == 0 for c in costs)
         assert len(member.requests) >= 2
+
     async def failure(timeout):
-        loop = host_loop.FixtureLoop(tmp_path / str(timeout), "merge-add", exec_=exec_, fs=LocalFileSystem(),
-            clock=lambda: datetime.now(UTC), sleep=asyncio.sleep, notifications=None, timeout=timeout)
+        loop = host_loop.FixtureLoop(tmp_path / str(timeout), "merge-add", exec_=exec_, fs=LocalFileSystem(), clock=lambda: datetime.now(UTC), sleep=asyncio.sleep, notifications=None, timeout=timeout)
         try:
             await loop.initialize()
             await loop.start()
@@ -180,6 +197,7 @@ def test_host_loop_drives_supervised_fixture_serve(production, tmp_path):
             await loop.stop()
             assert loop.task.done()
             assert loop.pgid in exec_.killed
+
     for timeout, error in ((0.3, host_loop.LoopRefused), (30, RuntimeError)):
         with pytest.raises(error):
             asyncio.run(failure(timeout))
@@ -194,8 +212,7 @@ def test_host_loop_report_regression_and_escape(production):
     assert (bug.root / "tickets/regression/evidence/report.json").is_file()
     assert "kind: bug" in (bug.root / "tickets/regression/ticket.md").read_text()
     assert report.entries[-1].producing_run == "escape/0"
-    attribution, = [e.body["result"] for e in escape.journal.read()
-        if e.type == "effect_completion" and (e.key or "").startswith("escape-attribution/")]
+    (attribution,) = [e.body["result"] for e in escape.journal.read() if e.type == "effect_completion" and (e.key or "").startswith("escape-attribution/")]
     assert attribution["bug_ticket"] == "regression"
     assert attribution["matches"][0]["ticket"] == "escape"
     assert "review" in attribution["matches"][0]["surfaces"]
@@ -246,8 +263,7 @@ def test_exit_receipt_closed_schema_and_baseline_identity(tmp_path):
         for value in ("a" * 63, "A" * 64, "z" * 64):
             with pytest.raises(ValidationError):
                 ExitReceipt.model_validate({**raw, field: value})
-    for invalid in ({**raw, "unknown": 1}, {**raw, "schema_version": True},
-                    {**raw, "reads": {**raw["reads"], "unknown": "pass"}}):
+    for invalid in ({**raw, "unknown": 1}, {**raw, "schema_version": True}, {**raw, "reads": {**raw["reads"], "unknown": "pass"}}):
         with pytest.raises(ValidationError):
             ExitReceipt.model_validate(invalid)
     altered = report.model_dump()
@@ -263,6 +279,7 @@ def test_exit_receipt_closed_schema_and_baseline_identity(tmp_path):
 
 def test_exit_receipt_regenerates_from_committed_bytes(tmp_path, monkeypatch):
     from chupa.git import Git
+
     (tmp_path / "baseline").mkdir()
     report, _, _ = report_fixture(tmp_path / "baseline")
     root = tmp_path / "committed"
@@ -271,15 +288,15 @@ def test_exit_receipt_regenerates_from_committed_bytes(tmp_path, monkeypatch):
     baseline_bytes = host_loop.canonical(report)
     (root / "host-loop-report.json").write_bytes(loop_bytes)
     (root / "review-baseline-report.json").write_bytes(baseline_bytes)
-    env = {"PATH": "/usr/bin:/bin", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    env = {"PATH": "/usr/bin:/bin", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
     git = Git(SubprocessExec(), env=env, timeout=10)
+
     async def committed():
         await git.init(root, branch="main")
         await git.add(root, ["host-loop-report.json", "review-baseline-report.json"])
         await git.commit(root, "disposable input reports")
-        return [await host_loop.committed_bytes(git, root, root / name)
-                for name in ("host-loop-report.json", "review-baseline-report.json")]
+        return [await host_loop.committed_bytes(git, root, root / name) for name in ("host-loop-report.json", "review-baseline-report.json")]
+
     inputs = asyncio.run(committed())
     assert inputs == [loop_bytes, baseline_bytes]
     assert not (root / ".chupa").exists()
@@ -298,14 +315,15 @@ def test_exit_receipt_regenerates_from_committed_bytes(tmp_path, monkeypatch):
         asyncio.run(host_loop.committed_bytes(git, root, root / "host-loop-report.json"))
     # Invalid committed baseline bytes refuse before any live fixture process or output write.
     (root / "review-baseline-report.json").write_bytes(b"{}")
+
     async def commit_invalid():
         await git.add(root, ["review-baseline-report.json"])
         await git.commit(root, "invalid disposable baseline")
+
     asyncio.run(commit_invalid())
     monkeypatch.chdir(root)
     monkeypatch.setattr(host_loop, "produce", lambda *a, **kw: pytest.fail("invalid baseline spawned work"))
-    assert asyncio.run(host_loop._main(["--out", "unwritten-loop.json", "--receipt", "unwritten-receipt.json",
-                                       "--baseline", "review-baseline-report.json"])) == 1
+    assert asyncio.run(host_loop._main(["--out", "unwritten-loop.json", "--receipt", "unwritten-receipt.json", "--baseline", "review-baseline-report.json"])) == 1
     assert not (root / "unwritten-loop.json").exists()
     assert not (root / "unwritten-receipt.json").exists()
 

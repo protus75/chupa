@@ -2,23 +2,22 @@
 
 import asyncio
 import os
-import yaml
 from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from chupa.hostfiles import render
-from chupa.providers import routed_conduct_paths
-from chupa.__main__ import build_control
+import yaml
 
+from chupa.__main__ import build_control
 from chupa.config import Config, load_config
 from chupa.drain import Report, drain
 from chupa.git import Git
+from chupa.hostfiles import render
 from chupa.journal import Journal
-from chupa.llm import FakeLLM, LLM, ScriptItem
+from chupa.llm import LLM, FakeLLM, ScriptItem
+from chupa.providers import ProviderLLM, routed_conduct_paths
 from chupa.runner import Checkout, Dispatch, bind, pipeline
-from chupa.providers import ProviderLLM
 from chupa.seams import LocalFileSystem, SubprocessExec
 
 _CONFIG = """schema_version: 1
@@ -61,12 +60,15 @@ class Bench:
         self.clock = AdvancingClock()
         self._sleep_wake = asyncio.Event()
         self.process = SubprocessExec()
-        self.env: Mapping[str, str] = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"),
-                                        "HOME": str(self.repo), "GIT_CONFIG_NOSYSTEM": "1",
-                                        "GIT_AUTHOR_NAME": "shakeout",
-                                        "GIT_AUTHOR_EMAIL": "shakeout@example.invalid",
-                                        "GIT_COMMITTER_NAME": "shakeout",
-                                        "GIT_COMMITTER_EMAIL": "shakeout@example.invalid"}
+        self.env: Mapping[str, str] = {
+            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+            "HOME": str(self.repo),
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_AUTHOR_NAME": "shakeout",
+            "GIT_AUTHOR_EMAIL": "shakeout@example.invalid",
+            "GIT_COMMITTER_NAME": "shakeout",
+            "GIT_COMMITTER_EMAIL": "shakeout@example.invalid",
+        }
         self.git = Git(self.process, env=self.env, timeout=30.0)
         self.journal = Journal(self.config.state_dir, self.clock)
         self.llm = llm if llm is not None else FakeLLM([])
@@ -95,9 +97,7 @@ class Bench:
         self._initialized = True
 
     def _compose(self, config: Config) -> Checkout:
-        checkout = Checkout(repo=self.repo, config=config, env=self.env, exec_=self.process,
-                        git=self.git, journal=self.journal, fs=self.fs, clock=self.clock,
-                        sleep=self._sleep)
+        checkout = Checkout(repo=self.repo, config=config, env=self.env, exec_=self.process, git=self.git, journal=self.journal, fs=self.fs, clock=self.clock, sleep=self._sleep)
         return replace(checkout, control=build_control(checkout))
 
     async def _sleep(self, seconds: float) -> None:
@@ -110,11 +110,9 @@ class Bench:
         self._sleep_wake.set()
 
     def configure(self, parsed_config: Config) -> None:
-        self.config = parsed_config.model_copy(update={"state_dir": self.config.state_dir,
-                                                        "worktree_root": self.config.worktree_root})
+        self.config = parsed_config.model_copy(update={"state_dir": self.config.state_dir, "worktree_root": self.config.worktree_root})
         self._checkout = self._compose(self.config)
-        self.fs.write(self.repo / 'config.yaml', yaml.safe_dump(
-            self.config.model_dump(mode='json', exclude_none=True)).encode())
+        self.fs.write(self.repo / "config.yaml", yaml.safe_dump(self.config.model_dump(mode="json", exclude_none=True)).encode())
 
     def add_ticket(self, stem: str, text: str) -> None:
         self.fs.write(self.repo / "tickets" / stem / "ticket.md", text.encode())

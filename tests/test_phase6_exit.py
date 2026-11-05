@@ -1,29 +1,39 @@
 """Terminal reads of harness-produced evidence, without fixture or live-state access."""
 
 import asyncio
-from functools import lru_cache
 import hashlib
 import json
+from functools import lru_cache
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
-from chupa.artifacts import (HOST_LOOP_REPORT, EXIT_RECEIPT, REVIEW_BASELINE_REPORT,
-                            HostLoopReport, ExitReceipt, ReviewBaselineReport)
+from chupa.artifacts import EXIT_RECEIPT, HOST_LOOP_REPORT, REVIEW_BASELINE_REPORT, ExitReceipt, HostLoopReport, ReviewBaselineReport
 from chupa.git import Git, GitError
 from chupa.seams import SubprocessExec
-from chupa.tickets import _bullets, _sections, split_frontmatter, Frontmatter, ticket_path
+from chupa.tickets import Frontmatter, _bullets, _sections, split_frontmatter, ticket_path
 from eval import host_loop
 
 ROOT = Path(__file__).resolve().parents[1]
 # Freeze dependency history at dispatch; the exit's reports are read from their paths.
 EXIT_HEAD = "70167b1574baa14899ec14c8e320c49ab14cdf25"
 PHASE_START = "e0726bb8b9f0e3e7d19b17ffacfa7662821e750e"
-PAYLOADS = ("core-renderer", "core-drift-classifier", "core-drift-activation",
-            "migrate-config", "host-contract-doc", "fixture-host-scaffold", "bug-gate-grammar",
-            "report-inbox-triage", "escape-column", "supervised-merge-hold",
-            "go-grade-machinery", "go-grade-run", "exit-receipt-machinery")
+PAYLOADS = (
+    "core-renderer",
+    "core-drift-classifier",
+    "core-drift-activation",
+    "migrate-config",
+    "host-contract-doc",
+    "fixture-host-scaffold",
+    "bug-gate-grammar",
+    "report-inbox-triage",
+    "escape-column",
+    "supervised-merge-hold",
+    "go-grade-machinery",
+    "go-grade-run",
+    "exit-receipt-machinery",
+)
 LOOP_PATH = ROOT / "tickets/phase6-exit" / HOST_LOOP_REPORT
 RECEIPT_PATH = ROOT / "tickets/phase6-exit" / EXIT_RECEIPT
 BASELINE_PATH = ROOT / "tickets/go-grade-run" / REVIEW_BASELINE_REPORT
@@ -39,6 +49,7 @@ def _dependencies(stem):
     text = asyncio.run(_git()._run(ROOT, "show", f"{EXIT_HEAD}:{path}"))
     raw, body = split_frontmatter(text)
     import yaml
+
     frontmatter = Frontmatter.model_validate(yaml.safe_load(raw))
     assert frontmatter.state != "rejected", f"premise_failed: {stem} needs a merged successor"
     sections, errors = _sections(body, path)
@@ -58,8 +69,7 @@ def baseline_bytes():
 
 def _reports():
     # Missing OUTBOX evidence fails here, including before Check has lifted it to main.
-    return (HostLoopReport.model_validate_json(LOOP_PATH.read_bytes()),
-            ExitReceipt.model_validate_json(RECEIPT_PATH.read_bytes()))
+    return (HostLoopReport.model_validate_json(LOOP_PATH.read_bytes()), ExitReceipt.model_validate_json(RECEIPT_PATH.read_bytes()))
 
 
 def _green(entry, member, producing_run, observation):
@@ -73,9 +83,11 @@ def _green(entry, member, producing_run, observation):
 def _validate_receipt(loop_bytes, baseline_bytes, receipt_bytes):
     receipt = ExitReceipt.model_validate_json(receipt_bytes)
     regenerated = host_loop.regenerate(loop_bytes, baseline_bytes)
-    assert receipt.reads.model_dump() == regenerated.reads.model_dump() == {
-        "machine_ticket_merge": "pass", "report_to_regression_bug_loop": "pass",
-        "escape_attribution": "pass", "go_grade_report": "pass"}
+    assert (
+        receipt.reads.model_dump()
+        == regenerated.reads.model_dump()
+        == {"machine_ticket_merge": "pass", "report_to_regression_bug_loop": "pass", "escape_attribution": "pass", "go_grade_report": "pass"}
+    )
     assert receipt.host_loop_digest == hashlib.sha256(loop_bytes).hexdigest()
     assert receipt.baseline_report_digest == hashlib.sha256(baseline_bytes).hexdigest()
     baseline = ReviewBaselineReport.model_validate_json(baseline_bytes)
@@ -107,8 +119,7 @@ def test_phase6_exit_machine_ticket_merge():
     merges = report.entries[:-2]
     assert len(merges) >= 3
     assert len({entry.producing_run for entry in merges}) == len(merges)
-    assert [entry.producing_run for entry in merges[:3]] == [
-        "merge-add/0", "merge-bonus/0", "merge-floor/0"]
+    assert [entry.producing_run for entry in merges[:3]] == ["merge-add/0", "merge-bonus/0", "merge-floor/0"]
     for entry in merges:
         _green(entry, "machine_ticket_merge", entry.producing_run, "machine_ticket_merged")
     assert receipt.reads.machine_ticket_merge == "pass"
@@ -116,15 +127,13 @@ def test_phase6_exit_machine_ticket_merge():
 
 def test_phase6_exit_report_to_regression_bug_loop():
     report, receipt = _reports()
-    _green(report.entries[-2], "report_to_regression_bug_loop", "regression/0",
-           "report_replayed_regression_bug_merged")
+    _green(report.entries[-2], "report_to_regression_bug_loop", "regression/0", "report_replayed_regression_bug_merged")
     assert receipt.reads.report_to_regression_bug_loop == "pass"
 
 
 def test_phase6_exit_escape_attribution():
     report, receipt = _reports()
-    _green(report.entries[-1], "escape_attribution", "escape/0",
-           "escape_attributed_by_squash_trailers")
+    _green(report.entries[-1], "escape_attribution", "escape/0", "escape_attributed_by_squash_trailers")
     assert receipt.reads.escape_attribution == "pass"
 
 
@@ -161,8 +170,7 @@ def test_phase6_exit_receipt_regeneration(baseline_bytes, tmp_path, monkeypatch)
     assert host_loop.canonical(host_loop.regenerate(loop_bytes, baseline_bytes)) == receipt_bytes
 
 
-@pytest.mark.parametrize("member", ["machine_ticket_merge", "report_to_regression_bug_loop",
-                                   "escape_attribution"])
+@pytest.mark.parametrize("member", ["machine_ticket_merge", "report_to_regression_bug_loop", "escape_attribution"])
 def test_phase6_exit_red_evidence_refuses(member, baseline_bytes):
     red = json.loads(LOOP_PATH.read_bytes())
     entry = next(entry for entry in red["entries"] if entry["member"] == member)

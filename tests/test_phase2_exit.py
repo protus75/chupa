@@ -9,11 +9,24 @@ ROOT = Path(__file__).resolve().parent.parent
 PRODUCER = ROOT / "tickets" / "shakeout-providers"
 
 MEMBERS = {
-    "scope_escape", "unfixable_lint_branch_only", "review_reject", "review_reject_reentry",
-    "empty_committed_diff", "base_diff_attribution", "invalid_output_exhausted",
-    "stuck_budget_kill", "premise_false", "timeout_dead_ends", "identical_terminals",
-    "bad_schema", "premise_park_release", "red_then_green", "engine_death_mid_call",
-    "conflicted_rebase", "auth_expiry", "planted_secret",
+    "scope_escape",
+    "unfixable_lint_branch_only",
+    "review_reject",
+    "review_reject_reentry",
+    "empty_committed_diff",
+    "base_diff_attribution",
+    "invalid_output_exhausted",
+    "stuck_budget_kill",
+    "premise_false",
+    "timeout_dead_ends",
+    "identical_terminals",
+    "bad_schema",
+    "premise_park_release",
+    "red_then_green",
+    "engine_death_mid_call",
+    "conflicted_rebase",
+    "auth_expiry",
+    "planted_secret",
 }
 
 
@@ -27,5 +40,4 @@ def test_producer_check_ran_the_required_battery_verification():
     invoice = Invoice.model_validate_json((PRODUCER / "checks.json").read_text())
     assert invoice.stem == "shakeout-providers"
     assert invoice.passed
-    assert any(report.code == "verification" and report.verdict == "pass"
-               for report in invoice.reports)
+    assert any(report.code == "verification" and report.verdict == "pass" for report in invoice.reports)

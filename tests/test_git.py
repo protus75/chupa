@@ -80,8 +80,7 @@ def test_every_call_is_dir_pinned_and_passes_env_and_timeout():
             lambda g: g.worktree_add(REPO, Path("/wt/t-1"), "t-1", "main"),
             ["worktree", "add", "-b", "t-1", "/wt/t-1", "main"],
         ),
-        (lambda g: g.worktree_add_detached(REPO, Path("/wt/base"), "main"),
-         ["worktree", "add", "--detach", "/wt/base", "main"]),
+        (lambda g: g.worktree_add_detached(REPO, Path("/wt/base"), "main"), ["worktree", "add", "--detach", "/wt/base", "main"]),
         (lambda g: g.worktree_prune(REPO), ["worktree", "prune"]),
         (lambda g: g.rebase(REPO, "main"), ["rebase", "main"]),
         (
@@ -117,9 +116,13 @@ def test_git_common_dir_resolves_main_and_linked_worktree(tmp_path):
     linked = tmp_path / "linked"
     main.mkdir()
     env = {
-        **os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
-        "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-        "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+        **os.environ,
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@t",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@t",
     }
     g = Git(SubprocessExec(), env=env, timeout=30.0)
 
@@ -138,9 +141,7 @@ def test_git_common_dir_resolves_main_and_linked_worktree(tmp_path):
 def test_ls_files_lists_committed_files_not_untracked_files(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
-    env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
-           "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
     g = Git(SubprocessExec(), env=env, timeout=30.0)
 
     async def scenario():
@@ -250,11 +251,7 @@ def test_subprocess_exec_feeds_stdin_path_and_captures(tmp_path):
 def _spawns_grandchild(marker: Path) -> list[str]:
     # Establish a live grandchild before exercising the group's unwind.
     grandchild = "import sys, signal; open(sys.argv[1], 'w').close(); signal.pause()"
-    script = (
-        "import subprocess, sys, signal\n"
-        "subprocess.Popen([sys.executable, '-c', sys.argv[1], sys.argv[2]])\n"
-        "signal.pause()\n"
-    )
+    script = "import subprocess, sys, signal\nsubprocess.Popen([sys.executable, '-c', sys.argv[1], sys.argv[2]])\nsignal.pause()\n"
     return [sys.executable, "-c", script, grandchild, str(marker)]
 
 
@@ -264,9 +261,9 @@ def test_subprocess_exec_timeout_kills_the_process_group(tmp_path, monkeypatch):
 
     async def scenario():
         pgids, started = [], []
-        task = asyncio.create_task(SubprocessExec().run(
-            _spawns_grandchild(marker), cwd=tmp_path, env=dict(os.environ), timeout=0.3,
-            on_spawn=lambda pgid: (pgids.append(pgid), started.append(time.monotonic()))))
+        task = asyncio.create_task(
+            SubprocessExec().run(_spawns_grandchild(marker), cwd=tmp_path, env=dict(os.environ), timeout=0.3, on_spawn=lambda pgid: (pgids.append(pgid), started.append(time.monotonic())))
+        )
         await wait_until(task.done)
         with pytest.raises(TimeoutError):
             await task
@@ -282,9 +279,7 @@ def test_subprocess_exec_outer_cancellation_kills_the_process_group(tmp_path):
 
     async def scenario():
         pgids = []
-        task = asyncio.create_task(SubprocessExec().run(
-            _spawns_grandchild(marker), cwd=tmp_path, env=dict(os.environ), timeout=None,
-            on_spawn=pgids.append))
+        task = asyncio.create_task(SubprocessExec().run(_spawns_grandchild(marker), cwd=tmp_path, env=dict(os.environ), timeout=None, on_spawn=pgids.append))
         await wait_until(marker.exists)
         task.cancel()
         await wait_until(task.done)
@@ -304,7 +299,10 @@ def test_subprocess_exec_publishes_pgid_for_a_synchronous_group_kill(tmp_path):
         pgids = []
         task = asyncio.ensure_future(
             seam.run(
-                _spawns_grandchild(marker), cwd=tmp_path, env=dict(os.environ), timeout=30,
+                _spawns_grandchild(marker),
+                cwd=tmp_path,
+                env=dict(os.environ),
+                timeout=30,
                 on_spawn=pgids.append,
             )
         )
@@ -400,9 +398,7 @@ def test_ticket_lifecycle_against_real_repo(tmp_path):
 def test_rebase_stop_at_conflict_preserves_conflicted_state(tmp_path):
     repo, wt = tmp_path / "repo", tmp_path / "wt"
     repo.mkdir()
-    env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
-           "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
     g = Git(SubprocessExec(), env=env, timeout=30)
 
     async def scenario():
@@ -427,6 +423,7 @@ def test_rebase_stop_at_conflict_preserves_conflicted_state(tmp_path):
         with pytest.raises(RebaseRefused):
             await g.rebase_stop_at_conflict(wt, "main")
         assert await g.conflicted_paths(wt) == []
+
     run(scenario())
 
 
@@ -453,10 +450,9 @@ def test_rebase_continue_is_noninteractive():
 
 
 def test_escape_first_parent_trailers(tmp_path):
-    env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
-           "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
     g = Git(SubprocessExec(), env=env, timeout=30)
+
     async def scenario():
         await g.init(tmp_path, branch="main")
         (tmp_path / "base").write_text("base")
@@ -469,15 +465,13 @@ def test_escape_first_parent_trailers(tmp_path):
             (tmp_path / path).write_text(name)
             await g.add(tmp_path, [path])
             await g.commit(tmp_path, f"code\n\nchupa-ticket: {name}\nchupa-reviewed-sha: {'a' * 40}")
-            expected.append({"ticket": name, "commit": await g.rev_parse(tmp_path, "HEAD"),
-                             "reviewed_sha": "a" * 40, "paths": [path]})
+            expected.append({"ticket": name, "commit": await g.rev_parse(tmp_path, "HEAD"), "reviewed_sha": "a" * 40, "paths": [path]})
         assert await g.first_parent_squashes(tmp_path, expected[0]["commit"]) == expected[:1]
-        assert await g.first_parent_squashes(tmp_path, f'{base}..{expected[1]["commit"]}') == expected
-        assert await g.first_parent_squashes(tmp_path, f'{expected[0]["commit"]}..{expected[1]["commit"]}') == expected[1:]
+        assert await g.first_parent_squashes(tmp_path, f"{base}..{expected[1]['commit']}") == expected
+        assert await g.first_parent_squashes(tmp_path, f"{expected[0]['commit']}..{expected[1]['commit']}") == expected[1:]
+
     run(scenario())
-    g, seam = git((0, "a" * 40 + "\n", ""),
-                 (0, f"code\n\nchupa-ticket: one\nchupa-reviewed-sha: {'b' * 40}\n", ""),
-                 (0, "a b\0", ""))
+    g, seam = git((0, "a" * 40 + "\n", ""), (0, f"code\n\nchupa-ticket: one\nchupa-reviewed-sha: {'b' * 40}\n", ""), (0, "a b\0", ""))
     assert run(g.first_parent_squashes(REPO, "a" * 40))[0]["paths"] == ["a b"]
     assert all(call[1:] == (REPO, ENV, 30.0) for call in seam.calls)
     assert seam.argvs[0][3:] == ["rev-list", "--first-parent", "--reverse", "HEAD"]
@@ -494,11 +488,19 @@ def test_escape_refusals(tmp_path):
         assert run(g.first_parent_squashes(REPO, value)) == []
         assert len(seam.calls) == 1
     valid = f"chupa-ticket: one\nchupa-reviewed-sha: {b}"
-    for trailers in ("", "chupa-ticket: one", valid + "\nchupa-ticket: one",
-                     valid + f"\nchupa-reviewed-sha: {b}", valid.replace(b, "short"),
-                     valid.replace("one", "../bad"), valid.replace("one", ""),
-                     valid.replace(b, b.upper()), valid + " ",
-                     valid + "\nChupa-Ticket: one", valid.replace("chupa-ticket", "Chupa-Ticket")):
+    for trailers in (
+        "",
+        "chupa-ticket: one",
+        valid + "\nchupa-ticket: one",
+        valid + f"\nchupa-reviewed-sha: {b}",
+        valid.replace(b, "short"),
+        valid.replace("one", "../bad"),
+        valid.replace("one", ""),
+        valid.replace(b, b.upper()),
+        valid + " ",
+        valid + "\nChupa-Ticket: one",
+        valid.replace("chupa-ticket", "Chupa-Ticket"),
+    ):
         g, seam = git((0, a + "\n", ""), (0, "process\n\n" + trailers, ""))
         assert run(g.first_parent_squashes(REPO, a)) == []
         assert len(seam.calls) == 2
@@ -506,9 +508,9 @@ def test_escape_refusals(tmp_path):
     with pytest.raises(GitError):
         run(g.first_parent_squashes(REPO, a))
     # A known commit on a side branch is not a first-parent endpoint.
-    env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
     g = Git(SubprocessExec(), env=env, timeout=30)
+
     async def scenario():
         await g.init(tmp_path, branch="main")
         (tmp_path / "base").write_text("base")
@@ -523,4 +525,5 @@ def test_escape_refusals(tmp_path):
         assert await g.first_parent_squashes(tmp_path, side) == []
         assert await g.first_parent_squashes(tmp_path, f"{base}..{side}") == []
         await g.worktree_remove(tmp_path, tmp_path / "side")
+
     run(scenario())

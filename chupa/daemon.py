@@ -6,54 +6,48 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-from chupa.config import Config, ConfigSnapshot, snapshot_config
-from chupa.box import Box, RereportJournal
-from chupa.checkpoint import Checkpoint
-from chupa.effects import Effects
-from chupa.enginelog import EngineLog
-from chupa.git import Git
-from chupa.timers import Timers
-from chupa.flake import Flake
-from chupa.control import CONTROL_DECISION, ControlInbox, ControlProjection, write_active
-from chupa.journal import EventType, Journal
 from chupa import runner
 from chupa.artifacts import Cost, Finding, StageResult
+from chupa.box import Box, RereportJournal
 from chupa.caps import spent
+from chupa.checkpoint import Checkpoint
+from chupa.config import Config, ConfigSnapshot, snapshot_config
+from chupa.control import CONTROL_DECISION, ControlInbox, ControlProjection, write_active
+from chupa.effects import Effects
+from chupa.enginelog import EngineLog
+from chupa.flake import Flake
+from chupa.git import Git
 from chupa.heartbeat import Heartbeat
-from chupa.mergequeue import ConflictHandoff, MergeQueue
+from chupa.journal import EventType, Journal
 from chupa.merge import AdmissionBoundary, Held
+from chupa.mergequeue import ConflictHandoff, MergeQueue
+from chupa.restart import Restart
 from chupa.rework import ReworkOrder, record_supersedes, rework
 from chupa.runner import Dispatch
-from chupa.restart import Restart
 from chupa.scheduler import Scheduler
 from chupa.seams import Clock, FileSystem, Sleep
 from chupa.stages import StageContext, StageName, Stages, StagesRun
 from chupa.storm import StormBreaker
-from chupa.tickets import read_plan
-from chupa.tickets import Ticket, parse_ticket, ticket_path
+from chupa.tickets import Ticket, parse_ticket, read_plan, ticket_path
+from chupa.timers import Timers
 from chupa.watcher import Watcher
 
 KILL_APPLIED = "kill_applied"
 
 
-def checkpoint_push(repo: Path, *, journal: Journal, effects: Effects, timers: Timers,
-                    git: Git, box: Box, clock: Clock, log: EngineLog) -> Checkpoint:
+def checkpoint_push(repo: Path, *, journal: Journal, effects: Effects, timers: Timers, git: Git, box: Box, clock: Clock, log: EngineLog) -> Checkpoint:
     """Idle boundary using the lock holder's existing writers; invoke poll explicitly."""
-    return Checkpoint(repo, journal=journal, effects=effects, timers=timers,
-                      git=git, box=box, clock=clock, log=log)
+    return Checkpoint(repo, journal=journal, effects=effects, timers=timers, git=git, box=box, clock=clock, log=log)
 
 
 def storm_producer(*, root: Path, fs: FileSystem, journal: Journal, clock: Clock) -> Box:
     """Compose without effects; recovery and arrivals run under the caller's writer lock."""
-    storm = StormBreaker(journal=journal, clock=clock,
-                         publish=lambda body, count: box.publish_storm_report(body, count))
-    box = Box(root, fs, arrival=storm.record, recover=storm.recover,
-              rereport=RereportJournal(journal))
+    storm = StormBreaker(journal=journal, clock=clock, publish=lambda body, count: box.publish_storm_report(body, count))
+    box = Box(root, fs, arrival=storm.record, recover=storm.recover, rereport=RereportJournal(journal))
     return box
 
 
-def flake_detection(*, journal: Journal, box: Box, config: Config,
-                    escalate: Callable[[str], None]) -> Flake:
+def flake_detection(*, journal: Journal, box: Box, config: Config, escalate: Callable[[str], None]) -> Flake:
     """Dormant detection/release boundary supplied with the lock holder's existing writers."""
     return Flake(journal=journal, box=box, cap=config.caps.quarantine, escalate=escalate)
 
@@ -61,9 +55,7 @@ def flake_detection(*, journal: Journal, box: Box, config: Config,
 class HeartbeatCycle:
     """Explicit main-loop boundary; task owners supply responsiveness (19.P3.heartbeat)."""
 
-    def __init__(self, *, heartbeat: Heartbeat, workers: Callable[[], bool],
-                 merge_queue: Callable[[], bool], box_consumer: Callable[[], bool],
-                 watcher: Callable[[], bool]) -> None:
+    def __init__(self, *, heartbeat: Heartbeat, workers: Callable[[], bool], merge_queue: Callable[[], bool], box_consumer: Callable[[], bool], watcher: Callable[[], bool]) -> None:
         self.heartbeat = heartbeat
         self._health = (workers, merge_queue, box_consumer, watcher)
 
@@ -76,12 +68,11 @@ class HeartbeatCycle:
         return True
 
 
-def control_inbox(*, journal: Journal, lifecycle_id: str, holds: Callable[[], Set[str]],
-                  apply: Callable[[ControlProjection], None],
-                  files: Callable[[], Iterable[Path]], read: Callable[[Path], bytes]) -> ControlInbox:
+def control_inbox(
+    *, journal: Journal, lifecycle_id: str, holds: Callable[[], Set[str]], apply: Callable[[ControlProjection], None], files: Callable[[], Iterable[Path]], read: Callable[[Path], bytes]
+) -> ControlInbox:
     """Explicitly supplied by the lock holder, never a second writer."""
-    return ControlInbox(journal=journal, lifecycle_id=lifecycle_id, holds=holds,
-                        apply=apply, files=files, read=read)
+    return ControlInbox(journal=journal, lifecycle_id=lifecycle_id, holds=holds, apply=apply, files=files, read=read)
 
 
 async def executor_abort(abort_current: Callable[[], Awaitable[None]]) -> None:
@@ -117,8 +108,7 @@ class WorkerStop:
     inbox's recovered projection and the predecessor executor-abort operation.
     """
 
-    def __init__(self, *, lifecycle_id: str, abort: Callable[[], Awaitable[None]],
-                 workers: Iterable[asyncio.Task]) -> None:
+    def __init__(self, *, lifecycle_id: str, abort: Callable[[], Awaitable[None]], workers: Iterable[asyncio.Task]) -> None:
         self.lifecycle_id, self.abort = lifecycle_id, abort
         self.workers = tuple(workers)
         self._stop: asyncio.Task | None = None
@@ -127,9 +117,11 @@ class WorkerStop:
         if projection.lifecycle_id != self.lifecycle_id or not projection.kill_requested:
             return
         if self._stop is None:
+
             async def stop() -> None:
                 await self.abort()
                 await _protected_cleanup(_stop_workers(self.workers))
+
             self._stop = asyncio.create_task(stop())
         await _protected_cleanup(self._stop)
 
@@ -141,28 +133,25 @@ class WorkerFailureObserver:
     never stops workers or replaces their owner's exception propagation.
     """
 
-    def __init__(self, *, lifecycle_id: str, workers: Iterable[asyncio.Task],
-                 projection: Callable[[], ControlProjection],
-                 failure: Callable[[BaseException], None]) -> None:
+    def __init__(self, *, lifecycle_id: str, workers: Iterable[asyncio.Task], projection: Callable[[], ControlProjection], failure: Callable[[BaseException], None]) -> None:
         self.lifecycle_id, self.workers = lifecycle_id, tuple(workers)
         self.projection, self.failure = projection, failure
         self._observation: asyncio.Task | None = None
 
     async def observe(self) -> None:
         if self._observation is None:
+
             async def worker(task: asyncio.Task) -> None:
                 try:
                     await task
                 except BaseException as exc:
                     projection = self.projection()
-                    if (projection.lifecycle_id != self.lifecycle_id
-                            or not projection.kill_requested):
+                    if projection.lifecycle_id != self.lifecycle_id or not projection.kill_requested:
                         self.failure(exc)
 
             async def observe() -> None:
                 # A notification failure must not abandon another worker's cleanup.
-                results = await asyncio.gather(*(worker(task) for task in self.workers),
-                                               return_exceptions=True)
+                results = await asyncio.gather(*(worker(task) for task in self.workers), return_exceptions=True)
                 for result in results:
                     if isinstance(result, BaseException):
                         raise result
@@ -174,10 +163,19 @@ class WorkerFailureObserver:
 class PauseConsumer:
     """One serial inbox and desired pause state, owned by the engine's writer lock."""
 
-    def __init__(self, *, journal: Journal, lifecycle_id: str, state_dir: Path,
-                 fs: FileSystem, sleep: Sleep, files: Callable[[], Iterable[Path]],
-                 read: Callable[[Path], bytes], recover: Callable[[], None] | None = None,
-                 storm_holds: Callable[[], dict[str, str]] | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        journal: Journal,
+        lifecycle_id: str,
+        state_dir: Path,
+        fs: FileSystem,
+        sleep: Sleep,
+        files: Callable[[], Iterable[Path]],
+        read: Callable[[Path], bytes],
+        recover: Callable[[], None] | None = None,
+        storm_holds: Callable[[], dict[str, str]] | None = None,
+    ) -> None:
         self._recover = recover
         self._storm_holds = storm_holds
         self.state_dir, self.fs, self.sleep = state_dir, fs, sleep
@@ -187,9 +185,7 @@ class PauseConsumer:
         self._stop: asyncio.Task | None = None
         self.admission: str | None = None
         self.author_driver = None
-        self.inbox = control_inbox(journal=journal, lifecycle_id=lifecycle_id,
-                                   holds=self._holds,
-                                   apply=self._apply, files=files, read=read)
+        self.inbox = control_inbox(journal=journal, lifecycle_id=lifecycle_id, holds=self._holds, apply=self._apply, files=files, read=read)
 
     def storm_holds(self) -> dict[str, str]:
         return {} if self._storm_holds is None else self._storm_holds()
@@ -208,8 +204,7 @@ class PauseConsumer:
             return projection.pause_id
         if self.admission is not None and self.admission not in projection.released_hold_ids:
             return self.admission
-        return next((identity for identity in self.storm_holds()
-                     if identity not in projection.released_hold_ids), None)
+        return next((identity for identity in self.storm_holds() if identity not in projection.released_hold_ids), None)
 
     def _refresh(self, projection: ControlProjection) -> None:
         hold = self._selected_hold(projection)
@@ -247,12 +242,11 @@ class PauseConsumer:
             self._refresh(self.projection)
         self.inbox.consume()
 
-    async def apply_kill(self, abort: Callable[[], Awaitable[None]],
-                         dispatch: asyncio.Task | None = None) -> None:
-        if (self.projection.lifecycle_id != self.inbox.lifecycle_id
-                or not self.projection.kill_requested):
+    async def apply_kill(self, abort: Callable[[], Awaitable[None]], dispatch: asyncio.Task | None = None) -> None:
+        if self.projection.lifecycle_id != self.inbox.lifecycle_id or not self.projection.kill_requested:
             return
         if self._stop is None:
+
             async def stop() -> None:
                 await executor_abort(abort)
                 if dispatch is not None:
@@ -261,6 +255,7 @@ class PauseConsumer:
                     [result] = await asyncio.gather(dispatch, return_exceptions=True)
                     if isinstance(result, BaseException) and not isinstance(result, asyncio.CancelledError):
                         raise result
+
             self._stop = asyncio.create_task(stop())
         await _protected_cleanup(self._stop)
         # Requests arriving during unwind share that same stop. The journal fold,
@@ -271,20 +266,16 @@ class PauseConsumer:
             body = event.body
             if event.type != EventType.SIGNAL:
                 continue
-            if (body.get("kind") == KILL_APPLIED
-                    and body.get("lifecycle_id") == self.inbox.lifecycle_id):
+            if body.get("kind") == KILL_APPLIED and body.get("lifecycle_id") == self.inbox.lifecycle_id:
                 applied.add(body["request_id"])
             if body.get("kind") != CONTROL_DECISION or body["request_id"] in decided:
                 continue
             decided.add(body["request_id"])
-            if (body["decision"] == "accepted" and body["verb"] == "kill"
-                    and body["lifecycle_id"] == self.inbox.lifecycle_id):
+            if body["decision"] == "accepted" and body["verb"] == "kill" and body["lifecycle_id"] == self.inbox.lifecycle_id:
                 accepted.append(body["request_id"])
         for request_id in accepted:
             if request_id not in applied:
-                self.inbox.journal.append(EventType.SIGNAL, {
-                    "kind": KILL_APPLIED, "request_id": request_id,
-                    "lifecycle_id": self.inbox.lifecycle_id}, ticket=None, key=None)
+                self.inbox.journal.append(EventType.SIGNAL, {"kind": KILL_APPLIED, "request_id": request_id, "lifecycle_id": self.inbox.lifecycle_id}, ticket=None, key=None)
 
 
 @dataclass(frozen=True)
@@ -330,9 +321,7 @@ class StartupBoundary:
 class DaemonTasks:
     """Explicit lifetime owner for background consumers (19.P3.background-consumers)."""
 
-    def __init__(self, *, watcher: Callable[[], Awaitable[object]],
-                 merge_queue: Callable[[], Awaitable[object]],
-                 box_consumer: Callable[[], Awaitable[object]]) -> None:
+    def __init__(self, *, watcher: Callable[[], Awaitable[object]], merge_queue: Callable[[], Awaitable[object]], box_consumer: Callable[[], Awaitable[object]]) -> None:
         self._consumers = (watcher, merge_queue, box_consumer)
         self.tasks: tuple[asyncio.Task, ...] = ()
         self.started: Callable[[tuple[asyncio.Task, ...]], None] = lambda _: None
@@ -356,22 +345,17 @@ class DaemonTasks:
                 self.tasks = ()
 
 
-async def apply_rework(ctx: StageContext, ticket: Ticket, findings: list[Finding], *, attempt: int,
-                       handoff: ConflictHandoff | None = None) -> StageResult:
+async def apply_rework(ctx: StageContext, ticket: Ticket, findings: list[Finding], *, attempt: int, handoff: ConflictHandoff | None = None) -> StageResult:
     """Publish exact reviewed proposals on the ticket plane under the caller's writer lock."""
     road = "shrink or split the committed ticket text and rerun drain"
     workspace = ctx.worktree(ticket.stem)
     if not workspace.exists():
-        return StageResult(outcome="gate_failed", artifact=None, cost=Cost(), findings=[Finding(
-            code="ticket_schema", message="Rework has no usable workspace", paved_road=road)])
+        return StageResult(outcome="gate_failed", artifact=None, cost=Cost(), findings=[Finding(code="ticket_schema", message="Rework has no usable workspace", paved_road=road)])
     try:
         text = await ctx.git._run(ctx.repo, "show", f"HEAD:{ticket_path(ticket.stem)}")
-        original = parse_ticket(ticket.stem, text, ctx.repo,
-                                plan=read_plan(ctx.repo))
+        original = parse_ticket(ticket.stem, text, ctx.repo, plan=read_plan(ctx.repo))
         tier, effort = runner.capability(original, ctx.driver.journal.read())
-        result = await rework(ctx, original, text, findings, attempt=attempt, workspace=workspace,
-                              tier=tier, effort=effort, stuck_budget=original.stuck_minutes * 60,
-                              handoff=handoff)
+        result = await rework(ctx, original, text, findings, attempt=attempt, workspace=workspace, tier=tier, effort=effort, stuck_budget=original.stuck_minutes * 60, handoff=handoff)
         if result.outcome != "ok":
             return result
         order = result.artifact
@@ -393,8 +377,7 @@ async def apply_rework(ctx: StageContext, ticket: Ticket, findings: list[Finding
                 await ctx.git.restore(ctx.repo, restorable, source=before)
             # A commit can land before its caller fails or exact-byte verification refuses.
             # Compensate only its proposal paths, preserving unrelated staged work.
-            committed = (await ctx.git._run(
-                ctx.repo, "diff", "--name-only", before, "HEAD", "--", *paths)).splitlines()
+            committed = (await ctx.git._run(ctx.repo, "diff", "--name-only", before, "HEAD", "--", *paths)).splitlines()
             if committed:
                 await ctx.git.commit(ctx.repo, f"chupa({ticket.stem}): undo refused rework", only=committed)
 
@@ -409,8 +392,7 @@ async def apply_rework(ctx: StageContext, ticket: Ticket, findings: list[Finding
             return {"commit": await ctx.git.rev_parse(ctx.repo, "HEAD")}
 
         try:
-            await ctx.driver.effects.run(publish, key=f"ticket-plane/{ticket.stem}/{attempt}/rework",
-                                         ticket=ticket.stem)
+            await ctx.driver.effects.run(publish, key=f"ticket-plane/{ticket.stem}/{attempt}/rework", ticket=ticket.stem)
             if errors := await record_supersedes(ctx, order):
                 await restore_publication()
                 return StageResult(outcome="gate_failed", artifact=None, cost=result.cost, findings=errors)
@@ -424,9 +406,14 @@ async def apply_rework(ctx: StageContext, ticket: Ticket, findings: list[Finding
             raise
         return result
     except Exception as exc:
-        return StageResult(outcome="gate_failed", artifact=None, cost=Cost(), findings=[Finding(
-            code="ticket_schema", message=ctx.driver.redactor.scrub(f"Rework publication refused: {exc}"),
-            paved_road="commit every exact reviewed proposal before supersession; " + road)])
+        return StageResult(
+            outcome="gate_failed",
+            artifact=None,
+            cost=Cost(),
+            findings=[
+                Finding(code="ticket_schema", message=ctx.driver.redactor.scrub(f"Rework publication refused: {exc}"), paved_road="commit every exact reviewed proposal before supersession; " + road)
+            ],
+        )
 
 
 @dataclass(frozen=True)
@@ -457,12 +444,10 @@ class TicketWriter:
             if self.admission.mode == "inline":
                 result = await runner.drive(self.ctx, ticket)
             else:
-                result = await runner.drive(self.ctx, ticket, admission=self.admission,
-                                            consume_handoff=self.consume_handoff)
+                result = await runner.drive(self.ctx, ticket, admission=self.admission, consume_handoff=self.consume_handoff)
             if boundary.next_stage is not None:
                 assert boundary.run is not None and boundary.ticket is not None
-                self.continuations[ticket.stem] = Continuation(
-                    boundary.ticket, self.ctx, boundary.run, boundary.next_stage)
+                self.continuations[ticket.stem] = Continuation(boundary.ticket, self.ctx, boundary.run, boundary.next_stage)
             else:
                 self.continuations.pop(ticket.stem, None)
             return result
@@ -481,10 +466,8 @@ class TicketWriter:
             await self.consume_handoff(ticket, result, attempt=attempt)
         elif result.outcome != "ok":
             self.queue.held.pop(ticket.stem, None)
-            await runner.harvest_failure(self.ctx, ticket, attempt=attempt, stage="merge",
-                outcome=result.outcome, findings=result.findings, results=(result,))
-            await runner.failure_terminal(self.ctx, ticket, attempt=attempt, stage="merge",
-                outcome=result.outcome, findings=result.findings)
+            await runner.harvest_failure(self.ctx, ticket, attempt=attempt, stage="merge", outcome=result.outcome, findings=result.findings, results=(result,))
+            await runner.failure_terminal(self.ctx, ticket, attempt=attempt, stage="merge", outcome=result.outcome, findings=result.findings)
 
     async def abort_current(self) -> None:
         await self.ctx.abort_current()
@@ -494,40 +477,57 @@ class TicketWriter:
             raise ValueError("finish and await MergeQueue.process before consuming its handoff")
         ctx = self.ctx
         outcome = "gate_failed"
-        await runner.harvest_failure(ctx, ticket, attempt=attempt, stage="merge", outcome=outcome,
-                                     findings=handoff.findings, results=())
+        await runner.harvest_failure(ctx, ticket, attempt=attempt, stage="merge", outcome=outcome, findings=handoff.findings, results=())
         reply = None
-        if not spent(ctx.config.caps, ctx.driver.journal.read(), ticket.stem,
-                     pending={"to": outcome}):
+        if not spent(ctx.config.caps, ctx.driver.journal.read(), ticket.stem, pending={"to": outcome}):
             reply = await apply_rework(ctx, ticket, handoff.findings, attempt=attempt, handoff=handoff)
-        return await runner.failure_terminal(ctx, ticket, outcome=outcome, stage="merge",
-                                             findings=handoff.findings, attempt=attempt, reworked=reply,
-                                             rework_requested=True)
+        return await runner.failure_terminal(ctx, ticket, outcome=outcome, stage="merge", findings=handoff.findings, attempt=attempt, reworked=reply, rework_requested=True)
 
 
 def daemon_core(
-    repo: Path, *, journal: Journal, load: Callable[[], Config],
-    bind: Callable[[ConfigSnapshot], Dispatch], plan: str | None,
-    read: Callable[[str], str | None], clock: Clock, sleep: Sleep, debounce: float,
-    quarantined: Callable[[], Set[str]], drought_parked: Callable[[], Set[str]],
-    completed_unmerged: Callable[[], int], max_unmerged: int,
+    repo: Path,
+    *,
+    journal: Journal,
+    load: Callable[[], Config],
+    bind: Callable[[ConfigSnapshot], Dispatch],
+    plan: str | None,
+    read: Callable[[str], str | None],
+    clock: Clock,
+    sleep: Sleep,
+    debounce: float,
+    quarantined: Callable[[], Set[str]],
+    drought_parked: Callable[[], Set[str]],
+    completed_unmerged: Callable[[], int],
+    max_unmerged: int,
     before_dispatch: Callable[[], Awaitable[None]] | None = None,
     control: PauseConsumer | None = None,
 ) -> DaemonCore:
     admission = DaemonAdmission(snapshot_dispatch(load, bind), before_dispatch=before_dispatch)
     scheduler = Scheduler(
-        journal, admission.dispatch, quarantined=quarantined, drought_parked=drought_parked,
-        completed_unmerged=completed_unmerged, max_unmerged=max_unmerged,
+        journal,
+        admission.dispatch,
+        quarantined=quarantined,
+        drought_parked=drought_parked,
+        completed_unmerged=completed_unmerged,
+        max_unmerged=max_unmerged,
     )
     watcher = Watcher(
-        repo, journal=journal, plan=plan, read=read, publish=scheduler.update, remove=scheduler.remove,
-        clock=clock, sleep=sleep, debounce=debounce,
+        repo,
+        journal=journal,
+        plan=plan,
+        read=read,
+        publish=scheduler.update,
+        remove=scheduler.remove,
+        clock=clock,
+        sleep=sleep,
+        debounce=debounce,
     )
     return DaemonCore(admission, scheduler, watcher, control)
 
 
 def snapshot_dispatch(load: Callable[[], Config], bind: Callable[[ConfigSnapshot], Dispatch]) -> Dispatch:
     """Bind a fresh snapshot inside the admission-owned callback's lifetime, never while queued."""
+
     async def dispatch(ticket: Ticket) -> str:
         snapshot = snapshot_config(load())
         callback = bind(snapshot)
@@ -537,8 +537,7 @@ def snapshot_dispatch(load: Callable[[], Config], bind: Callable[[ConfigSnapshot
 
 
 class DaemonAdmission:
-    def __init__(self, dispatch: Dispatch, *,
-                 before_dispatch: Callable[[], Awaitable[None]] | None = None) -> None:
+    def __init__(self, dispatch: Dispatch, *, before_dispatch: Callable[[], Awaitable[None]] | None = None) -> None:
         self._dispatch = dispatch
         self._before_dispatch = before_dispatch
         self.restart: Restart | None = None

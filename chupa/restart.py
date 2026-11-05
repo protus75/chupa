@@ -10,8 +10,7 @@ from chupa.timers import Timers
 class Restart:
     """The caller holds the checkout writer lock and serializes live ownership."""
 
-    def __init__(self, checkout: runner.Checkout, *, timers: Timers,
-                 owned: Callable[[], bool]) -> None:
+    def __init__(self, checkout: runner.Checkout, *, timers: Timers, owned: Callable[[], bool]) -> None:
         self.checkout, self.timers, self.owned = checkout, timers, owned
         self.ready = False
         self._slot = asyncio.Lock()
@@ -21,7 +20,10 @@ class Restart:
     async def _reconcile(self) -> list[str]:
         checkout = self.checkout
         return await reconcile.reconcile(
-            checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root,
+            checkout.journal,
+            checkout.git,
+            checkout.repo,
+            checkout.config.worktree_root,
             lambda stem, attempt: runner.harvest_orphan(checkout, stem, attempt),
         )
 

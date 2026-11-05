@@ -18,9 +18,7 @@ class Effects:
     def __init__(self, journal: Journal) -> None:
         self._journal = journal
         # Startup scan; appended to as effects complete (D3: no index builder).
-        self._completed = {
-            e.key for e in journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key is not None
-        }
+        self._completed = {e.key for e in journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key is not None}
 
     async def run(
         self,
@@ -40,9 +38,7 @@ class Effects:
         try:
             encoded = json.dumps(result)
         except (TypeError, ValueError) as exc:
-            raise TypeError(
-                f"effect {key!r} returned a non-JSON result ({exc}); return plain dicts/lists/str/numbers"
-            ) from exc
+            raise TypeError(f"effect {key!r} returned a non-JSON result ({exc}); return plain dicts/lists/str/numbers") from exc
         # Return the decoded record, not `result`, so executing and replaying yield identical values.
         recorded = json.loads(encoded)
         body = {"result": recorded} if cost is None else {"result": recorded, "cost": cost(recorded)}
@@ -57,9 +53,7 @@ class Effects:
         raise AssertionError(f"completed key {key!r} has no completion event in the journal")
 
 
-def effect(
-    key: str | Callable[..., str], *, cost: Callable[[Any], dict[str, Any]] | None = None
-) -> Callable[[Callable[..., Awaitable[Any]]], Callable[..., Awaitable[Any]]]:
+def effect(key: str | Callable[..., str], *, cost: Callable[[Any], dict[str, Any]] | None = None) -> Callable[[Callable[..., Awaitable[Any]]], Callable[..., Awaitable[Any]]]:
     """`@effect(key=...)` sugar over `Effects.run`.
 
     The decorated function is called as `f(effects, *args, ticket=..., **kwargs)`; `key` is a bare

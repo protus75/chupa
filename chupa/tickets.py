@@ -129,11 +129,9 @@ def ticket_path(stem: str) -> str:
 def stem_findings(stem: str) -> list[Finding]:
     path = f"{TICKETS_DIR}/{stem}/"
     if not STEM.fullmatch(stem):
-        return [_f(f"stem {stem!r} does not match {STEM.pattern}", "rename the ticket dir to lowercase kebab-case,"
-                   " 2-64 characters, starting with a letter or digit", path)]
+        return [_f(f"stem {stem!r} does not match {STEM.pattern}", "rename the ticket dir to lowercase kebab-case, 2-64 characters, starting with a letter or digit", path)]
     if stem in RESERVED_STEMS:
-        return [_f(f"stem {stem!r} is a reserved tickets/ sibling dir", "pick a stem other than"
-                   f" {sorted(RESERVED_STEMS)}", path)]
+        return [_f(f"stem {stem!r} is a reserved tickets/ sibling dir", f"pick a stem other than {sorted(RESERVED_STEMS)}", path)]
     return []
 
 
@@ -146,7 +144,7 @@ def _f(message: str, road: str, path: str | None = None) -> Finding:
 
 def split_frontmatter(text: str) -> tuple[str, str] | None:
     m = _FRONTMATTER.match(text)
-    return (m.group(1), text[m.end():]) if m else None
+    return (m.group(1), text[m.end() :]) if m else None
 
 
 def _load_frontmatter(raw: str, path: str) -> tuple[dict | None, list[Finding]]:
@@ -155,8 +153,7 @@ def _load_frontmatter(raw: str, path: str) -> tuple[dict | None, list[Finding]]:
     except yaml.YAMLError as e:
         return None, [_f(f"frontmatter is not valid YAML: {e}", "fix the YAML between the `---` fences", path)]
     if not isinstance(data, dict):
-        return None, [_f("frontmatter is not a YAML mapping", "write `key: value` lines between the `---` fences",
-                         path)]
+        return None, [_f("frontmatter is not a YAML mapping", "write `key: value` lines between the `---` fences", path)]
     return data, []
 
 
@@ -171,8 +168,7 @@ def _sections(body: str, path: str) -> tuple[dict[str, str], list[Finding]]:
         if not fence and (m := _HEADING.match(line)):
             name = m.group(1)
             if name not in SECTIONS:
-                findings.append(_f(f"unknown body section `## {name}`",
-                                   f"use only the section 13 sections: {', '.join(SECTIONS)}", path))
+                findings.append(_f(f"unknown body section `## {name}`", f"use only the section 13 sections: {', '.join(SECTIONS)}", path))
             elif name in sections:
                 findings.append(_f(f"duplicate body section `## {name}`", "merge the two into one section", path))
             current = sections.setdefault(name, [])
@@ -188,8 +184,7 @@ def _bullets(text: str, name: str, path: str) -> tuple[list[str], list[Finding]]
         if not line.strip():
             continue
         if not line.startswith("- "):
-            findings.append(_f(f"`## {name}` line {line.strip()!r} is not a `- ` bullet",
-                               f"write `## {name}` as one `- ` bullet per entry", path))
+            findings.append(_f(f"`## {name}` line {line.strip()!r} is not a `- ` bullet", f"write `## {name}` as one `- ` bullet per entry", path))
             continue
         items.append(line[2:].strip().strip("`").strip())
     return items, findings
@@ -203,7 +198,7 @@ def _fenced_commands(text: str, name: str, path: str) -> tuple[list[tuple[str, .
     if len(opens) != 2:
         return [], [], [_f(f"`## {name}` needs exactly one fenced command block", road, path)]
     commands, findings = [], []
-    for line in lines[opens[0] + 1:opens[1]]:
+    for line in lines[opens[0] + 1 : opens[1]]:
         if not line.strip():
             continue
         try:
@@ -224,8 +219,7 @@ def _fenced_commands(text: str, name: str, path: str) -> tuple[list[tuple[str, .
 def _repo_path(value: str, name: str, path: str) -> list[Finding]:
     p = Path(value)
     if not value or p.is_absolute() or ".." in p.parts:
-        return [_f(f"`## {name}` entry {value!r} is not a repo-relative path",
-                   "write a path relative to the repo root, without `..`", path)]
+        return [_f(f"`## {name}` entry {value!r} is not a repo-relative path", "write a path relative to the repo root, without `..`", path)]
     return []
 
 
@@ -240,8 +234,7 @@ def _seed_cites(stem: str, plan_ids: list[str], plan: str, path: str) -> list[Fi
         need = {"19.I", f"19.P{phase}.{stem}"} | row_cites
         road = "a seed implementing a registry row cites `19.I`, its own entry unit, and its row's `cite`"
         if f"19.P{phase}" in cited or ("19.L" in cited and "19.L" not in row_cites):
-            out.append(_f("a seed implementing a registry row never cites its phase unit, nor `19.L` unless its"
-                          " row cites it", road, path))
+            out.append(_f("a seed implementing a registry row never cites its phase unit, nor `19.L` unless its row cites it", road, path))
     elif stem in rows:
         need = {"19.L", "19.I", f"19.P{rows[stem][0]}"}
         road = "an exit seed cites `19.L`, `19.I`, its phase unit, and the entry units of the seeds it authors"
@@ -249,11 +242,9 @@ def _seed_cites(stem: str, plan_ids: list[str], plan: str, path: str) -> list[Fi
         road = "a seeding seed cites `19.L` and its phase unit"
         need = {"19.L"}
         if not any(re.fullmatch(r"19\.P[0-8]", p) for p in cited):
-            out.append(_f("a `source: seed` ticket's `## Plan contract` must cite `19.L` and its phase unit",
-                          road, path))
+            out.append(_f("a `source: seed` ticket's `## Plan contract` must cite `19.L` and its phase unit", road, path))
     if missing := sorted(need - cited):
-        out.append(_f(f"a `source: seed` ticket's `## Plan contract` must also cite {', '.join(missing)}",
-                      road, path))
+        out.append(_f(f"a `source: seed` ticket's `## Plan contract` must also cite {', '.join(missing)}", road, path))
     if bad := sorted(cited & SEED_REFUSED_SECTIONS, key=int):
         out.append(_f(f"a seed never cites section(s) {', '.join(bad)}", road, path))
     return out
@@ -281,8 +272,7 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings
     findings = stem_findings(stem)
     split = split_frontmatter(text)
     if split is None:
-        raise TicketInvalid(findings + [_f("ticket.md has no frontmatter",
-                                           "open the file with a `---` fenced YAML frontmatter block", path)])
+        raise TicketInvalid(findings + [_f("ticket.md has no frontmatter", "open the file with a `---` fenced YAML frontmatter block", path)])
     data, errs = _load_frontmatter(split[0], path)
     if data is None:
         raise TicketInvalid(findings + errs)
@@ -292,9 +282,11 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings
     except ValidationError as e:
         allowed = ", ".join(Frontmatter.model_fields)
         findings += [
-            _f(f"frontmatter `{'.'.join(map(str, err['loc']))}`: {err['msg']}",
-               f"frontmatter carries only {allowed}; fix the value to its closed vocabulary (section 13) or"
-               " move non-scheduling detail into the body", path)
+            _f(
+                f"frontmatter `{'.'.join(map(str, err['loc']))}`: {err['msg']}",
+                f"frontmatter carries only {allowed}; fix the value to its closed vocabulary (section 13) or move non-scheduling detail into the body",
+                path,
+            )
             for err in e.errors()
         ]
 
@@ -302,8 +294,7 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings
     findings += errs
     for name in REQUIRED_SECTIONS:
         if not sections.get(name):
-            findings.append(_f(f"missing or empty body section `## {name}`", f"add a non-empty `## {name}` section",
-                               path))
+            findings.append(_f(f"missing or empty body section `## {name}`", f"add a non-empty `## {name}` section", path))
 
     tickets_root = repo / TICKETS_DIR
     depends: list[str] = []
@@ -313,11 +304,9 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings
         if items != ["none"]:
             for dep in items:
                 if dep == stem:
-                    findings.append(_f(f"`## Depends on` names the ticket itself ({dep!r})",
-                                       "drop the self-edge", path))
+                    findings.append(_f(f"`## Depends on` names the ticket itself ({dep!r})", "drop the self-edge", path))
                 elif not STEM.fullmatch(dep) or not ((tickets_root / dep / TICKET_FILE).is_file() or dep in siblings):
-                    findings.append(_f(f"`## Depends on` stem {dep!r} does not resolve to an existing ticket",
-                                       f"name an existing `{TICKETS_DIR}/<stem>/` dir, or `none`", path))
+                    findings.append(_f(f"`## Depends on` stem {dep!r} does not resolve to an existing ticket", f"name an existing `{TICKETS_DIR}/<stem>/` dir, or `none`", path))
                 else:
                     depends.append(dep)
 
@@ -329,16 +318,19 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings
             if errs := _repo_path(item, "Context", path):
                 findings += errs
             elif Path(item) == Path(PLAN_FILE):
-                findings.append(_f(f"`## Context` cites the plan file {PLAN_FILE}; plan prose is never Context",
-                                   "drop it from Context and cite the governing plan ids under `## Plan contract`"
-                                   " (`section N`, `19.L`, `19.P<n>`)", path))
+                findings.append(
+                    _f(
+                        f"`## Context` cites the plan file {PLAN_FILE}; plan prose is never Context",
+                        "drop it from Context and cite the governing plan ids under `## Plan contract` (`section N`, `19.L`, `19.P<n>`)",
+                        path,
+                    )
+                )
             elif Path(item).parent == Path("specs") and item.endswith(".md"):
-                findings.append(_f(f"`## Context` cites the prompt spec {item}; prompt-spec files are never Context",
-                                   "cite the plan section that governs the surface under `## Plan contract`", path))
+                findings.append(_f(f"`## Context` cites the prompt spec {item}; prompt-spec files are never Context", "cite the plan section that governs the surface under `## Plan contract`", path))
             elif not (repo / item).exists():
-                findings.append(_f(f"`## Context` path {item!r} does not exist",
-                                   "Context lists EXISTING read-first files; name a file this ticket creates in"
-                                   " `## Scope fence` and `## Verification` only", path))
+                findings.append(
+                    _f(f"`## Context` path {item!r} does not exist", "Context lists EXISTING read-first files; name a file this ticket creates in `## Scope fence` and `## Verification` only", path)
+                )
             else:
                 context.append(item)
 
@@ -350,8 +342,7 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings
             if "#" in item:  # `CHUPA_PLAN.md#<unit id>`: plan edits confined to one unit (section 9)
                 file, _, unit = item.partition("#")
                 if file != PLAN_FILE or not re.fullmatch(r"19\.P[0-8]\.[a-z0-9][a-z0-9-]*", unit):
-                    findings.append(_f(f"`## Scope fence` anchor {item!r} is not `{PLAN_FILE}#19.P<n>.<stem>`",
-                                       "anchor only the plan file, to one entry unit", path))
+                    findings.append(_f(f"`## Scope fence` anchor {item!r} is not `{PLAN_FILE}#19.P<n>.<stem>`", "anchor only the plan file, to one entry unit", path))
                     continue
             else:
                 findings += (errs := _repo_path(item, "Scope fence", path))
@@ -367,14 +358,11 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings
             if errs := _repo_path(item, "On-demand", path):
                 findings += errs
             elif not (repo / item).is_file():
-                findings.append(_f(f"`## On-demand` path {item!r} does not exist",
-                                   "list only EXISTING files the implementer reads from the worktree", path))
+                findings.append(_f(f"`## On-demand` path {item!r} does not exist", "list only EXISTING files the implementer reads from the worktree", path))
             elif not any(item == f or item.startswith(f.rstrip("/") + "/") for f in fence):
-                findings.append(_f(f"`## On-demand` path {item!r} is not covered by `## Scope fence`",
-                                   "fence it, or move a read-only reference to `## Context`", path))
+                findings.append(_f(f"`## On-demand` path {item!r} is not covered by `## Scope fence`", "fence it, or move a read-only reference to `## Context`", path))
             elif item in context:
-                findings.append(_f(f"`## On-demand` path {item!r} is also in `## Context`",
-                                   "keep it in exactly one of the two sections", path))
+                findings.append(_f(f"`## On-demand` path {item!r} is also in `## Context`", "keep it in exactly one of the two sections", path))
             else:
                 on_demand.append(item)
 
@@ -386,12 +374,10 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings
             try:
                 pid = plan_id(item)
                 if plan is None:
-                    raise PlanContractError(_f(f"`## Plan contract` cites {item!r} but {PLAN_FILE} is absent",
-                                               f"restore {PLAN_FILE} at the repo root"))
+                    raise PlanContractError(_f(f"`## Plan contract` cites {item!r} but {PLAN_FILE} is absent", f"restore {PLAN_FILE} at the repo root"))
                 resolve_plan_contract(plan, [pid])
             except PlanContractError as e:
-                findings.append(e.finding.model_copy(update={"code": CODE, "path": path,
-                                                             "message": f"`## Plan contract`: {e.finding.message}"}))
+                findings.append(e.finding.model_copy(update={"code": CODE, "path": path, "message": f"`## Plan contract`: {e.finding.message}"}))
                 continue
             plan_ids.append(pid)
     if plan is not None and plan_ids:
@@ -399,41 +385,33 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings
         try:
             resolve_plan_contract(plan, plan_ids)
         except PlanContractError as e:
-            findings.append(e.finding.model_copy(update={"code": CODE, "path": path,
-                                                         "message": f"`## Plan contract`: {e.finding.message}"}))
+            findings.append(e.finding.model_copy(update={"code": CODE, "path": path, "message": f"`## Plan contract`: {e.finding.message}"}))
     if fm is not None and fm.source == "seed":
         findings += _seed_cites(stem, plan_ids, plan or "", path)
 
     if text_ := sections.get("Acceptance criteria"):
         if m := BANNED_ADJECTIVES.search(text_):
-            findings.append(_f(f"`## Acceptance criteria` uses the unmeasurable adjective {m.group(1)!r}",
-                               "state a measurable outcome (\"exits 0 when...\", \"is unchanged\")", path))
+            findings.append(_f(f"`## Acceptance criteria` uses the unmeasurable adjective {m.group(1)!r}", 'state a measurable outcome ("exits 0 when...", "is unchanged")', path))
         for item in _criteria(text_):
             if "`" not in item:
-                findings.append(_f(f"acceptance criterion {item!r} names no check",
-                                   "name the `## Verification` command or the observable artifact that checks it,"
-                                   " in backticks", path))
+                findings.append(_f(f"acceptance criterion {item!r} names no check", "name the `## Verification` command or the observable artifact that checks it, in backticks", path))
 
     commands: list[tuple[str, ...]] = []
     if text_ := sections.get("Verification"):
         commands, outside, errs = _fenced_commands(text_, "Verification", path)
         findings += errs
         if outside:
-            findings.append(_f("`## Verification` has text outside its fenced block",
-                               "keep only the fenced command block in `## Verification`", path))
+            findings.append(_f("`## Verification` has text outside its fenced block", "keep only the fenced command block in `## Verification`", path))
 
     regression, carries = (), ()
     kind = fm.kind if fm is not None else data.get("kind")
     if "Regression" in sections:
         if kind != "bug":
-            findings.append(_f("`## Regression` is present on a non-bug ticket",
-                               "drop `## Regression`, or set `kind: bug` if this ticket fixes a defect", path))
+            findings.append(_f("`## Regression` is present on a non-bug ticket", "drop `## Regression`, or set `kind: bug` if this ticket fixes a defect", path))
         regression, carries, errs = _regression(sections["Regression"], path)
         findings += errs
     elif kind == "bug":
-        findings.append(_f("a `kind: bug` ticket has no `## Regression` section",
-                           "add `## Regression`: one fenced reproducing command plus `- carries: <path-prefix>`"
-                           " bullets", path))
+        findings.append(_f("a `kind: bug` ticket has no `## Regression` section", "add `## Regression`: one fenced reproducing command plus `- carries: <path-prefix>` bullets", path))
 
     expected = stuck = 0
     if text_ := sections.get("Time budget"):
@@ -441,14 +419,11 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings
         findings += errs
         budget = {m.group(1): int(m.group(2)) for item in items if (m := _BUDGET.match(item))}
         if len(items) != 2 or set(budget) != {"expected", "stuck"} or 0 in budget.values():
-            findings.append(_f("`## Time budget` is not an expected/stuck minutes pair",
-                               "write exactly two bullets, `- expected: <int>m` and `- stuck: <int>m`", path))
+            findings.append(_f("`## Time budget` is not an expected/stuck minutes pair", "write exactly two bullets, `- expected: <int>m` and `- stuck: <int>m`", path))
         else:
             expected, stuck = budget["expected"], budget["stuck"]
             if stuck <= expected:
-                findings.append(_f(f"`## Time budget` stuck: {stuck}m must exceed expected: {expected}m",
-                                   "set stuck greater than expected (the stage deadline is the stuck budget)",
-                                   path))
+                findings.append(_f(f"`## Time budget` stuck: {stuck}m must exceed expected: {expected}m", "set stuck greater than expected (the stage deadline is the stuck budget)", path))
 
     if text_ := sections.get("Exit-read window"):
         items, errs = _bullets(text_, "Exit-read window", path)
@@ -456,28 +431,42 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings
         for item in items:
             m = _WINDOW.match(item)
             if m is None or m.group(1) not in _EXIT_WINDOW_EVENTS:
-                findings.append(_f(f"`## Exit-read window` declaration {item!r} does not parse",
-                                   f"write `- <event type>: <bounding criterion>`, event type one of"
-                                   f" {sorted(_EXIT_WINDOW_EVENTS)}", path))
+                findings.append(
+                    _f(f"`## Exit-read window` declaration {item!r} does not parse", f"write `- <event type>: <bounding criterion>`, event type one of {sorted(_EXIT_WINDOW_EVENTS)}", path)
+                )
 
     if findings or fm is None:
         raise TicketInvalid(findings)
-    return Ticket(stem=stem, frontmatter=fm, sections=sections, depends=tuple(depends), context=tuple(context),
-                  on_demand=tuple(on_demand), plan_contract=tuple(plan_ids), scope_fence=tuple(fence),
-                  verification=tuple(commands), expected_minutes=expected, stuck_minutes=stuck,
-                  regression=regression, carries=carries)
+    return Ticket(
+        stem=stem,
+        frontmatter=fm,
+        sections=sections,
+        depends=tuple(depends),
+        context=tuple(context),
+        on_demand=tuple(on_demand),
+        plan_contract=tuple(plan_ids),
+        scope_fence=tuple(fence),
+        verification=tuple(commands),
+        expected_minutes=expected,
+        stuck_minutes=stuck,
+        regression=regression,
+        carries=carries,
+    )
 
 
 def _regression(text: str, path: str) -> tuple[tuple[str, ...], tuple[str, ...], list[Finding]]:
     commands, outside, findings = _fenced_commands(text, "Regression", path)
     if len(commands) > 1:
-        findings.append(_f("`## Regression` holds more than one command",
-                           "reduce it to the ONE command that reproduces the defect", path))
+        findings.append(_f("`## Regression` holds more than one command", "reduce it to the ONE command that reproduces the defect", path))
     carries = [line for line in outside if re.fullmatch(r"- carries: \S+", line.strip())]
     if not carries or len(carries) != len(outside):
-        findings.append(_f("`## Regression` needs `- carries: <path-prefix>` bullets and nothing else outside the"
-                           " fence", "add one `- carries: <path-prefix>` bullet per branch-added test/fixture path"
-                           " the command needs", path))
+        findings.append(
+            _f(
+                "`## Regression` needs `- carries: <path-prefix>` bullets and nothing else outside the fence",
+                "add one `- carries: <path-prefix>` bullet per branch-added test/fixture path the command needs",
+                path,
+            )
+        )
     prefixes = tuple(line.strip().removeprefix("- carries: ") for line in carries)
     for prefix in prefixes:
         findings += _repo_path(prefix, "Regression carries", path)
@@ -518,13 +507,11 @@ def validate_ticket(stem: str, text: str, repo: Path, siblings: Collection[str] 
 
     `siblings` are the other seeds of a seeding batch: a seed may depend on one before the batch lifts (19.L).
     """
-    ticket = parse_ticket(stem, text, repo, plan=read_plan(repo),
-                          siblings=siblings)
+    ticket = parse_ticket(stem, text, repo, plan=read_plan(repo), siblings=siblings)
     edges = _graph(repo)
     edges[stem] = list(ticket.depends)
     if cycle := depends_cycle(stem, edges):
-        raise TicketInvalid([_f(f"`## Depends on` closes a cycle: {' -> '.join(cycle)}",
-                                "drop the edge that inverts the intended order", ticket_path(stem))])
+        raise TicketInvalid([_f(f"`## Depends on` closes a cycle: {' -> '.join(cycle)}", "drop the edge that inverts the intended order", ticket_path(stem))])
     return ticket
 
 
@@ -532,8 +519,7 @@ def validate_ticket(stem: str, text: str, repo: Path, siblings: Collection[str] 
 
 
 def _regular_evidence(path: Path, directory: Path) -> bool:
-    return path.is_file() and not any(p.is_symlink() for p in (path, *path.parents)
-                                     if p.is_relative_to(directory))
+    return path.is_file() and not any(p.is_symlink() for p in (path, *path.parents) if p.is_relative_to(directory))
 
 
 def evidence_findings(ticket: Ticket, repo: Path, *, paths: Collection[str] | None = None) -> list[Finding]:
@@ -550,9 +536,13 @@ def missing_evidence_findings(stem: str, repo: Path, *, paths: Collection[str] |
     if any(p.is_relative_to(directory) and _regular_evidence(p, directory) for p in candidates):
         return []
     rel = directory.relative_to(repo).as_posix()
-    return [_f("a `kind: bug` ticket has no evidence file",
-               "add the observed failure (output, log excerpt, or captured command output) as a file under "
-               f"{rel}; the evidence file must not be gitignored", rel)]
+    return [
+        _f(
+            "a `kind: bug` ticket has no evidence file",
+            f"add the observed failure (output, log excerpt, or captured command output) as a file under {rel}; the evidence file must not be gitignored",
+            rel,
+        )
+    ]
 
 
 @dataclass(frozen=True)
@@ -623,13 +613,16 @@ def _intake_claims(stem: str, text: str, new: bool) -> tuple[str, list[Finding]]
         return text, []
     source = data.get("source", "human")
     if source != "human":
-        return text, [_f(f"new stem claims `source: {source}`; only the machine writes `seed` or `box:<class>`",
-                         "drop the `source:` line (intake stamps `source: human`) -- machine-originated work"
-                         " enters through the Suggestion Box or phase seeding", path)]
+        return text, [
+            _f(
+                f"new stem claims `source: {source}`; only the machine writes `seed` or `box:<class>`",
+                "drop the `source:` line (intake stamps `source: human`) -- machine-originated work enters through the Suggestion Box or phase seeding",
+                path,
+            )
+        ]
     state = data.get("state", "draft")
     if state not in ("draft", "confirmed"):
-        return text, [_f(f"new stem is authored `state: {state}`",
-                         "author new work as `state: draft` or `confirmed` (human intake auto-confirms)", path)]
+        return text, [_f(f"new stem is authored `state: {state}`", "author new work as `state: draft` or `confirmed` (human intake auto-confirms)", path)]
     return stamp(stamp(text, "source", "human"), "state", "confirmed"), []
 
 
@@ -644,16 +637,17 @@ async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem) -> Inta
     evidence = {}
     for stem in pending:
         directory = repo / TICKETS_DIR / stem / "evidence"
-        paths = await git._run(repo, "ls-files", "--cached", "--others", "--exclude-standard", "-z",
-                               "--", f"{TICKETS_DIR}/{stem}/evidence/")
+        paths = await git._run(repo, "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", f"{TICKETS_DIR}/{stem}/evidence/")
         evidence[stem] = sorted({p for p in paths.split("\0") if p and _regular_evidence(repo / p, directory)})
     allowed = pending_paths | {p for paths in evidence.values() for p in paths}
     if stray := sorted(p for st, p in entries if st[0] not in " ?" and (p not in allowed or "D" in st)):
-        raise IntakeRefused(_f(f"staged changes outside pending ticket files: {', '.join(stray)}",
-                               "unstage them; a ticket-plane commit carries only `tickets/<stem>/ticket.md`"
-                               " and regular, non-symlink evidence files for that pending stem"))
-    states = {e.ticket: e.body["to"] for e in journal.read()
-              if e.type == EventType.STATE_TRANSITION and e.ticket is not None and "to" in e.body}
+        raise IntakeRefused(
+            _f(
+                f"staged changes outside pending ticket files: {', '.join(stray)}",
+                "unstage them; a ticket-plane commit carries only `tickets/<stem>/ticket.md` and regular, non-symlink evidence files for that pending stem",
+            )
+        )
+    states = {e.ticket: e.body["to"] for e in journal.read() if e.type == EventType.STATE_TRANSITION and e.ticket is not None and "to" in e.body}
     committed: list[str] = []
     refused: dict[str, list[Finding]] = {}
     for stem in sorted(pending):
@@ -678,8 +672,7 @@ async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem) -> Inta
         # Pathspec-limited: a refused ticket left staged must never ride along in another stem's commit.
         await git.commit(repo, f"chupa({stem}): ticket", only=paths)
         sha = await git.rev_parse(repo, "HEAD")
-        journal.append(EventType.SIGNAL, {"signal": INTAKE_SIGNAL, "source": fm.source, "state": fm.state,
-                                          "new": pending[stem], "commit": sha}, ticket=stem)
+        journal.append(EventType.SIGNAL, {"signal": INTAKE_SIGNAL, "source": fm.source, "state": fm.state, "new": pending[stem], "commit": sha}, ticket=stem)
         committed.append(stem)
     return IntakeResult(committed=tuple(committed), refused=refused)
 
@@ -703,9 +696,6 @@ def template(kind: Literal["feature", "bug", "chore"]) -> str:
         "Time budget": "- expected: <estimated integer minutes>m\n- stuck: <larger deadline in integer minutes>m",
     }
     if kind == "bug":
-        sections["Regression"] = (
-            "```\n<one argv command emitting the regression_result JSON protocol>\n```\n"
-            "- carries: <test or fixture path prefix needed by the command>"
-        )
+        sections["Regression"] = "```\n<one argv command emitting the regression_result JSON protocol>\n```\n- carries: <test or fixture path prefix needed by the command>"
     body = "".join(f"\n## {name}\n{content}\n" for name, content in sections.items())
     return f"---\nstate: confirmed\nsource: human\npriority: P2\nkind: {kind}\n---\n" + body

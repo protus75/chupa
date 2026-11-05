@@ -36,8 +36,7 @@ class Timer:
 
 
 def _invalid(record: object, reason: str) -> ValueError:
-    return ValueError(f"invalid timer record {record!r}: {reason}; "
-                      "restore valid journal evidence before restart")
+    return ValueError(f"invalid timer record {record!r}: {reason}; restore valid journal evidence before restart")
 
 
 def _timer(body: object, ticket: str | None, key: str | None = None) -> Timer:
@@ -99,8 +98,7 @@ class Timers:
         previous = self._pending.get(timer_id, self._fired.get(timer_id))
         if previous is not None:
             if previous != timer:
-                raise ValueError(f"timer id {timer_id!r} already owns another deadline or ticket; "
-                                 "use a fresh id for a new deadline")
+                raise ValueError(f"timer id {timer_id!r} already owns another deadline or ticket; use a fresh id for a new deadline")
             return previous
         self.journal.append(EventType.TIMER_ARMED, timer.body.model_dump(), ticket=ticket, key=None)
         self._pending[timer_id] = timer
@@ -109,11 +107,9 @@ class Timers:
     def fire_due(self) -> tuple[Timer, ...]:
         self._load()
         now = self.clock()
-        due = sorted((timer for timer in self._pending.values() if now >= timer.deadline),
-                     key=lambda timer: (timer.deadline, timer.body.timer_id))
+        due = sorted((timer for timer in self._pending.values() if now >= timer.deadline), key=lambda timer: (timer.deadline, timer.body.timer_id))
         for timer in due:
-            self.journal.append(EventType.TIMER_FIRED, timer.body.model_dump(),
-                                ticket=timer.ticket, key=None)
+            self.journal.append(EventType.TIMER_FIRED, timer.body.model_dump(), ticket=timer.ticket, key=None)
             self._fired[timer.body.timer_id] = timer
             del self._pending[timer.body.timer_id]
         return tuple(due)

@@ -10,7 +10,7 @@ from chupa.__main__ import main
 from chupa.daemon import DaemonAdmission
 from chupa.journal import EventType
 from chupa.tickets import parse_ticket
-from tests.test_cli import ENV, PLAN, Clock, root, ticket, write, with_retro_driver
+from tests.test_cli import ENV, PLAN, Clock, root, ticket, with_retro_driver, write
 
 
 @pytest.fixture
@@ -236,12 +236,14 @@ def test_daemon_admission_is_dormant(root, monkeypatch, verb):
             calls.append(ticket.stem)
             checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=ticket.stem)
             return "merged"
+
         return with_retro_driver(checkout, dispatch)
 
     async def probe(self, ticket):
         raise AssertionError("daemon dispatch wired into CLI")
 
     monkeypatch.setattr(DaemonAdmission, "dispatch", probe)
+
     # Calibrate the probe through the production root with deliberate test-only wiring.
     def wired(checkout):
         return DaemonAdmission(pipeline(checkout)).dispatch
@@ -261,8 +263,7 @@ def test_daemon_admission_is_dormant(root, monkeypatch, verb):
     assert calls == ["work"]
 
     repo = Path(__file__).resolve().parents[1]
-    sources = {".".join(path.relative_to(repo).with_suffix("").parts): path.read_text()
-               for path in (repo / "chupa").rglob("*.py")}
+    sources = {".".join(path.relative_to(repo).with_suffix("").parts): path.read_text() for path in (repo / "chupa").rglob("*.py")}
     sources["chupa"] = sources.pop("chupa.__init__")
     from tests.test_daemon_composition import CoreRig, assert_core_wiring, without_core_import
 

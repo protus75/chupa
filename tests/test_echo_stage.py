@@ -78,22 +78,9 @@ async def no_sleep_wins(seconds: float) -> None:
 def run_echo(tmp_path: Path, llm: FakeLLM, consumed: Stub):
     (tmp_path / "config.yaml").write_text(CONFIG)
     config = load_config(None, cwd=tmp_path)
-    driver = Driver.from_config(
-        config, llm=llm, env={}, clock=lambda: datetime(2026, 10, 5, tzinfo=UTC), sleep=no_sleep_wins
-    )
+    driver = Driver.from_config(config, llm=llm, env={}, clock=lambda: datetime(2026, 10, 5, tzinfo=UTC), sleep=no_sleep_wins)
     stage = LlmStage(surface="echo", emits=Echo, gates=[EchoesInput(consumed)], render=render)
-    result = asyncio.run(
-        driver.run(
-            stage,
-            consumed,
-            ticket="t-echo",
-            attempt=1,
-            workspace=tmp_path,
-            tier="medium",
-            effort="medium",
-            stuck_budget=600.0,
-            expected_budget=300.0, scope_fence=())
-    )
+    result = asyncio.run(driver.run(stage, consumed, ticket="t-echo", attempt=1, workspace=tmp_path, tier="medium", effort="medium", stuck_budget=600.0, expected_budget=300.0, scope_fence=()))
     return result, config.state_dir
 
 

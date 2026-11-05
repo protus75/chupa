@@ -57,10 +57,8 @@ def test_run_harvests_orphan_before_reap_and_rerenders_its_reason(repo):
     assert "provider died with useful detail" in harvest.reason
     assert f"chupa({STEM}): harvest" in git(repo, "log", "--format=%s", "main")
     events = history(repo)
-    lift = next(i for i, e in enumerate(events) if e.type == EventType.EFFECT_COMPLETION
-                and e.key == f"ticket-plane/{STEM}/1/harvest")
-    abandoned = next(i for i, e in enumerate(events) if e.type == EventType.STATE_TRANSITION
-                     and e.body.get("to") == "abandoned")
+    lift = next(i for i, e in enumerate(events) if e.type == EventType.EFFECT_COMPLETION and e.key == f"ticket-plane/{STEM}/1/harvest")
+    abandoned = next(i for i, e in enumerate(events) if e.type == EventType.STATE_TRANSITION and e.body.get("to") == "abandoned")
     assert lift < abandoned
     assert not path.exists()
     implement = next(r.rendered for r in llm.requests if r.surface == "implement")
@@ -70,12 +68,10 @@ def test_run_harvests_orphan_before_reap_and_rerenders_its_reason(repo):
 
 
 def test_missing_worktree_reaps_without_a_harvest_commit(repo):
-    Journal(repo / ".chupa" / "state", clock).append(
-        EventType.STATE_TRANSITION, {"to": "running"}, ticket=STEM)
+    Journal(repo / ".chupa" / "state", clock).append(EventType.STATE_TRANSITION, {"to": "running"}, ticket=STEM)
     code, _ = invoke(repo, [], stem="missing")
     assert code == 2
-    assert any(e.type == EventType.STATE_TRANSITION and e.body.get("to") == "abandoned"
-               for e in history(repo))
+    assert any(e.type == EventType.STATE_TRANSITION and e.body.get("to") == "abandoned" for e in history(repo))
     assert f"chupa({STEM}): harvest" not in git(repo, "log", "--format=%s", "main")
 
 
@@ -89,8 +85,6 @@ def test_harvest_failure_signals_and_still_reaps(repo, monkeypatch):
     code, _ = invoke(repo, [], stem="missing")
     assert code == 2
     events = history(repo)
-    assert [e.body for e in events if e.type == EventType.SIGNAL
-            and e.body.get("signal") == "harvest_failed"] == [
-                {"signal": "harvest_failed", "error": "RuntimeError: cannot harvest"}]
+    assert [e.body for e in events if e.type == EventType.SIGNAL and e.body.get("signal") == "harvest_failed"] == [{"signal": "harvest_failed", "error": "RuntimeError: cannot harvest"}]
     assert any(e.type == EventType.STATE_TRANSITION and e.body.get("to") == "abandoned" for e in events)
     assert not path.exists()

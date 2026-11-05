@@ -17,7 +17,11 @@ from chupa import config, gates, hostfiles, providers, seams, tickets
 from chupa.lockfile import Lockfile, LockHeld
 from chupa.mergequeue import MergeQueue
 from chupa.specs import (
-    ENTRY_PARTS, PlanContractError, entry_unit_gap, required_units, resolve_plan_contract,
+    ENTRY_PARTS,
+    PlanContractError,
+    entry_unit_gap,
+    required_units,
+    resolve_plan_contract,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -56,8 +60,7 @@ def inventory(model, row):
 
 def test_host_contract_entry_unit():
     uid = "19.P6.host-contract-doc"
-    ticket = tickets.parse_ticket("host-contract-doc",
-        (ROOT / "tickets/host-contract-doc/ticket.md").read_text(), ROOT, plan=PLAN)
+    ticket = tickets.parse_ticket("host-contract-doc", (ROOT / "tickets/host-contract-doc/ticket.md").read_text(), ROOT, plan=PLAN)
     assert required_units(PLAN, ticket.stem, ticket.plan_contract) == (uid,)
     assert required_units(PLAN, "continuation", (uid,)) == (uid,)
     resolved = resolve_plan_contract(PLAN, (*ticket.plan_contract, uid))
@@ -94,14 +97,12 @@ def test_host_contract_example_loads(tmp_path):
 
 def test_host_contract_schema_coverage(tmp_path):
     rows = yaml.safe_load(block("config-fields"))
-    owners = {name: cls for name, cls in vars(config).items()
-              if isinstance(cls, type) and issubclass(cls, config._Strict) and cls is not config._Strict}
+    owners = {name: cls for name, cls in vars(config).items() if isinstance(cls, type) and issubclass(cls, config._Strict) and cls is not config._Strict}
     assert set(rows) == set(owners)
     for name, cls in owners.items():
         inventory(cls, rows[name])
     values = yaml.safe_load(block("config-values"))
-    for name, annotation in (("tier", config.Tier), ("severity", config.Severity),
-                             ("start_state", config.StartState), ("box_row", config.BoxRow)):
+    for name, annotation in (("tier", config.Tier), ("severity", config.Severity), ("start_state", config.StartState), ("box_row", config.BoxRow)):
         assert values[name] == list(get_args(annotation))
     assert values["kind"] == list(get_args(config.Provider.model_fields["kind"].annotation))
     assert values["strategy"] == ["regenerate", "union"]
@@ -122,16 +123,17 @@ def test_host_contract_schema_coverage(tmp_path):
     for key, value in (("routing_default_tier", "unknown"), ("unknown", 1)):
         with pytest.raises(config.ConfigError):
             load(tmp_path, {**raw, key: value})
-    for change in (lambda r: r["providers"][0].pop("package"),
-                   lambda r: r["providers"][0].update(kind="api"),
-                   lambda r: r["merge"]["strategies"][1].update(argv=["x"]),
-                   lambda r: r["review"]["mechanical"][0].update(severity="warn")):
+    for change in (
+        lambda r: r["providers"][0].pop("package"),
+        lambda r: r["providers"][0].update(kind="api"),
+        lambda r: r["merge"]["strategies"][1].update(argv=["x"]),
+        lambda r: r["review"]["mechanical"][0].update(severity="warn"),
+    ):
         candidate = copy.deepcopy(raw)
         change(candidate)
         with pytest.raises(config.ConfigError):
             load(tmp_path, candidate)
-    cfg = load(tmp_path, {**raw, "worktree_root": "work", "report_inbox": "inbox",
-                          "context_files": ["docs/a.md"], "box_policy": {"failure_report": "draft"}})
+    cfg = load(tmp_path, {**raw, "worktree_root": "work", "report_inbox": "inbox", "context_files": ["docs/a.md"], "box_policy": {"failure_report": "draft"}})
     assert cfg.worktree_root == tmp_path / "work" and cfg.report_inbox == tmp_path / "inbox"
     assert cfg.context_files == [Path("docs/a.md")]
     assert cfg.box_policy == {**config.BOX_POLICY_DEFAULTS, "failure_report": "draft"}
@@ -139,8 +141,7 @@ def test_host_contract_schema_coverage(tmp_path):
     assert cfg.notify is None
     assert providers.resolve(cfg, "medium", "review").model == cfg.providers[0].models_by_tier.medium
     assert load(tmp_path, {**raw, "state_dir": str(tmp_path / "absolute")}).state_dir == tmp_path / "absolute"
-    mentions("Every explicit null", "primary-until-pressure", "est_cost_per_call_usd",
-             "Relative `state_dir`", "remain Path values as written", "use `cli`")
+    mentions("Every explicit null", "primary-until-pressure", "est_cost_per_call_usd", "Relative `state_dir`", "remain Path values as written", "use `cli`")
 
 
 def test_host_contract_migration_and_managed_ownership(tmp_path):
@@ -156,15 +157,16 @@ def test_host_contract_migration_and_managed_ownership(tmp_path):
     original = ("# original café\r\n" + block("host-example").replace("schema_version: 1", "schema_version: 0")).encode()
     path.write_bytes(original)
     assert config.migrate_config(None, cwd=tmp_path, fs=fs)
-    assert fs.writes == [(path.with_name("config.yaml.bak"), original),
-                         (path, original.replace(b"schema_version: 0", b"schema_version: 1"))]
+    assert fs.writes == [(path.with_name("config.yaml.bak"), original), (path, original.replace(b"schema_version: 0", b"schema_version: 1"))]
     fs.writes.clear()
     assert config.migrate_config(None, cwd=tmp_path, fs=fs) is False
     assert fs.writes == []
-    for bad in (block("host-example").replace("schema_version: 1\n", ""),
-                block("host-example").replace("schema_version: 1", "schema_version: 2"),
-                block("host-example").replace("schema_version: 1", "schema_version: true"),
-                block("host-example").replace("schema_version: 1", "schema_version: 0") + "unknown: 3\n"):
+    for bad in (
+        block("host-example").replace("schema_version: 1\n", ""),
+        block("host-example").replace("schema_version: 1", "schema_version: 2"),
+        block("host-example").replace("schema_version: 1", "schema_version: true"),
+        block("host-example").replace("schema_version: 1", "schema_version: 0") + "unknown: 3\n",
+    ):
         path.write_text(bad)
         before = path.read_bytes()
         with pytest.raises(config.ConfigError):
@@ -187,20 +189,27 @@ def test_host_contract_migration_and_managed_ownership(tmp_path):
     assert providers.routed_conduct_paths(cfg, tmp_path) == (tmp_path / "CLAUDE.md",)
     assert "chupa core" in hostfiles.classify_core(None).paved_road
     inventory(tickets.Frontmatter, yaml.safe_load(block("ticket-fields")))
-    mentions("additive-only", "no frontmatter schema migration mechanism", "validates the full candidate", "original bytes",
-             "before any write", "no-op", "zero marker-like text", "without decoding", "unrouted")
+    mentions(
+        "additive-only",
+        "no frontmatter schema migration mechanism",
+        "validates the full candidate",
+        "original bytes",
+        "before any write",
+        "no-op",
+        "zero marker-like text",
+        "without decoding",
+        "unrouted",
+    )
 
 
 def test_host_contract_seam_inventory(tmp_path):
-    assert list(inspect.signature(seams.ProcessExec.run).parameters) == [
-        "self", "argv", "cwd", "env", "timeout", "stdin_path"]
+    assert list(inspect.signature(seams.ProcessExec.run).parameters) == ["self", "argv", "cwd", "env", "timeout", "stdin_path"]
     assert inspect.signature(seams.ProcessExec.run).parameters["env"].default is inspect.Parameter.empty
     assert inspect.signature(seams.ProcessExec.run).parameters["stdin_path"].default is None
     assert list(inspect.signature(gates.Gate.check).parameters) == ["self", "artifact", "workspace"]
     assert list(inspect.signature(MergeQueue.host_checks).parameters) == ["self", "ticket", "attempt", "safety"]
     assert list(inspect.signature(seams.Notifications.notify).parameters) == ["self", "argv"]
-    for method, parameters in (("write", ["self", "path", "data"]),
-                               ("replace", ["self", "src", "dst"]), ("publish", ["self", "path", "data"])):
+    for method, parameters in (("write", ["self", "path", "data"]), ("replace", ["self", "src", "dst"]), ("publish", ["self", "path", "data"])):
         assert list(inspect.signature(getattr(seams.FileSystem, method)).parameters) == parameters
     source = inspect.getsource(seams.SubprocessExec.run)
     assert "start_new_session=True" in source and "except BaseException" in source
@@ -241,27 +250,39 @@ def test_host_contract_seam_inventory(tmp_path):
     captured = []
     exec_ = Exec()
     queue.ctx = SimpleNamespace(
-        config=cfg, env={"SECRET": "credential"}, exec_=exec_, worktree=lambda stem: tmp_path,
+        config=cfg,
+        env={"SECRET": "credential"},
+        exec_=exec_,
+        worktree=lambda stem: tmp_path,
         driver=SimpleNamespace(
             redactor=SimpleNamespace(scrub=lambda text: text.replace("SECRET", "[redacted]")),
             spool=SimpleNamespace(write=lambda *args: captured.append(args)),
         ),
     )
-    for response, verdict in (((0, "SECRET", ""), "pass"), ((1, "", "SECRET"), "fail"),
-                              (TimeoutError(), "fail"), (seams.ExecutableNotFound("missing"), "fail")):
+    for response, verdict in (((0, "SECRET", ""), "pass"), ((1, "", "SECRET"), "fail"), (TimeoutError(), "fail"), (seams.ExecutableNotFound("missing"), "fail")):
         exec_.response = response
-        result, report = asyncio.run(MergeQueue._command(queue,
-            SimpleNamespace(stem="host", stuck_minutes=2), 1, ["check"], "host-test", "capture.txt"))
+        result, report = asyncio.run(MergeQueue._command(queue, SimpleNamespace(stem="host", stuck_minutes=2), 1, ["check"], "host-test", "capture.txt"))
         assert report.verdict == verdict and "SECRET" not in result.tail
         assert captured[-1][2] == "capture.txt"
         if verdict == "fail":
             assert report.findings[0].paved_road and "SECRET" not in report.findings[0].message
     command = inspect.getsource(__import__("chupa.stages", fromlist=["run_host_command"]).run_host_command)
     assert "rc == 0" in command and "spool.write" in command and "redactor.scrub" in command
-    mentions("Clock = Callable[[], datetime]", "Sleep = Callable[[float], Awaitable[None]]",
-             "outer cancellation", "signal-not-reap", "stdin_path", "explicit required env",
-             "atomic", "NotificationFailed", "rc 0 passes", "exactly one hard", "always/hard",
-             "not optional structured findings", "Gate.check(artifact, workspace) -> GateReport")
+    mentions(
+        "Clock = Callable[[], datetime]",
+        "Sleep = Callable[[float], Awaitable[None]]",
+        "outer cancellation",
+        "signal-not-reap",
+        "stdin_path",
+        "explicit required env",
+        "atomic",
+        "NotificationFailed",
+        "rc 0 passes",
+        "exactly one hard",
+        "always/hard",
+        "not optional structured findings",
+        "Gate.check(artifact, workspace) -> GateReport",
+    )
 
 
 def test_host_contract_report_custody_and_cutover(tmp_path):
@@ -270,19 +291,37 @@ def test_host_contract_report_custody_and_cutover(tmp_path):
         "required": ["schema_version", "origin", "summary", "app_commit", "app_version"],
         "defaults": {"implicated_paths": [], "evidence": {"replay": None, "log": None}},
         "self_diagnosed_required": ["game_slug", "anomaly_code", "location"],
-        "origins": ["self_diagnosed", "player"], "replay_max_bytes": 1024 * 1024,
+        "origins": ["self_diagnosed", "player"],
+        "replay_max_bytes": 1024 * 1024,
         "log_max_bytes": 64 * 1024,
     }
     # Pending consumers have no import here: the committed plan governs their obligations.
     for fact in ("metadata-first 1 MiB", "64 KiB", "durable box custody", "operator", "NO_GO"):
         assert fact in PLAN
-    mentions("metadata-first", "1 MiB", "64 KiB", "exact boundaries", "recheck",
-             "before message recording", "durable box custody", "untrusted data at every hop",
-             "ticket's evidence/", "initial_state", "ordered actions", "ONE instance",
-             "never delete the lockfile", "each dispatch cycle", "tickets/decisions/",
-             "Unattended bootstrap", "Supervised fixture wiring", "Author-graph judgment",
-             "Operator-recorded GO", "NO_GO or no declared host waits", "live-host acceptance",
-             "Foreign process-state adoption is excluded")
+    mentions(
+        "metadata-first",
+        "1 MiB",
+        "64 KiB",
+        "exact boundaries",
+        "recheck",
+        "before message recording",
+        "durable box custody",
+        "untrusted data at every hop",
+        "ticket's evidence/",
+        "initial_state",
+        "ordered actions",
+        "ONE instance",
+        "never delete the lockfile",
+        "each dispatch cycle",
+        "tickets/decisions/",
+        "Unattended bootstrap",
+        "Supervised fixture wiring",
+        "Author-graph judgment",
+        "Operator-recorded GO",
+        "NO_GO or no declared host waits",
+        "live-host acceptance",
+        "Foreign process-state adoption is excluded",
+    )
     clock = lambda: datetime(2026, 1, 1, tzinfo=timezone.utc)
     one = Lockfile(tmp_path, instance_id="one", clock=clock)
     two = Lockfile(tmp_path, instance_id="two", clock=clock)

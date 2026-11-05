@@ -104,10 +104,7 @@ def run_gates(
     reports, hard, soft = [], [], []
     for gate in gates:
         if gate.code not in severity:
-            raise GateContractError(
-                f"gate {gate.code!r} has no severity; declare it under review.gate_severity"
-                " (engine codes) or its review entry's severity (host checks)"
-            )
+            raise GateContractError(f"gate {gate.code!r} has no severity; declare it under review.gate_severity (engine codes) or its review entry's severity (host checks)")
         report = gate.check(artifact, workspace)
         if problems := _report_problems(gate, report):
             raise GateContractError("; ".join(problems))
@@ -147,8 +144,7 @@ def _report_problems(gate: Gate, report: GateReport) -> list[str]:
         report = GateReport.model_validate(report.model_dump())
     except ValidationError as e:
         return [
-            f"gate {gate.code!r} report invalid at {'.'.join(map(str, err['loc']))}: {err['msg']};"
-            " every finding needs a non-blank paved_road telling the agent what to do instead"
+            f"gate {gate.code!r} report invalid at {'.'.join(map(str, err['loc']))}: {err['msg']}; every finding needs a non-blank paved_road telling the agent what to do instead"
             for err in e.errors()
         ]
     problems = []

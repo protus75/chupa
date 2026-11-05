@@ -9,14 +9,13 @@ import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from chupa.artifacts import (HostLoopEntry, HostLoopReport, ExitReceipt, ReviewBaselineReport,
-                            HOST_LOOP_MEMBERS, HOST_LOOP_EXPECTED)
+from chupa.artifacts import HOST_LOOP_EXPECTED, HOST_LOOP_MEMBERS, ExitReceipt, HostLoopEntry, HostLoopReport, ReviewBaselineReport
 from chupa.audit import audit_journal
 from chupa.box import Box
 from chupa.config import load_config
-from chupa.control import AdmissionRequest, ControlRequest, publish_request, read_active, decisions, releases
+from chupa.control import AdmissionRequest, ControlRequest, decisions, publish_request, read_active, releases
 from chupa.git import Git, GitError
-from chupa.journal import Journal, EventType, TERMINAL_STATES
+from chupa.journal import TERMINAL_STATES, EventType, Journal
 from chupa.mergequeue import held_admissions
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.stages import Invoice, read_review
@@ -28,9 +27,7 @@ ROAD = "repair the producing machinery and rerun the harness through Check"
 
 class LoopRefused(ValueError):
     def __init__(self, member, detail):
-        read = (HOST_LOOP_MEMBERS[1] if member == "regression" else
-                HOST_LOOP_MEMBERS[2] if member == "escape" else
-                HOST_LOOP_MEMBERS[0] if member.startswith("merge-") else member)
+        read = HOST_LOOP_MEMBERS[1] if member == "regression" else HOST_LOOP_MEMBERS[2] if member == "escape" else HOST_LOOP_MEMBERS[0] if member.startswith("merge-") else member
         super().__init__(f"{read} ({member}): {detail}; {ROAD}")
 
 
@@ -47,13 +44,15 @@ def regenerate(loop_bytes, baseline_bytes):
     """Only these validated input bytes supply receipt identity and digests."""
     loop = HostLoopReport.model_validate_json(loop_bytes)
     baseline = ReviewBaselineReport.model_validate_json(baseline_bytes)
-    reads = {name: "pass" if all(e.green for e in loop.entries if e.member == name) else "fail"
-             for name in HOST_LOOP_MEMBERS}
+    reads = {name: "pass" if all(e.green for e in loop.entries if e.member == name) else "fail" for name in HOST_LOOP_MEMBERS}
     reads["go_grade_report"] = "pass"
-    return ExitReceipt(schema_version=1, reads=reads,
+    return ExitReceipt(
+        schema_version=1,
+        reads=reads,
         host_loop_digest=hashlib.sha256(loop_bytes).hexdigest(),
         baseline_report_digest=hashlib.sha256(baseline_bytes).hexdigest(),
-        verdict_signal=baseline.verdict_signal)
+        verdict_signal=baseline.verdict_signal,
+    )
 
 
 def write_receipt(path, loop_bytes, baseline_bytes, *, fs):
@@ -78,12 +77,18 @@ class FixtureLoop:
         self.notifications, self.timeout = notifications, timeout
         self.task, self.pgid = None, None
         self.requests = set()
-        self.env = {"PATH": str(root / "bin") + ":" + str(Path(sys.executable).parent) + ":/usr/bin:/bin",
-                    "PYTHONPATH": str(ROOT), "PYTHONDONTWRITEBYTECODE": "1",
-                    "CHUPA_FIXTURE_ROOT": str(root), "CHUPA_FIXTURE_SCENARIO": name,
-                    "GIT_AUTHOR_NAME": "Fixture", "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
-                    "GIT_COMMITTER_NAME": "Fixture", "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
-                    "GIT_CONFIG_NOSYSTEM": "1"}
+        self.env = {
+            "PATH": str(root / "bin") + ":" + str(Path(sys.executable).parent) + ":/usr/bin:/bin",
+            "PYTHONPATH": str(ROOT),
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "CHUPA_FIXTURE_ROOT": str(root),
+            "CHUPA_FIXTURE_SCENARIO": name,
+            "GIT_AUTHOR_NAME": "Fixture",
+            "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+            "GIT_COMMITTER_NAME": "Fixture",
+            "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+            "GIT_CONFIG_NOSYSTEM": "1",
+        }
         self.git = Git(exec_, env=self.env, timeout=10)
         self.journal = Journal(root / ".chupa/state", clock)
 
@@ -95,17 +100,16 @@ class FixtureLoop:
         cfg = self.root / "config.yaml"
         self.fs.write(cfg, cfg.read_bytes().replace(b"report_inbox: reports", b"report_inbox: inbox"))
         await self.git.init(self.root, branch="main")
-        await self.git.add(self.root, [p.relative_to(self.root).as_posix() for p in self.root.rglob("*")
-            if p.is_file() and not {".git", ".fixture-runtime"}.intersection(p.parts)])
+        await self.git.add(self.root, [p.relative_to(self.root).as_posix() for p in self.root.rglob("*") if p.is_file() and not {".git", ".fixture-runtime"}.intersection(p.parts)])
         await self.git.commit(self.root, "fixture defective base")
         self.base = await self.git.rev_parse(self.root, "HEAD")
         cfg = load_config(None, cwd=self.root)
         self.inventory = cfg.engine_plane_safety_inventory
 
     async def start(self):
-        self.task = asyncio.create_task(self.exec.run([sys.executable, "-m", "chupa", "serve"],
-            cwd=self.root, env=self.env, timeout=self.timeout + 10,
-            on_spawn=lambda pgid: setattr(self, "pgid", pgid)))
+        self.task = asyncio.create_task(
+            self.exec.run([sys.executable, "-m", "chupa", "serve"], cwd=self.root, env=self.env, timeout=self.timeout + 10, on_spawn=lambda pgid: setattr(self, "pgid", pgid))
+        )
         await self.until(lambda: (self.root / ".chupa/state/control/active.json").exists())
 
     def confirm(self):
@@ -122,8 +126,7 @@ class FixtureLoop:
             if identity in self.requests:
                 continue
             self.requests.add(identity)
-            publish_request(state, AdmissionRequest(f"fixture-{len(self.requests)}", lifecycle,
-                "confirm", stem, hold, "machine"), self.fs)
+            publish_request(state, AdmissionRequest(f"fixture-{len(self.requests)}", lifecycle, "confirm", stem, hold, "machine"), self.fs)
 
     async def until(self, predicate, *, confirm=False):
         deadline = self.clock() + timedelta(seconds=self.timeout)
@@ -141,8 +144,7 @@ class FixtureLoop:
             await self.sleep(0.05)
 
     def terminal(self, stem):
-        return [e for e in self.journal.read() if e.ticket == stem
-                and e.type == EventType.STATE_TRANSITION and e.body.get("to") in TERMINAL_STATES]
+        return [e for e in self.journal.read() if e.ticket == stem and e.type == EventType.STATE_TRANSITION and e.body.get("to") in TERMINAL_STATES]
 
     async def merged(self, stem):
         await self.until(lambda: bool(self.terminal(stem)), confirm=True)
@@ -151,9 +153,9 @@ class FixtureLoop:
         return self.terminal(stem)[0]
 
     def suggestion(self):
-        Box(self.root / ".chupa/state/box", self.fs).enqueue(message_class="suggestion",
-            origin="fixture", summary=scaffold.scenario(self.root, self.name)["responses"]["implement"][0]["summary"],
-            occurrence_id=f"fixture/{self.name}")
+        Box(self.root / ".chupa/state/box", self.fs).enqueue(
+            message_class="suggestion", origin="fixture", summary=scaffold.scenario(self.root, self.name)["responses"]["implement"][0]["summary"], occurrence_id=f"fixture/{self.name}"
+        )
 
     async def report(self, name, *, app_commit=None):
         raw = json.loads((self.root / f"reports/{name}.json").read_bytes())
@@ -162,8 +164,7 @@ class FixtureLoop:
         self.fs.write(self.root / "inbox/report.json", (json.dumps(raw) + "\n").encode())
 
     async def replay(self, path):
-        rc, out, _ = await self.exec.run([sys.executable, "replay.py", path], cwd=self.root,
-                                       env=self.env, timeout=10)
+        rc, out, _ = await self.exec.run([sys.executable, "replay.py", path], cwd=self.root, env=self.env, timeout=10)
         return rc, json.loads(out)
 
     async def exercise(self):
@@ -182,9 +183,9 @@ class FixtureLoop:
                 # The report resolves to a fresh real bug; its attribution reads escape's squash.
                 self.fs.write(self.root / ".fixture-runtime/selection", b"regression")
                 await self.report("escape", app_commit=terminal.body["commit"])
-                await self.until(lambda: any((e.key or "").startswith("escape-attribution/")
-                    and e.type == EventType.EFFECT_COMPLETION
-                    and e.body.get("result", {}).get("matches") for e in self.journal.read()))
+                await self.until(
+                    lambda: any((e.key or "").startswith("escape-attribution/") and e.type == EventType.EFFECT_COMPLETION and e.body.get("result", {}).get("matches") for e in self.journal.read())
+                )
 
     async def stop(self):
         if self.task is None:
@@ -196,7 +197,7 @@ class FixtureLoop:
                     lifecycle, _ = read_active(state, Path.read_bytes)
                     publish_request(state, ControlRequest("fixture-stop", lifecycle, "kill", None), self.fs)
                     await asyncio.wait_for(asyncio.shield(self.task), 5)
-                except (ValueError, TimeoutError):
+                except ValueError, TimeoutError:
                     self.task.cancel()
         finally:
             if self.pgid is not None:
@@ -217,66 +218,64 @@ class FixtureLoop:
         findings = [f"{v.invariant}: {v.ticket}: {v.detail}" for v in audit_journal(self.journal)]
         self.need(not findings, "member auditor findings: " + "; ".join(findings))
         stem = self.name
-        terminal, = self.terminal(stem)
+        (terminal,) = self.terminal(stem)
         self.need(terminal.body.get("commit") and terminal.body.get("reviewed_sha"), "merged identity missing")
+
         def completion(key):
             rows = [e.body["result"] for e in events if e.type == EventType.EFFECT_COMPLETION and e.key == key]
             self.need(len(rows) == 1, f"missing unique production evidence {key}")
             return rows[0]
+
         admission = completion(f"merge/{stem}/0")
         self.need(admission["commit"] == terminal.body["commit"], "merge completion disagrees with terminal")
         checks = completion(f"ticket-plane/{stem}/0/checks")
-        invoice = Invoice.model_validate_json(await self.git._run(self.root, "show",
-            f"{checks['commit']}:tickets/{stem}/checks.json"))
-        self.need(invoice.passed and invoice.verification and all(v.rc == 0 for v in invoice.verification),
-                  "committed Check is not green")
+        invoice = Invoice.model_validate_json(await self.git._run(self.root, "show", f"{checks['commit']}:tickets/{stem}/checks.json"))
+        self.need(invoice.passed and invoice.verification and all(v.rc == 0 for v in invoice.verification), "committed Check is not green")
         review_lift = completion(f"ticket-plane/{stem}/0/review")
-        review = read_review(await self.git._run(self.root, "show",
-            f"{review_lift['commit']}:tickets/{stem}/review.md"))
-        self.need(review.verdict == "approve" and review.reviewed_sha == terminal.body["reviewed_sha"]
-                  == invoice.produced_at_sha, "checked/reviewed identity mismatch")
+        review = read_review(await self.git._run(self.root, "show", f"{review_lift['commit']}:tickets/{stem}/review.md"))
+        self.need(review.verdict == "approve" and review.reviewed_sha == terminal.body["reviewed_sha"] == invoice.produced_at_sha, "checked/reviewed identity mismatch")
         rows = await self.git.first_parent_squashes(self.root, terminal.body["commit"])
-        self.need(len(rows) == 1 and rows[0]["ticket"] == stem
-                  and rows[0]["reviewed_sha"] == review.reviewed_sha, "squash trailer evidence missing")
-        edits = [p for p in rows[0]["paths"] if any(p == f.rstrip("/") or p.startswith(f.rstrip("/") + "/")
-                 for f in self.inventory)]
+        self.need(len(rows) == 1 and rows[0]["ticket"] == stem and rows[0]["reviewed_sha"] == review.reviewed_sha, "squash trailer evidence missing")
+        edits = [p for p in rows[0]["paths"] if any(p == f.rstrip("/") or p.startswith(f.rstrip("/") + "/") for f in self.inventory)]
         self.need(not edits, "engine-plane edits: " + ", ".join(edits))
-        accepted = [e.body for e in decisions(events) if e.body["decision"] == "accepted"
-                    and e.body.get("stem") == stem and e.body.get("verb") == "confirm"]
-        self.need(any(b["hold_id"] is None and b["actor"] == "machine" for b in accepted)
-                  and any(b["hold_id"] is not None and b["actor"] == "machine" for b in accepted),
-                  "machine draft and held confirmations missing")
-        self.need(any(r["stem"] == stem and r["actor"] == "machine" for r in releases(events).values()),
-                  "identity-bound release completion missing")
-        self.need(not any(e.body.get("signal") in ("review_baseline", "reject_verdict") for e in events),
-                  "fixture recorded GO or re-armed caps")
+        accepted = [e.body for e in decisions(events) if e.body["decision"] == "accepted" and e.body.get("stem") == stem and e.body.get("verb") == "confirm"]
+        self.need(
+            any(b["hold_id"] is None and b["actor"] == "machine" for b in accepted) and any(b["hold_id"] is not None and b["actor"] == "machine" for b in accepted),
+            "machine draft and held confirmations missing",
+        )
+        self.need(any(r["stem"] == stem and r["actor"] == "machine" for r in releases(events).values()), "identity-bound release completion missing")
+        self.need(not any(e.body.get("signal") in ("review_baseline", "reject_verdict") for e in events), "fixture recorded GO or re-armed caps")
         member = HOST_LOOP_MEMBERS[0]
         if stem == "regression":
             member = HOST_LOOP_MEMBERS[1]
-            self.need(self.before_replay[0] == 1 and self.before_replay[1]["defect"]
-                      and self.after_replay[0] == 0 and not self.after_replay[1]["defect"], "replay repair missing")
-            bug, = [r for r in invoice.reports if r.code == "bug_evidence"]
-            self.need(bug.verdict == "pass" and bug.bug_evidence.head.regression_result == "pass"
-                      and bug.bug_evidence.base.regression_result == "defect"
-                      and bug.bug_evidence.overlay_paths == ["fixtures/replay.json", "fixtures/report_regression.py"]
-                      and bug.bug_evidence.evidence_paths, "real regression-gate evidence missing")
+            self.need(self.before_replay[0] == 1 and self.before_replay[1]["defect"] and self.after_replay[0] == 0 and not self.after_replay[1]["defect"], "replay repair missing")
+            (bug,) = [r for r in invoice.reports if r.code == "bug_evidence"]
+            self.need(
+                bug.verdict == "pass"
+                and bug.bug_evidence.head.regression_result == "pass"
+                and bug.bug_evidence.base.regression_result == "defect"
+                and bug.bug_evidence.overlay_paths == ["fixtures/replay.json", "fixtures/report_regression.py"]
+                and bug.bug_evidence.evidence_paths,
+                "real regression-gate evidence missing",
+            )
             authored = completion("ticket-plane/regression/author")
             carried = await self.git._run(self.root, "show", f"{invoice.produced_at_sha}:fixtures/replay.json")
             custody = await self.git._run(self.root, "show", f"{authored}:tickets/regression/evidence/replay.json")
             self.need(carried == custody, "carried replay differs from authored durable evidence")
-            self.need(await self.git._run(self.root, "show", f"{bug.bug_evidence.base_sha}:regression_test.py"),
-                      "test absent on defective base")
+            self.need(await self.git._run(self.root, "show", f"{bug.bug_evidence.base_sha}:regression_test.py"), "test absent on defective base")
         elif stem == "escape":
             member = HOST_LOOP_MEMBERS[2]
             self.need(self.escape_replay[0] == 1 and self.escape_replay[1]["defect"], "machine escape replay missing")
-            attribution = [e.body["result"] for e in events if e.type == EventType.EFFECT_COMPLETION
-                           and (e.key or "").startswith("escape-attribution/")]
-            self.need(any(any(m["ticket"] == stem and m["commit"] == terminal.body["commit"]
-                and m["reviewed_sha"] == review.reviewed_sha and "review" in m["surfaces"]
-                for m in a["matches"]) for a in attribution), "trailer-derived report attribution missing")
+            attribution = [e.body["result"] for e in events if e.type == EventType.EFFECT_COMPLETION and (e.key or "").startswith("escape-attribution/")]
+            self.need(
+                any(
+                    any(m["ticket"] == stem and m["commit"] == terminal.body["commit"] and m["reviewed_sha"] == review.reviewed_sha and "review" in m["surfaces"] for m in a["matches"])
+                    for a in attribution
+                ),
+                "trailer-derived report attribution missing",
+            )
         expected = HOST_LOOP_EXPECTED[member]
-        return HostLoopEntry(member=member, producing_run=f"{stem}/0", expected=expected,
-                             observed=expected, engine_plane_edits=edits, auditor=findings, green=True)
+        return HostLoopEntry(member=member, producing_run=f"{stem}/0", expected=expected, observed=expected, engine_plane_edits=edits, auditor=findings, green=True)
 
 
 async def _run_member(loop):
@@ -303,8 +302,7 @@ async def _run_member(loop):
 async def produce(root, *, exec_, fs, clock, sleep, notifications, timeout=60):
     entries = []
     for name in scaffold.SCENARIOS:
-        loop = FixtureLoop(root / name, name, exec_=exec_, fs=fs, clock=clock, sleep=sleep,
-                           notifications=notifications, timeout=timeout)
+        loop = FixtureLoop(root / name, name, exec_=exec_, fs=fs, clock=clock, sleep=sleep, notifications=notifications, timeout=timeout)
         entries.append(await _run_member(loop))
     return HostLoopReport(schema_version=1, entries=entries)
 
@@ -325,8 +323,7 @@ async def _main(argv=None):
         except (ValueError, OSError, GitError) as exc:
             raise LoopRefused("go_grade_report", str(exc)) from exc
         with tempfile.TemporaryDirectory(prefix="chupa-host-loop-") as directory:
-            report = await produce(Path(directory), exec_=exec_, fs=fs, clock=clock,
-                                   sleep=asyncio.sleep, notifications=None)
+            report = await produce(Path(directory), exec_=exec_, fs=fs, clock=clock, sleep=asyncio.sleep, notifications=None)
         write_report(args.out, report, fs=fs)
         write_receipt(args.receipt, canonical(report), baseline_bytes, fs=fs)
     except (ValueError, OSError, GitError) as exc:

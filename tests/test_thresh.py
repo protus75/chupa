@@ -46,15 +46,22 @@ class Rig:
     def __init__(self, path, *, cap=1, k=3):
         path.mkdir(parents=True, exist_ok=True)
         raw = {
-            "schema_version": 1, "state_dir": "state",
-            "providers": [{"name": name, "kind": "cli", "package": "fixture",
-                           "models_by_tier": dict.fromkeys(("low", "medium", "high", "max"), name + "-model"),
-                           "limits": {"concurrency": cap if name == "a" else 1,
-                                      "est_cost_per_call_usd": 1.0, "quota_window_minutes": 60}}
-                          for name in ("a", "b", "c")],
-            "routing": [{"tier": "medium", "surface": "implement",
-                         "candidates": [{"provider": "a"}, {"provider": "b", "model": "pinned"}, {"provider": "c"}]}],
-            "review": {}, "merge": {}, "engine_plane_safety_inventory": [],
+            "schema_version": 1,
+            "state_dir": "state",
+            "providers": [
+                {
+                    "name": name,
+                    "kind": "cli",
+                    "package": "fixture",
+                    "models_by_tier": dict.fromkeys(("low", "medium", "high", "max"), name + "-model"),
+                    "limits": {"concurrency": cap if name == "a" else 1, "est_cost_per_call_usd": 1.0, "quota_window_minutes": 60},
+                }
+                for name in ("a", "b", "c")
+            ],
+            "routing": [{"tier": "medium", "surface": "implement", "candidates": [{"provider": "a"}, {"provider": "b", "model": "pinned"}, {"provider": "c"}]}],
+            "review": {},
+            "merge": {},
+            "engine_plane_safety_inventory": [],
             "circuit_breaker": {"k": k, "cooldown_minutes": 10},
         }
         (path / "config.yaml").write_text(yaml.safe_dump(raw))
@@ -65,8 +72,7 @@ class Rig:
         self.effects = Effects(self.journal)
         row = self.config.routing[0]
         providers = {p.name: p for p in self.config.providers}
-        self.route = tuple(Served(providers[c.provider], c.model or providers[c.provider].models_by_tier.medium)
-                           for c in row.candidates)
+        self.route = tuple(Served(providers[c.provider], c.model or providers[c.provider].models_by_tier.medium) for c in row.candidates)
         self.calls = []
 
     def fresh(self):
@@ -83,8 +89,7 @@ class Rig:
             self.record(name, "outage", f"opening/{name}/{i}")
 
     async def admit(self, route=None, *, estimate=0, key="admission", ticket="t"):
-        return await self.thresh.admit(self.route if route is None else route, ticket=ticket, call_key=key,
-                                       projected_wait_seconds=estimate)
+        return await self.thresh.admit(self.route if route is None else route, ticket=ticket, call_key=key, projected_wait_seconds=estimate)
 
     async def call(self, key, *, route=None, estimate=0, gate=None, error=None, ticket="t", surface="implement"):
         call_key = llm_key(ticket or surface, 0, surface, 1, key)
@@ -100,8 +105,7 @@ class Rig:
         async def effect(action):
             return await self.effects.run(action, key=call_key, ticket=ticket, cost=lambda r: {"usd": r["usd"]})
 
-        return await self.thresh.run(self.route if route is None else route, ticket=ticket, call_key=call_key,
-                                     projected_wait_seconds=estimate, effect=effect, operation=operation)
+        return await self.thresh.run(self.route if route is None else route, ticket=ticket, call_key=call_key, projected_wait_seconds=estimate, effect=effect, operation=operation)
 
 
 async def settle():
@@ -115,8 +119,7 @@ def clean(rig):
 
 
 def wait_body(name, key, started, seconds, disposition):
-    return {"signal": PROVIDER_CAP_WAIT, "provider": name, "call_key": key,
-            "started_at": started.isoformat(), "waited_seconds": seconds, "disposition": disposition}
+    return {"signal": PROVIDER_CAP_WAIT, "provider": name, "call_key": key, "started_at": started.isoformat(), "waited_seconds": seconds, "disposition": disposition}
 
 
 def test_per_provider_concurrency_caps(tmp_path):
@@ -147,8 +150,7 @@ def test_per_provider_concurrency_caps(tmp_path):
             assert r.journal.read()[-1].type == EventType.EFFECT_INTENT
             return served.model
 
-        result = await r.thresh.run(r.route[2:], ticket=None, call_key="llm/probe/0/review/1/1",
-                                    projected_wait_seconds=0, effect=effect, operation=operation)
+        result = await r.thresh.run(r.route[2:], ticket=None, call_key="llm/probe/0/review/1/1", projected_wait_seconds=0, effect=effect, operation=operation)
         assert result.admission.served == r.route[2] and result.admission.waited_seconds == 0
         gates[0].set()
         await settle()
@@ -158,6 +160,7 @@ def test_per_provider_concurrency_caps(tmp_path):
             gate.set()
         await asyncio.gather(first, second, third, independent)
         clean(r)
+
     asyncio.run(scenario())
 
 
@@ -185,11 +188,10 @@ def test_cap_wait_is_fifo_and_journaled(tmp_path):
         assert second.waited_seconds == 7
         events = r.signals(PROVIDER_CAP_WAIT)
         assert [(e.type, e.ticket, e.key) for e in events] == [(EventType.SIGNAL, "t", None), (EventType.SIGNAL, None, None)]
-        assert [e.body for e in events] == [
-            wait_body("a", "llm/t/0/review/1/1", started, 5, "admitted"),
-            wait_body("a", "llm/triage/0/triage/1/1", two_start, 7, "admitted")]
+        assert [e.body for e in events] == [wait_body("a", "llm/t/0/review/1/1", started, 5, "admitted"), wait_body("a", "llm/triage/0/triage/1/1", two_start, 7, "admitted")]
         r.thresh.release(second)
         clean(r)
+
     asyncio.run(scenario())
 
 
@@ -221,8 +223,7 @@ def test_cap_wait_rechecks_open_breaker_before_admission(tmp_path, alternate):
             result = await task
             assert isinstance(result, UnavailableRoute) and result.waited_seconds == 5
             assert result.providers == ("a", "b") and r.calls == []
-            assert not any(e.type in {EventType.EFFECT_INTENT, EventType.CAP_CONSUMED,
-                                      EventType.EFFECT_COMPLETION, EventType.STATE_TRANSITION} for e in r.journal.read())
+            assert not any(e.type in {EventType.EFFECT_INTENT, EventType.CAP_CONSUMED, EventType.EFFECT_COMPLETION, EventType.STATE_TRANSITION} for e in r.journal.read())
         elif alternate == "free":
             result = await task
             assert result.admission.served == r.route[1] and result.admission.waited_seconds == 5
@@ -265,21 +266,29 @@ def test_cap_wait_rechecks_open_breaker_before_admission(tmp_path, alternate):
                 assert result.admission.served == r.route[0]
                 assert result.admission.waited_seconds == 610
                 own = [e for e in r.signals(PROVIDER_CAP_WAIT) if e.body["call_key"] == "llm/t/0/implement/1/1"]
-                assert [(e.body["provider"], e.body["waited_seconds"], e.body["disposition"]) for e in own] == [
-                    ("a", 5, "unavailable"), ("b", 600, "unavailable"), ("a", 5, "admitted")]
+                assert [(e.body["provider"], e.body["waited_seconds"], e.body["disposition"]) for e in own] == [("a", 5, "unavailable"), ("b", 600, "unavailable"), ("a", 5, "admitted")]
             else:
                 r.thresh.release(first_b)
                 await settle()
                 result = await task
                 assert result.admission.served == r.route[1] and result.admission.waited_seconds == 12
         clean(r)
+
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize("error", [None, "cancel_active", RuntimeError("unexpected"), ProviderSetupError("setup"),
-                                    ExecutableNotFound("fixture"),
-                                    ProviderCallError("a", "down", rc=1, stderr_tail="down", failure_class="outage"),
-                                    asyncio.CancelledError()])
+@pytest.mark.parametrize(
+    "error",
+    [
+        None,
+        "cancel_active",
+        RuntimeError("unexpected"),
+        ProviderSetupError("setup"),
+        ExecutableNotFound("fixture"),
+        ProviderCallError("a", "down", rc=1, stderr_tail="down", failure_class="outage"),
+        asyncio.CancelledError(),
+    ],
+)
 def test_cap_wait_cancellation_and_call_unwind_release_slots(tmp_path, error):
     async def scenario():
         r = Rig(tmp_path)
@@ -312,6 +321,7 @@ def test_cap_wait_cancellation_and_call_unwind_release_slots(tmp_path, error):
         clean(r)
         assert isinstance(await r.call(3, route=r.route[:1]), CallResult)
         clean(r)
+
     asyncio.run(scenario())
 
 
@@ -369,6 +379,7 @@ def test_spill_requires_available_candidate_and_wait_over_sixty_seconds(tmp_path
         if earlier:
             r.thresh.release(await earlier)
         clean(r)
+
     asyncio.run(scenario())
 
 
@@ -404,11 +415,9 @@ def test_breaker_rebuilds_from_journal_and_releases_at_deadline(tmp_path, older_
         r = Rig(tmp_path, cap=2, k=1)
         # Both calls are admitted before opening; the older one finishes after it.
         older_gate, newer_gate = asyncio.Event(), asyncio.Event()
-        error = (ProviderCallError("a", "older failure", rc=1, stderr_tail="", failure_class=older_failure)
-                 if older_failure else None)
+        error = ProviderCallError("a", "older failure", rc=1, stderr_tail="", failure_class=older_failure) if older_failure else None
         old = asyncio.create_task(r.call(1, route=r.route[:1], gate=older_gate, error=error))
-        new = asyncio.create_task(r.call(2, route=r.route[:1], gate=newer_gate,
-                                         error=ProviderCallError("a", "down", rc=1, stderr_tail="", failure_class="outage")))
+        new = asyncio.create_task(r.call(2, route=r.route[:1], gate=newer_gate, error=ProviderCallError("a", "down", rc=1, stderr_tail="", failure_class="outage")))
         await settle()
         r.time.advance(4)
         opening_time = r.time()
@@ -419,9 +428,7 @@ def test_breaker_rebuilds_from_journal_and_releases_at_deadline(tmp_path, older_
         deadline = opening_time + timedelta(minutes=10)
         [opening] = r.signals(PROVIDER_CALL_OUTCOME)
         assert opening.ts == opening_time.isoformat() and opening.ticket == "t" and opening.key is None
-        assert opening.body == {"signal": PROVIDER_CALL_OUTCOME, "provider": "a",
-                                "call_key": "llm/t/0/implement/1/2", "failure_class": "outage",
-                                "open_until": deadline.isoformat()}
+        assert opening.body == {"signal": PROVIDER_CALL_OUTCOME, "provider": "a", "call_key": "llm/t/0/implement/1/2", "failure_class": "outage", "open_until": deadline.isoformat()}
         r.time.advance(3)
         older_gate.set()
         if older_failure:
@@ -447,6 +454,7 @@ def test_breaker_rebuilds_from_journal_and_releases_at_deadline(tmp_path, older_
         fresh.record_outcome("a", "unclassified", ticket=None, call_key="new-failure")
         assert fresh.breakers()["a"].open_until == r.time() + timedelta(minutes=10)
         clean(r)
+
     asyncio.run(scenario())
 
 
@@ -476,8 +484,8 @@ def test_open_route_refuses_without_effect_or_cap_draw(tmp_path):
         r.time.now = refused.open_until
         assert (await r.call(3, route=r.route[:2])).admission.served == r.route[0]
         clean(r)
-        assert not any(e.type in {EventType.CAP_CONSUMED, EventType.STATE_TRANSITION,
-                                  EventType.TIMER_ARMED, EventType.TIMER_FIRED} for e in r.journal.read())
+        assert not any(e.type in {EventType.CAP_CONSUMED, EventType.STATE_TRANSITION, EventType.TIMER_ARMED, EventType.TIMER_FIRED} for e in r.journal.read())
+
     asyncio.run(scenario())
 
 
@@ -491,12 +499,12 @@ def test_effect_replay_does_not_record_another_provider_outcome(tmp_path):
         assert first == second and r.calls == [(1, r.route[0])]
         assert r.journal.read() == before
         [outcome] = r.signals(PROVIDER_CALL_OUTCOME)
-        assert outcome.body == {"signal": PROVIDER_CALL_OUTCOME, "provider": "a",
-                                "call_key": "llm/t/0/implement/1/1", "failure_class": None, "open_until": None}
+        assert outcome.body == {"signal": PROVIDER_CALL_OUTCOME, "provider": "a", "call_key": "llm/t/0/implement/1/1", "failure_class": None, "open_until": None}
         assert outcome.key is None and outcome.ticket == "t"
         assert [e.type for e in before] == [EventType.EFFECT_INTENT, EventType.SIGNAL, EventType.EFFECT_COMPLETION]
         assert before[-1].body["cost"] == {"usd": 1.0}
         clean(r)
+
     asyncio.run(scenario())
 
 
@@ -534,10 +542,9 @@ def test_thresh_is_active():
     assert_dormant(sources)
     for statement in ("import chupa.thresh", "from chupa import thresh", "from chupa.thresh import Thresh"):
         for owner in ("chupa.providers", "chupa"):
-            wired = {**sources, 'chupa.providers': sources['chupa.providers'].replace(
-                'from chupa.thresh import Thresh', '').replace('from chupa.thresh import UnavailableRoute', '')}
-            wired[owner] += '\n' + statement
+            wired = {**sources, "chupa.providers": sources["chupa.providers"].replace("from chupa.thresh import Thresh", "").replace("from chupa.thresh import UnavailableRoute", "")}
+            wired[owner] += "\n" + statement
             assert_dormant(wired)
-            wired[owner] = wired[owner].removesuffix('\n' + statement)
+            wired[owner] = wired[owner].removesuffix("\n" + statement)
             with pytest.raises(AssertionError):
                 assert_dormant(wired)

@@ -33,9 +33,11 @@ async def test_pause_checkpoint_precedes_dispatch_and_snapshot(tickets, tmp_path
 
     def bind(snapshot):
         binds.append(snapshot)
+
         async def dispatch(ticket):
             calls.append(ticket)
             return "original-terminal"
+
         return dispatch
 
     admission = DaemonAdmission(snapshot_dispatch(load, bind), before_dispatch=checkpoint)
@@ -111,8 +113,7 @@ async def test_only_matching_resume_releases_pause(tickets, tmp_path):
     admission = DaemonAdmission(dispatch, before_dispatch=checkpoint)
     task = asyncio.create_task(admission.dispatch(tickets[0]))
     assert (await consumed.get()).pause_id == "10-pause"
-    for id, hold, lifecycle in (("20-wrong", "wrong", None),
-                                ("30-old-life", "10-pause", "previous")):
+    for id, hold, lifecycle in (("20-wrong", "wrong", None), ("30-old-life", "10-pause", "previous")):
         rig.publish(id, "resume", hold, lifecycle)
         wake.set()
         assert (await consumed.get()).pause_id == "10-pause"
@@ -129,8 +130,7 @@ async def test_only_matching_resume_releases_pause(tickets, tmp_path):
     wake.set()
     assert (await consumed.get()).pause_id is None
     assert await task == "merged" and calls == [tickets[0]]
-    assert [d["decision"] for d in rig.decisions()] == [
-        "stale", "accepted", "stale", "stale", "accepted", "accepted", "stale", "accepted"]
+    assert [d["decision"] for d in rig.decisions()] == ["stale", "accepted", "stale", "stale", "accepted", "accepted", "stale", "accepted"]
     assert rig.reconstruct().recover().pause_id is None
 
 
@@ -191,10 +191,13 @@ def test_dispatch_pause_boundary_is_active(root, tmp_path, monkeypatch):
     async def composition():
         directory = tmp_path / "composition"
         directory.mkdir()
+
         async def prepare(checkout):
             async def dispatch(ticket):
                 return "merged"
+
             return dispatch
+
         rig = CoreRig(directory, prepare=prepare)
         assert_core_wiring(rig)
         candidate = await rig.add("work")
@@ -206,4 +209,5 @@ def test_dispatch_pause_boundary_is_active(root, tmp_path, monkeypatch):
             assert rig.exec.calls == [] and rig.fs.files == {}
         assert await rig.core.admission.dispatch(candidate) == "merged"
         assert not any(e.body.get("kind") == control.CONTROL_DECISION for e in rig.journal.read())
+
     asyncio.run(composition())

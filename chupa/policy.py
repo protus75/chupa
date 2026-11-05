@@ -65,7 +65,6 @@ def start_state(
     reopen: bool = False,
 ) -> StartState:
     """Resolve a box ticket's initial state, failing closed for every override."""
-    if (reopen or not go or not config.engine_plane_safety_inventory
-            or touches_inventory(fence, config.engine_plane_safety_inventory) or gate_bypass):
+    if reopen or not go or not config.engine_plane_safety_inventory or touches_inventory(fence, config.engine_plane_safety_inventory) or gate_bypass:
         return "draft"
     return config.box_policy[row]

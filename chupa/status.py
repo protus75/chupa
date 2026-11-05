@@ -7,7 +7,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
-from chupa.journal import EventType, Event
+from chupa.journal import Event, EventType
 from chupa.retro import Window, project_window
 from chupa.scorecard import Scorecard, project_scorecard
 from chupa.tickets import INTAKE_SIGNAL
@@ -47,26 +47,19 @@ def reject_queue(events: Iterable[Event]) -> dict[str, Mapping]:
                 waiting[e.ticket] = terminals[e.ticket]
         elif e.type == EventType.SIGNAL and e.body.get("signal") == "reject_verdict":
             waiting.pop(e.ticket, None)
-    return {stem: body for stem, body in waiting.items()
-            if terminals[stem].get("to") not in SETTLED}
+    return {stem: body for stem, body in waiting.items() if terminals[stem].get("to") not in SETTLED}
 
 
 def last_states(events: Iterable[Event]) -> dict[str, str]:
     """Each stem's latest run-state transition target."""
-    return {e.ticket: e.body["to"] for e in events
-            if e.type == EventType.STATE_TRANSITION and e.ticket is not None and "to" in e.body}
+    return {e.ticket: e.body["to"] for e in events if e.type == EventType.STATE_TRANSITION and e.ticket is not None and "to" in e.body}
 
 
-def project(events: Iterable[Event], *, box=None, policy=None,
-            window: Window | None = None, provenance: Mapping[str, str] | None = None) -> Status:
+def project(events: Iterable[Event], *, box=None, policy=None, window: Window | None = None, provenance: Mapping[str, str] | None = None) -> Status:
     events = list(events)
     last = last_states(events)
-    intake = tuple(
-        (e.ticket, e.body["source"], e.body["state"], e.body["commit"]) for e in events
-        if e.type == EventType.SIGNAL and e.body.get("signal") == INTAKE_SIGNAL and e.ticket is not None
-    )
-    spend = sum(e.body["cost"].get("usd", 0.0) for e in events
-                if e.type == EventType.EFFECT_COMPLETION and isinstance(e.body.get("cost"), dict))
+    intake = tuple((e.ticket, e.body["source"], e.body["state"], e.body["commit"]) for e in events if e.type == EventType.SIGNAL and e.body.get("signal") == INTAKE_SIGNAL and e.ticket is not None)
+    spend = sum(e.body["cost"].get("usd", 0.0) for e in events if e.type == EventType.EFFECT_COMPLETION and isinstance(e.body.get("cost"), dict))
     return Status(
         merged=tuple(sorted(s for s, to in last.items() if to == "merged")),
         in_flight=tuple(sorted(s for s, to in last.items() if to == "running")),
@@ -74,10 +67,8 @@ def project(events: Iterable[Event], *, box=None, policy=None,
         intake=intake,
         spend_usd=spend,
         reject=tuple(sorted(reject_queue(events).items())),
-        tombstones=tuple((m.id, m.message_class, m.reports) for m in
-                         box.confirmed_tombstones(policy)) if box is not None else (),
-        reopens=tuple(e.body for e in events if e.type == EventType.SIGNAL
-                      and e.body.get("kind") == "tombstone_auto_reopened"),
+        tombstones=tuple((m.id, m.message_class, m.reports) for m in box.confirmed_tombstones(policy)) if box is not None else (),
+        reopens=tuple(e.body for e in events if e.type == EventType.SIGNAL and e.body.get("kind") == "tombstone_auto_reopened"),
         scorecard=project_scorecard(window if window is not None else project_window(events)),
         provenance=MappingProxyType(dict(provenance or {})),
     )
@@ -88,35 +79,36 @@ def render(status: Status) -> str:
         return f"{name}:\n" + ("\n".join(f"- {line}" for line in lines) or "(none)")
 
     card = status.scorecard
-    totals = [f"boundary: {card.boundary}", f"merged tickets: {card.merged_ticket_count}",
-              f"spend: ${card.spend_usd:.2f}"]
+    totals = [f"boundary: {card.boundary}", f"merged tickets: {card.merged_ticket_count}", f"spend: ${card.spend_usd:.2f}"]
     for direction, tokens in card.tokens.items():
         totals.append(f"{direction} tokens: {tokens['known']} known, {tokens['unknown_calls']} unknown calls")
     totals.extend(f"{kind}: {count}" for kind, count in sorted(card.signal_counts.items()))
     totals.append(f"gate failures: {card.gate_failure_count}")
-    table = ["## Surface scorecard",
+    table = [
+        "## Surface scorecard",
         "| Surface | Evaluated tickets | Catches | Escapes | Bypass count | Catch rate | Escape rate | Prune candidate |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |"]
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+    ]
     for row in card.surfaces:
         surface = row.surface.replace("|", "\\|").replace("\n", " ")
-        table.append(f"| {surface} | {row.evaluated_tickets} | {row.catches} | {row.escapes} | "
-                     f"{row.bypass_count} | {row.catch_rate:.4f} | {row.escape_rate:.4f} | "
-                     f"{str(row.prune_candidate).lower()} |")
-    return "\n\n".join((
-        block("merged", status.merged),
-        block("in flight", status.in_flight),
-        block("blocked", (f"{stem}: {to}" for stem, to in status.blocked)),
-        block("intake", (f"{stem}: source: {source}, state: {state}, commit {commit[:12]}"
-                         for stem, source, state, commit in status.intake)),
-        f"spend:\n${status.spend_usd:.2f}",
-        block("Reject queue", (f"{stem}: {body['to']} at {body.get('stage', 'unknown')} -- "
-                               f"confirm {stem} after editing, or reject {stem}"
-                               for stem, body in status.reject)),
-        block("Confirmed-class tombstones", (f"{id}: {cls}, {reports} re-reports"
-                                              for id, cls, reports in status.tombstones)),
-        block("Tombstone reopens", (f"{body['box_id']}: reopened at {body['reports']} re-reports"
-                                    for body in status.reopens)),
-        block("current-window scorecard", totals),
-        block("window provenance", (f"{key}: {value}" for key, value in sorted(status.provenance.items()))),
-        "\n".join(table),
-    )) + "\n"
+        table.append(
+            f"| {surface} | {row.evaluated_tickets} | {row.catches} | {row.escapes} | {row.bypass_count} | {row.catch_rate:.4f} | {row.escape_rate:.4f} | {str(row.prune_candidate).lower()} |"
+        )
+    return (
+        "\n\n".join(
+            (
+                block("merged", status.merged),
+                block("in flight", status.in_flight),
+                block("blocked", (f"{stem}: {to}" for stem, to in status.blocked)),
+                block("intake", (f"{stem}: source: {source}, state: {state}, commit {commit[:12]}" for stem, source, state, commit in status.intake)),
+                f"spend:\n${status.spend_usd:.2f}",
+                block("Reject queue", (f"{stem}: {body['to']} at {body.get('stage', 'unknown')} -- confirm {stem} after editing, or reject {stem}" for stem, body in status.reject)),
+                block("Confirmed-class tombstones", (f"{id}: {cls}, {reports} re-reports" for id, cls, reports in status.tombstones)),
+                block("Tombstone reopens", (f"{body['box_id']}: reopened at {body['reports']} re-reports" for body in status.reopens)),
+                block("current-window scorecard", totals),
+                block("window provenance", (f"{key}: {value}" for key, value in sorted(status.provenance.items()))),
+                "\n".join(table),
+            )
+        )
+        + "\n"
+    )

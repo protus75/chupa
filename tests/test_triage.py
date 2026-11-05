@@ -1,7 +1,7 @@
 """Production CLI composition with a scripted provider and a real ticket-plane checkout."""
 
-import json
 import asyncio
+import json
 from pathlib import Path
 
 import pytest
@@ -19,7 +19,10 @@ from tests.test_drain import Clock, commit_ticket, confirmed, make_root
 def root_with_box(tmp_path: Path) -> tuple[Path, Box]:
     root = make_root(tmp_path)
     config = root.joinpath("config.yaml")
-    config.write_text(config.read_text().replace("  - {tier: medium, surface: implement, candidates: [{provider: claude}]}", """  - {tier: medium, surface: implement, candidates: [{provider: claude}]}
+    config.write_text(
+        config.read_text().replace(
+            "  - {tier: medium, surface: implement, candidates: [{provider: claude}]}",
+            """  - {tier: medium, surface: implement, candidates: [{provider: claude}]}
   - {tier: low, surface: author, candidates: [{provider: claude}]}
   - {tier: medium, surface: author, candidates: [{provider: claude}]}
   - {tier: high, surface: author, candidates: [{provider: claude}]}
@@ -28,7 +31,9 @@ def root_with_box(tmp_path: Path) -> tuple[Path, Box]:
   - {tier: medium, surface: review, candidates: [{provider: claude}]}
   - {tier: high, surface: review, candidates: [{provider: claude}]}
   - {tier: max, surface: review, candidates: [{provider: claude}]}
-"""))
+""",
+        )
+    )
     return root, Box(root / ".chupa" / "state" / "box", LocalFileSystem())
 
 
@@ -37,13 +42,16 @@ def enqueue(box: Box, summary: str) -> str:
 
 
 def reply(verdict: str, *, link=None, summary="Triage's own summary", evidence=None, days=30) -> str:
-    return json.dumps({"verdict": verdict, "link": link, "summary": summary,
-                       "rationale": "Observed and classified", "evidence": evidence or [],
-                       "reopen_after_days": None if verdict == "author" else days})
+    return json.dumps(
+        {"verdict": verdict, "link": link, "summary": summary, "rationale": "Observed and classified", "evidence": evidence or [], "reopen_after_days": None if verdict == "author" else days}
+    )
 
 
 def author_reply(stem: str) -> str:
-    return json.dumps({"stem": stem, "ticket": """---
+    return json.dumps(
+        {
+            "stem": stem,
+            "ticket": """---
 priority: P2
 kind: feature
 ---
@@ -78,7 +86,9 @@ uv run pytest
 ## Time budget
 - expected: 10m
 - stuck: 20m
-"""})
+""",
+        }
+    )
 
 
 def requisition_reply(verdict: str, findings: list | None = None) -> str:
@@ -104,16 +114,13 @@ def test_three_verdicts_and_second_pass_and_stale_author(tmp_path, monkeypatch, 
     marker = "RAW-SUMMARY-UNIQUE-987"
     ids = [enqueue(box, marker), enqueue(box, "another concern"), enqueue(box, "third concern")]
     messages = [box.get(id) for id in ids]
-    llm = FakeLLM([reply("tombstone", link="existing", days=7), reply("decision", days=14),
-                   reply("author"), author_reply("authored"), requisition_reply("approve")])
+    llm = FakeLLM([reply("tombstone", link="existing", days=7), reply("decision", days=14), reply("author"), author_reply("authored"), requisition_reply("approve")])
     before = subjects(root)
     assert run(root, monkeypatch, llm) == 0
     assert "ticket -> authored" in capsys.readouterr().out
-    assert subjects(root)[:3] == ["chupa(authored): ticket", f"chupa(decisions): decision-{ids[1]}",
-                                   f"chupa(decisions): tombstone-{ids[0]}"]
+    assert subjects(root)[:3] == ["chupa(authored): ticket", f"chupa(decisions): decision-{ids[1]}", f"chupa(decisions): tombstone-{ids[0]}"]
     assert subjects(root)[3:] == before
-    for id, kind, link, days in [(ids[0], "tombstone", "existing", 7),
-                                 (ids[1], "decision", ids[1], 14)]:
+    for id, kind, link, days in [(ids[0], "tombstone", "existing", 7), (ids[1], "decision", ids[1], 14)]:
         path = record_path(f"{kind}-{id}")
         record, body = parse_record((root / path).read_text())
         assert (record.kind, record.link, record.reopen_after_days) == (kind, link, days)
@@ -124,13 +131,14 @@ def test_three_verdicts_and_second_pass_and_stale_author(tmp_path, monkeypatch, 
     assert box.get(ids[2]).verdict.produced_by_spec_version == "1.0"
     assert len(llm.requests) == 5
     assert [(r.surface, r.tier, r.ticket) for r in llm.requests] == [
-        ("triage", "medium", None), ("triage", "medium", None), ("triage", "medium", None),
-        ("author", "medium", None), ("requisition_review", "medium", None),
+        ("triage", "medium", None),
+        ("triage", "medium", None),
+        ("triage", "medium", None),
+        ("author", "medium", None),
+        ("requisition_review", "medium", None),
     ]
     keys = {e.key for e in events(root) if e.type == EventType.EFFECT_COMPLETION and e.key.startswith("llm/")}
-    assert keys == {f"llm/triage/{m.seq}/triage/0/1" for m in messages} | {
-        f"llm/author/0/author/{messages[2].seq}/1",
-        f"llm/author/0/requisition_review/{messages[2].seq}/1"}
+    assert keys == {f"llm/triage/{m.seq}/triage/0/1" for m in messages} | {f"llm/author/0/author/{messages[2].seq}/1", f"llm/author/0/requisition_review/{messages[2].seq}/1"}
     for m in messages:
         spool = root / ".chupa" / "state" / "spools" / "triage" / str(m.seq) / "0" / "triage" / "call-01"
         assert (spool / "prompt.md").exists() and (spool / "output.txt").exists()
@@ -169,8 +177,7 @@ def test_precommitted_record_resolves_without_call(tmp_path, monkeypatch):
     id = enqueue(box, "already classified")
     path = record_path(f"decision-{id}")
     (root / path).parent.mkdir(parents=True)
-    (root / path).write_text(render_record(DecisionRecord(id=f"decision-{id}", kind="decision",
-                                                       link=id, reopen_after_days=8), "Prior classification\n"))
+    (root / path).write_text(render_record(DecisionRecord(id=f"decision-{id}", kind="decision", link=id, reopen_after_days=8), "Prior classification\n"))
     git_out(root, "add", str(path))
     git_out(root, "commit", "-m", f"chupa(decisions): decision-{id}", "--only", "--", str(path))
     llm = FakeLLM([])
@@ -184,8 +191,7 @@ def test_uncommitted_record_is_committed_before_resolution(tmp_path, monkeypatch
     id = enqueue(box, "crash after write")
     path = record_path(f"decision-{id}")
     (root / path).parent.mkdir(parents=True)
-    (root / path).write_text(render_record(DecisionRecord(id=f"decision-{id}", kind="decision",
-                                                       link=id, reopen_after_days=8), "Recover me\n"))
+    (root / path).write_text(render_record(DecisionRecord(id=f"decision-{id}", kind="decision", link=id, reopen_after_days=8), "Recover me\n"))
     llm = FakeLLM([])
     assert run(root, monkeypatch, llm) == 0
     assert llm.requests == []
@@ -200,8 +206,7 @@ def test_uncommitted_registry_target_is_not_valid_tombstone_link(tmp_path, monke
     target = "decision-other"
     path = record_path(target)
     (root / path).parent.mkdir(parents=True)
-    (root / path).write_text(render_record(DecisionRecord(id=target, kind="decision", link="other",
-                                                       reopen_after_days=8), "Uncommitted\n"))
+    (root / path).write_text(render_record(DecisionRecord(id=target, kind="decision", link="other", reopen_after_days=8), "Uncommitted\n"))
     llm = FakeLLM([reply("tombstone", link=target)])
     assert run(root, monkeypatch, llm) == 0
     assert parse_record((root / record_path(f"decision-{id}")).read_text())[0].kind == "decision"
@@ -220,8 +225,8 @@ def test_invalid_replies_leave_pending_without_commit(tmp_path, monkeypatch):
 
 
 def test_report_ingested_before_pending_scan(tmp_path, monkeypatch):
-    from tests.test_inbox import arrival
     from chupa import inbox
+    from tests.test_inbox import arrival
 
     root, box = root_with_box(tmp_path)
     source = arrival(root)
@@ -231,33 +236,38 @@ def test_report_ingested_before_pending_scan(tmp_path, monkeypatch):
     config = root / "config.yaml"
     config.write_text(config.read_text() + "report_inbox: inbox\n")
     assert box.pending() == []
+
     def classify(request):
-        message, = box.pending()
+        (message,) = box.pending()
         assert message.report is not None and message.has_repro
-        assert "structured log" in request.rendered and 'initial_state' in request.rendered
+        assert "structured log" in request.rendered and "initial_state" in request.rendered
         assert "excerpt truncated" in request.rendered
         assert (box.root / message.report.custody.replay).read_bytes() == replay.read_bytes()
         return reply("decision")
+
     llm = FakeLLM([classify])
     assert run(root, monkeypatch, llm) == 0
     assert len(llm.requests) == 1 and box.pending() == []
     assert source.exists()
     config.write_text(config.read_text().replace("report_inbox: inbox\n", ""))
+
     def forbidden(path):
         pytest.fail("absent report inbox must not read report sources")
+
     monkeypatch.setattr(inbox, "validate_report", forbidden)
     assert run(root, monkeypatch, FakeLLM([])) == 0
 
 
 def test_report_author_failure_is_decision(tmp_path, monkeypatch):
     from tests.test_inbox import arrival
+
     root, box = root_with_box(tmp_path)
     arrival(root)
     config = root / "config.yaml"
     config.write_text(config.read_text() + "report_inbox: inbox\n")
     llm = FakeLLM([reply("author"), *[json.dumps({"stem": "broken", "ticket": "bad"})] * 4])
     assert run(root, monkeypatch, llm) == 0
-    message, = box.messages()
+    (message,) = box.messages()
     assert message.resolution == Resolution(kind="decision", link=f"decision-{message.id}")
     assert len([e for e in events(root) if e.body.get("signal") == "author_invoked"]) == 1
     assert len([r for r in llm.requests if r.surface == "author"]) == 4
@@ -266,10 +276,10 @@ def test_report_author_failure_is_decision(tmp_path, monkeypatch):
     assert run(root, monkeypatch, FakeLLM([])) == 0
     # A later arrival has its own allowance and can reuse the rejected stem.
     from tests.test_author import bug_reply
+
     source = root / "inbox/a.json"
     source.rename(source.with_name("b.json"))
-    assert run(root, monkeypatch, FakeLLM([reply("author"), bug_reply("broken"),
-                                          requisition_reply("approve")])) == 0
+    assert run(root, monkeypatch, FakeLLM([reply("author"), bug_reply("broken"), requisition_reply("approve")])) == 0
     assert (root / "tickets/broken/ticket.md").is_file()
 
 
@@ -287,12 +297,18 @@ def test_lock_contention_exits_two_without_pass(tmp_path, monkeypatch):
     assert not any(e.type == EventType.SIGNAL and e.body.get("signal") == "triage_pass" for e in events(root))
 
 
-@pytest.mark.parametrize(("recorded_verdict", "tombstone_link"), [
-    (True, None), (False, "own-record"), (False, "known"),
-])
+@pytest.mark.parametrize(
+    ("recorded_verdict", "tombstone_link"),
+    [
+        (True, None),
+        (False, "own-record"),
+        (False, "known"),
+    ],
+)
 def test_reopened_message_bypasses_its_tombstone(tmp_path, monkeypatch, recorded_verdict, tombstone_link):
     from chupa import triage
     from chupa.box import RereportJournal
+
     root, source = root_with_box(tmp_path)
     box = Box(source.root, source.fs, rereport=RereportJournal(Journal(root / ".chupa/state", Clock())))
     commit_ticket(root, "known", confirmed())
@@ -309,19 +325,23 @@ def test_reopened_message_bypasses_its_tombstone(tmp_path, monkeypatch, recorded
     if recorded_verdict:
         box.record_verdict(id, Verdict(verdict="author", produced_by_spec_version="1.0", rationale="new evidence"))
     else:
+
         def classify(request):
             assert f"tombstone-{id}: tombstone" not in request.rendered
             assert '"reopen": true' in request.rendered
             return reply("tombstone", link=f"tombstone-{id}" if tombstone_link == "own-record" else tombstone_link)
+
         script.insert(0, classify)
     author = triage.author
     calls = []
+
     async def author_with_preserved_registry(*args):
         assert path.read_bytes() == before
         assert git_out(root, "rev-parse", "HEAD").strip() == head
         assert git_out(root, "show", f"HEAD:{record_path(f'tombstone-{id}')}").encode() == before
         calls.append(id)
         return await author(*args)
+
     monkeypatch.setattr(triage, "author", author_with_preserved_registry)
     llm = FakeLLM(script)
     assert run(root, monkeypatch, llm) == 0
@@ -340,11 +360,11 @@ async def escape_rig(tmp_path):
     from chupa.tickets import validate_ticket
     from tests.test_drain import pause_checkout
     from tests.test_stages import implement_reply
+
     root, box = root_with_box(tmp_path)
     c = pause_checkout(root)
     writer = runner.bind(c, FakeLLM([implement_reply()]))
-    text = confirmed().replace("uv run pytest", "true").replace("kind: feature",
-        "kind: feature\ngate_bypass:\n  - {code: scope_fence, reason: witnessed fixture}")
+    text = confirmed().replace("uv run pytest", "true").replace("kind: feature", "kind: feature\ngate_bypass:\n  - {code: scope_fence, reason: witnessed fixture}")
     commit_ticket(root, "candidate", text)
     ticket = validate_ticket("candidate", text, root)
     slip = (await stages.implement(writer.ctx, ticket, attempt=0)).artifact
@@ -369,14 +389,17 @@ async def escape_rig(tmp_path):
 
 
 async def escape_report(c, *, commit, paths=(), stem="repair"):
-    from chupa import triage
     from dataclasses import replace
-    from tests.test_inbox import arrival
+
+    from chupa import triage
     from tests.test_author import bug_reply
+    from tests.test_inbox import arrival
+
     arrival(c.repo, app_commit=commit, implicated_paths=list(paths))
     config = c.repo / "config.yaml"
     config.write_text(config.read_text() + "report_inbox: inbox\n")
     from chupa.config import load_config
+
     c = replace(c, config=load_config(None, cwd=c.repo))
     llm = FakeLLM([reply("author"), bug_reply(stem), requisition_reply("approve")])
     await triage.triage_pass(c, llm)
@@ -388,37 +411,31 @@ async def escape_report(c, *, commit, paths=(), stem="repair"):
 
 
 def attribution(c):
-    return [e for e in c.journal.read() if e.type == EventType.EFFECT_COMPLETION
-            and (e.key or "").startswith("escape-attribution/")]
+    return [e for e in c.journal.read() if e.type == EventType.EFFECT_COMPLETION and (e.key or "").startswith("escape-attribution/")]
 
 
 def test_resolved_bug_escape_attribution(tmp_path):
     from chupa import triage
     from chupa.retro import production_evidence, project_window
     from chupa.scorecard import project_scorecard
+
     async def scenario():
         c, writer, box, checked, admitted = await escape_rig(tmp_path)
         # Later evidence, unfinished lifts, and mutable copies cannot replace admission custody.
-        c.journal.append(EventType.EFFECT_INTENT, {"result": {"commit": "missing"}},
-                         ticket="candidate", key="ticket-plane/candidate/0/checks")
+        c.journal.append(EventType.EFFECT_INTENT, {"result": {"commit": "missing"}}, ticket="candidate", key="ticket-plane/candidate/0/checks")
         path = "tickets/candidate/checks.json"
-        c.fs.write(c.repo / path, checked.model_copy(update={"produced_at_sha": "later",
-            "reports": []}).model_dump_json().encode())
+        c.fs.write(c.repo / path, checked.model_copy(update={"produced_at_sha": "later", "reports": []}).model_dump_json().encode())
         await c.git.add(c.repo, [path])
         await c.git.commit(c.repo, "later attempt", only=[path])
-        c.journal.append(EventType.EFFECT_COMPLETION,
-            {"result": {"commit": await c.git.rev_parse(c.repo, "HEAD")}},
-            ticket="candidate", key="ticket-plane/candidate/1/checks")
+        c.journal.append(EventType.EFFECT_COMPLETION, {"result": {"commit": await c.git.rev_parse(c.repo, "HEAD")}}, ticket="candidate", key="ticket-plane/candidate/1/checks")
         c, message, llm = await escape_report(c, commit=admitted.commit, paths=["chupa/thing.py"])
         [effect] = attribution(c)
         assert triage.ESCAPE_ATTRIBUTION == "escape-attribution"
         assert effect.key == f"escape-attribution/{message.id}" and effect.ticket == "repair"
         result = effect.body["result"]
         assert set(result) == {"box_id", "bug_ticket", "app_commit", "matches", "confidence_note"}
-        expected = sorted({r.code for r in checked.reports if r.verdict == "pass"
-                           and r.code not in checked.bypassed} | {"review"})
-        assert result["matches"] == [{"ticket": "candidate", "commit": admitted.commit,
-            "reviewed_sha": admitted.reviewed_sha, "surfaces": expected}]
+        expected = sorted({r.code for r in checked.reports if r.verdict == "pass" and r.code not in checked.bypassed} | {"review"})
+        assert result["matches"] == [{"ticket": "candidate", "commit": admitted.commit, "reviewed_sha": admitted.reviewed_sha, "surfaces": expected}]
         assert "scope_fence" not in expected and "unknown" not in expected
         assert "Single-commit" in result["confidence_note"] and "narrowed" in result["confidence_note"]
         # Crossing a retro boundary does not require a current-window Check for an old admission.
@@ -428,15 +445,16 @@ def test_resolved_bug_escape_attribution(tmp_path):
         window = project_window(c.journal.read())
         await production_evidence(window, c)
         assert all(r.escapes == 1 and r.evaluated_tickets == 0 for r in project_scorecard(window).surfaces)
-        no_paths = message.model_copy(update={"id": "wrong-path", "report": message.report.model_copy(
-            update={"report": message.report.report.model_copy(update={"implicated_paths": ["unrelated.py"]})})})
+        no_paths = message.model_copy(
+            update={"id": "wrong-path", "report": message.report.model_copy(update={"report": message.report.report.model_copy(update={"implicated_paths": ["unrelated.py"]})})}
+        )
         result = await triage.attribute_escape(c, writer.stages.driver, no_paths)
         assert result["matches"] == [] and "unavailable" in result["confidence_note"]
         base = await c.git.rev_parse(c.repo, f"{admitted.commit}~1")
         end = await c.git.rev_parse(c.repo, "HEAD")
-        ranged = message.model_copy(update={"id": "bounded-range", "report": message.report.model_copy(
-            update={"report": message.report.report.model_copy(update={"app_commit": f"{base}..{end}",
-                                                                       "implicated_paths": []})})})
+        ranged = message.model_copy(
+            update={"id": "bounded-range", "report": message.report.model_copy(update={"report": message.report.report.model_copy(update={"app_commit": f"{base}..{end}", "implicated_paths": []})})}
+        )
         bounded = await triage.attribute_escape(c, writer.stages.driver, ranged)
         result_match = attribution(c)[0].body["result"]["matches"]
         assert bounded["matches"] == result_match
@@ -444,14 +462,13 @@ def test_resolved_bug_escape_attribution(tmp_path):
         candidate = result_match[0]
         history = c.journal.read()
         # A trailer pair alone is not evidence, and an unfinished or later lift cannot prove a pass.
-        missing = [e for e in history if e.type != EventType.EFFECT_COMPLETION or
-                   not ((e.key or "").startswith("ticket-plane/candidate/0/") or
-                        (e.key or "").startswith("llm/candidate/"))]
+        missing = [e for e in history if e.type != EventType.EFFECT_COMPLETION or not ((e.key or "").startswith("ticket-plane/candidate/0/") or (e.key or "").startswith("llm/candidate/"))]
         assert await triage._passed_surfaces(c, candidate, missing) == []
         assert await triage._passed_surfaces(c, {**candidate, "reviewed_sha": "f" * 40}, history) == []
         unproven = {**candidate, "commit": await c.git.rev_parse(c.repo, "HEAD")}
         assert await triage._passed_surfaces(c, unproven, history) == []
         assert len(llm.requests) == 3
+
     asyncio.run(scenario())
 
 
@@ -459,27 +476,33 @@ def test_escape_attribution_retry(tmp_path, monkeypatch):
     from chupa import triage
     from chupa.effects import Effects
     from chupa.git import GitError
+
     async def scenario():
         c, writer, box, checked, admitted = await escape_rig(tmp_path)
         original = c.git.first_parent_squashes
+
         async def failure(*args):
             raise GitError(["git"], 1, "", "unreadable repository")
+
         with monkeypatch.context() as patch:
             patch.setattr(c.git, "first_parent_squashes", failure)
             c, message, llm = await escape_report(c, commit=admitted.commit)
         assert attribution(c) == []
-        assert any(e.type == EventType.EFFECT_INTENT and e.key == f"escape-attribution/{message.id}"
-                   for e in c.journal.read())
+        assert any(e.type == EventType.EFFECT_INTENT and e.key == f"escape-attribution/{message.id}" for e in c.journal.read())
         diagnostic = (c.config.state_dir / "engine.log").read_text()
         assert "escape_attribution_incomplete" in diagnostic and "repair repository/evidence access" in diagnostic
         assert c.git.first_parent_squashes == original
+
         class Crash(BaseException):
             pass
+
         append = c.journal.append
+
         def crash(type_, body, **kwargs):
             if type_ == EventType.EFFECT_COMPLETION and (kwargs.get("key") or "").startswith("escape-attribution/"):
                 raise Crash()
             return append(type_, body, **kwargs)
+
         with monkeypatch.context() as patch:
             patch.setattr(c.journal, "append", crash)
             with pytest.raises(Crash):
@@ -493,14 +516,17 @@ def test_escape_attribution_retry(tmp_path, monkeypatch):
         assert attribution(c) == [completed]
         assert len(llm.requests) == 3
         assert len([e for e in c.journal.read() if e.body.get("signal") == "author_invoked"]) == 1
-        from chupa.scorecard import project_scorecard
         from chupa.retro import project_window
+        from chupa.scorecard import project_scorecard
+
         assert all(r.escapes == 1 for r in project_scorecard(project_window(c.journal.read())).surfaces)
+
     asyncio.run(scenario())
 
 
 def test_escape_unattributed_reports(tmp_path):
     from chupa import triage
+
     async def scenario():
         c, writer, box, checked, admitted = await escape_rig(tmp_path)
         c, message, _ = await escape_report(c, commit="f" * 40)
@@ -516,14 +542,13 @@ def test_escape_unattributed_reports(tmp_path):
             assert result["matches"] == [] and result["confidence_note"]
         before = len(attribution(c))
         for kind in ("decision", "tombstone"):
-            id, _ = box.enqueue(message_class="bug_report", origin=kind, summary=kind,
-                                bug_origin="player", has_repro=False)
+            id, _ = box.enqueue(message_class="bug_report", origin=kind, summary=kind, bug_origin="player", has_repro=False)
             box.resolve(id, Resolution(kind=kind, link=kind))
         id, _ = box.enqueue(message_class="suggestion", origin="non-bug", summary="non bug")
         box.resolve(id, Resolution(kind="ticket", link="repair"))
-        id, _ = box.enqueue(message_class="bug_report", origin="pending", summary="pending bug",
-                            bug_origin="player", has_repro=False)
+        id, _ = box.enqueue(message_class="bug_report", origin="pending", summary="pending bug", bug_origin="player", has_repro=False)
         await triage.triage_pass(c, FakeLLM(["{}"] * 7))
         assert box.get(id).status == "pending" and len(attribution(c)) == before
         assert "triage" not in __import__("chupa.drain", fromlist=["drain"]).drain.__code__.co_names
+
     asyncio.run(scenario())

@@ -9,7 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from chupa import __main__ as cli, daemon, reconcile, runner, serve
+from chupa import __main__ as cli
+from chupa import daemon, reconcile, runner, serve
 from chupa.audit import audit_journal
 from chupa.journal import EventType, Journal, JournalCorruption, render_ts, run_seq
 from chupa.lockfile import Lockfile, LockHeld
@@ -23,20 +24,47 @@ from tests.test_scheduler import Time, turn
 from tests.waiting import wait_until
 
 
-@pytest.mark.parametrize("case", ["held", "confirmed", "decision", "moved", "conflict", "ready-crash", "go", "revoked", "revoked-crash", "before-squash", "after-squash", "terminal", "report-terminal", "partial", "missing", "corrupt", "review-missing", "review-corrupt", "contradictory"])
+@pytest.mark.parametrize(
+    "case",
+    [
+        "held",
+        "confirmed",
+        "decision",
+        "moved",
+        "conflict",
+        "ready-crash",
+        "go",
+        "revoked",
+        "revoked-crash",
+        "before-squash",
+        "after-squash",
+        "terminal",
+        "report-terminal",
+        "partial",
+        "missing",
+        "corrupt",
+        "review-missing",
+        "review-corrupt",
+        "contradictory",
+    ],
+)
 def test_restart_reconstructs_supervised_admission(tmp_path, monkeypatch, case):
-    from tests.test_mergequeue import ctx as context_fixture, commit
-    from tests.test_supervised_merge_hold import hold, confirm, baseline
-    from tests.test_effects import Crash
-    from chupa.mergequeue import held_admissions, regate_receipts
     from chupa import merge
+    from chupa.mergequeue import held_admissions, regate_receipts
+    from tests.test_effects import Crash
+    from tests.test_mergequeue import commit
+    from tests.test_mergequeue import ctx as context_fixture
+    from tests.test_supervised_merge_hold import baseline, confirm, hold
+
     ctx = context_fixture.__wrapped__(tmp_path)
+
     async def exercise():
         nonlocal ctx
         if case == "report-terminal":
+            from chupa import stages
             from tests.test_stages import report_context
             from tests.test_supervised_merge_hold import supervised
-            from chupa import stages
+
             ctx, ticket = await report_context(ctx.repo)
             ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket=ticket.stem)
             await stages.run_stages(ctx, ticket)
@@ -49,7 +77,8 @@ def test_restart_reconstructs_supervised_admission(tmp_path, monkeypatch, case):
         original = regate_receipts(ctx.driver.journal.read())
         if case in ("confirmed", "decision", "moved", "conflict", "ready-crash", "before-squash", "after-squash", "terminal", "report-terminal"):
             confirm(queue, held_run)
-            if case != "decision": await queue.control.inbox.settle_admissions(queue.confirm_draft)
+            if case != "decision":
+                await queue.control.inbox.settle_admissions(queue.confirm_draft)
         if case in ("moved", "ready-crash"):
             ctx.fs.write(ctx.repo / "chupa/other.py", b"moved\n")
             await commit(ctx, ctx.repo, ["chupa/other.py"])
@@ -58,51 +87,73 @@ def test_restart_reconstructs_supervised_admission(tmp_path, monkeypatch, case):
             await commit(ctx, ctx.repo, ["chupa/thing.py"])
         if case in ("go", "revoked", "revoked-crash"):
             baseline(ctx)
-            if case == "revoked": baseline(ctx, "NO_GO")
+            if case == "revoked":
+                baseline(ctx, "NO_GO")
         if case in ("before-squash", "after-squash", "terminal", "report-terminal", "ready-crash", "revoked-crash"):
             with monkeypatch.context() as patch:
                 if case in ("terminal", "report-terminal"):
-                    async def crash(*_): raise Crash()
+
+                    async def crash(*_):
+                        raise Crash()
+
                     patch.setattr(merge, "retire", crash)
                 elif case in ("before-squash", "ready-crash", "revoked-crash"):
-                    async def crash(*_): raise Crash()
+
+                    async def crash(*_):
+                        raise Crash()
+
                     patch.setattr(ctx.git, "merge_squash", crash)
                 else:
                     append = ctx.driver.journal.append
+
                     def crash(kind, body, **kwargs):
                         event = append(kind, body, **kwargs)
-                        if kind == EventType.EFFECT_COMPLETION and kwargs.get("key") == f"merge/{ticket.stem}/0": raise Crash()
+                        if kind == EventType.EFFECT_COMPLETION and kwargs.get("key") == f"merge/{ticket.stem}/0":
+                            raise Crash()
                         return event
+
                     patch.setattr(ctx.driver.journal, "append", crash)
-                with pytest.raises(Crash): await queue.process()
-            if case == "revoked-crash": baseline(ctx, "NO_GO")
+                with pytest.raises(Crash):
+                    await queue.process()
+            if case == "revoked-crash":
+                baseline(ctx, "NO_GO")
         if case in ("review-missing", "review-corrupt"):
             path = f"tickets/{ticket.stem}/review.md"
-            if case == "review-missing": (ctx.repo / path).unlink()
-            else: ctx.fs.write(ctx.repo / path, (ctx.repo / path).read_bytes().replace(b"served approval", b"changed approval"))
+            if case == "review-missing":
+                (ctx.repo / path).unlink()
+            else:
+                ctx.fs.write(ctx.repo / path, (ctx.repo / path).read_bytes().replace(b"served approval", b"changed approval"))
             await commit(ctx, ctx.repo, [path])
         if case == "contradictory":
-            ctx.driver.journal.append(EventType.EFFECT_COMPLETION,
-                {"result": {**original[held_run.hold_id], "checked_tree": "a" * 40}}, ticket=ticket.stem, key=held_run.hold_id)
+            ctx.driver.journal.append(EventType.EFFECT_COMPLETION, {"result": {**original[held_run.hold_id], "checked_tree": "a" * 40}}, ticket=ticket.stem, key=held_run.hold_id)
         if case in ("partial", "corrupt"):
             read = ctx.driver.journal.read
             events = read()
-            changed = [replace(e, body={"result": {**e.body["result"], "checked_tree": "bad"}})
-                       if e.type == EventType.EFFECT_COMPLETION and e.key == held_run.hold_id else e for e in events]
-            if case == "partial": changed = [e for e in events if not (e.type == EventType.EFFECT_COMPLETION and e.key == held_run.hold_id)]
-            monkeypatch.setattr(ctx.driver.journal, "read", lambda: changed + read()[len(events):])
-        if case == "missing": await ctx.git.worktree_remove(ctx.repo, ctx.worktree(ticket.stem))
-        checkout = runner.Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git, ctx.driver.journal,
-                                   ctx.fs, ctx.driver.clock, ctx.driver.sleep)
-        def forbidden(*_a, **_k): pytest.fail("recovery reran a model stage")
+            changed = [replace(e, body={"result": {**e.body["result"], "checked_tree": "bad"}}) if e.type == EventType.EFFECT_COMPLETION and e.key == held_run.hold_id else e for e in events]
+            if case == "partial":
+                changed = [e for e in events if not (e.type == EventType.EFFECT_COMPLETION and e.key == held_run.hold_id)]
+            monkeypatch.setattr(ctx.driver.journal, "read", lambda: changed + read()[len(events) :])
+        if case == "missing":
+            await ctx.git.worktree_remove(ctx.repo, ctx.worktree(ticket.stem))
+        checkout = runner.Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git, ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
+
+        def forbidden(*_a, **_k):
+            pytest.fail("recovery reran a model stage")
+
         from chupa.llm import FakeLLM
+
         model = FakeLLM(['{"action":"escalate","tickets":[]}'])
-        async def prepare(local): return runner.bind(local, model)
+
+        async def prepare(local):
+            return runner.bind(local, model)
+
         owner = cli.build_serve(checkout, plan="# Plan\n", prepare=prepare if case == "conflict" else forbidden)
         if case in ("missing", "corrupt", "review-missing", "review-corrupt", "contradictory"):
-            with pytest.raises(ValueError): await owner.core.startup()
+            with pytest.raises(ValueError):
+                await owner.core.startup()
             assert not owner.core.restart.ready
-            with pytest.raises(ValueError): await owner.core.startup()
+            with pytest.raises(ValueError):
+                await owner.core.startup()
             return
         await owner.core.startup()
         assert await owner.core.sweep_orphans() == []
@@ -114,9 +165,7 @@ def test_restart_reconstructs_supervised_admission(tmp_path, monkeypatch, case):
         if case == "conflict":
             consumer = asyncio.create_task(owner.merge())
             try:
-                await wait_until(lambda: owner.mutating is None and any(
-                    e.ticket == ticket.stem and e.body.get("to") == "gate_failed"
-                    for e in ctx.driver.journal.read()))
+                await wait_until(lambda: owner.mutating is None and any(e.ticket == ticket.stem and e.body.get("to") == "gate_failed" for e in ctx.driver.journal.read()))
                 assert [r.surface for r in model.requests] == ["rework"]
                 assert not ctx.worktree(ticket.stem).exists() and audit_journal(ctx.driver.journal) == []
             finally:
@@ -137,7 +186,9 @@ def test_restart_reconstructs_supervised_admission(tmp_path, monkeypatch, case):
         again = cli.build_serve(checkout, plan="# Plan\n", prepare=forbidden)
         await again.core.startup()
         assert ctx.driver.journal.read() == before and audit_journal(ctx.driver.journal) == []
+
     from chupa.control import releases as control_releases
+
     asyncio.run(exercise())
 
 
@@ -171,6 +222,7 @@ async def repository(root, monkeypatch, *, prepare=None):
     monkeypatch.setattr(rig.fs, "write", written)
     (root / ".gitignore").write_text(".chupa/\nstate/\nrecovery-workspaces/\n")
     from tests.test_stages import adopt_conduct
+
     conduct = adopt_conduct(root)
     await rig.checkout.git.add(root, ["config.yaml", ".gitignore", "chupa/thing.py", *conduct])
     await rig.checkout.git.commit(root, "restart fixture config")
@@ -202,8 +254,7 @@ async def test_restart_construction_is_idle(tmp_path, monkeypatch):
     def forbidden(*args, **kwargs):
         pytest.fail("construction read, wrote, created a task or called recovery")
 
-    for owner, names in ((Journal, ("read", "append")), (asyncio, ("create_task",)),
-                         (reconcile, ("reconcile",)), (runner, ("harvest_orphan",))):
+    for owner, names in ((Journal, ("read", "append")), (asyncio, ("create_task",)), (reconcile, ("reconcile",)), (runner, ("harvest_orphan",))):
         for name in names:
             monkeypatch.setattr(owner, name, forbidden)
     before = asyncio.all_tasks()
@@ -273,8 +324,7 @@ async def test_restart_reuses_orphan_reconciliation(root, monkeypatch):
             assert terminal.type == EventType.STATE_TRANSITION and terminal.ticket == path.name
             assert terminal.body == {"to": "abandoned"} and terminal.key is None
             assert alert.type == EventType.SIGNAL and alert.ticket == path.name and alert.key is None
-            assert alert.body == {"kind": "recovery_alert", "disposition": "alert", "outcome": "abandoned",
-                                  "reason": "orphaned run", "run_seq": run_seq(rig.journal.read(), path.name) - 1}
+            assert alert.body == {"kind": "recovery_alert", "disposition": "alert", "outcome": "abandoned", "reason": "orphaned run", "run_seq": run_seq(rig.journal.read(), path.name) - 1}
             await remove(repo, path)
 
         async def pruned(repo):
@@ -290,10 +340,9 @@ async def test_restart_reuses_orphan_reconciliation(root, monkeypatch):
         assert rig.core.restart.ready and calls == ["reconcile"]
         assert historical.exists() and not any(p.exists() for p in (running, intent, bad))
         events = rig.journal.read()
-        assert events[:len(prior)] == prior
+        assert events[: len(prior)] == prior
         for stem in ("running", "intent", "bad-harvest"):
-            assert (trace.index((stem, "harvest")) < trace.index((stem, "abandoned"))
-                    < trace.index((stem, "recovery_alert")) < trace.index((stem, "remove")))
+            assert trace.index((stem, "harvest")) < trace.index((stem, "abandoned")) < trace.index((stem, "recovery_alert")) < trace.index((stem, "remove"))
             assert trace[trace.index((stem, "remove")) + 1] == (None, "prune")
         assert ("missing", "harvest") not in trace and ("missing", "remove") not in trace
         assert trace[-1] == (None, "prune")
@@ -301,20 +350,17 @@ async def test_restart_reuses_orphan_reconciliation(root, monkeypatch):
         assert error.ticket == "bad-harvest" and error.key is None
         assert error.body == {"signal": "harvest_failed", "error": "ValueError: scripted harvest failure"}
         for stem in ("running", "intent", "missing", "bad-harvest"):
-            [terminal] = [e for e in events if e.ticket == stem and e.type == EventType.STATE_TRANSITION
-                          and e.body["to"] == "abandoned"]
+            [terminal] = [e for e in events if e.ticket == stem and e.type == EventType.STATE_TRANSITION and e.body["to"] == "abandoned"]
             assert terminal.key is None and terminal.body == {"to": "abandoned"}
             [alert] = [e for e in events if e.ticket == stem and e.body.get("kind") == reconcile.RECOVERY_ALERT]
             assert alert.type == EventType.SIGNAL and alert.key is None
-            assert alert.body == {"kind": "recovery_alert", "disposition": "alert", "outcome": "abandoned",
-                                  "reason": "orphaned run", "run_seq": 0}
+            assert alert.body == {"kind": "recovery_alert", "disposition": "alert", "outcome": "abandoned", "reason": "orphaned run", "run_seq": 0}
             assert events.index(terminal) + 1 == events.index(alert)
             assert run_seq(events, stem) == 1
         # The preserved intent-only recovery has no running transition; the existing
         # auditor reports that absent witness. Audit the actual evidence without repair.
         violations = audit_journal(rig.journal)
-        assert [(v.invariant, v.ticket, v.detail) for v in violations] == [
-            ("one_terminal_per_run", "intent", "terminal 'abandoned' has no open run")]
+        assert [(v.invariant, v.ticket, v.detail) for v in violations] == [("one_terminal_per_run", "intent", "terminal 'abandoned' has no open run")]
         assert await rig.core.sweep_orphans() == []
         await rig.core.startup()
         assert rig.journal.read() == events and calls == ["reconcile", "reconcile"]
@@ -325,8 +371,7 @@ async def test_restart_reuses_orphan_reconciliation(root, monkeypatch):
         assert await rig.core.sweep_orphans() == ["running"]
         assert (root / "tickets/running/attempts/1/harvest.json").is_file()
         assert run_seq(rig.journal.read(), "running") == 2
-        assert [e.body["run_seq"] for e in rig.journal.read()
-                if e.ticket == "running" and e.body.get("kind") == reconcile.RECOVERY_ALERT] == [0, 1]
+        assert [e.body["run_seq"] for e in rig.journal.read() if e.ticket == "running" and e.body.get("kind") == reconcile.RECOVERY_ALERT] == [0, 1]
     finally:
         lock.release()
 
@@ -349,8 +394,7 @@ async def test_recovery_alert_through_serve_entrypoint(root, monkeypatch):
         terminal, alert = rig.journal.read()[-2:]
         assert terminal.body == {"to": "abandoned"} and terminal.ticket == "dead"
         assert alert.ticket == "dead" and alert.key is None and alert.type == EventType.SIGNAL
-        assert alert.body == {"kind": "recovery_alert", "disposition": "alert", "outcome": "abandoned",
-                              "reason": "orphaned run", "run_seq": 0}
+        assert alert.body == {"kind": "recovery_alert", "disposition": "alert", "outcome": "abandoned", "reason": "orphaned run", "run_seq": 0}
         assert not dead.exists()
         calls.append("ready")
         stop()
@@ -390,6 +434,7 @@ async def test_orphan_sweep_preserves_live_ownership(root, monkeypatch, owner):
                 cleaning.set()
                 await finish.wait()
             return "infra_error"
+
         return dispatch
 
     rig = await repository(root, monkeypatch, prepare=prepare)
@@ -401,25 +446,30 @@ async def test_orphan_sweep_preserves_live_ownership(root, monkeypatch, owner):
         ticket = await rig.add("live")
         if owner == "admission":
             # Exercise the real inline admission with its own barrier-held Git child.
-            from tests.test_daemon_composition import capture_pipeline_queue
             from chupa.llm import FakeLLM
+            from tests.test_daemon_composition import capture_pipeline_queue
             from tests.test_mergequeue import ready
+
             captured = capture_pipeline_queue(monkeypatch)
             runner.bind(rig.core.restart.checkout, FakeLLM([]))
             ctx, _, queue = captured[0]
             candidate = await ready(ctx)
             rig.transition(candidate.stem, "running")
             git_call = rig.checkout.git._call
+
             async def block(repo, *args, **kwargs):
                 if args[:1] == ("rebase",):
                     entered.set()
                     await release.wait()
                 return await git_call(repo, *args, **kwargs)
+
             monkeypatch.setattr(rig.checkout.git, "_call", block)
             queue.offer(candidate, attempt=0)
+
             async def admission(_):
                 await queue.process()
                 return "merged"
+
             rig.core.admission._dispatch = admission
             task = asyncio.create_task(rig.core.admission.dispatch(ticket))
             await entered.wait()
@@ -431,8 +481,10 @@ async def test_orphan_sweep_preserves_live_ownership(root, monkeypatch, owner):
                 task.cancel()
                 await cleaning.wait()
         before = rig.journal.read()
+
         def forbidden(*args, **kwargs):
             pytest.fail("live ownership authorized a sweep mutation")
+
         with monkeypatch.context() as patch:
             patch.setattr(reconcile, "reconcile", forbidden)
             patch.setattr(runner, "harvest_orphan", forbidden)
@@ -455,15 +507,19 @@ async def test_orphan_sweep_preserves_live_ownership(root, monkeypatch, owner):
         await orphan(rig, "next-dead")
         sweeping, continue_sweep = asyncio.Event(), asyncio.Event()
         original_harvest = runner.harvest_orphan
+
         async def harvest(checkout, stem, attempt):
             sweeping.set()
             await continue_sweep.wait()
             await original_harvest(checkout, stem, attempt)
+
         monkeypatch.setattr(runner, "harvest_orphan", harvest)
         offered = []
+
         async def dispatch(_):
             offered.append("dispatch")
             return "already_satisfied"
+
         rig.core.admission._dispatch = dispatch
         sweep = asyncio.create_task(rig.core.sweep_orphans())
         await sweeping.wait()
@@ -492,9 +548,7 @@ def test_timer_records_and_identity(tmp_path):
     local = time().astimezone(timezone(timedelta(hours=-4)))
     value = owner.arm("one-deadline", local, ticket="work")
     [armed] = owner.journal.read()
-    assert asdict(armed) == {"v": 1, "type": EventType.TIMER_ARMED, "ts": render_ts(time()),
-                             "ticket": "work", "key": None,
-                             "body": {"timer_id": "one-deadline", "deadline": render_ts(time())}}
+    assert asdict(armed) == {"v": 1, "type": EventType.TIMER_ARMED, "ts": render_ts(time()), "ticket": "work", "key": None, "body": {"timer_id": "one-deadline", "deadline": render_ts(time())}}
     assert owner.arm("one-deadline", time(), ticket="work") is value
     assert owner.journal.read() == [armed]
     assert owner.fire_due() == (value,)
@@ -522,9 +576,11 @@ def test_timer_records_and_identity(tmp_path):
         tree = ast.parse(path.read_text())
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "append":
-                if node.args and ((isinstance(node.args[0], ast.Attribute) and
-                    node.args[0].attr in {"TIMER_ARMED", "TIMER_FIRED"}) or
-                    isinstance(node.args[0], ast.Constant) and node.args[0].value in {"timer_armed", "timer_fired"}):
+                if node.args and (
+                    (isinstance(node.args[0], ast.Attribute) and node.args[0].attr in {"TIMER_ARMED", "TIMER_FIRED"})
+                    or isinstance(node.args[0], ast.Constant)
+                    and node.args[0].value in {"timer_armed", "timer_fired"}
+                ):
                     writers.add(path.name)
     assert writers == {"timers.py"}
 
@@ -569,21 +625,25 @@ async def test_timer_append_is_write_ahead(tmp_path, monkeypatch, point):
 
 def invalid_history(now):
     body = {"timer_id": "deadline", "deadline": render_ts(now)}
-    bad = [{}, {**body, "timer_id": ""}, {**body, "timer_id": False},
-           {**body, "deadline": now.replace(tzinfo=None).isoformat()},
-           {**body, "deadline": "2026-01-01T00:00:00Z"},
-           {**body, "deadline": "2026-01-01T01:00:00+01:00"},
-           {**body, "deadline": 7}, {**body, "extra": "no"}]
+    bad = [
+        {},
+        {**body, "timer_id": ""},
+        {**body, "timer_id": False},
+        {**body, "deadline": now.replace(tzinfo=None).isoformat()},
+        {**body, "deadline": "2026-01-01T00:00:00Z"},
+        {**body, "deadline": "2026-01-01T01:00:00+01:00"},
+        {**body, "deadline": 7},
+        {**body, "extra": "no"},
+    ]
     cases = [[(EventType.TIMER_ARMED, value, None, None)] for value in bad]
-    cases += [[(EventType.TIMER_FIRED, body, None, None)],
-              [(EventType.TIMER_ARMED, body, None, "key")],
-              [(EventType.TIMER_ARMED, body, None, None),
-               (EventType.TIMER_ARMED, {**body, "deadline": render_ts(now + timedelta(seconds=1))}, None, None)],
-              [(EventType.TIMER_ARMED, body, "work", None), (EventType.TIMER_FIRED, body, None, None)],
-              [(EventType.TIMER_ARMED, body, None, None),
-               (EventType.TIMER_FIRED, {**body, "deadline": render_ts(now + timedelta(seconds=1))}, None, None)],
-              [(EventType.TIMER_ARMED, body, None, None), (EventType.TIMER_FIRED, body, None, None),
-               (EventType.TIMER_ARMED, body, "other", None)]]
+    cases += [
+        [(EventType.TIMER_FIRED, body, None, None)],
+        [(EventType.TIMER_ARMED, body, None, "key")],
+        [(EventType.TIMER_ARMED, body, None, None), (EventType.TIMER_ARMED, {**body, "deadline": render_ts(now + timedelta(seconds=1))}, None, None)],
+        [(EventType.TIMER_ARMED, body, "work", None), (EventType.TIMER_FIRED, body, None, None)],
+        [(EventType.TIMER_ARMED, body, None, None), (EventType.TIMER_FIRED, {**body, "deadline": render_ts(now + timedelta(seconds=1))}, None, None)],
+        [(EventType.TIMER_ARMED, body, None, None), (EventType.TIMER_FIRED, body, None, None), (EventType.TIMER_ARMED, body, "other", None)],
+    ]
     return cases
 
 
@@ -644,11 +704,13 @@ async def test_timer_deadline_wait_uses_injected_sleep(tmp_path):
     for identity, seconds in (("later", 30), ("bb", 10), ("aa", 10)):
         owner.arm(identity, time() + timedelta(seconds=seconds), ticket=None)
     actions = []
+
     async def consume():
         result = await owner.wait_next()
         assert all(t.body.timer_id in owner.fired for t in result)
         actions.extend(t.body.timer_id for t in result)
         return result
+
     task = asyncio.create_task(consume())
     await turn()
     assert waits == [10] and actions == []
@@ -685,11 +747,13 @@ async def test_production_restart_precedes_dispatch(root, monkeypatch):
         assert "overdue" in rig.core.restart.timers.fired
         locals.append(local)
         trace.append("prepare")
+
         async def dispatch(ticket):
             trace.append("dispatch")
             local.journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket=ticket.stem)
             local.journal.append(EventType.STATE_TRANSITION, {"to": "already_satisfied"}, ticket=ticket.stem)
             return "already_satisfied"
+
         return dispatch
 
     rig = await repository(root, monkeypatch, prepare=prepare)
@@ -706,6 +770,7 @@ async def test_production_restart_precedes_dispatch(root, monkeypatch):
         lifetime = rig.core.restart.timers
         first, second = await rig.add("first"), await rig.add("second")
         original = runner.harvest_orphan
+
         async def harvest(checkout, stem, attempt):
             assert rig.core.admission.active is None and rig.core.admission.task is None
             contender = Lockfile(checkout.config.state_dir, instance_id="contender", clock=rig.time)
@@ -715,27 +780,34 @@ async def test_production_restart_precedes_dispatch(root, monkeypatch):
             entered.set()
             await release.wait()
             await original(checkout, stem, attempt)
+
         monkeypatch.setattr(runner, "harvest_orphan", harvest)
         reconstruct, fire, snapshot = lifetime.reconstruct, lifetime.fire_due, daemon.snapshot_config
+
         def fold():
             assert not dead.exists()
             trace.append("rearm")
             reconstruct()
+
         def firing():
             trace.append("fire")
             return fire()
+
         def capture(config):
             trace.append("snapshot")
             assert rig.core.restart.ready
             return snapshot(config)
+
         monkeypatch.setattr(lifetime, "reconstruct", fold)
         monkeypatch.setattr(lifetime, "fire_due", firing)
         monkeypatch.setattr(daemon, "snapshot_config", capture)
         original_checkpoint = rig.core.control.checkpoint
+
         async def checkpoint():
             assert rig.core.restart.ready
             trace.append("pause")
             await original_checkpoint()
+
         monkeypatch.setattr(rig.core.control, "checkpoint", checkpoint)
         offered.append(asyncio.create_task(rig.core.admission.dispatch(first)))
         await entered.wait()
@@ -746,8 +818,7 @@ async def test_production_restart_precedes_dispatch(root, monkeypatch):
         assert not lifetime.pending and not lifetime.fired
         release.set()
         assert await asyncio.gather(*offered) == ["already_satisfied"] * 2
-        assert trace == ["reconcile", "rearm", "fire", "pause", "snapshot", "prepare", "dispatch",
-                         "pause", "snapshot", "prepare", "dispatch"]
+        assert trace == ["reconcile", "rearm", "fire", "pause", "snapshot", "prepare", "dispatch", "pause", "snapshot", "prepare", "dispatch"]
         assert rig.core.restart.timers is lifetime
         assert lifetime.pending["future"].deadline == future
         assert set(lifetime.fired) == {"completed", "overdue"}
@@ -771,9 +842,11 @@ async def test_production_restart_precedes_dispatch(root, monkeypatch):
 @pytest.mark.parametrize("failure", ["corruption", "git", "cleanup", "prune", "fold", "fire", "reconcile-append", "cancel"])
 async def test_restart_failures_do_not_report_ready(root, monkeypatch, failure):
     prepared = []
+
     async def prepare(local):
         prepared.append(local)
         pytest.fail("dispatch crossed failed startup")
+
     rig = await repository(root, monkeypatch, prepare=prepare)
     lock = held(rig)
     tasks = []
@@ -784,10 +857,12 @@ async def test_restart_failures_do_not_report_ready(root, monkeypatch, failure):
         pending.arm("deadline", rig.time(), ticket=None)
         entered, release = asyncio.Event(), asyncio.Event()
         original_reconcile = reconcile.reconcile
+
         async def recovery(*args):
             entered.set()
             await release.wait()
             return await original_reconcile(*args)
+
         monkeypatch.setattr(reconcile, "reconcile", recovery)
         error = OSError("scripted recovery failure")
         if failure == "corruption":
@@ -795,17 +870,21 @@ async def test_restart_failures_do_not_report_ready(root, monkeypatch, failure):
         elif failure == "git":
             (path / ".git").write_text("gitdir: /missing-metadata\n")
         elif failure in {"cleanup", "prune"}:
+
             async def fail(*args):
                 raise error
+
             monkeypatch.setattr(rig.checkout.git, "worktree_remove" if failure == "cleanup" else "worktree_prune", fail)
         elif failure == "fold":
             rig.journal.append(EventType.TIMER_FIRED, {"timer_id": "unpaired", "deadline": render_ts(rig.time())})
         elif failure != "cancel":
             append = rig.journal.append
+
             def failed(type, body, **kwargs):
                 if type == (EventType.TIMER_FIRED if failure == "fire" else EventType.STATE_TRANSITION):
                     raise error
                 return append(type, body, **kwargs)
+
             monkeypatch.setattr(rig.journal, "append", failed)
         for _ in range(2):
             tasks.append(asyncio.create_task(rig.core.admission.dispatch(ticket)))

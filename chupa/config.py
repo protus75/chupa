@@ -85,8 +85,7 @@ class Provider(_Strict):
     @model_validator(mode="after")
     def _cli_declares_its_package(self) -> "Provider":
         if self.kind == "cli" and not self.package:
-            raise ValueError(f"cli provider {self.name!r} declares no `package`; name its pnpm package"
-                             " (section 6 provider preflight)")
+            raise ValueError(f"cli provider {self.name!r} declares no `package`; name its pnpm package (section 6 provider preflight)")
         return self
 
 
@@ -230,11 +229,10 @@ class ConfigSnapshot:
 
 def snapshot_config(config: Config) -> ConfigSnapshot:
     """Capture every validated field without running parsing, defaults, or validators again."""
+
     def freeze(value: Any) -> Any:
         if isinstance(value, BaseModel):
-            return ConfigSnapshot(MappingProxyType({
-                name: freeze(getattr(value, name)) for name in type(value).model_fields
-            }))
+            return ConfigSnapshot(MappingProxyType({name: freeze(getattr(value, name)) for name in type(value).model_fields}))
         if isinstance(value, dict):
             return MappingProxyType({key: freeze(item) for key, item in value.items()})
         if isinstance(value, list):
@@ -250,9 +248,7 @@ def load_config(config_path: Path | None, *, cwd: Path) -> Config:
     try:
         text = path.read_text()
     except FileNotFoundError:
-        raise ConfigError(
-            path, None, "config file not found; create config.yaml at the checkout root or pass --config <path>"
-        ) from None
+        raise ConfigError(path, None, "config file not found; create config.yaml at the checkout root or pass --config <path>") from None
     try:
         raw = yaml.safe_load(text)
     except yaml.YAMLError as e:
@@ -261,9 +257,7 @@ def load_config(config_path: Path | None, *, cwd: Path) -> Config:
         raise ConfigError(path, None, "top level must be a mapping of config keys")
     _check_schema_version(path, raw)
     if (null_key := _find_null(raw, "")) is not None:
-        raise ConfigError(
-            path, null_key, "explicit null is refused; omit the key to take its shipped default, or set a value"
-        )
+        raise ConfigError(path, null_key, "explicit null is refused; omit the key to take its shipped default, or set a value")
     review = raw.get("review")
     if isinstance(review, dict) and isinstance(review.get("surfaces"), list) and review["surfaces"]:
         raise ConfigError(path, "review.surfaces", "remove review.surfaces entries; host review surfaces are not supported yet")
@@ -310,12 +304,16 @@ def migrate_config(config_path: Path | None, *, cwd: Path, fs: FileSystem) -> bo
         _check_schema_version(path, raw)
     candidate = text
     if version == 0:
-        entries = [(key, value) for key, value in node.value
-                  if isinstance(key, yaml.ScalarNode) and key.value == "schema_version"]
-        scalars = [token for token in tokens if isinstance(token, yaml.tokens.ScalarToken)
-                   and len(entries) == 1 and entries[0][0].end_mark.index <= token.start_mark.index
-                   and entries[0][1].start_mark.index <= token.start_mark.index
-                   and token.end_mark.index == entries[0][1].end_mark.index]
+        entries = [(key, value) for key, value in node.value if isinstance(key, yaml.ScalarNode) and key.value == "schema_version"]
+        scalars = [
+            token
+            for token in tokens
+            if isinstance(token, yaml.tokens.ScalarToken)
+            and len(entries) == 1
+            and entries[0][0].end_mark.index <= token.start_mark.index
+            and entries[0][1].start_mark.index <= token.start_mark.index
+            and token.end_mark.index == entries[0][1].end_mark.index
+        ]
         if len(scalars) != 1:
             raise ConfigError(path, "schema_version", "version must be one explicit scalar, without duplicate keys or aliases; repair schema_version and retry migrate-config")
         scalar = scalars[0]
@@ -347,9 +345,7 @@ def migrate_config(config_path: Path | None, *, cwd: Path, fs: FileSystem) -> bo
 def _check_schema_version(path: Path, raw: dict[str, Any]) -> None:
     # Runs before full validation so a newer config's new keys report as "newer", not "unknown key".
     if "schema_version" not in raw:
-        raise ConfigError(
-            path, "schema_version", f"missing required key; this engine reads schema_version: {SCHEMA_VERSION}"
-        )
+        raise ConfigError(path, "schema_version", f"missing required key; this engine reads schema_version: {SCHEMA_VERSION}")
     version = raw["schema_version"]
     if type(version) is not int or version < 0:
         raise ConfigError(path, "schema_version", f"must be a non-negative integer, got {version!r}")
@@ -363,8 +359,7 @@ def _check_schema_version(path: Path, raw: dict[str, Any]) -> None:
         raise ConfigError(
             path,
             "schema_version",
-            f"{version} is older than this engine's {SCHEMA_VERSION}; run `chupa migrate-config` to migrate it"
-            f" (the 0->1 step only rewrites schema_version to 1, every other key unchanged)",
+            f"{version} is older than this engine's {SCHEMA_VERSION}; run `chupa migrate-config` to migrate it (the 0->1 step only rewrites schema_version to 1, every other key unchanged)",
         )
 
 
@@ -402,8 +397,7 @@ def _check_references(path: Path, cfg: Config) -> None:
                 raise ConfigError(
                     path,
                     f"routing.{i}.candidates.{j}.provider",
-                    f"implement must be served by a kind: cli provider ({cand.provider!r} is"
-                    f" {kinds[cand.provider]}); an api provider returns text and cannot edit the worktree",
+                    f"implement must be served by a kind: cli provider ({cand.provider!r} is {kinds[cand.provider]}); an api provider returns text and cannot edit the worktree",
                 )
     for i, provider in enumerate(cfg.providers):
         if provider.kind == "api":
@@ -419,8 +413,7 @@ def _check_references(path: Path, cfg: Config) -> None:
                 raise ConfigError(
                     path,
                     f"routing.{i}.candidates.{j}.provider",
-                    f"{cand.provider!r} is not a declared provider; declare it under providers or use one of"
-                    f" {sorted(declared)}",
+                    f"{cand.provider!r} is not a declared provider; declare it under providers or use one of {sorted(declared)}",
                 )
     if cfg.caps.retry > cfg.caps.diagnosis:
         raise ConfigError(

@@ -6,7 +6,6 @@ from pathlib import Path
 
 from app import replay
 
-
 if __name__ == "__main__":
     result = replay(json.loads(Path(sys.argv[1]).read_bytes()))
     print(json.dumps(result, sort_keys=True, separators=(",", ":")))

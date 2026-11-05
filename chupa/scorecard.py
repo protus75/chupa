@@ -1,7 +1,7 @@
 """Pure journal-window surface accounting (19.P5.scorecard-reporting)."""
 
-from dataclasses import dataclass
 from collections.abc import Mapping
+from dataclasses import dataclass
 from types import MappingProxyType
 
 from pydantic import ValidationError
@@ -72,7 +72,7 @@ def project_scorecard(window: Window) -> Scorecard:
             if len(parts) == 6 and parts[0] == "llm" and parts[3] == "review" and stem:
                 try:
                     verdict = ReviewVerdict.model_validate_json(unwrap_fence(body["result"]["text"]))
-                except (KeyError, ValidationError):
+                except KeyError, ValidationError:
                     continue  # Schema-invalid calls are spend, not a review verdict.
                 observe("review", stem, verdict.verdict in {"snag", "rma"})
         elif event.type == EventType.STATE_TRANSITION and stem:
@@ -90,11 +90,9 @@ def project_scorecard(window: Window) -> Scorecard:
     for surface in sorted(evaluated.keys() | escapes.keys()):
         count, catches = len(evaluated.get(surface, ())), len(caught.get(surface, ()))
         escaped = len(escapes.get(surface, ()))
-        rows.append(SurfaceScorecardRow(surface, count, catches, escaped, bypasses.get(surface, 0),
-            catches / count if count else 0, escaped / count if count else 0,
-            count >= 25 and catches == escaped == 0))
-    tokens = MappingProxyType({direction: MappingProxyType(dict(evidence[f"{direction}_tokens"]))
-                              for direction in ("input", "output")})
+        rows.append(
+            SurfaceScorecardRow(surface, count, catches, escaped, bypasses.get(surface, 0), catches / count if count else 0, escaped / count if count else 0, count >= 25 and catches == escaped == 0)
+        )
+    tokens = MappingProxyType({direction: MappingProxyType(dict(evidence[f"{direction}_tokens"])) for direction in ("input", "output")})
     signals = MappingProxyType(dict(evidence["spikes"]))
-    return Scorecard(window.boundary, evidence["merged_count"], evidence["usd"], tokens,
-                     signals, signals["gate-failure"], tuple(rows))
+    return Scorecard(window.boundary, evidence["merged_count"], evidence["usd"], tokens, signals, signals["gate-failure"], tuple(rows))

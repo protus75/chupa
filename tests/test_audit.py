@@ -6,12 +6,10 @@ from tests.test_drain_reentry import drain
 from tests.test_stages import agent, implement_reply, verdict
 from tests.test_terminal import author, clock, diagnosis_reply, repo  # noqa: F401 -- fixture
 
-
 COMMIT = "a" * 40
 
 
-def event(type_: str, *, ticket: str | None = "ticket", key: str | None = None,
-          body: dict | None = None, ts: str = "2026-10-05T00:00:00+00:00") -> Event:
+def event(type_: str, *, ticket: str | None = "ticket", key: str | None = None, body: dict | None = None, ts: str = "2026-10-05T00:00:00+00:00") -> Event:
     return Event(1, type_, ts, ticket, key, body or {})
 
 
@@ -19,8 +17,7 @@ def test_a_production_drain_with_a_merge_and_parked_red_journal_is_green(repo):
     author(repo)
     author(repo, "red")
     premise = {"code": "premise", "message": "generated", "paved_road": "edit the generator"}
-    code, _ = drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict(),
-                            implement_reply("premise_failed", [premise]), diagnosis_reply()])
+    code, _ = drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict(), implement_reply("premise_failed", [premise]), diagnosis_reply()])
 
     assert code == 0
     assert audit_journal(Journal(repo / ".chupa" / "state", clock)) == []
@@ -79,9 +76,8 @@ def test_timestamp_monotonicity_is_scoped_to_each_segment():
 
 
 def test_provider_drought_is_runless_only_without_an_open_run():
-    park = event(EventType.STATE_TRANSITION, body={'to': 'infra_error', 'reason': 'provider_drought',
-        'provider_drought': {'tier': 'medium', 'surface': 'implement', 'providers': ['codex']}})
-    running = event(EventType.STATE_TRANSITION, body={'to': 'running'})
+    park = event(EventType.STATE_TRANSITION, body={"to": "infra_error", "reason": "provider_drought", "provider_drought": {"tier": "medium", "surface": "implement", "providers": ["codex"]}})
+    running = event(EventType.STATE_TRANSITION, body={"to": "running"})
     assert audit([(park, running, park, park)]) == []
-    duplicate = event(EventType.STATE_TRANSITION, body={'to': 'infra_error', 'reason': 'provider_drought'})
-    assert [v.invariant for v in audit([(running, park, duplicate)])] == ['one_terminal_per_run']
+    duplicate = event(EventType.STATE_TRANSITION, body={"to": "infra_error", "reason": "provider_drought"})
+    assert [v.invariant for v in audit([(running, park, duplicate)])] == ["one_terminal_per_run"]

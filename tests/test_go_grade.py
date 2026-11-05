@@ -41,15 +41,18 @@ def test_record_go_requires_complete_floors_identity_and_operator_judgment(tmp_p
     report, cfg, journal = report_fixture(tmp_path)
     out = tmp_path / "operator-report.json"
     fs = LocalFileSystem()
+
     def record(candidate=report, config=cfg, approve=True):
-        return harness.record_go(candidate, config=config, journal=journal, out=out,
-                                 fs=fs, approve_author_graph=approve)
+        return harness.record_go(candidate, config=config, journal=journal, out=out, fs=fs, approve_author_graph=approve)
+
     assert report.scores.catch_rate == 0.85 and report.scores.clean_false_snag == 0.15
-    candidates = [report_fixture(tmp_path, corpus_results(49, 20, 49, 0))[0],
-                  report_fixture(tmp_path, corpus_results(60, 14, 60, 0))[0],
-                  report_fixture(tmp_path, graph=False)[0],
-                  report_fixture(tmp_path, corpus_results(catches=50))[0],
-                  report_fixture(tmp_path, corpus_results(false_snags=4))[0]]
+    candidates = [
+        report_fixture(tmp_path, corpus_results(49, 20, 49, 0))[0],
+        report_fixture(tmp_path, corpus_results(60, 14, 60, 0))[0],
+        report_fixture(tmp_path, graph=False)[0],
+        report_fixture(tmp_path, corpus_results(catches=50))[0],
+        report_fixture(tmp_path, corpus_results(false_snags=4))[0],
+    ]
     for candidate in candidates:
         before = journal.read()
         with pytest.raises(harness.FixtureError):
@@ -89,8 +92,7 @@ def test_record_go_requires_complete_floors_identity_and_operator_judgment(tmp_p
 
 def test_review_baseline_report_closed_schema(tmp_path):
     report, _, _ = report_fixture(tmp_path)
-    assert set(report.model_dump()) == {"schema_version", "complete", "cap_usd", "spent_usd", "results",
-                                        "scores", "author_graph", "verdict_signal"}
+    assert set(report.model_dump()) == {"schema_version", "complete", "cap_usd", "spent_usd", "results", "scores", "author_graph", "verdict_signal"}
     mutations = [
         lambda r: r.update(extra=True),
         lambda r: r.update(schema_version=2),

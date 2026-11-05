@@ -9,7 +9,7 @@ from chupa.box import Box, signature
 from chupa.journal import EventType, Journal, JournalCorruption
 from chupa.seams import LocalFileSystem
 from chupa.storm import STORM_WINDOW, StormLedger
-from tests.test_journal import FakeClock, T0
+from tests.test_journal import T0, FakeClock
 
 SIG = signature("failure_report", "one", "implement", "gate_failed", reason="failed path/one 123")
 OTHER = "b" * 64
@@ -22,8 +22,7 @@ def ledger(root, clock=None):
 
 
 def record(ledger, identity="arrival", **changes):
-    return ledger.record(**{"signature": SIG, "occurrence_id": identity,
-                            "emitting_stage": "implement", "emitting_origin": "one", **changes})
+    return ledger.record(**{"signature": SIG, "occurrence_id": identity, "emitting_stage": "implement", "emitting_origin": "one", **changes})
 
 
 def snapshot(root):
@@ -48,17 +47,18 @@ def test_storm_construction_and_reads_are_idle(tmp_path, monkeypatch):
     assert list(tmp_path.iterdir()) == []
 
 
-@pytest.mark.parametrize("stage,origin", [("implement", "one"), (None, None),
-                                         (None, "bootstrap-ingest"), ("", "")])
+@pytest.mark.parametrize("stage,origin", [("implement", "one"), (None, None), (None, "bootstrap-ingest"), ("", "")])
 def test_occurrence_signal_shape_and_identity(tmp_path, stage, origin):
     storm, journal, clock = ledger(tmp_path)
     identity = " producer/id with spaces "
     event = record(storm, identity, emitting_stage=stage, emitting_origin=origin)
     assert asdict(event) == {
-        "v": 1, "type": "signal", "ts": T0.isoformat(), "ticket": None,
+        "v": 1,
+        "type": "signal",
+        "ts": T0.isoformat(),
+        "ticket": None,
         "key": f"storm-occurrence/{SIG}/{identity}",
-        "body": {"kind": "storm_occurrence", "signature": SIG, "occurrence_id": identity,
-                 "emitting_stage": stage, "emitting_origin": origin},
+        "body": {"kind": "storm_occurrence", "signature": SIG, "occurrence_id": identity, "emitting_stage": stage, "emitting_origin": origin},
     }
     assert journal.read() == [event] and storm.occurrences(SIG) == (event,)
     # These are other event kinds even when their data resembles occurrence data.
@@ -67,12 +67,23 @@ def test_occurrence_signal_shape_and_identity(tmp_path, stage, origin):
     assert storm.count(SIG) == 1
 
 
-@pytest.mark.parametrize("changes", [
-    {"signature": "A" * 64}, {"signature": "a" * 63}, {"signature": "g" * 64},
-    {"signature": "a" * 64 + "\n"}, {"signature": None}, {"signature": 123},
-    {"occurrence_id": ""}, {"occurrence_id": " \t\n"}, {"occurrence_id": None},
-    {"occurrence_id": 1}, {"emitting_stage": False}, {"emitting_origin": []},
-])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"signature": "A" * 64},
+        {"signature": "a" * 63},
+        {"signature": "g" * 64},
+        {"signature": "a" * 64 + "\n"},
+        {"signature": None},
+        {"signature": 123},
+        {"occurrence_id": ""},
+        {"occurrence_id": " \t\n"},
+        {"occurrence_id": None},
+        {"occurrence_id": 1},
+        {"emitting_stage": False},
+        {"emitting_origin": []},
+    ],
+)
 def test_occurrence_signal_shape_and_identity_invalid_input(tmp_path, monkeypatch, changes):
     storm, journal, _ = ledger(tmp_path)
     monkeypatch.setattr(journal, "read", Mock(side_effect=AssertionError("read invalid input")))
@@ -81,8 +92,7 @@ def test_occurrence_signal_shape_and_identity_invalid_input(tmp_path, monkeypatc
     assert snapshot(tmp_path) == {}
 
 
-@pytest.mark.parametrize("damage", ["extra", "missing", "signature", "id", "stage", "origin",
-                                   "kind", "key", "null-key", "ticket"])
+@pytest.mark.parametrize("damage", ["extra", "missing", "signature", "id", "stage", "origin", "kind", "key", "null-key", "ticket"])
 def test_occurrence_signal_shape_and_identity_invalid_evidence(tmp_path, damage):
     storm, journal, _ = ledger(tmp_path)
     valid = record(storm)
@@ -113,8 +123,7 @@ def test_occurrence_signal_shape_and_identity_invalid_evidence(tmp_path, damage)
 def test_occurrence_replay_is_once(tmp_path):
     storm, journal, clock = ledger(tmp_path / "state")
     box = Box(tmp_path / "state/box", LocalFileSystem())
-    kwargs = dict(message_class="failure_report", origin="one", summary="failed path/one 123",
-                  stage="implement", outcome="gate_failed")
+    kwargs = dict(message_class="failure_report", origin="one", summary="failed path/one 123", stage="implement", outcome="gate_failed")
     message_id, created = box.enqueue(**kwargs)
     assert created and box.get(message_id).signature == SIG
     first = record(storm)
@@ -145,8 +154,7 @@ def test_window_boundaries_and_signature_isolation(tmp_path):
     storm, journal, clock = ledger(tmp_path)
     events = {}
     # Deliberately write timestamps out of order to pin journal order in the projection.
-    for identity, seconds in [("now", 0), ("below", -3600.000001), ("equal", -3600),
-                              ("above", -3599.999999), ("future", .000001), ("middle", -100)]:
+    for identity, seconds in [("now", 0), ("below", -3600.000001), ("equal", -3600), ("above", -3599.999999), ("future", 0.000001), ("middle", -100)]:
         clock.now = T0 + timedelta(seconds=seconds)
         events[identity] = record(storm, identity)
     record(storm, "other", signature=OTHER)
@@ -191,7 +199,7 @@ def test_occurrences_survive_roll_and_restart(tmp_path, monkeypatch):
         assert snapshot(tmp_path) == before
 
 
-@pytest.mark.parametrize("damage", [b"not JSON\n", b'{}\n'])
+@pytest.mark.parametrize("damage", [b"not JSON\n", b"{}\n"])
 def test_occurrences_survive_roll_and_restart_active_corruption(tmp_path, damage):
     storm, journal, _ = ledger(tmp_path)
     record(storm)
@@ -252,11 +260,9 @@ def test_ledger_trip_uses_only_journal_and_box(tmp_path, monkeypatch):
     monkeypatch.setattr(control, "publish_request", forbidden)
     monkeypatch.setattr(daemon.DaemonAdmission, "dispatch", forbidden)
     storm, journal, clock = ledger(tmp_path)
-    box = daemon.storm_producer(root=tmp_path / "box", fs=LocalFileSystem(),
-                                journal=journal, clock=clock)
+    box = daemon.storm_producer(root=tmp_path / "box", fs=LocalFileSystem(), journal=journal, clock=clock)
     for n in range(12):
-        box.enqueue(message_class="failure_report", origin="one", summary="failed path/one 123",
-                    stage="implement", outcome="gate_failed", occurrence_id=str(n))
+        box.enqueue(message_class="failure_report", origin="one", summary="failed path/one 123", stage="implement", outcome="gate_failed", occurrence_id=str(n))
     assert list(storm.holds().values()) == ["one"]
     assert storm.count(SIG) == 12
     assert len([e for e in journal.read() if e.body.get("kind") == "storm_breaker_trip"]) == 1

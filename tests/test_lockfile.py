@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from chupa.lockfile import LockHeld, Lockfile
+from chupa.lockfile import Lockfile, LockHeld
 
 T0 = datetime(2026, 8, 4, 12, 0, 0, tzinfo=UTC)
 

@@ -70,17 +70,12 @@ def echo_json(echoed: str) -> str:
 def build(tmp_path: Path, llm: FakeLLM) -> tuple[Driver, Path]:
     (tmp_path / "config.yaml").write_text(CONFIG)
     config = load_config(None, cwd=tmp_path)
-    driver = Driver.from_config(
-        config, llm=llm, env={"CHUPA_TEST_KEY": SECRET}, clock=clock, sleep=FakeSleep()
-    )
+    driver = Driver.from_config(config, llm=llm, env={"CHUPA_TEST_KEY": SECRET}, clock=clock, sleep=FakeSleep())
     return driver, config.state_dir
 
 
 def run(driver: Driver, ticket: str | None = "t-echo", attempt: int = 1):
-    return asyncio.run(
-        driver.run(ECHO, Stub(text="hi"), ticket=ticket, attempt=attempt, workspace=Path("."),
-                   tier="medium", effort="low", stuck_budget=600.0, expected_budget=300.0, scope_fence=())
-    )
+    return asyncio.run(driver.run(ECHO, Stub(text="hi"), ticket=ticket, attempt=attempt, workspace=Path("."), tier="medium", effort="low", stuck_budget=600.0, expected_budget=300.0, scope_fence=()))
 
 
 def metered(text: str, usd: float = 0.5) -> LLMResult:
@@ -88,8 +83,7 @@ def metered(text: str, usd: float = 0.5) -> LLMResult:
 
 
 def llm_completions(state_dir: Path):
-    return [e for e in Journal(state_dir, clock).read()
-            if e.type == EventType.EFFECT_COMPLETION and e.key.startswith("llm/")]
+    return [e for e in Journal(state_dir, clock).read() if e.type == EventType.EFFECT_COMPLETION and e.key.startswith("llm/")]
 
 
 def terminal(state_dir: Path, ticket: str, to: str) -> None:
@@ -109,8 +103,7 @@ def test_each_call_journals_exactly_one_cost_bearing_completion(tmp_path):
     done = llm_completions(state_dir)
     assert len(done) == len(llm.requests) == 1  # the first valid reply ends the attempt
     assert done[0].key == "llm/t-echo/0/implement/1/1" and done[0].ticket == "t-echo"
-    assert done[0].body["cost"] == {"usd": 0.25, "input_tokens": 10, "output_tokens": 5,
-                                    "provider": "claude", "model": "sonnet"}
+    assert done[0].body["cost"] == {"usd": 0.25, "input_tokens": 10, "output_tokens": 5, "provider": "claude", "model": "sonnet"}
 
 
 def test_reprompt_takes_a_fresh_key_and_its_own_cost_event(tmp_path):
@@ -157,13 +150,16 @@ def test_a_terminal_advances_run_seq_so_the_rerun_is_real_work(tmp_path):
     run(driver)
 
     assert len(llm.requests) == 2
-    assert [e.key for e in llm_completions(state_dir)] == ["llm/t-echo/0/implement/1/1",
-                                                           "llm/t-echo/1/implement/1/1"]
+    assert [e.key for e in llm_completions(state_dir)] == ["llm/t-echo/0/implement/1/1", "llm/t-echo/1/implement/1/1"]
 
 
 def test_run_seq_counts_only_this_stems_terminals():
     j_events = [
-        ("t-a", "running"), ("t-a", "gate_failed"), ("t-b", "merged"), ("t-a", "running"), ("t-a", "abandoned"),
+        ("t-a", "running"),
+        ("t-a", "gate_failed"),
+        ("t-b", "merged"),
+        ("t-a", "running"),
+        ("t-a", "abandoned"),
     ]
 
     class Ev:
@@ -217,8 +213,7 @@ def test_effect_decorator_keys_on_its_arguments_and_records_cost(tmp_path):
     assert first == again == {"text": "hi a", "usd": 0.1}
     assert calls == [("a", 1), ("a", 2)]
     done = [e for e in j.read() if e.type == EventType.EFFECT_COMPLETION]
-    assert [(e.key, e.ticket, e.body["cost"]) for e in done] == [("greet/a/1", "t", {"usd": 0.1}),
-                                                                 ("greet/a/2", "t", {"usd": 0.1})]
+    assert [(e.key, e.ticket, e.body["cost"]) for e in done] == [("greet/a/1", "t", {"usd": 0.1}), ("greet/a/2", "t", {"usd": 0.1})]
 
 
 def test_singleton_effect_takes_a_bare_string_key(tmp_path):

@@ -3,7 +3,6 @@
 import json
 import os
 import subprocess
-from pathlib import Path
 
 from chupa.artifacts import Finding
 from chupa.box import BOX_DIR, Box
@@ -57,9 +56,7 @@ The scripted observable is absent.
 
 
 def _reply(outcome: str = "ok") -> str:
-    return json.dumps({"outcome": outcome, "summary": "fixture", "surprises": "none",
-                       "dead_ends": "none", "predicted_vs_actual": "10m predicted, 1m actual",
-                       "findings": []})
+    return json.dumps({"outcome": outcome, "summary": "fixture", "surprises": "none", "dead_ends": "none", "predicted_vs_actual": "10m predicted, 1m actual", "findings": []})
 
 
 def _diagnosis(verdict: str) -> str:
@@ -72,26 +69,26 @@ def _commit(req: LLMRequest, files: dict[str, str]) -> str:
         target = req.worktree / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content)
-    env = {**os.environ, "GIT_AUTHOR_NAME": "shakeout", "GIT_AUTHOR_EMAIL": "shakeout@example.invalid",
-           "GIT_COMMITTER_NAME": "shakeout", "GIT_COMMITTER_EMAIL": "shakeout@example.invalid"}
+    env = {**os.environ, "GIT_AUTHOR_NAME": "shakeout", "GIT_AUTHOR_EMAIL": "shakeout@example.invalid", "GIT_COMMITTER_NAME": "shakeout", "GIT_COMMITTER_EMAIL": "shakeout@example.invalid"}
     subprocess.run(["git", "-C", str(req.worktree), "add", *files], env=env, check=True)
-    subprocess.run(["git", "-C", str(req.worktree), "commit", "-m", "shakeout fixture"],
-                   env=env, check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(req.worktree), "commit", "-m", "shakeout fixture"], env=env, check=True, capture_output=True)
     return _reply()
 
 
 def _terminal(bench: Bench, stem: str) -> dict:
-    return next(event.body for event in reversed(bench.journal.read())
-                if event.type == EventType.STATE_TRANSITION and event.ticket == stem
-                and event.body.get("to") != "running")
+    return next(event.body for event in reversed(bench.journal.read()) if event.type == EventType.STATE_TRANSITION and event.ticket == stem and event.body.get("to") != "running")
 
 
 def _configure_diagnosis(bench: Bench) -> None:
     route = Route(tier="medium", surface="diagnose", candidates=[Candidate(provider="fake")])
-    bench.configure(bench.config.model_copy(update={
-        "routing": [*bench.config.routing, route],
-        "caps": bench.config.caps.model_copy(update={"retry": 1}),
-    }))
+    bench.configure(
+        bench.config.model_copy(
+            update={
+                "routing": [*bench.config.routing, route],
+                "caps": bench.config.caps.model_copy(update={"retry": 1}),
+            }
+        )
+    )
 
 
 def _finding(bench: Bench, stem: str, code: str) -> Finding:
@@ -111,8 +108,7 @@ async def _scope_escape(bench: Bench) -> Observation:
     invoice = Invoice.model_validate_json((bench.repo / "tickets" / stem / "checks.json").read_text())
     scope = next(item for item in invoice.reports if item.code == "scope_fence")
     finding = _finding(bench, stem, "scope_fence")
-    assert terminal == {"to": "gate_failed", "stage": "check", "reason": "scope_fence",
-                        "dispatch": "reject_queue", "routed": "reject_queue"}
+    assert terminal == {"to": "gate_failed", "stage": "check", "reason": "scope_fence", "dispatch": "reject_queue", "routed": "reject_queue"}
     assert [item.path for item in scope.findings] == ["outside.txt"]
     assert finding.path == "outside.txt" and stem not in report.merged
     return Observation("scope_fence_harvested", f"{stem}/0")
@@ -138,8 +134,7 @@ async def _review_reject(bench: Bench) -> Observation:
     stem = "review-reject"
     bench.add_ticket(stem, _ticket(stem, "review.txt", "test -f review.txt"))
     _configure_diagnosis(bench)
-    snag = {"code": "logic", "path": "review.txt", "line": 1, "message": "snagged fixture",
-            "paved_road": "repair the fixture"}
+    snag = {"code": "logic", "path": "review.txt", "line": 1, "message": "snagged fixture", "paved_road": "repair the fixture"}
     action = lambda req: _commit(req, {"review.txt": "ok\n"})
     verdict = json.dumps({"verdict": "snag", "summary": "snag", "findings": [snag]})
     bench.script([action, verdict, _diagnosis("reject"), action, verdict])
@@ -157,12 +152,16 @@ async def _review_reject_reentry(bench: Bench) -> Observation:
     bench.add_ticket(stem, _ticket(stem, "reentry.txt", "test -f reentry.txt"))
     _configure_diagnosis(bench)
     message = "unique reentry finding"
-    snag = {"code": "logic", "path": "reentry.txt", "line": 1, "message": message,
-            "paved_road": "repair the fixture"}
-    bench.script([lambda req: _commit(req, {"reentry.txt": "first\n"}),
-                  json.dumps({"verdict": "snag", "summary": "snag", "findings": [snag]}),
-                  _diagnosis("retry"), lambda req: _commit(req, {"reentry.txt": "second\n"}),
-                  json.dumps({"verdict": "approve", "summary": "approved", "findings": []})])
+    snag = {"code": "logic", "path": "reentry.txt", "line": 1, "message": message, "paved_road": "repair the fixture"}
+    bench.script(
+        [
+            lambda req: _commit(req, {"reentry.txt": "first\n"}),
+            json.dumps({"verdict": "snag", "summary": "snag", "findings": [snag]}),
+            _diagnosis("retry"),
+            lambda req: _commit(req, {"reentry.txt": "second\n"}),
+            json.dumps({"verdict": "approve", "summary": "approved", "findings": []}),
+        ]
+    )
     report = await bench.drain()
     prompts = [request.rendered for request in bench.llm.requests if request.surface == "implement"]
     second = prompts[1]
@@ -187,14 +186,11 @@ async def _empty_committed_diff(bench: Bench) -> Observation:
 async def _base_diff_attribution(bench: Bench) -> Observation:
     stem = "base-diff-attribution"
     bench.add_ticket(stem, _ticket(stem, "green.txt", "test -f red-on-base.txt\ntest -f green.txt"))
-    bench.script([lambda req: _commit(req, {"green.txt": "green\n"}),
-                  json.dumps({"verdict": "approve", "summary": "approved", "findings": []})])
+    bench.script([lambda req: _commit(req, {"green.txt": "green\n"}), json.dumps({"verdict": "approve", "summary": "approved", "findings": []})])
     report = await bench.drain()
     invoice = Invoice.model_validate_json((bench.repo / "tickets" / stem / "checks.json").read_text())
     messages = Box(bench.config.state_dir / BOX_DIR, LocalFileSystem()).messages()
-    assert stem in report.merged and not any(event.type == EventType.CAP_CONSUMED and event.ticket == stem
-                                             and event.body.get("cap") == "retry"
-                                             for event in bench.journal.read())
+    assert stem in report.merged and not any(event.type == EventType.CAP_CONSUMED and event.ticket == stem and event.body.get("cap") == "retry" for event in bench.journal.read())
     assert [item.base_red for item in invoice.verification] == [True, False]
     assert len(messages) == 1 and messages[0].outcome == "base_red"
     return Observation("base_red_attributed", f"{stem}/0")
@@ -202,13 +198,9 @@ async def _base_diff_attribution(bench: Bench) -> Observation:
 
 MEMBERS = (
     Member("scope_escape", "stages", "commit outside the scope fence", "scope_fence_harvested", _scope_escape),
-    Member("unfixable_lint_branch_only", "stages", "branch-only verification failure", "branch_only_verification_rejected",
-           _unfixable_lint_branch_only),
+    Member("unfixable_lint_branch_only", "stages", "branch-only verification failure", "branch_only_verification_rejected", _unfixable_lint_branch_only),
     Member("review_reject", "stages", "review replies snag", "review_snag_pinned", _review_reject),
-    Member("review_reject_reentry", "stages", "review rejects then approves", "review_finding_in_reentry_criteria",
-           _review_reject_reentry),
-    Member("empty_committed_diff", "stages", "Implement commits nothing", "empty_diff_harvested",
-           _empty_committed_diff),
-    Member("base_diff_attribution", "stages", "base and branch are both red", "base_red_attributed",
-           _base_diff_attribution),
+    Member("review_reject_reentry", "stages", "review rejects then approves", "review_finding_in_reentry_criteria", _review_reject_reentry),
+    Member("empty_committed_diff", "stages", "Implement commits nothing", "empty_diff_harvested", _empty_committed_diff),
+    Member("base_diff_attribution", "stages", "base and branch are both red", "base_red_attributed", _base_diff_attribution),
 )

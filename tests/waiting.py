@@ -19,7 +19,7 @@ def group_exited(pgid):
     for path in Path("/proc").glob("[0-9]*/stat"):
         try:
             fields = path.read_text().rsplit(")", 1)[1].split()
-        except (FileNotFoundError, ProcessLookupError):
+        except FileNotFoundError, ProcessLookupError:
             continue
         if int(fields[2]) == pgid and fields[0] != "Z":
             return False

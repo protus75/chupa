@@ -22,8 +22,7 @@ class LLMRequest:
     budget_usd: float | None = None
 
     def __post_init__(self) -> None:
-        if self.budget_usd is not None and (type(self.budget_usd) not in (float, int)
-                or not math.isfinite(self.budget_usd) or self.budget_usd < 0):
+        if self.budget_usd is not None and (type(self.budget_usd) not in (float, int) or not math.isfinite(self.budget_usd) or self.budget_usd < 0):
             raise ValueError("budget_usd must be finite and nonnegative, or null")
 
 

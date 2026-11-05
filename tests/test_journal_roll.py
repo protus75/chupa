@@ -8,7 +8,7 @@ import pytest
 
 from chupa import journal as module
 from chupa.journal import Event, Journal, JournalCorruption
-from tests.test_journal import FakeClock, T0, line, seed
+from tests.test_journal import T0, FakeClock, line, seed
 
 
 def paths(journal):
@@ -136,8 +136,7 @@ def test_roll_preserves_records_and_read_laws(tmp_path, monkeypatch):
         path.write_bytes(path.read_bytes() + tail)
         journal = Journal(corrupt, FakeClock(T0 + module.ROLL_AGE))
         before = snapshot(journal)
-        for action in (journal.read, lambda: list(journal.read_segments()),
-                       lambda: journal.append("signal", {"signal": "drain_handoff"})):
+        for action in (journal.read, lambda: list(journal.read_segments()), lambda: journal.append("signal", {"signal": "drain_handoff"})):
             with pytest.raises(JournalCorruption):
                 action()
         assert snapshot(journal) == before
@@ -171,8 +170,7 @@ def test_startup_tail_repair_precedes_roll(tmp_path, monkeypatch, boundary):
     assert list(j.read_segments()) == [(event,)]
 
 
-@pytest.mark.parametrize("failure", [None, "create", "directory", "publication_fsync",
-                                    "published_directory", "write", "event_fsync", "clock", "collision"])
+@pytest.mark.parametrize("failure", [None, "create", "directory", "publication_fsync", "published_directory", "write", "event_fsync", "clock", "collision"])
 def test_roll_durability_and_failures(tmp_path, monkeypatch, failure):
     clock = FakeClock(T0)
     j = Journal(tmp_path, clock)
@@ -238,9 +236,14 @@ def test_roll_durability_and_failures(tmp_path, monkeypatch, failure):
 
     j._clock = clock
     stable = snapshot(j)
-    for args, kwargs in [(("unknown", {}), {}), (("checkpoint", {}), {}),
-                         (("signal", []), {}), (("signal", {"signal": "drain_handoff"}), {"ticket": 1}),
-                         (("signal", {"signal": "drain_handoff"}), {"key": 1}), (("signal", {"signal": "drain_handoff", "bad": object()}), {})]:
+    for args, kwargs in [
+        (("unknown", {}), {}),
+        (("checkpoint", {}), {}),
+        (("signal", []), {}),
+        (("signal", {"signal": "drain_handoff"}), {"ticket": 1}),
+        (("signal", {"signal": "drain_handoff"}), {"key": 1}),
+        (("signal", {"signal": "drain_handoff", "bad": object()}), {}),
+    ]:
         with pytest.raises((ValueError, TypeError)):
             j.append(*args, **kwargs)
         assert snapshot(j) == stable

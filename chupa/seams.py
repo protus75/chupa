@@ -73,24 +73,20 @@ class NotificationFailed(Exception):
 
 
 class CommandNotifications:
-    def __init__(self, exec_: ProcessExec, *, cwd: Path, env: Mapping[str, str],
-                 timeout: float, scrub: Callable[[str], str]) -> None:
+    def __init__(self, exec_: ProcessExec, *, cwd: Path, env: Mapping[str, str], timeout: float, scrub: Callable[[str], str]) -> None:
         self.exec_, self.cwd, self.env = exec_, cwd, env
         self.timeout, self.scrub = timeout, scrub
 
     async def notify(self, argv: Sequence[str]) -> dict[str, str | int]:
-        if (not argv or isinstance(argv, str) or any(not isinstance(p, str) or "\0" in p for p in argv)
-                or not argv[0].strip()):
+        if not argv or isinstance(argv, str) or any(not isinstance(p, str) or "\0" in p for p in argv) or not argv[0].strip():
             raise ValueError("notify needs a nonempty argv list with a nonblank executable and no NULs")
         try:
             rc, out, err = await self.exec_.run(list(argv), cwd=self.cwd, env=self.env, timeout=self.timeout)
         except (ExecutableNotFound, TimeoutError, OSError) as exc:
-            raise NotificationFailed(self.scrub(f"notify failed: {exc}; install/fix notify argv or PATH "
-                                                "and retry pending evidence")) from None
+            raise NotificationFailed(self.scrub(f"notify failed: {exc}; install/fix notify argv or PATH and retry pending evidence")) from None
         out, err = self.scrub(out), self.scrub(err)
         if rc != 0:
-            raise NotificationFailed(f"notify exited {rc}: {out[-2000:]} {err[-2000:]}; "
-                                     "make notify exit 0 and retry pending evidence")
+            raise NotificationFailed(f"notify exited {rc}: {out[-2000:]} {err[-2000:]}; make notify exit 0 and retry pending evidence")
         return {"rc": rc, "stdout": out, "stderr": err}
 
 
@@ -142,10 +138,11 @@ class SubprocessExec:
                     if stream is None:
                         out, err = await proc.communicate()
                     else:
-                        readers = [asyncio.create_task(_read_pipe(proc.stdout, stdout,
-                                                                 deliver if on_stdout_line is not None else None)),
-                                   asyncio.create_task(_read_pipe(proc.stderr, stderr)),
-                                   asyncio.create_task(proc.wait())]
+                        readers = [
+                            asyncio.create_task(_read_pipe(proc.stdout, stdout, deliver if on_stdout_line is not None else None)),
+                            asyncio.create_task(_read_pipe(proc.stderr, stderr)),
+                            asyncio.create_task(proc.wait()),
+                        ]
                         out, err, _ = await asyncio.gather(*readers)
             except BaseException as exc:
                 # Timeout and outer cancellation alike: grandchildren must not outlive the call.
@@ -191,8 +188,8 @@ async def _read_pipe(
         if on_line is not None:
             pending.extend(chunk)
             while (end := pending.find(b"\n")) >= 0:
-                line = bytes(pending[:end + 1])
-                del pending[:end + 1]
+                line = bytes(pending[: end + 1])
+                del pending[: end + 1]
                 on_line(line.decode(errors="replace"))
     if pending and on_line is not None:
         on_line(pending.decode(errors="replace"))

@@ -46,16 +46,22 @@ async def run_member(member: Member, root: Path) -> ShakeoutEntry:
     observation = await member.run(bench)
     violations = audit(bench.segments())
     lines = [f"{v.invariant}: {v.ticket or '-'}: {v.detail}" for v in violations]
-    return ShakeoutEntry(member=member.id, group=member.group, planted_fault=member.planted_fault,
-                         expected=member.expected, observed=observation.observed,
-                         producing_run=observation.producing_run, auditor=lines,
-                         green=observation.observed == member.expected and not lines)
+    return ShakeoutEntry(
+        member=member.id,
+        group=member.group,
+        planted_fault=member.planted_fault,
+        expected=member.expected,
+        observed=observation.observed,
+        producing_run=observation.producing_run,
+        auditor=lines,
+        green=observation.observed == member.expected and not lines,
+    )
 
 
 async def produce(group: str, prior: ShakeoutReport | None, root: Path) -> ShakeoutReport:
     if group not in GROUPS:
         raise ValueError(f"unknown group {group}")
-    preceding = GROUPS[:GROUPS.index(group)]
+    preceding = GROUPS[: GROUPS.index(group)]
     earlier = {member.id: member for name in preceding for member in _members(name)}
     prior_entries = {entry.member: entry for entry in prior.entries} if prior is not None else {}
     for member in earlier.values():
@@ -72,11 +78,11 @@ async def produce(group: str, prior: ShakeoutReport | None, root: Path) -> Shake
             raise ShakeoutRefused(member.id)
         entries.append(entry)
     import os
+
     # Git provenance is read from the checkout running the report command, never supplied by a member.
     git = Git(SubprocessExec(), env=os.environ, timeout=30.0)
     sha = await git.rev_parse(Path.cwd(), "HEAD")
-    return ShakeoutReport(produced_by_spec_version=SHAKEOUT_SPEC_VERSION,
-                          produced_at_sha=sha, entries=entries)
+    return ShakeoutReport(produced_by_spec_version=SHAKEOUT_SPEC_VERSION, produced_at_sha=sha, entries=entries)
 
 
 def write_report(path: Path, report: ShakeoutReport, fs: FileSystem | None = None) -> None:

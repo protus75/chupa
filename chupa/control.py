@@ -7,22 +7,26 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal
 
+from chupa.effects import Effects
 from chupa.journal import Event, EventType, Journal
 from chupa.seams import FileSystem
-from chupa.effects import Effects
 from chupa.tickets import stem_findings
 
 CONTROL_DECISION = "control_decision"
 MERGE_RELEASE = "merge-release"
 Verb = Literal["pause", "resume", "kill"]
 _ID = re.compile(r"[A-Za-z0-9_-]+", re.ASCII)
-_SHAPE = ('submit a new request with exactly {request_id: nonempty ASCII letters/digits/_/-, '
-          'lifecycle_id: nonempty string, verb: pause | resume | kill, hold_id: string | null}; '
-          'match request_id to the filename; pause/kill require null hold_id; '
-          'for resume read the current hold and submit its exact nonempty identity')
-_ADMISSION_SHAPE = ('read the current admission and publish a fresh matching confirm | reject request '
-                    'with exactly {request_id, lifecycle_id, verb, stem, hold_id, actor}; '
-                    'actor is operator | machine and only a committed draft confirm has null hold_id')
+_SHAPE = (
+    "submit a new request with exactly {request_id: nonempty ASCII letters/digits/_/-, "
+    "lifecycle_id: nonempty string, verb: pause | resume | kill, hold_id: string | null}; "
+    "match request_id to the filename; pause/kill require null hold_id; "
+    "for resume read the current hold and submit its exact nonempty identity"
+)
+_ADMISSION_SHAPE = (
+    "read the current admission and publish a fresh matching confirm | reject request "
+    "with exactly {request_id, lifecycle_id, verb, stem, hold_id, actor}; "
+    "actor is operator | machine and only a committed draft confirm has null hold_id"
+)
 
 
 @dataclass(frozen=True)
@@ -46,28 +50,36 @@ class AdmissionRequest:
 def validate_request(value: object, filename: str) -> ControlRequest | AdmissionRequest:
     if isinstance(value, dict) and value.get("verb") in ("confirm", "reject"):
         road = _ADMISSION_SHAPE
-        if (set(value) != {"request_id", "lifecycle_id", "verb", "stem", "hold_id", "actor"}
-                or not isinstance(value.get("request_id"), str) or _ID.fullmatch(value["request_id"]) is None
-                or filename != value["request_id"] + ".json"
-                or not isinstance(value.get("lifecycle_id"), str) or not value["lifecycle_id"]
-                or not isinstance(value.get("stem"), str) or stem_findings(value["stem"])
-                or value.get("actor") not in ("operator", "machine")
-                or (value.get("hold_id") is not None and
-                    (not isinstance(value["hold_id"], str) or not value["hold_id"]))
-                or value["verb"] == "reject" and value["hold_id"] is None):
+        if (
+            set(value) != {"request_id", "lifecycle_id", "verb", "stem", "hold_id", "actor"}
+            or not isinstance(value.get("request_id"), str)
+            or _ID.fullmatch(value["request_id"]) is None
+            or filename != value["request_id"] + ".json"
+            or not isinstance(value.get("lifecycle_id"), str)
+            or not value["lifecycle_id"]
+            or not isinstance(value.get("stem"), str)
+            or stem_findings(value["stem"])
+            or value.get("actor") not in ("operator", "machine")
+            or (value.get("hold_id") is not None and (not isinstance(value["hold_id"], str) or not value["hold_id"]))
+            or value["verb"] == "reject"
+            and value["hold_id"] is None
+        ):
             raise ValueError(road)
         return AdmissionRequest(**value)
-    if (not isinstance(value, dict)
-            or set(value) != {"request_id", "lifecycle_id", "verb", "hold_id"}):
+    if not isinstance(value, dict) or set(value) != {"request_id", "lifecycle_id", "verb", "hold_id"}:
         raise ValueError(_SHAPE)
-    request_id, lifecycle_id, verb, hold_id = (value[k] for k in
-                                             ("request_id", "lifecycle_id", "verb", "hold_id"))
-    if (not isinstance(request_id, str) or _ID.fullmatch(request_id) is None
-            or filename != request_id + ".json"
-            or not isinstance(lifecycle_id, str) or not lifecycle_id
-            or not isinstance(verb, str) or verb not in {"pause", "resume", "kill"}
-            or (verb == "resume" and (not isinstance(hold_id, str) or not hold_id))
-            or (verb != "resume" and hold_id is not None)):
+    request_id, lifecycle_id, verb, hold_id = (value[k] for k in ("request_id", "lifecycle_id", "verb", "hold_id"))
+    if (
+        not isinstance(request_id, str)
+        or _ID.fullmatch(request_id) is None
+        or filename != request_id + ".json"
+        or not isinstance(lifecycle_id, str)
+        or not lifecycle_id
+        or not isinstance(verb, str)
+        or verb not in {"pause", "resume", "kill"}
+        or (verb == "resume" and (not isinstance(hold_id, str) or not hold_id))
+        or (verb != "resume" and hold_id is not None)
+    ):
         raise ValueError(_SHAPE)
     return ControlRequest(request_id, lifecycle_id, verb, hold_id)
 
@@ -76,8 +88,7 @@ def publish_request(state_dir: Path, request: ControlRequest | AdmissionRequest,
     value = asdict(request)
     validate_request(value, str(request.request_id) + ".json")
     try:
-        fs.publish(state_dir / "control/inbox" / (request.request_id + ".json"),
-                   json.dumps(value, separators=(",", ":")).encode())
+        fs.publish(state_dir / "control/inbox" / (request.request_id + ".json"), json.dumps(value, separators=(",", ":")).encode())
     except FileExistsError as exc:
         raise FileExistsError("request id already exists; submit a new request id") from exc
 
@@ -117,13 +128,18 @@ def decisions(events: Iterable[Event]) -> Iterable[Event]:
         admission = body.get("verb") in ("confirm", "reject")
         if admission:
             fields |= {"stem", "actor"}
-        if (event.type != EventType.SIGNAL or event.ticket is not None or event.key is not None
-                or set(body) != fields
-                or not isinstance(body.get("request_id"), str)
-                or _ID.fullmatch(body["request_id"]) is None
-                or not isinstance(body.get("decision"), str)
-                or body.get("decision") not in {"accepted", "stale", "rejected"}
-                or not isinstance(body.get("reason"), str) or not body["reason"]):
+        if (
+            event.type != EventType.SIGNAL
+            or event.ticket is not None
+            or event.key is not None
+            or set(body) != fields
+            or not isinstance(body.get("request_id"), str)
+            or _ID.fullmatch(body["request_id"]) is None
+            or not isinstance(body.get("decision"), str)
+            or body.get("decision") not in {"accepted", "stale", "rejected"}
+            or not isinstance(body.get("reason"), str)
+            or not body["reason"]
+        ):
             raise ValueError(f"invalid control decision; {road}")
         request_id = body["request_id"]
         if body["decision"] == "rejected":
@@ -131,9 +147,7 @@ def decisions(events: Iterable[Event]) -> Iterable[Event]:
                 raise ValueError(f"invalid rejected control decision; {road}")
         else:
             try:
-                validate_request({field: body[field] for field in
-                                  fields - {"kind", "decision", "reason"}},
-                                 request_id + ".json")
+                validate_request({field: body[field] for field in fields - {"kind", "decision", "reason"}}, request_id + ".json")
             except ValueError as exc:
                 raise ValueError(f"invalid control decision; {road}") from exc
         if request_id in seen:
@@ -155,9 +169,9 @@ class ControlInbox:
     restart-unique lifecycle identity and live hold identities, never hold kinds.
     """
 
-    def __init__(self, *, journal: Journal, lifecycle_id: str,
-                 holds: Callable[[], Set[str]], apply: Callable[[ControlProjection], None],
-                 files: Callable[[], Iterable[Path]], read: Callable[[Path], bytes]) -> None:
+    def __init__(
+        self, *, journal: Journal, lifecycle_id: str, holds: Callable[[], Set[str]], apply: Callable[[ControlProjection], None], files: Callable[[], Iterable[Path]], read: Callable[[Path], bytes]
+    ) -> None:
         if not isinstance(lifecycle_id, str) or not lifecycle_id:
             raise ValueError("supply the owner's nonempty restart-unique lifecycle identity")
         self.journal, self.lifecycle_id = journal, lifecycle_id
@@ -207,16 +221,13 @@ class ControlInbox:
                 continue
             if path.stem in decided:
                 continue
-            body = {"kind": CONTROL_DECISION, "request_id": path.stem,
-                    "lifecycle_id": None, "verb": None, "hold_id": None,
-                    "decision": "rejected", "reason": _SHAPE}
+            body = {"kind": CONTROL_DECISION, "request_id": path.stem, "lifecycle_id": None, "verb": None, "hold_id": None, "decision": "rejected", "reason": _SHAPE}
             try:
                 value = json.loads(self.read(path), object_pairs_hook=_object)
-                if isinstance(value, dict) and (value.get("verb") in ("confirm", "reject")
-                        or set(value) == {"request_id", "lifecycle_id", "verb", "stem", "hold_id", "actor"}):
+                if isinstance(value, dict) and (value.get("verb") in ("confirm", "reject") or set(value) == {"request_id", "lifecycle_id", "verb", "stem", "hold_id", "actor"}):
                     body["reason"] = _ADMISSION_SHAPE
                 request = validate_request(value, path.name)
-            except (ValueError, UnicodeError):
+            except ValueError, UnicodeError:
                 pass
             else:
                 body.update(asdict(request))
@@ -226,15 +237,13 @@ class ControlInbox:
                 if request.lifecycle_id != self.lifecycle_id:
                     body.update(decision="stale", reason="read the current lifecycle and submit a new request")
                 elif isinstance(request, AdmissionRequest):
-                    prior = [e.body for e in decisions(self.journal.read())
-                             if e.body["decision"] == "accepted" and e.body.get("verb") in ("confirm", "reject")]
-                    matched = (self.admissions().get(request.stem) == request.hold_id
-                               if request.hold_id is not None else self.draft(request.stem))
-                    duplicate = request.hold_id is not None and any(
-                        b["hold_id"] == request.hold_id and b["stem"] == request.stem for b in prior)
-                    body.update(decision="accepted" if matched and not duplicate else "stale",
-                                reason="matching admission" if matched and not duplicate else
-                                "read the current admission and publish a fresh matching request")
+                    prior = [e.body for e in decisions(self.journal.read()) if e.body["decision"] == "accepted" and e.body.get("verb") in ("confirm", "reject")]
+                    matched = self.admissions().get(request.stem) == request.hold_id if request.hold_id is not None else self.draft(request.stem)
+                    duplicate = request.hold_id is not None and any(b["hold_id"] == request.hold_id and b["stem"] == request.stem for b in prior)
+                    body.update(
+                        decision="accepted" if matched and not duplicate else "stale",
+                        reason="matching admission" if matched and not duplicate else "read the current admission and publish a fresh matching request",
+                    )
                 elif request.verb == "resume" and request.hold_id not in live_holds:
                     body.update(decision="stale", reason="read the current hold and submit a new request")
                 else:
@@ -252,27 +261,26 @@ class ControlInbox:
                 continue
             if body["hold_id"] is None:
                 key = f"ticket-plane/{body['stem']}/confirmed/{body['request_id']}"
-                completed = [e.body["result"] for e in self.journal.read()
-                             if e.type == EventType.EFFECT_COMPLETION and e.key == key]
-                if not completed or not any(e.ticket == body["stem"] and e.body.get("signal") == "draft_confirmed"
-                                           and e.body.get("commit") == completed[0]["commit"] for e in self.journal.read()):
+                completed = [e.body["result"] for e in self.journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key == key]
+                if not completed or not any(e.ticket == body["stem"] and e.body.get("signal") == "draft_confirmed" and e.body.get("commit") == completed[0]["commit"] for e in self.journal.read()):
                     await draft_confirm(body["stem"], body["request_id"])
                 continue
             hold = body["hold_id"]
             result = {k: body[k] for k in ("stem", "hold_id", "request_id", "lifecycle_id", "actor")}
             result.update(attempt=int(hold.split("/")[2]), verdict=body["verb"])
+
             async def complete(result=result):
                 return result
-            await Effects(self.journal).run(complete,
-                key=f"{MERGE_RELEASE}/{hold}/{body['request_id']}", ticket=body["stem"])
+
+            await Effects(self.journal).run(complete, key=f"{MERGE_RELEASE}/{hold}/{body['request_id']}", ticket=body["stem"])
 
 
 def releases(events: Iterable[Event]) -> dict[str, dict]:
     from chupa.mergequeue import regate_receipts
+
     events = tuple(events)
     receipts = regate_receipts(events)
-    accepted = {e.body["request_id"]: e.body for e in decisions(events)
-                if e.body["decision"] == "accepted" and e.body["verb"] in ("confirm", "reject")}
+    accepted = {e.body["request_id"]: e.body for e in decisions(events) if e.body["decision"] == "accepted" and e.body["verb"] in ("confirm", "reject")}
     result = {}
     road = "restore matching control decision and release evidence before retrying admission"
     for event in events:
@@ -283,37 +291,46 @@ def releases(events: Iterable[Event]) -> dict[str, dict]:
             raise ValueError(road)
         decision = accepted.get(value["request_id"])
         hold = value["hold_id"]
-        if (decision is None or hold is None or not isinstance(hold, str) or hold not in receipts
-                or receipts[hold]["admission"] != "HELD"
-                or event.ticket != value["stem"] or event.key != f"{MERGE_RELEASE}/{hold}/{value['request_id']}"
-                or any(value[k] != decision[k] for k in ("stem", "hold_id", "request_id", "lifecycle_id", "actor"))
-                or value["verdict"] != decision["verb"] or type(value["attempt"]) is not int
-                or not re.fullmatch(r"merge-regate/[^/]+/[0-9]+/[0-9a-f]{40}/[0-9a-f]{40}", hold)
-                or value["attempt"] != int(hold.split("/")[2]) or value["stem"] != hold.split("/")[1]
-                or hold in result and result[hold] != value):
+        if (
+            decision is None
+            or hold is None
+            or not isinstance(hold, str)
+            or hold not in receipts
+            or receipts[hold]["admission"] != "HELD"
+            or event.ticket != value["stem"]
+            or event.key != f"{MERGE_RELEASE}/{hold}/{value['request_id']}"
+            or any(value[k] != decision[k] for k in ("stem", "hold_id", "request_id", "lifecycle_id", "actor"))
+            or value["verdict"] != decision["verb"]
+            or type(value["attempt"]) is not int
+            or not re.fullmatch(r"merge-regate/[^/]+/[0-9]+/[0-9a-f]{40}/[0-9a-f]{40}", hold)
+            or value["attempt"] != int(hold.split("/")[2])
+            or value["stem"] != hold.split("/")[1]
+            or hold in result
+            and result[hold] != value
+        ):
             raise ValueError(road)
         result[hold] = value
     return result
 
 
-_DISCOVERY_ROAD = ("retry after the running engine publishes its current control identity; "
-                   "read that identity and submit a new request")
+_DISCOVERY_ROAD = "retry after the running engine publishes its current control identity; read that identity and submit a new request"
 
 
-def write_active(state_dir: Path, projection: ControlProjection | None, fs: FileSystem, *,
-                 hold_id: str | None) -> None:
-    value = (None if projection is None else
-             {"lifecycle_id": projection.lifecycle_id, "hold_id": hold_id})
+def write_active(state_dir: Path, projection: ControlProjection | None, fs: FileSystem, *, hold_id: str | None) -> None:
+    value = None if projection is None else {"lifecycle_id": projection.lifecycle_id, "hold_id": hold_id}
     fs.write(state_dir / "control/active.json", (json.dumps(value) + "\n").encode())
 
 
 def read_active(state_dir: Path, read: Callable[[Path], bytes]) -> tuple[str, str | None]:
     try:
         value = json.loads(read(state_dir / "control/active.json"), object_pairs_hook=_object)
-        if (not isinstance(value, dict) or set(value) != {"lifecycle_id", "hold_id"}
-                or not isinstance(value["lifecycle_id"], str) or not value["lifecycle_id"]
-                or (value["hold_id"] is not None and
-                    (not isinstance(value["hold_id"], str) or not value["hold_id"]))):
+        if (
+            not isinstance(value, dict)
+            or set(value) != {"lifecycle_id", "hold_id"}
+            or not isinstance(value["lifecycle_id"], str)
+            or not value["lifecycle_id"]
+            or (value["hold_id"] is not None and (not isinstance(value["hold_id"], str) or not value["hold_id"]))
+        ):
             raise ValueError
     except (OSError, ValueError, UnicodeError) as exc:
         raise ValueError(_DISCOVERY_ROAD) from exc

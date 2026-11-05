@@ -9,7 +9,8 @@ from threading import Barrier, Event
 
 import pytest
 
-from chupa import __main__ as cli_root, control, daemon
+from chupa import __main__ as cli_root
+from chupa import control, daemon
 from chupa.control import ControlProjection, ControlRequest, publish_request, validate_request
 from chupa.journal import EventType, Journal
 from chupa.seams import FileSystem, LocalFileSystem
@@ -21,37 +22,48 @@ from tests.test_effects import Crash, FakeClock
 @pytest.mark.parametrize("point", ["decision", "release", "normal"])
 def test_supervised_request_identity_and_replay(tmp_path, monkeypatch, point):
     from tests.test_mergequeue import ctx as context_fixture
-    from tests.test_supervised_merge_hold import hold, confirm
+    from tests.test_supervised_merge_hold import confirm, hold
+
     ctx = context_fixture.__wrapped__(tmp_path)
+
     async def exercise():
         ticket, queue, held = await hold(ctx)
         inbox = queue.control.inbox
-        for request_id, life, stem, identity, actor in [("old-life", "old", ticket.stem, held.hold_id, "operator"),
-                ("foreign", inbox.lifecycle_id, "foreign", held.hold_id, "operator"),
-                ("old-hold", inbox.lifecycle_id, ticket.stem, "superseded", "operator")]:
+        for request_id, life, stem, identity, actor in [
+            ("old-life", "old", ticket.stem, held.hold_id, "operator"),
+            ("foreign", inbox.lifecycle_id, "foreign", held.hold_id, "operator"),
+            ("old-hold", inbox.lifecycle_id, ticket.stem, "superseded", "operator"),
+        ]:
             publish_request(ctx.config.state_dir, control.AdmissionRequest(request_id, life, "confirm", stem, identity, actor), ctx.fs)
-        for request_id, edit in [("bad-actor", {"actor": "unknown"}), ("bad-verb", {"verb": "authorize"}),
-                                 ("bad-shape", {"extra": True})]:
+        for request_id, edit in [("bad-actor", {"actor": "unknown"}), ("bad-verb", {"verb": "authorize"}), ("bad-shape", {"extra": True})]:
             raw = asdict(control.AdmissionRequest(request_id, inbox.lifecycle_id, "confirm", ticket.stem, held.hold_id, "operator")) | edit
             ctx.fs.publish(ctx.config.state_dir / f"control/inbox/{request_id}.json", json.dumps(raw).encode())
         inbox.consume()
         assert all(e.body["decision"] != "accepted" for e in control.decisions(ctx.driver.journal.read()))
-        assert all("current admission" in e.body["reason"] for e in control.decisions(ctx.driver.journal.read())
-                   if e.body["decision"] == "rejected")
+        assert all("current admission" in e.body["reason"] for e in control.decisions(ctx.driver.journal.read()) if e.body["decision"] == "rejected")
         appended = ctx.driver.journal.append
+
         def crash(kind, body, **kwargs):
             event = appended(kind, body, **kwargs)
-            if (point == "decision" and body.get("decision") == "accepted" or point == "release"
-                    and kind == EventType.EFFECT_COMPLETION and (kwargs.get("key") or "").startswith(control.MERGE_RELEASE + "/")):
+            if (
+                point == "decision"
+                and body.get("decision") == "accepted"
+                or point == "release"
+                and kind == EventType.EFFECT_COMPLETION
+                and (kwargs.get("key") or "").startswith(control.MERGE_RELEASE + "/")
+            ):
                 raise Crash()
             return event
+
         monkeypatch.setattr(ctx.driver.journal, "append", crash)
         if point == "decision":
-            with pytest.raises(Crash): confirm(queue, held)
+            with pytest.raises(Crash):
+                confirm(queue, held)
         else:
             confirm(queue, held)
         if point == "release":
-            with pytest.raises(Crash): await inbox.settle_admissions(queue.confirm_draft)
+            with pytest.raises(Crash):
+                await inbox.settle_admissions(queue.confirm_draft)
         monkeypatch.setattr(ctx.driver.journal, "append", appended)
         await inbox.settle_admissions(queue.confirm_draft)
         before = ctx.driver.journal.read()
@@ -59,14 +71,14 @@ def test_supervised_request_identity_and_replay(tmp_path, monkeypatch, point):
         await inbox.settle_admissions(queue.confirm_draft)
         assert ctx.driver.journal.read() == before
         [release] = control.releases(before).values()
-        assert release == dict(stem=ticket.stem, attempt=0, hold_id=held.hold_id, request_id="confirmation",
-                              lifecycle_id=inbox.lifecycle_id, verdict="confirm", actor="operator")
+        assert release == dict(stem=ticket.stem, attempt=0, hold_id=held.hold_id, request_id="confirmation", lifecycle_id=inbox.lifecycle_id, verdict="confirm", actor="operator")
         [accepted] = [e.body for e in control.decisions(before) if e.body["decision"] == "accepted"]
         assert set(accepted) == {"kind", "request_id", "lifecycle_id", "verb", "stem", "hold_id", "actor", "decision", "reason"}
         confirm(queue, held, verdict="reject", request_id="duplicate")
         assert list(control.decisions(ctx.driver.journal.read()))[-1].body["decision"] == "stale"
         [result] = await queue.process()
         assert result.outcome == "ok" and len(control.releases(ctx.driver.journal.read())) == 1
+
     asyncio.run(exercise())
 
 
@@ -84,8 +96,7 @@ class Rig:
 
     def apply(self, projection):
         events = self.journal.read()
-        assert any(e.body.get("decision") == "accepted" and
-                   e.body.get("lifecycle_id") == self.lifecycle for e in events)
+        assert any(e.body.get("decision") == "accepted" and e.body.get("lifecycle_id") == self.lifecycle for e in events)
         self.applications.append(projection)
         if self.projection != projection:
             self.changes.append(projection)
@@ -93,10 +104,9 @@ class Rig:
         self.holds.difference_update(projection.released_hold_ids)
 
     def reconstruct(self):
-        return daemon.control_inbox(journal=self.journal, lifecycle_id=self.lifecycle,
-                                    holds=lambda: self.holds, apply=self.apply,
-                                    files=lambda: (self.state / "control/inbox").glob("*"),
-                                    read=Path.read_bytes)
+        return daemon.control_inbox(
+            journal=self.journal, lifecycle_id=self.lifecycle, holds=lambda: self.holds, apply=self.apply, files=lambda: (self.state / "control/inbox").glob("*"), read=Path.read_bytes
+        )
 
     def publish(self, id, verb="pause", hold=None, lifecycle=None):
         request = ControlRequest(id, lifecycle or self.lifecycle, verb, hold)
@@ -106,8 +116,7 @@ class Rig:
     def decisions(self):
         events = self.journal.read()
         assert all(e.type == EventType.SIGNAL and e.ticket is None and e.key is None for e in events)
-        assert all(set(e.body) == {"kind", "request_id", "lifecycle_id", "verb", "hold_id",
-                                   "decision", "reason"} for e in events)
+        assert all(set(e.body) == {"kind", "request_id", "lifecycle_id", "verb", "hold_id", "decision", "reason"} for e in events)
         return [e.body for e in events]
 
 
@@ -121,8 +130,7 @@ def invalid_requests():
                 cases.append({**good, key: value})
     for key in ("request_id", "lifecycle_id"):
         cases.append({**good, key: ""})
-    cases += [{**good, "request_id": value} for value in
-              ("../escape", "a/b", "a\\b", "é", "a.b", "a b", "a\n", "other")]
+    cases += [{**good, "request_id": value} for value in ("../escape", "a/b", "a\\b", "é", "a.b", "a b", "a\n", "other")]
     cases += [{**good, "verb": value} for value in ("", "PAUSE", "stop")]
     cases += [{**good, "hold_id": "hold"}, {**good, "verb": "kill", "hold_id": "hold"}]
     cases += [{**good, "verb": "resume", "hold_id": value} for value in (None, "", False, 4, [], {})]
@@ -138,9 +146,7 @@ def test_request_shape_and_identity_fail_closed(tmp_path, value):
     rig.fs.publish(path, json.dumps(value).encode())
     rig.inbox.consume()
     [decision] = rig.decisions()
-    assert decision == {"kind": control.CONTROL_DECISION, "request_id": "request",
-                        "lifecycle_id": None, "verb": None, "hold_id": None,
-                        "decision": "rejected", "reason": decision["reason"]}
+    assert decision == {"kind": control.CONTROL_DECISION, "request_id": "request", "lifecycle_id": None, "verb": None, "hold_id": None, "decision": "rejected", "reason": decision["reason"]}
     assert "submit a new request" in decision["reason"] and "secret" not in decision["reason"]
     assert rig.applications == []
 
@@ -190,7 +196,7 @@ def test_publication_is_durable_and_never_overwrites(tmp_path, monkeypatch):
     monkeypatch.setattr(os, "link", publish)
     fs.publish(path, b'{"complete":true}')
     assert chronology[-3:] == ["file", "link", "directory"]
-    assert chronology[:len(path.parent.parents) + 1] == ["directory"] * (len(path.parent.parents) + 1)
+    assert chronology[: len(path.parent.parents) + 1] == ["directory"] * (len(path.parent.parents) + 1)
     monkeypatch.setattr(os, "link", link)
     with pytest.raises(FileExistsError):
         fs.publish(path, b"changed")
@@ -251,8 +257,7 @@ def test_publication_crash_points(tmp_path, monkeypatch, point):
 
     def sync(fd):
         directory = stat.S_ISDIR(os.fstat(fd).st_mode)
-        if (point == "file-fsync" and not directory or
-                point == "directory-fsync" and directory and linked):
+        if point == "file-fsync" and not directory or point == "directory-fsync" and directory and linked:
             raise Crash
         fsync(fd)
 
@@ -287,6 +292,7 @@ def test_publication_crash_points(tmp_path, monkeypatch, point):
 def test_publisher_never_writes_journal(tmp_path, monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("publisher wrote a journal")
+
     monkeypatch.setattr(Journal, "append", forbidden)
     request = ControlRequest("request", "explicit-target", "resume", "exact-hold")
     publish_request(tmp_path, request, LocalFileSystem())
@@ -303,8 +309,10 @@ def test_decision_precedes_application(tmp_path, monkeypatch):
     rig = Rig(tmp_path)
     rig.publish("pause")
     original = rig.journal.append
+
     def refuse(*args, **kwargs):
         raise OSError("journal failed")
+
     monkeypatch.setattr(rig.journal, "append", refuse)
     with pytest.raises(OSError):
         rig.inbox.consume()
@@ -339,6 +347,7 @@ def test_decision_crash_reconstructs_projection(tmp_path, point):
             if point == "after-append":
                 raise Crash
             return result
+
     rig = Rig(tmp_path, journal_type=CrashJournal)
     path = rig.publish("pause")
     if point == "before-apply":
@@ -360,8 +369,7 @@ def test_lifecycle_identity_never_retargets(tmp_path):
     old.inbox.consume()
     new = Rig(tmp_path, lifecycle="restart-unique-new")
     new.holds.add("old-hold")
-    for id, verb, hold in (("old-pause", "pause", None), ("old-resume", "resume", "old-hold"),
-                           ("old-kill", "kill", None)):
+    for id, verb, hold in (("old-pause", "pause", None), ("old-resume", "resume", "old-hold"), ("old-kill", "kill", None)):
         new.publish(id, verb, hold, lifecycle=old.lifecycle)
     new.inbox.consume()
     assert new.applications == [] and new.holds == {"old-hold"}
@@ -441,6 +449,7 @@ def test_control_inbox_is_active(root, tmp_path, monkeypatch):
     # Removing the actual production binding must defeat the positive observable.
     def assert_bound(core):
         assert_startup_pause_wiring(core)
+
     assert_bound(production.core)
     with monkeypatch.context() as patch:
         patch.setattr(production.core.admission, "_before_dispatch", None)

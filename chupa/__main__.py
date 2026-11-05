@@ -45,24 +45,33 @@ def build_control(checkout: runner.Checkout) -> PauseConsumer:
     """Compose without reading requests, publishing discovery, or starting tasks."""
     from chupa.daemon import storm_producer
 
-    box = storm_producer(root=checkout.config.state_dir / "box", fs=checkout.fs,
-                         journal=checkout.journal, clock=checkout.clock)
-    consumer = PauseConsumer(journal=checkout.journal, lifecycle_id=uuid4().hex,
-                         state_dir=checkout.config.state_dir, fs=checkout.fs, sleep=checkout.sleep,
-                         files=lambda: (checkout.config.state_dir / "control/inbox").glob("*"),
-                         read=Path.read_bytes, recover=box.recover,
-                         storm_holds=StormLedger(journal=checkout.journal, clock=checkout.clock).holds)
+    box = storm_producer(root=checkout.config.state_dir / "box", fs=checkout.fs, journal=checkout.journal, clock=checkout.clock)
+    consumer = PauseConsumer(
+        journal=checkout.journal,
+        lifecycle_id=uuid4().hex,
+        state_dir=checkout.config.state_dir,
+        fs=checkout.fs,
+        sleep=checkout.sleep,
+        files=lambda: (checkout.config.state_dir / "control/inbox").glob("*"),
+        read=Path.read_bytes,
+        recover=box.recover,
+        storm_holds=StormLedger(journal=checkout.journal, clock=checkout.clock).holds,
+    )
     timers = Timers(journal=checkout.journal, clock=checkout.clock, sleep=checkout.sleep)
-    consumer.providers = ProviderSession(checkout.config, journal=checkout.journal,
-        clock=checkout.clock, sleep=checkout.sleep, timers=timers)
+    consumer.providers = ProviderSession(checkout.config, journal=checkout.journal, clock=checkout.clock, sleep=checkout.sleep, timers=timers)
     consumer.load_config = lambda: load_config(None, cwd=checkout.repo)
     return consumer
 
 
 def build_daemon_core(
-    checkout: runner.Checkout, *, config_path: Path | None = None, plan: str | None,
-    read: Callable[[str], str | None], debounce: float,
-    quarantined: Callable[[], Set[str]], drought_parked: Callable[[], Set[str]],
+    checkout: runner.Checkout,
+    *,
+    config_path: Path | None = None,
+    plan: str | None,
+    read: Callable[[str], str | None],
+    debounce: float,
+    quarantined: Callable[[], Set[str]],
+    drought_parked: Callable[[], Set[str]],
     completed_unmerged: Callable[[], int],
     prepare: Callable[[runner.Checkout], Awaitable[runner.Dispatch]] = runner.prepare_pipeline,
 ) -> DaemonCore:
@@ -77,71 +86,87 @@ def build_daemon_core(
         async def dispatch(ticket: Ticket) -> str:
             callback = await prepare(local)
             tier, _ = runner.capability(ticket, checkout.journal.read())
-            drought = (consumer.providers.drought(snapshot, tier, 'implement')
-                       if consumer.providers.active else None)
+            drought = consumer.providers.drought(snapshot, tier, "implement") if consumer.providers.active else None
             if drought:
                 consumer.providers.park(ticket.stem, drought)
                 core.scheduler.update(ticket)
-                return 'infra_error'
+                return "infra_error"
             result = await callback(ticket)
             history = checkout.journal.read()
-            body = next((e.body for e in reversed(history)
-                if e.type == 'state_transition' and e.ticket == ticket.stem), {})
-            if 'provider_drought' in body:
+            body = next((e.body for e in reversed(history) if e.type == "state_transition" and e.ticket == ticket.stem), {})
+            if "provider_drought" in body:
                 core.scheduler.update(ticket)
             return result
 
         return dispatch
 
     core = daemon_core(
-        checkout.repo, journal=checkout.journal,
-        load=lambda: load_config(config_path, cwd=checkout.repo), bind=bind, plan=plan, read=read,
-        clock=checkout.clock, sleep=checkout.sleep, debounce=debounce,
-        quarantined=quarantined, drought_parked=drought_parked,
-        completed_unmerged=completed_unmerged, max_unmerged=checkout.config.scheduler.max_unmerged,
-        before_dispatch=consumer.checkpoint, control=consumer,
+        checkout.repo,
+        journal=checkout.journal,
+        load=lambda: load_config(config_path, cwd=checkout.repo),
+        bind=bind,
+        plan=plan,
+        read=read,
+        clock=checkout.clock,
+        sleep=checkout.sleep,
+        debounce=debounce,
+        quarantined=quarantined,
+        drought_parked=drought_parked,
+        completed_unmerged=completed_unmerged,
+        max_unmerged=checkout.config.scheduler.max_unmerged,
+        before_dispatch=consumer.checkpoint,
+        control=consumer,
     )
     timers = consumer.providers.timers
-    restart = Restart(checkout, timers=timers,
-                      owned=lambda: core.admission.active is not None or core.admission.task is not None)
+    restart = Restart(checkout, timers=timers, owned=lambda: core.admission.active is not None or core.admission.task is not None)
     core.admission.restart = restart
     core.admission._before_dispatch = StartupBoundary(restart, consumer).checkpoint
+
     def provider_holds():
         held = set(drought_parked())
         latest = {}
         for event in checkout.journal.read():
-            if event.type == 'state_transition' and event.ticket is not None:
+            if event.type == "state_transition" and event.ticket is not None:
                 latest[event.ticket] = event.body
         for stem, body in latest.items():
-            if route := body.get('provider_drought'):
+            if route := body.get("provider_drought"):
                 snapshot = load_config(config_path, cwd=checkout.repo)
-                if consumer.providers.drought(snapshot, route['tier'], route['surface']):
+                if consumer.providers.drought(snapshot, route["tier"], route["surface"]):
                     held.add(stem)
         return held
+
     core.scheduler.drought_parked = provider_holds
     return core
 
 
-def build_serve(checkout: runner.Checkout, *, config_path=None, plan=None, read=None,
-                stems=None, prepare=runner.prepare_pipeline, signals=None, failure=None) -> serve.Serve:
+def build_serve(checkout: runner.Checkout, *, config_path=None, plan=None, read=None, stems=None, prepare=runner.prepare_pipeline, signals=None, failure=None) -> serve.Serve:
     """Compose filesystem delivery at the same root as every other real seam."""
+
     def read_ticket(stem):
         path = checkout.repo / ticket_path(stem)
         return path.read_text() if path.is_file() else None
-    return serve.Serve(checkout, config_path=config_path, plan=plan, read=read or read_ticket,
+
+    return serve.Serve(
+        checkout,
+        config_path=config_path,
+        plan=plan,
+        read=read or read_ticket,
         stems=stems or (lambda: (p.parent.name for p in (checkout.repo / "tickets").glob("*/ticket.md"))),
-        prepare=prepare, signals=signals, failure=failure)
+        prepare=prepare,
+        signals=signals,
+        failure=failure,
+    )
 
 
 def build_notifications(checkout: runner.Checkout, *, config_path: Path | None, log) -> NotificationReconciler:
     executor = SubprocessExec()  # Never alias active work or the self-upgrade handoff.
+
     def compose(config):
-        return CommandNotifications(executor, cwd=checkout.repo,
-            env=child_env(checkout.env, config, serving=None), timeout=NOTIFY_TIMEOUT_S,
-            scrub=Redactor.from_config(config, checkout.env).scrub)
-    return NotificationReconciler(journal=checkout.journal, clock=checkout.clock,
-        config_path=config_path or checkout.repo / "config.yaml",
-        load=lambda: load_config(config_path, cwd=checkout.repo), compose=compose, log=log)
+        return CommandNotifications(executor, cwd=checkout.repo, env=child_env(checkout.env, config, serving=None), timeout=NOTIFY_TIMEOUT_S, scrub=Redactor.from_config(config, checkout.env).scrub)
+
+    return NotificationReconciler(
+        journal=checkout.journal, clock=checkout.clock, config_path=config_path or checkout.repo / "config.yaml", load=lambda: load_config(config_path, cwd=checkout.repo), compose=compose, log=log
+    )
 
 
 def watchdog_observation(workspace: Path, fence):
@@ -150,22 +175,26 @@ def watchdog_observation(workspace: Path, fence):
     def snapshot():
         files = {}
         for prefix in fence:
-            path = workspace / prefix.partition('#')[0]
-            paths = path.rglob('*') if path.is_dir() else (path,)
+            path = workspace / prefix.partition("#")[0]
+            paths = path.rglob("*") if path.is_dir() else (path,)
             for candidate in paths:
                 if candidate.is_file():
                     files[candidate.relative_to(workspace).as_posix()] = candidate.read_bytes()
         return files
+
     return ScopeObservation(fence, snapshot)
 
 
 def watchdog_notifications(config, env, effects, log, *, redactor, cwd, **context):
     from chupa.notify import WatchdogNotifications
 
-    return WatchdogNotifications(effects=effects,
-        notifications=CommandNotifications(SubprocessExec(), cwd=cwd,
-            env=child_env(env, config, serving=None), timeout=NOTIFY_TIMEOUT_S,
-            scrub=redactor.scrub), argv=config.notify, log=log, **context)
+    return WatchdogNotifications(
+        effects=effects,
+        notifications=CommandNotifications(SubprocessExec(), cwd=cwd, env=child_env(env, config, serving=None), timeout=NOTIFY_TIMEOUT_S, scrub=redactor.scrub),
+        argv=config.notify,
+        log=log,
+        **context,
+    )
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -190,8 +219,7 @@ def _parser() -> argparse.ArgumentParser:
     for verb in ("confirm", "reject"):
         sub.add_parser(verb, help=f"{verb} a draft or Reject item under the lock").add_argument("stem")
     dr = sub.add_parser("drain", help="run every eligible ticket to quiescence under the lock")
-    dr.add_argument("--parked", action="append", default=[], metavar="STEM",
-                    help="a stem the handing-off parent drain parked (set by the self-upgrade re-exec)")
+    dr.add_argument("--parked", action="append", default=[], metavar="STEM", help="a stem the handing-off parent drain parked (set by the self-upgrade re-exec)")
     sub.add_parser("serve", help="run the foreground daemon until kill or a signal stops it")
     return ap
 
@@ -213,8 +241,7 @@ def main(
         if args.verb in {"confirm", "reject"}:
             isatty, read_input = terminal if terminal is not None else (sys.stdin.isatty, input)
             if not isatty():
-                raise runner.Refusal("verdict requires an interactive terminal",
-                    "a human runs this in a terminal: ./dev.py confirm|reject <stem>")
+                raise runner.Refusal("verdict requires an interactive terminal", "a human runs this in a terminal: ./dev.py confirm|reject <stem>")
         if args.verb == "migrate-config":
             migrate_config(args.config, cwd=repo, fs=LocalFileSystem())
             return 0
@@ -222,8 +249,8 @@ def main(
             return _new(repo, args.stem, args.kind)
         if args.verb == "doctor":
             from chupa import doctor
-            results = asyncio.run(doctor.check(repo=repo, config_path=args.config, env=env,
-                exec_=SubprocessExec(), clock=clock, in_venv=sys.prefix != sys.base_prefix))
+
+            results = asyncio.run(doctor.check(repo=repo, config_path=args.config, env=env, exec_=SubprocessExec(), clock=clock, in_venv=sys.prefix != sys.base_prefix))
             print(doctor.render(results), end="")
             return 0 if all(r.passed for r in results) else 2
         config = load_config(args.config, cwd=repo)
@@ -232,10 +259,14 @@ def main(
             return 0
         exec_ = SubprocessExec()
         checkout = runner.Checkout(
-            repo=repo, config=config, env=env, exec_=exec_,
-            git=Git(exec_, env={**child_env(env, config), **({"GIT_OPTIONAL_LOCKS": "0"}
-                if args.verb == "lint" else {})}, timeout=GIT_TIMEOUT_S),
-            journal=Journal(config.state_dir, clock), fs=LocalFileSystem(), clock=clock,
+            repo=repo,
+            config=config,
+            env=env,
+            exec_=exec_,
+            git=Git(exec_, env={**child_env(env, config), **({"GIT_OPTIONAL_LOCKS": "0"} if args.verb == "lint" else {})}, timeout=GIT_TIMEOUT_S),
+            journal=Journal(config.state_dir, clock),
+            fs=LocalFileSystem(),
+            clock=clock,
         )
         if args.verb == "lint":
             return asyncio.run(_lint(checkout, args.stems))
@@ -247,19 +278,18 @@ def main(
         if args.verb in {"confirm", "reject"}:
             return asyncio.run(_verdict(checkout, args.stem, args.verb, read_input))
         if args.verb == "triage":
+
             async def one_pass() -> list[tuple[str, str]]:
                 lock = Lockfile(config.state_dir, instance_id=await checkout.git.describe(repo), clock=clock)
                 lock.acquire()
                 session = build_control(checkout).providers
                 try:
-                    llm = ProviderLLM(config, exec_=exec_, fs=checkout.fs, env=env,
-                                      cwd=repo, timeout=runner.call_timeout(config),
-                                      session=session)
+                    llm = ProviderLLM(config, exec_=exec_, fs=checkout.fs, env=env, cwd=repo, timeout=runner.call_timeout(config), session=session)
                     session.timers.reconstruct()
                     session.timers.fire_due()
                     problems = await llm.preflight() if session.active else []
                     if problems:
-                        raise ProviderSetupError('; '.join(problems))
+                        raise ProviderSetupError("; ".join(problems))
                     return await triage.triage_pass(checkout, llm)
                 finally:
                     try:
@@ -271,8 +301,7 @@ def main(
             print("\n".join(line for _, line in lines) if lines else "no pending suggestions")
             return 0
         if args.verb == "serve":
-            return asyncio.run(serve.serve(checkout, config_path=args.config,
-                plan=read_plan(repo), signals=_serve_signals))
+            return asyncio.run(serve.serve(checkout, config_path=args.config, plan=read_plan(repo), signals=_serve_signals))
         checkout = replace(checkout, control=build_control(checkout))
         checkout.control.load_config = lambda: load_config(args.config, cwd=repo)
         dispatch = pipeline(checkout)
@@ -280,6 +309,7 @@ def main(
             return asyncio.run(_retro(checkout, dispatch))
         if args.verb == "drain":
             from chupa.retro import Retro
+
             class DrainDispatch:
                 _retro = Retro(checkout, dispatch)
 
@@ -288,17 +318,15 @@ def main(
 
                 def __getattr__(self, name):
                     return getattr(dispatch, name)
+
             # The handoff's own seam instance, never shared with active work (section 15).
-            report = asyncio.run(drain.drain(checkout, DrainDispatch(), reexec=reexec or SubprocessExec(),
-                                             parked=args.parked))
+            report = asyncio.run(drain.drain(checkout, DrainDispatch(), reexec=reexec or SubprocessExec(), parked=args.parked))
             if report.handoff is None:
                 print(report.render(), end="")
             return report.exit_code
         return asyncio.run(runner.run_ticket(args.stem, checkout, dispatch))
-    except (ConfigError, runner.Refusal, LockHeld, IntakeRefused, JournalCorruption, ProviderSetupError,
-            ExecutableNotFound, hostfiles.MarkerCorruption) as e:
-        road = (" -- repair the selected config and retry retro"
-                if args.verb == "retro" and isinstance(e, ConfigError) else "")
+    except (ConfigError, runner.Refusal, LockHeld, IntakeRefused, JournalCorruption, ProviderSetupError, ExecutableNotFound, hostfiles.MarkerCorruption) as e:
+        road = " -- repair the selected config and retry retro" if args.verb == "retro" and isinstance(e, ConfigError) else ""
         print(f"chupa {args.verb}: {e}{road}", file=sys.stderr)
         return runner.EXIT_REFUSED
 
@@ -306,8 +334,7 @@ def main(
 async def _retro(checkout, dispatch):
     from chupa.retro import Retro, RetroConstructionError, measurements, project_window, suppressing_failure
 
-    lock = Lockfile(checkout.config.state_dir,
-                    instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
+    lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
     lock.acquire()
     try:
         try:
@@ -343,16 +370,14 @@ async def _lint(checkout: runner.Checkout, stems: Sequence[str]) -> int:
     exit_code = 0
     try:
         entries = list(root.iterdir())  # Unlike glob, unreadable directories must refuse.
-        selected = list(dict.fromkeys(stems)) if stems else sorted(
-            p.name for p in entries if (p / "ticket.md").is_file())
+        selected = list(dict.fromkeys(stems)) if stems else sorted(p.name for p in entries if (p / "ticket.md").is_file())
         states = last_states(checkout.journal.read())
         pending = _pending(checkout.repo, _porcelain(await checkout.git.status_porcelain(checkout.repo)))
         for stem in selected:
             rel = ticket_path(stem)
             path = checkout.repo / rel
             # Check existence before the stem grammar, without following an escaped path.
-            inside = (Path(stem).name == stem and stem not in {".", ".."}
-                      and path.resolve().is_relative_to(root.resolve()))
+            inside = Path(stem).name == stem and stem not in {".", ".."} and path.resolve().is_relative_to(root.resolve())
             if not inside or not path.is_file():
                 print(f"{rel}: no ticket file (create tickets/<stem>/ticket.md with chupa new <stem>)")
                 total += 1
@@ -366,8 +391,7 @@ async def _lint(checkout: runner.Checkout, stems: Sequence[str]) -> int:
                 if findings:
                     raise TicketInvalid(findings)
                 ticket = validate_ticket(stem, text, checkout.repo)
-                paths = await checkout.git._run(checkout.repo, "ls-files", "--cached", "--others",
-                    "--exclude-standard", "-z", "--", f"tickets/{stem}/evidence/")
+                paths = await checkout.git._run(checkout.repo, "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", f"tickets/{stem}/evidence/")
                 findings = evidence_findings(ticket, checkout.repo, paths=paths.split("\0"))
             except TicketInvalid as exc:
                 findings = exc.findings
@@ -395,11 +419,10 @@ async def _status(checkout: runner.Checkout):
     window = project_window(events)
     await production_evidence(window, checkout)
     spec = load_spec((runner.SPECS_DIR / "retro.md").read_text())
-    provenance = {"head": await checkout.git.rev_parse(checkout.repo, "HEAD"),
-                  "spec_version": spec.meta.version, "at": checkout.clock().isoformat()}
-    return project(events, window=window, provenance=provenance,
-        box=Box(checkout.config.state_dir / BOX_DIR, checkout.fs,
-                rereport=RereportJournal(checkout.journal)), policy=checkout.config.box_policy)
+    provenance = {"head": await checkout.git.rev_parse(checkout.repo, "HEAD"), "spec_version": spec.meta.version, "at": checkout.clock().isoformat()}
+    return project(
+        events, window=window, provenance=provenance, box=Box(checkout.config.state_dir / BOX_DIR, checkout.fs, rereport=RereportJournal(checkout.journal)), policy=checkout.config.box_policy
+    )
 
 
 def _serve_signals(stop: Callable[[], None]) -> Callable[[], None]:
@@ -408,16 +431,17 @@ def _serve_signals(stop: Callable[[], None]) -> Callable[[], None]:
     previous = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
     for sig in previous:
         loop.add_signal_handler(sig, stop)
+
     def restore() -> None:
         for sig, handler in previous.items():
             loop.remove_signal_handler(sig)
             signal.signal(sig, handler)
+
     return restore
 
 
 async def _control(checkout: runner.Checkout, verb: str) -> int:
-    lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo),
-                    clock=checkout.clock)
+    lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
     try:
         lock.acquire()
     except LockHeld:
@@ -426,16 +450,14 @@ async def _control(checkout: runner.Checkout, verb: str) -> int:
         except ValueError as exc:
             raise runner.Refusal("current control identity unavailable", str(exc)) from exc
         if verb == "resume" and hold is None:
-            raise runner.Refusal("no current hold identity",
-                                 "read the running engine's current control identity and submit a new request")
+            raise runner.Refusal("no current hold identity", "read the running engine's current control identity and submit a new request")
         request = control.ControlRequest(uuid4().hex, lifecycle, verb, hold if verb == "resume" else None)
         control.publish_request(checkout.config.state_dir, request, checkout.fs)
         print(f"{verb} submitted: {request.request_id}")
     else:
         try:
             if verb == "kill":
-                raise runner.Refusal("nothing running to kill",
-                                     "start a drain before submitting kill")
+                raise runner.Refusal("nothing running to kill", "start a drain before submitting kill")
             print(f"nothing running to {verb}")
         finally:
             lock.release()
@@ -484,8 +506,7 @@ async def _verdict(checkout, stem, verb, read_input):
         lifecycle, _ = control.read_active(checkout.config.state_dir, Path.read_bytes)
     except ValueError as exc:
         raise runner.Refusal("current control identity unavailable", str(exc)) from exc
-    request = control.AdmissionRequest(uuid4().hex, lifecycle, verb, stem,
-                                       held[0] if held else None, "operator")
+    request = control.AdmissionRequest(uuid4().hex, lifecycle, verb, stem, held[0] if held else None, "operator")
     control.publish_request(checkout.config.state_dir, request, checkout.fs)
     print(f"{verb} submitted: {request.request_id}")
     return 0

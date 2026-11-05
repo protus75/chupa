@@ -58,8 +58,7 @@ def test_a_reoffer_after_a_review_reject_renders_its_findings_in_criteria_positi
         ticket_md = (repo / "tickets" / STEM / "ticket.md").read_text()
         return agent({"chupa/thing.py": "ok\n"})(req)
 
-    code, llm = drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis_reply(),
-                             capture_ticket, verdict()])
+    code, llm = drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis_reply(), capture_ticket, verdict()])
 
     assert code == 0
     assert [t["to"] for t in transitions(repo)] == ["running", "gate_failed", "running", "merged"]
@@ -76,8 +75,7 @@ def test_a_reoffer_after_a_review_reject_renders_its_findings_in_criteria_positi
 
 def test_a_reoffer_after_a_red_check_renders_the_failing_checks(repo):
     author(repo)
-    code, llm = drain(repo, [agent({"chupa/thing.py": "nope\n"}), diagnosis_reply(),
-                             agent({"chupa/thing.py": "ok\n"}), verdict()])
+    code, llm = drain(repo, [agent({"chupa/thing.py": "nope\n"}), diagnosis_reply(), agent({"chupa/thing.py": "ok\n"}), verdict()])
 
     assert code == 0
     first, second = implements(llm)
@@ -95,8 +93,7 @@ def test_a_base_red_check_merges_without_retry_and_files_one_report(repo):
     assert code == 0
     assert len(implements(llm)) == 1
     assert [t["to"] for t in transitions(repo)] == ["running", "merged"]
-    assert not any(e.type == EventType.CAP_CONSUMED and e.body.get("cap") == "retry"
-                   for e in Journal(repo / ".chupa" / "state", clock).read())
+    assert not any(e.type == EventType.CAP_CONSUMED and e.body.get("cap") == "retry" for e in Journal(repo / ".chupa" / "state", clock).read())
     config = load_config(None, cwd=repo)
     messages = Box(config.state_dir / BOX_DIR, LocalFileSystem()).messages()
     assert len(messages) == 1
@@ -107,9 +104,9 @@ def test_a_base_red_check_merges_without_retry_and_files_one_report(repo):
 def test_a_stale_review_md_never_feeds_a_later_check_failure(repo):
     # Attempt 1 rejected at review; attempt 2 went red at check: attempt 3 sees the check, not the stale reject.
     author(repo)
-    code, llm = drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis_reply(),
-                             agent({"chupa/thing.py": "nope\n"}), diagnosis_reply(),
-                             agent({"chupa/thing.py": "ok\n"}), verdict()])
+    code, llm = drain(
+        repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis_reply(), agent({"chupa/thing.py": "nope\n"}), diagnosis_reply(), agent({"chupa/thing.py": "ok\n"}), verdict()]
+    )
 
     assert code == 0
     third = between_criteria_and_next_section(ticket_block(implements(llm)[2]))

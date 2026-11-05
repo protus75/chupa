@@ -9,11 +9,12 @@ from pathlib import Path
 import pytest
 
 from chupa.config import ConfigError, load_config
+from chupa.journal import Journal
 from chupa.llm import LLMRequest
 from chupa.providers import (
     ADAPTERS,
-    CliAdapter,
     PLACEHOLDER,
+    CliAdapter,
     ProviderCallError,
     ProviderLLM,
     ProviderSession,
@@ -22,9 +23,8 @@ from chupa.providers import (
     resolve,
 )
 from chupa.redact import Redactor
-from chupa.journal import Journal
-from chupa.timers import Timers
 from chupa.seams import GroupExec, LocalFileSystem, SubprocessExec
+from chupa.timers import Timers
 from chupa.watchdog import EventConsumer
 from tests.waiting import group_exited, ready_before_returning_spawn, wait_until
 
@@ -76,9 +76,7 @@ class FakeExec:
         self.hang: asyncio.Event | None = None
 
     async def run(self, argv, *, cwd, env, timeout, stdin_path=None, on_spawn=None, on_stdout_line=None):
-        self.calls.append(
-            {"argv": list(argv), "cwd": cwd, "env": dict(env), "stdin": Path(stdin_path).read_text(), "timeout": timeout}
-        )
+        self.calls.append({"argv": list(argv), "cwd": cwd, "env": dict(env), "stdin": Path(stdin_path).read_text(), "timeout": timeout})
         if on_spawn is not None:
             on_spawn(4242)
         if self.hang is not None:
@@ -98,13 +96,11 @@ class FakeExec:
 
 def provider_session(cfg, clock=lambda: datetime(2026, 1, 1, tzinfo=UTC), sleep=asyncio.sleep):
     journal = Journal(cfg.state_dir, clock)
-    return ProviderSession(cfg, journal=journal, clock=clock, sleep=sleep,
-                           timers=Timers(journal=journal, clock=clock, sleep=sleep))
+    return ProviderSession(cfg, journal=journal, clock=clock, sleep=sleep, timers=Timers(journal=journal, clock=clock, sleep=sleep))
 
 
 def llm(cfg, exec_: FakeExec, tmp_path: Path) -> ProviderLLM:
-    return ProviderLLM(cfg, exec_=exec_, fs=LocalFileSystem(), env=ENV, cwd=tmp_path / "checkout", timeout=600,
-                       session=provider_session(cfg))
+    return ProviderLLM(cfg, exec_=exec_, fs=LocalFileSystem(), env=ENV, cwd=tmp_path / "checkout", timeout=600, session=provider_session(cfg))
 
 
 def req(surface: str, tier="medium", worktree=None, rendered="do the thing", effort="high") -> LLMRequest:
@@ -261,8 +257,15 @@ def test_claude_implement_gets_the_write_grant_in_the_worktree(tmp_path):
     call(cfg, exec_, tmp_path, req("implement", tier="high", worktree=worktree))
     inv = exec_.calls[0]
     assert inv["argv"] == [
-        "claude", "-p", "--output-format", "stream-json", "--verbose", "--model", "c-high",
-        "--permission-mode", "bypassPermissions",
+        "claude",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--model",
+        "c-high",
+        "--permission-mode",
+        "bypassPermissions",
     ]
     assert inv["cwd"] == worktree
 
@@ -321,8 +324,15 @@ def test_codex_implement_gets_the_write_grant_in_the_worktree(tmp_path):
     call(cfg, exec_, tmp_path, req("implement", worktree=worktree, effort="high"))
     inv = exec_.calls[0]
     assert inv["argv"] == [
-        "codex", "exec", "--json", "-m", "x-med", "-c", "model_reasoning_effort=high",
-        "--dangerously-bypass-approvals-and-sandbox", "-",
+        "codex",
+        "exec",
+        "--json",
+        "-m",
+        "x-med",
+        "-c",
+        "model_reasoning_effort=high",
+        "--dangerously-bypass-approvals-and-sandbox",
+        "-",
     ]
     assert inv["cwd"] == worktree
     assert inv["stdin"] == "do the thing"
@@ -333,8 +343,18 @@ def test_codex_read_only_surface_is_sandboxed_read_only_with_no_approvals(tmp_pa
     call(config(tmp_path), exec_, tmp_path, req("review", tier="low", effort="low"))
     inv = exec_.calls[0]
     assert inv["argv"] == [
-        "codex", "exec", "--json", "-m", "x-low", "-c", "model_reasoning_effort=low",
-        "--sandbox", "read-only", "-c", "approval_policy=never", "-",
+        "codex",
+        "exec",
+        "--json",
+        "-m",
+        "x-low",
+        "-c",
+        "model_reasoning_effort=low",
+        "--sandbox",
+        "read-only",
+        "-c",
+        "approval_policy=never",
+        "-",
     ]
     assert "--dangerously-bypass-approvals-and-sandbox" not in inv["argv"]
     assert inv["cwd"] == tmp_path / "checkout"
@@ -360,8 +380,7 @@ def test_codex_failed_turn_raises_even_on_exit_zero(tmp_path, out):
 
 
 def test_codex_nonzero_exit_carries_the_stream_failure_message(tmp_path):
-    out = jsonl({"type": "turn.started"},
-                {"type": "turn.failed", "error": {"message": "Selected model is at capacity."}})
+    out = jsonl({"type": "turn.started"}, {"type": "turn.failed", "error": {"message": "Selected model is at capacity."}})
     with pytest.raises(ProviderCallError, match="at capacity") as e:
         call(config(tmp_path), FakeExec((1, out, "")), tmp_path, req("implement", worktree=tmp_path))
     assert e.value.rc == 1
@@ -464,9 +483,17 @@ def test_cli_provider_must_declare_its_package(tmp_path):
 
 
 def classifier_adapter(cfg, name, tmp_path):
-    return ADAPTERS[name](next(p for p in cfg.providers if p.name == name), config=cfg,
-                          exec_=FakeExec(), fs=LocalFileSystem(), redactor=Redactor.from_config(cfg, ENV),
-                          env=ENV, cwd=tmp_path, capture_dir=cfg.state_dir / "spools", timeout=600)
+    return ADAPTERS[name](
+        next(p for p in cfg.providers if p.name == name),
+        config=cfg,
+        exec_=FakeExec(),
+        fs=LocalFileSystem(),
+        redactor=Redactor.from_config(cfg, ENV),
+        env=ENV,
+        cwd=tmp_path,
+        capture_dir=cfg.state_dir / "spools",
+        timeout=600,
+    )
 
 
 @pytest.mark.parametrize("name", ["claude", "codex"])
@@ -487,7 +514,7 @@ def test_cli_failure_classifier_closed_vocabulary_and_precedence(tmp_path, name)
                 error = adapter.classify_failure(message, rc=1, stderr_tail=tail)
                 observed.add(error.failure_class)
                 assert error.failure_class == failure
-            lower_precedence = " ".join(words[0] for _, words in classes[index + 1:])
+            lower_precedence = " ".join(words[0] for _, words in classes[index + 1 :])
             assert adapter.classify_failure(marker, rc=0, stderr_tail=lower_precedence).failure_class == failure
     unknown = adapter.classify_failure("novel diagnostic", rc=37, stderr_tail="unknown")
     observed.add(unknown.failure_class)
@@ -498,8 +525,11 @@ def test_cli_failure_classifier_closed_vocabulary_and_precedence(tmp_path, name)
 @pytest.mark.parametrize("name", ["claude", "codex"])
 def test_cli_failure_classifier_handles_exit_zero_error_events(tmp_path, name, monkeypatch):
     adapter = classifier_adapter(config(tmp_path), name, tmp_path)
-    out = (jsonl({"type": "result", "subtype": "error", "is_error": True, "result": "usage limit reached"})
-           if name == "claude" else jsonl({"type": "turn.failed", "error": {"message": "usage limit reached"}}))
+    out = (
+        jsonl({"type": "result", "subtype": "error", "is_error": True, "result": "usage limit reached"})
+        if name == "claude"
+        else jsonl({"type": "turn.failed", "error": {"message": "usage limit reached"}})
+    )
     error = adapter.parsed_failure(out, rc=0, stderr_tail="")
     assert error.failure_class == "quota_exhausted" and error.rc == 0
     out_error = adapter.parsed_failure(out, rc=1, stderr_tail="")
@@ -521,22 +551,27 @@ def test_cli_failure_classifier_handles_exit_zero_error_events(tmp_path, name, m
 
 @pytest.mark.parametrize("name", ["claude", "codex"])
 def test_classified_error_preserves_scrubbed_evidence_and_login_road(tmp_path, name):
+    from pydantic import BaseModel
+
     from chupa.driver import Driver, LlmStage
     from chupa.llm import FakeLLM
-    from pydantic import BaseModel
 
     cfg = config(tmp_path)
     adapter = classifier_adapter(cfg, name, tmp_path)
     redactor = Redactor.from_config(cfg, ENV)
     tail = redactor.scrub("z" * 2100 + " sk-claude-secret sk-codex-secret")[-2000:]
     errors = []
-    for marker, failure in ((adapter.AUTH_MARKERS[0], "auth_error"), ("rate limit", "rate_limited"),
-                            ("quota exhausted", "quota_exhausted"), ("at capacity", "outage"),
-                            ("model not found", "model_error"), ("new failure", "unclassified")):
+    for marker, failure in (
+        (adapter.AUTH_MARKERS[0], "auth_error"),
+        ("rate limit", "rate_limited"),
+        ("quota exhausted", "quota_exhausted"),
+        ("at capacity", "outage"),
+        ("model not found", "model_error"),
+        ("new failure", "unclassified"),
+    ):
         # JSON escapes bypass raw-stream scrubbing; the decoded failure message must still be scrubbed.
         message = marker + " sk-claude-secret sk-codex-secret"
-        out = (jsonl({"type": "result", "is_error": True, "subtype": "error", "result": message})
-               if name == "claude" else jsonl({"type": "turn.failed", "error": {"message": message}}))
+        out = jsonl({"type": "result", "is_error": True, "subtype": "error", "result": message}) if name == "claude" else jsonl({"type": "turn.failed", "error": {"message": message}})
         out = out.replace("sk-", "sk\\u002d")
         error = adapter.parsed_failure(redactor.scrub(out), rc=23, stderr_tail=tail)
         assert (error.provider, error.rc, error.stderr_tail, error.failure_class) == (name, 23, tail, failure)
@@ -558,11 +593,21 @@ def test_classified_error_preserves_scrubbed_evidence_and_login_road(tmp_path, n
         await asyncio.Event().wait()
 
     for index, error in enumerate(errors):
-        driver = Driver.from_config(cfg, llm=FakeLLM([error]), env=ENV,
-                                    clock=lambda: datetime(2026, 10, 6, tzinfo=UTC), sleep=sleep)
-        result = asyncio.run(driver.run(LlmStage(surface="review", emits=Reply, gates=[], render=lambda *_: "probe"),
-                                       None, ticket=f"classification-{index}", attempt=0, workspace=tmp_path,
-                                       tier="medium", effort="low", stuck_budget=600, expected_budget=300.0, scope_fence=()))
+        driver = Driver.from_config(cfg, llm=FakeLLM([error]), env=ENV, clock=lambda: datetime(2026, 10, 6, tzinfo=UTC), sleep=sleep)
+        result = asyncio.run(
+            driver.run(
+                LlmStage(surface="review", emits=Reply, gates=[], render=lambda *_: "probe"),
+                None,
+                ticket=f"classification-{index}",
+                attempt=0,
+                workspace=tmp_path,
+                tier="medium",
+                effort="low",
+                stuck_budget=600,
+                expected_budget=300.0,
+                scope_fence=(),
+            )
+        )
         assert result.outcome == "infra_error"
         if error.failure_class == "unclassified":
             assert result.findings == []
@@ -572,10 +617,11 @@ def test_classified_error_preserves_scrubbed_evidence_and_login_road(tmp_path, n
 
 
 def test_cli_failure_classifier_is_active(tmp_path, monkeypatch):
+    from pydantic import BaseModel
+
     from chupa import __main__, runner
     from chupa.driver import LlmStage
     from chupa.tickets import validate_ticket
-    from pydantic import BaseModel
 
     config(tmp_path)
     hits, results = [], []
@@ -592,9 +638,18 @@ def test_cli_failure_classifier_is_active(tmp_path, monkeypatch):
 
     async def drive(ctx, _ticket):
         for surface in ("implement", "review"):
-            result = await ctx.driver.run(LlmStage(surface=surface, emits=Reply, gates=[], render=lambda *_: "probe"),
-                                          None, ticket="dormancy", attempt=0, workspace=tmp_path,
-                                          tier="medium", effort="low", stuck_budget=600, expected_budget=300.0, scope_fence=())
+            result = await ctx.driver.run(
+                LlmStage(surface=surface, emits=Reply, gates=[], render=lambda *_: "probe"),
+                None,
+                ticket="dormancy",
+                attempt=0,
+                workspace=tmp_path,
+                tier="medium",
+                effort="low",
+                stuck_budget=600,
+                expected_budget=300.0,
+                scope_fence=(),
+            )
             assert result.outcome == "infra_error"
             results.append(result)
         return "infra_error"
@@ -604,15 +659,23 @@ def test_cli_failure_classifier_is_active(tmp_path, monkeypatch):
     class CompositionExec(PreflightExec):
         async def run(self, argv, **kwargs):
             if kwargs.get("stdin_path") is not None and Path(kwargs["stdin_path"]).read_text() != "Reply with the single word ok.":
-                return 0, (jsonl({"type": "turn.failed", "error": {"message": "service unavailable"}})
-                           if argv[0] == "codex" else jsonl({"type": "result", "subtype": "error", "is_error": True,
-                                                            "result": "rate limit"})), ""
+                return (
+                    0,
+                    (
+                        jsonl({"type": "turn.failed", "error": {"message": "service unavailable"}})
+                        if argv[0] == "codex"
+                        else jsonl({"type": "result", "subtype": "error", "is_error": True, "result": "rate limit"})
+                    ),
+                    "",
+                )
             return await super().run(argv, **kwargs)
 
     monkeypatch.setattr(__main__, "SubprocessExec", lambda: CompositionExec(CURRENT, "1.2.3"))
 
     def run_ticket(stem, checkout, dispatch):
-        ticket = validate_ticket(stem, textwrap.dedent("""\
+        ticket = validate_ticket(
+            stem,
+            textwrap.dedent("""\
             ---
             priority: P2
             kind: chore
@@ -640,11 +703,14 @@ def test_cli_failure_classifier_is_active(tmp_path, monkeypatch):
             ## Time budget
             - expected: 20m
             - stuck: 60m
-            """), checkout.repo)
+            """),
+            checkout.repo,
+        )
 
         async def run():
             await dispatch(ticket)
             return 0
+
         return run()
 
     monkeypatch.setattr(runner, "run_ticket", run_ticket)
@@ -654,11 +720,10 @@ def test_cli_failure_classifier_is_active(tmp_path, monkeypatch):
         results.clear()
         # main's default pipeline is the real runner.pipeline; it builds ProviderLLM,
         # performs preflight, and binds Driver + StageContext before this call runs.
-        assert __main__.main(["run", "dormancy"], cwd=tmp_path, env=ENV,
-                             clock=lambda: datetime(2026, 10, 6, tzinfo=UTC)) == 0
+        assert __main__.main(["run", "dormancy"], cwd=tmp_path, env=ENV, clock=lambda: datetime(2026, 10, 6, tzinfo=UTC)) == 0
         assert len(results) == 2
-        assert hits == ['codex', 'claude']
-        assert [r.findings[0].code for r in results] == ['outage', 'rate_limited']
+        assert hits == ["codex", "claude"]
+        assert [r.findings[0].code for r in results] == ["outage", "rate_limited"]
 
     assert_dormant()
 
@@ -692,9 +757,7 @@ class PythonProviderExec(SubprocessExec):
 
 
 def python_client(cfg, process, tmp_path, *, timeout=10, env=None):
-    return ProviderLLM(cfg, exec_=process, fs=LocalFileSystem(),
-                       env=env or {**os.environ, **ENV, "PATH": os.environ["PATH"]},
-                       cwd=tmp_path, timeout=timeout, session=provider_session(cfg))
+    return ProviderLLM(cfg, exec_=process, fs=LocalFileSystem(), env=env or {**os.environ, **ENV, "PATH": os.environ["PATH"]}, cwd=tmp_path, timeout=timeout, session=provider_session(cfg))
 
 
 def provider_request(name, tmp_path, **kwargs):
@@ -803,8 +866,7 @@ def test_inflight_events_are_scrubbed_and_capture_is_preserved(tmp_path, name):
     ordinary = asyncio.run(client.call(request))
     assert watched == ordinary
     assert watched.text == "[REDACTED:CODEX_KEY] [REDACTED:CLAUDE_KEY]"
-    assert events[0] == {"type": "tool", "payload": [
-        {"[REDACTED:CODEX_KEY] [REDACTED:CLAUDE_KEY]": "[REDACTED:CODEX_KEY] [REDACTED:CLAUDE_KEY]"}, 4, None, True]}
+    assert events[0] == {"type": "tool", "payload": [{"[REDACTED:CODEX_KEY] [REDACTED:CLAUDE_KEY]": "[REDACTED:CODEX_KEY] [REDACTED:CLAUDE_KEY]"}, 4, None, True]}
     assert len(events) == 1 + len([json.loads(line) for line in terminal.splitlines()])
     assert events[-1]["type"] == ("result" if name == "claude" else "turn.completed")
     decoded_events = json.dumps(events, ensure_ascii=False)
@@ -831,7 +893,7 @@ def test_event_callback_unwind_kills_group(tmp_path, monkeypatch, name, unwind):
         "import os, subprocess, sys, signal\n"
         f"child = subprocess.Popen([sys.executable, '-c', {grandchild!r}], stdout=subprocess.PIPE)\n"
         "assert child.stdout.readline() == b'ready\\n'\n"
-        "print('{\"type\": \"tool\"}', flush=True)\n"
+        'print(\'{"type": "tool"}\', flush=True)\n'
         f"open({str(marker)!r}, 'w').close()\n"
         # Fill both pipes: exceptional cleanup must drain even if the callback reader failed.
         "os.write(1, b'x' * 300000)\n"
@@ -862,8 +924,7 @@ def test_event_callback_unwind_kills_group(tmp_path, monkeypatch, name, unwind):
             task.cancel()
         elif unwind == "abort":
             client.abort_current()
-        expected = {"timeout": TimeoutError, "cancel": asyncio.CancelledError,
-                    "callback_timeout": TimeoutError, "callback_cancel": asyncio.CancelledError, "abort": ProviderCallError}[unwind]
+        expected = {"timeout": TimeoutError, "cancel": asyncio.CancelledError, "callback_timeout": TimeoutError, "callback_cancel": asyncio.CancelledError, "abort": ProviderCallError}[unwind]
         await wait_until(task.done)
         with pytest.raises(expected) as caught:
             await task
@@ -887,15 +948,20 @@ def test_event_callback_unwind_kills_group(tmp_path, monkeypatch, name, unwind):
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize('names,expected', [
-    (['claude'], ['CLAUDE.md']), (['codex'], ['AGENTS.md']),
-    (['claude', 'codex'], ['CLAUDE.md', 'AGENTS.md']),
-    (['codex', 'codex', 'claude'], ['AGENTS.md', 'CLAUDE.md']),
-])
+@pytest.mark.parametrize(
+    "names,expected",
+    [
+        (["claude"], ["CLAUDE.md"]),
+        (["codex"], ["AGENTS.md"]),
+        (["claude", "codex"], ["CLAUDE.md", "AGENTS.md"]),
+        (["codex", "codex", "claude"], ["AGENTS.md", "CLAUDE.md"]),
+    ],
+)
 def test_routed_conduct_paths(tmp_path, names, expected):
-    from tests.test_cli import core_config
     from chupa.providers import routed_conduct_paths
-    path = core_config(tmp_path, [('medium', 'implement', names), ('high', 'review', names)])
+    from tests.test_cli import core_config
+
+    path = core_config(tmp_path, [("medium", "implement", names), ("high", "review", names)])
     config = load_config(path, cwd=tmp_path)
     assert routed_conduct_paths(config, tmp_path) == tuple(tmp_path / p for p in expected)
     # The declared but unrouted provider must never add a path.
@@ -904,7 +970,9 @@ def test_routed_conduct_paths(tmp_path, names, expected):
 
 def test_eval_budget_ceiling_before_spawn(tmp_path):
     from dataclasses import replace
+
     from chupa.providers import ProviderBudgetExceeded
+
     cfg = config(tmp_path)
     process = FakeExec((0, claude_ok(), ""), (0, codex_ok(), ""), (0, claude_ok(), ""))
     client = llm(cfg, process, tmp_path)
@@ -927,19 +995,21 @@ def test_eval_budget_ceiling_before_spawn(tmp_path):
     from chupa.effects import Effects
     from chupa.llmeffect import llm_call
     from chupa.thresh import fold_breakers
+
     journal = client.session.journal
     effects = Effects(journal)
     before_events = journal.read()
     before_breakers = fold_breakers(journal, client.session.clock())
     before_calls = list(process.calls)
     admitted = client.session.thresh.run
+
     async def forbidden_admission(*args, **kwargs):
         pytest.fail("budget refusal must precede Thresh.run")
+
     client.session.thresh.run = forbidden_admission
     for budget in (1.49, 0.0):
         with pytest.raises(ProviderBudgetExceeded, match="rerun"):
-            asyncio.run(llm_call(effects, client, replace(req("review", tier="low"), budget_usd=budget),
-                Redactor({}), ticket="t-1", stem="t-1", run_seq=0, attempt=1, call_seq=1))
+            asyncio.run(llm_call(effects, client, replace(req("review", tier="low"), budget_usd=budget), Redactor({}), ticket="t-1", stem="t-1", run_seq=0, attempt=1, call_seq=1))
         assert journal.read() == before_events
         assert fold_breakers(journal, client.session.clock()) == before_breakers
         assert process.calls == before_calls
@@ -947,9 +1017,7 @@ def test_eval_budget_ceiling_before_spawn(tmp_path):
     # A cost-reporting primary remains usable when an estimated-cost fallback
     # exceeds the remainder; the admitted call still carries the exact ceiling.
     process.responses.append((0, claude_ok(cost=0.25), ""))
-    result = asyncio.run(llm_call(effects, client, replace(req("review"), budget_usd=0.5),
-        Redactor({}), ticket="t-1", stem="t-1", run_seq=0, attempt=1, call_seq=2))
+    result = asyncio.run(llm_call(effects, client, replace(req("review"), budget_usd=0.5), Redactor({}), ticket="t-1", stem="t-1", run_seq=0, attempt=1, call_seq=2))
     assert result["usd"] == 0.25
     assert process.calls[-1]["argv"][-2:] == ["--max-budget-usd", "0.5"]
-    assert [e.type for e in journal.read() if e.key == "llm/t-1/0/review/1/2"] == [
-        "effect_intent", "effect_completion"]
+    assert [e.type for e in journal.read() if e.key == "llm/t-1/0/review/1/2"] == ["effect_intent", "effect_completion"]

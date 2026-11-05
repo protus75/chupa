@@ -10,7 +10,7 @@ from chupa.__main__ import main
 from chupa.journal import EventType
 from chupa.lockfile import Lockfile
 from chupa.seams import ExecutableNotFound
-from tests.test_cli import root, ENV, Clock, journal
+from tests.test_cli import ENV, Clock, journal, root
 
 
 class Exec:
@@ -28,8 +28,7 @@ class Exec:
 
 def checks(root, *, venv=True, git_failure=False):
     executor = Exec(git_failure)
-    results = asyncio.run(doctor.check(repo=root, config_path=None, env=ENV,
-        exec_=executor, clock=Clock(), in_venv=venv))
+    results = asyncio.run(doctor.check(repo=root, config_path=None, env=ENV, exec_=executor, clock=Clock(), in_venv=venv))
     assert executor.calls == [["git", "-C", str(root), "--version"]]
     return results
 
@@ -41,18 +40,23 @@ def snapshot(root):
 def test_doctor_check_order(root, monkeypatch):
     order = []
     run, load, lock, read = Exec.run, doctor.load_config, doctor.inspect_lock, doctor.Journal.read
+
     async def git_check(self, *args, **kwargs):
         order.append("git")
         return await run(self, *args, **kwargs)
+
     def config_check(*args, **kwargs):
         order.append("config")
         return load(*args, **kwargs)
+
     def lock_check(*args):
         order.append("lock")
         return lock(*args)
+
     def journal_check(self):
         order.append("journal")
         return read(self)
+
     monkeypatch.setattr(Exec, "run", git_check)
     monkeypatch.setattr(doctor, "load_config", config_check)
     monkeypatch.setattr(doctor, "inspect_lock", lock_check)
@@ -67,13 +71,15 @@ def test_doctor_check_order(root, monkeypatch):
         "PASS git: git version fixture\n"
         "PASS config: config schema is valid\n"
         "PASS lock: no writer lock exists\n"
-        "PASS journal: readable history (0 events)\n")
+        "PASS journal: readable history (0 events)\n"
+    )
     assert not (root / ".chupa").exists()
 
 
 @pytest.mark.parametrize("failure", ["venv", "git", "config", "lock", "journal"])
 def test_doctor_failures(root, capsys, monkeypatch, failure):
     import chupa.__main__ as module
+
     holder = Lockfile(root / ".chupa/state", instance_id="other", clock=Clock())
     if failure == "config":
         (root / "config.yaml").write_text("schema_version: 1\n")
@@ -109,10 +115,12 @@ def test_doctor_failures(root, capsys, monkeypatch, failure):
 @pytest.mark.parametrize("history", ["absent", "empty", "torn", "corrupt", "held", "idle"])
 def test_doctor_is_read_only(root, monkeypatch, capsys, history):
     import chupa.__main__ as module
-    from chupa.providers import ProviderSession, ProviderLLM
     from chupa import runner
+    from chupa.providers import ProviderLLM, ProviderSession
+
     def forbidden(*args, **kwargs):
         pytest.fail("doctor invoked a writer or provider")
+
     monkeypatch.setattr(ProviderSession, "__init__", forbidden)
     monkeypatch.setattr(ProviderLLM, "__init__", forbidden)
     monkeypatch.setattr(runner, "prepare_pipeline", forbidden)
@@ -130,13 +138,11 @@ def test_doctor_is_read_only(root, monkeypatch, capsys, history):
             path.write_bytes(path.read_bytes() + b'{"unfinished":')
         else:
             j.dir.mkdir(parents=True)
-            (j.dir / "000001-20260101.jsonl").write_bytes(
-                {"empty": b"", "corrupt": b"bad\n"}[history])
+            (j.dir / "000001-20260101.jsonl").write_bytes({"empty": b"", "corrupt": b"bad\n"}[history])
     before = snapshot(root)
     monkeypatch.setattr(Lockfile, "acquire", forbidden)
     try:
-        assert main(["doctor"], cwd=root, env=ENV, clock=Clock(), pipeline=forbidden) == (
-            2 if history in {"held", "corrupt"} else 0)
+        assert main(["doctor"], cwd=root, env=ENV, clock=Clock(), pipeline=forbidden) == (2 if history in {"held", "corrupt"} else 0)
         assert snapshot(root) == before
         if history == "absent":
             assert not (root / ".chupa").exists()

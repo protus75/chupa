@@ -2,15 +2,17 @@
 
 import asyncio
 import os
-from pathlib import Path
 import re
+from pathlib import Path
 
 import pytest
 import yaml
 
 from chupa.artifacts import (
-    RELIABILITY_BATTERY_MEMBERS, RELIABILITY_BATTERY_REPORT,
-    RELIABILITY_BATTERY_SPEC_VERSION, ReliabilityBatteryReport,
+    RELIABILITY_BATTERY_MEMBERS,
+    RELIABILITY_BATTERY_REPORT,
+    RELIABILITY_BATTERY_SPEC_VERSION,
+    ReliabilityBatteryReport,
 )
 from chupa.git import Git, GitError
 from chupa.seams import SubprocessExec
@@ -19,8 +21,12 @@ from chupa.tickets import _bullets, _sections, split_frontmatter, ticket_path
 
 ROOT = Path(__file__).resolve().parents[1]
 PHASE4_DELIVERABLES = (
-    "watchdog-event-stream", "notify-transport", "watchdog-detector",
-    "watchdog-activation", "provider-cooldown-failover", "reliability-battery",
+    "watchdog-event-stream",
+    "notify-transport",
+    "watchdog-detector",
+    "watchdog-activation",
+    "provider-cooldown-failover",
+    "reliability-battery",
     "reliability-run",
 )
 
@@ -40,8 +46,7 @@ def _dependencies(stem):
     path = ticket_path(stem)
     text = _committed(path)
     frontmatter, _ = split_frontmatter(text)
-    assert yaml.safe_load(frontmatter)["state"] != "rejected", (
-        f"premise_failed: predecessor {path} is rejected; require its merged same-goal successor and rewired coverage")
+    assert yaml.safe_load(frontmatter)["state"] != "rejected", f"premise_failed: predecessor {path} is rejected; require its merged same-goal successor and rewired coverage"
     sections, errors = _sections(text, path)
     assert not errors, f"premise_failed: predecessor {path}: {errors}"
     body = sections["Depends on"]
@@ -53,9 +58,7 @@ def _dependencies(stem):
 
 
 def test_phase4_exit_dependency_coverage():
-    registry = yaml.safe_load(re.search(
-        r"^# BEGIN_REGISTRY_P4\n(.*?)^# END_REGISTRY_P4$",
-        _committed("CHUPA_PLAN.md"), re.M | re.S)[1])
+    registry = yaml.safe_load(re.search(r"^# BEGIN_REGISTRY_P4\n(.*?)^# END_REGISTRY_P4$", _committed("CHUPA_PLAN.md"), re.M | re.S)[1])
     assert registry["admissions"][-1] == ["phase4-exit"]
     preceding = tuple(stem for admission in registry["admissions"][:-1] for stem in admission)
     assert preceding == PHASE4_DELIVERABLES
@@ -66,13 +69,11 @@ def test_phase4_exit_dependency_coverage():
         if stem not in reached:
             reached.add(stem)
             pending.extend(_dependencies(stem))
-    assert reached & set(registry["seeds"]) == set(PHASE4_DELIVERABLES), (
-        f"premise_failed: Phase 4 dependency coverage missing {set(preceding) - reached}")
+    assert reached & set(registry["seeds"]) == set(PHASE4_DELIVERABLES), f"premise_failed: Phase 4 dependency coverage missing {set(preceding) - reached}"
     # Dispatch supplies settlement proof. Code presence reads only the existing Git seam's trailers;
     # the no-code report producer has a null code commit and therefore no squash trailer.
     trailers = set(_git("log", "--format=%(trailers:key=chupa-ticket,valueonly)").split())
-    assert set(preceding) - {"reliability-run"} <= trailers, (
-        f"premise_failed: code-deliverable chupa-ticket trailers {set(preceding) - {'reliability-run'} - trailers}")
+    assert set(preceding) - {"reliability-run"} <= trailers, f"premise_failed: code-deliverable chupa-ticket trailers {set(preceding) - {'reliability-run'} - trailers}"
 
 
 def test_phase4_exit_reads_committed_reliability_report():
@@ -81,13 +82,17 @@ def test_phase4_exit_reads_committed_reliability_report():
         report = ReliabilityBatteryReport.model_validate_json(_committed(path))
     except ValueError as error:
         pytest.fail(f"premise_failed: {path} schema: {error}")
-    assert tuple(e.member for e in report.entries) == RELIABILITY_BATTERY_MEMBERS == (
-        "classified_quota_exhaustion", "all_candidates_cooling_recovery",
-        "unclassified_failure_preservation",
+    assert (
+        tuple(e.member for e in report.entries)
+        == RELIABILITY_BATTERY_MEMBERS
+        == (
+            "classified_quota_exhaustion",
+            "all_candidates_cooling_recovery",
+            "unclassified_failure_preservation",
+        )
     ), f"premise_failed: {path} closed member order"
     assert re.fullmatch(r"[0-9a-f]{40}", report.produced_at_sha), f"premise_failed: {path} source provenance"
-    assert report.produced_by_spec_version == RELIABILITY_BATTERY_SPEC_VERSION, (
-        f"premise_failed: {path} spec provenance")
+    assert report.produced_by_spec_version == RELIABILITY_BATTERY_SPEC_VERSION, f"premise_failed: {path} spec provenance"
     for entry in report.entries:
         assert entry.green, f"premise_failed: {path} member {entry.member} red"
         assert entry.observed == entry.expected, f"premise_failed: {path} member {entry.member} observation"
@@ -104,10 +109,8 @@ def _watchdog_receipt():
     assert invoice.stem == "watchdog-activation" and invoice.passed, f"premise_failed: {path} passed"
     assert "verification" not in invoice.bypassed, f"premise_failed: {path} verification bypass"
     reports = [r for r in invoice.reports if r.code == "verification"]
-    assert len(reports) == 1 and reports[0].verdict == "pass" and not reports[0].findings, (
-        f"premise_failed: {path} verification report")
-    commands = [v for v in invoice.verification
-                if v.argv[:3] == ["uv", "run", "pytest"] and "tests/test_watchdog_activation.py" in v.argv]
+    assert len(reports) == 1 and reports[0].verdict == "pass" and not reports[0].findings, f"premise_failed: {path} verification report"
+    commands = [v for v in invoice.verification if v.argv[:3] == ["uv", "run", "pytest"] and "tests/test_watchdog_activation.py" in v.argv]
     assert commands and all(v.rc == 0 for v in commands), f"premise_failed: {path} watchdog Verification command"
     return invoice
 

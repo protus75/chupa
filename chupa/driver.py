@@ -22,10 +22,11 @@ from chupa.config import Config, ConfigSnapshot, Severity
 from chupa.effects import Effects
 from chupa.enginelog import EngineLog
 from chupa.gates import Gate, GateReport, merge_severity, run_gates
-from chupa.journal import Journal, run_seq as journal_run_seq
+from chupa.journal import Journal
+from chupa.journal import run_seq as journal_run_seq
 from chupa.llm import LLM, AgentEffort, AgentTier, LLMAborted, LLMRequest, LLMResult
 from chupa.llmeffect import llm_call
-from chupa.providers import ProviderBudgetExceeded, ProviderCallError, ProviderDrought, ProviderLLM, WRITING_SURFACES
+from chupa.providers import WRITING_SURFACES, ProviderBudgetExceeded, ProviderCallError, ProviderDrought, ProviderLLM
 from chupa.redact import Redactor
 from chupa.seams import Clock, FileSystem, LocalFileSystem, Sleep
 
@@ -189,7 +190,7 @@ class Driver:
         tier: AgentTier,
         effort: AgentEffort,
         stuck_budget: float,
-        expected_budget: float | Literal['surface', 'eval'],
+        expected_budget: float | Literal["surface", "eval"],
         scope_fence: Sequence[str],
         run_seq: int | None = None,
         budget_usd: float | None = None,
@@ -197,12 +198,22 @@ class Driver:
         if self._active is not None:
             raise ValueError("await the active Driver.run or abort_current before another stage")
         # Own the stage itself, never the pipeline/worker task that called run.
-        task = asyncio.create_task(self._run(
-            stage, consumed, ticket=ticket, attempt=attempt, workspace=workspace,
-            tier=tier, effort=effort, stuck_budget=stuck_budget, run_seq=run_seq,
-            expected_budget=expected_budget, scope_fence=scope_fence,
-            budget_usd=budget_usd,
-        ))
+        task = asyncio.create_task(
+            self._run(
+                stage,
+                consumed,
+                ticket=ticket,
+                attempt=attempt,
+                workspace=workspace,
+                tier=tier,
+                effort=effort,
+                stuck_budget=stuck_budget,
+                run_seq=run_seq,
+                expected_budget=expected_budget,
+                scope_fence=scope_fence,
+                budget_usd=budget_usd,
+            )
+        )
         invocation = _Invocation(task)
         self._active = invocation
         try:
@@ -223,27 +234,34 @@ class Driver:
                 if invocation.detector is not None:
                     await _observe(asyncio.create_task(invocation.detector.close_notifications()))
             finally:
-                if self._active is invocation and (
-                    invocation.abort is None or invocation.abort.done()
-                ):
+                if self._active is invocation and (invocation.abort is None or invocation.abort.done()):
                     self._active = None
 
     def materialize_exit_window(self, declarations: Mapping[str, Sequence], workspace: Path) -> Path | None:
         """Freeze resolved declarations in the consuming worktree, through the Driver's writer seam."""
         from dataclasses import asdict
+
         if not declarations:
             return None
         path = workspace / ".chupa" / "exit-read-window.json"
-        payload = {declaration: [asdict(event) for event in events]
-                   for declaration, events in declarations.items()}
+        payload = {declaration: [asdict(event) for event in events] for declaration, events in declarations.items()}
         self.spool._fs.write(path, (json.dumps(payload, indent=2) + "\n").encode())
         return path
 
     async def _run(
-        self, stage: LlmStage, consumed: Any, *, ticket: str | None, attempt: int,
-        workspace: Path, tier: AgentTier, effort: AgentEffort, stuck_budget: float,
+        self,
+        stage: LlmStage,
+        consumed: Any,
+        *,
+        ticket: str | None,
+        attempt: int,
+        workspace: Path,
+        tier: AgentTier,
+        effort: AgentEffort,
+        stuck_budget: float,
         run_seq: int | None,
-        expected_budget: float | Literal['surface', 'eval'], scope_fence: Sequence[str],
+        expected_budget: float | Literal["surface", "eval"],
+        scope_fence: Sequence[str],
         budget_usd: float | None,
     ) -> StageResult:
         """Run one stage attempt; `attempt` is the run sequence (section 6), stuck_budget in seconds."""
@@ -252,9 +270,17 @@ class Driver:
             raise ValueError("run_seq requires ticket=None")
         seq = run_seq if run_seq is not None else journal_run_seq(self.journal.read(), stem)
         spool_stem = f"{stem}/{run_seq}" if run_seq is not None else stem
-        self.begin_watch(owner=stem, ticket=ticket, run_sequence=seq, surface=stage.surface,
-                         workspace=workspace, expected_budget=expected_budget,
-                         stuck_budget=stuck_budget, scope_fence=scope_fence, attempt=attempt)
+        self.begin_watch(
+            owner=stem,
+            ticket=ticket,
+            run_sequence=seq,
+            surface=stage.surface,
+            workspace=workspace,
+            expected_budget=expected_budget,
+            stuck_budget=stuck_budget,
+            scope_fence=scope_fence,
+            attempt=attempt,
+        )
         started = self.clock()
         prior_wait = self.detector.cap_wait() if self.detector else 0
         deadline = started.timestamp() + stuck_budget
@@ -263,14 +289,13 @@ class Driver:
         self.log.event("stage_start", **ctx, stuck_budget=stuck_budget)
 
         def done(outcome: Outcome, artifact: BaseModel | None = None) -> StageResult:
-            seconds = max(0, (self.clock() - started).total_seconds()
-                          - ((self.detector.cap_wait() if self.detector else 0) - prior_wait))
+            seconds = max(0, (self.clock() - started).total_seconds() - ((self.detector.cap_wait() if self.detector else 0) - prior_wait))
             self.log.event("stage_end", **ctx, outcome=outcome, calls=tally.calls)
             last = tally.last
             detector = self.detector
             meter = detector.call if detector is not None else None
             provider, model = (last.provider, last.model) if last else (None, None)
-            if meter is not None and (last is None or outcome in {'infra_error', 'timeout'}):
+            if meter is not None and (last is None or outcome in {"infra_error", "timeout"}):
                 provider, model = meter.identity
             cost = Cost(
                 tokens=tally.tokens,
@@ -284,15 +309,14 @@ class Driver:
 
         async def failed(exc, call, name, *, pre_call=False):
             self.spool.write(spool_stem, attempt, f"{name}/error.txt", f"{type(exc).__name__}: {exc}")
-            self.log.event('llm_error', **call, error=f'{type(exc).__name__}: {exc}')
+            self.log.event("llm_error", **call, error=f"{type(exc).__name__}: {exc}")
             if isinstance(exc, ProviderDrought):
                 tally.calls -= int(pre_call)
                 tally.findings = []
-                result = done('infra_error')
+                result = done("infra_error")
                 return ProviderDroughtResult(**vars(result), provider_drought=exc.record)
-            tally.findings = await self.provider_failure(exc, owner=stem, ticket=ticket, sequence=seq,
-                                                        surface=stage.surface, workspace=workspace)
-            return done('infra_error')
+            tally.findings = await self.provider_failure(exc, owner=stem, ticket=ticket, sequence=seq, surface=stage.surface, workspace=workspace)
+            return done("infra_error")
 
         outcome: Outcome = "ok"
         for call_seq in range(1, self.retry_cap + 2):  # the first call plus retry_cap re-prompts
@@ -318,8 +342,15 @@ class Driver:
             try:
                 recorded = await self.race(
                     lambda: llm_call(
-                        self.effects, self.watched_llm(), req, self.redactor, ticket=ticket,
-                        stem=stem, run_seq=seq, attempt=attempt, call_seq=call_seq,
+                        self.effects,
+                        self.watched_llm(),
+                        req,
+                        self.redactor,
+                        ticket=ticket,
+                        stem=stem,
+                        run_seq=seq,
+                        attempt=attempt,
+                        call_seq=call_seq,
                     ),
                     deadline - self.clock().timestamp() + (self.detector.cap_wait() if self.detector else 0),
                 )
@@ -348,8 +379,7 @@ class Driver:
             hard_findings = [f for report in gated.hard_failures for f in report.findings]
             if stage.review is not None:
                 try:
-                    review = await self.race(lambda: stage.review(artifact, call_seq),
-                        deadline - self.clock().timestamp() + (self.detector.cap_wait() if self.detector else 0))
+                    review = await self.race(lambda: stage.review(artifact, call_seq), deadline - self.clock().timestamp() + (self.detector.cap_wait() if self.detector else 0))
                 except _StuckBudget:
                     self.log.event("stuck_budget_kill", **call)
                     tally.findings = []
@@ -376,32 +406,33 @@ class Driver:
             return []
         if self._notify_config is not None:
             config, env = self._notify_config
-            if exc.failure_class == 'quota_exhausted':
-                from chupa.daemon import storm_producer
+            if exc.failure_class == "quota_exhausted":
                 from chupa.box import BOX_DIR
+                from chupa.daemon import storm_producer
                 from chupa.storm import arrival_id
-                storm_producer(root=config.state_dir / BOX_DIR, fs=self.spool._fs,
-                    journal=self.journal, clock=self.clock).enqueue(message_class='failure_report',
-                        origin=owner, stage=surface, outcome='infra_error', summary=f'{exc}; {exc.paved_road}',
-                        occurrence_id=arrival_id('provider-quota', owner, sequence, surface, 'infra_error'))
-            elif exc.failure_class == 'auth_error':
+
+                storm_producer(root=config.state_dir / BOX_DIR, fs=self.spool._fs, journal=self.journal, clock=self.clock).enqueue(
+                    message_class="failure_report",
+                    origin=owner,
+                    stage=surface,
+                    outcome="infra_error",
+                    summary=f"{exc}; {exc.paved_road}",
+                    occurrence_id=arrival_id("provider-quota", owner, sequence, surface, "infra_error"),
+                )
+            elif exc.failure_class == "auth_error":
                 from chupa.__main__ import watchdog_notifications
                 from chupa.notify import send
                 from chupa.seams import NotificationFailed
-                notice = watchdog_notifications(config, env, self.effects, self.log,
-                    redactor=self.redactor, cwd=workspace, owner=owner, ticket=ticket,
-                    run_sequence=sequence, identity=exc.provider)
+
+                notice = watchdog_notifications(config, env, self.effects, self.log, redactor=self.redactor, cwd=workspace, owner=owner, ticket=ticket, run_sequence=sequence, identity=exc.provider)
                 if config.notify:
                     try:
-                        await send(self.effects, notice.notifications, config.notify, owner=owner,
-                            escalation='auth_error', identity=exc.provider, ticket=ticket,
-                            message=f'{exc}; {exc.paved_road}')
+                        await send(self.effects, notice.notifications, config.notify, owner=owner, escalation="auth_error", identity=exc.provider, ticket=ticket, message=f"{exc}; {exc.paved_road}")
                     except NotificationFailed as error:
-                        self.log.event('notify_failed', error=str(error))
+                        self.log.event("notify_failed", error=str(error))
                 else:
-                    self.log.event('auth_alert', message=f'{exc}; {exc.paved_road}')
-        return ([Finding(code=exc.failure_class, message=str(exc), paved_road=exc.paved_road)]
-                if exc.failure_class and exc.paved_road else [])
+                    self.log.event("auth_alert", message=f"{exc}; {exc.paved_road}")
+        return [Finding(code=exc.failure_class, message=str(exc), paved_road=exc.paved_road)] if exc.failure_class and exc.paved_road else []
 
     async def abort_current(self) -> None:
         """Stop and observe only the currently owned stage; dormant until explicitly invoked."""
@@ -409,21 +440,20 @@ class Driver:
         if invocation is not None:
             await _observe(self._abort(invocation))
 
-    def begin_watch(self, *, owner, ticket, run_sequence, surface, workspace,
-                    expected_budget, stuck_budget, scope_fence, attempt):
-        from chupa.__main__ import watchdog_observation, watchdog_notifications
+    def begin_watch(self, *, owner, ticket, run_sequence, surface, workspace, expected_budget, stuck_budget, scope_fence, attempt):
+        from chupa.__main__ import watchdog_notifications, watchdog_observation
         from chupa.watchdog import Detector
 
-        if expected_budget == 'surface':
+        if expected_budget == "surface":
             if ticket is not None:
-                raise ValueError('ticket-owned calls need the ticket expected budget')
+                raise ValueError("ticket-owned calls need the ticket expected budget")
             expected = stuck_budget / 2
-        elif expected_budget == 'eval':
+        elif expected_budget == "eval":
             expected = stuck_budget / 2
         elif isinstance(expected_budget, (int, float)) and expected_budget > 0:
             expected = expected_budget
         else:
-            raise ValueError('missing ticket expected budget; supply its Time budget')
+            raise ValueError("missing ticket expected budget; supply its Time budget")
         identity = (owner, run_sequence, surface, attempt)
         if self.detector is not None and identity == self._watch_identity:
             if self._active is not None:
@@ -433,32 +463,40 @@ class Driver:
         self._watch_identity = identity
         if isinstance(self.llm, ProviderLLM):
             config, env = self._notify_config
+
             def cap_wait():
                 return self.provider_wait(owner, run_sequence)
+
             prior_wait = cap_wait()
-            self.detector = Detector(expected_minutes=expected / 60, stuck_minutes=stuck_budget / 60,
-                clock=self.clock, sleep=self.sleep, observe=watchdog_observation(workspace, scope_fence),
-                cap_wait=lambda: cap_wait() - prior_wait, log=self.log,
-                notify=watchdog_notifications(config, env, self.effects, self.log,
-                    redactor=self.redactor, cwd=self.llm._cwd,
-                    owner=owner, ticket=ticket, run_sequence=run_sequence, identity=surface))
+            self.detector = Detector(
+                expected_minutes=expected / 60,
+                stuck_minutes=stuck_budget / 60,
+                clock=self.clock,
+                sleep=self.sleep,
+                observe=watchdog_observation(workspace, scope_fence),
+                cap_wait=lambda: cap_wait() - prior_wait,
+                log=self.log,
+                notify=watchdog_notifications(config, env, self.effects, self.log, redactor=self.redactor, cwd=self.llm._cwd, owner=owner, ticket=ticket, run_sequence=run_sequence, identity=surface),
+            )
             if self._active is not None:
                 self._active.detector = self.detector
 
     def provider_wait(self, owner, sequence):
         if not isinstance(self.llm, ProviderLLM):
             return 0
-        prefix = f'llm/{owner}/{sequence}/'
-        return sum(e.body['waited_seconds'] for e in self.journal.read()
-            if e.body.get('signal') == 'provider_cap_wait'
-            and e.body.get('call_key', '').startswith(prefix)) + self.llm.session.live_wait(prefix)
+        prefix = f"llm/{owner}/{sequence}/"
+        return sum(e.body["waited_seconds"] for e in self.journal.read() if e.body.get("signal") == "provider_cap_wait" and e.body.get("call_key", "").startswith(prefix)) + self.llm.session.live_wait(
+            prefix
+        )
 
     def watched_llm(self):
         from chupa.watchdog import WatchedLLM
+
         return WatchedLLM(self.llm, self.detector) if self.detector is not None else self.llm
 
     def _abort(self, invocation: _Invocation) -> asyncio.Task:
         if invocation.abort is None:
+
             async def abort() -> None:
                 try:
                     cleanup = None
@@ -473,13 +511,12 @@ class Driver:
                     owned = [invocation.task] if cleanup is None else [cleanup, invocation.task]
                     results = await asyncio.gather(*owned, return_exceptions=True)
                     for result in results:
-                        if isinstance(result, BaseException) and not isinstance(
-                            result, (asyncio.CancelledError, LLMAborted)
-                        ):
+                        if isinstance(result, BaseException) and not isinstance(result, (asyncio.CancelledError, LLMAborted)):
                             raise result
                 finally:
                     if invocation.task.done() and self._active is invocation:
                         self._active = None
+
             invocation.abort = asyncio.create_task(abort())
         return invocation.abort
 
@@ -487,6 +524,7 @@ class Driver:
         if remaining <= 0:
             raise _StuckBudget
         from chupa.watchdog import watch_deadline
+
         timer = self.sleep(remaining) if self.detector is None else watch_deadline(self.detector, remaining)
         race = _Race(asyncio.ensure_future(start()), asyncio.ensure_future(timer))
         detector = self.detector
@@ -503,13 +541,12 @@ class Driver:
                 try:
                     await _observe(self._kill(race))
                 except Exception:
-                    if (isinstance(exc, asyncio.CancelledError) and invocation is not None
-                            and invocation.abort is not None):
+                    if isinstance(exc, asyncio.CancelledError) and invocation is not None and invocation.abort is not None:
                         # The abort owner reports cleanup failure; the killed stage stays cancelled.
                         raise exc
                     raise
                 raise
-            if race.call.done() and (detector is None or detector.decide() != 'stuck'):
+            if race.call.done() and (detector is None or detector.decide() != "stuck"):
                 return race.call.result()
             await _observe(self._kill(race))
             raise _StuckBudget
@@ -529,9 +566,7 @@ class Driver:
             async def cleanup() -> None:
                 results = await asyncio.gather(race.call, race.timer, return_exceptions=True)
                 for result in results:
-                    if isinstance(result, BaseException) and not isinstance(
-                        result, (asyncio.CancelledError, LLMAborted)
-                    ):
+                    if isinstance(result, BaseException) and not isinstance(result, (asyncio.CancelledError, LLMAborted)):
                         raise result
 
             race.cleanup = asyncio.create_task(cleanup())

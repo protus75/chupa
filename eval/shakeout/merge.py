@@ -3,8 +3,8 @@
 import json
 import subprocess
 
-from chupa.journal import EventType
 from chupa.git import RebaseRefused
+from chupa.journal import EventType
 from eval.shakeout.bench import Bench
 from eval.shakeout.run import Member, Observation
 from eval.shakeout.stages import _commit, _configure_diagnosis, _finding, _ticket
@@ -42,14 +42,16 @@ async def _conflicted_rebase(bench: Bench) -> Observation:
         if path == bench.config.worktree_root / stem:
             git_dir = await bench.git._run(path, "rev-parse", "--git-dir")
             status = await bench.git._run(path, "status")
-            cleanup.update({
-                "git_dir": git_dir.strip(),
-                "status": status,
-                "head": await bench.git.rev_parse(path, "HEAD"),
-                "main": await bench.git.rev_parse(bench.repo, "main"),
-                "rebase_merge": (path / git_dir.strip() / "rebase-merge").exists(),
-                "rebase_apply": (path / git_dir.strip() / "rebase-apply").exists(),
-            })
+            cleanup.update(
+                {
+                    "git_dir": git_dir.strip(),
+                    "status": status,
+                    "head": await bench.git.rev_parse(path, "HEAD"),
+                    "main": await bench.git.rev_parse(bench.repo, "main"),
+                    "rebase_merge": (path / git_dir.strip() / "rebase-merge").exists(),
+                    "rebase_apply": (path / git_dir.strip() / "rebase-apply").exists(),
+                }
+            )
         await remove(dir, path)
 
     bench.git.worktree_remove = observe_remove
@@ -62,21 +64,15 @@ async def _conflicted_rebase(bench: Bench) -> Observation:
     def move_main(_request) -> str:
         (bench.repo / target).write_text("main\n")
         subprocess.run(["git", "-C", str(bench.repo), "add", target], env=bench.env, check=True)
-        subprocess.run(["git", "-C", str(bench.repo), "commit", "-m", "shakeout main conflict"],
-                       env=bench.env, check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(bench.repo), "commit", "-m", "shakeout main conflict"], env=bench.env, check=True, capture_output=True)
         return json.dumps({"verdict": "approve", "summary": "approved", "findings": []})
 
-    bench.script([implement, move_main,
-                  json.dumps({"verdict": "reject", "lessons": ["resolve the conflict"]})])
+    bench.script([implement, move_main, json.dumps({"verdict": "reject", "lessons": ["resolve the conflict"]})])
     report = await bench.drain()
 
-    terminals = [event.body for event in bench.journal.read()
-                 if event.type == EventType.STATE_TRANSITION and event.ticket == stem
-                 and event.body.get("to") == "gate_failed"]
-    assert terminals, (report.render(), [event.body for event in bench.journal.read()
-                                         if event.type == EventType.STATE_TRANSITION and event.ticket == stem], cleanup,
-                       main_at_admission)
-    terminal, = terminals
+    terminals = [event.body for event in bench.journal.read() if event.type == EventType.STATE_TRANSITION and event.ticket == stem and event.body.get("to") == "gate_failed"]
+    assert terminals, (report.render(), [event.body for event in bench.journal.read() if event.type == EventType.STATE_TRANSITION and event.ticket == stem], cleanup, main_at_admission)
+    (terminal,) = terminals
     finding = _finding(bench, stem, "post_rebase_regate")
     assert terminal["stage"] == "merge"
     assert refusal["head"] == reviewed_sha[-1]
@@ -88,7 +84,4 @@ async def _conflicted_rebase(bench: Bench) -> Observation:
     return Observation("conflicted_rebase_refused_cleanly", f"{stem}/0")
 
 
-MEMBERS = (
-    Member("conflicted_rebase", "merge", "main and branch edit the same line after Review",
-           "conflicted_rebase_refused_cleanly", _conflicted_rebase),
-)
+MEMBERS = (Member("conflicted_rebase", "merge", "main and branch edit the same line after Review", "conflicted_rebase_refused_cleanly", _conflicted_rebase),)

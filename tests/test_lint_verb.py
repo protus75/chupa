@@ -9,12 +9,13 @@ from chupa.git import Git
 from chupa.journal import EventType
 from chupa.lockfile import Lockfile
 from chupa.seams import SubprocessExec
-from tests.test_cli import Clock, ENV, journal, root, ticket, write
+from tests.test_cli import ENV, Clock, journal, root, ticket, write
 
 
 def lint(root, *stems):
     def forbidden(checkout):
         pytest.fail("lint constructed the pipeline")
+
     return main(["lint", *stems], cwd=root, env=ENV, clock=Clock(), pipeline=forbidden)
 
 
@@ -23,8 +24,7 @@ def git(root, *argv):
 
 
 def snapshot(root):
-    return {p.relative_to(root): (p.read_bytes(), p.stat().st_mtime_ns)
-            for p in root.rglob("*") if p.is_file()}
+    return {p.relative_to(root): (p.read_bytes(), p.stat().st_mtime_ns) for p in root.rglob("*") if p.is_file()}
 
 
 def test_lint_all_valid(root, capsys):
@@ -83,7 +83,7 @@ def test_lint_keeps_committed_claims(root, capsys):
 
 def test_lint_flags_bug_without_evidence(root, capsys):
     text = ticket().replace("kind: feature", "kind: bug")
-    text += '\n## Regression\n```\nuv run python tests/repro.py\n```\n- carries: tests/repro.py\n'
+    text += "\n## Regression\n```\nuv run python tests/repro.py\n```\n- carries: tests/repro.py\n"
     write(root, "fix-thing", text)
     assert lint(root) == 1
     assert "no evidence file" in capsys.readouterr().out
@@ -175,10 +175,12 @@ def test_lint_is_read_only_and_lock_free(root, capsys):
 def test_lint_unreadable_tickets_directory(root, monkeypatch, capsys):
     write(root, "valid", ticket())
     original = Path.iterdir
+
     def unreadable(path):
         if path == root / "tickets":
             raise PermissionError("tickets directory unreadable")
         return original(path)
+
     monkeypatch.setattr(Path, "iterdir", unreadable)
     assert lint(root) == 2
     out = capsys.readouterr().out

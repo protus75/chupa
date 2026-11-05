@@ -33,10 +33,11 @@ def inspect_lock(state_dir):
 
 async def check(*, repo, config_path, env, exec_, clock, in_venv):
     results = []
+
     def row(name, passed, detail):
         results.append(Check(name, passed, " ".join(str(detail).split())))
-    row("venv", in_venv, "active Python venv" if in_venv else
-        "no active Python venv; run `uv run python -m chupa doctor`")
+
+    row("venv", in_venv, "active Python venv" if in_venv else "no active Python venv; run `uv run python -m chupa doctor`")
     try:
         out = await Git(exec_, env={"PATH": env.get("PATH", "")}, timeout=30.0)._run(repo, "--version")
         row("git", True, out.strip())
@@ -53,15 +54,12 @@ async def check(*, repo, config_path, env, exec_, clock, in_venv):
             row(name, False, "state directory unavailable; repair the selected config and rerun doctor")
             continue
         try:
-            detail = (inspect_lock(config.state_dir) if name == "lock" else
-                      f"readable history ({len(Journal(config.state_dir, clock).read())} events)")
+            detail = inspect_lock(config.state_dir) if name == "lock" else f"readable history ({len(Journal(config.state_dir, clock).read())} events)"
             row(name, True, detail)
         except Exception as exc:
-            row(name, False, f"{exc}; " + ("restore journal readability from backup and rerun doctor"
-                if name == "journal" else "wait for the writer to exit or stop it; never delete the lockfile"))
+            row(name, False, f"{exc}; " + ("restore journal readability from backup and rerun doctor" if name == "journal" else "wait for the writer to exit or stop it; never delete the lockfile"))
     return results
 
 
 def render(results):
-    return "\n".join(["doctor: ok" if all(r.passed for r in results) else "doctor: failed",
-        *(f"{'PASS' if r.passed else 'FAIL'} {r.name}: {r.detail}" for r in results)]) + "\n"
+    return "\n".join(["doctor: ok" if all(r.passed for r in results) else "doctor: failed", *(f"{'PASS' if r.passed else 'FAIL'} {r.name}: {r.detail}" for r in results)]) + "\n"

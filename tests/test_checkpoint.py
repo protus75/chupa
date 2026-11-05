@@ -8,7 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from chupa import __main__ as cli, daemon
+from chupa import __main__ as cli
+from chupa import daemon
 from chupa.checkpoint import CHECKPOINT_INTERVAL, CHECKPOINT_MERGES, Checkpoint
 from chupa.effects import Effects
 from chupa.enginelog import EngineLog
@@ -18,7 +19,7 @@ from chupa.redact import Redactor
 from chupa.seams import ExecutableNotFound, LocalFileSystem
 from chupa.storm import StormLedger, arrival_id
 from chupa.timers import Timers
-from tests.test_cli import Clock, ENV, Stages, root, ticket, write
+from tests.test_cli import ENV, Clock, Stages, root, ticket, write
 from tests.test_daemon_composition import CoreRig, assert_core_wiring
 from tests.test_restart_timers import repository
 
@@ -65,11 +66,8 @@ class Rig:
         self.journal = Journal(self.path, self.time)
         self.effects = Effects(self.journal)
         self.timers = Timers(journal=self.journal, clock=self.time, sleep=self.time.sleep)
-        self.box = daemon.storm_producer(root=self.path / "box", fs=self.fs,
-                                         journal=self.journal, clock=self.time)
-        self.boundary = daemon.checkpoint_push(self.path, journal=self.journal,
-            effects=self.effects, timers=self.timers, git=self.git, box=self.box,
-            clock=self.time, log=self.log)
+        self.box = daemon.storm_producer(root=self.path / "box", fs=self.fs, journal=self.journal, clock=self.time)
+        self.boundary = daemon.checkpoint_push(self.path, journal=self.journal, effects=self.effects, timers=self.timers, git=self.git, box=self.box, clock=self.time, log=self.log)
 
     async def poll(self):
         async with self.slot:
@@ -77,13 +75,10 @@ class Rig:
 
     def merges(self, count):
         for n in range(count):
-            self.journal.append(EventType.STATE_TRANSITION,
-                                {"to": "merged", "commit": f"code-{n}"}, ticket=f"ticket-{n}")
+            self.journal.append(EventType.STATE_TRANSITION, {"to": "merged", "commit": f"code-{n}"}, ticket=f"ticket-{n}")
 
     def events(self, type=None, kind=None):
-        return [event for event in self.journal.read()
-                if (type is None or event.type == type)
-                and (kind is None or event.body.get("kind") == kind)]
+        return [event for event in self.journal.read() if (type is None or event.type == type) and (kind is None or event.body.get("kind") == kind)]
 
     def failures(self):
         return self.events(kind="checkpoint_push_failed")
@@ -119,8 +114,7 @@ async def test_checkpoint_merge_and_daily_triggers(tmp_path, trigger):
     argv, kwargs = rig.exec.calls[0]
     assert argv == ["git", "-C", str(tmp_path), "push", "origin", "main"]
     assert kwargs == {"cwd": tmp_path, "env": {"PATH": "/usr/bin"}, "timeout": 30}
-    assert rig.events(EventType.EFFECT_COMPLETION)[0].body == {
-        "result": {"merged": 0 if trigger == "quiet-day" else 5}}
+    assert rig.events(EventType.EFFECT_COMPLETION)[0].body == {"result": {"merged": 0 if trigger == "quiet-day" else 5}}
 
 
 @pytest.mark.asyncio
@@ -128,8 +122,8 @@ async def test_checkpoint_success_advances_once(tmp_path):
     rig = Rig(tmp_path)
     rig.merges(5)
     await rig.poll()
-    intent, = rig.events(EventType.EFFECT_INTENT)
-    done, = rig.events(EventType.EFFECT_COMPLETION)
+    (intent,) = rig.events(EventType.EFFECT_INTENT)
+    (done,) = rig.events(EventType.EFFECT_COMPLETION)
     assert intent.body == {} and intent.key == done.key == "checkpoint-push/0"
     assert intent.ticket is done.ticket is None
     assert done.body == {"result": {"merged": 5}}
@@ -147,18 +141,15 @@ async def test_checkpoint_success_advances_once(tmp_path):
     rig.restart()
     await rig.poll()
     assert len(rig.exec.calls) == 2
-    assert [(e.key, e.body) for e in rig.events(EventType.EFFECT_COMPLETION)] == [
-        ("checkpoint-push/0", {"result": {"merged": 5}}),
-        ("checkpoint-push/1", {"result": {"merged": 10}})]
+    assert [(e.key, e.body) for e in rig.events(EventType.EFFECT_COMPLETION)] == [("checkpoint-push/0", {"result": {"merged": 5}}), ("checkpoint-push/1", {"result": {"merged": 10}})]
     assert rig.timers.pending["checkpoint-push/2"].deadline == rig.time.now + CHECKPOINT_INTERVAL
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("failure,code", [
-    ((9, SECRET + " stdout", SECRET + " stderr"), "git_exit"),
-    (TimeoutError(SECRET), "process_failure"),
-    (ExecutableNotFound(SECRET), "process_failure"),
-    (RuntimeError(SECRET), "process_failure")])
+@pytest.mark.parametrize(
+    "failure,code",
+    [((9, SECRET + " stdout", SECRET + " stderr"), "git_exit"), (TimeoutError(SECRET), "process_failure"), (ExecutableNotFound(SECRET), "process_failure"), (RuntimeError(SECRET), "process_failure")],
+)
 async def test_checkpoint_failed_push_refires(tmp_path, failure, code):
     rig = Rig(tmp_path)
     rig.merges(5)
@@ -166,7 +157,7 @@ async def test_checkpoint_failed_push_refires(tmp_path, failure, code):
     for _ in range(2):
         await rig.poll()
         assert rig.events(EventType.EFFECT_COMPLETION) == []
-    message, = rig.box.messages()
+    (message,) = rig.box.messages()
     assert message.message_class == "failure_report" and message.origin == "checkpoint-push"
     assert message.stage is message.outcome is None
     assert "origin/main" in message.summary and code in message.summary
@@ -206,12 +197,10 @@ async def test_checkpoint_failure_occurrence_identity(tmp_path, monkeypatch):
     [trip] = rig.events(kind="storm_breaker_trip")
     assert trip.body["held"] is None
     for attempt in range(1, 8):
-        recipe = "storm-arrival/" + hashlib.sha256(json.dumps(
-            ["checkpoint-push", 0, attempt], separators=(",", ":"), ensure_ascii=True).encode()).hexdigest()
+        recipe = "storm-arrival/" + hashlib.sha256(json.dumps(["checkpoint-push", 0, attempt], separators=(",", ":"), ensure_ascii=True).encode()).hexdigest()
         assert recipe == arrival_id("checkpoint-push", 0, attempt)
         event = next(e for e in rig.occurrences() if e.body["occurrence_id"] == recipe)
-        assert event.body == {"kind": "storm_occurrence", "signature": source.signature,
-            "occurrence_id": recipe, "emitting_stage": None, "emitting_origin": "checkpoint-push"}
+        assert event.body == {"kind": "storm_occurrence", "signature": source.signature, "occurrence_id": recipe, "emitting_stage": None, "emitting_origin": "checkpoint-push"}
     occurrences = rig.occurrences()
     await rig.poll()  # replay then success
     await rig.poll()  # completed window replay only
@@ -223,7 +212,7 @@ async def test_checkpoint_failure_occurrence_identity(tmp_path, monkeypatch):
     assert rig.failures()[-1].body["window"] == 1 and rig.failures()[-1].body["attempt"] == 1
     assert arrival_id("checkpoint-push", 1, 1) != arrival_id("checkpoint-push", 0, 1)
     assert len([m for m in rig.box.messages() if m.origin == "checkpoint-push"]) == 1
-    assert rig.occurrences()[:len(occurrences)] == occurrences
+    assert rig.occurrences()[: len(occurrences)] == occurrences
     assert ledger.holds() == {}
 
 
@@ -232,12 +221,18 @@ class Crash(BaseException):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("point", [
-    "before-failure", "after-failure", "after-callback", "after-box", "duplicate",
-    *("error-" + point for point in ["intent", "completion", "failure", "callback", "box-read",
-                                    "box-write", "corruption", "push-corruption"]),
-    *("invalid-" + defect for defect in ["shape", "key", "ticket", "window", "attempt", "bool",
-                                        "code", "type", "conflict", "no-intent", "late-intent"])])
+@pytest.mark.parametrize(
+    "point",
+    [
+        "before-failure",
+        "after-failure",
+        "after-callback",
+        "after-box",
+        "duplicate",
+        *("error-" + point for point in ["intent", "completion", "failure", "callback", "box-read", "box-write", "corruption", "push-corruption"]),
+        *("invalid-" + defect for defect in ["shape", "key", "ticket", "window", "attempt", "bool", "code", "type", "conflict", "no-intent", "late-intent"]),
+    ],
+)
 async def test_checkpoint_failure_report_crash_replay(tmp_path, monkeypatch, point):
     if point.startswith("error-"):
         await _failure_durable_errors(tmp_path, monkeypatch, point.removeprefix("error-"))
@@ -259,14 +254,12 @@ async def test_checkpoint_failure_report_crash_replay(tmp_path, monkeypatch, poi
         if failure:
             assert type == EventType.SIGNAL
             assert kwargs == {"ticket": None, "key": "checkpoint-push-failed/0/1"}
-            assert body == {"kind": "checkpoint_push_failed", "window": 0,
-                            "attempt": 1, "error_code": "git_exit"}
+            assert body == {"kind": "checkpoint_push_failed", "window": 0, "attempt": 1, "error_code": "git_exit"}
             assert rig.events(EventType.EFFECT_COMPLETION) == []
         if failure and point == "before-failure":
             raise Crash()
         result = appended(type, body, **kwargs)
-        if (failure and point == "after-failure") or (
-                body.get("kind") == "storm_occurrence" and point == "after-callback"):
+        if (failure and point == "after-failure") or (body.get("kind") == "storm_occurrence" and point == "after-callback"):
             raise Crash()
         return result
 
@@ -290,8 +283,7 @@ async def test_checkpoint_failure_report_crash_replay(tmp_path, monkeypatch, poi
     assert rig.events(EventType.EFFECT_COMPLETION)[0].body == {"result": {"merged": 5}}
     events = rig.events()
     await rig.poll()
-    assert len(rig.exec.calls) == 2 and rig.occurrences() == [
-        e for e in events if e.body.get("kind") == "storm_occurrence"]
+    assert len(rig.exec.calls) == 2 and rig.occurrences() == [e for e in events if e.body.get("kind") == "storm_occurrence"]
     rig.time.now += timedelta(hours=2)  # expiry, below the next daily trigger
     rig.restart()
     await rig.poll()
@@ -312,8 +304,7 @@ async def _failure_durable_errors(tmp_path, monkeypatch, point):
 
     def append(type, body, **kwargs):
         selected = {"intent": EventType.EFFECT_INTENT, "completion": EventType.EFFECT_COMPLETION}
-        if (type == selected.get(point) or
-                (point == "failure" and body.get("kind") == "checkpoint_push_failed")):
+        if type == selected.get(point) or (point == "failure" and body.get("kind") == "checkpoint_push_failed"):
             raise OSError("durable write failed")
         return appended(type, body, **kwargs)
 
@@ -384,7 +375,7 @@ async def _failure_duplicate(tmp_path):
     rig.merges(5)
     rig.exec.results = [(1, "", "bad")]
     await rig.poll()
-    failure, = rig.failures()
+    (failure,) = rig.failures()
     rig.journal.append(failure.type, failure.body, ticket=None, key=failure.key)
     await rig.poll()
     assert len(rig.occurrences()) == 1 and len(rig.exec.calls) == 2
@@ -401,8 +392,7 @@ async def test_checkpoint_crash_windows(tmp_path, monkeypatch, point):
         if point == "after-action" and type == EventType.EFFECT_COMPLETION:
             raise Crash()
         result = appended(type, body, **kwargs)
-        if ((point == "before-action" and type == EventType.EFFECT_INTENT)
-                or (point == "after-completion" and type == EventType.EFFECT_COMPLETION)):
+        if (point == "before-action" and type == EventType.EFFECT_INTENT) or (point == "after-completion" and type == EventType.EFFECT_COMPLETION):
             raise Crash()
         return result
 
@@ -410,9 +400,11 @@ async def test_checkpoint_crash_windows(tmp_path, monkeypatch, point):
         patch.setattr(rig.journal, "append", append)
         if point == "cancel-action":
             entered = asyncio.Event()
+
             async def barrier():
                 entered.set()
                 await asyncio.Event().wait()
+
             rig.exec.hook = barrier
             task = asyncio.create_task(rig.poll())
             await entered.wait()
@@ -440,7 +432,7 @@ async def test_checkpoint_timer_survives_restart_and_roll(tmp_path, monkeypatch)
     monkeypatch.setattr(module, "ROLL_BYTES", 1)
     rig = Rig(tmp_path)
     await rig.poll()
-    armed, = rig.events(EventType.TIMER_ARMED)
+    (armed,) = rig.events(EventType.TIMER_ARMED)
     assert armed.body == {"timer_id": "checkpoint-push/0", "deadline": (T0 + CHECKPOINT_INTERVAL).isoformat()}
     assert armed.ticket is armed.key is None
     rig.time.now += timedelta(hours=20)
@@ -451,7 +443,7 @@ async def test_checkpoint_timer_survives_restart_and_roll(tmp_path, monkeypatch)
     rig.time.now += timedelta(hours=4)
     rig.exec.results = [(1, "", "failed")]
     await rig.poll()
-    fired, = rig.events(EventType.TIMER_FIRED)
+    (fired,) = rig.events(EventType.TIMER_FIRED)
     assert fired.body == armed.body and fired.ticket is fired.key is None
     rig.time.now += timedelta(hours=1)
     rig.restart()
@@ -483,13 +475,19 @@ def test_checkpoint_boundary_is_dormant(root, monkeypatch, verb):
         clock = Time()
         rig.journal._clock = clock
         exec_ = Exec()
-        box = daemon.storm_producer(root=root / "checkpoint-box", fs=LocalFileSystem(),
-                                    journal=rig.journal, clock=clock)
+        box = daemon.storm_producer(root=root / "checkpoint-box", fs=LocalFileSystem(), journal=rig.journal, clock=clock)
         effects = Effects(rig.journal)
         timers = rig.core.restart.timers
-        boundary = daemon.checkpoint_push(root, journal=rig.journal, effects=effects,
-            timers=timers, git=Git(exec_, env={"PATH": "/usr/bin"}, timeout=30), box=box,
-            clock=clock, log=EngineLog(root / "checkpoint.log", Redactor({}), clock))
+        boundary = daemon.checkpoint_push(
+            root,
+            journal=rig.journal,
+            effects=effects,
+            timers=timers,
+            git=Git(exec_, env={"PATH": "/usr/bin"}, timeout=30),
+            box=box,
+            clock=clock,
+            log=EngineLog(root / "checkpoint.log", Redactor({}), clock),
+        )
         assert boundary.journal is rig.journal and boundary.effects is effects
         assert boundary.timers is timers and boundary.box is box
         assert rig.journal.read() == [] and rig.exec.calls == [] and asyncio.all_tasks() == tasks
@@ -500,6 +498,7 @@ def test_checkpoint_boundary_is_dormant(root, monkeypatch, verb):
         assert len(exec_.calls) == 1
 
     asyncio.run(graph())
+
     def forbidden(*args, **kwargs):
         raise AssertionError("checkpoint boundary activated")
 
@@ -511,10 +510,11 @@ def test_checkpoint_boundary_is_dormant(root, monkeypatch, verb):
     stages = Stages()
     assert cli.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=stages) == 0
     assert stages.calls == ["work"] and stages.lock_held == [True]
-    assert not any((e.key or "").startswith("checkpoint-push/")
-                   for e in stages.checkout.journal.read())
+    assert not any((e.key or "").startswith("checkpoint-push/") for e in stages.checkout.journal.read())
+
     def activated(checkout):
         daemon.checkpoint_push(checkout.repo)
+
     with pytest.raises(AssertionError, match="checkpoint boundary activated"):
         cli.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=activated)
     asyncio.run(_dormant_core(root, monkeypatch))
@@ -523,11 +523,14 @@ def test_checkpoint_boundary_is_dormant(root, monkeypatch, verb):
 async def _dormant_core(root, monkeypatch):
     tasks = asyncio.all_tasks()
     calls = []
+
     async def prepare(local):
         async def dispatch(ticket):
             calls.append(ticket.stem)
             return "merged"
+
         return dispatch
+
     rig = await repository(root, monkeypatch, prepare=prepare)
     assert_core_wiring(rig)
     assert asyncio.all_tasks() == tasks
@@ -543,25 +546,36 @@ async def _dormant_core(root, monkeypatch):
 @pytest.mark.asyncio
 async def test_push_failure_preserves_production_admission(root, monkeypatch):
     calls = []
+
     async def prepare(local):
         async def dispatch(ticket):
             calls.append(ticket.stem)
             return "merged"
+
         return dispatch
+
     rig = await repository(root, monkeypatch, prepare=prepare)
     await rig.core.startup()
     original = rig.exec.run
+
     async def execute(argv, **kwargs):
         if argv[3:4] == ["push"]:
             assert kwargs["env"] == ENV
             return 1, SECRET, SECRET
         return await original(argv, **kwargs)
+
     monkeypatch.setattr(rig.exec, "run", execute)
-    box = daemon.storm_producer(root=rig.checkout.config.state_dir / "box", fs=rig.fs,
-                               journal=rig.journal, clock=rig.time)
-    boundary = daemon.checkpoint_push(root, journal=rig.journal, effects=Effects(rig.journal),
-        timers=rig.core.restart.timers, git=rig.checkout.git, box=box, clock=rig.time,
-        log=EngineLog(root / "checkpoint.log", Redactor({"KEY": SECRET}), rig.time))
+    box = daemon.storm_producer(root=rig.checkout.config.state_dir / "box", fs=rig.fs, journal=rig.journal, clock=rig.time)
+    boundary = daemon.checkpoint_push(
+        root,
+        journal=rig.journal,
+        effects=Effects(rig.journal),
+        timers=rig.core.restart.timers,
+        git=rig.checkout.git,
+        box=box,
+        clock=rig.time,
+        log=EngineLog(root / "checkpoint.log", Redactor({"KEY": SECRET}), rig.time),
+    )
     for _ in range(5):
         rig.transition("prior", "merged", commit="code")
     before = await rig.checkout.git.rev_parse(root, "main")
@@ -573,13 +587,13 @@ async def test_push_failure_preserves_production_admission(root, monkeypatch):
     await rig.drain()
     assert calls == ["next"] and not rig.core.admission._slot.locked()
     assert rig.core.control.projection.pause_id is None
-    assert not any(e.type == EventType.EFFECT_COMPLETION and e.key == "checkpoint-push/0"
-                   for e in rig.journal.read())
+    assert not any(e.type == EventType.EFFECT_COMPLETION and e.key == "checkpoint-push/0" for e in rig.journal.read())
 
 
 @pytest.mark.asyncio
 async def test_checkpoint_is_active_in_serve(root, monkeypatch):
     from tests.test_serve import activated_graph
+
     rig = await activated_graph(root, monkeypatch)
     assert rig.owner.checkpoint.timers is rig.owner.core.restart.timers
     assert "checkpoint-push/0" in rig.owner.checkpoint.timers.pending

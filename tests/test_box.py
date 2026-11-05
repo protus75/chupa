@@ -7,9 +7,21 @@ from pathlib import Path
 import pytest
 
 from chupa.box import (
-    BOOTSTRAP_ORIGIN, Box, BoxError, DecisionRecord, Message, Resolution, Verdict,
-    ingest_bootstrap, ingest_main_checkout, normalize, parse_record, read_registry,
-    record_path, render_record, signature,
+    BOOTSTRAP_ORIGIN,
+    Box,
+    BoxError,
+    DecisionRecord,
+    Message,
+    Resolution,
+    Verdict,
+    ingest_bootstrap,
+    ingest_main_checkout,
+    normalize,
+    parse_record,
+    read_registry,
+    record_path,
+    render_record,
+    signature,
 )
 from chupa.git import Git
 from chupa.seams import LocalFileSystem, SubprocessExec
@@ -18,14 +30,14 @@ from chupa.seams import LocalFileSystem, SubprocessExec
 def test_signature_recipe():
     assert normalize(" a 42 b ") == normalize("a b") == "a b"
     assert normalize(" 42 /tmp/42 a 37 b ") == "a b"
-    assert signature("failure_report", "stem", "check", "red", reason="line 42 /tmp/a failed") == signature(
-        "failure_report", "stem", "check", "red", reason="line 51 /other/b failed"
-    )
+    assert signature("failure_report", "stem", "check", "red", reason="line 42 /tmp/a failed") == signature("failure_report", "stem", "check", "red", reason="line 51 /other/b failed")
     assert signature("x", reason="line 42 failed") == signature("x", reason="line failed")
     base = signature("failure_report", "stem", "check", "red", reason="failed")
     for fields in [
-        ("suggestion", "stem", "check", "red"), ("failure_report", "other", "check", "red"),
-        ("failure_report", "stem", "review", "red"), ("failure_report", "stem", "check", "ok"),
+        ("suggestion", "stem", "check", "red"),
+        ("failure_report", "other", "check", "red"),
+        ("failure_report", "stem", "review", "red"),
+        ("failure_report", "stem", "check", "ok"),
     ]:
         assert signature(*fields, reason="failed") != base
     line = "line 42 /tmp/a failed"
@@ -39,27 +51,25 @@ def test_host_report_signature(tmp_path):
 
     box = Box(tmp_path / "box", LocalFileSystem())
     raw = raw_report("self_diagnosed")
+
     def enqueue(raw, occurrence):
         report = validate_report(json.dumps(raw).encode())
         descriptor = box.custody_report(occurrence, report, {})
         return box.enqueue_report(descriptor, occurrence_id=occurrence)
+
     id, created = enqueue(raw, "original")
-    expected = hashlib.sha256(json.dumps([raw[k] for k in
-        ("game_slug", "anomaly_code", "location", "app_version")], separators=(",", ":")).encode()).hexdigest()
+    expected = hashlib.sha256(json.dumps([raw[k] for k in ("game_slug", "anomaly_code", "location", "app_version")], separators=(",", ":")).encode()).hexdigest()
     assert created and box.get(id).signature == expected
     assert enqueue({**raw, "summary": "Different wording", "app_commit": "new evidence"}, "rereport") == (id, False)
     assert enqueue(raw, "rereport") == (id, False)
-    for field, value in (("location", "app/view.py:124"), ("location", "other/view.py:123"),
-                         ("app_version", "1.2.4"), ("anomaly_code", "illegal43"), ("game_slug", "score3")):
+    for field, value in (("location", "app/view.py:124"), ("location", "other/view.py:123"), ("app_version", "1.2.4"), ("anomaly_code", "illegal43"), ("game_slug", "score3")):
         other, created = enqueue({**raw, field: value}, field + value.replace("/", "-"))
         assert created and other != id
     durable = Box(box.root, LocalFileSystem()).get(id)
     assert durable.report.report.model_dump() == validate_report(json.dumps(raw).encode()).model_dump()
     assert durable.report.custody.replay is None and durable.has_repro is False
-    engine, _ = box.enqueue(message_class="failure_report", origin="engine", stage="check",
-        outcome="gate_failed", summary="failed at 42 /tmp/file")
-    assert box.get(engine).signature == signature("failure_report", "engine", "check", "gate_failed",
-                                                 reason="failed at 51 /other/file")
+    engine, _ = box.enqueue(message_class="failure_report", origin="engine", stage="check", outcome="gate_failed", summary="failed at 42 /tmp/file")
+    assert box.get(engine).signature == signature("failure_report", "engine", "check", "gate_failed", reason="failed at 51 /other/file")
     path = box._path(box.get(engine))
     legacy = json.loads(path.read_text())
     legacy.pop("report")
@@ -119,7 +129,8 @@ def test_registry_format(tmp_path):
     assert record_path("b") == Path("tickets/decisions/b.md")
     assert parse_record(render_record(record, "Reason\n")) == (record, "Reason\n")
     for text in [
-        "body only", "---\nid: b\nkind: decision\nlink: ticket-b\n---\nbody",
+        "body only",
+        "---\nid: b\nkind: decision\nlink: ticket-b\n---\nbody",
         "---\nid: b\nkind: decision\nlink: ticket-b\nreopen_after_days: 30\nextra: x\n---\nbody",
     ]:
         with pytest.raises(BoxError):
@@ -145,9 +156,13 @@ def test_bootstrap_ingest_uses_main_checkout(tmp_path):
     source.parent.mkdir()
     source.write_text("  first line  \n\n second line\n")
     env = {
-        **os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
-        "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-        "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+        **os.environ,
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@t",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@t",
     }
     git = Git(SubprocessExec(), env=env, timeout=30.0)
     fs = LocalFileSystem()
@@ -176,9 +191,9 @@ def test_bootstrap_ingest_uses_main_checkout(tmp_path):
 def test_tombstone_rereports_reopen_at_threshold(tmp_path, monkeypatch):
     from chupa.daemon import storm_producer
     from chupa.journal import EventType, Journal
-    from tests.test_drain import Clock, commit_ticket, confirmed
-    from tests.test_triage import root_with_box, reply, run
     from chupa.llm import FakeLLM
+    from tests.test_drain import Clock, commit_ticket, confirmed
+    from tests.test_triage import reply, root_with_box, run
 
     root, _ = root_with_box(tmp_path)
     clock = Clock()
@@ -203,6 +218,7 @@ def test_tombstone_rereports_reopen_at_threshold(tmp_path, monkeypatch):
     assert box.get(id).reports == 2 and box.get(id).verdict.verdict == "tombstone"
     observed = []
     append = journal.append
+
     def before_clear(type_, body, **kwargs):
         if body.get("kind") == "tombstone_auto_reopened":
             target = box.get(id)
@@ -210,18 +226,17 @@ def test_tombstone_rereports_reopen_at_threshold(tmp_path, monkeypatch):
             assert target.status == "resolved" and target.verdict is not None
             observed.append(body)
         return append(type_, body, **kwargs)
+
     monkeypatch.setattr(journal, "append", before_clear)
     box.enqueue(**fields, occurrence_id="signature-crossing")
     message = box.get(id)
     assert message.reports == 3 and message.reopen and message.status == "pending"
     assert message.resolution is message.verdict is None
-    signal, = [e for e in journal.read() if e.body.get("kind") == "tombstone_auto_reopened"]
+    (signal,) = [e for e in journal.read() if e.body.get("kind") == "tombstone_auto_reopened"]
     assert signal.key == f"tombstone-reopen/{id}/3" and signal.type == EventType.SIGNAL and signal.ticket is None
-    assert observed == [signal.body] == [{"kind": "tombstone_auto_reopened", "box_id": id,
-        "signature": message.signature, "reports": 3}]
+    assert observed == [signal.body] == [{"kind": "tombstone_auto_reopened", "box_id": id, "signature": message.signature, "reports": 3}]
     assert path.read_bytes() == committed_bytes
-    assert asyncio.run(Git(SubprocessExec(), env=os.environ, timeout=30)._run(
-        root, "show", f"HEAD:{record_path(f'tombstone-{id}')}")).encode() == committed_bytes
+    assert asyncio.run(Git(SubprocessExec(), env=os.environ, timeout=30)._run(root, "show", f"HEAD:{record_path(f'tombstone-{id}')}")).encode() == committed_bytes
     restarted = storm_producer(root=box.root, fs=box.fs, journal=Journal(root / ".chupa/state", clock), clock=clock)
     before = restarted._rereport.journal.read()
     for _ in range(3):
@@ -252,10 +267,12 @@ def test_tombstone_reopen_requires_journal_callback(tmp_path, monkeypatch):
     journal = Journal(tmp_path, Clock())
     bound = Box(box.root, box.fs, rereport=RereportJournal(journal))
     append = journal.append
+
     def refused(type_, body, **kwargs):
         if body.get("kind") == "tombstone_auto_reopened":
             raise OSError("append failed")
         return append(type_, body, **kwargs)
+
     monkeypatch.setattr(journal, "append", refused)
     with pytest.raises(OSError, match="append failed"):
         bound.record_rereport(id, occurrence_id="retryable")
@@ -276,6 +293,7 @@ def test_rereport_crash_replay_counts_and_reopens_once(tmp_path, monkeypatch, po
 
     class Crash(BaseException):
         pass
+
     clock = Clock()
     journal = Journal(tmp_path, clock)
     box = storm_producer(root=tmp_path / "box", fs=LocalFileSystem(), journal=journal, clock=clock)
@@ -285,23 +303,27 @@ def test_rereport_crash_replay_counts_and_reopens_once(tmp_path, monkeypatch, po
     for n in range(2):
         box.enqueue(**fields, occurrence_id=f"report/{n}")
     append, write = journal.append, box.fs.write
+
     def crashed_append(type_, body, **kwargs):
-        target = ((point == "intent" and type_ == EventType.EFFECT_INTENT)
-                  or (point == "completion" and type_ == EventType.EFFECT_COMPLETION)
-                  or (point == "signal" and body.get("kind") == "tombstone_auto_reopened"))
+        target = (
+            (point == "intent" and type_ == EventType.EFFECT_INTENT)
+            or (point == "completion" and type_ == EventType.EFFECT_COMPLETION)
+            or (point == "signal" and body.get("kind") == "tombstone_auto_reopened")
+        )
         if target:
             if after:
                 append(type_, body, **kwargs)
             raise Crash()
         return append(type_, body, **kwargs)
+
     def crashed_write(path, data):
         record = json.loads(data)
-        if record["reports"] == 3 and ((point == "count" and not record["reopen"]) or
-                                      (point == "reopen" and record["reopen"])):
+        if record["reports"] == 3 and ((point == "count" and not record["reopen"]) or (point == "reopen" and record["reopen"])):
             if after:
                 write(path, data)
             raise Crash()
         write(path, data)
+
     with monkeypatch.context() as patch:
         patch.setattr(journal, "append", crashed_append)
         patch.setattr(box.fs, "write", crashed_write)
@@ -322,16 +344,17 @@ def test_late_rereport_replay_preserves_later_arrival_count(tmp_path, monkeypatc
     from tests.test_drain import Clock
 
     clock = Clock()
-    box = storm_producer(root=tmp_path / "box", fs=LocalFileSystem(),
-                         journal=Journal(tmp_path, clock), clock=clock)
+    box = storm_producer(root=tmp_path / "box", fs=LocalFileSystem(), journal=Journal(tmp_path, clock), clock=clock)
     fields = dict(message_class="suggestion", origin="test", summary="same")
     id, _ = box.enqueue(**fields, occurrence_id="original")
     box.resolve(id, Resolution(kind="tombstone", link="registry"))
     write = box.fs.write
+
     def interrupted(path, data):
         if after:
             write(path, data)
         raise OSError("count interrupted")
+
     with monkeypatch.context() as patch:
         patch.setattr(box.fs, "write", interrupted)
         with pytest.raises(OSError, match="count interrupted"):
@@ -343,28 +366,34 @@ def test_late_rereport_replay_preserves_later_arrival_count(tmp_path, monkeypatc
     assert restarted.get(id).reports == 2 and not restarted.get(id).reopen
     restarted.enqueue(**fields, occurrence_id="third-report")
     assert restarted.get(id).reports == 3 and restarted.get(id).reopen
-    signals = [e for e in restarted._rereport.journal.read()
-               if e.body.get("kind") == "tombstone_auto_reopened"]
+    signals = [e for e in restarted._rereport.journal.read() if e.body.get("kind") == "tombstone_auto_reopened"]
     assert len(signals) == 1 and signals[0].key == f"tombstone-reopen/{id}/3"
 
 
 def test_tombstone_visibility_uses_message_class(tmp_path, monkeypatch):
     from tests.test_retro_box import PROPOSAL
+
     box = Box(tmp_path / "box", LocalFileSystem())
     expected = []
-    for cls, bug, repro, visible in [("suggestion", None, None, False), ("override_report", None, None, False),
-        ("failure_report", None, None, True), ("retro_finding", None, None, True),
-        ("bug_report", "self_diagnosed", False, True), ("bug_report", "player", True, True),
-        ("bug_report", "player", False, False)]:
+    for cls, bug, repro, visible in [
+        ("suggestion", None, None, False),
+        ("override_report", None, None, False),
+        ("failure_report", None, None, True),
+        ("retro_finding", None, None, True),
+        ("bug_report", "self_diagnosed", False, True),
+        ("bug_report", "player", True, True),
+        ("bug_report", "player", False, False),
+    ]:
         evidence = {**PROPOSAL, "retro_report_key": "retro/1"} if cls == "retro_finding" else {}
-        id, _ = box.enqueue(message_class=cls, origin=f"{cls}/{bug}/{repro}", summary="concern",
-                            bug_origin=bug, has_repro=repro, **evidence)
+        id, _ = box.enqueue(message_class=cls, origin=f"{cls}/{bug}/{repro}", summary="concern", bug_origin=bug, has_repro=repro, **evidence)
         box.resolve(id, Resolution(kind="tombstone", link=f"tombstone-{id}"))
         if visible:
             expected.append(id)
     before = {p: p.read_bytes() for p in box.root.glob("*.json")}
+
     def forbidden(*args, **kwargs):
         pytest.fail("visibility wrote to the queue")
+
     monkeypatch.setattr(box.fs, "write", forbidden)
     assert [m.id for m in box.confirmed_tombstones()] == expected
     assert all("priority" not in m.model_dump() for m in box.messages())

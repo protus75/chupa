@@ -7,9 +7,9 @@ import pytest
 from chupa.audit import audit, audit_journal
 from chupa.caps import CAPS, DECLARED_CAPS, consume, draws, remaining, spent
 from chupa.config import Caps
-from chupa.hardening import ROUND_SIGNAL, ROUND_STATES, hardener_round, open_round, rounds, round_state
+from chupa.hardening import ROUND_SIGNAL, ROUND_STATES, hardener_round, open_round, round_state, rounds
 from chupa.journal import TERMINAL_STATES, EventType, Journal
-from tests.test_seed_path import repo, add_registry_row, context, ticket, terminal_body
+from tests.test_seed_path import add_registry_row, context, repo, terminal_body, ticket
 
 
 def journal(tmp_path):
@@ -21,13 +21,21 @@ def test_round_state_maps_every_run_state():
     assert set(ROUND_STATES.values()) <= {"open", "closed"}
 
 
-@pytest.mark.parametrize("terminal,expected", [
-    ("merged", "closed"), ("already_satisfied", "closed"),
-    ("rejected", "closed"), ("premise_failed", "closed"),
-    ("gate_failed", "open"), ("invalid_artifact", "open"),
-    ("timeout", "open"), ("infra_error", "open"),
-    ("abandoned", "open"), ("budget_exceeded", "open"),
-])
+@pytest.mark.parametrize(
+    "terminal,expected",
+    [
+        ("merged", "closed"),
+        ("already_satisfied", "closed"),
+        ("rejected", "closed"),
+        ("premise_failed", "closed"),
+        ("gate_failed", "open"),
+        ("invalid_artifact", "open"),
+        ("timeout", "open"),
+        ("infra_error", "open"),
+        ("abandoned", "open"),
+        ("budget_exceeded", "open"),
+    ],
+)
 def test_round_state_closes_per_section_11_4(tmp_path, terminal, expected):
     j = journal(tmp_path)
     record(j)
@@ -79,9 +87,9 @@ def test_hardening_uses_the_lineage_fold_without_blocking_dispatch(tmp_path):
 
 
 def record(j, number=1, hardener="hardener"):
-    return j.append(EventType.SIGNAL, {"signal": ROUND_SIGNAL, "round": number,
-                    "units": {"19.P3.row": "absent"}, "filed_by": "filer",
-                    "gaps": [{"unit": "19.P3.row", "message": "fact"}]}, ticket=hardener)
+    return j.append(
+        EventType.SIGNAL, {"signal": ROUND_SIGNAL, "round": number, "units": {"19.P3.row": "absent"}, "filed_by": "filer", "gaps": [{"unit": "19.P3.row", "message": "fact"}]}, ticket=hardener
+    )
 
 
 def test_round_record_anchors_identity_coverage_and_closure(tmp_path):
@@ -91,9 +99,7 @@ def test_round_record_anchors_identity_coverage_and_closure(tmp_path):
     j.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="arbitrary-name")
     record(j, hardener="arbitrary-name")
     [r] = rounds(iter(j.read()))
-    assert (r.number, r.hardener, r.units, r.filed_by, r.gaps, r.position) == (
-        1, "arbitrary-name", {"19.P3.row": "absent"}, "filer",
-        [{"unit": "19.P3.row", "message": "fact"}], 1)
+    assert (r.number, r.hardener, r.units, r.filed_by, r.gaps, r.position) == (1, "arbitrary-name", {"19.P3.row": "absent"}, "filer", [{"unit": "19.P3.row", "message": "fact"}], 1)
     assert round_state(j.read(), 1) == "open"
     assert open_round(j.read()) == hardener_round(j.read(), "arbitrary-name") == r
     j.append(EventType.STATE_TRANSITION, {"to": "premise_failed"}, ticket="arbitrary-name")
@@ -106,14 +112,15 @@ def test_round_record_anchors_identity_coverage_and_closure(tmp_path):
 def test_one_open_round_engine_wide(repo):
     import asyncio
     from dataclasses import replace
+
     from chupa.runner import hold_on_hardening
     from tests.test_stages import STEM, git
+
     add_registry_row(repo)
     ctx, _ = context(repo, [])
     ctx.config.caps.hardening = 2
     plan = repo / "CHUPA_PLAN.md"
-    plan.write_text(plan.read_text().replace("[gamma-seed]", "[gamma-seed, delta-seed]").replace(
-        "  gamma-seed:", "  delta-seed: {fence: [chupa/thing.py]}\n  gamma-seed:"))
+    plan.write_text(plan.read_text().replace("[gamma-seed]", "[gamma-seed, delta-seed]").replace("  gamma-seed:", "  delta-seed: {fence: [chupa/thing.py]}\n  gamma-seed:"))
     git(repo, "add", "CHUPA_PLAN.md")
     git(repo, "commit", "-m", "second registry row")
     first = ticket(repo)
@@ -127,8 +134,7 @@ def test_one_open_round_engine_wide(repo):
     asyncio.run(hold_on_hardening(ctx, second, {"19.P3.delta-seed": ["different fact"]}, attempt=7))
     assert len(rounds(ctx.driver.journal.read())) == 1
     assert terminal_body(ctx)["round"] == 1
-    other = [e.body for e in ctx.driver.journal.read() if e.ticket == second.stem
-             and e.type == EventType.STATE_TRANSITION][-1]
+    other = [e.body for e in ctx.driver.journal.read() if e.ticket == second.stem and e.type == EventType.STATE_TRANSITION][-1]
     assert other["round"] == 1
     assert other["plan_units"] == {"19.P3.delta-seed": "absent"}
     assert rounds(ctx.driver.journal.read())[0].units == {"19.P3.gamma-seed": "absent"}
@@ -146,20 +152,32 @@ def test_one_open_round_engine_wide(repo):
 @pytest.mark.parametrize("hardener", [False, True])
 def test_a_hardener_is_never_hardened(repo, outcome, hardener, monkeypatch):
     import asyncio
+
     from chupa import runner
     from chupa.artifacts import Cost, Finding, StageResult
     from chupa.stages import StagesRun
     from tests.test_stages import STEM
+
     add_registry_row(repo)
     ctx, _ = context(repo, [])
     if hardener:
         record(ctx.driver.journal, hardener=STEM)
+
     async def stage(ctx, ticket):
-        return StagesRun(attempt=1, results={"implement" if outcome == "premise_failed" else "check":
-            StageResult(outcome=outcome, artifact=None, cost=Cost(), findings=[Finding(
-                code="premise" if outcome == "premise_failed" else "requisition_review",
-                message="missing fact", paved_road="state the fact",
-                kind="spec_gap", unit="19.P3.gamma-seed")])})
+        return StagesRun(
+            attempt=1,
+            results={
+                "implement" if outcome == "premise_failed" else "check": StageResult(
+                    outcome=outcome,
+                    artifact=None,
+                    cost=Cost(),
+                    findings=[
+                        Finding(code="premise" if outcome == "premise_failed" else "requisition_review", message="missing fact", paved_road="state the fact", kind="spec_gap", unit="19.P3.gamma-seed")
+                    ],
+                )
+            },
+        )
+
     monkeypatch.setattr(runner, "run_stages", stage)
     assert asyncio.run(runner.drive(ctx, ticket(repo))) == outcome
     assert (terminal_body(ctx).get("dispatch") == "spec_gap_hold") == (not hardener)

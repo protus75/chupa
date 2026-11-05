@@ -17,10 +17,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from chupa.config import Config, ConfigSnapshot, Provider
+from chupa.journal import EventType, render_ts
 from chupa.llm import AgentEffort, AgentTier, LLMRequest, LLMResult
 from chupa.redact import Redactor
 from chupa.seams import FileSystem, GroupExec
-from chupa.journal import EventType, render_ts
 
 if TYPE_CHECKING:
     from chupa.watchdog import EventConsumer
@@ -75,7 +75,8 @@ def secret_names(config: Config | ConfigSnapshot) -> frozenset[str]:
 
 
 def child_env(
-    env: Mapping[str, str], config: Config | ConfigSnapshot,
+    env: Mapping[str, str],
+    config: Config | ConfigSnapshot,
     serving: Provider | ConfigSnapshot | None = None,
 ) -> dict[str, str]:
     """INHERIT-MINUS-SECRETS: the full parent env minus every provider key, plus only the serving call's own.
@@ -85,9 +86,7 @@ def child_env(
     out = {k: v for k, v in env.items() if k not in secret_names(config)}
     if serving is not None and serving.auth:
         if serving.auth not in env:
-            raise ProviderSetupError(
-                f"provider {serving.name!r} needs env var {serving.auth} and it is unset; export it before the run"
-            )
+            raise ProviderSetupError(f"provider {serving.name!r} needs env var {serving.auth} and it is unset; export it before the run")
         out[serving.auth] = env[serving.auth]
     return out
 
@@ -104,9 +103,7 @@ def resolve(config: Config | ConfigSnapshot, tier: AgentTier, surface: str) -> S
     if route is None and surface != "review":
         route = next((r for r in config.routing if r.tier == tier and r.surface == "review"), None)
     if route is None:
-        raise ProviderSetupError(
-            f"no routing row for tier {tier!r}, surface {surface!r}; add one under `routing:` in config.yaml"
-        )
+        raise ProviderSetupError(f"no routing row for tier {tier!r}, surface {surface!r}; add one under `routing:` in config.yaml")
     return _candidate(config, tier, surface, route.candidates[0])
 
 
@@ -132,10 +129,7 @@ def candidates(config, tier, surface) -> tuple[Served, ...]:
 
 def routed_conduct_paths(config: Config | ConfigSnapshot, checkout: Path) -> tuple[Path, ...]:
     """Select each resolved CLI's conduct file once; unrouted declarations do not participate."""
-    return tuple(dict.fromkeys(
-        checkout / ("CLAUDE.md" if served.provider.name == "claude" else "AGENTS.md")
-        for route in config.routing for served in candidates(config, route.tier, route.surface)
-    ))
+    return tuple(dict.fromkeys(checkout / ("CLAUDE.md" if served.provider.name == "claude" else "AGENTS.md") for route in config.routing for served in candidates(config, route.tier, route.surface)))
 
 
 class ProviderDrought(Exception):
@@ -154,6 +148,7 @@ class ProviderSession:
 
     def __init__(self, config, *, journal, clock, sleep, timers):
         from chupa.thresh import Thresh
+
         self.journal, self.clock, self.sleep, self.timers = journal, clock, sleep, timers
         self.thresh = Thresh(config, journal=journal, clock=clock, sleep=sleep)
         self.auth_excluded: set[str] = set()
@@ -166,28 +161,32 @@ class ProviderSession:
         self._held_seconds: dict[str, float] = {}
 
     def live_wait(self, prefix):
-        return (self.thresh.live_wait(prefix)
-                + sum(seconds for key, seconds in self._held_seconds.items() if key.startswith(prefix))
-                + sum(max(0, (self.clock() - started).total_seconds())
-                      for key, started in self._holds.items() if key.startswith(prefix)))
+        return (
+            self.thresh.live_wait(prefix)
+            + sum(seconds for key, seconds in self._held_seconds.items() if key.startswith(prefix))
+            + sum(max(0, (self.clock() - started).total_seconds()) for key, started in self._holds.items() if key.startswith(prefix))
+        )
 
     async def wait_until(self, deadline):
         async def wait():
             while self.clock() < deadline:
                 await self.sleep((deadline - self.clock()).total_seconds())
             self.timers.fire_due()
+
         task = asyncio.create_task(wait())
         self.waits.add(task)
         try:
             await asyncio.shield(task)
         finally:
             from chupa.driver import _observe
+
             task.cancel()
             await _observe(asyncio.gather(task, return_exceptions=True))
             self.waits.discard(task)
 
     async def close(self):
         from chupa.driver import _observe
+
         tasks = tuple(self.waits)
         for task in tasks:
             task.cancel()
@@ -200,16 +199,16 @@ class ProviderSession:
 
     def cooling(self):
         self.timers.fire_due()
-        return {timer.body.timer_id.split('/')[1]: timer.deadline
-                for timer in self.timers.pending.values()
-                if timer.body.timer_id.startswith('provider-cooldown/')}
+        return {timer.body.timer_id.split("/")[1]: timer.deadline for timer in self.timers.pending.values() if timer.body.timer_id.startswith("provider-cooldown/")}
 
     def exclusions(self):
         if self.auth_position is not None:
             history = self.journal.read()
-            self.auth_excluded.update(e.body['provider'] for e in history[self.auth_position:]
-                if e.type == EventType.SIGNAL and e.body.get('signal') == 'provider_call_outcome'
-                and e.body.get('failure_class') == 'auth_error')
+            self.auth_excluded.update(
+                e.body["provider"]
+                for e in history[self.auth_position :]
+                if e.type == EventType.SIGNAL and e.body.get("signal") == "provider_call_outcome" and e.body.get("failure_class") == "auth_error"
+            )
             self.auth_position = len(history)
         return self.auth_excluded
 
@@ -228,25 +227,23 @@ class ProviderSession:
 
     def outcome(self, served, failure):
         # Thresh invokes this only after its sole outcome append succeeds.
-        if failure == 'quota_exhausted':
+        if failure == "quota_exhausted":
             self.quota(served.provider)
-        elif failure == 'auth_error':
+        elif failure == "auth_error":
             self.auth_excluded.add(served.provider.name)
 
     def drought(self, config, tier, surface):
         from chupa.thresh import UnavailableRoute
+
         route = candidates(config, tier, surface)
         refusal = self.thresh._select(route, 0, 0)
         return ProviderDrought(tier, surface, refusal) if isinstance(refusal, UnavailableRoute) else None
 
     def park(self, stem, drought):
         history = self.journal.read()
-        previous = next((e.body for e in reversed(history)
-                         if e.type == EventType.STATE_TRANSITION and e.ticket == stem), {})
-        if previous.get('provider_drought') != drought.record:
-            self.journal.append(EventType.STATE_TRANSITION,
-                {'to': 'infra_error', 'reason': 'provider_drought', 'provider_drought': drought.record},
-                ticket=stem, key=None)
+        previous = next((e.body for e in reversed(history) if e.type == EventType.STATE_TRANSITION and e.ticket == stem), {})
+        if previous.get("provider_drought") != drought.record:
+            self.journal.append(EventType.STATE_TRANSITION, {"to": "infra_error", "reason": "provider_drought", "provider_drought": drought.record}, ticket=stem, key=None)
 
 
 @dataclass(frozen=True)
@@ -279,10 +276,7 @@ class CliAdapter:
         timeout: float,
     ) -> None:
         if not self.reports_cost and provider.limits.est_cost_per_call_usd is None:
-            raise ProviderSetupError(
-                f"provider {provider.name!r}: the {self.binary} stream reports no cost, so"
-                f" limits.est_cost_per_call_usd is required; declare a flat per-call estimate"
-            )
+            raise ProviderSetupError(f"provider {provider.name!r}: the {self.binary} stream reports no cost, so limits.est_cost_per_call_usd is required; declare a flat per-call estimate")
         self.provider = provider
         self._config = config
         self._exec = exec_
@@ -304,8 +298,7 @@ class CliAdapter:
 
     def within_budget(self, req: LLMRequest) -> bool:
         budget = req.budget_usd
-        return budget is None or (budget > 0 and (self.reports_cost
-                or self.provider.limits.est_cost_per_call_usd <= budget))
+        return budget is None or (budget > 0 and (self.reports_cost or self.provider.limits.est_cost_per_call_usd <= budget))
 
     def check_budget(self, req: LLMRequest) -> None:
         if not self.within_budget(req):
@@ -411,8 +404,7 @@ class CliAdapter:
             road = f"fix provider {self.provider.name!r}'s model route in config.yaml, then retry"
         elif failure != "unclassified":
             road = f"wait for provider {self.provider.name!r} to recover from {failure}, then retry"
-        return ProviderCallError(self.provider.name, message, rc=rc, stderr_tail=tail,
-                                 failure_class=failure, paved_road=road)
+        return ProviderCallError(self.provider.name, message, rc=rc, stderr_tail=tail, failure_class=failure, paved_road=road)
 
     def parsed_failure(self, out: str, *, rc: int, stderr_tail: str) -> ProviderCallError | None:
         """Direct construction seam; invoke retains its existing production error handling."""
@@ -480,11 +472,7 @@ class CodexAdapter(CliAdapter):
     LOGIN_ROAD = "run codex login, then uv run python -m chupa drain"
 
     def argv(self, model: str, effort: AgentEffort, writes: bool) -> list[str]:
-        grant = (
-            ["--dangerously-bypass-approvals-and-sandbox"]
-            if writes
-            else ["--sandbox", "read-only", "-c", "approval_policy=never"]
-        )
+        grant = ["--dangerously-bypass-approvals-and-sandbox"] if writes else ["--sandbox", "read-only", "-c", "approval_policy=never"]
         # Trailing `-`: the prompt is read from stdin.
         return [self.binary, "exec", "--json", "-m", model, "-c", f"model_reasoning_effort={effort}", *grant, "-"]
 
@@ -533,7 +521,7 @@ class ProviderLLM:
         session: ProviderSession,
     ) -> None:
         if not math.isfinite(timeout) or timeout <= 0:
-            raise ValueError('provider timeout must be positive and finite')
+            raise ValueError("provider timeout must be positive and finite")
         self.session, self._timeout = session, timeout
         session.active = True
         session.thresh.configure(config)
@@ -544,9 +532,7 @@ class ProviderLLM:
         self._adapters: dict[str, CliAdapter] = {}
         for p in config.providers:
             if p.name not in ADAPTERS:
-                raise ProviderSetupError(
-                    f"provider {p.name!r} has no shipped cli adapter; name a provider one of {sorted(ADAPTERS)}"
-                )
+                raise ProviderSetupError(f"provider {p.name!r} has no shipped cli adapter; name a provider one of {sorted(ADAPTERS)}")
             self._adapters[p.name] = ADAPTERS[p.name](
                 p,
                 config=config,
@@ -572,15 +558,11 @@ class ProviderLLM:
             if adapter.provider.name in self.session.exclusions():
                 continue
             package = adapter.provider.package
-            _, out, err = await self._exec.run([adapter.binary, "--version"], cwd=self._cwd,
-                                               env=child_env(self._env, self._config),
-                                               timeout=PREFLIGHT_TIMEOUT_S)
-            _, latest, _ = await self._exec.run(["pnpm", "view", str(package), "version"], cwd=self._cwd,
-                                                env=child_env(self._env, self._config), timeout=PREFLIGHT_TIMEOUT_S)
+            _, out, err = await self._exec.run([adapter.binary, "--version"], cwd=self._cwd, env=child_env(self._env, self._config), timeout=PREFLIGHT_TIMEOUT_S)
+            _, latest, _ = await self._exec.run(["pnpm", "view", str(package), "version"], cwd=self._cwd, env=child_env(self._env, self._config), timeout=PREFLIGHT_TIMEOUT_S)
             installed = re.search(r"\d+\.\d+\.\d+", out + err)
             if not latest.strip() or installed is None or installed.group(0) != latest.strip():
-                notices.append(f"{adapter.binary} {installed.group(0) if installed else '(unknown)'} is not the"
-                                f" latest release {latest.strip() or '(unreadable)'} -- run: pnpm add -g {package}@latest")
+                notices.append(f"{adapter.binary} {installed.group(0) if installed else '(unknown)'} is not the latest release {latest.strip() or '(unreadable)'} -- run: pnpm add -g {package}@latest")
         probed: set[tuple[str, str]] = set()
         for route in self._config.routing:
             for cand in route.candidates:
@@ -591,19 +573,18 @@ class ProviderLLM:
                 if (cand.provider, model) in probed:
                     continue
                 probed.add((cand.provider, model))
-                req = LLMRequest(surface="preflight", rendered=PROBE_PROMPT, tier=route.tier, effort="low",
-                                 ticket=None, worktree=None)
+                req = LLMRequest(surface="preflight", rendered=PROBE_PROMPT, tier=route.tier, effort="low", ticket=None, worktree=None)
                 try:
                     await adapter.invoke(req, model)
                 except Exception as e:
-                    problems.append(f"{cand.provider} model {model!r} failed its probe: {e} -- run: pnpm add -g"
-                                    f" {adapter.provider.package}@latest, or route a model this login serves in config.yaml")
+                    problems.append(f"{cand.provider} model {model!r} failed its probe: {e} -- run: pnpm add -g {adapter.provider.package}@latest, or route a model this login serves in config.yaml")
         if not problems:
             self.session.preflight_passed()
         return problems
 
     async def admitted_call(self, req, *, ticket, call_key, effect, meter=None):
         from chupa.thresh import UnavailableRoute
+
         route = candidates(self._config, req.tier, req.surface)
         # Budget eligibility precedes admission, so a refusal cannot become a
         # provider failure or leave an unmatched Effect intent. Preserve the
@@ -614,15 +595,16 @@ class ProviderLLM:
         route = affordable
         used, queued, cap = self.session.thresh.occupancy(route[0].provider.name)
         estimate = ((used + queued) // cap) * self._timeout
+
         async def operation(served):
             consumer = meter(served) if meter else None
             result = await self._invoke(req, served, consumer=consumer)
-            if consumer is not None and hasattr(consumer, 'complete'):
+            if consumer is not None and hasattr(consumer, "complete"):
                 consumer.complete()
             return result
+
         while True:
-            result = await self.session.thresh.run(route, ticket=ticket, call_key=call_key,
-                projected_wait_seconds=estimate, effect=effect, operation=operation)
+            result = await self.session.thresh.run(route, ticket=ticket, call_key=call_key, projected_wait_seconds=estimate, effect=effect, operation=operation)
             if not isinstance(result, UnavailableRoute):
                 return result.result
             if ticket is not None or result.open_until is None:
@@ -632,8 +614,7 @@ class ProviderLLM:
                 await self.session.wait_until(result.open_until)
             finally:
                 started = self.session._holds.pop(call_key)
-                self.session._held_seconds[call_key] = self.session._held_seconds.get(call_key, 0) + max(
-                    0, (self.session.clock() - started).total_seconds())
+                self.session._held_seconds[call_key] = self.session._held_seconds.get(call_key, 0) + max(0, (self.session.clock() - started).total_seconds())
 
     async def call(self, req: LLMRequest, *, consumer: "EventConsumer | None" = None) -> LLMResult:
         """The raw LLM execution seam; llm_call owns its durable admission boundary."""
@@ -642,8 +623,7 @@ class ProviderLLM:
     async def _invoke(self, req, served, *, consumer=None):
         self._active = self._adapters[served.provider.name]
         try:
-            return await self._active.invoke(req, served.model,
-                **({'consumer': consumer} if consumer is not None else {}))
+            return await self._active.invoke(req, served.model, **({"consumer": consumer} if consumer is not None else {}))
         finally:
             self._active = None
 

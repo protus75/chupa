@@ -8,25 +8,21 @@ from pathlib import Path
 
 from chupa import runner, triage
 from chupa.config import ConfigError, snapshot_config
-from chupa.daemon import DaemonTasks, HeartbeatCycle, TicketWriter, WorkerFailureObserver
-from chupa.daemon import WorkerStop, _protected_cleanup, checkpoint_push
-from chupa.daemon import _stop_workers
+from chupa.daemon import DaemonTasks, HeartbeatCycle, TicketWriter, WorkerFailureObserver, WorkerStop, _protected_cleanup, _stop_workers, checkpoint_push
 from chupa.effects import Effects
 from chupa.enginelog import EngineLog
+from chupa.git import GitError
 from chupa.heartbeat import Heartbeat
-from chupa.journal import EventType
+from chupa.journal import EventType, JournalCorruption
 from chupa.lockfile import Lockfile
 from chupa.merge import AdmissionBoundary
 from chupa.mergequeue import ConflictHandoff, held_admissions, regate_receipts
-from chupa.providers import ProviderLLM
-from chupa.providers import ProviderSetupError
-from chupa.journal import JournalCorruption
-from chupa.seams import ExecutableNotFound
+from chupa.providers import ProviderLLM, ProviderSetupError
 from chupa.redact import Redactor
-from chupa.storm import StormLedger
-from chupa.tickets import Ticket, intake, ticket_path, parse_ticket, TicketInvalid
-from chupa.git import GitError
+from chupa.seams import ExecutableNotFound
 from chupa.stages import ticket_blob
+from chupa.storm import StormLedger
+from chupa.tickets import Ticket, TicketInvalid, intake, parse_ticket, ticket_path
 
 SERVE_POLL_S = 0.1
 
@@ -75,11 +71,18 @@ class Responsiveness:
 class Serve:
     """One idle composition; only run acquires the lock and starts owned work."""
 
-    def __init__(self, checkout: runner.Checkout, *, config_path: Path | None = None,
-                 plan: str | None = None, read: Callable[[str], str | None],
-                 stems: Callable[[], Iterable[str]],
-                 prepare=runner.prepare_pipeline, signals: Callable | None = None,
-                 failure: Callable[[BaseException], None] | None = None) -> None:
+    def __init__(
+        self,
+        checkout: runner.Checkout,
+        *,
+        config_path: Path | None = None,
+        plan: str | None = None,
+        read: Callable[[str], str | None],
+        stems: Callable[[], Iterable[str]],
+        prepare=runner.prepare_pipeline,
+        signals: Callable | None = None,
+        failure: Callable[[BaseException], None] | None = None,
+    ) -> None:
         from chupa.__main__ import build_daemon_core, build_notifications
 
         self.read, self.stems, self.signals = read, stems, signals
@@ -98,8 +101,7 @@ class Serve:
         self.observation: asyncio.Task | None = None
         self.stopper = self.observer = self.checkpoint = None
         self.responses = tuple(Responsiveness() for _ in range(4))
-        self.log = EngineLog(checkout.config.state_dir / "engine.log",
-                             Redactor.from_config(checkout.config, checkout.env), checkout.clock)
+        self.log = EngineLog(checkout.config.state_dir / "engine.log", Redactor.from_config(checkout.config, checkout.env), checkout.clock)
         self.failure = failure or (lambda exc: self.log.event("worker_failure", error=str(exc)))
         self.notifications = build_notifications(checkout, config_path=config_path, log=self.log)
 
@@ -112,8 +114,7 @@ class Serve:
                 self.queue = callback.queue
                 self.queue.supervised = True
             callback.queue = self.queue
-            callback.admission = AdmissionBoundary(callback.ctx, mode="daemon", queue=self.queue,
-                waiting=self.core.admission.waiting_for_merge)
+            callback.admission = AdmissionBoundary(callback.ctx, mode="daemon", queue=self.queue, waiting=self.core.admission.waiting_for_merge)
 
             async def dispatch(ticket):
                 if not self.select(ticket, "implement"):
@@ -134,57 +135,65 @@ class Serve:
                     self.publish(fresh, committed)
                     return "running"
                 self.writers[ticket.stem] = callback
-                local.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": sha},
-                                     ticket=ticket.stem, key=None)
+                local.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": sha}, ticket=ticket.stem, key=None)
                 try:
                     return await callback(ticket)
                 finally:
-                    latest = next((e.body for e in reversed(local.journal.read())
-                                   if e.type == EventType.STATE_TRANSITION and e.ticket == ticket.stem), {})
-                    if 'provider_drought' in latest:
+                    latest = next((e.body for e in reversed(local.journal.read()) if e.type == EventType.STATE_TRANSITION and e.ticket == ticket.stem), {})
+                    if "provider_drought" in latest:
                         self.core.scheduler.update(ticket)
-                    if (not callback.continuations and not any(
-                            context is callback.ctx and stem in callback.queue.pending.keys() | callback.queue.held.keys()
-                            for stem, context in callback.queue.contexts.items())):
+                    if not callback.continuations and not any(
+                        context is callback.ctx and stem in callback.queue.pending.keys() | callback.queue.held.keys() for stem, context in callback.queue.contexts.items()
+                    ):
                         self.writers.pop(ticket.stem, None)
+
             return dispatch
 
-        self.core = build_daemon_core(checkout, config_path=config_path, plan=plan, read=read,
-            debounce=SERVE_POLL_S, quarantined=lambda: set(), drought_parked=lambda: set(),
+        self.core = build_daemon_core(
+            checkout,
+            config_path=config_path,
+            plan=plan,
+            read=read,
+            debounce=SERVE_POLL_S,
+            quarantined=lambda: set(),
+            drought_parked=lambda: set(),
             completed_unmerged=lambda: len(set(self.queue.pending) | set(self.queue.held)) if self.queue is not None else 0,
-            prepare=prepared)
+            prepare=prepared,
+        )
         publication: dict[str, str] = {}
+
         def watched_read(stem):
             text = self.read(stem)
             if text is not None:
                 publication[stem] = text
             return text
+
         def watched_publish(ticket):
             self.publish(ticket, publication.pop(ticket.stem))
+
         self.core.watcher.read = watched_read
         self.core.watcher.publish = watched_publish
         self.checkout = replace(checkout, control=self.core.control)
         self.control = self.core.control
         assert self.control is not None and self.core.restart is not None
-        self.control.inbox.admissions = lambda: {
-            stem: hold for stem, (hold, _) in held_admissions(checkout.journal.read()).items()}
+        self.control.inbox.admissions = lambda: {stem: hold for stem, (hold, _) in held_admissions(checkout.journal.read()).items()}
         self.control.inbox.draft = lambda stem: runner.committed_draft(self.checkout, stem)
         self.core.restart.admissions = self.reconstruct_admissions
         self.box = self.control._recover.__self__
         self.storm = StormLedger(journal=checkout.journal, clock=checkout.clock)
-        self.core.scheduler.continuations = lambda: (
-            c.ticket for w in self.writers.values() for c in w.continuations.values())
+        self.core.scheduler.continuations = lambda: (c.ticket for w in self.writers.values() for c in w.continuations.values())
         self.core.scheduler.next_stage = self.next_stage
         self.core.scheduler.select = self.select
         self.core.admission.resume = self.resume
-        self.core.restart.owned = lambda: (
-            self.core.admission.active is not None or self.core.admission.task is not None
-            or any(w.continuations for w in self.writers.values()))
+        self.core.restart.owned = lambda: self.core.admission.active is not None or self.core.admission.task is not None or any(w.continuations for w in self.writers.values())
         self.tasks = DaemonTasks(watcher=self.watch, merge_queue=self.merge, box_consumer=self.triage)
-        self.heartbeat = HeartbeatCycle(heartbeat=Heartbeat(state_dir=checkout.config.state_dir,
-            fs=checkout.fs), workers=lambda: self.healthy(0),
-            merge_queue=lambda: self.healthy(1), box_consumer=lambda: self.healthy(2),
-            watcher=lambda: self.healthy(3))
+        self.heartbeat = HeartbeatCycle(
+            heartbeat=Heartbeat(state_dir=checkout.config.state_dir, fs=checkout.fs),
+            workers=lambda: self.healthy(0),
+            merge_queue=lambda: self.healthy(1),
+            box_consumer=lambda: self.healthy(2),
+            watcher=lambda: self.healthy(3),
+        )
 
     def publish(self, ticket: Ticket, text: str) -> None:
         self.published[ticket.stem] = ticket, ticket_blob(text.encode())
@@ -192,9 +201,7 @@ class Serve:
 
     async def reconstruct_admissions(self):
         events = self.checkout.journal.read()
-        if (not held_admissions(events) and not any(
-                r["admission"] == "HELD" and (self.checkout.config.worktree_root / r["stem"]).exists()
-                for r in regate_receipts(events).values())):
+        if not held_admissions(events) and not any(r["admission"] == "HELD" and (self.checkout.config.worktree_root / r["stem"]).exists() for r in regate_receipts(events).values()):
             return
         writer = runner.bind(self.checkout, None)
         self.queue = writer.queue
@@ -205,8 +212,7 @@ class Serve:
             self.writers[stem] = writer
 
     def healthy(self, component: int) -> bool:
-        return (bool(self.health_tasks) and not self.health_tasks[component].done()
-                and self.responses[component].responsive())
+        return bool(self.health_tasks) and not self.health_tasks[component].done() and self.responses[component].responsive()
 
     def stop(self) -> None:
         self.stopping = True
@@ -219,19 +225,20 @@ class Serve:
             self.stop()
         if ticket.stem not in self.writers and not self.stopping and self.control.providers.active:
             from chupa.config import load_config
+
             snapshot = load_config(self.config_path, cwd=self.checkout.repo)
             tier, _ = runner.capability(ticket, self.checkout.journal.read())
-            drought = self.control.providers.drought(snapshot, tier, 'implement')
+            drought = self.control.providers.drought(snapshot, tier, "implement")
             if drought:
                 self.control.providers.park(ticket.stem, drought)
                 return False
-        return (not self.stopping and projection.pause_id is None
-                and ticket.stem not in held_admissions(self.checkout.journal.read())
-                and (self.control.admission is None
-                     or self.control.admission in projection.released_hold_ids)
-                and not any(target["emitting_origin"] == ticket.stem
-                            and target["emitting_stage"] == stage
-                            for target in self.storm.held_stages().values()))
+        return (
+            not self.stopping
+            and projection.pause_id is None
+            and ticket.stem not in held_admissions(self.checkout.journal.read())
+            and (self.control.admission is None or self.control.admission in projection.released_hold_ids)
+            and not any(target["emitting_origin"] == ticket.stem and target["emitting_stage"] == stage for target in self.storm.held_stages().values())
+        )
 
     def next_stage(self, ticket: Ticket) -> str:
         writer = self.writers.get(ticket.stem)
@@ -261,6 +268,7 @@ class Serve:
 
     async def watch(self) -> None:
         response = self.responses[3]
+
         async def changes():
             previous = {}
             while True:
@@ -273,6 +281,7 @@ class Serve:
                     await response.wait(asyncio.gather(*self.core.watcher._waits.values()))
                 previous = current
                 await response.wait(self.checkout.sleep(SERVE_POLL_S))
+
         await self.core.watcher.run(changes())
 
     async def dispatch(self) -> None:
@@ -287,21 +296,23 @@ class Serve:
 
     async def merge(self) -> None:
         response = self.responses[1]
+
         async def poll():
             async with self.mutations():
                 self.control.poll()
                 if self.stopping or self.control.projection.kill_requested:
                     return
                 if self.queue is None:
+
                     async def confirm_draft(stem, request_id):
                         await runner.confirm_draft(stem, request_id, runner.bind(self.checkout, None).ctx)
+
                     await self.control.inbox.settle_admissions(confirm_draft)
                     return
                 self.queue.deliveries = []
                 await self.queue.process()
                 for ticket, attempt, result in self.queue.deliveries:
-                    owner = self.writers.get(ticket.stem) or next(
-                        w for w in self.writers.values() if w.ctx is self.queue.contexts.get(ticket.stem))
+                    owner = self.writers.get(ticket.stem) or next(w for w in self.writers.values() if w.ctx is self.queue.contexts.get(ticket.stem))
                     if isinstance(result, ConflictHandoff) and owner.ctx.driver.llm is None:
                         owner = await self.prepare(self.checkout)
                         owner.queue = self.queue
@@ -312,15 +323,16 @@ class Serve:
                     if ticket.stem not in self.queue.held and ticket.stem not in self.queue.pending:
                         self.queue.contexts.pop(ticket.stem, None)
                 for stem, writer in tuple(self.writers.items()):
-                    if (not writer.active and not writer.continuations and stem not in self.queue.pending
-                            and stem not in self.queue.held):
+                    if not writer.active and not writer.continuations and stem not in self.queue.pending and stem not in self.queue.held:
                         del self.writers[stem]
+
         while True:
             await response.wait(poll())
             await response.wait(self.checkout.sleep(SERVE_POLL_S))
 
     async def triage(self) -> None:
         response = self.responses[2]
+
         async def poll():
             async with self.mutations():
                 if self.stopping:
@@ -329,12 +341,12 @@ class Serve:
                 triage.report_intake(c)
                 if not self.box.pending():
                     return
-                llm = ProviderLLM(c.config, exec_=c.exec_, fs=c.fs, env=c.env, cwd=c.repo,
-                                  timeout=runner.call_timeout(c.config), session=self.control.providers)
+                llm = ProviderLLM(c.config, exec_=c.exec_, fs=c.fs, env=c.env, cwd=c.repo, timeout=runner.call_timeout(c.config), session=self.control.providers)
                 problems = await llm.preflight() if self.control.providers.active else []
                 if problems:
-                    raise ProviderSetupError('; '.join(problems))
+                    raise ProviderSetupError("; ".join(problems))
                 await triage.triage_pass(c, llm)
+
         while True:
             await response.wait(poll())
             await response.wait(self.checkout.sleep(SERVE_POLL_S))
@@ -357,8 +369,7 @@ class Serve:
         for task in operations:
             cleanup = asyncio.gather(task, return_exceptions=True)
             await _protected_cleanup(cleanup)
-            errors.extend(result for result in cleanup.result()
-                          if isinstance(result, BaseException) and not isinstance(result, asyncio.CancelledError))
+            errors.extend(result for result in cleanup.result() if isinstance(result, BaseException) and not isinstance(result, asyncio.CancelledError))
         if errors:
             raise errors[0]
 
@@ -410,15 +421,14 @@ class Serve:
                 await self.core.startup()
                 self.notifications.poll(startup=True)
             except Exception as exc:
-                raise runner.Refusal(f"serve startup recovery refused: {exc}",
-                                     "repair the recovery evidence and start serve again") from exc
+                raise runner.Refusal(f"serve startup recovery refused: {exc}", "repair the recovery evidence and start serve again") from exc
             self.control.publish()
             if self.signals is not None:
                 restore = self.signals(self.stop)
-            self.checkpoint = checkpoint_push(c.repo, journal=c.journal, effects=Effects(c.journal),
-                timers=self.core.restart.timers, git=c.git, box=self.box, clock=c.clock, log=self.log)
+            self.checkpoint = checkpoint_push(c.repo, journal=c.journal, effects=Effects(c.journal), timers=self.core.restart.timers, git=c.git, box=self.box, clock=c.clock, log=self.log)
             # Guard only this lifetime: the component's ordinary run semantics stay intact.
             pending_failure = None
+
             async def guarded(callback):
                 nonlocal pending_failure, code
                 try:
@@ -429,26 +439,26 @@ class Serve:
                     # belong to this lifetime's cleanup, not another worker failure.
                     if not self.stopping and not self.control.projection.kill_requested:
                         pending_failure = exc
-                        code = (2 if isinstance(exc, (ConfigError, runner.Refusal, ProviderSetupError,
-                                                     JournalCorruption, ExecutableNotFound)) else 1)
+                        code = 2 if isinstance(exc, (ConfigError, runner.Refusal, ProviderSetupError, JournalCorruption, ExecutableNotFound)) else 1
                     self.stop()
                     raise
+
             def observed_failure(_exc):
                 nonlocal pending_failure
                 if pending_failure is not None:
                     exc, pending_failure = pending_failure, None
                     self.failure(exc)
-            self.tasks._consumers = tuple((lambda callback=callback: guarded(callback))
-                                          for callback in self.tasks._consumers)
+
+            self.tasks._consumers = tuple((lambda callback=callback: guarded(callback)) for callback in self.tasks._consumers)
+
             def bind(tasks):
                 self.workers = (worker, *tasks)
                 self.health_tasks = (worker, tasks[1], tasks[2], tasks[0])
-                self.stopper = WorkerStop(lifecycle_id=self.control.projection.lifecycle_id,
-                                         abort=self.abort, workers=self.workers)
-                self.observer = WorkerFailureObserver(lifecycle_id=self.control.projection.lifecycle_id,
-                    workers=self.workers, projection=lambda: self.control.projection, failure=observed_failure)
+                self.stopper = WorkerStop(lifecycle_id=self.control.projection.lifecycle_id, abort=self.abort, workers=self.workers)
+                self.observer = WorkerFailureObserver(lifecycle_id=self.control.projection.lifecycle_id, workers=self.workers, projection=lambda: self.control.projection, failure=observed_failure)
                 self.observation = asyncio.create_task(self.observer.observe())
                 self.ready.set()
+
             self.tasks.started = bind
             self.background = asyncio.create_task(self.tasks.run())
             worker = asyncio.create_task(guarded(self.dispatch))
@@ -477,11 +487,9 @@ class Serve:
                 self.stop()
             except Exception as exc:
                 self.log.event("serve_failed", error=str(exc))
-                code = (2 if isinstance(exc, (ConfigError, runner.Refusal, ProviderSetupError,
-                                             JournalCorruption, ExecutableNotFound)) else 1)
+                code = 2 if isinstance(exc, (ConfigError, runner.Refusal, ProviderSetupError, JournalCorruption, ExecutableNotFound)) else 1
                 self.stop()
-            cleanup = asyncio.create_task(self.control.apply_kill(self.cleanup)
-                if self.control.projection.kill_requested else self.cleanup())
+            cleanup = asyncio.create_task(self.control.apply_kill(self.cleanup) if self.control.projection.kill_requested else self.cleanup())
             try:
                 await _protected_cleanup(cleanup)
             except asyncio.CancelledError:
@@ -504,13 +512,18 @@ class Serve:
                     lock.release()
 
 
-async def serve(checkout: runner.Checkout, *, config_path: Path | None = None,
-                plan: str | None = None, read: Callable[[str], str | None] | None = None,
-                stems: Callable[[], Iterable[str]] | None = None,
-                prepare=runner.prepare_pipeline, signals: Callable | None = None,
-                failure: Callable[[BaseException], None] | None = None) -> int:
+async def serve(
+    checkout: runner.Checkout,
+    *,
+    config_path: Path | None = None,
+    plan: str | None = None,
+    read: Callable[[str], str | None] | None = None,
+    stems: Callable[[], Iterable[str]] | None = None,
+    prepare=runner.prepare_pipeline,
+    signals: Callable | None = None,
+    failure: Callable[[BaseException], None] | None = None,
+) -> int:
     from chupa.__main__ import build_serve
 
-    owner = build_serve(checkout, config_path=config_path, plan=plan, read=read, stems=stems,
-                        prepare=prepare, signals=signals, failure=failure)
+    owner = build_serve(checkout, config_path=config_path, plan=plan, read=read, stems=stems, prepare=prepare, signals=signals, failure=failure)
     return await owner.run()

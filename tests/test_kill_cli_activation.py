@@ -8,7 +8,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from chupa import __main__ as entry, control, daemon, drain, runner, stages
+from chupa import __main__ as entry
+from chupa import control, daemon, drain, runner, stages
 from chupa.audit import audit_journal
 from chupa.control import ControlProjection, ControlRequest, publish_request
 from chupa.journal import EventType, Journal
@@ -42,12 +43,13 @@ def test_live_kill_publishes_only_bound_request(root, monkeypatch, capsys):
     lock = acquire(root)
     discovery(root, "exact-life", "paused")
     monkeypatch.setattr(entry, "uuid4", lambda: SimpleNamespace(hex="kill_1-A"))
+
     def forbidden(*args, **kwargs):
         pytest.fail("second CLI acquired the writer role")
+
     try:
         with monkeypatch.context() as patch:
-            for obj, name in ((Journal, "append"), (entry, "build_control"),
-                              (Lockfile, "release"), (daemon, "control_inbox")):
+            for obj, name in ((Journal, "append"), (entry, "build_control"), (Lockfile, "release"), (daemon, "control_inbox")):
                 patch.setattr(obj, name, forbidden)
             assert invoke(root, "kill") == 0
         assert capsys.readouterr().out == "kill submitted: kill_1-A\n"
@@ -66,46 +68,50 @@ def test_idle_kill_refuses_without_state(root, monkeypatch, capsys, stale):
     state = root / ".chupa/state"
     if stale:
         discovery(root, "old-life", "old-hold")
+
     def contents():
-        return {p.relative_to(state): p.read_bytes() for p in state.rglob("*")
-                if p.is_file() and p.name != "chupa.lock"}
+        return {p.relative_to(state): p.read_bytes() for p in state.rglob("*") if p.is_file() and p.name != "chupa.lock"}
+
     before, trace = contents(), []
     acquire_, release = Lockfile.acquire, Lockfile.release
+
     def acquired(lock):
         acquire_(lock)
         trace.append("lock")
+
     def released(lock):
         assert lock.held
         trace.append("unlock")
         release(lock)
+
     def forbidden(*args, **kwargs):
         pytest.fail("idle kill allocated control state")
+
     with monkeypatch.context() as patch:
         patch.setattr(Lockfile, "acquire", acquired)
         patch.setattr(Lockfile, "release", released)
-        for obj, name in ((entry, "uuid4"), (entry, "build_control"), (Journal, "append"),
-                          (control, "read_active"), (control, "publish_request"),
-                          (control, "write_active")):
+        for obj, name in ((entry, "uuid4"), (entry, "build_control"), (Journal, "append"), (control, "read_active"), (control, "publish_request"), (control, "write_active")):
             patch.setattr(obj, name, forbidden)
         assert invoke(root, "kill") == runner.EXIT_REFUSED
-    assert capsys.readouterr().err == (
-        "chupa kill: nothing running to kill -- start a drain before submitting kill\n")
+    assert capsys.readouterr().err == ("chupa kill: nothing running to kill -- start a drain before submitting kill\n")
     assert contents() == before and trace == ["lock", "unlock"]
     lock = acquire(root)
     lock.release()
 
 
-@pytest.mark.parametrize("raw", [None, b"null\n", b"{", b"{}", b"[]",
-    b'{"lifecycle_id":"","hold_id":null}',
-    b'{"lifecycle_id":"life","hold_id":null,"extra":1}',
-    b'{"lifecycle_id":"life","lifecycle_id":"other","hold_id":null}'])
+@pytest.mark.parametrize(
+    "raw",
+    [None, b"null\n", b"{", b"{}", b"[]", b'{"lifecycle_id":"","hold_id":null}', b'{"lifecycle_id":"life","hold_id":null,"extra":1}', b'{"lifecycle_id":"life","lifecycle_id":"other","hold_id":null}'],
+)
 def test_kill_discovery_and_lifecycle_races_fail_closed(root, monkeypatch, capsys, raw):
     original = Lockfile.acquire
     owner = Lockfile(root / ".chupa/state", instance_id="racing-owner", clock=Clock())
+
     def race(lock):
         if not owner.held:
             original(owner)
         original(lock)
+
     monkeypatch.setattr(Lockfile, "acquire", race)
     try:
         if raw is not None:
@@ -115,25 +121,34 @@ def test_kill_discovery_and_lifecycle_races_fail_closed(root, monkeypatch, capsy
         assert requests(root) == []
         discovery(root, "previous", "hold")
         publish = control.publish_request
+
         def replaced(state, request, fs):
             discovery(root, "replacement")
             publish(state, request, fs)
+
         monkeypatch.setattr(control, "publish_request", replaced)
         assert invoke(root, "kill") == 0
         [request] = requests(root)
         assert request["lifecycle_id"] == "previous" and request["hold_id"] is None
         journal = Journal(owner.state_dir, Clock())
-        consumer = daemon.PauseConsumer(journal=journal, lifecycle_id="replacement",
-            state_dir=owner.state_dir, fs=LocalFileSystem(), sleep=lambda _: turn(),
-            files=lambda: (owner.state_dir / "control/inbox").glob("*"), read=Path.read_bytes)
+        consumer = daemon.PauseConsumer(
+            journal=journal,
+            lifecycle_id="replacement",
+            state_dir=owner.state_dir,
+            fs=LocalFileSystem(),
+            sleep=lambda _: turn(),
+            files=lambda: (owner.state_dir / "control/inbox").glob("*"),
+            read=Path.read_bytes,
+        )
         consumer.inbox.consume()
         aborts = []
+
         async def abort():
             aborts.append(True)
+
         asyncio.run(consumer.apply_kill(abort))
         assert aborts == [] and consumer.projection == ControlProjection("replacement")
-        assert journal.read()[-1].body == decision(request["request_id"], life="previous",
-            result="stale", reason="read the current lifecycle and submit a new request")
+        assert journal.read()[-1].body == decision(request["request_id"], life="previous", result="stale", reason="read the current lifecycle and submit a new request")
         assert applications(journal) == [] and requests(root) == [request]
         monkeypatch.setattr(control, "publish_request", publish)
         assert invoke(root, "pause") == 0
@@ -152,23 +167,29 @@ def exercise_live_cli_kill(root, monkeypatch):
     write(root, "work", confirmed())
     trace, composed, controls = [], [], []
     factory = entry.build_control
+
     def build(checkout):
         consumer = factory(checkout)
         controls.append(consumer)
         return consumer
+
     monkeypatch.setattr(entry, "build_control", build)
     original_drive = runner.drive
+
     async def observed(ctx, work):
         dispatch_tasks.append(asyncio.current_task())
         try:
             return await original_drive(ctx, work)
         finally:
             trace.append("dispatch-clean")
+
     monkeypatch.setattr(runner, "drive", observed)
     original_abort = stages.StageContext.abort_current
+
     async def forward(ctx):
         trace.append("stage-abort")
         await original_abort(ctx)
+
     monkeypatch.setattr(stages.StageContext, "abort_current", forward)
 
     class LLM(Writer):
@@ -183,10 +204,14 @@ def exercise_live_cli_kill(root, monkeypatch):
                 assert await asyncio.to_thread(invoke, root, "kill") == 0
                 wake.put_nowait(None)
                 await self.unwinding.wait()
-                unwind_valid.append(self.driver._active is not None
-                    and applications(checkout.journal) == [] and "dispatch-clean" not in trace
-                    and (checkout.config.state_dir / "control/active.json").read_bytes() != b"null\n")
+                unwind_valid.append(
+                    self.driver._active is not None
+                    and applications(checkout.journal) == []
+                    and "dispatch-clean" not in trace
+                    and (checkout.config.state_dir / "control/active.json").read_bytes() != b"null\n"
+                )
                 self.release.set()
+
             manager = asyncio.create_task(kill())
             try:
                 return await super().call(req)
@@ -197,8 +222,7 @@ def exercise_live_cli_kill(root, monkeypatch):
         def abort_current(self):
             assert checkout.control.projection.kill_requested
             [request] = requests(root)
-            assert any(e.body == decision(request["request_id"], life=request["lifecycle_id"])
-                       for e in checkout.journal.read())
+            assert any(e.body == decision(request["request_id"], life=request["lifecycle_id"]) for e in checkout.journal.read())
             trace.append("executor-stop")
             dispatch_cancelled.append(bool(dispatch_tasks[0].cancelling()))
             super().abort_current()
@@ -209,10 +233,13 @@ def exercise_live_cli_kill(root, monkeypatch):
     wake = asyncio.Queue()
     checkout = None
     bind = runner.bind
+
     def composed_bind(c, model):
         nonlocal checkout
+
         async def sleep(_):
             await wake.get()
+
         checkout = c
         # The same consumer and executor cross the production callable boundary.
         checkout.control.sleep = sleep
@@ -225,17 +252,19 @@ def exercise_live_cli_kill(root, monkeypatch):
         llm.driver = writer.ctx.driver
         llm.driver.sleep = Timer()
         append = checkout.journal.append
+
         def recorded(type, body, **kwargs):
             if body.get("kind") == daemon.KILL_APPLIED:
                 trace.append("applied")
             return append(type, body, **kwargs)
+
         monkeypatch.setattr(checkout.journal, "append", recorded)
         composed.append(writer)
         return writer
+
     monkeypatch.setattr(runner, "ProviderLLM", lambda *args, **kwargs: llm)
     monkeypatch.setattr(runner, "bind", composed_bind)
-    assert entry.main(["drain"], cwd=root, env=ENV, clock=Clock(), pipeline=runner.pipeline,
-                      reexec=NoChild()) == runner.EXIT_TICKET
+    assert entry.main(["drain"], cwd=root, env=ENV, clock=Clock(), pipeline=runner.pipeline, reexec=NoChild()) == runner.EXIT_TICKET
     assert len(controls) == len(composed) == 1
     assert llm.calls == llm.aborts == llm.cancels == 1
     assert dispatch_cancelled == [False], "dispatch cancelled before composed executor abort"
@@ -256,13 +285,14 @@ def exercise_live_cli_kill(root, monkeypatch):
 def test_live_drain_kill_reaches_production_driver(root, monkeypatch, capsys, binding):
     if binding != "intact":
         abort = stages.StageContext.abort_current
+
         async def broken(ctx):
             if binding == "forwarding":
                 return
             [request] = requests(root)
-            ctx.driver.journal.append(EventType.SIGNAL,
-                applied(request["request_id"], request["lifecycle_id"]))
+            ctx.driver.journal.append(EventType.SIGNAL, applied(request["request_id"], request["lifecycle_id"]))
             await abort(ctx)
+
         monkeypatch.setattr(stages.StageContext, "abort_current", broken)
         with pytest.raises(AssertionError):
             exercise_live_cli_kill(root, monkeypatch)
@@ -274,8 +304,7 @@ def test_live_drain_kill_reaches_production_driver(root, monkeypatch, capsys, bi
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("kind", ["fresh", "retry", "machine-keep", "premise", "spec-gap", "preparation",
-                                 "stage-preparation", "verification", "between-calls", "upgrade"])
+@pytest.mark.parametrize("kind", ["fresh", "retry", "machine-keep", "premise", "spec-gap", "preparation", "stage-preparation", "verification", "between-calls", "upgrade"])
 async def test_kill_stops_before_all_offer_accounting(root, monkeypatch, kind):
     if kind in {"stage-preparation", "verification", "between-calls", "upgrade"}:
         await kill_between_calls(root, monkeypatch, kind)
@@ -298,9 +327,11 @@ async def test_kill_stops_before_all_offer_accounting(root, monkeypatch, kind):
     before = offer_events(root)
     writer = runner.bind(c, FakeLLM([]))
     prepared, release = asyncio.Event(), asyncio.Event()
+
     async def prepare():
         prepared.set()
         await release.wait()
+
     task = asyncio.create_task(live.run(writer, before_dispatch=prepare if kind == "preparation" else None))
     await live.held.get()
     if kind == "preparation":
@@ -323,6 +354,7 @@ async def kill_between_calls(root, monkeypatch, kind):
     write(root, "work", confirmed().replace("uv run pytest", "true"))
     await c.git.add(root, ["tickets/work/ticket.md"])
     await c.git.commit(root, "ticket")
+
     class Editing(FakeLLM):
         async def call(self, req):
             if req.surface == "implement":
@@ -330,43 +362,54 @@ async def kill_between_calls(root, monkeypatch, kind):
                 await c.git.add(req.worktree, ["chupa/thing.py"])
                 await c.git.commit(req.worktree, "work")
             return await super().call(req)
+
     llm = Editing([implement_reply(), verdict()])
     writer = runner.bind(c, llm)
     writer.ctx.driver.sleep = Timer()
     entered, never = asyncio.Event(), asyncio.Event()
     cleaned = []
+
     async def barrier():
         entered.set()
         try:
             await never.wait()
         finally:
             cleaned.append(True)
+
     if kind == "stage-preparation":
         original = c.git.worktree_add
+
         async def held(*args, **kwargs):
             await original(*args, **kwargs)
             await barrier()
+
         monkeypatch.setattr(c.git, "worktree_add", held)
     elif kind == "verification":
         original = c.exec_.run
+
         async def held(argv, **kwargs):
             if list(argv) == ["true"]:
                 await barrier()
             return await original(argv, **kwargs)
+
         monkeypatch.setattr(c.exec_, "run", held)
     elif kind == "between-calls":
         original = stages.review
+
         async def held(*args, **kwargs):
             await barrier()
             return await original(*args, **kwargs)
+
         monkeypatch.setattr(stages, "review", held)
     else:
         original = c.git.diff_names
+
         async def upgrade(repo, base, stem):
             paths = await original(repo, base, stem)
             if base == stem + "^":
                 live.request("kill", "kill")
             return paths
+
         monkeypatch.setattr(c.git, "diff_names", upgrade)
     task = asyncio.create_task(live.run(writer))
     try:
@@ -381,7 +424,7 @@ async def kill_between_calls(root, monkeypatch, kind):
         assert applications(c.journal) == [applied("kill", live.consumer.inbox.lifecycle_id)]
         events = c.journal.read()
         accepted = next(i for i, e in enumerate(events) if e.body.get("kind") == control.CONTROL_DECISION)
-        assert all(e.body.get("kind") == daemon.KILL_APPLIED for e in events[accepted + 1:])
+        assert all(e.body.get("kind") == daemon.KILL_APPLIED for e in events[accepted + 1 :])
         assert audit_journal(c.journal) == []
         if kind == "upgrade":
             assert last_states(events)["work"] == "merged" and report.merged == ["work"]
@@ -400,6 +443,7 @@ async def kill_between_calls(root, monkeypatch, kind):
 
 class ActiveKill:
     """Production writer in the merged harness, with held executor and dispatch cleanup."""
+
     def __init__(self, root, monkeypatch):
         self.live = LiveDrain(root, monkeypatch, pause=False)
         self.c = self.live.checkout
@@ -413,18 +457,22 @@ class ActiveKill:
         self.dispatch_task = None
         self.failure = None
         drive = runner.drive
+
         async def observed(ctx, work):
             self.dispatch_task = asyncio.current_task()
             try:
                 return await drive(ctx, work)
             finally:
+
                 async def cleanup():
                     self.cleaning.set()
                     await self.release.wait()
                     self.cleaned = True
                     if self.failure is not None:
                         raise self.failure
+
                 await daemon._protected_cleanup(asyncio.create_task(cleanup()))
+
         monkeypatch.setattr(runner, "drive", observed)
 
     async def start(self):
@@ -446,8 +494,7 @@ class ActiveKill:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("point", ["accepted", "applied", "before-append", "after-append",
-                                  "undecided", "stale", "rejected", "foreign-projection"])
+@pytest.mark.parametrize("point", ["accepted", "applied", "before-append", "after-append", "undecided", "stale", "rejected", "foreign-projection"])
 async def test_kill_application_is_once_and_identity_bound(root, monkeypatch, point):
     baseline = asyncio.all_tasks()
     if point in {"undecided", "stale", "rejected", "foreign-projection"}:
@@ -459,9 +506,7 @@ async def test_kill_application_is_once_and_identity_bound(root, monkeypatch, po
         if point == "foreign-projection":
             consumer.projection = ControlProjection("other-life", kill_requested=True)
         else:
-            publish_request(c.config.state_dir, ControlRequest("kill",
-                "prior-life" if point == "stale" else consumer.inbox.lifecycle_id,
-                "kill", None), c.fs)
+            publish_request(c.config.state_dir, ControlRequest("kill", "prior-life" if point == "stale" else consumer.inbox.lifecycle_id, "kill", None), c.fs)
             if point == "undecided":
                 consumer.inbox.files = lambda: ()
             if point == "rejected":
@@ -503,22 +548,27 @@ async def test_kill_application_is_once_and_identity_bound(root, monkeypatch, po
         if point == "applied":
             for body in expected:
                 journal.append(EventType.SIGNAL, body)
+
         def reconstruct(lifecycle=life):
-            return daemon.PauseConsumer(journal=journal, lifecycle_id=lifecycle, state_dir=state,
-                fs=c.fs, sleep=c.sleep, files=lambda: (), read=Path.read_bytes)
+            return daemon.PauseConsumer(journal=journal, lifecycle_id=lifecycle, state_dir=state, fs=c.fs, sleep=c.sleep, files=lambda: (), read=Path.read_bytes)
+
         recovered = reconstruct()
         recovered.inbox.recover()
         aborts = []
+
         async def abort():
             aborts.append(True)
+
         append = journal.append
         if point in {"before-append", "after-append"}:
+
             def failed(type, body, **kwargs):
                 if body.get("kind") == daemon.KILL_APPLIED:
                     if point == "after-append":
                         append(type, body, **kwargs)
                     raise OSError("application append failed")
                 return append(type, body, **kwargs)
+
             monkeypatch.setattr(journal, "append", failed)
             with pytest.raises(OSError, match="application append failed"):
                 await recovered.apply_kill(abort)
@@ -553,24 +603,31 @@ async def test_kill_cleanup_is_atomic_and_failures_propagate(root, monkeypatch, 
         await c.git.commit(root, "ticket")
         started, finish, refused = (asyncio.Event() for _ in range(3))
         calls, dispatches = [], []
+
         class Ending(FakeLLM):
             async def call(self, req):
                 calls.append(req)
                 started.set()
                 await finish.wait()
                 raise asyncio.CancelledError("provider ended independently")
+
             def abort_current(self):
                 pytest.fail("failed abort cancelled the active executor")
+
         writer = runner.bind(c, Ending([]))
         writer.ctx.driver.sleep = Timer()
+
         async def abort(_):
             refused.set()
             raise RuntimeError("executor refused")
+
         monkeypatch.setattr(stages.StageContext, "abort_current", abort)
         drive = runner.drive
+
         async def observed(ctx, work):
             dispatches.append(asyncio.current_task())
             return await drive(ctx, work)
+
         monkeypatch.setattr(runner, "drive", observed)
         task = asyncio.create_task(live.run(writer))
         try:
@@ -600,21 +657,26 @@ async def test_kill_cleanup_is_atomic_and_failures_propagate(root, monkeypatch, 
         await c.git.add(root, ["tickets/work/ticket.md"])
         await c.git.commit(root, "ticket")
         started, finish = asyncio.Event(), asyncio.Event()
+
         class Completing(FakeLLM):
             async def call(self, req):
                 started.set()
                 await finish.wait()
                 return await super().call(req)
+
             def abort_current(self):
                 pytest.fail("failed decision authorized executor mutation")
+
         llm = Completing([implement_reply("already_satisfied")])
         writer = runner.bind(c, llm)
         writer.ctx.driver.sleep = Timer()
         append = c.journal.append
+
         def failed(type, body, **kwargs):
             if body.get("kind") == control.CONTROL_DECISION:
                 raise RuntimeError("decision append failed")
             return append(type, body, **kwargs)
+
         monkeypatch.setattr(c.journal, "append", failed)
         task = asyncio.create_task(live.run(writer))
         try:
@@ -642,16 +704,20 @@ async def test_kill_cleanup_is_atomic_and_failures_propagate(root, monkeypatch, 
     append = c.journal.append
     error = RuntimeError("cleanup refused")
     if failure == "application":
+
         def fail(type, body, **kwargs):
             if body.get("kind") == daemon.KILL_APPLIED:
                 raise error
             return append(type, body, **kwargs)
+
         monkeypatch.setattr(c.journal, "append", fail)
     if failure == "executor":
         original = rig.writer.ctx.abort_current
+
         async def fail():
             await original()
             raise error
+
         monkeypatch.setattr(stages.StageContext, "abort_current", lambda _: fail())
     if failure == "dispatch":
         rig.failure = error
@@ -706,13 +772,13 @@ def test_killed_run_is_terminal_or_restart_reconcilable(root, monkeypatch, termi
         assert events.index(abandoned) < events.index(next_run)
         harvest = root / "tickets/work/attempts/0/harvest.json"
         assert json.loads(harvest.read_bytes())["terminal"] == "abandoned"
-        lift = next(e for e in events if e.type == EventType.EFFECT_COMPLETION and
-                    e.body.get("result", {}).get("kind") == "harvest")
+        lift = next(e for e in events if e.type == EventType.EFFECT_COMPLETION and e.body.get("result", {}).get("kind") == "harvest")
         assert events.index(lift) < events.index(abandoned)
         assert not writer.ctx.worktree("work").exists()
         assert all(e in events for e in producing)
         assert not orphans(events)
     else:
+
         async def completed():
             live = LiveDrain(root, monkeypatch, pause=False)
             c = live.checkout
@@ -721,63 +787,82 @@ def test_killed_run_is_terminal_or_restart_reconcilable(root, monkeypatch, termi
             await c.git.commit(root, "ticket")
             writer = runner.bind(c, FakeLLM([agent({}, outcome="already_satisfied")]))
             append = c.journal.append
+
             def terminal_then_kill(type, body, **kwargs):
                 event = append(type, body, **kwargs)
                 if body.get("to") == "already_satisfied":
                     live.request("kill", "kill")
                 return event
+
             monkeypatch.setattr(c.journal, "append", terminal_then_kill)
             report = await live.run(writer)
             assert report.killed and report.exit_code == 1
             assert last_states(c.journal.read())["work"] == "already_satisfied"
             assert not orphans(c.journal.read()) and audit_journal(c.journal) == []
             assert not writer.ctx.worktree("work").exists()
+
         asyncio.run(completed())
 
 
 @pytest.mark.parametrize("boundary", ["stop", "observe"])
 def test_kill_activation_keeps_worker_boundaries_dormant(root, tmp_path, monkeypatch, boundary):
     cls = daemon.WorkerStop if boundary == "stop" else daemon.WorkerFailureObserver
+
     async def probe(*args, **kwargs):
         raise AssertionError("worker boundary activated")
+
     monkeypatch.setattr(cls, boundary, probe)
     for verb in ("run", "drain"):
         stem = "work-" + verb
         write(root, stem, confirmed().replace("uv run pytest", "true"))
+
         def wired(checkout):
             writer = runner.bind(checkout, FakeLLM([]))
+
             async def dispatch(work):
                 await getattr(cls, boundary)(None)
+
             return dispatch
+
         args = [verb, stem] if verb == "run" else [verb]
         with pytest.raises(AssertionError, match="worker boundary activated"):
             entry.main(args, cwd=root, env=ENV, clock=Clock(), pipeline=wired)
+
         def callback(checkout):
             return runner.bind(checkout, FakeLLM([agent({}, outcome="already_satisfied")]))
+
         assert entry.main(args, cwd=root, env=ENV, clock=Clock(), pipeline=callback) == (1 if verb == "run" else 0)
+
     async def composed():
         baseline = asyncio.all_tasks()
         directory = tmp_path / "composition"
         directory.mkdir()
+
         async def prepare(local):
             writer = runner.bind(local, FakeLLM([]))
+
             async def dispatch(work):
                 return "merged"
+
             return dispatch
+
         rig = CoreRig(directory, prepare=prepare)
         assert_core_wiring(rig)
         assert rig.fs.files == {} and rig.exec.calls == [] and rig.journal.read() == []
         assert asyncio.all_tasks() == baseline
         work = await rig.add("composed")
         original = rig.core.admission._dispatch
+
         async def deliberate(work):
             await getattr(cls, boundary)(None)
+
         rig.core.admission._dispatch = deliberate
         with pytest.raises(AssertionError, match="worker boundary activated"):
             await rig.core.admission.dispatch(work)
         rig.core.admission._dispatch = original
         await rig.drain()
         assert asyncio.all_tasks() == baseline
+
     asyncio.run(composed())
     # An accepted kill still reaches only the executor boundary, never worker stop.
     with monkeypatch.context() as patch:

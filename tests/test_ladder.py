@@ -14,7 +14,6 @@ from tests.test_drain_reentry import NoChild
 from tests.test_stages import ENV, SNAG, STEM, agent, git, verdict
 from tests.test_terminal import author, clock, repo  # noqa: F401 -- fixture
 
-
 ROUTING = """schema_version: 1
 state_dir: .chupa/state
 providers:
@@ -48,14 +47,12 @@ def events(repo):
 
 
 def terminals(repo):
-    return [e.body for e in events(repo) if e.type == EventType.STATE_TRANSITION
-            and e.body.get("to") == "gate_failed"]
+    return [e.body for e in events(repo) if e.type == EventType.STATE_TRANSITION and e.body.get("to") == "gate_failed"]
 
 
 def run_drain(repo, script):
     llm = FakeLLM(script)
-    code = main(["drain"], cwd=repo, env=ENV, clock=clock,
-                pipeline=lambda c: runner.bind(c, llm), reexec=NoChild())
+    code = main(["drain"], cwd=repo, env=ENV, clock=clock, pipeline=lambda c: runner.bind(c, llm), reexec=NoChild())
     assert code == 0
     return llm
 
@@ -66,9 +63,9 @@ def test_next_rung_skips_same_model_and_missing_routes(repo):
     assert next_rung(config, "low", "medium") == {"tier": "high", "effort": "medium"}
     assert next_rung(config, "high", "medium") == {"tier": "high", "effort": "high"}
     assert next_rung(config, "high", "max") is None
-    (repo / "config.yaml").write_text(ROUTING.replace(
-        "  - {tier: medium, surface: implement, candidates: [{provider: fake}]}\n", "").replace(
-        "  - {tier: medium, surface: review, candidates: [{provider: fake}]}\n", ""))
+    (repo / "config.yaml").write_text(
+        ROUTING.replace("  - {tier: medium, surface: implement, candidates: [{provider: fake}]}\n", "").replace("  - {tier: medium, surface: review, candidates: [{provider: fake}]}\n", "")
+    )
     assert next_rung(load_config(None, cwd=repo), "low", "medium") == {"tier": "high", "effort": "medium"}
 
 
@@ -77,12 +74,10 @@ def test_escalation_rung_reaches_next_implement_without_editing_ticket(repo):
     author(repo)
     path = repo / "tickets" / STEM / "ticket.md"
     before = path.read_bytes()
-    llm = run_drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("escalate"),
-                           agent({"chupa/thing.py": "ok\n"}), verdict()])
-    first, = terminals(repo)
-    assert first == {"to": "gate_failed", "stage": "review", "reason": "logic", "dispatch": "escalate",
-                     "rung": {"tier": "high", "effort": "medium"}}
-    retry, = [e.body for e in events(repo) if e.type == EventType.CAP_CONSUMED and e.body["cap"] == "retry"]
+    llm = run_drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("escalate"), agent({"chupa/thing.py": "ok\n"}), verdict()])
+    (first,) = terminals(repo)
+    assert first == {"to": "gate_failed", "stage": "review", "reason": "logic", "dispatch": "escalate", "rung": {"tier": "high", "effort": "medium"}}
+    (retry,) = [e.body for e in events(repo) if e.type == EventType.CAP_CONSUMED and e.body["cap"] == "retry"]
     assert retry["rung"] == first["rung"]
     implements = [r for r in llm.requests if r.surface == "implement"]
     assert [(r.tier, r.effort) for r in implements] == [("medium", "medium"), ("high", "medium")]
@@ -94,12 +89,9 @@ def test_escalation_rung_reaches_next_implement_without_editing_ticket(repo):
 @pytest.mark.parametrize("verdict_", ["reject", "abandon-human"])
 def test_reject_verdicts_auto_keep_once_and_draw_down(repo, verdict_):
     author(repo)
-    run_drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis(verdict_),
-                     agent({"chupa/thing.py": "ok\n"}), verdict()])
-    assert terminals(repo)[0] == {"to": "gate_failed", "stage": "review", "reason": "logic",
-                                   "dispatch": "reject_queue", "routed": "reject_queue"}
-    keeps = [e for e in events(repo) if e.type == EventType.SIGNAL
-             and e.body.get("signal") == "reject_verdict"]
+    run_drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis(verdict_), agent({"chupa/thing.py": "ok\n"}), verdict()])
+    assert terminals(repo)[0] == {"to": "gate_failed", "stage": "review", "reason": "logic", "dispatch": "reject_queue", "routed": "reject_queue"}
+    keeps = [e for e in events(repo) if e.type == EventType.SIGNAL and e.body.get("signal") == "reject_verdict"]
     assert [e.body for e in keeps] == [{"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}]
     assert draws(events(repo), STEM, "retry") == 1
     assert remaining(load_config(None, cwd=repo).caps, events(repo), STEM, "retry") == 2
@@ -110,8 +102,7 @@ def test_exhausted_ladder_routes_and_auto_keeps(repo):
     author(repo)
     path = repo / "tickets" / STEM / "ticket.md"
     path.write_text(path.read_text().replace("kind: feature", "kind: feature\nagent_tier: high\nagent_effort: max"))
-    run_drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("escalate"),
-                     agent({"chupa/thing.py": "ok\n"}), verdict()])
+    run_drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("escalate"), agent({"chupa/thing.py": "ok\n"}), verdict()])
     assert terminals(repo)[0]["dispatch"] == "reject_queue"
     assert terminals(repo)[0]["routed"] == "reject_queue"
     assert sum(e.body.get("actor") == "machine" for e in events(repo) if e.type == EventType.SIGNAL) == 1
@@ -121,21 +112,42 @@ def test_exhausted_ladder_routes_and_auto_keeps(repo):
 def test_same_retry_wall_climbs_on_second_terminal(repo):
     (repo / "config.yaml").write_text(ROUTING)
     author(repo)
-    run_drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("retry"),
-                     agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("retry"),
-                     agent({"chupa/thing.py": "ok\n"}), verdict()])
+    run_drain(
+        repo,
+        [
+            agent({"chupa/thing.py": "ok\n"}),
+            verdict("snag", [SNAG]),
+            diagnosis("retry"),
+            agent({"chupa/thing.py": "ok\n"}),
+            verdict("snag", [SNAG]),
+            diagnosis("retry"),
+            agent({"chupa/thing.py": "ok\n"}),
+            verdict(),
+        ],
+    )
     first, second = terminals(repo)
-    assert (first["dispatch"], second["dispatch"], second["rung"]) == (
-        "retry", "escalate", {"tier": "high", "effort": "medium"})
+    assert (first["dispatch"], second["dispatch"], second["rung"]) == ("retry", "escalate", {"tier": "high", "effort": "medium"})
 
 
 def test_three_identical_reasons_climb_even_after_different_verdict(repo):
     (repo / "config.yaml").write_text(ROUTING + "\ncaps: {diagnosis: 4}\n")
     author(repo)
-    llm = run_drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("retry"),
-                           agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("escalate"),
-                           agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("retry"),
-                           agent({"chupa/thing.py": "ok\n"}), verdict()])
+    llm = run_drain(
+        repo,
+        [
+            agent({"chupa/thing.py": "ok\n"}),
+            verdict("snag", [SNAG]),
+            diagnosis("retry"),
+            agent({"chupa/thing.py": "ok\n"}),
+            verdict("snag", [SNAG]),
+            diagnosis("escalate"),
+            agent({"chupa/thing.py": "ok\n"}),
+            verdict("snag", [SNAG]),
+            diagnosis("retry"),
+            agent({"chupa/thing.py": "ok\n"}),
+            verdict(),
+        ],
+    )
     first, second, third = terminals(repo)
     assert [t["reason"] for t in (first, second, third)] == ["logic"] * 3
     assert third["dispatch"] == "escalate"
@@ -148,9 +160,19 @@ def test_same_retry_wall_at_top_routes_to_queue(repo):
     author(repo)
     path = repo / "tickets" / STEM / "ticket.md"
     path.write_text(path.read_text().replace("kind: feature", "kind: feature\nagent_tier: high\nagent_effort: max"))
-    run_drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("retry"),
-                     agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("retry"),
-                     agent({"chupa/thing.py": "ok\n"}), verdict()])
+    run_drain(
+        repo,
+        [
+            agent({"chupa/thing.py": "ok\n"}),
+            verdict("snag", [SNAG]),
+            diagnosis("retry"),
+            agent({"chupa/thing.py": "ok\n"}),
+            verdict("snag", [SNAG]),
+            diagnosis("retry"),
+            agent({"chupa/thing.py": "ok\n"}),
+            verdict(),
+        ],
+    )
     first, second = terminals(repo)
     assert first["dispatch"] == "retry"
     assert second["dispatch"] == "reject_queue" and second["routed"] == "reject_queue"
@@ -163,8 +185,7 @@ def test_operator_confirm_resets_effective_rung(repo):
 
     def run_one(script):
         llm = FakeLLM(script)
-        assert main(["run", STEM], cwd=repo, env=ENV, clock=clock,
-                    pipeline=lambda c: runner.bind(c, llm)) == 1
+        assert main(["run", STEM], cwd=repo, env=ENV, clock=clock, pipeline=lambda c: runner.bind(c, llm)) == 1
         return llm
 
     run_one([agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("escalate")])
@@ -175,37 +196,40 @@ def test_operator_confirm_resets_effective_rung(repo):
     assert next(r for r in second.requests if r.surface == "implement").tier == "high"
     assert main(["confirm", STEM], cwd=repo, env=ENV, clock=clock, terminal=(lambda: True, lambda _: "y")) == 0
     third = run_one([agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("reject")])
-    assert (next(r for r in third.requests if r.surface == "implement").tier,
-            next(r for r in third.requests if r.surface == "implement").effort) == ("medium", "medium")
+    assert (next(r for r in third.requests if r.surface == "implement").tier, next(r for r in third.requests if r.surface == "implement").effort) == ("medium", "medium")
 
 
 @pytest.mark.parametrize("failure", [None, "review", "commit", "partial"])
 def test_split_dispatches_reviewed_rework(repo, monkeypatch, failure):
     from tests.test_rework import order, requisition, successors
+
     author(repo)
+
     def split(req):
         assert req.surface == "rework"
         text = (repo / f"tickets/{STEM}/ticket.md").read_text().strip()
         return order("split", successors(text))
+
     if failure in {"commit", "partial"}:
         from chupa.git import Git
+
         commit = Git.commit
+
         async def refuse(self, root, message, **kwargs):
             if message.endswith(": rework"):
                 if failure == "partial":
                     await commit(self, root, message, only=["tickets/piece-one/ticket.md"])
                 raise RuntimeError("publication refused")
             return await commit(self, root, message, **kwargs)
+
         monkeypatch.setattr(Git, "commit", refuse)
-    script = [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("split"), split,
-              requisition("rma") if failure == "review" else requisition()]
+    script = [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("split"), split, requisition("rma") if failure == "review" else requisition()]
     if failure != "review":
         script.append(requisition())
     llm = FakeLLM(script)
-    assert main(["run", STEM], cwd=repo, env=ENV, clock=clock,
-                pipeline=lambda c: runner.bind(c, llm)) == 1
+    assert main(["run", STEM], cwd=repo, env=ENV, clock=clock, pipeline=lambda c: runner.bind(c, llm)) == 1
     history = events(repo)
-    producing, = terminals(repo)
+    (producing,) = terminals(repo)
     expected = {"to": "gate_failed", "stage": "review", "reason": "logic"}
     if failure:
         expected.update(dispatch="reject_queue", routed="reject_queue")
@@ -220,10 +244,13 @@ def test_split_dispatches_reviewed_rework(repo, monkeypatch, failure):
         for _ in range(load_config(None, cwd=repo).caps.retry):
             consume(j, STEM, "retry", "old")
         before = [e for e in j.read() if e.body.get("signal") == "ticket_intake"]
+
         def pipeline(checkout):
             async def forbidden(ticket):
                 pytest.fail("following drain dispatched refused split output")
+
             return forbidden
+
         assert main(["drain"], cwd=repo, env=ENV, clock=clock, pipeline=pipeline, reexec=NoChild()) == 0
         assert [e for e in j.read() if e.body.get("signal") == "ticket_intake"] == before
         assert git(repo, "status", "--porcelain") == ""
@@ -241,6 +268,7 @@ def test_split_dispatches_reviewed_rework(repo, monkeypatch, failure):
 @pytest.mark.parametrize("action", ["escalate", "exhausted", "update"])
 def test_rework_escalation_preserves_starting_capability_and_caps(repo, action):
     from tests.test_rework import order, requisition
+
     (repo / "config.yaml").write_text(ROUTING)
     author(repo)
     # Intake happens before the scripted model call; journal capability is deliberately higher than birth.
@@ -249,8 +277,8 @@ def test_rework_escalation_preserves_starting_capability_and_caps(repo, action):
         starting = starting.replace("kind: feature", "kind: feature\nagent_tier: high\nagent_effort: max")
         (repo / f"tickets/{STEM}/ticket.md").write_text(starting)
     else:
-        consume(Journal(repo / ".chupa/state", clock), STEM, "retry", "prior",
-                rung={"tier": "high", "effort": "medium"})
+        consume(Journal(repo / ".chupa/state", clock), STEM, "retry", "prior", rung={"tier": "high", "effort": "medium"})
+
     def reply(req):
         assert req.surface == "rework" and req.tier == "high"
         assert req.effort == ("max" if action == "exhausted" else "medium")
@@ -258,6 +286,7 @@ def test_rework_escalation_preserves_starting_capability_and_caps(repo, action):
         if action == "update":
             return order("update", [(STEM, current.replace("holds the word ok", "holds ok after narrowing"))])
         return order("escalate")
+
     script = [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("split"), reply]
     if action == "update":
         script.append(requisition())
@@ -266,8 +295,7 @@ def test_rework_escalation_preserves_starting_capability_and_caps(repo, action):
         llm = run_drain(repo, script)
     else:
         llm = FakeLLM(script)
-        assert main(["run", STEM], cwd=repo, env=ENV, clock=clock,
-                    pipeline=lambda c: runner.bind(c, llm)) == 1
+        assert main(["run", STEM], cwd=repo, env=ENV, clock=clock, pipeline=lambda c: runner.bind(c, llm)) == 1
     terminal = terminals(repo)[0]
     if action == "exhausted":
         assert terminal["dispatch"] == terminal["routed"] == "reject_queue" and "rung" not in terminal
@@ -282,7 +310,6 @@ def test_rework_escalation_preserves_starting_capability_and_caps(repo, action):
         assert "routed" not in terminal
         retry = [e.body for e in events(repo) if e.type == EventType.CAP_CONSUMED and e.body["cap"] == "retry"]
         assert len(retry) == 2 and retry[-1]["rung"] == terminal["rung"]
-        assert [(r.tier, r.effort) for r in llm.requests if r.surface == "implement"] == [
-            ("high", "medium"), ("high", "high")]
+        assert [(r.tier, r.effort) for r in llm.requests if r.surface == "implement"] == [("high", "medium"), ("high", "high")]
         assert "agent_tier: high" not in (repo / f"tickets/{STEM}/ticket.md").read_text()
     assert draws(events(repo), STEM, "diagnosis") == 1

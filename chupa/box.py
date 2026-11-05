@@ -14,8 +14,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 
 from chupa.config import load_config
 from chupa.git import Git
-from chupa.journal import EventType, Journal
 from chupa.inbox import CAPS, EvidencePaths, ReportDescriptor, SelfReport, bounded
+from chupa.journal import EventType, Journal
 from chupa.seams import Clock, FileSystem, LocalFileSystem, SubprocessExec
 
 BOX_DIR = "box"
@@ -87,9 +87,7 @@ class Message(_Strict):
 
     @model_validator(mode="after")
     def _coherent(self) -> "Message":
-        if self.report is not None and (self.message_class != "bug_report"
-                or self.bug_origin != self.report.report.origin
-                or self.has_repro != (self.report.custody.replay is not None)):
+        if self.report is not None and (self.message_class != "bug_report" or self.bug_origin != self.report.report.origin or self.has_repro != (self.report.custody.replay is not None)):
             raise ValueError("host report descriptor must agree with bug origin and copied replay")
         if self.report_arrivals and self.report is None:
             raise ValueError("report arrival receipts require host report custody")
@@ -117,8 +115,7 @@ class RereportJournal:
         self.journal = journal
 
     def __call__(self, message: Message) -> None:
-        body = {"kind": "tombstone_auto_reopened", "box_id": message.id,
-                "signature": message.signature, "reports": message.reports}
+        body = {"kind": "tombstone_auto_reopened", "box_id": message.id, "signature": message.signature, "reports": message.reports}
         key = f"tombstone-reopen/{message.id}/{message.reports}"
         prior = [e for e in self.journal.read() if e.key == key]
         if prior:
@@ -134,27 +131,20 @@ class RereportJournal:
         if any(e.type == EventType.EFFECT_COMPLETION for e in events):
             return
         intent = next((e for e in events if e.type == EventType.EFFECT_INTENT), None)
-        if intent is not None and (set(intent.body) != {"reports"}
-                or type(intent.body["reports"]) is not int or intent.body["reports"] < 1):
+        if intent is not None and (set(intent.body) != {"reports"} or type(intent.body["reports"]) is not int or intent.body["reports"] < 1):
             raise BoxError("invalid re-report receipt; restore its journal-backed occurrence evidence")
         if message.resolution is None or message.resolution.kind != "tombstone":
             if intent is not None and message.reopen and message.reports >= intent.body["reports"]:
-                self.journal.append(EventType.EFFECT_COMPLETION,
-                                    {"result": {"reports": intent.body["reports"]}}, key=key)
+                self.journal.append(EventType.EFFECT_COMPLETION, {"result": {"reports": intent.body["reports"]}}, key=key)
             return
-        arrivals = [e for e in history if e.type == EventType.SIGNAL
-                    and e.body.get("kind") == "storm_occurrence"
-                    and e.body.get("signature") == message.signature]
+        arrivals = [e for e in history if e.type == EventType.SIGNAL and e.body.get("kind") == "storm_occurrence" and e.body.get("signature") == message.signature]
         original = arrivals[0] if arrivals else None
         arrival = next((e for e in arrivals if e.body["occurrence_id"] == occurrence_id), None)
-        tombstone = next((e for e in history if e.type == EventType.EFFECT_COMPLETION
-                          and e.key == f"ticket-plane/decisions/{message.resolution.link}"), None)
-        if arrival is not None and (arrival == original or
-                (tombstone is not None and history.index(arrival) < history.index(tombstone))):
+        tombstone = next((e for e in history if e.type == EventType.EFFECT_COMPLETION and e.key == f"ticket-plane/decisions/{message.resolution.link}"), None)
+        if arrival is not None and (arrival == original or (tombstone is not None and history.index(arrival) < history.index(tombstone))):
             return
         if intent is None:
-            reserved = [e.body["reports"] for e in history if e.type == EventType.EFFECT_INTENT
-                        and e.key is not None and e.key.startswith(f"box-rereport/{message.id}/")]
+            reserved = [e.body["reports"] for e in history if e.type == EventType.EFFECT_INTENT and e.key is not None and e.key.startswith(f"box-rereport/{message.id}/")]
             reports = max([message.reports, *reserved]) + 1
             intent = self.journal.append(EventType.EFFECT_INTENT, {"reports": reports}, key=key)
         apply(intent.body["reports"])
@@ -162,10 +152,7 @@ class RereportJournal:
 
 
 class Box:
-    def __init__(self, root: Path, fs: FileSystem, *,
-                 arrival: Callable[..., object] | None = None,
-                 recover: Callable[[], None] | None = None,
-                 rereport: RereportJournal | None = None) -> None:
+    def __init__(self, root: Path, fs: FileSystem, *, arrival: Callable[..., object] | None = None, recover: Callable[[], None] | None = None, rereport: RereportJournal | None = None) -> None:
         self.root = root
         self.fs = fs
         self._arrival = arrival
@@ -197,27 +184,47 @@ class Box:
         self.fs.write(self._path(message), message.model_dump_json().encode())
 
     def enqueue(
-        self, *, message_class: MessageClass, origin: str, summary: str,
-        stage: str | None = None, outcome: str | None = None, reason: str | None = None,
-        bug_origin: Literal["self_diagnosed", "player"] | None = None, has_repro: bool | None = None,
+        self,
+        *,
+        message_class: MessageClass,
+        origin: str,
+        summary: str,
+        stage: str | None = None,
+        outcome: str | None = None,
+        reason: str | None = None,
+        bug_origin: Literal["self_diagnosed", "player"] | None = None,
+        has_repro: bool | None = None,
         occurrence_id: str | None = None,
-        retro_report_key: str | None = None, fixed_failure: str | None = None,
-        overcorrection_risk: str | None = None, proposed_spec_paths: Sequence[str] = (),
+        retro_report_key: str | None = None,
+        fixed_failure: str | None = None,
+        overcorrection_risk: str | None = None,
+        proposed_spec_paths: Sequence[str] = (),
     ) -> tuple[str, bool]:
         if self._arrival is not None and (not isinstance(occurrence_id, str) or not occurrence_id.strip()):
-            raise BoxError("occurrence_id must be a nonblank producer-supplied string; "
-                           "supply a fresh id for a distinct arrival and reuse it on retry")
+            raise BoxError("occurrence_id must be a nonblank producer-supplied string; supply a fresh id for a distinct arrival and reuse it on retry")
         if (stage is None) != (outcome is None):
             raise BoxError("stage and outcome must both be set or both be null")
         fields = (message_class, origin) if stage is None else (message_class, origin, stage, outcome)
         digest = signature(*fields, reason=summary if reason is None else reason)
         try:
             message = Message(
-                id=f"box-000001-{digest[:8]}", seq=1, signature=digest, message_class=message_class, summary=summary,
-                origin=origin, stage=stage, outcome=outcome, bug_origin=bug_origin, has_repro=has_repro,
-                status="pending", verdict=None, resolution=None,
-                retro_report_key=retro_report_key, fixed_failure=fixed_failure,
-                overcorrection_risk=overcorrection_risk, proposed_spec_paths=list(proposed_spec_paths),
+                id=f"box-000001-{digest[:8]}",
+                seq=1,
+                signature=digest,
+                message_class=message_class,
+                summary=summary,
+                origin=origin,
+                stage=stage,
+                outcome=outcome,
+                bug_origin=bug_origin,
+                has_repro=has_repro,
+                status="pending",
+                verdict=None,
+                resolution=None,
+                retro_report_key=retro_report_key,
+                fixed_failure=fixed_failure,
+                overcorrection_risk=overcorrection_risk,
+                proposed_spec_paths=list(proposed_spec_paths),
             )
         except ValidationError as exc:
             raise BoxError(f"invalid box message: {exc}") from exc
@@ -227,8 +234,7 @@ class Box:
         digest = message.signature
         existing = self.messages()
         if self._arrival is not None:
-            self._arrival(signature=digest, occurrence_id=occurrence_id,
-                          emitting_stage=message.stage, emitting_origin=message.origin)
+            self._arrival(signature=digest, occurrence_id=occurrence_id, emitting_stage=message.stage, emitting_origin=message.origin)
             # An arrival may publish its trip report before this source message.
             existing = self.messages()
         for prior in existing:
@@ -275,14 +281,25 @@ class Box:
             if (value := getattr(descriptor.custody, kind)) is not None:
                 bounded(self.root, value, kind)
         report = descriptor.report
-        fields = ([report.game_slug, report.anomaly_code, report.location, report.app_version]
-                  if isinstance(report, SelfReport) else ["bug_report", "player", occurrence_id])
+        fields = [report.game_slug, report.anomaly_code, report.location, report.app_version] if isinstance(report, SelfReport) else ["bug_report", "player", occurrence_id]
         digest = hashlib.sha256(json.dumps(fields, separators=(",", ":")).encode()).hexdigest()
-        message = Message(id=f"box-000001-{digest[:8]}", seq=1, signature=digest,
-            message_class="bug_report", summary=report.summary, origin="host-report",
-            stage=None, outcome=None, bug_origin=report.origin,
-            has_repro=descriptor.custody.replay is not None, status="pending", verdict=None,
-            resolution=None, report=descriptor, report_arrivals=[occurrence_id])
+        message = Message(
+            id=f"box-000001-{digest[:8]}",
+            seq=1,
+            signature=digest,
+            message_class="bug_report",
+            summary=report.summary,
+            origin="host-report",
+            stage=None,
+            outcome=None,
+            bug_origin=report.origin,
+            has_repro=descriptor.custody.replay is not None,
+            status="pending",
+            verdict=None,
+            resolution=None,
+            report=descriptor,
+            report_arrivals=[occurrence_id],
+        )
         return self._enqueue(message, occurrence_id)
 
     def recover(self) -> None:
@@ -299,12 +316,9 @@ class Box:
             self._write(counted)
             if counted.reports >= 3:
                 if self._rereport is None:
-                    raise RereportCallbackRequired(
-                        "tombstone reopening requires a journal-backed callback; "
-                        "supply rereport=RereportJournal(journal) to Box")
+                    raise RereportCallbackRequired("tombstone reopening requires a journal-backed callback; supply rereport=RereportJournal(journal) to Box")
                 self._rereport(counted)
-                self._write(counted.model_copy(update={"status": "pending", "resolution": None,
-                                                       "verdict": None, "reopen": True}))
+                self._write(counted.model_copy(update={"status": "pending", "resolution": None, "verdict": None, "reopen": True}))
 
         if self._rereport is None:
             apply(message.reports + 1)
@@ -316,17 +330,19 @@ class Box:
         from chupa.policy import policy_row
 
         rows = BOX_POLICY_DEFAULTS if policy is None else policy
-        return [m for m in self.messages() if m.resolution is not None
-                and m.resolution.kind == "tombstone"
-                and rows[policy_row(m.message_class, m.bug_origin, m.has_repro)] == "confirmed"]
+        return [m for m in self.messages() if m.resolution is not None and m.resolution.kind == "tombstone" and rows[policy_row(m.message_class, m.bug_origin, m.has_repro)] == "confirmed"]
 
     def publish_storm_report(self, body: dict, count: int) -> tuple[str, bool]:
         return self.enqueue(
-            message_class="failure_report", origin="storm-breaker/" + body["trip_id"],
-            summary=(f"P0 storm breaker trip: signature {body['signature']}; trip {body['trip_id']}; "
-                     f"{count} occurrences in one-hour window; emitting stage "
-                     f"{body['emitting_stage']!r}, origin {body['emitting_origin']!r}"),
-            reason="storm breaker trip", occurrence_id="storm-report/" + body["trip_id"],
+            message_class="failure_report",
+            origin="storm-breaker/" + body["trip_id"],
+            summary=(
+                f"P0 storm breaker trip: signature {body['signature']}; trip {body['trip_id']}; "
+                f"{count} occurrences in one-hour window; emitting stage "
+                f"{body['emitting_stage']!r}, origin {body['emitting_origin']!r}"
+            ),
+            reason="storm breaker trip",
+            occurrence_id="storm-report/" + body["trip_id"],
         )
 
     def record_verdict(self, id: str, verdict: Verdict) -> None:
@@ -382,14 +398,13 @@ def ingest_bootstrap(box: Box, text: str) -> list[str]:
 
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
     return [
-        box.enqueue(message_class="suggestion", origin=BOOTSTRAP_ORIGIN, summary=line.strip(),
-                    occurrence_id=arrival_id("bootstrap-ingest", digest, n))[0]
-        for n, line in enumerate(text.splitlines(), 1) if line.strip()
+        box.enqueue(message_class="suggestion", origin=BOOTSTRAP_ORIGIN, summary=line.strip(), occurrence_id=arrival_id("bootstrap-ingest", digest, n))[0]
+        for n, line in enumerate(text.splitlines(), 1)
+        if line.strip()
     ]
 
 
-async def ingest_main_checkout(cwd: Path, git: Git, fs: FileSystem, *,
-                               journal: Journal | None = None, clock: Clock | None = None) -> int:
+async def ingest_main_checkout(cwd: Path, git: Git, fs: FileSystem, *, journal: Journal | None = None, clock: Clock | None = None) -> int:
     root = (await git.git_common_dir(cwd)).parent
     config = load_config(None, cwd=root)
     source = root / BOOTSTRAP_FILE

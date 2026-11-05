@@ -25,8 +25,7 @@ def test_dispatch_vocabulary_is_closed():
 
 def _engine_signal_names():
     root = Path(__file__).resolve().parents[1]
-    modules = {".".join(path.relative_to(root).with_suffix("").parts): ast.parse(path.read_text())
-               for directory in ("chupa", "eval") for path in (root / directory).rglob("*.py")}
+    modules = {".".join(path.relative_to(root).with_suffix("").parts): ast.parse(path.read_text()) for directory in ("chupa", "eval") for path in (root / directory).rglob("*.py")}
     constants = {}
     for module, tree in modules.items():
         for node in tree.body:
@@ -58,13 +57,11 @@ def _engine_signal_names():
 
         def body_names(node, seen=frozenset()):
             if isinstance(node, ast.Name) and node.id not in seen:
-                return set().union(*(body_names(value, seen | {node.id})
-                                     for value in assignments.get(node.id, [])))
+                return set().union(*(body_names(value, seen | {node.id}) for value in assignments.get(node.id, [])))
             pairs = []
             nested = []
             if isinstance(node, ast.Dict):
-                pairs = [(literal(key), value) for key, value in zip(node.keys, node.values)
-                         if key is not None]
+                pairs = [(literal(key), value) for key, value in zip(node.keys, node.values) if key is not None]
                 nested = [value for key, value in zip(node.keys, node.values) if key is None]
             elif isinstance(node, ast.Call):
                 if isinstance(node.func, ast.Attribute) and node.func.attr == "model_dump":
@@ -75,31 +72,31 @@ def _engine_signal_names():
                 if isinstance(node.func, ast.Name):
                     for cls in tree.body:
                         if isinstance(cls, ast.ClassDef) and cls.name == node.func.id:
-                            pairs += [(field.target.id, field.value) for field in cls.body
-                                      if isinstance(field, ast.AnnAssign)
-                                      and isinstance(field.target, ast.Name)]
-            result = {literal(value) for key, value in pairs if key in {"signal", "kind"}
-                      and isinstance(literal(value), str)}
+                            pairs += [(field.target.id, field.value) for field in cls.body if isinstance(field, ast.AnnAssign) and isinstance(field.target, ast.Name)]
+            result = {literal(value) for key, value in pairs if key in {"signal", "kind"} and isinstance(literal(value), str)}
             for value in nested:
                 result.update(body_names(value, seen))
             return result
 
         def signal_append(node):
-            return (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                    and node.func.attr == "append" and len(node.args) >= 2
-                    and (ast.unparse(node.args[0]) == "EventType.SIGNAL"
-                         or literal(node.args[0]) == "signal"))
+            return (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "append"
+                and len(node.args) >= 2
+                and (ast.unparse(node.args[0]) == "EventType.SIGNAL" or literal(node.args[0]) == "signal")
+            )
 
         # Include helper call bodies as well as direct and locally assembled append bodies.
-        helpers = {node.name for node in ast.walk(tree)
-                   if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                   and any(arg.arg == "body" for arg in node.args.args)
-                   and any(signal_append(call) for call in ast.walk(node))}
+        helpers = {
+            node.name
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and any(arg.arg == "body" for arg in node.args.args) and any(signal_append(call) for call in ast.walk(node))
+        }
         for node in ast.walk(tree):
             if signal_append(node):
                 found.update(body_names(node.args[1]))
-            elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                  and node.func.attr in helpers and len(node.args) >= 2):
+            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in helpers and len(node.args) >= 2:
                 found.update(body_names(node.args[1]))
     return found
 
@@ -110,11 +107,17 @@ def test_every_engine_signal_name_is_listed():
     assert {"tombstone_auto_reopened", "retro_ticket_authored", "retro_prompt_spec_change_merged"} <= journal_module.SIGNAL_NAMES
 
 
-@pytest.mark.parametrize("body", [
-    {"signal": "spec_gap_hold"}, {},
-    {"signal": "drain_handoff", "kind": "drain_handoff"},
-    {"kind": "other"}, {"signal": None}, {"kind": []},
-])
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"signal": "spec_gap_hold"},
+        {},
+        {"signal": "drain_handoff", "kind": "drain_handoff"},
+        {"kind": "other"},
+        {"signal": None},
+        {"kind": []},
+    ],
+)
 def test_unknown_signal_name_is_refused_at_append(tmp_path, body):
     journal = Journal(tmp_path, lambda: datetime(2026, 10, 8, tzinfo=UTC))
     with pytest.raises(ValueError, match="SIGNAL_NAMES"):

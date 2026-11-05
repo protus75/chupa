@@ -134,14 +134,12 @@ class Thresh:
             slots.wake()
 
     def live_wait(self, prefix: str) -> float:
-        return sum(max(0, (self._clock() - started).total_seconds())
-                   for key, started in self._waiting.items() if key.startswith(prefix))
+        return sum(max(0, (self._clock() - started).total_seconds()) for key, started in self._waiting.items() if key.startswith(prefix))
 
     def breakers(self) -> dict[str, Breaker]:
         return fold_breakers(self._journal, self._clock())
 
-    def record_outcome(self, provider: str, failure_class: FailureClass | None, *,
-                       ticket: str | None, call_key: str) -> None:
+    def record_outcome(self, provider: str, failure_class: FailureClass | None, *, ticket: str | None, call_key: str) -> None:
         now = self._clock()
         state = fold_breakers(self._journal, now).get(provider, Breaker())
         opening = None
@@ -149,41 +147,34 @@ class Thresh:
             opening = now + timedelta(minutes=self._breaker.cooldown_minutes)
             if state.open_until is not None:
                 opening = max(opening, state.open_until)
-        body = _CallOutcome(provider=provider, call_key=call_key, failure_class=failure_class,
-                            open_until=render_ts(opening) if opening else None)
+        body = _CallOutcome(provider=provider, call_key=call_key, failure_class=failure_class, open_until=render_ts(opening) if opening else None)
         self._journal.append(EventType.SIGNAL, body.model_dump(), ticket=ticket, key=None)
 
     def _select(self, route: Sequence[Served], estimate: float, waited: float) -> Served | UnavailableRoute:
         states = self.breakers()
         excluded = {s.provider.name: self.unavailable(s.provider.name) for s in route}
-        closed = [s for s in route if states.get(s.provider.name, Breaker()).open_until is None
-                  and not excluded[s.provider.name][0]]
+        closed = [s for s in route if states.get(s.provider.name, Breaker()).open_until is None and not excluded[s.provider.name][0]]
         if not closed:
-            deadlines = [d for s in route for d in (
-                states.get(s.provider.name, Breaker()).open_until, excluded[s.provider.name][1]) if d is not None]
+            deadlines = [d for s in route for d in (states.get(s.provider.name, Breaker()).open_until, excluded[s.provider.name][1]) if d is not None]
             deadline = min(deadlines) if deadlines else None
             names = tuple(s.provider.name for s in route)
             roads = [road for _, _, road in excluded.values() if road]
-            road = '; '.join(roads) or f"repair the configured route for {', '.join(names)}"
+            road = "; ".join(roads) or f"repair the configured route for {', '.join(names)}"
             if deadline:
                 road = f"wait until {render_ts(deadline)} or {road}"
             return UnavailableRoute(names, deadline, waited, road)
         selected = closed[0]
-        if (selected is route[0] and not self._slots[selected.provider.name].free()
-                and estimate > SPILL_WAIT_SECONDS):
+        if selected is route[0] and not self._slots[selected.provider.name].free() and estimate > SPILL_WAIT_SECONDS:
             selected = next((s for s in closed[1:] if self._slots[s.provider.name].free()), selected)
         return selected
 
-    def _wait_record(self, provider: str, started: datetime, disposition: str, *,
-                     ticket: str | None, call_key: str) -> float:
+    def _wait_record(self, provider: str, started: datetime, disposition: str, *, ticket: str | None, call_key: str) -> float:
         waited = max(0.0, (self._clock() - started).total_seconds())
-        body = _CapWait(provider=provider, call_key=call_key, started_at=render_ts(started),
-                        waited_seconds=waited, disposition=disposition)
+        body = _CapWait(provider=provider, call_key=call_key, started_at=render_ts(started), waited_seconds=waited, disposition=disposition)
         self._journal.append(EventType.SIGNAL, body.model_dump(), ticket=ticket, key=None)
         return waited
 
-    async def admit(self, route: Sequence[Served], *, ticket: str | None, call_key: str,
-                    projected_wait_seconds: float) -> Admission | UnavailableRoute:
+    async def admit(self, route: Sequence[Served], *, ticket: str | None, call_key: str, projected_wait_seconds: float) -> Admission | UnavailableRoute:
         if not route:
             raise ProviderSetupError("empty provider route; configure at least one candidate in config.yaml")
         if not math.isfinite(projected_wait_seconds) or projected_wait_seconds < 0:
@@ -210,10 +201,8 @@ class Thresh:
                     waiter.ready.clear()
                     if slots.queue[0] is not waiter or slots.used >= slots.cap:
                         continue
-                    unavailable = (self.breakers().get(name, Breaker()).open_until is not None
-                                   or self.unavailable(name)[0])
-                    waited += self._wait_record(name, started, "unavailable" if unavailable else "admitted",
-                                                ticket=ticket, call_key=call_key)
+                    unavailable = self.breakers().get(name, Breaker()).open_until is not None or self.unavailable(name)[0]
+                    waited += self._wait_record(name, started, "unavailable" if unavailable else "admitted", ticket=ticket, call_key=call_key)
                     slots.queue.popleft()
                     self._waiting.pop(call_key, None)
                     if not unavailable:
@@ -235,19 +224,24 @@ class Thresh:
         slots.used -= 1
         slots.wake()
 
-    async def run(self, route: Sequence[Served], *, ticket: str | None, call_key: str,
-                  projected_wait_seconds: float,
-                  effect: Callable[[Callable[[], Awaitable[Any]]], Awaitable[Any]],
-                  operation: Callable[[Served], Awaitable[Any]]) -> CallResult | UnavailableRoute:
-        admission = await self.admit(route, ticket=ticket, call_key=call_key,
-                                     projected_wait_seconds=projected_wait_seconds)
+    async def run(
+        self,
+        route: Sequence[Served],
+        *,
+        ticket: str | None,
+        call_key: str,
+        projected_wait_seconds: float,
+        effect: Callable[[Callable[[], Awaitable[Any]]], Awaitable[Any]],
+        operation: Callable[[Served], Awaitable[Any]],
+    ) -> CallResult | UnavailableRoute:
+        admission = await self.admit(route, ticket=ticket, call_key=call_key, projected_wait_seconds=projected_wait_seconds)
         if isinstance(admission, UnavailableRoute):
             return admission
 
         async def executed() -> Any:
             try:
                 result = await operation(admission.served)
-            except (asyncio.CancelledError, ProviderSetupError, ExecutableNotFound):
+            except asyncio.CancelledError, ProviderSetupError, ExecutableNotFound:
                 raise
             except Exception as exc:
                 failure = (exc.failure_class or "unclassified") if isinstance(exc, ProviderCallError) else "unclassified"

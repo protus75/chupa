@@ -75,8 +75,10 @@ def test_entry_unit_must_name_a_row_of_its_phase():
 @pytest.mark.parametrize("part", ["Owner", "Records", "Observable", "Tests"])
 def test_entry_unit_carries_every_spec_depth_part(part):
     lines = ENTRY.splitlines()
-    for thin in ([ln for ln in lines if not ln.startswith(f"- **{part}:**")],  # part absent
-                 [f"- **{part}:**" if ln.startswith(f"- **{part}:**") else ln for ln in lines]):  # part empty
+    for thin in (
+        [ln for ln in lines if not ln.startswith(f"- **{part}:**")],  # part absent
+        [f"- **{part}:**" if ln.startswith(f"- **{part}:**") else ln for ln in lines],
+    ):  # part empty
         plan = build(registry=GOOD_REGISTRY, entries="### 19.P3.a Row a\n\n" + "\n".join(thin) + "\n\n")
         assert "plan_entry" in codes(lint_plan(plan))
 

@@ -16,9 +16,7 @@ BACKUPS = 3  # 4 files with the active one
 
 
 class EngineLog:
-    def __init__(
-        self, path: Path, redactor: Redactor, clock: Clock, *, max_bytes: int = MAX_BYTES, backups: int = BACKUPS
-    ) -> None:
+    def __init__(self, path: Path, redactor: Redactor, clock: Clock, *, max_bytes: int = MAX_BYTES, backups: int = BACKUPS) -> None:
         self.path = path
         self._redactor = redactor
         self._clock = clock

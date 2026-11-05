@@ -153,8 +153,7 @@ def messages(findings) -> str:
 def test_valid_ticket_validates_and_commits(repo):
     root, g, journal = repo
     path = write(root, "t-one", VALID)
-    ticket = validate_ticket("t-one", VALID.replace("---\npriority", "---\nstate: draft\nsource: human\npriority"),
-                             root)
+    ticket = validate_ticket("t-one", VALID.replace("---\npriority", "---\nstate: draft\nsource: human\npriority"), root)
     assert ticket.plan_contract == ("11",)
     assert ticket.verification == (("uv", "run", "pytest", "tests/test_thing.py"),)
     assert (ticket.expected_minutes, ticket.stuck_minutes) == (20, 40)
@@ -171,8 +170,7 @@ def test_valid_ticket_validates_and_commits(repo):
     sha = run(g.rev_parse(root, "HEAD"))
     [event] = [e for e in journal.read() if e.type == EventType.SIGNAL]
     assert event.ticket == "t-one"
-    assert event.body == {"signal": INTAKE_SIGNAL, "source": "human", "state": "confirmed", "new": True,
-                          "commit": sha}
+    assert event.body == {"signal": INTAKE_SIGNAL, "source": "human", "state": "confirmed", "new": True, "commit": sha}
 
 
 def test_bad_schema_ticket_is_refused_with_paved_road(repo):
@@ -272,7 +270,8 @@ def test_grammar_refusals(repo, old, new, needle):
 def test_bug_ticket_with_regression_validates(repo):
     root, _, _ = repo
     text = VALID.replace("kind: feature", "kind: bug\nstate: draft\nsource: human").replace(
-        "## Time budget", "## Regression\n```\nuv run pytest tests/test_thing.py\n```\n- carries: tests/\n\n## Time budget")
+        "## Time budget", "## Regression\n```\nuv run pytest tests/test_thing.py\n```\n- carries: tests/\n\n## Time budget"
+    )
     write(root, "t-one", text)
     ticket = validate_ticket("t-one", text, root)
     assert ticket.frontmatter.kind == "bug"
@@ -280,18 +279,20 @@ def test_bug_ticket_with_regression_validates(repo):
     assert ticket.carries == ("tests/",)
 
 
-@pytest.mark.parametrize("regression", [
-    "```\n```\n- carries: tests/",
-    "```\ntrue\nfalse\n```\n- carries: tests/",
-    "```\ntrue\n```",
-    "```\ntrue\n```\n- carries: ../tests",
-    "```\ntrue\n```\n- carries: /tests",
-    "```\n\"\"\n```\n- carries: tests/",
-])
+@pytest.mark.parametrize(
+    "regression",
+    [
+        "```\n```\n- carries: tests/",
+        "```\ntrue\nfalse\n```\n- carries: tests/",
+        "```\ntrue\n```",
+        "```\ntrue\n```\n- carries: ../tests",
+        "```\ntrue\n```\n- carries: /tests",
+        '```\n""\n```\n- carries: tests/',
+    ],
+)
 def test_regression_grammar_is_closed(repo, regression):
     root, _, _ = repo
-    text = complete(VALID.replace("kind: feature", "kind: bug").replace(
-        "## Time budget", f"## Regression\n{regression}\n\n## Time budget"))
+    text = complete(VALID.replace("kind: feature", "kind: bug").replace("## Time budget", f"## Regression\n{regression}\n\n## Time budget"))
     assert "Regression" in messages(refusal(root, text))
 
 
@@ -317,7 +318,9 @@ def test_seed_must_cite_build_laws_and_phase_unit_never_refused_sections(repo):
     assert "never cites section(s) 19" in messages(refusal(root, cited.replace("- section 11", "- section 19")))
 
 
-ROW_PLAN = PLAN.replace("## 22. Appendix", """### 19.P3 Phase 3
+ROW_PLAN = PLAN.replace(
+    "## 22. Appendix",
+    """### 19.P3 Phase 3
 
 ```yaml
 # BEGIN_REGISTRY_P3
@@ -338,7 +341,8 @@ seeds:
 - **Observable:** b
 - **Tests:** t
 
-## 22. Appendix""").replace("Spine prose.", "Spine prose.\n\n### 11.4 Dispatch\n\nDispatch.")
+## 22. Appendix""",
+).replace("Spine prose.", "Spine prose.\n\n### 11.4 Dispatch\n\nDispatch.")
 
 
 def seed_citing(*ids: str) -> str:
@@ -353,8 +357,7 @@ def test_row_seed_cites_its_entry_unit_never_its_phase(repo):
     write(root, "t-row", good)
     (root / "CHUPA_PLAN.md").write_text(ROW_PLAN.replace("### 19.L Build laws", "### 19.I Impl\n\nI.\n\n### 19.L Build laws"))
     assert validate_ticket("t-row", good, root).plan_contract == ("19.I", "19.P3.t-row", "11.4")
-    assert "never cites its phase unit" in messages(refusal(root, seed_citing("19.I", "19.P3", "19.P3.t-row",
-                                                                             "section 11.4"), stem="t-row"))
+    assert "never cites its phase unit" in messages(refusal(root, seed_citing("19.I", "19.P3", "19.P3.t-row", "section 11.4"), stem="t-row"))
     assert "also cite 11.4" in messages(refusal(root, seed_citing("19.I", "19.P3.t-row"), stem="t-row"))
 
 
@@ -406,8 +409,7 @@ def test_new_stem_authored_rejected_is_refused(repo):
 
 def test_established_seed_keeps_its_source_across_an_edit(repo):
     root, g, journal = repo
-    seed = VALID.replace("---\npriority", "---\nstate: confirmed\nsource: seed\npriority").replace(
-        "- section 11", "- 19.L\n- 19.P2")
+    seed = VALID.replace("---\npriority", "---\nstate: confirmed\nsource: seed\npriority").replace("- section 11", "- 19.L\n- 19.P2")
     write(root, "t-seed", seed)
     run(g.add(root, ["tickets/t-seed/ticket.md"]))
     run(g.commit(root, "conductor seed"))
@@ -456,9 +458,7 @@ def test_nothing_pending_is_a_no_op(repo):
 
 
 def bug_text():
-    return VALID.replace("kind: feature", "kind: bug").replace(
-        "## Time budget", "## Regression\n```\nuv run pytest tests/test_thing.py\n```\n"
-        "- carries: tests/\n\n## Time budget")
+    return VALID.replace("kind: feature", "kind: bug").replace("## Time budget", "## Regression\n```\nuv run pytest tests/test_thing.py\n```\n- carries: tests/\n\n## Time budget")
 
 
 def evidence_file(root, stem="t-bug", name="failure.txt"):
@@ -502,8 +502,7 @@ def test_bug_evidence_committed_with_ticket(repo, changed):
     result = do_intake(root, g, journal)
     assert result.committed == ("t-bug",) and not result.refused
     assert run(g._run(root, "rev-list", "--count", f"{head}..HEAD")).strip() == "1"
-    assert set(run(g._run(root, "show", "--name-only", "--format=", "HEAD")).splitlines()) == {
-        "tickets/t-bug/ticket.md", "tickets/t-bug/evidence/nested/failure.txt"}
+    assert set(run(g._run(root, "show", "--name-only", "--format=", "HEAD")).splitlines()) == {"tickets/t-bug/ticket.md", "tickets/t-bug/evidence/nested/failure.txt"}
     assert run(g.status_porcelain(root)) == ""
 
 
@@ -551,10 +550,16 @@ def test_gitignored_only_evidence_is_refused_untouched(repo):
     assert journal.read() == []
 
 
-@pytest.mark.parametrize(("front_state", "journal_state"), [
-    ("merged", None), ("rejected", None),
-    ("confirmed", "merged"), ("confirmed", "already_satisfied"), ("confirmed", "rejected"),
-])
+@pytest.mark.parametrize(
+    ("front_state", "journal_state"),
+    [
+        ("merged", None),
+        ("rejected", None),
+        ("confirmed", "merged"),
+        ("confirmed", "already_satisfied"),
+        ("confirmed", "rejected"),
+    ],
+)
 def test_settled_bug_is_not_rejudged_for_evidence(repo, front_state, journal_state):
     root, g, journal = repo
     text = complete(bug_text()).replace("state: confirmed", f"state: {front_state}")
@@ -624,8 +629,7 @@ def test_new_bug_creates_no_evidence(repo, capsys):
     root, _, _ = repo
     assert cli.main(["new", "t-bug", "--kind", "bug"], cwd=root) == 0
     assert (root / "tickets/t-bug/ticket.md").read_text() == template("bug")
-    assert sorted(p.relative_to(root).as_posix() for p in (root / "tickets/t-bug").rglob("*")) == [
-        "tickets/t-bug/ticket.md"]
+    assert sorted(p.relative_to(root).as_posix() for p in (root / "tickets/t-bug").rglob("*")) == ["tickets/t-bug/ticket.md"]
     assert "add the observed failure" in capsys.readouterr().out
 
 

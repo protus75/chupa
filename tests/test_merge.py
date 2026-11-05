@@ -1,7 +1,5 @@
 """Merge admission against a temp repo (CHUPA_PLAN.md sections 7, 9, 10; 19.P1)."""
 
-from tests.test_stages import adopt_conduct
-
 import asyncio
 import dataclasses
 import json
@@ -10,23 +8,24 @@ from pathlib import Path
 
 import pytest
 
-from chupa.config import load_config
+from chupa import runner
 from chupa.box import BOX_DIR, Box
+from chupa.config import load_config
 from chupa.driver import Driver
 from chupa.git import Git
 from chupa.journal import EventType
 from chupa.llm import FakeLLM
 from chupa.merge import Admission, AdmissionBoundary, Candidate, PostRebaseGate, merge
 from chupa.mergequeue import CONFLICT_FACTS, MergeQueue
-from chupa import runner
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.stages import StageContext, run_stages
 from chupa.tickets import validate_ticket
-from tests.test_seed_path import (context as seed_context, repo as seed_repo, requisition, seed_text,
-                                  ticket as seeding_ticket, write_seeds)
-from tests.test_stages import ENV, SNAG, SPECS, STEM, agent, author, git, verdict
 from tests.test_cli import root
-from tests.test_stages import report_context, _report_bytes
+from tests.test_seed_path import context as seed_context
+from tests.test_seed_path import repo as seed_repo
+from tests.test_seed_path import requisition, seed_text, write_seeds
+from tests.test_seed_path import ticket as seeding_ticket
+from tests.test_stages import ENV, SNAG, SPECS, STEM, _report_bytes, adopt_conduct, agent, author, git, report_context, verdict
 
 GOAL = "`thing.py` holds the word ok."
 
@@ -38,8 +37,7 @@ def repo(tmp_path: Path) -> Path:
     (root / "chupa" / "thing.py").write_text("")
     (root / "chupa" / "other.py").write_text("")
     (root / "CHUPA_PLAN.md").write_text("# Plan\n")
-    (root / "config.yaml").write_text((Path(__file__).parent / "test_stages.py").read_text()
-                                      .split('CONFIG = """')[1].split('"""')[0])
+    (root / "config.yaml").write_text((Path(__file__).parent / "test_stages.py").read_text().split('CONFIG = """')[1].split('"""')[0])
     (root / ".gitignore").write_text(".chupa/\n")
     adopt_conduct(root)
     git(root, "init", "-b", "main")
@@ -57,8 +55,7 @@ def context(repo: Path, script: list) -> StageContext:
 
     exec_ = SubprocessExec()
     driver = Driver.from_config(config, llm=FakeLLM(script), env=ENV, clock=clock, sleep=never)
-    return StageContext(repo=repo, config=config, env=ENV, exec_=exec_, git=Git(exec_, env=ENV, timeout=30.0),
-                        fs=LocalFileSystem(), driver=driver, specs_dir=SPECS)
+    return StageContext(repo=repo, config=config, env=ENV, exec_=exec_, git=Git(exec_, env=ENV, timeout=30.0), fs=LocalFileSystem(), driver=driver, specs_dir=SPECS)
 
 
 def reviewed(repo: Path, script: list, *, approve: bool = True, authored: bool = False):
@@ -78,8 +75,7 @@ def admit(ctx, ticket, attempt):
 
 
 def merged_events(ctx):
-    return [e for e in ctx.driver.journal.read()
-            if e.type == EventType.STATE_TRANSITION and e.body.get("to") == "merged"]
+    return [e for e in ctx.driver.journal.read() if e.type == EventType.STATE_TRANSITION and e.body.get("to") == "merged"]
 
 
 def refused_untouched(ctx, result, main_before: str, code: str) -> None:
@@ -120,9 +116,9 @@ def test_a_passing_ticket_squash_merges_with_trailers_and_journals_merged(repo):
 def test_bootstrap_pipeline_keeps_inline_admission(repo, monkeypatch, verb):
     author(repo)
     source = context(repo, [])
-    checkout = runner.Checkout(repo, source.config, source.env, source.exec_, source.git,
-                               source.driver.journal, source.fs, source.driver.clock, source.driver.sleep)
+    checkout = runner.Checkout(repo, source.config, source.env, source.exec_, source.git, source.driver.journal, source.fs, source.driver.clock, source.driver.sleep)
     from chupa.__main__ import build_control
+
     checkout = dataclasses.replace(checkout, control=build_control(checkout))
     llm = FakeLLM([agent({"chupa/thing.py": "ok\n"}), verdict()])
 
@@ -139,19 +135,21 @@ def test_bootstrap_pipeline_keeps_inline_admission(repo, monkeypatch, verb):
         return await original(ctx, ticket, attempt=attempt)
 
     monkeypatch.setattr(runner, "merge", inline)
+
     def pipeline(local):
         dispatch = runner.bind(local, llm)
         dispatch.queue.paused, dispatch.queue.hold_id = True, "daemon-only-hold"
         local.control.hold(dispatch.queue.hold_id)
         return dispatch
+
     ticket = validate_ticket(STEM, (repo / "tickets" / STEM / "ticket.md").read_text(), repo)
     if verb == "bind":
         assert asyncio.run(pipeline(checkout)(ticket)) == "merged"
     else:
         from chupa.__main__ import main
         from tests.test_drain_reentry import NoChild
-        assert main(["run", STEM] if verb == "run" else ["drain"], cwd=repo, env=ENV,
-                    clock=checkout.clock, pipeline=pipeline, reexec=NoChild()) == 0
+
+        assert main(["run", STEM] if verb == "run" else ["drain"], cwd=repo, env=ENV, clock=checkout.clock, pipeline=pipeline, reexec=NoChild()) == 0
     [(ctx, original_ticket, attempt)] = calls
     assert original_ticket.stem == ticket.stem and attempt == 0
     assert len(merged_events(ctx)) == 1
@@ -163,10 +161,10 @@ def test_foreground_admission_never_supervised_holds(repo, monkeypatch):
     test_bootstrap_pipeline_keeps_inline_admission(repo, monkeypatch, "run")
 
 
-@pytest.mark.parametrize("failure", ["ticket-plane", "missing-checks", "malformed-checks", "missing-approval", "wrong-sha",
-                                    "missing-blob", "invalid-blob", "dirty-main"])
+@pytest.mark.parametrize("failure", ["ticket-plane", "missing-checks", "malformed-checks", "missing-approval", "wrong-sha", "missing-blob", "invalid-blob", "dirty-main"])
 def test_daemon_prechecks_precede_offer(seed_repo, monkeypatch, failure):
     ctx, ticket, attempt = seed_reviewed(seed_repo)
+
     async def scenario():
         checks = "tickets/add-thing/checks.json"
         seed = "tickets/alpha-seed/ticket.md"
@@ -211,8 +209,10 @@ def test_daemon_prechecks_precede_offer(seed_repo, monkeypatch, failure):
         head = await ctx.git.rev_parse(ctx.repo, ticket.stem)
         journal = ctx.driver.journal.read()
         queue = MergeQueue(ctx, escalate=lambda _: None)
+
         def forbidden(*args, **kwargs):
             pytest.fail("precheck refusal offered, rebased or ran Verification")
+
         monkeypatch.setattr(queue, "offer", forbidden)
         monkeypatch.setattr(ctx.git, "rebase_stop_at_conflict", forbidden)
         monkeypatch.setattr(ctx.git, "rebase", forbidden)
@@ -226,15 +226,19 @@ def test_daemon_prechecks_precede_offer(seed_repo, monkeypatch, failure):
         assert await ctx.git.rev_parse(ctx.repo, ticket.stem) == head
         assert ctx.worktree(ticket.stem).exists() and not queue.pending
         assert ctx.driver.journal.read() == journal and not boundary.results
+
     from chupa import stages
+
     asyncio.run(scenario())
 
 
 def test_admission_mode_is_explicit(repo, monkeypatch):
     ctx, ticket, attempt = reviewed(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
     queue = MergeQueue(ctx, escalate=lambda _: None)
+
     def forbidden(*args, **kwargs):
         pytest.fail("construction or inline admission entered daemon queue")
+
     monkeypatch.setattr(queue, "offer", forbidden)
     monkeypatch.setattr(queue, "process", forbidden)
     before = ctx.driver.journal.read()
@@ -251,6 +255,7 @@ def test_admission_mode_is_explicit(repo, monkeypatch):
             AdmissionBoundary(ctx, **kwargs)
     queue.paused, queue.hold_id = True, "daemon-hold"
     from chupa.lockfile import Lockfile
+
     lock = Lockfile(ctx.config.state_dir, instance_id="inline-mode", clock=ctx.driver.clock)
     lock.acquire()
     try:
@@ -330,8 +335,7 @@ def test_an_approval_pinned_to_an_older_head_blocks_admission(repo):
 
 
 def test_a_snag_verdict_is_no_approval(repo):
-    ctx, ticket, attempt = reviewed(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG])],
-                                    approve=False)
+    ctx, ticket, attempt = reviewed(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG])], approve=False)
     before = git(repo, "rev-parse", "main").strip()
 
     result = admit(ctx, ticket, attempt)
@@ -341,8 +345,7 @@ def test_a_snag_verdict_is_no_approval(repo):
 
 
 def test_a_branch_committing_ticket_plane_files_is_refused_with_the_outbox_road(tmp_path):
-    candidate = Candidate(stem=STEM, reviewed_sha="abc", ticket_text="", review_text=None,
-                          changed_files=["chupa/thing.py", f"tickets/{STEM}/notes.md"])
+    candidate = Candidate(stem=STEM, reviewed_sha="abc", ticket_text="", review_text=None, changed_files=["chupa/thing.py", f"tickets/{STEM}/notes.md"])
 
     report = PostRebaseGate().check(candidate, tmp_path)
 
@@ -442,9 +445,9 @@ def test_merge_safety_reads_committed_seed_and_checks_despite_dirty_main_checkou
 def test_pipeline_requires_supplied_control(repo):
     from chupa import merge as owner
     from chupa.__main__ import build_control
+
     ctx = context(repo, [])
-    checkout = runner.Checkout(repo, ctx.config, ctx.env, ctx.exec_, ctx.git,
-                               ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
+    checkout = runner.Checkout(repo, ctx.config, ctx.env, ctx.exec_, ctx.git, ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
     consumer = build_control(checkout)
     with pytest.raises(TypeError):
         owner.compose_pipeline(ctx, escalate=lambda _: None)
@@ -458,36 +461,39 @@ def test_pipeline_requires_supplied_control(repo):
 
 def test_outbox_only_admission_records_null_commit_and_retires(root, monkeypatch):
     """Inline CLI and real serve composition share the writer, lift and retirement contract."""
+    import shlex
+
     from chupa import merge as owner
+    from chupa.__main__ import main
     from chupa.artifacts import SHAKEOUT_REPORT, ShakeoutReport
     from chupa.audit import audit_journal
     from chupa.checkpoint import _merged
     from chupa.effects import Effects
     from chupa.rework import settled_dependencies
     from chupa.stages import lift_outbox
-    from tests.test_serve import admission_graph, admission_ticket, start_admission, until, finish, request
-    from chupa.__main__ import main
-    import shlex
+    from tests.test_serve import admission_graph, admission_ticket, finish, request, start_admission, until
 
     original_writer = owner.write_squash
     admissions, trace = [], []
     remove, delete = Git.worktree_remove, Git.branch_delete
+
     async def removed(wrapper, repo, path):
         trace.append((path.name, "remove"))
         await remove(wrapper, repo, path)
+
     async def deleted(wrapper, repo, branch):
         trace.append((branch, "delete"))
         await delete(wrapper, repo, branch)
+
     monkeypatch.setattr(Git, "worktree_remove", removed)
     monkeypatch.setattr(Git, "branch_delete", deleted)
+
     async def writer(ctx, ticket, reviewed, *, attempt):
         before = await ctx.git.rev_parse(root, "main")
         tree = await ctx.git.rev_parse(root, "main^{tree}")
         checks_key = f"ticket-plane/{ticket.stem}/{attempt}/checks"
-        [lift] = [e for e in ctx.driver.journal.read()
-                  if e.type == EventType.EFFECT_COMPLETION and e.key == checks_key]
-        ctx.fs.write(ctx.worktree(ticket.stem) / f"tickets/{ticket.stem}/{SHAKEOUT_REPORT}",
-                     _report_bytes().replace('"abc"', '"replayed"').encode())
+        [lift] = [e for e in ctx.driver.journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key == checks_key]
+        ctx.fs.write(ctx.worktree(ticket.stem) / f"tickets/{ticket.stem}/{SHAKEOUT_REPORT}", _report_bytes().replace('"abc"', '"replayed"').encode())
         history = ctx.driver.journal.read()
         ctx.driver.effects = Effects(ctx.driver.journal)
         assert await lift_outbox(ctx, ticket.stem, "checks", attempt=attempt) == lift.body["result"]["commit"]
@@ -497,6 +503,7 @@ def test_outbox_only_admission_records_null_commit_and_retires(root, monkeypatch
         assert await ctx.git.rev_parse(root, "main^{tree}") == tree
         admissions.append((ctx, ticket, attempt, result, tree))
         return result
+
     monkeypatch.setattr(owner, "write_squash", writer)
 
     async def evidence(ctx, ticket, attempt, admission, tree):
@@ -506,14 +513,12 @@ def test_outbox_only_admission_records_null_commit_and_retires(root, monkeypatch
         assert terminal.ticket == ticket.stem and terminal.key is None
         assert terminal.body == {"to": "merged", "commit": None, "reviewed_sha": admission.reviewed_sha}
         events = ctx.driver.journal.read()
-        [checks] = [e for e in events if e.type == EventType.EFFECT_COMPLETION
-                    and e.key == f"ticket-plane/{ticket.stem}/{attempt}/checks"]
+        [checks] = [e for e in events if e.type == EventType.EFFECT_COMPLETION and e.key == f"ticket-plane/{ticket.stem}/{attempt}/checks"]
         rel = f"tickets/{ticket.stem}/{SHAKEOUT_REPORT}"
         assert rel in checks.body["result"]["paths"]
         blob = await ctx.git._run(root, "show", f"{checks.body['result']['commit']}:{rel}")
         ShakeoutReport.model_validate_json(blob)
-        [completion] = [e for e in events if e.type == EventType.EFFECT_COMPLETION
-                        and e.key == f"merge/{ticket.stem}/{attempt}"]
+        [completion] = [e for e in events if e.type == EventType.EFFECT_COMPLETION and e.key == f"merge/{ticket.stem}/{attempt}"]
         assert completion.body == {"result": {"commit": None}}
         assert audit_journal(ctx.driver.journal) == []
         assert ticket.stem in settled_dependencies(events) and _merged(events) == 0
@@ -530,20 +535,22 @@ def test_outbox_only_admission_records_null_commit_and_retires(root, monkeypatch
         assert ctx.driver.journal.read() == events
         # Exercise the actual intake/dependency reader against this producing journal.
         from tests.test_stages import TICKET
+
         dependent = f"after-{ticket.stem}"
         raw = TICKET.format(bypass="").replace("## Depends on\nnone", f"## Depends on\n- {ticket.stem}")
         ctx.fs.write(root / f"tickets/{dependent}/ticket.md", raw.encode())
-        checkout = runner.Checkout(root, ctx.config, ctx.env, ctx.exec_, ctx.git,
-                                  ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
+        checkout = runner.Checkout(root, ctx.config, ctx.env, ctx.exec_, ctx.git, ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
         admitted = await runner._admit(dependent, checkout)
         assert admitted.depends == (ticket.stem,)
         assert _merged(ctx.driver.journal.read()) == 0 and audit_journal(ctx.driver.journal) == []
 
     # The synchronous CLI owns asyncio.run, just as it does in production.
     ctx, ticket = asyncio.run(report_context(root))
+
     def pipeline(checkout):
         dispatch = runner.bind(checkout, ctx.driver.llm)
         return dispatch
+
     assert main(["run", STEM], cwd=root, env=ENV, clock=ctx.driver.clock, pipeline=pipeline) == 0
     asyncio.run(evidence(*admissions.pop()))
 
@@ -553,6 +560,7 @@ def test_outbox_only_admission_records_null_commit_and_retires(root, monkeypatch
             rig.fs.write(root / "chupa/other.py", b"moved main\n")
             await local.git.add(root, ["chupa/other.py"])
             await local.git.commit(root, "main advances after report approval")
+
         rig = await admission_graph(root, monkeypatch, {}, settled=moved)
         stem = "serve-producer"
         script = f"from pathlib import Path; Path('tickets/{stem}/{SHAKEOUT_REPORT}').write_text({_report_bytes()!r})"
@@ -561,29 +569,30 @@ def test_outbox_only_admission_records_null_commit_and_retires(root, monkeypatch
         try:
             await until(rig, lambda: (stem, "merged") in rig.returns)
             request(rig, "pause", "proof-pause")
-            await until(rig, lambda: rig.owner.control.projection.pause_id == "proof-pause"
-                        and rig.owner.core.admission.active is None)
+            await until(rig, lambda: rig.owner.control.projection.pause_id == "proof-pause" and rig.owner.core.admission.active is None)
             local, ticket, attempt, admission, tree = admissions.pop()
             assert admission.reviewed_sha == rig.pinned
             assert trace.count((stem, "remove")) == trace.count((stem, "delete")) == 1
             assert rig.owner.queue.ctx is local
             assert not rig.owner.queue.paused
             assert "merge-integration/verify-01.txt" in [
-                str(p.relative_to(local.config.state_dir / f"spools/{stem}/{attempt}"))
-                for p in (local.config.state_dir / f"spools/{stem}/{attempt}").rglob("*.txt")]
+                str(p.relative_to(local.config.state_dir / f"spools/{stem}/{attempt}")) for p in (local.config.state_dir / f"spools/{stem}/{attempt}").rglob("*.txt")
+            ]
             await evidence(local, ticket, attempt, admission, tree)
         finally:
             await finish(rig, run)
+
     asyncio.run(daemon())
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("mode", ["inline", "queue"])
-@pytest.mark.parametrize("failure", ["absent", "wrong-run", "wrong-stem", "foreign-path", "unknown",
-                                     "records-only", "missing-committed", "invalid-committed", "invalid-schema",
-                                     "red", "invalid-regate", "missing-regate"])
+@pytest.mark.parametrize(
+    "failure", ["absent", "wrong-run", "wrong-stem", "foreign-path", "unknown", "records-only", "missing-committed", "invalid-committed", "invalid-schema", "red", "invalid-regate", "missing-regate"]
+)
 async def test_outbox_only_merge_regate_requires_lift_custody(repo, monkeypatch, mode, failure):
     from chupa.artifacts import SHAKEOUT_REPORT
+
     ctx, ticket = await report_context(repo)
     run = await run_stages(ctx, ticket)
     assert run.results["review"].outcome == "ok"
@@ -591,6 +600,7 @@ async def test_outbox_only_merge_regate_requires_lift_custody(repo, monkeypatch,
     key = f"ticket-plane/{STEM}/{attempt}/checks"
     read = ctx.driver.journal.read
     if failure in {"absent", "wrong-stem", "foreign-path", "unknown", "records-only"}:
+
         def evidence_read():
             events = []
             for event in read():
@@ -600,13 +610,18 @@ async def test_outbox_only_merge_regate_requires_lift_custody(repo, monkeypatch,
                     if failure == "wrong-stem":
                         event = dataclasses.replace(event, ticket="foreign")
                     else:
-                        paths = ([f"tickets/foreign/{SHAKEOUT_REPORT}"] if failure == "foreign-path" else
-                                 [f"tickets/{STEM}/{p}" for p in ("run.md", "checks.json", "review.md")]
-                                 if failure == "records-only" else [f"tickets/{STEM}/unknown.json"])
+                        paths = (
+                            [f"tickets/foreign/{SHAKEOUT_REPORT}"]
+                            if failure == "foreign-path"
+                            else [f"tickets/{STEM}/{p}" for p in ("run.md", "checks.json", "review.md")]
+                            if failure == "records-only"
+                            else [f"tickets/{STEM}/unknown.json"]
+                        )
                         result = {**event.body["result"], "paths": paths}
                         event = dataclasses.replace(event, body={"result": result})
                 events.append(event)
             return events
+
         monkeypatch.setattr(ctx.driver.journal, "read", evidence_read)
     elif failure == "wrong-run":
         attempt += 1
@@ -627,8 +642,9 @@ async def test_outbox_only_merge_regate_requires_lift_custody(repo, monkeypatch,
         await ctx.git.add(repo, ["source.json"])
         await ctx.git.commit(repo, "invalid Verification report fixture")
     elif failure == "invalid-schema":
-        from chupa.stages import KNOWN_ARTIFACTS
         from chupa.artifacts import ShakeoutEntry
+        from chupa.stages import KNOWN_ARTIFACTS
+
         monkeypatch.setitem(KNOWN_ARTIFACTS, SHAKEOUT_REPORT, ShakeoutEntry)
         ticket = dataclasses.replace(ticket, verification=(("true",),))
     else:
@@ -647,10 +663,10 @@ async def test_outbox_only_merge_regate_requires_lift_custody(repo, monkeypatch,
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("mode", ["inline", "queue"])
-@pytest.mark.parametrize("case", ["committed-tickets", "dirty-tracked", "dirty-untracked", "code-and-report",
-                                  "stale-approval", "missing-approval"])
+@pytest.mark.parametrize("case", ["committed-tickets", "dirty-tracked", "dirty-untracked", "code-and-report", "stale-approval", "missing-approval"])
 async def test_outbox_only_exception_preserves_code_lane_safety(repo, mode, case):
     from chupa.stages import read_review, render_review
+
     script = [agent({"chupa/thing.py": "ok code\n"}), verdict()] if case == "code-and-report" else None
     ctx, ticket = await report_context(repo, script=script)
     run = await run_stages(ctx, ticket)
@@ -693,27 +709,29 @@ async def test_outbox_only_exception_preserves_code_lane_safety(repo, mode, case
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(("mode", "case"), [
-    (mode, case) for mode in ("inline", "queue") for case in
-    ("missing", "conflicting", "malformed", "valid", "no-spec", "unrelated", "failed", "tree-mismatch")
-] + [("boundary", case) for case in ("missing", "conflicting", "malformed")])
+@pytest.mark.parametrize(
+    ("mode", "case"),
+    [(mode, case) for mode in ("inline", "queue") for case in ("missing", "conflicting", "malformed", "valid", "no-spec", "unrelated", "failed", "tree-mismatch")]
+    + [("boundary", case) for case in ("missing", "conflicting", "malformed")],
+)
 async def test_retro_prompt_spec_merge_requires_unique_bridge(repo, monkeypatch, mode, case):
     from chupa.effects import Effects
     from chupa.merge import write_squash
     from chupa.mergequeue import TreeMismatch
     from tests.test_stages import implement_reply
+
     author(repo)
     ctx = context(repo, [implement_reply(), verdict()])
     path = repo / f"tickets/{STEM}/ticket.md"
     source = "human" if case == "unrelated" else "box:retro_finding"
-    ctx.fs.write(path, path.read_text().replace("source: human", f"source: {source}").replace(
-        "## Scope fence\n- chupa/thing.py", "## Scope fence\n- chupa/thing.py\n- specs/").encode())
+    ctx.fs.write(path, path.read_text().replace("source: human", f"source: {source}").replace("## Scope fence\n- chupa/thing.py", "## Scope fence\n- chupa/thing.py\n- specs/").encode())
     for rel in ("specs/z.md", "specs/a.md", "specs/readme.txt"):
         ctx.fs.write(repo / rel, b"before\n")
     await ctx.git.add(repo, [str(path.relative_to(repo)), "specs/z.md", "specs/a.md", "specs/readme.txt"])
     await ctx.git.commit(repo, "retro admission fixture")
     ticket = validate_ticket(STEM, path.read_text(), repo)
     call = ctx.driver.llm.call
+
     async def implement(request):
         if request.surface == "implement":
             changes = {"chupa/thing.py": "ok\n"}
@@ -724,26 +742,26 @@ async def test_retro_prompt_spec_merge_requires_unique_bridge(repo, monkeypatch,
             await ctx.git.add(request.worktree, list(changes))
             await ctx.git.commit(request.worktree, "repair")
         return await call(request)
+
     monkeypatch.setattr(ctx.driver.llm, "call", implement)
     run = await run_stages(ctx, ticket)
     assert run.results["review"].outcome == "ok"
-    body = {"kind": "retro_ticket_authored", "box_id": "box-000001-1234abcd",
-            "retro_report_key": "retro/1", "ticket_stem": STEM}
+    body = {"kind": "retro_ticket_authored", "box_id": "box-000001-1234abcd", "retro_report_key": "retro/1", "ticket_stem": STEM}
     journal = ctx.driver.journal
     if case not in {"missing", "unrelated"}:
-        journal.append(EventType.SIGNAL, {**body, **({"retro_report_key": "invented"} if case == "malformed" else {})},
-                       ticket=STEM, key=f"retro-ticket/{STEM}")
+        journal.append(EventType.SIGNAL, {**body, **({"retro_report_key": "invented"} if case == "malformed" else {})}, ticket=STEM, key=f"retro-ticket/{STEM}")
     if case == "conflicting":
-        journal.append(EventType.SIGNAL, {**body, "box_id": "box-000002-abcdef12"},
-                       ticket=STEM, key=f"retro-ticket/{STEM}")
+        journal.append(EventType.SIGNAL, {**body, "box_id": "box-000002-abcdef12"}, ticket=STEM, key=f"retro-ticket/{STEM}")
     if case == "failed":
         (repo / f"tickets/{STEM}/review.md").unlink()
     if case in {"missing", "conflicting", "malformed"}:
         ctx.config.review.gate_severity = {"ticket_schema": "soft"}
     if case == "tree-mismatch":
         parse = ctx.git.rev_parse
+
         async def mismatch(root, ref):
             return "different" if ref == "main^{tree}" else await parse(root, ref)
+
         monkeypatch.setattr(ctx.git, "rev_parse", mismatch)
     before = await ctx.git.rev_parse(repo, "main")
     reviewed_sha = await ctx.git.rev_parse(repo, STEM)
@@ -757,7 +775,7 @@ async def test_retro_prompt_spec_merge_requires_unique_bridge(repo, monkeypatch,
                 await queue.process()
             result = None
         else:
-            result, = await queue.process()
+            (result,) = await queue.process()
     else:
         boundary = AdmissionBoundary(ctx, mode="daemon", queue=queue)
         result = await boundary(ticket, attempt=run.attempt)
@@ -774,135 +792,149 @@ async def test_retro_prompt_spec_merge_requires_unique_bridge(repo, monkeypatch,
         assert not signals
     else:
         assert result.outcome == "ok"
-        signal, = signals
+        (signal,) = signals
         sha = result.artifact.commit
         assert signal.type == EventType.SIGNAL and signal.ticket == STEM
         assert signal.key == f"retro-prompt-spec-change/{STEM}/{sha}"
-        assert signal.body == {"kind": "retro_prompt_spec_change_merged", "box_id": body["box_id"],
-            "retro_report_key": "retro/1", "ticket_stem": STEM, "squash_sha": sha,
-            "changed_spec_paths": ["specs/a.md", "specs/z.md"]}
+        assert signal.body == {
+            "kind": "retro_prompt_spec_change_merged",
+            "box_id": body["box_id"],
+            "retro_report_key": "retro/1",
+            "ticket_stem": STEM,
+            "squash_sha": sha,
+            "changed_spec_paths": ["specs/a.md", "specs/z.md"],
+        }
         assert sha == await ctx.git.rev_parse(repo, "main")
-        assert (await ctx.git._run(repo, "diff-tree", "--no-commit-id", "--name-only", "-r", sha)).splitlines() == [
-            "chupa/thing.py", "specs/a.md", "specs/readme.txt", "specs/z.md"]
+        assert (await ctx.git._run(repo, "diff-tree", "--no-commit-id", "--name-only", "-r", sha)).splitlines() == ["chupa/thing.py", "specs/a.md", "specs/readme.txt", "specs/z.md"]
         ctx.driver.effects = Effects(journal)
         before = journal.read()
         assert (await write_squash(ctx, ticket, reviewed_sha, attempt=run.attempt)).commit == sha
         assert journal.read() == before
 
 
-@pytest.mark.parametrize('mode', ['inline', 'queue'])
-@pytest.mark.parametrize('change', ['current', 'stale', 'after-rebase'])
+@pytest.mark.parametrize("mode", ["inline", "queue"])
+@pytest.mark.parametrize("change", ["current", "stale", "after-rebase"])
 def test_core_drift_merge_rerun(repo, mode, change):
     from chupa import hostfiles
     from tests.test_mergequeue import approve
-    ctx, ticket, attempt = reviewed(repo, [agent({'chupa/thing.py': 'ok\n'}), verdict()])
+
+    ctx, ticket, attempt = reviewed(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
+
     async def scenario():
-        if change != 'current':
-            target = repo if change == 'after-rebase' else ctx.worktree(STEM)
-            path = target / 'AGENTS.md'
-            path.write_bytes(hostfiles.render(b'project', template=b'stale engine\n'))
-            await ctx.git.add(target, ['AGENTS.md'])
-            await ctx.git.commit(target, 'committed stale core')
-            if change == 'stale':
-                ticket_with_fence = dataclasses.replace(ticket, scope_fence=(*ticket.scope_fence, 'AGENTS.md'))
+        if change != "current":
+            target = repo if change == "after-rebase" else ctx.worktree(STEM)
+            path = target / "AGENTS.md"
+            path.write_bytes(hostfiles.render(b"project", template=b"stale engine\n"))
+            await ctx.git.add(target, ["AGENTS.md"])
+            await ctx.git.commit(target, "committed stale core")
+            if change == "stale":
+                ticket_with_fence = dataclasses.replace(ticket, scope_fence=(*ticket.scope_fence, "AGENTS.md"))
                 await approve(ctx, ticket_with_fence)
             else:
                 ticket_with_fence = ticket
         else:
             ticket_with_fence = ticket
-        before = await ctx.git.rev_parse(repo, 'main')
-        if mode == 'inline':
+        before = await ctx.git.rev_parse(repo, "main")
+        if mode == "inline":
             result = await merge(ctx, ticket_with_fence, attempt=attempt)
         else:
             queue = MergeQueue(ctx, escalate=lambda _: None)
             queue.offer(ticket_with_fence, attempt=attempt)
             [result] = await queue.process()
-        if change == 'current':
-            assert result.outcome == 'ok', result.findings
+        if change == "current":
+            assert result.outcome == "ok", result.findings
         else:
-            refused_untouched(ctx, result, before, 'core_drift')
-            finding = next(f for f in result.findings if f.code == 'core_drift')
-            assert finding.path == 'AGENTS.md' and 'chupa core' in finding.paved_road
-            if change == 'after-rebase':
-                assert (ctx.worktree(STEM) / 'AGENTS.md').read_bytes() == (repo / 'AGENTS.md').read_bytes()
+            refused_untouched(ctx, result, before, "core_drift")
+            finding = next(f for f in result.findings if f.code == "core_drift")
+            assert finding.path == "AGENTS.md" and "chupa core" in finding.paved_road
+            if change == "after-rebase":
+                assert (ctx.worktree(STEM) / "AGENTS.md").read_bytes() == (repo / "AGENTS.md").read_bytes()
+
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize('mode', ['inline', 'queue'])
+@pytest.mark.parametrize("mode", ["inline", "queue"])
 def test_core_drift_candidate_template(repo, mode):
     from chupa import hostfiles
     from tests.test_mergequeue import approve
-    ctx, ticket, attempt = reviewed(repo, [agent({'chupa/thing.py': 'ok\n'}), verdict()])
+
+    ctx, ticket, attempt = reviewed(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
     serving = hostfiles.CORE_TEMPLATE
-    candidate = b'## Candidate engine conduct\n\nNew branch rules.\n'
+    candidate = b"## Candidate engine conduct\n\nNew branch rules.\n"
+
     async def scenario():
         root = ctx.worktree(STEM)
-        ctx.fs.write(root / 'chupa/hostfiles.py', b'CORE_TEMPLATE = ' + repr(candidate).encode() + b'\n')
-        ctx.fs.write(root / 'AGENTS.md', hostfiles.render(b'project\xff', template=candidate))
-        await ctx.git.add(root, ['chupa/hostfiles.py', 'AGENTS.md'])
-        await ctx.git.commit(root, 'congruent candidate template and block')
-        local = dataclasses.replace(ticket, scope_fence=(*ticket.scope_fence, 'chupa/hostfiles.py', 'AGENTS.md'))
+        ctx.fs.write(root / "chupa/hostfiles.py", b"CORE_TEMPLATE = " + repr(candidate).encode() + b"\n")
+        ctx.fs.write(root / "AGENTS.md", hostfiles.render(b"project\xff", template=candidate))
+        await ctx.git.add(root, ["chupa/hostfiles.py", "AGENTS.md"])
+        await ctx.git.commit(root, "congruent candidate template and block")
+        local = dataclasses.replace(ticket, scope_fence=(*ticket.scope_fence, "chupa/hostfiles.py", "AGENTS.md"))
         await approve(ctx, local)
-        if mode == 'inline':
+        if mode == "inline":
             result = await merge(ctx, local, attempt=attempt)
         else:
             queue = MergeQueue(ctx, escalate=lambda _: None)
             queue.offer(local, attempt=attempt)
             [result] = await queue.process()
-        assert result.outcome == 'ok', result.findings
+        assert result.outcome == "ok", result.findings
         assert hostfiles.CORE_TEMPLATE == serving
-        assert hostfiles.classify_core((repo / 'AGENTS.md').read_bytes()).state == 'drifted'
-        assert hostfiles.classify_core((repo / 'AGENTS.md').read_bytes(), template=candidate).state == 'current'
+        assert hostfiles.classify_core((repo / "AGENTS.md").read_bytes()).state == "drifted"
+        assert hostfiles.classify_core((repo / "AGENTS.md").read_bytes(), template=candidate).state == "current"
+
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize('mode', ['inline', 'queue'])
-@pytest.mark.parametrize('omitted', [None, 'CLAUDE.md', 'AGENTS.md'])
+@pytest.mark.parametrize("mode", ["inline", "queue"])
+@pytest.mark.parametrize("omitted", [None, "CLAUDE.md", "AGENTS.md"])
 def test_core_activation_first_adoption_merge(repo, mode, omitted):
     from chupa import hostfiles, stages
     from tests.test_cli import core_config
     from tests.test_mergequeue import approve
-    core_config(repo, [('medium', 'implement', ['claude', 'codex']), ('medium', 'review', ['claude', 'codex'])])
-    original = {'CLAUDE.md': b'# Claude project\r\nno final newline', 'AGENTS.md': b'# Codex project\n'}
+
+    core_config(repo, [("medium", "implement", ["claude", "codex"]), ("medium", "review", ["claude", "codex"])])
+    original = {"CLAUDE.md": b"# Claude project\r\nno final newline", "AGENTS.md": b"# Codex project\n"}
     for path, data in original.items():
         (repo / path).write_bytes(data)
-    git(repo, 'add', 'config.yaml', 'CLAUDE.md', 'AGENTS.md')
-    git(repo, 'commit', '-m', 'marker-free first adoption base')
+    git(repo, "add", "config.yaml", "CLAUDE.md", "AGENTS.md")
+    git(repo, "commit", "-m", "marker-free first adoption base")
     author(repo)
-    path = repo / f'tickets/{STEM}/ticket.md'
-    path.write_text(path.read_text().replace('## Scope fence\n- chupa/thing.py',
-        '## Scope fence\n- chupa/thing.py\n- CLAUDE.md\n- AGENTS.md'))
-    git(repo, 'add', str(path.relative_to(repo)))
-    git(repo, 'commit', '-m', 'activation fixture fence')
+    path = repo / f"tickets/{STEM}/ticket.md"
+    path.write_text(path.read_text().replace("## Scope fence\n- chupa/thing.py", "## Scope fence\n- chupa/thing.py\n- CLAUDE.md\n- AGENTS.md"))
+    git(repo, "add", str(path.relative_to(repo)))
+    git(repo, "commit", "-m", "activation fixture fence")
     changes = {name: hostfiles.render(data).decode() for name, data in original.items() if name != omitted}
-    changes['chupa/thing.py'] = 'ok adopted\n'
+    changes["chupa/thing.py"] = "ok adopted\n"
     ctx = context(repo, [agent(changes), verdict()])
     ticket = validate_ticket(STEM, path.read_text(), repo)
+
     async def scenario():
         run = await run_stages(ctx, ticket)
-        assert run.results['check'].outcome == ('ok' if omitted is None else 'gate_failed')
+        assert run.results["check"].outcome == ("ok" if omitted is None else "gate_failed")
         if omitted is not None:
-            assert any(f.path == omitted and f.code == 'core_drift' for f in run.results['check'].findings)
+            assert any(f.path == omitted and f.code == "core_drift" for f in run.results["check"].findings)
             await approve(ctx, ticket)
-        before = await ctx.git.rev_parse(repo, 'main')
+        before = await ctx.git.rev_parse(repo, "main")
+
         async def admission(local, attempt):
-            if mode == 'inline':
+            if mode == "inline":
                 return await merge(local, ticket, attempt=attempt)
             queue = MergeQueue(local, escalate=lambda _: None)
             queue.offer(ticket, attempt=attempt)
             return (await queue.process())[0]
+
         result = await admission(ctx, run.attempt)
         if omitted is not None:
-            refused_untouched(ctx, result, before, 'core_drift')
+            refused_untouched(ctx, result, before, "core_drift")
             return
-        assert result.outcome == 'ok', result.findings
+        assert result.outcome == "ok", result.findings
         for name, data in original.items():
             assert (repo / name).read_bytes() == hostfiles.render(data)
         # Next ordinary candidate inherits both files and needs no operator repair.
-        local = context(repo, [agent({'chupa/thing.py': 'ok ordinary\n'}), verdict()])
+        local = context(repo, [agent({"chupa/thing.py": "ok ordinary\n"}), verdict()])
         next_run = await run_stages(local, ticket)
-        assert next_run.results['check'].outcome == 'ok'
+        assert next_run.results["check"].outcome == "ok"
         result = await admission(local, next_run.attempt)
-        assert result.outcome == 'ok', result.findings
-        assert (await local.git._run(repo, 'show', '--format=', '--name-only', 'main')).split() == ['chupa/thing.py']
+        assert result.outcome == "ok", result.findings
+        assert (await local.git._run(repo, "show", "--format=", "--name-only", "main")).split() == ["chupa/thing.py"]
+
     asyncio.run(scenario())

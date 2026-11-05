@@ -10,13 +10,10 @@ from chupa.config import load_config
 from chupa.driver import Driver
 from chupa.gates import lint_gate
 from chupa.llm import FakeLLM
-from chupa.specs import REQ_RENDER_HEADROOM, RENDER_BOUND_CHARS
-from chupa.requisition import (RequisitionGate, RequisitionReply, RequisitionVerdict,
-                               base_render_chars, review_target, review_ticket)
-from chupa.specs import lint_spec, load_spec
+from chupa.requisition import RequisitionGate, RequisitionReply, RequisitionVerdict, base_render_chars, review_target, review_ticket
+from chupa.specs import RENDER_BOUND_CHARS, REQ_RENDER_HEADROOM, lint_spec, load_spec, render
 from chupa.stages import StageContext, implement_inputs, implement_stage
 from chupa.tickets import TicketInvalid
-from chupa.specs import render
 
 SPECS = Path(__file__).resolve().parent.parent / "specs"
 TICKET = """---
@@ -80,15 +77,12 @@ engine_plane_safety_inventory: [context.txt]
     async def never(seconds: float) -> None:
         await asyncio.Event().wait()
 
-    driver = Driver.from_config(load_config(None, cwd=tmp_path), llm=llm, env={"FAKE_KEY": "secret"},
-                                clock=lambda: datetime(2026, 10, 6, tzinfo=UTC), sleep=never)
+    driver = Driver.from_config(load_config(None, cwd=tmp_path), llm=llm, env={"FAKE_KEY": "secret"}, clock=lambda: datetime(2026, 10, 6, tzinfo=UTC), sleep=never)
     return tmp_path, driver, llm
 
 
 def run(driver: Driver, repo: Path, text: str = TICKET, stem: str = "one-thing") -> RequisitionVerdict:
-    return asyncio.run(review_ticket(driver, repo=repo, stem=stem, text=text,
-                                     specs_dir=SPECS, tier="high", stem_slot="s", run_seq=0,
-                                     attempt=1, call_seq=1, expected_budget='surface'))
+    return asyncio.run(review_ticket(driver, repo=repo, stem=stem, text=text, specs_dir=SPECS, tier="high", stem_slot="s", run_seq=0, attempt=1, call_seq=1, expected_budget="surface"))
 
 
 def reply(verdict: str, findings: list | None = None) -> str:
@@ -127,9 +121,7 @@ def test_snag_and_invalid_reply(tmp_path):
     repo, driver, llm = setup(tmp_path, [reply("snag", [FINDING]), reply("wrong")])
     assert run(driver, repo).findings[0].paved_road == "add it to the fence"
     # A new call identity avoids replaying the first completion.
-    invalid = asyncio.run(review_ticket(driver, repo=repo, stem="one-thing", text=TICKET,
-                                        specs_dir=SPECS, tier="high", stem_slot="s", run_seq=0,
-                                        attempt=1, call_seq=2, expected_budget='surface'))
+    invalid = asyncio.run(review_ticket(driver, repo=repo, stem="one-thing", text=TICKET, specs_dir=SPECS, tier="high", stem_slot="s", run_seq=0, attempt=1, call_seq=2, expected_budget="surface"))
     assert invalid.verdict == "snag" and invalid.mechanical == "invalid reply"
     assert len(llm.requests) == 2
     with pytest.raises(Exception):
@@ -182,8 +174,7 @@ def test_implement_reads_context_from_its_worktree(tmp_path):
     worktree.mkdir()
     (worktree / "context.txt").write_text("worktree context")
     ticket = review_target(repo, "one-thing", TICKET)
-    ctx = StageContext(repo=repo, config=load_config(None, cwd=repo), env={}, exec_=None,
-                       git=None, fs=None, driver=driver, specs_dir=SPECS)
+    ctx = StageContext(repo=repo, config=load_config(None, cwd=repo), env={}, exec_=None, git=None, fs=None, driver=driver, specs_dir=SPECS)
     stage, _ = implement_stage(ctx, ticket, worktree)
     prompt = stage.render(ticket, [])
     assert "worktree context" in prompt
@@ -194,6 +185,7 @@ def test_review_render_over_bound_is_mechanical_snag(tmp_path, monkeypatch):
     repo, driver, llm = setup(tmp_path, [])
     import chupa.requisition as requisition
     import chupa.specs as specs
+
     # The base Implement render fits the bound; the review render, which embeds it, does not.
     base = base_render_chars(repo, review_target(repo, "one-thing", TICKET), TICKET, SPECS)
     monkeypatch.setattr(specs, "RENDER_BOUND_CHARS", base + 1)
@@ -208,8 +200,7 @@ def test_base_render_matches_implement_and_gate(tmp_path):
     repo, driver, _ = setup(tmp_path, [reply("approve")])
     ticket = review_target(repo, "one-thing", TICKET)
     spec = load_spec((SPECS / "implement.md").read_text())
-    production = render(spec, {**implement_inputs(repo, TICKET, ticket, ()),
-                               "retry_findings": "none"})
+    production = render(spec, {**implement_inputs(repo, TICKET, ticket, ()), "retry_findings": "none"})
     assert base_render_chars(repo, ticket, TICKET, SPECS) == len(production)
     approved = run(driver, repo)
     snag = approved.model_copy(update={"verdict": "snag", "findings": [Finding(**FINDING)]})

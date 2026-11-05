@@ -14,9 +14,17 @@ WATCHER_PARSE_FAILURE = "watcher_parse_failure"
 
 class Watcher:
     def __init__(
-        self, repo: Path, *, plan: str | None, read: Callable[[str], str | None],
-        journal: Journal, publish: Callable[[Ticket], None], remove: Callable[[str], None],
-        clock: Clock, sleep: Sleep, debounce: float,
+        self,
+        repo: Path,
+        *,
+        plan: str | None,
+        read: Callable[[str], str | None],
+        journal: Journal,
+        publish: Callable[[Ticket], None],
+        remove: Callable[[str], None],
+        clock: Clock,
+        sleep: Sleep,
+        debounce: float,
     ) -> None:
         self.repo = repo
         self.plan = plan
@@ -47,9 +55,7 @@ class Watcher:
             try:
                 ticket = parse_ticket(stem, text, self.repo, plan=self.plan)
             except TicketInvalid as e:
-                self.journal.append(EventType.SIGNAL,
-                                    {"signal": WATCHER_PARSE_FAILURE, "path": ticket_path(stem),
-                                     "reason": str(e)}, ticket=stem, key=None)
+                self.journal.append(EventType.SIGNAL, {"signal": WATCHER_PARSE_FAILURE, "path": ticket_path(stem), "reason": str(e)}, ticket=stem, key=None)
                 return
             self.cache[stem] = ticket
             self.publish(ticket)

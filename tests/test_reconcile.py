@@ -4,7 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from chupa import journal as journal_module, runner, stages as stage_module
+from chupa import journal as journal_module
+from chupa import runner
+from chupa import stages as stage_module
 from chupa.audit import audit_journal
 from chupa.git import Git
 from chupa.journal import EVENT_VERSIONS, SIGNAL_NAMES, TERMINAL_STATES, EventType, Journal, render_ts, run_seq
@@ -20,8 +22,10 @@ STATE = Path(".chupa") / "state"
 @pytest.mark.parametrize("release", [False, True])
 def test_live_hold_is_not_an_orphan(tmp_path, release):
     from tests.test_mergequeue import ctx as context_fixture
-    from tests.test_supervised_merge_hold import hold, confirm
+    from tests.test_supervised_merge_hold import confirm, hold
+
     ctx = context_fixture.__wrapped__(tmp_path)
+
     async def exercise():
         ticket, queue, held = await hold(ctx)
         if release:
@@ -30,7 +34,10 @@ def test_live_hold_is_not_an_orphan(tmp_path, release):
         ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket="ordinary")
         ctx.driver.journal.append(EventType.EFFECT_INTENT, {}, ticket="incomplete", key="merge-regate/incomplete/0/unfinished")
         harvested = []
-        async def harvest(stem, attempt): harvested.append((stem, attempt))
+
+        async def harvest(stem, attempt):
+            harvested.append((stem, attempt))
+
         before = ctx.driver.journal.read()
         assert orphans(before) == ["incomplete", "ordinary"]
         assert await reconcile(ctx.driver.journal, ctx.git, ctx.repo, ctx.config.worktree_root, harvest) == ["incomplete", "ordinary"]
@@ -39,6 +46,7 @@ def test_live_hold_is_not_an_orphan(tmp_path, release):
         settled = ctx.driver.journal.read()
         assert await reconcile(ctx.driver.journal, ctx.git, ctx.repo, ctx.config.worktree_root, harvest) == []
         assert ctx.driver.journal.read() == settled and queue.held[ticket.stem][2] == held.hold_id
+
     asyncio.run(exercise())
 
 
@@ -74,8 +82,7 @@ def test_running_with_no_terminal_is_reaped_to_abandoned_on_the_next_run(root):
     assert transitions.index(("dead-run", "abandoned")) < transitions.index(("add-thing", "running"))
     [alert] = [e for e in events if e.ticket == "dead-run" and e.body.get("kind") == RECOVERY_ALERT]
     assert alert.body == recovery_body(0)
-    assert events.index(alert) < next(i for i, e in enumerate(events)
-                                     if e.ticket == "add-thing" and e.body.get("to") == "running")
+    assert events.index(alert) < next(i for i, e in enumerate(events) if e.ticket == "add-thing" and e.body.get("to") == "running")
     assert last_states(events)["dead-run"] == "abandoned"
     assert run_seq(events, "dead-run") == 1  # the reap is a terminal: a re-run takes a fresh sequence
     assert not path.exists()
@@ -140,8 +147,7 @@ def test_a_reaped_stem_reruns(root):
 
 
 def recovery_body(sequence):
-    return {"kind": "recovery_alert", "disposition": "alert", "outcome": "abandoned",
-            "reason": "orphaned run", "run_seq": sequence}
+    return {"kind": "recovery_alert", "disposition": "alert", "outcome": "abandoned", "reason": "orphaned run", "run_seq": sequence}
 
 
 def test_recovery_alert_records_producing_run(root):
@@ -166,20 +172,22 @@ def test_recovery_alert_records_producing_run(root):
     assert asyncio.run(reconcile(j, git(), root, root / STATE / "worktrees", harvest)) == sorted(sequences)
     assert harvested == sorted(sequences.items())
     events = Journal(root / STATE, Clock()).read()
-    assert events[:len(before)] == before
+    assert events[: len(before)] == before
     for stem, sequence in sequences.items():
-        terminal, alert = [e for e in events[len(before):] if e.ticket == stem]
+        terminal, alert = [e for e in events[len(before) :] if e.ticket == stem]
         assert terminal.type == EventType.STATE_TRANSITION and terminal.key is None
         assert terminal.body == {"to": "abandoned"}
         assert asdict(alert) == {
-            "v": EVENT_VERSIONS[EventType.SIGNAL], "type": EventType.SIGNAL,
-            "ts": render_ts(Clock()()), "ticket": stem, "key": None,
+            "v": EVENT_VERSIONS[EventType.SIGNAL],
+            "type": EventType.SIGNAL,
+            "ts": render_ts(Clock()()),
+            "ticket": stem,
+            "key": None,
             "body": recovery_body(sequence),
         }
         assert type(alert.body["run_seq"]) is int and alert.body["run_seq"] >= 0
         assert run_seq(events, stem) == sequence + 1
-    assert [(v.invariant, v.ticket, v.detail) for v in audit_journal(j)] == [
-        ("one_terminal_per_run", "intent", "terminal 'abandoned' has no open run")]
+    assert [(v.invariant, v.ticket, v.detail) for v in audit_journal(j)] == [("one_terminal_per_run", "intent", "terminal 'abandoned' has no open run")]
 
 
 @pytest.mark.parametrize("harvest_error", [False, True])
@@ -224,10 +232,15 @@ def test_recovery_alert_precedes_worktree_removal(root, monkeypatch, harvest_err
     monkeypatch.setattr(g, "worktree_remove", removed)
     monkeypatch.setattr(g, "worktree_prune", pruned)
     assert asyncio.run(reconcile(j, g, root, root / STATE / "worktrees", harvest)) == ["existing", "missing"]
-    assert trace == [("existing", "harvest")] + (
-        [("existing", "harvest_failed")] if harvest_error else []) + [
-        ("existing", "abandoned"), ("existing", "recovery_alert"), ("existing", "remove"),
-        (None, "prune"), ("missing", "abandoned"), ("missing", "recovery_alert"), (None, "prune")]
+    assert trace == [("existing", "harvest")] + ([("existing", "harvest_failed")] if harvest_error else []) + [
+        ("existing", "abandoned"),
+        ("existing", "recovery_alert"),
+        ("existing", "remove"),
+        (None, "prune"),
+        ("missing", "abandoned"),
+        ("missing", "recovery_alert"),
+        (None, "prune"),
+    ]
     errors = [e for e in j.read() if e.body.get("signal") == "harvest_failed"]
     if harvest_error:
         [error] = errors
@@ -256,8 +269,7 @@ def test_recovery_alert_is_once_per_reaped_run(root):
     assert recover(recovered) == [] and recovered.read() == closed
     recovered.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket="dead")
     assert recover(recovered) == ["dead"]
-    assert [e.body for e in recovered.read() if e.body.get("kind") == RECOVERY_ALERT] == [
-        recovery_body(0), recovery_body(1)]
+    assert [e.body for e in recovered.read() if e.body.get("kind") == RECOVERY_ALERT] == [recovery_body(0), recovery_body(1)]
     assert run_seq(recovered.read(), "dead") == 2 and audit_journal(recovered) == []
 
 
@@ -296,8 +308,7 @@ def test_recovery_alert_failures_preserve_terminal_history(root, monkeypatch, fa
     assert trace == (["harvest", "remove"] if failure == "cleanup" else ["harvest"])
     events = journal(root).read()
     assert events[1].body == {"to": "abandoned"} and events[1].key is None
-    assert [e.body for e in events if e.type == EventType.SIGNAL] == (
-        [] if failure == "alert" else [recovery_body(0)])
+    assert [e.body for e in events if e.type == EventType.SIGNAL] == ([] if failure == "alert" else [recovery_body(0)])
     assert path.exists() and orphans(events) == [] and run_seq(events, "dead") == 1
     assert reap(root) == [] and journal(root).read() == events and path.exists()
     assert audit_journal(j) == []

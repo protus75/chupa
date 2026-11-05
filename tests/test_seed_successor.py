@@ -1,7 +1,5 @@
 """A reviewed seed becomes runnable after its parent's real admission, in one CLI drain."""
 
-from tests.test_stages import adopt_conduct
-
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, replace
@@ -17,7 +15,7 @@ from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.stages import Invoice, read_review
 from chupa.status import last_states
 from chupa.tickets import ticket_path, validate_ticket
-from tests.test_stages import CONFIG, ENV, TICKET, implement_reply, verdict
+from tests.test_stages import CONFIG, ENV, TICKET, adopt_conduct, implement_reply, verdict
 
 PARENT = "proof-parent"
 SUCCESSOR = "proof-successor"
@@ -31,17 +29,17 @@ def wait_for(coro):
 
 
 def ticket_text(stem: str) -> str:
-    text = (TICKET.format(bypass="")
-            .replace("chupa/thing.py", f"work/{stem}.py")
-            .replace("`thing.py`", f"`{stem}.py`")
-            .replace("env\n", "")
-            .replace("kind: feature", "kind: chore\nagent_tier: medium\nagent_effort: medium")
-            .replace("## Goal / Why", "## Plan contract\n- 19.L\n- 19.P3\n\n## Goal / Why"))
+    text = (
+        TICKET.format(bypass="")
+        .replace("chupa/thing.py", f"work/{stem}.py")
+        .replace("`thing.py`", f"`{stem}.py`")
+        .replace("env\n", "")
+        .replace("kind: feature", "kind: chore\nagent_tier: medium\nagent_effort: medium")
+        .replace("## Goal / Why", "## Plan contract\n- 19.L\n- 19.P3\n\n## Goal / Why")
+    )
     if stem == PARENT:
-        return text.replace(f"- work/{stem}.py\n\n## Acceptance criteria",
-                            f"- work/{stem}.py\n- tickets\n\n## Acceptance criteria")
-    return text.replace("source: human", "source: seed").replace(
-        "## Depends on\nnone", f"## Depends on\n- {PARENT}")
+        return text.replace(f"- work/{stem}.py\n\n## Acceptance criteria", f"- work/{stem}.py\n- tickets\n\n## Acceptance criteria")
+    return text.replace("source: human", "source: seed").replace("## Depends on\nnone", f"## Depends on\n- {PARENT}")
 
 
 def test_merged_parent_registers_and_runs_successor_in_same_drain(tmp_path: Path, capsys):
@@ -85,21 +83,45 @@ def test_merged_parent_registers_and_runs_successor_in_same_drain(tmp_path: Path
         invoice = Invoice.model_validate_json(git_out(repo, "show", f"main:tickets/{PARENT}/checks.json"))
         assert invoice.passed
         assert invoice.changed_files == [f"work/{PARENT}.py"]
-        assert [s.model_dump() for s in invoice.seeds] == [{
-            "stem": SUCCESSOR, "ticket_sha": blob, "verdict": "approve", "findings": [], "mechanical": None,
-        }]
+        assert [s.model_dump() for s in invoice.seeds] == [
+            {
+                "stem": SUCCESSOR,
+                "ticket_sha": blob,
+                "verdict": "approve",
+                "findings": [],
+                "mechanical": None,
+            }
+        ]
         history = checkout.journal.read()
         [approval] = [e for e in history if e.body.get("signal") == "requisition_verdict"]
-        assert asdict(approval) == envelope(EventType.SIGNAL, SUCCESSOR, None, {
-            "signal": "requisition_verdict", "seeding": PARENT, "verdict": "approve",
-            "ticket_sha": blob, "findings": [], "text": seed_text,
-        })
+        assert asdict(approval) == envelope(
+            EventType.SIGNAL,
+            SUCCESSOR,
+            None,
+            {
+                "signal": "requisition_verdict",
+                "seeding": PARENT,
+                "verdict": "approve",
+                "ticket_sha": blob,
+                "findings": [],
+                "text": seed_text,
+            },
+        )
         [intake] = [e for e in history if e.body.get("signal") == "ticket_intake" and e.ticket == SUCCESSOR]
         commit = intake.body["commit"]
-        assert asdict(intake) == envelope(EventType.SIGNAL, SUCCESSOR, None, {
-            "signal": "ticket_intake", "source": "seed", "state": "confirmed", "new": True,
-            "commit": commit, "seeded_by": PARENT,
-        })
+        assert asdict(intake) == envelope(
+            EventType.SIGNAL,
+            SUCCESSOR,
+            None,
+            {
+                "signal": "ticket_intake",
+                "source": "seed",
+                "state": "confirmed",
+                "new": True,
+                "commit": commit,
+                "seeded_by": PARENT,
+            },
+        )
         assert git_out(repo, "show", "-s", "--format=%s", commit) == f"chupa({PARENT}): seeds"
         assert git_out(repo, "show", "--name-only", "--format=", commit).splitlines() == [ticket_path(SUCCESSOR)]
         assert wait_for(git.rev_parse(repo, f"{commit}:{ticket_path(SUCCESSOR)}")) == blob
@@ -122,8 +144,13 @@ def test_merged_parent_registers_and_runs_successor_in_same_drain(tmp_path: Path
                 seed = validate_ticket(SUCCESSOR, seed_text, req.worktree)
                 assert seed.depends == (PARENT,)
                 assert seed.frontmatter.model_dump() == {
-                    "state": "confirmed", "source": "seed", "priority": "P2", "kind": "chore",
-                    "agent_tier": "medium", "agent_effort": "medium", "gate_bypass": [],
+                    "state": "confirmed",
+                    "source": "seed",
+                    "priority": "P2",
+                    "kind": "chore",
+                    "agent_tier": "medium",
+                    "agent_effort": "medium",
+                    "gate_bypass": [],
                 }
             path = f"work/{stem}.py"
             fs.write(req.worktree / path, b"ok = True\n")
@@ -135,6 +162,7 @@ def test_merged_parent_registers_and_runs_successor_in_same_drain(tmp_path: Path
                 assert ticket_path(SUCCESSOR) not in wait_for(git.ls_files(req.worktree))
                 assert (req.worktree / ticket_path(SUCCESSOR)).read_text() == seed_text
             return implement_reply()
+
         return act
 
     def seed_review(req: LLMRequest) -> str:
@@ -166,8 +194,7 @@ def test_merged_parent_registers_and_runs_successor_in_same_drain(tmp_path: Path
         assert last_states(checkouts[0].journal.read()) == {PARENT: "merged", SUCCESSOR: "running"}
         return verdict()
 
-    llm = FakeLLM([implement(PARENT), seed_review, parent_review, implement(SUCCESSOR), successor_review,
-                   '{"proposals": []}'])
+    llm = FakeLLM([implement(PARENT), seed_review, parent_review, implement(SUCCESSOR), successor_review, '{"proposals": []}'])
 
     async def never(seconds: float) -> None:
         await asyncio.Event().wait()
@@ -193,6 +220,7 @@ def test_merged_parent_registers_and_runs_successor_in_same_drain(tmp_path: Path
                 seed_records(checkout)
             dispatches.append(ticket.stem)
             return await bound(ticket)
+
         dispatch.stages = bound.stages
         return dispatch
 
@@ -200,8 +228,11 @@ def test_merged_parent_registers_and_runs_successor_in_same_drain(tmp_path: Path
     assert len(checkouts) == 1
     assert dispatches == [PARENT, SUCCESSOR]
     assert [(r.surface, r.ticket) for r in llm.requests] == [
-        ("implement", PARENT), ("requisition_review", None), ("review", PARENT),
-        ("implement", SUCCESSOR), ("review", SUCCESSOR),
+        ("implement", PARENT),
+        ("requisition_review", None),
+        ("review", PARENT),
+        ("implement", SUCCESSOR),
+        ("review", SUCCESSOR),
         ("retro", None),
     ]
     assert not llm.script and llm.aborted == 0
@@ -213,9 +244,16 @@ def test_merged_parent_registers_and_runs_successor_in_same_drain(tmp_path: Path
     for event in terminals:
         stem = event.ticket
         commit = event.body["commit"]
-        assert asdict(event) == envelope(EventType.STATE_TRANSITION, stem, None, {
-            "to": "merged", "commit": commit, "reviewed_sha": reviewed[stem],
-        })
+        assert asdict(event) == envelope(
+            EventType.STATE_TRANSITION,
+            stem,
+            None,
+            {
+                "to": "merged",
+                "commit": commit,
+                "reviewed_sha": reviewed[stem],
+            },
+        )
         assert git_out(repo, "show", "--name-only", "--format=", commit).splitlines() == [f"work/{stem}.py"]
         message = git_out(repo, "show", "-s", "--format=%B", commit)
         assert f"chupa-ticket: {stem}" in message
@@ -224,11 +262,9 @@ def test_merged_parent_registers_and_runs_successor_in_same_drain(tmp_path: Path
         assert approval.verdict == "approve" and approval.reviewed_sha == reviewed[stem]
         assert not (checkout.config.worktree_root / stem).exists()
         assert git_out(repo, "branch", "--list", stem) == ""
-    [successor_running] = [e for e in history if e.type == EventType.STATE_TRANSITION
-                           and e.ticket == SUCCESSOR and e.body.get("to") == "running"]
+    [successor_running] = [e for e in history if e.type == EventType.STATE_TRANSITION and e.ticket == SUCCESSOR and e.body.get("to") == "running"]
     assert history.index(terminals[0]) < history.index(successor_running)
-    assert git_out(repo, "log", "--format=%s", f"{start}..main").splitlines().count(
-        f"chupa({PARENT}): seeds") == 1
+    assert git_out(repo, "log", "--format=%s", f"{start}..main").splitlines().count(f"chupa({PARENT}): seeds") == 1
     [receipt] = [e for e in history if e.type == EventType.EFFECT_COMPLETION and e.key == "retro/1"]
     assert git_out(repo, "rev-parse", "main") == receipt.body["result"]["commit"]
     assert git_out(repo, "rev-parse", "main~1") == terminals[1].body["commit"]

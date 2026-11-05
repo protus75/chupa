@@ -6,7 +6,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from chupa import __main__ as cli, control, daemon, journal as journal_module, runner
+from chupa import __main__ as cli
+from chupa import control, daemon, runner
+from chupa import journal as journal_module
 from chupa.box import Box, BoxError, Resolution, Verdict
 from chupa.effects import Effects
 from chupa.journal import EventType, Journal, JournalCorruption
@@ -15,20 +17,18 @@ from chupa.seams import LocalFileSystem
 from chupa.storm import StormLedger
 from tests.test_daemon_composition import CoreRig
 from tests.test_drain_reentry import NoChild
-from tests.test_journal import FakeClock, T0
+from tests.test_journal import T0, FakeClock
 from tests.test_mergequeue import ctx as admission_context  # noqa: F401
 from tests.test_stages import STEM, TICKET, agent, verdict
 from tests.test_storm import SIG, snapshot
 
-ARRIVAL = dict(message_class="failure_report", origin="one", summary="failed path/one 123",
-               stage="implement", outcome="gate_failed")
+ARRIVAL = dict(message_class="failure_report", origin="one", summary="failed path/one 123", stage="implement", outcome="gate_failed")
 
 
 def compose(state, clock=None, fs=None):
     clock = clock or FakeClock(T0)
     journal = Journal(state, clock)
-    box = daemon.storm_producer(root=state / "box", fs=fs or LocalFileSystem(),
-                                journal=journal, clock=clock)
+    box = daemon.storm_producer(root=state / "box", fs=fs or LocalFileSystem(), journal=journal, clock=clock)
     return box, journal, clock
 
 
@@ -59,12 +59,9 @@ def test_new_and_dedup_arrivals_record_occurrences(tmp_path, monkeypatch):
     before = snapshot(box.root)
     assert box.enqueue(**ARRIVAL, occurrence_id="producer/2") == (first[0], False)
     assert snapshot(box.root) == before and order == ["occurrence", "queue", "occurrence"]
-    assert calls == [dict(signature=SIG, occurrence_id=f"producer/{n}",
-                          emitting_stage="implement", emitting_origin="one") for n in (1, 2)]
+    assert calls == [dict(signature=SIG, occurrence_id=f"producer/{n}", emitting_stage="implement", emitting_origin="one") for n in (1, 2)]
     for n, event in enumerate(journal.read(), 1):
-        assert asdict(event) == dict(v=1, type="signal", ts=T0.isoformat(), ticket=None,
-            key=f"storm-occurrence/{SIG}/producer/{n}",
-            body=dict(kind="storm_occurrence", **calls[n - 1]))
+        assert asdict(event) == dict(v=1, type="signal", ts=T0.isoformat(), ticket=None, key=f"storm-occurrence/{SIG}/producer/{n}", body=dict(kind="storm_occurrence", **calls[n - 1]))
     message = box.get(first[0])
     assert message.seq == 1 and message.status == "pending"
     assert message.verdict is message.resolution is None
@@ -99,35 +96,33 @@ def test_arrival_replay_survives_restart_and_roll(tmp_path, monkeypatch):
     assert snapshot(tmp_path) == before
 
 
-@pytest.mark.parametrize("incoming", [
-    ARRIVAL,
-    dict(message_class="suggestion", origin="bootstrap-ingest", summary="suggestion"),
-    dict(message_class="bug_report", origin="host-app", summary="crash",
-         bug_origin="self_diagnosed", has_repro=True),
-])
+@pytest.mark.parametrize(
+    "incoming",
+    [
+        ARRIVAL,
+        dict(message_class="suggestion", origin="bootstrap-ingest", summary="suggestion"),
+        dict(message_class="bug_report", origin="host-app", summary="crash", bug_origin="self_diagnosed", has_repro=True),
+    ],
+)
 def test_dedup_preserves_resolved_message_and_incoming_identity(tmp_path, incoming):
     box, journal, clock = compose(tmp_path)
     id, _ = box.enqueue(**incoming, occurrence_id="first")
     message = box.get(id)
     # Stored diagnostic fields are not the arriving producer's identity.
-    box._write(message.model_copy(update={"stage": "check", "outcome": "gate_failed",
-                                          "origin": "stored", "summary": "old diagnostic"}))
+    box._write(message.model_copy(update={"stage": "check", "outcome": "gate_failed", "origin": "stored", "summary": "old diagnostic"}))
     verdict = Verdict(verdict="decision", produced_by_spec_version="1", rationale="recorded")
     resolution = Resolution(kind="decision", link="known")
     box.record_verdict(id, verdict)
     box.resolve(id, resolution)
     before = snapshot(box.root)
-    assert box.enqueue(**{**incoming, "summary": "new diagnostic", "reason": incoming["summary"]},
-                       occurrence_id="second") == (id, False)
+    assert box.enqueue(**{**incoming, "summary": "new diagnostic", "reason": incoming["summary"]}, occurrence_id="second") == (id, False)
     assert snapshot(box.root) == before
     assert box.get(id).verdict == verdict and box.get(id).resolution == resolution
-    assert journal.read()[-1].body == dict(kind="storm_occurrence", signature=message.signature,
-        occurrence_id="second", emitting_stage=incoming.get("stage"), emitting_origin=incoming["origin"])
+    assert journal.read()[-1].body == dict(kind="storm_occurrence", signature=message.signature, occurrence_id="second", emitting_stage=incoming.get("stage"), emitting_origin=incoming["origin"])
     assert StormLedger(journal=journal, clock=clock).count(message.signature) == 2
 
 
-@pytest.mark.parametrize("damage", ["missing", "blank", "non-string", "pair", "class", "summary",
-                                    "queue", "read", "callback", "ledger", "journal", "append"])
+@pytest.mark.parametrize("damage", ["missing", "blank", "non-string", "pair", "class", "summary", "queue", "read", "callback", "ledger", "journal", "append"])
 def test_invalid_arrivals_and_callback_failures_do_not_publish(tmp_path, monkeypatch, damage):
     box, journal, _ = compose(tmp_path)
     kwargs = dict(ARRIVAL, occurrence_id="new")
@@ -188,8 +183,7 @@ def test_enqueue_crash_replay_finishes_once(tmp_path, monkeypatch, when):
         raise Crash()
 
     with monkeypatch.context() as patch:
-        patch.setattr(journal if "occurrence" in when else box.fs,
-                      "append" if "occurrence" in when else "write", crash)
+        patch.setattr(journal if "occurrence" in when else box.fs, "append" if "occurrence" in when else "write", crash)
         with pytest.raises(Crash):
             box.enqueue(**ARRIVAL, occurrence_id="stable")
     assert len(journal.read()) == (0 if when == "before-occurrence" else 1)
@@ -257,8 +251,7 @@ def test_storm_producer_hook_is_active(tmp_path, monkeypatch, admission_context,
         return "```json\n" + json.dumps(reply) + "\n```"
 
     llm = FakeLLM([report, verdict()])
-    assert cli.main([verb, STEM] if verb == "run" else [verb], cwd=source.repo, env=source.env,
-                    clock=source.driver.clock, pipeline=lambda c: runner.bind(c, llm), reexec=NoChild()) == 0
+    assert cli.main([verb, STEM] if verb == "run" else [verb], cwd=source.repo, env=source.env, clock=source.driver.clock, pipeline=lambda c: runner.bind(c, llm), reexec=NoChild()) == 0
     messages = Box(source.config.state_dir / "box", source.fs).messages()
     assert len(messages) == 1 and messages[0].summary == "ordinary production arrival"
     occurrences = [e for e in source.driver.journal.read() if e.body.get("kind") == "storm_occurrence"]

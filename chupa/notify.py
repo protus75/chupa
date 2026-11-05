@@ -23,33 +23,29 @@ def notification_key(owner: str, escalation: str, identity: str, *, run_sequence
     return f"notify/{owner}/{escalation}/{identity}"
 
 
-async def send(effects: Effects, notifications: Notifications, argv: Sequence[str], *,
-               owner: str, escalation: str, identity: str, message: str,
-               ticket: str | None, run_sequence: int | None = None):
-    return await effects.run(lambda: notifications.notify([*argv, message]), ticket=ticket,
-        key=notification_key(owner, escalation, identity, run_sequence=run_sequence))
+async def send(effects: Effects, notifications: Notifications, argv: Sequence[str], *, owner: str, escalation: str, identity: str, message: str, ticket: str | None, run_sequence: int | None = None):
+    return await effects.run(lambda: notifications.notify([*argv, message]), ticket=ticket, key=notification_key(owner, escalation, identity, run_sequence=run_sequence))
 
 
 class WatchdogNotifications:
     """Run-bound producer; transport alone owns the Effects and notification keys."""
 
-    def __init__(self, *, effects: Effects, notifications: Notifications, argv: Sequence[str] | None,
-                 owner: str, ticket: str | None, run_sequence: int, identity: str, log) -> None:
+    def __init__(self, *, effects: Effects, notifications: Notifications, argv: Sequence[str] | None, owner: str, ticket: str | None, run_sequence: int, identity: str, log) -> None:
         self.effects, self.notifications, self.argv = effects, notifications, argv
         self.owner, self.ticket, self.run_sequence, self.identity = owner, ticket, run_sequence, identity
         self.log = log
 
     async def __call__(self, escalation: str) -> None:
-        message = f'{self.owner}: {escalation}; inspect the run, then kill it, inject guidance, or let it cook'
+        message = f"{self.owner}: {escalation}; inspect the run, then kill it, inject guidance, or let it cook"
         if self.argv is None:
-            self.log.event('watchdog_notify_unset', owner=self.owner, escalation=escalation,
-                           warning='push is off; set notify argv in config.yaml to deliver warnings')
+            self.log.event("watchdog_notify_unset", owner=self.owner, escalation=escalation, warning="push is off; set notify argv in config.yaml to deliver warnings")
             return
         try:
-            await send(self.effects, self.notifications, self.argv, owner=self.owner, escalation=escalation,
-                       identity=self.identity, message=message, ticket=self.ticket, run_sequence=self.run_sequence)
+            await send(
+                self.effects, self.notifications, self.argv, owner=self.owner, escalation=escalation, identity=self.identity, message=message, ticket=self.ticket, run_sequence=self.run_sequence
+            )
         except NotificationFailed as exc:
-            self.log.event('notify_failed', owner=self.owner, escalation=escalation, error=str(exc))
+            self.log.event("notify_failed", owner=self.owner, escalation=escalation, error=str(exc))
 
 
 def escalation(event: Event) -> tuple[str, str, str] | None:
@@ -91,8 +87,7 @@ def _stamp(path: Path):
 class NotificationReconciler:
     """One owned command at a time; maintenance never awaits external delivery."""
 
-    def __init__(self, *, journal: Journal, clock: Clock, config_path: Path,
-                 load: Callable, compose: Callable, log) -> None:
+    def __init__(self, *, journal: Journal, clock: Clock, config_path: Path, load: Callable, compose: Callable, log) -> None:
         self.journal, self.clock, self.config_path = journal, clock, config_path
         self.load, self.compose, self.log = load, compose, log
         self.config = self.effects = None
@@ -112,8 +107,7 @@ class NotificationReconciler:
                 self.retry_at.clear()
             self.config, self.config_stamp = config, config_stamp
         if startup and self.config.notify is None:
-            self.log.event("notify_unset", warning="push is off; escalation evidence remains journaled; "
-                           "set notify argv in config.yaml to deliver pending evidence")
+            self.log.event("notify_unset", warning="push is off; escalation evidence remains journaled; set notify argv in config.yaml to deliver pending evidence")
         journal_stamp = tuple((p.name, _stamp(p)) for p in sorted(self.journal.dir.glob("*.jsonl")))
         if self.effects is None or journal_stamp != self.journal_stamp:
             self.pending = pending_escalations(self.journal.read())
@@ -129,12 +123,10 @@ class NotificationReconciler:
 
     async def _deliver(self, key: str, event: Event, config) -> None:
         owner, kind, identity = escalation(event)
-        message = json.dumps({**event.body, "owner": owner, "escalation": kind,
-                              "identity": identity, "exit": "resume"}, sort_keys=True)
+        message = json.dumps({**event.body, "owner": owner, "escalation": kind, "identity": identity, "exit": "resume"}, sort_keys=True)
         try:
             # Transport outlives the producing run; a pending command is never an orphaned run.
-            await send(self.effects, self.compose(config), config.notify, owner=owner,
-                       escalation=kind, identity=identity, message=message, ticket=None)
+            await send(self.effects, self.compose(config), config.notify, owner=owner, escalation=kind, identity=identity, message=message, ticket=None)
         except NotificationFailed as exc:
             self.retry_at[key] = self.clock() + timedelta(seconds=NOTIFY_RETRY_S)
             self.log.event("notify_failed", key=key, error=str(exc))

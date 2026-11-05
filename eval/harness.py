@@ -26,9 +26,9 @@ from typing import Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
-from chupa.artifacts import AuthorIdentity, Expected, Finding, NonBlank, ReviewVerdict, ReviewBaselineReport, AuthorGraph
+from chupa.artifacts import AuthorGraph, AuthorIdentity, Expected, Finding, NonBlank, ReviewBaselineReport, ReviewVerdict
 from chupa.config import Candidate, Config, Route, load_config
-from chupa.driver import Driver, LlmStage, unwrap_fence
+from chupa.driver import Driver, LlmStage
 from chupa.git import Git
 from chupa.journal import EventType, Journal
 from chupa.llm import AgentTier
@@ -36,9 +36,9 @@ from chupa.lockfile import Lockfile
 from chupa.policy import BASELINE_SIGNAL, TIERS, baseline_identity
 from chupa.providers import ProviderLLM, ProviderSession
 from chupa.runner import call_timeout
-from chupa.timers import Timers
 from chupa.seams import Clock, LocalFileSystem, SubprocessExec
 from chupa.specs import Spec, load_spec, render
+from chupa.timers import Timers
 
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = ROOT / "eval" / "fixtures"
@@ -80,12 +80,10 @@ def load_fixtures(root: Path = FIXTURES) -> list[Fixture]:
             expected = Expected.model_validate_json((d / "expected.json").read_text())
             out.append(Fixture(d.name, (d / "ticket.md").read_text(), (d / "diff.patch").read_text(), expected))
         except (OSError, ValidationError) as e:
-            raise FixtureError(f"fixture {d.name}: {e}; re-author it with `eval.harness author --only {d.name}"
-                               " --force`") from None
+            raise FixtureError(f"fixture {d.name}: {e}; re-author it with `eval.harness author --only {d.name} --force`") from None
     defects = sum(f.expected.defect_class != "none" for f in out)
     if defects < MIN_DEFECTS or len(out) - defects < MIN_CLEAN:
-        raise FixtureError(f"{defects} planted and {len(out) - defects} clean fixtures; the spike needs at least"
-                           f" {MIN_DEFECTS} planted and {MIN_CLEAN} clean -- author more")
+        raise FixtureError(f"{defects} planted and {len(out) - defects} clean fixtures; the spike needs at least {MIN_DEFECTS} planted and {MIN_CLEAN} clean -- author more")
     return out
 
 
@@ -93,8 +91,7 @@ def refuse_same_author(fixture_authors: Iterable[AuthorIdentity], identity: Mapp
     review = identity["review"]["rows"][tier]
     for a in fixture_authors:
         if (a.provider, a.model) == (review["provider"], review["model"]):
-            raise FixtureError(f"fixtures authored by {a.provider}/{a.model}, the identity serving REVIEW at {tier};"
-                               " re-author them through a different (provider, model)")
+            raise FixtureError(f"fixtures authored by {a.provider}/{a.model}, the identity serving REVIEW at {tier}; re-author them through a different (provider, model)")
 
 
 @dataclass(frozen=True)
@@ -171,21 +168,27 @@ async def run_baseline(
         if spent >= RUN_CAP_USD:
             results.append(Scored(fx.name, fx.expected, "budget_exceeded", None))
             continue
-        r = await driver.run(stage, fx, ticket=f"baseline-{fx.name}", attempt=attempt, workspace=workspace,
-                             tier=tier, effort=effort, stuck_budget=STUCK_BUDGET_S, expected_budget='eval', scope_fence=(),
-                             budget_usd=max(0.0, RUN_CAP_USD - spent))
+        r = await driver.run(
+            stage,
+            fx,
+            ticket=f"baseline-{fx.name}",
+            attempt=attempt,
+            workspace=workspace,
+            tier=tier,
+            effort=effort,
+            stuck_budget=STUCK_BUDGET_S,
+            expected_budget="eval",
+            scope_fence=(),
+            budget_usd=max(0.0, RUN_CAP_USD - spent),
+        )
         spent += r.cost.usd
         verdict = r.artifact.verdict if r.outcome == "ok" and r.artifact is not None else None
         results.append(Scored(fx.name, fx.expected, r.outcome, verdict))
-        driver.log.event("baseline_fixture", fixture=fx.name, expected=fx.expected.expected_verdict,
-                         defect_class=fx.expected.defect_class, outcome=r.outcome, verdict=verdict,
-                         usd=r.cost.usd)
+        driver.log.event("baseline_fixture", fixture=fx.name, expected=fx.expected.expected_verdict, defect_class=fx.expected.defect_class, outcome=r.outcome, verdict=verdict, usd=r.cost.usd)
         progress(f"{fx.name}: expected {fx.expected.expected_verdict}, got {verdict or r.outcome}")
     graph = None
     if out is not None and spent < RUN_CAP_USD:
-        graph, cost = await run_author_graph(driver, attempt=attempt, workspace=workspace,
-                                             budget_usd=RUN_CAP_USD - spent,
-                                             tier=tier, effort=effort)
+        graph, cost = await run_author_graph(driver, attempt=attempt, workspace=workspace, budget_usd=RUN_CAP_USD - spent, tier=tier, effort=effort)
         spent += cost
     body = {
         "signal": BASELINE_SIGNAL,
@@ -204,15 +207,19 @@ async def run_baseline(
 
 def make_report(results, graph, spent, event) -> ReviewBaselineReport:
     scores = score(results)
-    complete = (scores["planted"] >= GO_MIN_DEFECTS and scores["clean"] >= GO_MIN_CLEAN
-                and all(r.verdict is not None for r in results) and graph is not None)
-    return ReviewBaselineReport.model_validate({
-        "schema_version": 1, "complete": complete, "cap_usd": RUN_CAP_USD, "spent_usd": spent,
-        "results": [{"name": r.name, "expected": r.expected.model_dump(),
-                     "outcome": r.outcome, "verdict": r.verdict} for r in results],
-        "scores": scores, "author_graph": graph.model_dump() if graph is not None else None,
-        "verdict_signal": asdict(event),
-    })
+    complete = scores["planted"] >= GO_MIN_DEFECTS and scores["clean"] >= GO_MIN_CLEAN and all(r.verdict is not None for r in results) and graph is not None
+    return ReviewBaselineReport.model_validate(
+        {
+            "schema_version": 1,
+            "complete": complete,
+            "cap_usd": RUN_CAP_USD,
+            "spent_usd": spent,
+            "results": [{"name": r.name, "expected": r.expected.model_dump(), "outcome": r.outcome, "verdict": r.verdict} for r in results],
+            "scores": scores,
+            "author_graph": graph.model_dump() if graph is not None else None,
+            "verdict_signal": asdict(event),
+        }
+    )
 
 
 def write_report(path: Path, report: ReviewBaselineReport, *, fs) -> None:
@@ -234,6 +241,7 @@ async def run_author_graph(driver, *, attempt, workspace, budget_usd, tier, effo
     if budget_usd <= 0:
         return None, 0.0
     problems = json.loads(GRAPH_PROBLEMS.read_text())
+
     # The reply must preserve the committed problem set, as well as close its own graph.
     class GraphReply(AuthorGraph):
         @model_validator(mode="after")
@@ -241,19 +249,28 @@ async def run_author_graph(driver, *, attempt, workspace, budget_usd, tier, effo
             if [p.model_dump() for p in self.problems] != problems:
                 raise ValueError("preserve the committed graph problems exactly")
             return self
-    stage = LlmStage(surface="author", emits=GraphReply, gates=[], render=lambda _, findings:
-        GRAPH_PROMPT.format(problems=json.dumps(problems), findings=_findings_text(findings)))
-    result = await driver.run(stage, None, ticket="baseline-author-graph", attempt=attempt,
-        workspace=workspace, tier=tier, effort=effort, stuck_budget=STUCK_BUDGET_S,
-        expected_budget='eval', scope_fence=(), budget_usd=budget_usd)
+
+    stage = LlmStage(surface="author", emits=GraphReply, gates=[], render=lambda _, findings: GRAPH_PROMPT.format(problems=json.dumps(problems), findings=_findings_text(findings)))
+    result = await driver.run(
+        stage,
+        None,
+        ticket="baseline-author-graph",
+        attempt=attempt,
+        workspace=workspace,
+        tier=tier,
+        effort=effort,
+        stuck_budget=STUCK_BUDGET_S,
+        expected_budget="eval",
+        scope_fence=(),
+        budget_usd=budget_usd,
+    )
     return (result.artifact if result.outcome == "ok" else None), result.cost.usd
 
 
 def _go_report(report, *, config, approve_author_graph, specs_dir):
     report = ReviewBaselineReport.model_validate_json(report.model_dump_json())
     body = report.verdict_signal.body.model_dump()
-    if (not report.complete or report.scores.catch_rate < MIN_CATCH_RATE
-            or report.scores.clean_false_snag > MAX_FALSE_SNAG_RATE):
+    if not report.complete or report.scores.catch_rate < MIN_CATCH_RATE or report.scores.clean_false_snag > MAX_FALSE_SNAG_RATE:
         raise FixtureError("GO needs complete evidence with catch >= 0.85 and false snag <= 0.15; grow the corpus or rerun")
     if body["identity"] != baseline_identity(config, specs_dir):
         raise FixtureError("measured routing/spec-major identity drifted; rerun the bounded baseline")
@@ -304,15 +321,12 @@ BRIEFS: tuple[tuple[str, str, str], ...] = (
 )
 
 _CLASS_BRIEF = {
-    "logic": "a LOGIC defect: wrong behavior in the code itself (off-by-one, inverted condition, wrong boundary,"
-             " broken error path, or a test that cannot fail).",
+    "logic": "a LOGIC defect: wrong behavior in the code itself (off-by-one, inverted condition, wrong boundary, broken error path, or a test that cannot fail).",
     "hidden_info_leak": "a HIDDEN-INFO LEAK: information crosses a boundary it must not (a secret or credential"
-                        " in a log, error message, or a child process's environment; private fields exposed by a"
-                        " public interface; or code that reads answers a check deliberately withholds).",
-    "acceptance_mismatch": "an ACCEPTANCE MISMATCH: the code is plausible and runs, but at least one acceptance"
-                           " criterion in the ticket is unmet or met differently than written.",
-    "scope_escape": "a SCOPE ESCAPE: the requested change is correct, but the diff also edits files outside the"
-                    " ticket's `## Scope fence` or does work its `Scope out` excludes.",
+    " in a log, error message, or a child process's environment; private fields exposed by a"
+    " public interface; or code that reads answers a check deliberately withholds).",
+    "acceptance_mismatch": "an ACCEPTANCE MISMATCH: the code is plausible and runs, but at least one acceptance criterion in the ticket is unmet or met differently than written.",
+    "scope_escape": "a SCOPE ESCAPE: the requested change is correct, but the diff also edits files outside the ticket's `## Scope fence` or does work its `Scope out` excludes.",
 }
 
 AUTHOR_PROMPT = """\
@@ -392,12 +406,10 @@ async def author_fixtures(
     try:
         timers.reconstruct()
         timers.fire_due()
-        probe = ProviderLLM(config, exec_=exec_, fs=LocalFileSystem(), env=env, cwd=ROOT,
-                             timeout=call_timeout(config), session=session)
+        probe = ProviderLLM(config, exec_=exec_, fs=LocalFileSystem(), env=env, cwd=ROOT, timeout=call_timeout(config), session=session)
         if problems := await probe.preflight():
-            raise FixtureError('; '.join(problems))
-        await _author_fixtures(config, provider=provider, tier=tier, only=only, force=force,
-                              env=env, root=root, session=session, exec_=exec_)
+            raise FixtureError("; ".join(problems))
+        await _author_fixtures(config, provider=provider, tier=tier, only=only, force=force, env=env, root=root, session=session, exec_=exec_)
     finally:
         try:
             await session.close()
@@ -413,13 +425,11 @@ async def _author_fixtures(config, *, provider, tier, only, force, env, root, se
     who = AuthorIdentity(provider=provider, model=model, tier=tier)
     refuse_same_author([who], baseline_identity(config), load_spec((SPECS / "review.md").read_text()).meta.tier)
     # The explicit eval Author choice remains pinned; the registry and admission owner stay shared.
-    chosen = config.model_copy(update={'routing': [Route(tier=tier, surface='author',
-        candidates=[Candidate(provider=provider, model=model)])]})
-    llm = ProviderLLM(chosen, exec_=exec_, fs=LocalFileSystem(), env=env, cwd=ROOT,
-                      timeout=call_timeout(config), session=session)
+    chosen = config.model_copy(update={"routing": [Route(tier=tier, surface="author", candidates=[Candidate(provider=provider, model=model)])]})
+    llm = ProviderLLM(chosen, exec_=exec_, fs=LocalFileSystem(), env=env, cwd=ROOT, timeout=call_timeout(config), session=session)
     driver = Driver.from_config(chosen, llm=llm, env=env, clock=_clock, sleep=asyncio.sleep)
-    attempt = 1 + sum(e.body.get('signal') == 'author_invoked' for e in session.journal.read())
-    session.journal.append(EventType.SIGNAL, {'signal': 'author_invoked', 'message': f'eval-fixture-pass/{attempt}'})
+    attempt = 1 + sum(e.body.get("signal") == "author_invoked" for e in session.journal.read())
+    session.journal.append(EventType.SIGNAL, {"signal": "author_invoked", "message": f"eval-fixture-pass/{attempt}"})
     briefs = [b for b in BRIEFS if not only or b[0] in only]
     spent = 0.0
     for name, cls, domain in briefs:
@@ -428,13 +438,22 @@ async def _author_fixtures(config, *, provider, tier, only, force, env, root, se
             continue
         if spent >= RUN_CAP_USD:
             break
-        result = await driver.run(LlmStage(surface='author', emits=Authored, gates=[],
-            render=lambda *_: author_prompt(cls, domain)), None, ticket=f'fixture-{name}',
-            attempt=attempt, workspace=ROOT, tier=tier, effort=tier, stuck_budget=CALL_TIMEOUT_S,
-            expected_budget='eval', scope_fence=(), budget_usd=RUN_CAP_USD - spent)
+        result = await driver.run(
+            LlmStage(surface="author", emits=Authored, gates=[], render=lambda *_: author_prompt(cls, domain)),
+            None,
+            ticket=f"fixture-{name}",
+            attempt=attempt,
+            workspace=ROOT,
+            tier=tier,
+            effort=tier,
+            stuck_budget=CALL_TIMEOUT_S,
+            expected_budget="eval",
+            scope_fence=(),
+            budget_usd=RUN_CAP_USD - spent,
+        )
         spent += result.cost.usd
-        if result.outcome != 'ok':
-            print(f'{name}: {result.outcome}; re-run with --only {name}', file=sys.stderr)
+        if result.outcome != "ok":
+            print(f"{name}: {result.outcome}; re-run with --only {name}", file=sys.stderr)
             continue
         authored = result.artifact
         if problems := check_authored(authored, cls):
@@ -443,8 +462,7 @@ async def _author_fixtures(config, *, provider, tier, only, force, env, root, se
         actual = AuthorIdentity(provider=result.cost.provider, model=result.cost.model, tier=tier)
         if actual != who:
             raise FixtureError("fixture author call identity differs from the selected route; repair routing and retry")
-        expected = Expected(expected_verdict="approve" if cls == "none" else "snag", defect_class=cls,
-                            defect=authored.defect, author=actual)
+        expected = Expected(expected_verdict="approve" if cls == "none" else "snag", defect_class=cls, defect=authored.defect, author=actual)
         fs = LocalFileSystem()
         fs.write(d / "ticket.md", authored.ticket.rstrip("\n").encode() + b"\n")
         fs.write(d / "diff.patch", authored.diff.rstrip("\n").encode() + b"\n")
@@ -459,12 +477,10 @@ def _clock() -> datetime:
     return datetime.now(UTC)
 
 
-async def _run(config: Config, env: Mapping[str, str], clock: Clock, *, out=None,
-               go_report=None, approve_author_graph=False) -> dict:
+async def _run(config: Config, env: Mapping[str, str], clock: Clock, *, out=None, go_report=None, approve_author_graph=False) -> dict:
     report = None
     if go_report is not None:
-        report = _go_report(ReviewBaselineReport.model_validate_json(go_report.read_bytes()), config=config,
-                            approve_author_graph=approve_author_graph, specs_dir=SPECS)
+        report = _go_report(ReviewBaselineReport.model_validate_json(go_report.read_bytes()), config=config, approve_author_graph=approve_author_graph, specs_dir=SPECS)
     exec_ = SubprocessExec()
     instance_id = await Git(exec_, env=env, timeout=30).describe(ROOT)
     lock = Lockfile(config.state_dir, instance_id=instance_id, clock=clock)
@@ -473,20 +489,17 @@ async def _run(config: Config, env: Mapping[str, str], clock: Clock, *, out=None
     try:
         journal = Journal(config.state_dir, clock)
         if go_report is not None:
-            recorded = record_go(report, config=config, journal=journal, out=out or go_report,
-                                 fs=LocalFileSystem(), approve_author_graph=approve_author_graph)
+            recorded = record_go(report, config=config, journal=journal, out=out or go_report, fs=LocalFileSystem(), approve_author_graph=approve_author_graph)
             return recorded.verdict_signal.body.model_dump()
         timers = Timers(journal=journal, clock=clock, sleep=asyncio.sleep)
         timers.reconstruct()
         timers.fire_due()
         session = ProviderSession(config, journal=journal, clock=clock, sleep=asyncio.sleep, timers=timers)
-        llm = ProviderLLM(config, exec_=exec_, fs=LocalFileSystem(), env=env, cwd=ROOT, timeout=call_timeout(config),
-                          session=session)
+        llm = ProviderLLM(config, exec_=exec_, fs=LocalFileSystem(), env=env, cwd=ROOT, timeout=call_timeout(config), session=session)
         if problems := await llm.preflight():
-            raise FixtureError('; '.join(problems))
+            raise FixtureError("; ".join(problems))
         driver = Driver.from_config(config, llm=llm, env=env, clock=clock, sleep=asyncio.sleep)
-        return await run_baseline(config=config, driver=driver, journal=Journal(config.state_dir, clock),
-                                  fixtures=load_fixtures(), progress=print, out=out)
+        return await run_baseline(config=config, driver=driver, journal=Journal(config.state_dir, clock), fixtures=load_fixtures(), progress=print, out=out)
     finally:
         try:
             if session is not None:
@@ -511,11 +524,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     config = load_config(None, cwd=ROOT)
     env = dict(os.environ)
     if args.cmd == "author":
-        asyncio.run(author_fixtures(config, provider=args.provider, tier=args.tier, only=args.only,
-                                    force=args.force, env=env))
+        asyncio.run(author_fixtures(config, provider=args.provider, tier=args.tier, only=args.only, force=args.force, env=env))
         return 0
-    body = asyncio.run(_run(config, env, _clock, out=args.out, go_report=args.record_go,
-                             approve_author_graph=args.approve_author_graph))
+    body = asyncio.run(_run(config, env, _clock, out=args.out, go_report=args.record_go, approve_author_graph=args.approve_author_graph))
     print(json.dumps({k: body[k] for k in ("verdict", "scores", "fixture_authors")}, indent=2))
     return 0
 

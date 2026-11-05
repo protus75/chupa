@@ -12,20 +12,19 @@ from pydantic import ValidationError
 
 from chupa.artifacts import ShakeoutEntry, ShakeoutReport
 from chupa.journal import EventType
-from eval.shakeout.bench import Bench
 from eval.shakeout import run as shakeout
-from eval.shakeout.driver import MEMBERS as DRIVER_MEMBERS
+from eval.shakeout.bench import Bench
 from eval.shakeout.drain import MEMBERS as DRAIN_MEMBERS
-from eval.shakeout.recovery import MEMBERS as RECOVERY_MEMBERS
+from eval.shakeout.driver import MEMBERS as DRIVER_MEMBERS
 from eval.shakeout.merge import MEMBERS as MERGE_MEMBERS
 from eval.shakeout.providers import MEMBERS as PROVIDER_MEMBERS
+from eval.shakeout.recovery import MEMBERS as RECOVERY_MEMBERS
 from eval.shakeout.runner import MEMBERS as RUNNER_MEMBERS
 from eval.shakeout.stages import MEMBERS
 
 
 def entry(member: str, observed: str = "ok") -> ShakeoutEntry:
-    return ShakeoutEntry(member=member, group="first", planted_fault="fault", expected="ok",
-                         observed=observed, producing_run=f"{member}/0", auditor=[], green=observed == "ok")
+    return ShakeoutEntry(member=member, group="first", planted_fault="fault", expected="ok", observed=observed, producing_run=f"{member}/0", auditor=[], green=observed == "ok")
 
 
 def report(*entries: ShakeoutEntry) -> ShakeoutReport:
@@ -43,8 +42,7 @@ def test_produce_requires_complete_matching_prior_and_returns_cumulative(tmp_pat
 
     first = shakeout.Member("first_member", "first", "fault", "ok", first_run)
     second = shakeout.Member("second_member", "second", "fault", "ok", second_run)
-    modules = {"eval.shakeout.first": SimpleNamespace(MEMBERS=(first,)),
-               "eval.shakeout.second": SimpleNamespace(MEMBERS=(second,))}
+    modules = {"eval.shakeout.first": SimpleNamespace(MEMBERS=(first,)), "eval.shakeout.second": SimpleNamespace(MEMBERS=(second,))}
     monkeypatch.setattr(shakeout, "GROUPS", ("first", "second"))
     monkeypatch.setattr(shakeout.importlib, "import_module", modules.__getitem__)
 
@@ -132,10 +130,8 @@ The fixture is absent.
         target.parent.mkdir(parents=True)
         target.write_text("ok\n")
         subprocess.run(["git", "-C", str(req.worktree), "add", "src/thing.txt"], env=bench.env, check=True)
-        subprocess.run(["git", "-C", str(req.worktree), "commit", "-m", "fixture"],
-                       env=bench.env, check=True, capture_output=True)
-        return json.dumps({"outcome": "ok", "summary": "wrote fixture", "surprises": "none",
-                           "dead_ends": "none", "predicted_vs_actual": "10m predicted, 1m actual", "findings": []})
+        subprocess.run(["git", "-C", str(req.worktree), "commit", "-m", "fixture"], env=bench.env, check=True, capture_output=True)
+        return json.dumps({"outcome": "ok", "summary": "wrote fixture", "surprises": "none", "dead_ends": "none", "predicted_vs_actual": "10m predicted, 1m actual", "findings": []})
 
     bench.script([implement, json.dumps({"verdict": "approve", "summary": "checked", "findings": []})])
     result = asyncio.run(bench.drain())
@@ -145,8 +141,7 @@ The fixture is absent.
 
 
 def test_unknown_group_command_exits_two(tmp_path):
-    result = subprocess.run([sys.executable, "-m", "eval.shakeout.run", "--group", "nope",
-                             "--out", str(tmp_path / "x.json")], check=False)
+    result = subprocess.run([sys.executable, "-m", "eval.shakeout.run", "--group", "nope", "--out", str(tmp_path / "x.json")], check=False)
     assert result.returncode == 2
     assert not (tmp_path / "x.json").exists()
 

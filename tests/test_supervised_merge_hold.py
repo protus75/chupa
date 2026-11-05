@@ -1,20 +1,20 @@
 """Durable supervision through the production admission and runner seams."""
 
 import asyncio
-from dataclasses import replace
 import json
+from dataclasses import replace
 
 import pytest
 
 from chupa import control, merge, runner, stages
-from chupa.artifacts import Cost, OUTCOMES, StageResult
+from chupa.artifacts import OUTCOMES, Cost, StageResult
 from chupa.audit import audit_journal
 from chupa.effects import Effects
 from chupa.journal import EVENT_VERSIONS, SIGNAL_NAMES, TERMINAL_STATES, EventType
 from chupa.llm import FakeLLM, LLMResult
 from chupa.mergequeue import MERGE_REGATE, MergeQueue, held_admissions, regate_receipts
 from chupa.specs import ENTRY_PARTS, entry_unit_gap, required_units, resolve_plan_contract
-from tests.test_mergequeue import ctx, ready, commit, admission_control
+from tests.test_mergequeue import admission_control, commit, ctx, ready
 
 
 def supervised(ctx):
@@ -27,10 +27,15 @@ def supervised(ctx):
 def baseline(ctx, verdict="GO", *, change=None):
     from chupa.providers import resolve
     from chupa.specs import load_spec
+
     tiers = {r.tier for r in ctx.config.routing if r.surface == "review"}
-    identity = {surface: dict(spec_major=int(load_spec((ctx.specs_dir / f"{surface}.md").read_text()).meta.version.split(".")[0]),
-        rows={tier: dict(provider=resolve(ctx.config, tier, surface).provider.name,
-                        model=resolve(ctx.config, tier, surface).model) for tier in tiers}) for surface in ("review", "author")}
+    identity = {
+        surface: dict(
+            spec_major=int(load_spec((ctx.specs_dir / f"{surface}.md").read_text()).meta.version.split(".")[0]),
+            rows={tier: dict(provider=resolve(ctx.config, tier, surface).provider.name, model=resolve(ctx.config, tier, surface).model) for tier in tiers},
+        )
+        for surface in ("review", "author")
+    }
     if change:
         change(identity)
     ctx.driver.journal.append(EventType.SIGNAL, dict(signal="review_baseline", verdict=verdict, identity=identity))
@@ -39,8 +44,9 @@ def baseline(ctx, verdict="GO", *, change=None):
 async def served(ctx, ticket, pair=("fake", "m")):
     reply = json.dumps(dict(verdict="approve", summary="served approval", findings=[]))
     ctx.driver.llm = FakeLLM([LLMResult(reply, 1, 1, *pair, 0.0)])
-    invoice = stages.Invoice(produced_by_spec_version=1, produced_at_sha=await ctx.git.rev_parse(ctx.repo, ticket.stem),
-        stem=ticket.stem, passed=True, changed_files=[], inserted_lines=0, bypassed=[], reports=[])
+    invoice = stages.Invoice(
+        produced_by_spec_version=1, produced_at_sha=await ctx.git.rev_parse(ctx.repo, ticket.stem), stem=ticket.stem, passed=True, changed_files=[], inserted_lines=0, bypassed=[], reports=[]
+    )
     assert (await stages.review(ctx, ticket, invoice, attempt=0)).outcome == "ok"
 
 
@@ -59,8 +65,7 @@ async def hold(ctx, *, stem="held", evidence=True, **kwargs):
 
 
 def confirm(queue, held, *, verdict="confirm", request_id="confirmation"):
-    request = control.AdmissionRequest(request_id, queue.control.inbox.lifecycle_id, verdict,
-                                       held.stem, held.hold_id, "operator")
+    request = control.AdmissionRequest(request_id, queue.control.inbox.lifecycle_id, verdict, held.stem, held.hold_id, "operator")
     control.publish_request(queue.control.state_dir, request, queue.ctx.fs)
     queue.control.inbox.consume()
 
@@ -86,8 +91,7 @@ def test_hold_after_green_before_main_mutation(ctx, monkeypatch, case):
         if case != "missing":
             await served(ctx, ticket, ("alternate", "spill") if case == "failover" else ("fake", "m"))
         if case in ("no-go", "revoked", "drift", "missing", "failover"):
-            baseline(ctx, "NO_GO" if case == "no-go" else "GO",
-                     change=(lambda i: i["review"].update(spec_major=999)) if case == "revoked" else None)
+            baseline(ctx, "NO_GO" if case == "no-go" else "GO", change=(lambda i: i["review"].update(spec_major=999)) if case == "revoked" else None)
         if case == "drift":
             ctx.config.providers[0].models_by_tier.medium = "drifted"
         if case == "safety-red":
@@ -95,14 +99,17 @@ def test_hold_after_green_before_main_mutation(ctx, monkeypatch, case):
             await commit(ctx, ctx.repo, [f"tickets/{ticket.stem}/run.md"])
         if case == "integration-red":
             from chupa.config import MechanicalCheck
+
             ctx.config.review.mechanical = [MechanicalCheck(code="combined", argv=["false"], trigger="always", severity="hard")]
         order = []
         for name in ("gather_safety_evidence", "gather_evidence"):
             original = getattr(stages, name)
+
             async def observed(*args, _name=name, _original=original, **kwargs):
                 assert not regate_receipts(ctx.driver.journal.read())
                 order.append(_name)
                 return await _original(*args, **kwargs)
+
             monkeypatch.setattr(stages, name, observed)
         queue = supervised(ctx)
         queue.offer(ticket, attempt=0)
@@ -115,10 +122,10 @@ def test_hold_after_green_before_main_mutation(ctx, monkeypatch, case):
             assert isinstance(result, merge.Held) and order == ["gather_safety_evidence", "gather_evidence", "gather_safety_evidence"]
             receipt = regate_receipts(ctx.driver.journal.read())[result.hold_id]
             assert receipt["admission"] == "HELD" and receipt["candidate_base_sha"] == before
-            assert receipt["reason"] == ("go_revoked" if case in ("revoked", "drift") else
-                "review_off_baseline" if case in ("missing", "failover") else "go_absent")
+            assert receipt["reason"] == ("go_revoked" if case in ("revoked", "drift") else "review_off_baseline" if case in ("missing", "failover") else "go_absent")
         assert await ctx.git.rev_parse(ctx.repo, "main") == before and ctx.worktree(ticket.stem).exists()
         assert not any(e.body.get("to") in TERMINAL_STATES for e in ctx.driver.journal.read())
+
     asyncio.run(exercise())
 
 
@@ -135,12 +142,15 @@ def test_go_coverage_uses_actual_review_identity(ctx, monkeypatch, case):
         await served(ctx, ticket)
         if case in ("contradictory", "duplicate-call", "bad-call"):
             events = ctx.driver.journal.read()
-            altered = [replace(e, body={**e.body, "result": (None if case == "bad-call" else {**e.body["result"], "model": "foreign"})})
-                if e.type == EventType.EFFECT_COMPLETION and (e.key or "").startswith("llm/") else e for e in events]
+            altered = [
+                replace(e, body={**e.body, "result": (None if case == "bad-call" else {**e.body["result"], "model": "foreign"})})
+                if e.type == EventType.EFFECT_COMPLETION and (e.key or "").startswith("llm/")
+                else e
+                for e in events
+            ]
             if case == "duplicate-call":
-                altered = [item for old, new in zip(events, altered, strict=True)
-                           for item in ([new, old] if new != old else [old])]
-            monkeypatch.setattr(ctx.driver.journal, "read", lambda: altered + original()[len(events):])
+                altered = [item for old, new in zip(events, altered, strict=True) for item in ([new, old] if new != old else [old])]
+            monkeypatch.setattr(ctx.driver.journal, "read", lambda: altered + original()[len(events) :])
         if case == "bad-review":
             path = f"tickets/{ticket.stem}/review.md"
             raw = (ctx.repo / path).read_text().replace('"model": "m"', '"model": "foreign"')
@@ -162,6 +172,7 @@ def test_go_coverage_uses_actual_review_identity(ctx, monkeypatch, case):
                 [result] = await queue.process()
                 assert result.outcome == "ok" and regate_receipts(ctx.driver.journal.read()) == before
                 assert not control.releases(ctx.driver.journal.read())
+
     original = ctx.driver.journal.read
     asyncio.run(exercise())
 
@@ -170,10 +181,13 @@ def test_held_run_keeps_worktree_and_has_no_terminal(ctx, monkeypatch):
     async def exercise():
         vocabularies = OUTCOMES, dict(EVENT_VERSIONS), set(SIGNAL_NAMES), set(TERMINAL_STATES), dict(stages.KNOWN_ARTIFACTS)
         ticket, queue, held = await hold(ctx)
+
         async def stage_run(*_):
             return stages.StagesRun(0, {"review": StageResult(outcome="ok", artifact=None, findings=[], cost=Cost())})
+
         async def admission(*_a, **_k):
             return held
+
         monkeypatch.setattr(runner, "run_stages", stage_run)
         for name in ("harvest_failure", "failure_terminal", "consume"):
             monkeypatch.setattr(runner, name, lambda *_a, **_k: pytest.fail("held run entered failure spine"))
@@ -184,4 +198,5 @@ def test_held_run_keeps_worktree_and_has_no_terminal(ctx, monkeypatch):
         assert not any(e.body.get("to") in TERMINAL_STATES or e.type == EventType.CAP_CONSUMED for e in ctx.driver.journal.read())
         assert vocabularies == (OUTCOMES, dict(EVENT_VERSIONS), set(SIGNAL_NAMES), set(TERMINAL_STATES), dict(stages.KNOWN_ARTIFACTS))
         assert audit_journal(ctx.driver.journal) == []
+
     asyncio.run(exercise())

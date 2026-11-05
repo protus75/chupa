@@ -15,8 +15,7 @@ class Heartbeat:
         self.fs.write(self.path, b"")
 
 
-def is_fresh(path: Path, *, metadata: Callable[[Path], datetime | None],
-             clock: Clock, max_age: timedelta) -> bool:
+def is_fresh(path: Path, *, metadata: Callable[[Path], datetime | None], clock: Clock, max_age: timedelta) -> bool:
     """Read-only evidence; the external caller owns scheduling and any response."""
     if max_age <= timedelta(0):
         raise ValueError("supply a strictly positive maximum age duration")

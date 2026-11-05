@@ -70,6 +70,7 @@ def test_healthy_cycle_refreshes_heartbeat(root):
         def healthy():
             trace.append(name)
             return True  # Running workers and idle consumers can both be responsive.
+
         return healthy
 
     owner = HeartbeatCycle(heartbeat=heartbeat, **{name: probe(name) for name in NAMES})
@@ -89,6 +90,7 @@ def test_healthy_cycle_refreshes_heartbeat(root):
         git = Git(SubprocessExec(), env=ENV, timeout=30)
         assert not any(path.startswith(".chupa/") for path in await git.ls_files(root))
         assert await git.status_porcelain(root) == ""
+
     asyncio.run(custody())
 
 
@@ -115,6 +117,7 @@ async def test_unhealthy_core_stops_refresh(tmp_path, component, state):
         def health():
             calls.append(name)
             return name != component or (responsive and not task.done())
+
         return health
 
     owner = HeartbeatCycle(heartbeat=heartbeat, **{name: probe(name) for name in NAMES})
@@ -139,10 +142,12 @@ async def test_unhealthy_core_stops_refresh(tmp_path, component, state):
     # A blocked main-loop continuation cannot independently refresh evidence.
     blocked, resume = asyncio.Event(), asyncio.Event()
     healthy = boundary(heartbeat)
+
     async def main_loop():
         blocked.set()
         await resume.wait()
         return healthy.cycle()
+
     loop = asyncio.create_task(main_loop())
     await blocked.wait()
     fs.now += AGE
@@ -160,8 +165,10 @@ def test_heartbeat_failures_propagate(tmp_path, failure):
     fs = Evidence()
     heartbeat = Heartbeat(state_dir=tmp_path, fs=fs)
     error = OSError("heartbeat failure")
+
     def fail(*args):
         raise error
+
     probes = dict.fromkeys(NAMES, lambda: True)
     if failure == "write":
         fs.write = fail
@@ -173,16 +180,17 @@ def test_heartbeat_failures_propagate(tmp_path, failure):
     assert caught.value is error and fs.files == {} and fs.trace == []
 
 
-@pytest.mark.parametrize("age, expected", [(timedelta(0), True), (AGE, True),
-    (AGE + timedelta(microseconds=1), False), (timedelta(microseconds=-1), False), (None, False)])
+@pytest.mark.parametrize("age, expected", [(timedelta(0), True), (AGE, True), (AGE + timedelta(microseconds=1), False), (timedelta(microseconds=-1), False), (None, False)])
 def test_external_heartbeat_freshness(tmp_path, age, expected):
     fs = Evidence()
     path = tmp_path / "explicit-heartbeat"
     reads = []
     mtime = None if age is None else (fs.now - age).astimezone(timezone(timedelta(hours=3)))
+
     def metadata(requested):
         reads.append(requested)
         return mtime
+
     assert is_fresh(path, metadata=metadata, clock=fs.clock, max_age=AGE) is expected
     assert reads == [path] and fs.files == {} and fs.trace == []
     assert list(tmp_path.iterdir()) == []
@@ -194,11 +202,13 @@ def test_external_heartbeat_refuses_invalid_evidence(tmp_path, invalid):
     path = tmp_path / "heartbeat"
     reads = []
     error = OSError("metadata failed")
+
     def metadata(requested):
         reads.append(requested)
         if invalid == "metadata":
             raise error
         return fs.now.replace(tzinfo=None) if invalid == "naive-mtime" else fs.now
+
     age = timedelta(0) if invalid == "zero" else -AGE if invalid == "negative" else AGE
     clock = (lambda: fs.now.replace(tzinfo=None)) if invalid == "naive-clock" else fs.clock
     if invalid == "metadata":
@@ -217,10 +227,13 @@ def test_external_heartbeat_refuses_invalid_evidence(tmp_path, invalid):
 def test_heartbeat_is_dormant(root, tmp_path, monkeypatch, verb):
     heartbeat = Heartbeat(state_dir=root / ".chupa/state", fs=Evidence())
     dormant = boundary(heartbeat)
+
     def cycle_probe(self):
         raise AssertionError("heartbeat cycle wired")
+
     def construction_probe(self, **kwargs):
         raise AssertionError("heartbeat construction wired")
+
     monkeypatch.setattr(HeartbeatCycle, "cycle", cycle_probe)
     write(root, "work", ticket())
     argv = ["run", "work"] if verb == "run" else ["drain"]
@@ -228,22 +241,27 @@ def test_heartbeat_is_dormant(root, tmp_path, monkeypatch, verb):
     def wired_cycle(checkout):
         async def dispatch(_):
             dormant.cycle()
+
         return dispatch
+
     with pytest.raises(AssertionError, match="heartbeat cycle wired"):
         cli.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=wired_cycle)
     monkeypatch.setattr(HeartbeatCycle, "__init__", construction_probe)
+
     def wired_construction(checkout):
         boundary(heartbeat)
+
     with pytest.raises(AssertionError, match="heartbeat construction wired"):
         cli.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=wired_construction)
 
     original = cli.build_daemon_core
-    for name, action in [("construction", lambda: boundary(heartbeat)),
-                         ("cycle", dormant.cycle)]:
+    for name, action in [("construction", lambda: boundary(heartbeat)), ("cycle", dormant.cycle)]:
+
         def wired_graph(*args, _action=action, **kwargs):
             core = original(*args, **kwargs)
             _action()
             return core
+
         monkeypatch.setattr(cli, "build_daemon_core", wired_graph)
         graph_root = tmp_path / name
         graph_root.mkdir()
@@ -260,6 +278,7 @@ def test_heartbeat_is_dormant(root, tmp_path, monkeypatch, verb):
         assert asyncio.all_tasks() == before and rig.journal.read() == []
         assert rig.exec.calls == [] and rig.fs.files == {}
         assert not (rig.checkout.config.state_dir / "heartbeat").exists()
+
     asyncio.run(graph())
     stages = Stages()
     assert cli.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=stages) == 0
@@ -271,5 +290,6 @@ def test_heartbeat_is_dormant(root, tmp_path, monkeypatch, verb):
 @pytest.mark.asyncio
 async def test_heartbeat_is_active_in_serve(root, monkeypatch):
     from tests.test_serve import activated_graph
+
     rig = await activated_graph(root, monkeypatch)
     assert rig.owner.heartbeat.heartbeat.path.read_bytes() == b""

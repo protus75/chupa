@@ -13,12 +13,10 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def config(tmp_path: Path):
-    routes = "".join(
-        f"  - {{tier: {tier}, surface: {surface}, candidates: [{{provider: claude}}]}}\n"
-        for tier in ("low", "medium", "high", "max") for surface in ("review", "author")
-    )
-    text = textwrap.dedent(
-        """\
+    routes = "".join(f"  - {{tier: {tier}, surface: {surface}, candidates: [{{provider: claude}}]}}\n" for tier in ("low", "medium", "high", "max") for surface in ("review", "author"))
+    text = (
+        textwrap.dedent(
+            """\
         schema_version: 1
         state_dir: state
         providers:
@@ -29,14 +27,16 @@ def config(tmp_path: Path):
             limits: {concurrency: 1}
         routing:
         """
-    ) + routes + "review: {}\nmerge: {}\nengine_plane_safety_inventory: [chupa/gates.py]\n"
+        )
+        + routes
+        + "review: {}\nmerge: {}\nengine_plane_safety_inventory: [chupa/gates.py]\n"
+    )
     (tmp_path / "config.yaml").write_text(text)
     return load_config(None, cwd=tmp_path)
 
 
 def signal(verdict: str, identity: dict):
-    return SimpleNamespace(type=EventType.SIGNAL, body={"signal": BASELINE_SIGNAL, "verdict": verdict,
-                                                         "identity": identity})
+    return SimpleNamespace(type=EventType.SIGNAL, body={"signal": BASELINE_SIGNAL, "verdict": verdict, "identity": identity})
 
 
 def state(config, row, *, go=True, fence=("chupa/author.py",), gate_bypass=(), reopen=False):
@@ -83,22 +83,30 @@ def test_standing_go_uses_the_table_and_each_override_drafts(tmp_path):
     assert not touches_inventory(("chupa/gatesx.py",), cfg.engine_plane_safety_inventory)
 
 
-@pytest.mark.parametrize(("message_class", "bug_origin", "has_repro", "row"), [
-    ("suggestion", None, None, "suggestion"),
-    ("failure_report", None, None, "failure_report"),
-    ("override_report", None, None, "override_report"),
-    ("retro_finding", None, None, "retro_finding"),
-    ("bug_report", "self_diagnosed", True, "bug_report_self_diagnosed"),
-    ("bug_report", "player", True, "bug_report_player_repro"),
-    ("bug_report", "player", False, "bug_report_player_no_repro"),
-])
+@pytest.mark.parametrize(
+    ("message_class", "bug_origin", "has_repro", "row"),
+    [
+        ("suggestion", None, None, "suggestion"),
+        ("failure_report", None, None, "failure_report"),
+        ("override_report", None, None, "override_report"),
+        ("retro_finding", None, None, "retro_finding"),
+        ("bug_report", "self_diagnosed", True, "bug_report_self_diagnosed"),
+        ("bug_report", "player", True, "bug_report_player_repro"),
+        ("bug_report", "player", False, "bug_report_player_no_repro"),
+    ],
+)
 def test_policy_row_maps_every_message_class(message_class, bug_origin, has_repro, row):
     assert policy_row(message_class, bug_origin, has_repro) == row
 
 
-@pytest.mark.parametrize("message_class, bug_origin, has_repro", [
-    ("unknown", None, None), ("bug_report", None, None), ("bug_report", "player", None),
-])
+@pytest.mark.parametrize(
+    "message_class, bug_origin, has_repro",
+    [
+        ("unknown", None, None),
+        ("bug_report", None, None),
+        ("bug_report", "player", None),
+    ],
+)
 def test_policy_row_refuses_unknown_or_incomplete_messages(message_class, bug_origin, has_repro):
     with pytest.raises(ValueError):
         policy_row(message_class, bug_origin, has_repro)

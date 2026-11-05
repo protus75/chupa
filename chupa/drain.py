@@ -22,7 +22,7 @@ from typing import assert_never
 
 from chupa import caps
 from chupa.git import GitError
-from chupa.hardening import ROUND_STATES, rounds, round_state
+from chupa.hardening import ROUND_STATES, round_state, rounds
 from chupa.journal import TERMINAL_STATES, Event, EventType, dispatch_of
 from chupa.lockfile import Lockfile
 from chupa.reconcile import reconcile
@@ -30,10 +30,19 @@ from chupa.runner import EXIT_MERGED, EXIT_TICKET, Checkout, Dispatch, Refusal, 
 from chupa.seams import ProcessExec
 from chupa.specs import unit_sha
 from chupa.status import SETTLED, last_states, reject_queue
-from chupa.tickets import read_plan
 from chupa.tickets import (
-    INTAKE_SIGNAL, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, TicketInvalid, _porcelain, depends_cycle, intake,
-    parse_ticket, ticket_path,
+    INTAKE_SIGNAL,
+    PLAN_FILE,
+    TICKET_FILE,
+    TICKETS_DIR,
+    Ticket,
+    TicketInvalid,
+    _porcelain,
+    depends_cycle,
+    intake,
+    parse_ticket,
+    read_plan,
+    ticket_path,
 )
 
 HALT_SIGNAL = "drain_halted"
@@ -57,8 +66,7 @@ def reexec_argv(parked: Iterable[str]) -> list[str]:
 def awaited_hardening(events: Iterable[Event], stem: str) -> tuple[str, ...]:
     """The hardening stems a spec-gap hold still waits on (section 11.4); () when the stem is not held."""
     history = list(events)
-    terminal = next((e.body for e in reversed(history) if e.type == EventType.STATE_TRANSITION
-                     and e.ticket == stem and e.body.get("to") in TERMINAL_STATES), None)
+    terminal = next((e.body for e in reversed(history) if e.type == EventType.STATE_TRANSITION and e.ticket == stem and e.body.get("to") in TERMINAL_STATES), None)
     if terminal is None:
         return ()
     match dispatch := dispatch_of(terminal):
@@ -89,8 +97,7 @@ def premise_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:
         case "spec_gap_hold":
             return False
         case "retry" | "escalate" | "reject_queue" | None:
-            return (last == PREMISE and ran_sha == ticket_sha
-                    and "round" not in body and "plan_units" not in body)
+            return last == PREMISE and ran_sha == ticket_sha and "round" not in body and "plan_units" not in body
         case _:
             assert_never(dispatch)
 
@@ -144,23 +151,26 @@ class Report:
         if self.killed:
             head = "drain stopped by kill -- NOT quiescent. Continue with `uv run python -m chupa drain`."
         elif self.halted:
-            head = (f"drain HALTED by the {CEILING} ceiling ({self.halted}) -- NOT quiescent; no new ticket was"
-                    " admitted. Continue with `uv run python -m chupa drain`.")
+            head = f"drain HALTED by the {CEILING} ceiling ({self.halted}) -- NOT quiescent; no new ticket was admitted. Continue with `uv run python -m chupa drain`."
         elif not (self.merged or self.parked or self.blocked):
             head = "drain quiescent: nothing eligible (empty ready set)."
         else:
             head = "drain quiescent: nothing eligible, unparked, re-offerable, or newly authored."
-        parked = (f"{p.stem}: {p.reason} -- {p.paved_road}"
-                  + "".join(f"\n  - {f}" for f in p.findings) for p in self.parked)
-        return "\n\n".join((
-            head,
-            block("merged this invocation", self.merged),
-            block("parked", parked),
-            block("eligible, not admitted", self.unadmitted),
-            block("blocked on unmerged depends", (f"{s}: waits on {', '.join(d)}" for s, d in self.blocked)),
-            block("invalid committed tickets", (f"{s}: {why}" for s, why in self.invalid)),
-            block("drafts awaiting confirm", self.drafts),
-        )) + "\n"
+        parked = (f"{p.stem}: {p.reason} -- {p.paved_road}" + "".join(f"\n  - {f}" for f in p.findings) for p in self.parked)
+        return (
+            "\n\n".join(
+                (
+                    head,
+                    block("merged this invocation", self.merged),
+                    block("parked", parked),
+                    block("eligible, not admitted", self.unadmitted),
+                    block("blocked on unmerged depends", (f"{s}: waits on {', '.join(d)}" for s, d in self.blocked)),
+                    block("invalid committed tickets", (f"{s}: {why}" for s, why in self.invalid)),
+                    block("drafts awaiting confirm", self.drafts),
+                )
+            )
+            + "\n"
+        )
 
 
 @dataclass(frozen=True)
@@ -172,24 +182,25 @@ class _Scan:
 
 
 async def drain(
-    checkout: Checkout, dispatch: Dispatch, *, reexec: ProcessExec, parked: Iterable[str] = (),
+    checkout: Checkout,
+    dispatch: Dispatch,
+    *,
+    reexec: ProcessExec,
+    parked: Iterable[str] = (),
     before_dispatch: Callable[[], Awaitable[None]] | None = None,
 ) -> Report:
     """`reexec` is the handoff's own process seam (section 15): never the instance active work spawns through."""
     consumer = checkout.control
     if consumer is None:
-        raise Refusal("admission control consumer absent",
-                      "construct it with `build_control` at the composition root and supply it as `Checkout.control`")
-    lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo),
-                    clock=checkout.clock)
+        raise Refusal("admission control consumer absent", "construct it with `build_control` at the composition root and supply it as `Checkout.control`")
+    lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
     lock.acquire()
     try:
         consumer.publish()
 
         async def checkpoint() -> None:
             await consumer.checkpoint()
-            if (consumer.projection.lifecycle_id == consumer.inbox.lifecycle_id
-                    and consumer.projection.kill_requested):
+            if consumer.projection.lifecycle_id == consumer.inbox.lifecycle_id and consumer.projection.kill_requested:
                 return
             if before_dispatch is not None:
                 await before_dispatch()
@@ -197,11 +208,10 @@ async def drain(
             await consumer.checkpoint()
 
         assert checkout.config.worktree_root is not None  # resolved at config load
-        await reconcile(checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root,
-                        lambda stem, attempt: harvest_orphan(checkout, stem, attempt))
+        await reconcile(checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root, lambda stem, attempt: harvest_orphan(checkout, stem, attempt))
         consumer.providers.timers.reconstruct()
         consumer.providers.timers.fire_due()
-        if hasattr(dispatch, 'prepare'):
+        if hasattr(dispatch, "prepare"):
             await dispatch.prepare()
         await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
         run = _Drain(checkout, dispatch, frozenset(parked), before_dispatch=checkpoint)
@@ -218,9 +228,7 @@ async def drain(
             return report
         stem, commit = run.upgrade
         carried = run.parked_stems()
-        checkout.journal.append(EventType.SIGNAL, {"signal": HANDOFF_SIGNAL, "commit": commit,
-                                                   "parked": list(carried), "merged": list(report.merged)},
-                                ticket=stem)
+        checkout.journal.append(EventType.SIGNAL, {"signal": HANDOFF_SIGNAL, "commit": commit, "parked": list(carried), "merged": list(report.merged)}, ticket=stem)
         checkout.journal.close()
     finally:
         try:
@@ -237,8 +245,7 @@ async def drain(
 
 
 class _Drain:
-    def __init__(self, checkout: Checkout, dispatch: Dispatch, carried: frozenset[str], *,
-                 before_dispatch: Callable[[], Awaitable[None]] | None = None) -> None:
+    def __init__(self, checkout: Checkout, dispatch: Dispatch, carried: frozenset[str], *, before_dispatch: Callable[[], Awaitable[None]] | None = None) -> None:
         self.c = checkout
         self.dispatch = dispatch
         self.before_dispatch = before_dispatch
@@ -253,16 +260,18 @@ class _Drain:
 
     async def run(self) -> Report:
         while True:
-            if hasattr(self.dispatch, 'prepare'):
+            if hasattr(self.dispatch, "prepare"):
                 from dataclasses import replace
+
                 from chupa.config import snapshot_config
+
                 self.c = replace(self.c, config=snapshot_config(self.c.control.load_config()))
             if self.before_dispatch is not None:
                 await self.before_dispatch()
             if self._stopping():
                 return self.report
             if self.retro is not None:
-                if hasattr(self.dispatch, 'prepare'):
+                if hasattr(self.dispatch, "prepare"):
                     await self.dispatch.prepare()
                 await self._run_retro(forced=False)
             material = self._offer_material()
@@ -279,9 +288,7 @@ class _Drain:
             if material != self._offer_material() or events != prepared_events:
                 continue
             last = last_states(events)
-            held = {s for s in scan.tickets
-                    if (last.get(s) == PREMISE and premise_parked(events, s, shas[s]))
-                    or awaited_hardening(events, s)}
+            held = {s for s in scan.tickets if (last.get(s) == PREMISE and premise_parked(events, s, shas[s])) or awaited_hardening(events, s)}
             pick, reoffer = self._select(scan, events, last, held)
             if pick is None:
                 if self.provider_deadlines:
@@ -317,8 +324,7 @@ class _Drain:
 
     def _stopping(self) -> bool:
         consumer = self.c.control
-        return (consumer is not None and consumer.projection.lifecycle_id == consumer.inbox.lifecycle_id
-                and consumer.projection.kill_requested)
+        return consumer is not None and consumer.projection.lifecycle_id == consumer.inbox.lifecycle_id and consumer.projection.kill_requested
 
     def _offer_material(self) -> dict[str, bytes]:
         repo = self.c.repo
@@ -350,8 +356,7 @@ class _Drain:
             if ticket.frontmatter.state == "draft":
                 drafts.append(stem)
             tickets[stem] = ticket
-        bound = {s: body["plan_units"] for s, body in reject_queue(self.c.journal.read()).items()
-                 if "plan_units" in body}
+        bound = {s: body["plan_units"] for s, body in reject_queue(self.c.journal.read()).items() if "plan_units" in body}
         changed: set[str] = set()
         if bound:
             # Release answers committed bytes only. Hosts without a committed plan have absent units.
@@ -359,8 +364,7 @@ class _Drain:
                 committed_plan = await self.c.git._run(repo, "show", f"HEAD:{PLAN_FILE}")
             except GitError:
                 committed_plan = ""
-            changed = {s for s, units in bound.items()
-                       if any(unit_sha(committed_plan, uid) != sha for uid, sha in units.items())}
+            changed = {s for s, units in bound.items() if any(unit_sha(committed_plan, uid) != sha for uid, sha in units.items())}
         return _Scan(tickets, invalid, tuple(drafts), frozenset(changed))
 
     async def _sha(self, stem: str) -> str:
@@ -368,26 +372,27 @@ class _Drain:
         return await self.c.git.rev_parse(self.c.repo, f"HEAD:{ticket_path(stem)}")
 
     def _select(
-        self, scan: _Scan, events: list[Event], last: Mapping[str, str], held: set[str],
+        self,
+        scan: _Scan,
+        events: list[Event],
+        last: Mapping[str, str],
+        held: set[str],
     ) -> tuple[Ticket | None, bool]:
         """The next dispatch: fresh eligible work first, then re-offers, each in (priority, age) order."""
         retired_hardeners = {r.hardener for r in rounds(events) if round_state(events, r.number) == "closed"}
-        open_ = {s: t for s, t in scan.tickets.items()
-                 if t.frontmatter.state == "confirmed" and last.get(s) not in SETTLED | RETIRED
-                 and s not in retired_hardeners}
+        open_ = {s: t for s, t in scan.tickets.items() if t.frontmatter.state == "confirmed" and last.get(s) not in SETTLED | RETIRED and s not in retired_hardeners}
         edges = {s: list(t.depends) for s, t in open_.items()}
         for stem in sorted(open_):
             if cycle := depends_cycle(stem, edges):
-                raise Refusal(f"`## Depends on` cycle among committed tickets: {' -> '.join(cycle)}",
-                              f"edit one ticket on the cycle to drop the edge that inverts the intended order,"
-                              f" then `drain` again")
+                raise Refusal(
+                    f"`## Depends on` cycle among committed tickets: {' -> '.join(cycle)}", "edit one ticket on the cycle to drop the edge that inverts the intended order, then `drain` again"
+                )
         from chupa.rework import settled_dependencies, supersedes_maps
 
         settled = settled_dependencies(events)
         maps = supersedes_maps(events)
         authored = authored_at(events)
-        ready = sorted((t for t in open_.values() if t.stem not in maps and set(t.depends) <= settled),
-                       key=lambda t: sort_key(t, authored))
+        ready = sorted((t for t in open_.values() if t.stem not in maps and set(t.depends) <= settled), key=lambda t: sort_key(t, authored))
         awaiting = reject_queue(events)
         fresh, reoffers = [], []
         storm_held = set(self.c.control.storm_holds().values()) if self.c.control is not None else set()
@@ -397,15 +402,11 @@ class _Drain:
             if t.stem in awaiting and "ticket_changed" in awaiting[t.stem].get("reason", "").split(","):
                 continue
             bound = t.stem in awaiting and "plan_units" in awaiting[t.stem]
-            if bound and (t.stem not in scan.plan_changed
-                          or caps.remaining(self.c.config.caps, events, t.stem, "retry") <= 0):
+            if bound and (t.stem not in scan.plan_changed or caps.remaining(self.c.config.caps, events, t.stem, "retry") <= 0):
                 continue
             budget = bound or caps.spent(self.c.config.caps, events, t.stem) is None
             if t.stem in storm_held:
-                if (t.stem not in self.over_budget
-                        and t.stuck_minutes <= self.c.config.drain.max_ticket_minutes
-                        and (last.get(t.stem) is None or (t.stem not in held
-                             and budget))):
+                if t.stem not in self.over_budget and t.stuck_minutes <= self.c.config.drain.max_ticket_minutes and (last.get(t.stem) is None or (t.stem not in held and budget)):
                     self.storm_waiting = True
                 continue
             if t.stem in awaiting and not budget:
@@ -414,18 +415,17 @@ class _Drain:
                 continue
             if t.stuck_minutes > self.c.config.drain.max_ticket_minutes:
                 self.over_budget[t.stem] = Parked(
-                    t.stem, f"`## Time budget` stuck {t.stuck_minutes}m exceeds drain.max_ticket_minutes"
-                    f" ({self.c.config.drain.max_ticket_minutes}m); never dispatched",
-                    f"lower `- stuck:` in {ticket_path(t.stem)} to at most"
-                    f" {self.c.config.drain.max_ticket_minutes}m (split the ticket if it cannot fit)")
+                    t.stem,
+                    f"`## Time budget` stuck {t.stuck_minutes}m exceeds drain.max_ticket_minutes ({self.c.config.drain.max_ticket_minutes}m); never dispatched",
+                    f"lower `- stuck:` in {ticket_path(t.stem)} to at most {self.c.config.drain.max_ticket_minutes}m (split the ticket if it cannot fit)",
+                )
                 continue
             session = self.c.control.providers
             if session.active and budget and t.stem not in held:
                 tier, _ = caps.capability(t, events)
-                latest = next((e.body for e in reversed(events)
-                               if e.type == EventType.STATE_TRANSITION and e.ticket == t.stem), {})
-                route = latest.get('provider_drought', {'tier': tier, 'surface': 'implement'})
-                drought = session.drought(self.c.config, route['tier'], route['surface'])
+                latest = next((e.body for e in reversed(events) if e.type == EventType.STATE_TRANSITION and e.ticket == t.stem), {})
+                route = latest.get("provider_drought", {"tier": tier, "surface": "implement"})
+                drought = session.drought(self.c.config, route["tier"], route["surface"])
                 if drought:
                     session.park(t.stem, drought)
                     if drought.deadline is not None:
@@ -445,44 +445,39 @@ class _Drain:
         if self._stopping():
             return
         stem = ticket.stem
-        if hasattr(self.dispatch, 'prepare'):
+        if hasattr(self.dispatch, "prepare"):
             await self.dispatch.prepare()
         if reoffer:
             history = self.c.journal.read()
             queued = reject_queue(history)
             bound = stem in queued and "plan_units" in queued[stem]
             if stem in queued:
-                self.c.journal.append(EventType.SIGNAL,
-                                      {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"},
-                                      ticket=stem)
-            body = next(e.body for e in reversed(history)
-                        if e.type == EventType.STATE_TRANSITION and e.ticket == stem
-                        and e.body.get("to") in TERMINAL_STATES)
+                self.c.journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}, ticket=stem)
+            body = next(e.body for e in reversed(history) if e.type == EventType.STATE_TRANSITION and e.ticket == stem and e.body.get("to") in TERMINAL_STATES)
             # A hold releases free until it arrives in Reject; a plan-bound machine keep always draws retry.
             match dispatch := dispatch_of(body):
                 case "spec_gap_hold":
                     draw_retry = bound
                 case "retry" | "escalate" | "reject_queue" | None:
-                    draw_retry = (bound or body.get("to") != PREMISE) and 'provider_drought' not in body
+                    draw_retry = (bound or body.get("to") != PREMISE) and "provider_drought" not in body
                 case _:
                     assert_never(dispatch)
             if draw_retry:
                 caps.consume(self.c.journal, stem, "retry", sha, rung=body.get("rung"))
         # The `ticket.md` the run answers: a `premise_failed` verdict parks the stem until this changes.
         self.c.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": sha}, ticket=stem)
+
         async def abort():
             await self.dispatch.abort_current()
-        terminal = await self._await_controlled(asyncio.create_task(self.dispatch(ticket)), abort,
-            self.c.control.sleep if self.c.control is not None else self.c.sleep)
+
+        terminal = await self._await_controlled(asyncio.create_task(self.dispatch(ticket)), abort, self.c.control.sleep if self.c.control is not None else self.c.sleep)
         if self._stopping():
             return
         if terminal not in TERMINAL_STATES:
             raise ValueError(f"stage seam returned {terminal!r}, not a terminal state {sorted(TERMINAL_STATES)}")
-        body = next(e.body for e in reversed(self.c.journal.read())
-                    if e.type == EventType.STATE_TRANSITION and e.ticket == stem)
+        body = next(e.body for e in reversed(self.c.journal.read()) if e.type == EventType.STATE_TRANSITION and e.ticket == stem)
         if body["to"] != terminal:
-            raise ValueError(f"stage seam returned {terminal!r} for {stem} but journaled {body['to']!r};"
-                             " the seam must journal the run's single terminal transition")
+            raise ValueError(f"stage seam returned {terminal!r} for {stem} but journaled {body['to']!r}; the seam must journal the run's single terminal transition")
         if terminal == "merged":
             self.report.merged.append(stem)
             # A `merged` with no commit is the no-diff settlement (section 7): nothing was admitted.
@@ -492,13 +487,13 @@ class _Drain:
                     self.upgrade = (stem, commit)
 
     async def _run_retro(self, *, forced):
-        await self._await_controlled(asyncio.create_task(self.retro(forced=forced)),
-                                     self.retro.abort_current, self.c.sleep)
+        await self._await_controlled(asyncio.create_task(self.retro(forced=forced)), self.retro.abort_current, self.c.sleep)
 
     async def _await_controlled(self, task, abort, sleep):
         from chupa.daemon import _protected_cleanup
 
         consumer = self.c.control
+
         async def control() -> None:
             while not task.done():
                 await sleep(0.1)
@@ -519,6 +514,7 @@ class _Drain:
                 monitor.result()
             return task.result()
         finally:
+
             async def cleanup() -> None:
                 failed_stop = False
                 try:
@@ -529,8 +525,7 @@ class _Drain:
                             failed_stop = True
                             raise
                 finally:
-                    failed_control = failed_stop or (monitor is not None and monitor.done()
-                        and not monitor.cancelled() and monitor.exception() is not None)
+                    failed_control = failed_stop or (monitor is not None and monitor.done() and not monitor.cancelled() and monitor.exception() is not None)
                     for pending in owned:
                         # Neither a failed decision nor a failed abort authorizes
                         # dispatch cancellation. Observe its ordinary cleanup instead.
@@ -542,6 +537,7 @@ class _Drain:
                     for result in results:
                         if isinstance(result, BaseException) and not isinstance(result, asyncio.CancelledError):
                             raise result
+
             await _protected_cleanup(asyncio.create_task(cleanup()))
 
     def parked_stems(self) -> tuple[str, ...]:
@@ -557,14 +553,11 @@ class _Drain:
         settled = settled_dependencies(events)
         awaiting = reject_queue(events)
         for stem in sorted(scan.tickets):
-            if (last.get(stem) not in SETTLED | RETIRED | {None, "running"}
-                    and caps.spent(self.c.config.caps, events, stem) is not None
-                    and stem not in awaiting):
-                body = next(e.body for e in reversed(events)
-                            if e.type == EventType.STATE_TRANSITION and e.ticket == stem)
+            if last.get(stem) not in SETTLED | RETIRED | {None, "running"} and caps.spent(self.c.config.caps, events, stem) is not None and stem not in awaiting:
+                body = next(e.body for e in reversed(events) if e.type == EventType.STATE_TRANSITION and e.ticket == stem)
                 if body.get("to") == PREMISE and "render_over_bound" in body.get("reason", "").split(","):
                     continue
-                if 'provider_drought' in body:
+                if "provider_drought" in body:
                     continue
                 if body.get("routed") != "reject_queue":
                     self.c.journal.append(EventType.SIGNAL, {"signal": "reject_arrival"}, ticket=stem)
@@ -579,31 +572,28 @@ class _Drain:
             elif (to := last.get(stem)) is None:
                 self.report.unadmitted.append(stem)
             else:
-                body = next(e.body for e in reversed(events)
-                            if e.type == EventType.STATE_TRANSITION and e.ticket == stem)
+                body = next(e.body for e in reversed(events) if e.type == EventType.STATE_TRANSITION and e.ticket == stem)
                 where = f" at {body['stage']}" if "stage" in body else ""
                 spent_cap = caps.spent(self.c.config.caps, events, stem)
-                drawn = (caps.failed_attempts(events, stem) if spent_cap == "attempts"
-                         else caps.draws(events, stem, spent_cap or "retry"))
+                drawn = caps.failed_attempts(events, stem) if spent_cap == "attempts" else caps.draws(events, stem, spent_cap or "retry")
                 cap_limit = getattr(self.c.config.caps, spent_cap or "retry")
                 if awaits := awaited_hardening(events, stem):
-                    why, road = (f"{to}{where}; spec gap held on round {body['round']} ({', '.join(awaits)})",
-                                 "the drain runs the hardening tickets first, then re-runs this stem free")
+                    why, road = (f"{to}{where}; spec gap held on round {body['round']} ({', '.join(awaits)})", "the drain runs the hardening tickets first, then re-runs this stem free")
                 elif stem in held and spent_cap is None:
                     why, road = f"{to}{where}; parked until its committed ticket.md changes", self._premise_road(t)
                 elif spent_cap is None:  # only a halt leaves budget unspent: the continuing drain re-offers it
-                    why, road = (f"{to}{where}; {cap_limit - drawn} of {cap_limit} retry units left",
-                                 "`uv run python -m chupa drain` re-offers it")
+                    why, road = (f"{to}{where}; {cap_limit - drawn} of {cap_limit} retry units left", "`uv run python -m chupa drain` re-offers it")
                 else:
-                    why, road = (f"{to}{where}; {caps.spent_reason(spent_cap)} ({drawn}/{cap_limit})",
-                                 "read the findings below and the engine log; fix the cause in the plan (or the"
-                                 " ticket if provably not the plan's) and author a successor stem -- a"
-                                 " `ticket.md` edit never re-arms the cap")
+                    why, road = (
+                        f"{to}{where}; {caps.spent_reason(spent_cap)} ({drawn}/{cap_limit})",
+                        "read the findings below and the engine log; fix the cause in the plan (or the"
+                        " ticket if provably not the plan's) and author a successor stem -- a"
+                        " `ticket.md` edit never re-arms the cap",
+                    )
                 if stem in awaiting:
                     if "ticket_changed" in awaiting[stem].get("reason", "").split(","):
                         why = f"{to}{where}; ticket_changed; held for an operator"
-                        road = (f"review the change to {ticket_path(stem)}, then keep (./dev.py confirm {stem})"
-                                f" or kill (./dev.py reject {stem})")
+                        road = f"review the change to {ticket_path(stem)}, then keep (./dev.py confirm {stem}) or kill (./dev.py reject {stem})"
                     elif "plan_units" in awaiting[stem]:
                         units = awaiting[stem]["plan_units"]
                         coverage = []
@@ -611,50 +601,54 @@ class _Drain:
                             for record in rounds(events):
                                 if uid not in record.units:
                                     continue
-                                terminal = next((e.body["to"] for e in events[record.position + 1:]
-                                    if e.type == EventType.STATE_TRANSITION and e.ticket == record.hardener
-                                    and e.body.get("to") in TERMINAL_STATES
-                                    and (ROUND_STATES[e.body["to"]] == "closed"
-                                         or e.body.get("routed") == "reject_queue")), "pending")
+                                terminal = next(
+                                    (
+                                        e.body["to"]
+                                        for e in events[record.position + 1 :]
+                                        if e.type == EventType.STATE_TRANSITION
+                                        and e.ticket == record.hardener
+                                        and e.body.get("to") in TERMINAL_STATES
+                                        and (ROUND_STATES[e.body["to"]] == "closed" or e.body.get("routed") == "reject_queue")
+                                    ),
+                                    "pending",
+                                )
                                 coverage.append(f"{uid}: round {record.number} ({record.hardener}: {terminal})")
-                        why = (f"{to}{where}; {body.get('reason', to)}; units: {', '.join(units)}"
-                               + (f"; {'; '.join(coverage)}" if coverage else ""))
+                        why = f"{to}{where}; {body.get('reason', to)}; units: {', '.join(units)}" + (f"; {'; '.join(coverage)}" if coverage else "")
                         if caps.remaining(self.c.config.caps, events, stem, "retry") <= 0:
                             why += f"; retry cap spent ({caps.draws(events, stem, 'retry')}/{self.c.config.caps.retry})"
-                        road = (f"fix {', '.join(units)} in CHUPA_PLAN.md, commit it, then "
-                                "uv run python -m chupa drain; in the daemon era, "
-                                f"uv run python -m chupa confirm {stem}; or retire it with "
-                                f"uv run python -m chupa reject {stem}")
+                        road = (
+                            f"fix {', '.join(units)} in CHUPA_PLAN.md, commit it, then "
+                            "uv run python -m chupa drain; in the daemon era, "
+                            f"uv run python -m chupa confirm {stem}; or retire it with "
+                            f"uv run python -m chupa reject {stem}"
+                        )
                     else:
-                        road = (f"edit {ticket_path(stem)} (or fix the plan and regenerate it), then "
-                                f"uv run python -m chupa confirm {stem}; or retire it with "
-                                f"uv run python -m chupa reject {stem}")
+                        road = f"edit {ticket_path(stem)} (or fix the plan and regenerate it), then uv run python -m chupa confirm {stem}; or retire it with uv run python -m chupa reject {stem}"
                 self.report.parked.append(Parked(stem, why, road, self._findings(stem)))
         self.report.invalid = sorted(scan.invalid.items())
         self.report.drafts = list(scan.drafts)
 
     def _premise_road(self, t: Ticket) -> str:
         """`source`-keyed (section 18): the release is the same commit, only where the fix originates differs."""
-        body = next(e.body for e in reversed(self.c.journal.read())
-                    if e.type == EventType.STATE_TRANSITION and e.ticket == t.stem)
+        body = next(e.body for e in reversed(self.c.journal.read()) if e.type == EventType.STATE_TRANSITION and e.ticket == t.stem)
         if "render_over_bound" in body.get("reason", "").split(","):
             return "shrink or split the committed ticket text and rerun drain"
         rel = ticket_path(t.stem)
         if t.frontmatter.source == "seed":
-            return (f"the verdict below names a false assumption in CHUPA_PLAN.md: fix it in the plan and commit that"
-                    f" first, then commit the plan-congruent correction of {rel} -- that ticket.md change releases it")
+            return (
+                f"the verdict below names a false assumption in CHUPA_PLAN.md: fix it in the plan and commit that"
+                f" first, then commit the plan-congruent correction of {rel} -- that ticket.md change releases it"
+            )
         return f"answer the premise findings below by editing {rel} and committing it -- the content change releases it"
 
     def _findings(self, stem: str) -> tuple[str, ...]:
         """Where the parked stem's detail lives: its durable ticket-plane artifacts (section 10)."""
         root = self.c.repo / TICKETS_DIR / stem
-        return tuple(p.relative_to(self.c.repo).as_posix() for p in sorted(root.rglob("*"))
-                     if p.is_file() and p.name != TICKET_FILE)
+        return tuple(p.relative_to(self.c.repo).as_posix() for p in sorted(root.rglob("*")) if p.is_file() and p.name != TICKET_FILE)
 
     def _halt(self, scan: _Scan, events: list[Event], last: Mapping[str, str], held: set[str]) -> Report:
         hours = self.c.config.drain.max_runtime_hours
-        self.c.journal.append(EventType.SIGNAL, {"signal": HALT_SIGNAL, "ceiling": CEILING, "hours": hours,
-                                                 "merged": list(self.report.merged)})
+        self.c.journal.append(EventType.SIGNAL, {"signal": HALT_SIGNAL, "ceiling": CEILING, "hours": hours, "merged": list(self.report.merged)})
         self._settle(scan, events, last, held)
         self.report.halted = f"{hours}h elapsed"
         return self.report

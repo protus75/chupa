@@ -21,27 +21,33 @@ from tests.waiting import wait_until
 async def test_notify_effect_once_and_conservative_resend(tmp_path, monkeypatch):
     journal = Journal(tmp_path, Time())
     calls = []
+
     class Delivery:
         fail = False
+
         async def notify(self, argv):
             assert journal.read()[-1].type == EventType.EFFECT_INTENT
             calls.append(argv)
             if self.fail:
                 raise NotificationFailed("repair command and retry")
             return {"rc": 0, "stdout": "delivered", "stderr": ""}
+
     seam = Delivery()
+
     async def deliver(effects, identity="event"):
-        return await send(effects, seam, ["notify", "fixed argument"], owner="stem",
-            escalation="ordinary", identity=identity, message="resume", ticket="stem")
+        return await send(effects, seam, ["notify", "fixed argument"], owner="stem", escalation="ordinary", identity=identity, message="resume", ticket="stem")
+
     effects = Effects(journal)
     result = await deliver(effects)
     assert await deliver(effects) == await deliver(Effects(journal)) == result
     assert len(calls) == 1 and calls[0] == ["notify", "fixed argument", "resume"]
     append = journal.append
+
     def crash(type, *args, **kwargs):
         if type == EventType.EFFECT_COMPLETION:
             raise OSError("crash after external send")
         return append(type, *args, **kwargs)
+
     with monkeypatch.context() as patch:
         patch.setattr(journal, "append", crash)
         with pytest.raises(OSError, match="crash"):
@@ -52,23 +58,18 @@ async def test_notify_effect_once_and_conservative_resend(tmp_path, monkeypatch)
     seam.fail = True
     with pytest.raises(NotificationFailed):
         await deliver(Effects(journal), "failed")
-    assert not any(e.type == EventType.EFFECT_COMPLETION and e.key.endswith("/failed")
-                   for e in journal.read())
+    assert not any(e.type == EventType.EFFECT_COMPLETION and e.key.endswith("/failed") for e in journal.read())
     seam.fail = False
     await deliver(Effects(journal), "failed")
     assert len(calls) == 5
-    assert [e.type for e in journal.read() if e.key.endswith("/failed")] == [
-        EventType.EFFECT_INTENT, EventType.EFFECT_INTENT, EventType.EFFECT_COMPLETION]
+    assert [e.type for e in journal.read() if e.key.endswith("/failed")] == [EventType.EFFECT_INTENT, EventType.EFFECT_INTENT, EventType.EFFECT_COMPLETION]
 
 
 def test_notify_key_domains():
     for kind in ("ordinary", "stuck-past-threshold"):
-        assert notification_key("stem", kind, "identity", run_sequence=0) == (
-            notification_key("stem", kind, "identity", run_sequence=9)) == f"notify/stem/{kind}/identity"
-    assert notification_key("stem", "spiral-warning", "first", run_sequence=2) == (
-        notification_key("stem", "spiral-warning", "retry", run_sequence=2)) == "notify/stem/spiral-warning/2"
-    assert notification_key("stem", "spiral-warning", "first", run_sequence=3) != (
-        notification_key("stem", "spiral-warning", "first", run_sequence=2))
+        assert notification_key("stem", kind, "identity", run_sequence=0) == (notification_key("stem", kind, "identity", run_sequence=9)) == f"notify/stem/{kind}/identity"
+    assert notification_key("stem", "spiral-warning", "first", run_sequence=2) == (notification_key("stem", "spiral-warning", "retry", run_sequence=2)) == "notify/stem/spiral-warning/2"
+    assert notification_key("stem", "spiral-warning", "first", run_sequence=3) != (notification_key("stem", "spiral-warning", "first", run_sequence=2))
     with pytest.raises(ValueError, match="run sequence"):
         notification_key("stem", "spiral-warning", "first")
 
@@ -89,9 +90,7 @@ async def test_notify_seam_uses_argv_and_secret_free_env(tmp_path):
     assert isinstance(seam, CommandNotifications)
     assert seam.exec_ is not work and seam.exec_ is not reexec
     assert seam.cwd == tmp_path and seam.timeout == 30
-    script = ("import os,sys,json; from pathlib import Path; "
-              "print(json.dumps([sys.argv[1:],str(Path.cwd()),dict(os.environ)])); "
-              f"print({secret!r}); print({secret!r},file=sys.stderr)")
+    script = f"import os,sys,json; from pathlib import Path; print(json.dumps([sys.argv[1:],str(Path.cwd()),dict(os.environ)])); print({secret!r}); print({secret!r},file=sys.stderr)"
     argv = [sys.executable, "-c", script, "spaces;$(literal)"]
     effects = Effects(journal)
     result = await effects.run(lambda: seam.notify(argv), key="notify/test/argv/1", ticket=None)
@@ -101,8 +100,7 @@ async def test_notify_seam_uses_argv_and_secret_free_env(tmp_path):
     assert secret not in result["stdout"] + result["stderr"]
     assert "[REDACTED:TEST_KEY]" in result["stdout"] and "[REDACTED:TEST_KEY]" in result["stderr"]
     assert await Effects(journal).run(lambda: seam.notify(argv), key="notify/test/argv/1", ticket=None) == result
-    for command in (["chupa-missing-notification-binary"],
-                    [sys.executable, "-c", f"import sys; print({secret!r}); sys.exit(4)"]):
+    for command in (["chupa-missing-notification-binary"], [sys.executable, "-c", f"import sys; print({secret!r}); sys.exit(4)"]):
         with pytest.raises(NotificationFailed) as exc:
             await effects.run(lambda: seam.notify(command), key=f"notify/test/failure/{command[0]}", ticket=None)
         assert secret not in str(exc.value) and "retry" in str(exc.value)
@@ -119,25 +117,28 @@ async def test_notify_timeout_backoff_and_unchanged_poll_cache(tmp_path, monkeyp
     config = load_config(None, cwd=tmp_path)
     clock = Time()
     journal = Journal(tmp_path / "state", clock)
-    journal.append(EventType.SIGNAL, {"kind": "merge_tree_mismatch", "hold_id": "hold",
-        "checked_tree": "checked", "main_tree": "main"}, ticket="stem")
+    journal.append(EventType.SIGNAL, {"kind": "merge_tree_mismatch", "hold_id": "hold", "checked_tree": "checked", "main_tree": "main"}, ticket="stem")
     loads, reads, calls = [], [], []
     read = journal.read
+
     def reading():
         reads.append(None)
         return read()
+
     monkeypatch.setattr(journal, "read", reading)
+
     def load():
         loads.append(None)
         return config
+
     class TimeoutExec:
         async def run(self, argv, **kwargs):
             calls.append(argv)
             raise TimeoutError("scripted timeout")
+
     seam = CommandNotifications(TimeoutExec(), cwd=tmp_path, env={}, timeout=30, scrub=lambda s: s)
     log = EngineLog(tmp_path / "engine.log", Redactor.from_config(config, {}), clock)
-    reconciler = NotificationReconciler(journal=journal, clock=clock, config_path=tmp_path / "config.yaml",
-        load=load, compose=lambda _: seam, log=log)
+    reconciler = NotificationReconciler(journal=journal, clock=clock, config_path=tmp_path / "config.yaml", load=load, compose=lambda _: seam, log=log)
     try:
         reconciler.poll(startup=True)
         await wait_until(reconciler.task.done)
@@ -147,8 +148,7 @@ async def test_notify_timeout_backoff_and_unchanged_poll_cache(tmp_path, monkeyp
         reconciler.poll()
         assert reconciler.task is None
         assert (len(reads), len(loads)) == snapshot and len(calls) == 1
-        assert len(reconciler.pending) == 1 and not any(
-            e.type == EventType.EFFECT_COMPLETION for e in read())
+        assert len(reconciler.pending) == 1 and not any(e.type == EventType.EFFECT_COMPLETION for e in read())
         clock.advance(NOTIFY_RETRY_S)
         reconciler.poll()
         await wait_until(reconciler.task.done)

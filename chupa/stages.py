@@ -20,29 +20,54 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
-from chupa.artifacts import RELIABILITY_BATTERY_REPORT, ReliabilityBatteryReport, DAEMON_SOAK_REPORT, OUTCOMES, SHAKEOUT_REPORT, Artifact, Cost, DaemonSoakReport, Diagnosis, DiagnosisReply, Finding, Harvest, NonBlank, Outcome, ReviewVerdict, ShakeoutReport, StageResult
-from chupa.artifacts import REVIEW_BASELINE_REPORT, ReviewBaselineReport, HOST_LOOP_REPORT, EXIT_RECEIPT, HostLoopReport, ExitReceipt
+from chupa.artifacts import (
+    DAEMON_SOAK_REPORT,
+    EXIT_RECEIPT,
+    HOST_LOOP_REPORT,
+    OUTCOMES,
+    RELIABILITY_BATTERY_REPORT,
+    REVIEW_BASELINE_REPORT,
+    SHAKEOUT_REPORT,
+    Artifact,
+    Cost,
+    DaemonSoakReport,
+    Diagnosis,
+    DiagnosisReply,
+    ExitReceipt,
+    Finding,
+    Harvest,
+    HostLoopReport,
+    NonBlank,
+    Outcome,
+    ReliabilityBatteryReport,
+    ReviewBaselineReport,
+    ReviewVerdict,
+    ShakeoutReport,
+    StageResult,
+)
 from chupa.box import BOX_DIR
-from chupa.storm import arrival_id
 from chupa.caps import lineage
 from chupa.config import Config, ConfigSnapshot, Severity
 from chupa.driver import Driver, LlmStage
 from chupa.gates import BugEvidence, GateReport, RegressionRun, run_gates
 from chupa.git import Git, GitError
 from chupa.hostfiles import CORE_TEMPLATE, CoreDriftGate, committed_core
-from chupa.journal import EVENT_VERSIONS, TERMINAL_STATES, EventType, run_seq
+from chupa.journal import EVENT_VERSIONS, EventType, run_seq
 from chupa.providers import child_env
 from chupa.seams import ExecutableNotFound, FileSystem, ProcessExec
 from chupa.specs import PlanContractError, RenderOverBound, Spec, entry_unit_gap, load_spec, plan_id, render, required_units, resolve_plan_contract, without_unit
-from chupa.tickets import read_plan
-from chupa.tickets import _HEADING, _bullets, _sections, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, TicketInvalid, ticket_path, validate_ticket
+from chupa.storm import arrival_id
+from chupa.tickets import _HEADING, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, TicketInvalid, _bullets, _sections, read_plan, ticket_path, validate_ticket
 
 MAIN = "main"
-KNOWN_ARTIFACTS: Mapping[str, type[BaseModel]] = {SHAKEOUT_REPORT: ShakeoutReport,
-                                             DAEMON_SOAK_REPORT: DaemonSoakReport,
-                                             RELIABILITY_BATTERY_REPORT: ReliabilityBatteryReport,
-                                             REVIEW_BASELINE_REPORT: ReviewBaselineReport,
-                                             HOST_LOOP_REPORT: HostLoopReport, EXIT_RECEIPT: ExitReceipt}
+KNOWN_ARTIFACTS: Mapping[str, type[BaseModel]] = {
+    SHAKEOUT_REPORT: ShakeoutReport,
+    DAEMON_SOAK_REPORT: DaemonSoakReport,
+    RELIABILITY_BATTERY_REPORT: ReliabilityBatteryReport,
+    REVIEW_BASELINE_REPORT: ReviewBaselineReport,
+    HOST_LOOP_REPORT: HostLoopReport,
+    EXIT_RECEIPT: ExitReceipt,
+}
 # Section 7 diff budget: sized so every rendered review prompt fits the serving provider's bound.
 DIFF_BUDGET_FILES = 30
 DIFF_BUDGET_INSERTED = 1_500
@@ -159,8 +184,7 @@ _REVIEW_JSON = re.compile(r"^```json\n(.*?)\n```$", re.DOTALL | re.MULTILINE)
 
 def render_review(review: _Review) -> str:
     lines = [f"# Review: {review.verdict}", "", review.summary, "", "## Findings", ""]
-    lines += [f"- [{f.code}] {f.path or '-'}:{f.line or '-'} {f.message} (do instead: {f.paved_road})"
-              for f in review.findings] or ["none"]
+    lines += [f"- [{f.code}] {f.path or '-'}:{f.line or '-'} {f.message} (do instead: {f.paved_road})" for f in review.findings] or ["none"]
     return "\n".join(lines + ["", "## Record", "", "```json", review.model_dump_json(indent=2), "```", ""])
 
 
@@ -179,20 +203,17 @@ async def served_review(ctx, stem: str, attempt: int, reviewed: str) -> tuple[st
     try:
         events = ctx.driver.journal.read()
         path = f"tickets/{stem}/review.md"
-        lifts = [e.body["result"] for e in events if e.type == EventType.EFFECT_COMPLETION
-                 and e.ticket == stem and e.key == f"ticket-plane/{stem}/{attempt}/review"]
+        lifts = [e.body["result"] for e in events if e.type == EventType.EFFECT_COMPLETION and e.ticket == stem and e.key == f"ticket-plane/{stem}/{attempt}/review"]
         if len(lifts) != 1 or lifts[0]["kind"] != "review" or path not in lifts[0]["paths"]:
             return None, None
         commit = lifts[0]["commit"]
         pinned = await ctx.git._run(ctx.repo, "show", f"{MAIN}:{path}")
-        if (await ctx.git.merge_base(ctx.repo, MAIN, commit) != commit
-                or pinned != await ctx.git._run(ctx.repo, "show", f"{commit}:{path}")):
+        if await ctx.git.merge_base(ctx.repo, MAIN, commit) != commit or pinned != await ctx.git._run(ctx.repo, "show", f"{commit}:{path}"):
             return None, None
         review = read_review(pinned)
         if not isinstance(review, ApprovedInvoice) or review.stem != stem or review.reviewed_sha != reviewed:
             return None, None
-        calls = [e for e in events if e.type == EventType.EFFECT_COMPLETION and e.ticket == stem
-                 and e.key and re.fullmatch(rf"llm/{re.escape(stem)}/{attempt}/review/{attempt}/[1-9][0-9]*", e.key)]
+        calls = [e for e in events if e.type == EventType.EFFECT_COMPLETION and e.ticket == stem and e.key and re.fullmatch(rf"llm/{re.escape(stem)}/{attempt}/review/{attempt}/[1-9][0-9]*", e.key)]
         if not calls:
             return None, None
         call = calls[-1]
@@ -201,13 +222,17 @@ async def served_review(ctx, stem: str, attempt: int, reviewed: str) -> tuple[st
         result = call.body["result"]
         verdict = ReviewVerdict.model_validate_json(unwrap_fence(result["text"]))
         pair = result["provider"], result["model"]
-        if (verdict.verdict != "approve" or verdict.summary != review.summary
-                or verdict.findings != review.findings or pair != (review.provider, review.model)
-                or any(not isinstance(n, str) or not n.strip() for n in pair)
-                or any(call.body["cost"].get(k) != result[k] for k in ("provider", "model"))):
+        if (
+            verdict.verdict != "approve"
+            or verdict.summary != review.summary
+            or verdict.findings != review.findings
+            or pair != (review.provider, review.model)
+            or any(not isinstance(n, str) or not n.strip() for n in pair)
+            or any(call.body["cost"].get(k) != result[k] for k in ("provider", "model"))
+        ):
             return None, None
         return pair
-    except (ValueError, KeyError, TypeError, AttributeError, GitError):
+    except ValueError, KeyError, TypeError, AttributeError, GitError:
         return None, None
 
 
@@ -267,8 +292,7 @@ def ticket_blob(data: bytes) -> str:
 async def ticket_change_findings(ctx: StageContext, stem: str, *, expected: str | None = None) -> list[Finding]:
     """Only ticket.md belongs to the dispatch identity; lifts may freely move main."""
     if expected is None:
-        latest = next((e.body for e in reversed(ctx.driver.journal.read())
-                       if e.type == EventType.STATE_TRANSITION and e.ticket == stem), {})
+        latest = next((e.body for e in reversed(ctx.driver.journal.read()) if e.type == EventType.STATE_TRANSITION and e.ticket == stem), {})
         if latest.get("to") == "running":
             expected = latest.get("ticket_sha")
     if expected is None:
@@ -277,13 +301,18 @@ async def ticket_change_findings(ctx: StageContext, stem: str, *, expected: str 
     try:
         committed = await ctx.git.rev_parse(ctx.repo, f"{MAIN}:{rel}")
         unchanged = committed == expected and ticket_blob((ctx.repo / rel).read_bytes()) == expected
-    except (GitError, OSError):
+    except GitError, OSError:
         unchanged = False
     if unchanged:
         return []
-    return [Finding(code="ticket_changed", path=rel, message=f"{stem}: ticket.md changed during the run",
-                    paved_road=f"review the change to {rel}, then keep (./dev.py confirm {stem})"
-                               f" or kill (./dev.py reject {stem})")]
+    return [
+        Finding(
+            code="ticket_changed",
+            path=rel,
+            message=f"{stem}: ticket.md changed during the run",
+            paved_road=f"review the change to {rel}, then keep (./dev.py confirm {stem}) or kill (./dev.py reject {stem})",
+        )
+    ]
 
 
 class ArtifactInvalid(Exception):
@@ -295,6 +324,7 @@ class ArtifactInvalid(Exception):
 
 class Stages:
     """Public access to the Driver already owned by the stage composition."""
+
     def __init__(self, ctx: StageContext):
         self._ctx = ctx
 
@@ -331,12 +361,15 @@ def _registered_files(outbox: Path) -> list[Path]:
 def _lift_files(ctx: StageContext, stem: str, kind: str, only: str | None = None) -> list[Path]:
     outbox = ctx.worktree(stem) / TICKETS_DIR / stem
     canonical = ctx.repo / TICKETS_DIR / stem
-    return sorted(p for p in outbox.rglob("*") if p.is_file()
-                  and p.relative_to(outbox) != Path(TICKET_FILE)
-                  and (only is None or p.relative_to(outbox).as_posix() == only)
-                  and (p.name not in KNOWN_ARTIFACTS or kind == "checks")
-                  and not ((c := canonical / p.relative_to(outbox)).is_file()
-                           and c.read_bytes() == p.read_bytes()))
+    return sorted(
+        p
+        for p in outbox.rglob("*")
+        if p.is_file()
+        and p.relative_to(outbox) != Path(TICKET_FILE)
+        and (only is None or p.relative_to(outbox).as_posix() == only)
+        and (p.name not in KNOWN_ARTIFACTS or kind == "checks")
+        and not ((c := canonical / p.relative_to(outbox)).is_file() and c.read_bytes() == p.read_bytes())
+    )
 
 
 def _validate_reports(paths: Sequence[Path]) -> None:
@@ -350,8 +383,7 @@ def _validate_reports(paths: Sequence[Path]) -> None:
 
 async def dirty_code(ctx: StageContext, stem: str) -> list[str]:
     # NUL records preserve filenames and include both sides of a staged rename.
-    records = iter((await ctx.git._run(ctx.worktree(stem), "status", "--porcelain",
-                                      "--untracked-files=all", "-z")).rstrip("\0").split("\0"))
+    records = iter((await ctx.git._run(ctx.worktree(stem), "status", "--porcelain", "--untracked-files=all", "-z")).rstrip("\0").split("\0"))
     paths = []
     for record in records:
         if not record:
@@ -399,18 +431,25 @@ def diagnose_stage(spec: Spec, material: DiagnosisMaterial) -> LlmStage:
     return LlmStage(surface="diagnose", emits=DiagnosisReply, gates=[], render=render_material)
 
 
-async def write_diagnosis(ctx: StageContext, ticket: Ticket, *, attempt: int, terminal: str,
-                          stage: str | None, verdict: str, lessons: list[str],
-                          mechanical: str | None, cost: Cost = Cost()) -> Diagnosis:
+async def write_diagnosis(
+    ctx: StageContext, ticket: Ticket, *, attempt: int, terminal: str, stage: str | None, verdict: str, lessons: list[str], mechanical: str | None, cost: Cost = Cost()
+) -> Diagnosis:
     spec = _spec(ctx, "diagnose")
     record = Diagnosis(
-        produced_by_spec_version=_major(spec), produced_at_sha=await ctx.git.rev_parse(ctx.repo, ticket.stem),
-        stem=ticket.stem, attempt=attempt, terminal=terminal, stage=stage, verdict=verdict,
-        lessons=lessons, mechanical=mechanical, spec_version=spec.meta.version,
-        provider=cost.provider, model=cost.model,
+        produced_by_spec_version=_major(spec),
+        produced_at_sha=await ctx.git.rev_parse(ctx.repo, ticket.stem),
+        stem=ticket.stem,
+        attempt=attempt,
+        terminal=terminal,
+        stage=stage,
+        verdict=verdict,
+        lessons=lessons,
+        mechanical=mechanical,
+        spec_version=spec.meta.version,
+        provider=cost.provider,
+        model=cost.model,
     )
-    ctx.fs.write(ctx.worktree(ticket.stem) / TICKETS_DIR / ticket.stem / "diagnosis.json",
-                 (record.model_dump_json(indent=2) + "\n").encode())
+    ctx.fs.write(ctx.worktree(ticket.stem) / TICKETS_DIR / ticket.stem / "diagnosis.json", (record.model_dump_json(indent=2) + "\n").encode())
     await lift_outbox(ctx, ticket.stem, "diagnosis", attempt=attempt, only="diagnosis.json")
     return record
 
@@ -418,18 +457,25 @@ async def write_diagnosis(ctx: StageContext, ticket: Ticket, *, attempt: int, te
 async def diagnose(ctx: StageContext, ticket: Ticket, material: DiagnosisMaterial, *, attempt: int) -> Diagnosis:
     spec = _spec(ctx, "diagnose")
     result = await ctx.driver.run(
-        diagnose_stage(spec, material), material, ticket=ticket.stem, attempt=attempt,
-        workspace=ctx.worktree(ticket.stem), tier=ticket.frontmatter.agent_tier,
-        effort=ticket.frontmatter.agent_effort, stuck_budget=DIAGNOSIS_STUCK_S,
-        expected_budget=ticket.expected_minutes * 60.0, scope_fence=())
+        diagnose_stage(spec, material),
+        material,
+        ticket=ticket.stem,
+        attempt=attempt,
+        workspace=ctx.worktree(ticket.stem),
+        tier=ticket.frontmatter.agent_tier,
+        effort=ticket.frontmatter.agent_effort,
+        stuck_budget=DIAGNOSIS_STUCK_S,
+        expected_budget=ticket.expected_minutes * 60.0,
+        scope_fence=(),
+    )
     reply = result.artifact
     if result.outcome == "ok" and isinstance(reply, DiagnosisReply):
-        return await write_diagnosis(ctx, ticket, attempt=attempt, terminal=material.terminal,
-                                     stage=material.stage, verdict=reply.verdict, lessons=list(reply.lessons),
-                                     mechanical=None, cost=result.cost)
-    return await write_diagnosis(ctx, ticket, attempt=attempt, terminal=material.terminal,
-                                 stage=material.stage, verdict="abandon-human", lessons=[],
-                                 mechanical=f"no schema-valid verdict ({result.outcome})", cost=result.cost)
+        return await write_diagnosis(
+            ctx, ticket, attempt=attempt, terminal=material.terminal, stage=material.stage, verdict=reply.verdict, lessons=list(reply.lessons), mechanical=None, cost=result.cost
+        )
+    return await write_diagnosis(
+        ctx, ticket, attempt=attempt, terminal=material.terminal, stage=material.stage, verdict="abandon-human", lessons=[], mechanical=f"no schema-valid verdict ({result.outcome})", cost=result.cost
+    )
 
 
 def _short(result: StageResult, outcome: Outcome, findings: list[Finding], artifact: Artifact | None = None) -> StageResult:
@@ -454,8 +500,7 @@ async def prepare_worktree(ctx: StageContext, stem: str) -> Path:
     return path
 
 
-async def lift_outbox(ctx: StageContext, stem: str, kind: str, *, attempt: int,
-                      only: str | None = None) -> str | None:
+async def lift_outbox(ctx: StageContext, stem: str, kind: str, *, attempt: int, only: str | None = None) -> str | None:
     """Move the worktree outbox into the canonical ticket dir as ONE ticket-plane commit; None if empty.
 
     `ticket.md` is never lifted: it stays read-only to the agent (section 10). Keyed with the run
@@ -486,8 +531,7 @@ async def lift_outbox(ctx: StageContext, stem: str, kind: str, *, attempt: int,
 # --- Implement ----------------------------------------------------------------------------------
 
 
-def implement_inputs(repo: Path, ticket_text: str, ticket: Ticket,
-                     context_files: Sequence[Path]) -> dict[str, str]:
+def implement_inputs(repo: Path, ticket_text: str, ticket: Ticket, context_files: Sequence[Path]) -> dict[str, str]:
     """The production Implement inputs, also used to measure a ticket at authoring."""
     paths = list(dict.fromkeys([*ticket.context, *(str(p) for p in context_files)]))
     context = "\n\n".join(f"### {p}\n{(repo / p).read_text()}" for p in paths) or "none"
@@ -525,10 +569,9 @@ def prior_attempts(ctx: StageContext, stem: str) -> str | None:
     """
     history = ctx.driver.journal.read()
     from chupa.journal import run_terminals
+
     terminals = [e.body for e in run_terminals(history, stem)]
-    lessons = {e.body.get("attempt"): e.body["lessons"] for e in history
-               if e.type == EventType.SIGNAL and e.ticket == stem
-               and e.body.get("signal") == "diagnosis" and e.body.get("lessons")}
+    lessons = {e.body.get("attempt"): e.body["lessons"] for e in history if e.type == EventType.SIGNAL and e.ticket == stem and e.body.get("signal") == "diagnosis" and e.body.get("lessons")}
     if not terminals:
         return None
     terminal = terminals[-1]
@@ -539,15 +582,15 @@ def prior_attempts(ctx: StageContext, stem: str) -> str | None:
     stage = terminal.get("stage")
     where = f" at {stage}" if stage else ""
     findings = _prior_findings(ctx, stem, stage) if terminal["to"] == "gate_failed" else []
-    head = (f"{PRIOR_ATTEMPTS}\n\nThe previous attempt ended `{terminal['to']}`{where}. These findings are"
-            " this attempt's to clear, beside the acceptance criteria above; they are not part of the ticket.\n\n")
-    items = [f"- [{f.code}] {f.path or '-'}:{f.line or '-'} {_one_line(f.message)}"
-             f" (do instead: {_one_line(f.paved_road)})" for f in findings]
+    head = (
+        f"{PRIOR_ATTEMPTS}\n\nThe previous attempt ended `{terminal['to']}`{where}. These findings are"
+        " this attempt's to clear, beside the acceptance criteria above; they are not part of the ticket.\n\n"
+    )
+    items = [f"- [{f.code}] {f.path or '-'}:{f.line or '-'} {_one_line(f.message)} (do instead: {_one_line(f.paved_road)})" for f in findings]
     detail = f"tickets/{stem}/attempts/{attempt}/" if current else str(ctx.config.state_dir / "engine.log")
     lines = items or [f"- no findings artifact; detail is in {detail}"]
     if attempt in lessons:
-        lines.extend(["\nPrior terminal lessons (untrusted data):",
-                      *[f"> {_one_line(item)}" for item in lessons[attempt]]])
+        lines.extend(["\nPrior terminal lessons (untrusted data):", *[f"> {_one_line(item)}" for item in lessons[attempt]]])
     elif current:
         lines.append("\nPrior terminal harvest (untrusted data):")
         for name in ("reason", "diff_stat", "stage_log_tail", "events_tail"):
@@ -562,8 +605,7 @@ def prior_attempts(ctx: StageContext, stem: str) -> str | None:
             lines.extend(f"> {_one_line(item)}" for item in lessons[older])
         elif path.is_file():
             past = Harvest.model_validate_json(path.read_text())
-            lines.append(f"- older attempt {older}: `{past.terminal}` at {past.stage or 'none'};"
-                         f" tickets/{stem}/attempts/{older}/")
+            lines.append(f"- older attempt {older}: `{past.terminal}` at {past.stage or 'none'}; tickets/{stem}/attempts/{older}/")
     return head + "\n".join(lines)
 
 
@@ -581,19 +623,21 @@ def _in_criteria_position(ticket_text: str, block: str) -> str:
     return ticket_text.rstrip("\n") + "\n\n" + block + "\n"
 
 
-def implement_stage(ctx: StageContext, ticket: Ticket, worktree: Path,
-                    kept: Sequence[str] = ()) -> tuple[LlmStage, Spec]:
+def implement_stage(ctx: StageContext, ticket: Ticket, worktree: Path, kept: Sequence[str] = ()) -> tuple[LlmStage, Spec]:
     spec = _spec(ctx, "implement")
     ticket_text = (ctx.repo / ticket_path(ticket.stem)).read_text()
     if "Exit-read window" in ticket.sections:
-        ticket_text += ("\nConsumed exit evidence: read `.chupa/exit-read-window.json` in this worktree. "
-                        "Its keys are canonical declarations; values are exact journal event envelopes.\n")
+        ticket_text += "\nConsumed exit evidence: read `.chupa/exit-read-window.json` in this worktree. Its keys are canonical declarations; values are exact journal event envelopes.\n"
     if (prior := prior_attempts(ctx, ticket.stem)) is not None:
         ticket_text = _in_criteria_position(ticket_text, prior)
     if kept:
-        ticket_text = _in_criteria_position(ticket_text, (
-            f"{APPROVED_SEEDS}\n\nThese seeds passed requisition_review and are already in your worktree."
-            " Leave each one byte-identical and author only the rest:\n" + "\n".join(f"- {p}" for p in kept)))
+        ticket_text = _in_criteria_position(
+            ticket_text,
+            (
+                f"{APPROVED_SEEDS}\n\nThese seeds passed requisition_review and are already in your worktree."
+                " Leave each one byte-identical and author only the rest:\n" + "\n".join(f"- {p}" for p in kept)
+            ),
+        )
     inputs = implement_inputs(worktree, ticket_text, ticket, ctx.config.context_files)
 
     def render_ticket(_: Ticket, findings: list[Finding]) -> str:
@@ -602,19 +646,14 @@ def implement_stage(ctx: StageContext, ticket: Ticket, worktree: Path,
     return LlmStage(surface="implement", emits=ImplementReply, gates=[], render=render_ticket), spec
 
 
-def run_record(reply: ImplementReply | None, cost: Cost, spec: Spec, second_problem_ids: Sequence[str],
-               *, outcome: Outcome | None = None) -> str:
+def run_record(reply: ImplementReply | None, cost: Cost, spec: Spec, second_problem_ids: Sequence[str], *, outcome: Outcome | None = None) -> str:
     fields = {
         "Outcome": outcome or reply.outcome,
-        "Surprises / judgment calls": reply.surprises if reply else 'none',
-        "Dead ends": reply.dead_ends if reply else 'none',
-        "Second problems filed": "\n".join(
-            f"- {id}: {_one_line(problem.summary)}"
-            for id, problem in zip(second_problem_ids, reply.second_problems if reply else (), strict=True)
-        ) or "none",
-        "Resolved engine/model": f"- provider: {cost.provider}\n- model: {cost.model}\n"
-                                 f"- spec: {spec.meta.llm_surface} {spec.meta.version}",
-        "Predicted vs actual": reply.predicted_vs_actual if reply else 'none',
+        "Surprises / judgment calls": reply.surprises if reply else "none",
+        "Dead ends": reply.dead_ends if reply else "none",
+        "Second problems filed": "\n".join(f"- {id}: {_one_line(problem.summary)}" for id, problem in zip(second_problem_ids, reply.second_problems if reply else (), strict=True)) or "none",
+        "Resolved engine/model": f"- provider: {cost.provider}\n- model: {cost.model}\n- spec: {spec.meta.llm_surface} {spec.meta.version}",
+        "Predicted vs actual": reply.predicted_vs_actual if reply else "none",
     }
     return "".join(f"## {name}\n\n{(fields[name].strip() or 'none')}\n\n" for name in RUN_RECORD_SECTIONS)
 
@@ -629,29 +668,33 @@ async def implement(ctx: StageContext, ticket: Ticket, *, attempt: int) -> Stage
     stage, spec = implement_stage(ctx, ticket, worktree, kept)
     try:
         result = await ctx.driver.run(
-            stage, ticket, ticket=stem, attempt=attempt, workspace=worktree,
-            tier=ticket.frontmatter.agent_tier, effort=ticket.frontmatter.agent_effort,
+            stage,
+            ticket,
+            ticket=stem,
+            attempt=attempt,
+            workspace=worktree,
+            tier=ticket.frontmatter.agent_tier,
+            effort=ticket.frontmatter.agent_effort,
             stuck_budget=ticket.stuck_minutes * 60.0,
-            expected_budget=ticket.expected_minutes * 60.0, scope_fence=ticket.scope_fence)
+            expected_budget=ticket.expected_minutes * 60.0,
+            scope_fence=ticket.scope_fence,
+        )
     except RenderOverBound as e:
         # The pre-call short-circuit: ticket-text arithmetic, parked like premise_failed (section 8).
         return StageResult(outcome="premise_failed", artifact=None, findings=[e.finding], cost=Cost())
     if result.outcome != "ok":
         if result.cost.provider is not None:
-            record = f'{TICKETS_DIR}/{stem}/run.md'
+            record = f"{TICKETS_DIR}/{stem}/run.md"
             ctx.fs.write(worktree / record, run_record(None, result.cost, spec, [], outcome=result.outcome).encode())
-            await lift_outbox(ctx, stem, 'run-record', attempt=attempt)
+            await lift_outbox(ctx, stem, "run-record", attempt=attempt)
         return result
     reply = result.artifact
     assert isinstance(reply, ImplementReply)
     from chupa.daemon import storm_producer
 
-    box = storm_producer(root=ctx.config.state_dir / BOX_DIR, fs=ctx.fs,
-                         journal=ctx.driver.journal, clock=ctx.driver.clock)
+    box = storm_producer(root=ctx.config.state_dir / BOX_DIR, fs=ctx.fs, journal=ctx.driver.journal, clock=ctx.driver.clock)
     second_problem_ids = [
-        box.enqueue(message_class="suggestion", origin=stem, stage="implement",
-                    outcome=reply.outcome, summary=problem.summary,
-                    occurrence_id=arrival_id("second-problem", stem, attempt, index))[0]
+        box.enqueue(message_class="suggestion", origin=stem, stage="implement", outcome=reply.outcome, summary=problem.summary, occurrence_id=arrival_id("second-problem", stem, attempt, index))[0]
         for index, problem in enumerate(reply.second_problems)
     ]
     record = f"{TICKETS_DIR}/{stem}/run.md"
@@ -662,7 +705,11 @@ async def implement(ctx: StageContext, ticket: Ticket, *, attempt: int) -> Stage
     slip = PackingSlip(
         produced_by_spec_version=_major(spec),
         produced_at_sha=await ctx.git.rev_parse(ctx.repo, stem),
-        stem=stem, branch=stem, outcome=reply.outcome, summary=reply.summary, run_record=record,
+        stem=stem,
+        branch=stem,
+        outcome=reply.outcome,
+        summary=reply.summary,
+        run_record=record,
     )
     return _short(result, "ok", [], slip)
 
@@ -680,22 +727,19 @@ class CommandResult(_Strict):
 async def run_host_command(ctx, ticket, attempt, argv, code, name, *, cwd=None):
     road = "make the configured command exit 0 on the rebased candidate and retry"
     try:
-        rc, out, err = await ctx.exec_.run(
-            argv, cwd=cwd or ctx.worktree(ticket.stem), env=child_env(ctx.env, ctx.config),
-            timeout=ticket.stuck_minutes * 60.0)
+        rc, out, err = await ctx.exec_.run(argv, cwd=cwd or ctx.worktree(ticket.stem), env=child_env(ctx.env, ctx.config), timeout=ticket.stuck_minutes * 60.0)
     except TimeoutError:
         rc, out, err = None, "", f"timed out after the ticket's stuck budget ({ticket.stuck_minutes}m)"
         road = "make the command finish within the ticket's stuck budget or correct that budget and retry"
     except ExecutableNotFound as exc:
         rc, out, err = None, "", str(exc)
         road = "install the executable or correct argv/PATH in the child environment and retry"
-    ctx.driver.spool.write(ticket.stem, attempt, name,
-                                f"$ {' '.join(argv)}\n[exit {rc}]\n--- stdout\n{out}\n--- stderr\n{err}")
+    ctx.driver.spool.write(ticket.stem, attempt, name, f"$ {' '.join(argv)}\n[exit {rc}]\n--- stdout\n{out}\n--- stderr\n{err}")
     tail = ctx.driver.redactor.scrub((out + err)[-OUTPUT_TAIL_CHARS:])
     result = CommandResult(argv=list(argv), rc=rc, tail=tail, base_red=False)
-    findings = [] if rc == 0 else [Finding(
-        message=ctx.driver.redactor.scrub(f"{argv!r} exited {rc}: {tail.strip() or '(no output)'}"), paved_road=road, code=code)]
+    findings = [] if rc == 0 else [Finding(message=ctx.driver.redactor.scrub(f"{argv!r} exited {rc}: {tail.strip() or '(no output)'}"), paved_road=road, code=code)]
     return result, GateReport(code=code, verdict="fail" if findings else "pass", findings=findings)
+
 
 class Evidence(_Strict):
     """Everything the mechanical gates judge, gathered once per branch head (the stage layer's job)."""
@@ -723,6 +767,7 @@ class Evidence(_Strict):
 
 def regression_result(stdout: str, rc: int | None) -> Literal["pass", "defect", "error"] | None:
     """Decode the complete common protocol, never a runner's diagnostic or exit vocabulary."""
+
     def unique(pairs):
         result = dict(pairs)
         if len(result) != len(pairs):
@@ -733,7 +778,7 @@ def regression_result(stdout: str, rc: int | None) -> Literal["pass", "defect", 
         return None
     try:
         result = json.loads(stdout, object_pairs_hook=unique)
-    except (ValueError, TypeError, RecursionError):
+    except ValueError, TypeError, RecursionError:
         return None
     if not isinstance(result, dict) or set(result) != {"regression_result"}:
         return None
@@ -746,14 +791,16 @@ def regression_result(stdout: str, rc: int | None) -> Literal["pass", "defect", 
 
 
 def _bug_finding(message: str) -> Finding:
-    return Finding(code="bug_evidence", message=message,
-                   paved_road="supply durable ticket evidence and carries matching only changed test/fixture files;"
-                              " provide a carried reproducer checking prerequisites and emitting the regression"
-                              " result protocol: pass at head, defect at the overlaid base")
+    return Finding(
+        code="bug_evidence",
+        message=message,
+        paved_road="supply durable ticket evidence and carries matching only changed test/fixture files;"
+        " provide a carried reproducer checking prerequisites and emitting the regression"
+        " result protocol: pass at head, defect at the overlaid base",
+    )
 
 
-async def _gather_bug(ctx: StageContext, ticket: Ticket, evidence: Evidence, *, attempt: int,
-                      stage: str) -> tuple[BugEvidence, list[Finding]]:
+async def _gather_bug(ctx: StageContext, ticket: Ticket, evidence: Evidence, *, attempt: int, stage: str) -> tuple[BugEvidence, list[Finding]]:
     worktree = ctx.worktree(ticket.stem)
     base = await ctx.git.merge_base(ctx.repo, MAIN, ticket.stem)
     findings, overlay = [], set()
@@ -767,8 +814,7 @@ async def _gather_bug(ctx: StageContext, ticket: Ticket, evidence: Evidence, *, 
             findings.append(_bug_finding(f"carries prefix {prefix!r} matches no branch-changed file"))
         for rel in matched:
             if not {"tests", "test", "fixtures", "fixture"}.intersection(Path(rel).parts[:-1]):
-                findings.append(_bug_finding(f"carries path {rel!r} is not a test/fixture file;"
-                                             " implementation paths cannot be carried"))
+                findings.append(_bug_finding(f"carries path {rel!r} is not a test/fixture file; implementation paths cannot be carried"))
                 continue
             tree = await ctx.git._run(ctx.repo, "ls-tree", evidence.head_sha, "--", rel)
             if not tree.startswith(("100644 blob ", "100755 blob ")):
@@ -778,12 +824,10 @@ async def _gather_bug(ctx: StageContext, ticket: Ticket, evidence: Evidence, *, 
     custody = []
     for root in (ctx.repo, worktree):
         directory = root / TICKETS_DIR / ticket.stem / "evidence"
-        custody.extend(p.relative_to(root).as_posix() for p in directory.rglob("*")
-                       if p.is_file() and not p.is_symlink()
-                       and p.resolve().is_relative_to(directory.resolve()))
-    record = BugEvidence(argv=[ctx.driver.redactor.scrub(arg) for arg in ticket.regression],
-                         head_sha=evidence.head_sha, base_sha=base,
-                         overlay_paths=sorted(overlay), evidence_paths=sorted(set(custody)))
+        custody.extend(p.relative_to(root).as_posix() for p in directory.rglob("*") if p.is_file() and not p.is_symlink() and p.resolve().is_relative_to(directory.resolve()))
+    record = BugEvidence(
+        argv=[ctx.driver.redactor.scrub(arg) for arg in ticket.regression], head_sha=evidence.head_sha, base_sha=base, overlay_paths=sorted(overlay), evidence_paths=sorted(set(custody))
+    )
     if not custody:
         findings.append(_bug_finding("durable evidence is missing under the ticket evidence/ directory"))
     if not ticket.regression or not ticket.carries:
@@ -793,16 +837,12 @@ async def _gather_bug(ctx: StageContext, ticket: Ticket, evidence: Evidence, *, 
 
     async def execute(root: Path, name: str) -> RegressionRun:
         try:
-            rc, out, err = await ctx.exec_.run(list(ticket.regression), cwd=root,
-                                              env=child_env(ctx.env, ctx.config),
-                                              timeout=ticket.stuck_minutes * 60.0)
+            rc, out, err = await ctx.exec_.run(list(ticket.regression), cwd=root, env=child_env(ctx.env, ctx.config), timeout=ticket.stuck_minutes * 60.0)
         except (TimeoutError, ExecutableNotFound, OSError) as error:
             rc, out, err = None, "", f"regression execution failed: {error}"
         decoded = regression_result(out, rc)
-        ctx.driver.spool.write(ticket.stem, attempt, f"{stage}/regression-{name}.txt",
-                               f"$ {' '.join(ticket.regression)}\n[exit {rc}]\n--- stdout\n{out}\n--- stderr\n{err}")
-        return RegressionRun(rc=rc, regression_result=decoded,
-                             tail=ctx.driver.redactor.scrub(out + err)[-OUTPUT_TAIL_CHARS:])
+        ctx.driver.spool.write(ticket.stem, attempt, f"{stage}/regression-{name}.txt", f"$ {' '.join(ticket.regression)}\n[exit {rc}]\n--- stdout\n{out}\n--- stderr\n{err}")
+        return RegressionRun(rc=rc, regression_result=decoded, tail=ctx.driver.redactor.scrub(out + err)[-OUTPUT_TAIL_CHARS:])
 
     head = await execute(worktree, "head")
     assert ctx.config.worktree_root is not None
@@ -819,8 +859,7 @@ async def _gather_bug(ctx: StageContext, ticket: Ticket, evidence: Evidence, *, 
         await ctx.git.restore(base_worktree, sorted(overlay), source=evidence.head_sha)
         base_run = await execute(base_worktree, "base")
     except GitError as error:
-        return record.model_copy(update={"head": head}), [
-            _bug_finding(ctx.driver.redactor.scrub(f"cannot overlay regression inputs: {error}"))]
+        return record.model_copy(update={"head": head}), [_bug_finding(ctx.driver.redactor.scrub(f"cannot overlay regression inputs: {error}"))]
     finally:
         await ctx.git.worktree_remove(ctx.repo, base_worktree)
     return record.model_copy(update={"head": head, "base": base_run}), findings
@@ -831,7 +870,11 @@ def _inserted(diff: str) -> int:
 
 
 async def gather_evidence(
-    ctx: StageContext, ticket: Ticket, claimed: Literal["ok", "already_satisfied"], *, attempt: int,
+    ctx: StageContext,
+    ticket: Ticket,
+    claimed: Literal["ok", "already_satisfied"],
+    *,
+    attempt: int,
     stage: str = "check",
 ) -> Evidence:
     stem = ticket.stem
@@ -850,8 +893,7 @@ async def gather_evidence(
             rc, out, err = None, "", f"timed out after the ticket's stuck budget ({ticket.stuck_minutes}m)"
         except ExecutableNotFound as e:
             rc, out, err = None, "", str(e)
-        ctx.driver.spool.write(stem, attempt, f"{stage}/verify-{n:02d}.txt",
-                               f"$ {' '.join(argv)}\n[exit {rc}]\n--- stdout\n{out}\n--- stderr\n{err}")
+        ctx.driver.spool.write(stem, attempt, f"{stage}/verify-{n:02d}.txt", f"$ {' '.join(argv)}\n[exit {rc}]\n--- stdout\n{out}\n--- stderr\n{err}")
         tail = ctx.driver.redactor.scrub((out + err)[-OUTPUT_TAIL_CHARS:])
         results.append(CommandResult(argv=list(argv), rc=rc, tail=tail))
         if rc != 0:
@@ -867,8 +909,7 @@ async def gather_evidence(
         try:
             from chupa.daemon import storm_producer
 
-            box = storm_producer(root=ctx.config.state_dir / BOX_DIR, fs=ctx.fs,
-                                 journal=ctx.driver.journal, clock=ctx.driver.clock)
+            box = storm_producer(root=ctx.config.state_dir / BOX_DIR, fs=ctx.fs, journal=ctx.driver.journal, clock=ctx.driver.clock)
             for n, argv in red:
                 try:
                     rc, out, err = await ctx.exec_.run(argv, cwd=base_worktree, env=env, timeout=timeout)
@@ -876,19 +917,15 @@ async def gather_evidence(
                     rc, out, err = None, "", f"timed out after the ticket's stuck budget ({ticket.stuck_minutes}m)"
                 except ExecutableNotFound as e:
                     rc, out, err = None, "", str(e)
-                ctx.driver.spool.write(stem, attempt, f"{stage}/verify-{n:02d}-base.txt",
-                                       f"$ {' '.join(argv)}\n[exit {rc}]\n--- stdout\n{out}\n--- stderr\n{err}")
+                ctx.driver.spool.write(stem, attempt, f"{stage}/verify-{n:02d}-base.txt", f"$ {' '.join(argv)}\n[exit {rc}]\n--- stdout\n{out}\n--- stderr\n{err}")
                 if rc != 0:
                     results[n - 1] = results[n - 1].model_copy(update={"base_red": True})
-                    summary = (f"`{' '.join(argv)}` fails on the merge base {base[:8]} too;"
-                               " fix main, not this ticket")
-                    if not any(m.message_class == "failure_report" and m.origin == stem
-                               and m.outcome == "base_red"
-                               and m.summary.startswith(f"`{' '.join(argv)}` fails on the merge base ")
-                               for m in box.messages()):
-                        box.enqueue(message_class="failure_report", origin=stem, stage=stage,
-                                    outcome="base_red", summary=summary,
-                                    occurrence_id=arrival_id("base-red", stem, attempt, stage, n))
+                    summary = f"`{' '.join(argv)}` fails on the merge base {base[:8]} too; fix main, not this ticket"
+                    if not any(
+                        m.message_class == "failure_report" and m.origin == stem and m.outcome == "base_red" and m.summary.startswith(f"`{' '.join(argv)}` fails on the merge base ")
+                        for m in box.messages()
+                    ):
+                        box.enqueue(message_class="failure_report", origin=stem, stage=stage, outcome="base_red", summary=summary, occurrence_id=arrival_id("base-red", stem, attempt, stage, n))
         finally:
             await ctx.git.worktree_remove(ctx.repo, base_worktree)
     evidence = await gather_safety_evidence(ctx, ticket, claimed)
@@ -896,37 +933,44 @@ async def gather_evidence(
     try:
         _validate_reports(_registered_files(outbox))
         if stage == "check":
-            reports = [p.relative_to(worktree).as_posix() for p in _lift_files(ctx, stem, "checks")
-                       if p.name in KNOWN_ARTIFACTS and p.name != "run.md"]
+            reports = [p.relative_to(worktree).as_posix() for p in _lift_files(ctx, stem, "checks") if p.name in KNOWN_ARTIFACTS and p.name != "run.md"]
         elif not evidence.changed_files:
             from chupa.merge import lifted_report_paths
 
             reports = await lifted_report_paths(ctx, stem, attempt)
     except ArtifactInvalid as error:
-        findings.append(Finding(code="verification", path=str(error.path.relative_to(worktree)),
-                                message=f"invalid registered artifact: {error.error}",
-                                paved_road="produce a schema-valid registered report through Verification"))
+        findings.append(
+            Finding(
+                code="verification",
+                path=str(error.path.relative_to(worktree)),
+                message=f"invalid registered artifact: {error.error}",
+                paved_road="produce a schema-valid registered report through Verification",
+            )
+        )
     if stage != "check":
-        findings.extend(Finding(
-            code="verification", path=f"{TICKETS_DIR}/{stem}/{name}",
-            message=f"Verification named {name} but left no report in the outbox",
-            paved_road="make the named Verification command exit 0 and write its registered report",
-        ) for name in KNOWN_ARTIFACTS
-            if any(f"{TICKETS_DIR}/{stem}/{name}" in arg for argv in ticket.verification for arg in argv)
-            and not (outbox / name).is_file())
+        findings.extend(
+            Finding(
+                code="verification",
+                path=f"{TICKETS_DIR}/{stem}/{name}",
+                message=f"Verification named {name} but left no report in the outbox",
+                paved_road="make the named Verification command exit 0 and write its registered report",
+            )
+            for name in KNOWN_ARTIFACTS
+            if any(f"{TICKETS_DIR}/{stem}/{name}" in arg for argv in ticket.verification for arg in argv) and not (outbox / name).is_file()
+        )
     if not evidence.changed_files and claimed == "ok":
-        findings.extend(Finding(code="verification", path=p, message="uncommitted code in a report-only run",
-                                paved_road="commit code on the branch and rerun Check, or remove the edit")
-                        for p in await dirty_code(ctx, stem))
-    bug, bug_findings = (await _gather_bug(ctx, ticket, evidence, attempt=attempt, stage=stage)
-                         if ticket.frontmatter.kind == "bug" else (None, []))
-    return evidence.model_copy(update={"verification": results, "report_paths": reports,
-                                       "report_findings": findings, "bug_evidence": bug,
-                                       "bug_findings": bug_findings})
+        findings.extend(
+            Finding(code="verification", path=p, message="uncommitted code in a report-only run", paved_road="commit code on the branch and rerun Check, or remove the edit")
+            for p in await dirty_code(ctx, stem)
+        )
+    bug, bug_findings = await _gather_bug(ctx, ticket, evidence, attempt=attempt, stage=stage) if ticket.frontmatter.kind == "bug" else (None, [])
+    return evidence.model_copy(update={"verification": results, "report_paths": reports, "report_findings": findings, "bug_evidence": bug, "bug_findings": bug_findings})
 
 
 async def gather_safety_evidence(
-    ctx: StageContext, ticket: Ticket, claimed: Literal["ok", "already_satisfied"],
+    ctx: StageContext,
+    ticket: Ticket,
+    claimed: Literal["ok", "already_satisfied"],
 ) -> Evidence:
     """Gather the committed metadata once, without verification or base-worktree execution."""
     stem = ticket.stem
@@ -959,9 +1003,11 @@ def _in_fence(path: str, prefixes: Sequence[str]) -> bool:
 
 
 def triggered_hosts(ctx, changed_files, *, hard_only=False):
-    return [(n, entry) for n, entry in enumerate(ctx.config.review.mechanical, 1)
-            if (not hard_only or entry.severity == "hard")
-            and (entry.trigger == "always" or any(_in_fence(path, entry.trigger) for path in changed_files))]
+    return [
+        (n, entry)
+        for n, entry in enumerate(ctx.config.review.mechanical, 1)
+        if (not hard_only or entry.severity == "hard") and (entry.trigger == "always" or any(_in_fence(path, entry.trigger) for path in changed_files))
+    ]
 
 
 async def check_hosts(ctx, ticket, changed_files, attempt):
@@ -976,20 +1022,19 @@ async def check_hosts(ctx, ticket, changed_files, attempt):
             base_worktree.parent.mkdir(parents=True, exist_ok=True)
             await ctx.git.worktree_add_detached(ctx.repo, base_worktree, base)
             try:
-                baseline, _ = await run_host_command(ctx, ticket, attempt, entry.argv, entry.code,
-                    f"check/host-{n:02d}-base.txt", cwd=base_worktree)
+                baseline, _ = await run_host_command(ctx, ticket, attempt, entry.argv, entry.code, f"check/host-{n:02d}-base.txt", cwd=base_worktree)
             finally:
                 await ctx.git.worktree_remove(ctx.repo, base_worktree)
             if baseline.rc != 0:
                 from chupa.daemon import storm_producer
-                box = storm_producer(root=ctx.config.state_dir / BOX_DIR, fs=ctx.fs,
-                                     journal=ctx.driver.journal, clock=ctx.driver.clock)
+
+                box = storm_producer(root=ctx.config.state_dir / BOX_DIR, fs=ctx.fs, journal=ctx.driver.journal, clock=ctx.driver.clock)
                 prefix = ctx.driver.redactor.scrub(f"`{' '.join(entry.argv)}` fails on the merge base ")
                 summary = f"{prefix}{base[:8]} too; fix main, not this ticket"
-                if not any(m.message_class == "failure_report" and m.origin == ticket.stem and m.outcome == "base_red"
-                           and m.summary.startswith(prefix) for m in box.messages()):
-                    box.enqueue(message_class="failure_report", origin=ticket.stem, stage="check", outcome="base_red",
-                                summary=summary, occurrence_id=arrival_id("base-red", ticket.stem, attempt, "check", n))
+                if not any(m.message_class == "failure_report" and m.origin == ticket.stem and m.outcome == "base_red" and m.summary.startswith(prefix) for m in box.messages()):
+                    box.enqueue(
+                        message_class="failure_report", origin=ticket.stem, stage="check", outcome="base_red", summary=summary, occurrence_id=arrival_id("base-red", ticket.stem, attempt, "check", n)
+                    )
                 report = _report(entry.code, [])
             elif entry.severity == "hard":
                 hard.extend(report.findings)
@@ -1007,16 +1052,23 @@ class ScopeFenceGate:
 
     def check(self, artifact: Evidence, workspace: Path) -> GateReport:
         outbox = f"{TICKETS_DIR}/{artifact.stem}/"
-        outside = [p for p in artifact.changed_files
-                   if not _in_fence(p, artifact.scope_fence)
-                   and not (p.startswith(outbox) and p != outbox + TICKET_FILE)
-                   and not (p == PLAN_FILE and self._unit_confined(artifact))]
-        return _report(self.code, [
-            Finding(code=self.code, path=p, message=f"{p} is outside `## Scope fence`",
-                    paved_road="revert the edit and commit; if the criteria force it, reply premise_failed"
-                               " naming the file so the fence is widened")
-            for p in outside
-        ])
+        outside = [
+            p
+            for p in artifact.changed_files
+            if not _in_fence(p, artifact.scope_fence) and not (p.startswith(outbox) and p != outbox + TICKET_FILE) and not (p == PLAN_FILE and self._unit_confined(artifact))
+        ]
+        return _report(
+            self.code,
+            [
+                Finding(
+                    code=self.code,
+                    path=p,
+                    message=f"{p} is outside `## Scope fence`",
+                    paved_road="revert the edit and commit; if the criteria force it, reply premise_failed naming the file so the fence is widened",
+                )
+                for p in outside
+            ],
+        )
 
     @staticmethod
     def _unit_confined(artifact: Evidence) -> bool:
@@ -1039,22 +1091,35 @@ class VerificationGate:
     code = "verification"
 
     def check(self, artifact: Evidence, workspace: Path) -> GateReport:
-        findings = [*artifact.report_findings, *[
-            Finding(code=self.code, message=f"`{' '.join(r.argv)}` exited {r.rc}: {r.tail.strip() or '(no output)'}",
-                    paved_road=f"make `{' '.join(r.argv)}` exit 0 on the branch and commit the fix")
-            for r in artifact.verification if r.rc != 0 and not r.base_red
-        ]]
+        findings = [
+            *artifact.report_findings,
+            *[
+                Finding(
+                    code=self.code, message=f"`{' '.join(r.argv)}` exited {r.rc}: {r.tail.strip() or '(no output)'}", paved_road=f"make `{' '.join(r.argv)}` exit 0 on the branch and commit the fix"
+                )
+                for r in artifact.verification
+                if r.rc != 0 and not r.base_red
+            ],
+        ]
         empty = not artifact.changed_files
-        if empty and artifact.claimed == "ok" and (not artifact.report_paths or
-                                                   any(r.rc != 0 for r in artifact.verification)):
-            findings.append(Finding(code=self.code, message="the branch carries no committed change",
-                                    paved_road="commit code on the branch, produce a registered report through"
-                                               " Verification and leave it uncommitted for the checks lift, or"
-                                               " reply already_satisfied if every criterion already holds"))
+        if empty and artifact.claimed == "ok" and (not artifact.report_paths or any(r.rc != 0 for r in artifact.verification)):
+            findings.append(
+                Finding(
+                    code=self.code,
+                    message="the branch carries no committed change",
+                    paved_road="commit code on the branch, produce a registered report through"
+                    " Verification and leave it uncommitted for the checks lift, or"
+                    " reply already_satisfied if every criterion already holds",
+                )
+            )
         if not empty and artifact.claimed == "already_satisfied":
-            findings.append(Finding(code=self.code, message="already_satisfied was claimed but the branch carries a"
-                                    f" diff: {', '.join(artifact.changed_files)}",
-                                    paved_road="reply ok for a branch with changes; already_satisfied commits nothing"))
+            findings.append(
+                Finding(
+                    code=self.code,
+                    message=f"already_satisfied was claimed but the branch carries a diff: {', '.join(artifact.changed_files)}",
+                    paved_road="reply ok for a branch with changes; already_satisfied commits nothing",
+                )
+            )
         return _report(self.code, findings)
 
 
@@ -1067,8 +1132,7 @@ class RunRecordGate:
         path = f"{TICKETS_DIR}/{artifact.stem}/run.md"
         road = "re-run Implement so the engine writes run.md with every section of section 13"
         if artifact.run_record is None:
-            return _report(self.code, [Finding(code=self.code, path=path, message="run.md is missing",
-                                               paved_road=road)])
+            return _report(self.code, [Finding(code=self.code, path=path, message="run.md is missing", paved_road=road)])
         sections: dict[str, list[str]] = {}
         current = None
         for line in artifact.run_record.splitlines():
@@ -1079,12 +1143,10 @@ class RunRecordGate:
                 sections[current].append(line)
         findings = []
         if tuple(sections) != RUN_RECORD_SECTIONS:
-            findings.append(Finding(code=self.code, path=path, message=f"run.md sections are {list(sections)}",
-                                    paved_road=f"use exactly {list(RUN_RECORD_SECTIONS)}, in order"))
+            findings.append(Finding(code=self.code, path=path, message=f"run.md sections are {list(sections)}", paved_road=f"use exactly {list(RUN_RECORD_SECTIONS)}, in order"))
         outcome = "\n".join(sections.get("Outcome", [])).strip()
         if outcome not in OUTCOMES:
-            findings.append(Finding(code=self.code, path=path, message=f"`## Outcome` {outcome!r} is not an outcome",
-                                    paved_road=f"use one of {sorted(OUTCOMES)}"))
+            findings.append(Finding(code=self.code, path=path, message=f"`## Outcome` {outcome!r} is not an outcome", paved_road=f"use one of {sorted(OUTCOMES)}"))
         return _report(self.code, findings)
 
 
@@ -1097,12 +1159,16 @@ class DiffBudgetGate:
         files, inserted = len(artifact.changed_files), artifact.inserted_lines
         if files <= DIFF_BUDGET_FILES and inserted <= DIFF_BUDGET_INSERTED:
             return _report(self.code, [])
-        return _report(self.code, [Finding(
-            code=self.code,
-            message=f"diff is {files} files / {inserted} inserted lines, over the budget of"
-                    f" {DIFF_BUDGET_FILES} files / {DIFF_BUDGET_INSERTED} lines",
-            paved_road="split the ticket into smaller stems, each under the diff budget",
-        )])
+        return _report(
+            self.code,
+            [
+                Finding(
+                    code=self.code,
+                    message=f"diff is {files} files / {inserted} inserted lines, over the budget of {DIFF_BUDGET_FILES} files / {DIFF_BUDGET_INSERTED} lines",
+                    paved_road="split the ticket into smaller stems, each under the diff budget",
+                )
+            ],
+        )
 
 
 class BugEvidenceGate:
@@ -1124,15 +1190,18 @@ class BugEvidenceGate:
                 findings.append(_bug_finding("regression evidence pins a different candidate head"))
             if record.head is None or record.head.rc != 0 or record.head.regression_result != "pass":
                 findings.append(_bug_finding("regression head did not complete with exit 0 and pass"))
-            if (record.base is None or record.base.rc is None or record.base.rc <= 0
-                    or record.base.regression_result != "defect"):
+            if record.base is None or record.base.rc is None or record.base.rc <= 0 or record.base.regression_result != "defect":
                 findings.append(_bug_finding("overlaid base did not complete with a positive exit and defect"))
-        return GateReport(code=self.code, verdict="fail" if findings else "pass", findings=findings,
-                          bug_evidence=record)
+        return GateReport(code=self.code, verdict="fail" if findings else "pass", findings=findings, bug_evidence=record)
 
 
 CHECK_GATES: tuple[ScopeFenceGate | VerificationGate | RunRecordGate | DiffBudgetGate | CoreDriftGate | BugEvidenceGate, ...] = (
-    ScopeFenceGate(), VerificationGate(), RunRecordGate(), DiffBudgetGate(), CoreDriftGate(), BugEvidenceGate(),
+    ScopeFenceGate(),
+    VerificationGate(),
+    RunRecordGate(),
+    DiffBudgetGate(),
+    CoreDriftGate(),
+    BugEvidenceGate(),
 )
 
 
@@ -1153,18 +1222,18 @@ APPROVED_SEEDS = "## Approved seeds (keep verbatim)"
 
 def _seed_verdicts(ctx: StageContext, stem: str) -> dict[str, Mapping]:
     """Each seed's latest `requisition_verdict` inside the seeding ticket's lineage (section 19 PRIOR REVIEW)."""
-    return {e.ticket: e.body for e in lineage(ctx.driver.journal.read(), stem)
-            if e.type == EventType.SIGNAL and e.ticket is not None
-            and e.body.get("signal") == VERDICT_SIGNAL and e.body.get("seeding") == stem}
+    return {
+        e.ticket: e.body
+        for e in lineage(ctx.driver.journal.read(), stem)
+        if e.type == EventType.SIGNAL and e.ticket is not None and e.body.get("signal") == VERDICT_SIGNAL and e.body.get("seeding") == stem
+    }
 
 
 def _prior_review(verdict: Mapping | None, text: str) -> str:
     if verdict is None:
         return "none"
-    items = "\n".join(f"- [{f['code']}] ({f.get('kind')}) {_one_line(f['message'])}"
-                      for f in verdict.get("findings", [])) or "- none"
-    diff = "".join(difflib.unified_diff(verdict["text"].splitlines(keepends=True), text.splitlines(keepends=True),
-                                        "judged", "current")) or "(unchanged)"
+    items = "\n".join(f"- [{f['code']}] ({f.get('kind')}) {_one_line(f['message'])}" for f in verdict.get("findings", [])) or "- none"
+    diff = "".join(difflib.unified_diff(verdict["text"].splitlines(keepends=True), text.splitlines(keepends=True), "judged", "current")) or "(unchanged)"
     return f"Verdict: {verdict['verdict']}\nFindings:\n{items}\n\nDiff from the judged text:\n{diff}"
 
 
@@ -1180,9 +1249,7 @@ def _restore_approved_seeds(ctx: StageContext, stem: str, worktree: Path) -> lis
 
 
 def _seeded_stems(ctx: StageContext, stem: str) -> set[str]:
-    return {e.ticket for e in ctx.driver.journal.read()
-            if e.type == EventType.SIGNAL and e.ticket is not None
-            and e.body.get("signal") == "ticket_intake" and e.body.get("seeded_by") == stem}
+    return {e.ticket for e in ctx.driver.journal.read() if e.type == EventType.SIGNAL and e.ticket is not None and e.body.get("signal") == "ticket_intake" and e.body.get("seeded_by") == stem}
 
 
 async def _prior_seed_reviews(ctx: StageContext, stem: str, own: set[str]) -> dict[str, SeedReview]:
@@ -1195,8 +1262,7 @@ async def _prior_seed_reviews(ctx: StageContext, stem: str, own: set[str]) -> di
     return {seed.stem: seed for seed in invoice.seeds if seed.stem in own and seed.verdict == "approve"}
 
 
-async def _review_seeds(ctx: StageContext, ticket: Ticket, *, attempt: int,
-                        own: set[str], prior: dict[str, SeedReview]) -> tuple[list[SeedReview], list[Path]]:
+async def _review_seeds(ctx: StageContext, ticket: Ticket, *, attempt: int, own: set[str], prior: dict[str, SeedReview]) -> tuple[list[SeedReview], list[Path]]:
     """Judge only new or changed ticket.md files; an identical foreign main file is not a candidate."""
     stem = ticket.stem
     worktree = ctx.worktree(stem)
@@ -1204,8 +1270,7 @@ async def _review_seeds(ctx: StageContext, ticket: Ticket, *, attempt: int,
     verdicts = _seed_verdicts(ctx, stem)
     reviews = dict(prior)
     new_paths: list[Path] = []
-    candidates = sorted(p for p in (worktree / TICKETS_DIR).glob(f"*/{TICKET_FILE}")
-                        if p.parent.name != stem)
+    candidates = sorted(p for p in (worktree / TICKETS_DIR).glob(f"*/{TICKET_FILE}") if p.parent.name != stem)
     candidate_index = 0
     for path in candidates:
         seed_stem = path.parent.name
@@ -1216,35 +1281,54 @@ async def _review_seeds(ctx: StageContext, ticket: Ticket, *, attempt: int,
             main_sha = await ctx.git.rev_parse(ctx.repo, f"{MAIN}:{rel}")
         except GitError:
             main_sha = None
-        if main_sha == sha and (seed_stem not in own or
-                                (seed_stem in reviews and reviews[seed_stem].ticket_sha == sha)):
+        if main_sha == sha and (seed_stem not in own or (seed_stem in reviews and reviews[seed_stem].ticket_sha == sha)):
             continue
         candidate_index += 1
         earlier = verdicts.get(seed_stem)
         if earlier is not None and earlier["verdict"] == "approve" and earlier["ticket_sha"] == sha:
             # An approve holds while the bytes match: no re-review (section 19).
-            reviews[seed_stem] = SeedReview(stem=seed_stem, ticket_sha=sha, verdict="approve", findings=[],
-                                            mechanical="approved earlier")
+            reviews[seed_stem] = SeedReview(stem=seed_stem, ticket_sha=sha, verdict="approve", findings=[], mechanical="approved earlier")
             if main_sha is None:
                 new_paths.append(path)
             continue
-        review = await _review_one(ctx, ticket, seed_stem, rel, data, sha, main_sha, plan, worktree, earlier,
-                                   siblings={p.parent.name for p in candidates} - {seed_stem},
-                                   attempt=attempt, call_seq=candidate_index)
+        review = await _review_one(
+            ctx, ticket, seed_stem, rel, data, sha, main_sha, plan, worktree, earlier, siblings={p.parent.name for p in candidates} - {seed_stem}, attempt=attempt, call_seq=candidate_index
+        )
         reviews[seed_stem] = review
         text = data.decode(errors="replace")
-        ctx.driver.journal.append(EventType.SIGNAL, {
-            "signal": VERDICT_SIGNAL, "seeding": stem, "verdict": review.verdict, "ticket_sha": sha,
-            "findings": [f.model_dump(mode="json", exclude_none=True) for f in review.findings], "text": text,
-        }, ticket=seed_stem)
+        ctx.driver.journal.append(
+            EventType.SIGNAL,
+            {
+                "signal": VERDICT_SIGNAL,
+                "seeding": stem,
+                "verdict": review.verdict,
+                "ticket_sha": sha,
+                "findings": [f.model_dump(mode="json", exclude_none=True) for f in review.findings],
+                "text": text,
+            },
+            ticket=seed_stem,
+        )
         if main_sha is None and review.verdict == "approve":
             new_paths.append(path)
     return [reviews[key] for key in sorted(reviews)], new_paths
 
 
-async def _review_one(ctx: StageContext, ticket: Ticket, seed_stem: str, rel: str, data: bytes, sha: str,
-                      main_sha: str | None, plan: str, worktree: Path, earlier: Mapping | None, *,
-                      siblings: set[str], attempt: int, call_seq: int) -> SeedReview:
+async def _review_one(
+    ctx: StageContext,
+    ticket: Ticket,
+    seed_stem: str,
+    rel: str,
+    data: bytes,
+    sha: str,
+    main_sha: str | None,
+    plan: str,
+    worktree: Path,
+    earlier: Mapping | None,
+    *,
+    siblings: set[str],
+    attempt: int,
+    call_seq: int,
+) -> SeedReview:
     """One seed's verdict: mechanical refusals first, then the requisition_review call with its prior review."""
     from chupa.requisition import review_ticket  # requisition imports implement_inputs from this module
 
@@ -1253,8 +1337,7 @@ async def _review_one(ctx: StageContext, ticket: Ticket, seed_stem: str, rel: st
         return SeedReview(stem=seed_stem, ticket_sha=sha, verdict="snag", findings=[finding], mechanical=mechanical)
 
     if main_sha is not None and main_sha != sha:
-        return snag(f"{rel} already exists on main", "a seeding run only creates new stems; use a fresh stem",
-                    "existing stem")
+        return snag(f"{rel} already exists on main", "a seeding run only creates new stems; use a fresh stem", "existing stem")
     # Read citations without resolving them: a missing registry entry must gap before grammar refuses it.
     sections, _ = _sections(data.decode(errors="replace"), rel)
     bullets, _ = _bullets(sections.get("Plan contract", ""), "Plan contract", rel)
@@ -1265,13 +1348,13 @@ async def _review_one(ctx: StageContext, ticket: Ticket, seed_stem: str, rel: st
         except PlanContractError:
             pass  # Grammar reports malformed ids after the SPEC DEPTH check.
     units = required_units(plan, seed_stem, citations)
-    gaps = [Finding(code="requisition_review", path=rel, message=gap,
-                    paved_road="harden the entry unit through section 11.4; never invent its facts in the seed",
-                    kind="spec_gap", unit=uid)
-            for uid in units if (gap := entry_unit_gap(plan, uid)) is not None]
+    gaps = [
+        Finding(code="requisition_review", path=rel, message=gap, paved_road="harden the entry unit through section 11.4; never invent its facts in the seed", kind="spec_gap", unit=uid)
+        for uid in units
+        if (gap := entry_unit_gap(plan, uid)) is not None
+    ]
     if gaps:
-        return SeedReview(stem=seed_stem, ticket_sha=sha, verdict="snag", findings=gaps,
-                          mechanical="entry unit gap")
+        return SeedReview(stem=seed_stem, ticket_sha=sha, verdict="snag", findings=gaps, mechanical="entry unit gap")
     outside_contract = []
     fence = in_contract = False
     for line in data.decode(errors="replace").splitlines():
@@ -1290,33 +1373,37 @@ async def _review_one(ctx: StageContext, ticket: Ticket, seed_stem: str, rel: st
         for line in resolved.splitlines():
             normalized = _one_line(line)
             if len(normalized) >= 60 and normalized in seed_body:
-                return snag(f'cited unit {uid} text copied: "{normalized[:80]}"',
-                            "cite the unit in `## Plan contract`; never copy its text", "unit text copied")
+                return snag(f'cited unit {uid} text copied: "{normalized[:80]}"', "cite the unit in `## Plan contract`; never copy its text", "unit text copied")
     try:
         parsed = validate_ticket(seed_stem, data.decode(), ctx.repo, siblings)
     except UnicodeDecodeError:
         return snag("ticket.md is not UTF-8", "write UTF-8 ticket text", "ticket lint failed")
     except TicketInvalid as exc:
         findings = [f.model_copy(update={"kind": "authoring_error"}) for f in exc.findings]
-        return SeedReview(stem=seed_stem, ticket_sha=sha, verdict="snag", findings=findings,
-                          mechanical="ticket lint failed")
+        return SeedReview(stem=seed_stem, ticket_sha=sha, verdict="snag", findings=findings, mechanical="ticket lint failed")
     findings = []
     if parsed.frontmatter.source != "seed":
-        findings.append(Finding(code="requisition_review", path=rel, message="seed source must be seed",
-                                paved_road="set frontmatter `source: seed`", kind="authoring_error"))
+        findings.append(Finding(code="requisition_review", path=rel, message="seed source must be seed", paved_road="set frontmatter `source: seed`", kind="authoring_error"))
     if parsed.frontmatter.state != "confirmed":
-        findings.append(Finding(code="requisition_review", path=rel, message="seed state must be confirmed",
-                                paved_road="set frontmatter `state: confirmed`", kind="authoring_error"))
+        findings.append(Finding(code="requisition_review", path=rel, message="seed state must be confirmed", paved_road="set frontmatter `state: confirmed`", kind="authoring_error"))
     if findings:
-        return SeedReview(stem=seed_stem, ticket_sha=sha, verdict="snag", findings=findings,
-                          mechanical="seed frontmatter")
+        return SeedReview(stem=seed_stem, ticket_sha=sha, verdict="snag", findings=findings, mechanical="seed frontmatter")
     reviewed = await review_ticket(
-        ctx.driver, repo=ctx.repo, stem=seed_stem, text=data.decode(), specs_dir=ctx.specs_dir,
-        tier=parsed.frontmatter.agent_tier, stem_slot=ticket.stem, run_seq=attempt, attempt=attempt,
-        call_seq=call_seq, prior=_prior_review(earlier, data.decode()), siblings=siblings,
-     expected_budget=ticket.expected_minutes * 60.0)
-    return SeedReview(stem=seed_stem, ticket_sha=reviewed.ticket_sha, verdict=reviewed.verdict,
-                      findings=list(reviewed.findings), mechanical=reviewed.mechanical)
+        ctx.driver,
+        repo=ctx.repo,
+        stem=seed_stem,
+        text=data.decode(),
+        specs_dir=ctx.specs_dir,
+        tier=parsed.frontmatter.agent_tier,
+        stem_slot=ticket.stem,
+        run_seq=attempt,
+        attempt=attempt,
+        call_seq=call_seq,
+        prior=_prior_review(earlier, data.decode()),
+        siblings=siblings,
+        expected_budget=ticket.expected_minutes * 60.0,
+    )
+    return SeedReview(stem=seed_stem, ticket_sha=reviewed.ticket_sha, verdict=reviewed.verdict, findings=list(reviewed.findings), mechanical=reviewed.mechanical)
 
 
 async def lift_seeds(ctx: StageContext, stem: str, paths: list[Path], *, attempt: int) -> None:
@@ -1337,26 +1424,24 @@ async def lift_seeds(ctx: StageContext, stem: str, paths: list[Path], *, attempt
     committed = await ctx.driver.effects.run(commit, key=key, ticket=stem)
     for path in paths:
         seed_stem = path.parent.name
-        if not any(e.type == EventType.SIGNAL and e.ticket == seed_stem
-                   and e.body.get("signal") == "ticket_intake" and e.body.get("commit") == committed["commit"]
-                   and e.body.get("seeded_by") == stem for e in ctx.driver.journal.read()):
-            ctx.driver.journal.append(EventType.SIGNAL,
-                                      {"signal": "ticket_intake", "source": "seed", "state": "confirmed",
-                                       "new": True, "commit": committed["commit"], "seeded_by": stem},
-                                      ticket=seed_stem)
+        if not any(
+            e.type == EventType.SIGNAL and e.ticket == seed_stem and e.body.get("signal") == "ticket_intake" and e.body.get("commit") == committed["commit"] and e.body.get("seeded_by") == stem
+            for e in ctx.driver.journal.read()
+        ):
+            ctx.driver.journal.append(
+                EventType.SIGNAL, {"signal": "ticket_intake", "source": "seed", "state": "confirmed", "new": True, "commit": committed["commit"], "seeded_by": stem}, ticket=seed_stem
+            )
 
 
 async def check_autofix(ctx, ticket, attempt):
     worktree = ctx.worktree(ticket.stem)
-    files = [path for path in await ctx.git.diff_names(ctx.repo, MAIN, ticket.stem)
-             if not _in_fence(path, [TICKETS_DIR]) and (worktree / path).is_file()]
+    files = [path for path in await ctx.git.diff_names(ctx.repo, MAIN, ticket.stem) if not _in_fence(path, [TICKETS_DIR]) and (worktree / path).is_file()]
     if not files:
         return [], []
     before = {path: (worktree / path).read_bytes() for path in files}
     reports = []
     for n, entry in enumerate(ctx.config.review.autofix, 1):
-        result, report = await run_host_command(ctx, ticket, attempt, [*entry.argv, *files],
-                                                entry.code, f"check/autofix-{n:02d}.txt")
+        result, report = await run_host_command(ctx, ticket, attempt, [*entry.argv, *files], entry.code, f"check/autofix-{n:02d}.txt")
         reports.append(report)
         if result.rc != 0:
             await ctx.git.restore(worktree, files, source=ticket.stem)
@@ -1373,25 +1458,34 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
     stem = ticket.stem
     started = ctx.driver.clock()
     prior_wait = ctx.driver.provider_wait(stem, attempt)
+
     def active_seconds():
-        return max(0, (ctx.driver.clock() - started).total_seconds()
-                   - (ctx.driver.provider_wait(stem, attempt) - prior_wait))
+        return max(0, (ctx.driver.clock() - started).total_seconds() - (ctx.driver.provider_wait(stem, attempt) - prior_wait))
+
     outbox = ctx.worktree(stem) / TICKETS_DIR / stem
-    autofix_reports, autofix_hard = (await check_autofix(ctx, ticket, attempt)
-                                      if slip.outcome == "ok" and ctx.config.review.autofix else ([], []))
+    autofix_reports, autofix_hard = await check_autofix(ctx, ticket, attempt) if slip.outcome == "ok" and ctx.config.review.autofix else ([], [])
     evidence = await gather_evidence(ctx, ticket, slip.outcome, attempt=attempt)
     gated = run_gates(CHECK_GATES, evidence, ctx.worktree(stem), severity=check_severity(ctx, ticket))
     host_reports, host_hard = await check_hosts(ctx, ticket, evidence.changed_files, attempt)
     host_hard.extend(autofix_hard)
-    required = [name for name in KNOWN_ARTIFACTS
-                if any(f"{TICKETS_DIR}/{stem}/{name}" in arg
-                       for argv in ticket.verification for arg in argv)]
+    required = [name for name in KNOWN_ARTIFACTS if any(f"{TICKETS_DIR}/{stem}/{name}" in arg for argv in ticket.verification for arg in argv)]
     missing = [name for name in required if not (outbox / name).is_file()]
-    required_report = _report("verification", [Finding(
-        code="verification", path=f"{TICKETS_DIR}/{stem}/{name}",
-        message=f"Verification named {name} but left no report in the outbox",
-        paved_road="make the named Verification command exit 0 and write its registered report",
-    ) for name in missing]) if missing else None
+    required_report = (
+        _report(
+            "verification",
+            [
+                Finding(
+                    code="verification",
+                    path=f"{TICKETS_DIR}/{stem}/{name}",
+                    message=f"Verification named {name} but left no report in the outbox",
+                    paved_road="make the named Verification command exit 0 and write its registered report",
+                )
+                for name in missing
+            ],
+        )
+        if missing
+        else None
+    )
     seeding = TICKETS_DIR in ticket.scope_fence
     own = _seeded_stems(ctx, stem) if seeding else set()
     prior = await _prior_seed_reviews(ctx, stem, own) if seeding else {}
@@ -1404,30 +1498,33 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
         seed_report = _report("requisition_review", seed_findings)
     passed = gated.passed and not host_hard and not missing and (seed_report is None or seed_report.verdict == "pass")
     invoice = Invoice(
-        produced_by_spec_version=CHECK_SPEC_VERSION, produced_at_sha=evidence.head_sha, stem=stem,
-        passed=passed, changed_files=evidence.changed_files, inserted_lines=evidence.inserted_lines,
+        produced_by_spec_version=CHECK_SPEC_VERSION,
+        produced_at_sha=evidence.head_sha,
+        stem=stem,
+        passed=passed,
+        changed_files=evidence.changed_files,
+        inserted_lines=evidence.inserted_lines,
         bypassed=sorted({b.code for b in ticket.frontmatter.gate_bypass}),
-        reports=[*autofix_reports, *gated.reports, *host_reports, *([required_report] if required_report is not None else []),
-                 *([seed_report] if seed_report is not None else [])], seeds=seeds,
+        reports=[*autofix_reports, *gated.reports, *host_reports, *([required_report] if required_report is not None else []), *([seed_report] if seed_report is not None else [])],
+        seeds=seeds,
         verification=evidence.verification,
     )
-    ctx.fs.write(ctx.worktree(stem) / TICKETS_DIR / stem / "checks.json",
-                 (invoice.model_dump_json(indent=2) + "\n").encode())
+    ctx.fs.write(ctx.worktree(stem) / TICKETS_DIR / stem / "checks.json", (invoice.model_dump_json(indent=2) + "\n").encode())
     try:
         await lift_outbox(ctx, stem, "checks", attempt=attempt)
     except ArtifactInvalid as error:
         error.path.unlink()
         (outbox / "checks.json").unlink(missing_ok=True)
-        finding = Finding(code="verification", path=str(error.path.relative_to(ctx.worktree(stem))),
-                          message=f"invalid registered artifact: {error.error}",
-                          paved_road="produce the report through its named Verification command")
-        return StageResult(outcome="gate_failed", artifact=invoice.model_copy(update={"passed": False}), findings=[finding],
-                           cost=Cost(seconds=active_seconds()))
+        finding = Finding(
+            code="verification",
+            path=str(error.path.relative_to(ctx.worktree(stem))),
+            message=f"invalid registered artifact: {error.error}",
+            paved_road="produce the report through its named Verification command",
+        )
+        return StageResult(outcome="gate_failed", artifact=invoice.model_copy(update={"passed": False}), findings=[finding], cost=Cost(seconds=active_seconds()))
     except GitError as error:
-        finding = Finding(code="verification", message=f"checks lift failed: {error}",
-                          paved_road="repair the ticket-plane Git failure and rerun Check")
-        return StageResult(outcome="gate_failed", artifact=invoice.model_copy(update={"passed": False}),
-                           findings=[finding], cost=Cost(seconds=active_seconds()))
+        finding = Finding(code="verification", message=f"checks lift failed: {error}", paved_road="repair the ticket-plane Git failure and rerun Check")
+        return StageResult(outcome="gate_failed", artifact=invoice.model_copy(update={"passed": False}), findings=[finding], cost=Cost(seconds=active_seconds()))
     if passed:
         await lift_seeds(ctx, stem, new_paths, attempt=attempt)
     cost = Cost(seconds=active_seconds())
@@ -1441,8 +1538,7 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
             hard.extend(seed_report.findings)
         return StageResult(outcome="gate_failed", artifact=invoice, findings=hard, cost=cost)
     outcome = "already_satisfied" if slip.outcome == "already_satisfied" else "ok"
-    return StageResult(outcome=outcome, artifact=invoice,
-                       findings=[*gated.findings, *(f for r in host_reports for f in r.findings)], cost=cost)
+    return StageResult(outcome=outcome, artifact=invoice, findings=[*gated.findings, *(f for r in host_reports for f in r.findings)], cost=cost)
 
 
 # --- Review -------------------------------------------------------------------------------------
@@ -1472,10 +1568,17 @@ async def review(ctx: StageContext, ticket: Ticket, invoice: Invoice, *, attempt
     try:
         # The effective ticket capability applies to every call in this attempt.
         result = await ctx.driver.run(
-            stage, invoice, ticket=stem, attempt=attempt, workspace=ctx.worktree(stem),
-            tier=ticket.frontmatter.agent_tier, effort=ticket.frontmatter.agent_effort,
+            stage,
+            invoice,
+            ticket=stem,
+            attempt=attempt,
+            workspace=ctx.worktree(stem),
+            tier=ticket.frontmatter.agent_tier,
+            effort=ticket.frontmatter.agent_effort,
             stuck_budget=ticket.stuck_minutes * 60.0,
-            expected_budget=ticket.expected_minutes * 60.0, scope_fence=())
+            expected_budget=ticket.expected_minutes * 60.0,
+            scope_fence=(),
+        )
     except RenderOverBound as e:
         return StageResult(outcome="premise_failed", artifact=None, findings=[e.finding], cost=Cost())
     if result.outcome != "ok":
@@ -1483,9 +1586,16 @@ async def review(ctx: StageContext, ticket: Ticket, invoice: Invoice, *, attempt
     verdict = result.artifact
     assert isinstance(verdict, ReviewVerdict)
     artifact = EMITS_BY_VERDICT[verdict.verdict](
-        produced_by_spec_version=_major(spec), produced_at_sha=reviewed, stem=stem, reviewed_sha=reviewed,
-        verdict=verdict.verdict, summary=verdict.summary, findings=list(verdict.findings),
-        spec_version=spec.meta.version, provider=result.cost.provider, model=result.cost.model,
+        produced_by_spec_version=_major(spec),
+        produced_at_sha=reviewed,
+        stem=stem,
+        reviewed_sha=reviewed,
+        verdict=verdict.verdict,
+        summary=verdict.summary,
+        findings=list(verdict.findings),
+        spec_version=spec.meta.version,
+        provider=result.cost.provider,
+        model=result.cost.model,
     )
     ctx.fs.write(ctx.worktree(stem) / TICKETS_DIR / stem / "review.md", render_review(artifact).encode())
     await lift_outbox(ctx, stem, "review", attempt=attempt)
@@ -1517,11 +1627,11 @@ async def run_stages(ctx: StageContext, ticket: Ticket) -> StagesRun:
     there is no diff to review and the ticket settles as a no-op (section 5 invariant 4).
     """
     boundary = ctx.boundary
-    dispatched = next((e.body for e in reversed(ctx.driver.journal.read())
-                       if e.type == EventType.STATE_TRANSITION and e.ticket == ticket.stem), {})
-    run = boundary.run or StagesRun(attempt=run_seq(ctx.driver.journal.read(), ticket.stem),
-        ticket_sha=(dispatched.get("ticket_sha") if dispatched.get("to") == "running" else None)
-        or await ctx.git.rev_parse(ctx.repo, f"{MAIN}:{ticket_path(ticket.stem)}"))
+    dispatched = next((e.body for e in reversed(ctx.driver.journal.read()) if e.type == EventType.STATE_TRANSITION and e.ticket == ticket.stem), {})
+    run = boundary.run or StagesRun(
+        attempt=run_seq(ctx.driver.journal.read(), ticket.stem),
+        ticket_sha=(dispatched.get("ticket_sha") if dispatched.get("to") == "running" else None) or await ctx.git.rev_parse(ctx.repo, f"{MAIN}:{ticket_path(ticket.stem)}"),
+    )
     boundary.ticket, boundary.next_stage = ticket, None
     for stage in ("implement", "check", "review"):
         if stage in run.results:
@@ -1557,18 +1667,17 @@ async def run_stages(ctx: StageContext, ticket: Ticket) -> StagesRun:
                 finally:
                     boundary.active = None
         except Exception as exc:
-            from chupa.providers import ProviderCallError, ProviderDrought
             from chupa.driver import ProviderDroughtResult
+            from chupa.providers import ProviderCallError, ProviderDrought
+
             if isinstance(exc, ProviderDrought):
-                result = ProviderDroughtResult(outcome='infra_error', artifact=None, findings=[],
-                                               cost=Cost(), provider_drought=exc.record)
+                result = ProviderDroughtResult(outcome="infra_error", artifact=None, findings=[], cost=Cost(), provider_drought=exc.record)
             elif isinstance(exc, ProviderCallError):
-                findings = await ctx.driver.provider_failure(exc, owner=ticket.stem, ticket=ticket.stem,
-                    sequence=run.attempt, surface='requisition_review', workspace=ctx.worktree(ticket.stem))
+                findings = await ctx.driver.provider_failure(exc, owner=ticket.stem, ticket=ticket.stem, sequence=run.attempt, surface="requisition_review", workspace=ctx.worktree(ticket.stem))
                 meter = ctx.driver.detector.call if ctx.driver.detector else None
-                result = StageResult(outcome='infra_error', artifact=None, findings=findings,
-                    cost=Cost(attempts=1, provider=meter.identity[0] if meter else None,
-                              model=meter.identity[1] if meter else None))
+                result = StageResult(
+                    outcome="infra_error", artifact=None, findings=findings, cost=Cost(attempts=1, provider=meter.identity[0] if meter else None, model=meter.identity[1] if meter else None)
+                )
             else:
                 raise
         run.results[stage] = result

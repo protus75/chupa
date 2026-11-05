@@ -36,8 +36,7 @@ class Script:
             seq = self.outcomes.get(t.stem, [])
             outcome = seq.pop(0) if seq else "merged:docs/x.md"
             if not outcome.startswith("merged:"):
-                checkout.journal.append(EventType.STATE_TRANSITION, {"to": outcome, "stage": "implement"},
-                                        ticket=t.stem)
+                checkout.journal.append(EventType.STATE_TRANSITION, {"to": outcome, "stage": "implement"}, ticket=t.stem)
                 return outcome
             path = checkout.repo / outcome.removeprefix("merged:")
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -69,13 +68,11 @@ class Child:
             contender.release()
             free = True
         last = journal(self.root).read()[-1]
-        self.spawns.append({"argv": list(argv), "cwd": cwd, "env": env, "timeout": timeout,
-                            "stdin_path": stdin_path, "lock_free": free, "last_event": last})
-        assert list(argv[:len(REEXEC)]) == list(REEXEC)
+        self.spawns.append({"argv": list(argv), "cwd": cwd, "env": env, "timeout": timeout, "stdin_path": stdin_path, "lock_free": free, "last_event": last})
+        assert list(argv[: len(REEXEC)]) == list(REEXEC)
         self.script.process = f"child{len(self.spawns)}"
         # `uv run python -m chupa <args>` -> the module entry's own argv; a thread, as asyncio.run cannot nest.
-        rc = await asyncio.to_thread(main, list(argv[5:]), cwd=self.root, env=ENV, clock=self.clock,
-                                     pipeline=self.script, reexec=self)
+        rc = await asyncio.to_thread(main, list(argv[5:]), cwd=self.root, env=ENV, clock=self.clock, pipeline=self.script, reexec=self)
         self.order.append(f"exit {rc}")
         return rc, "", ""
 
@@ -143,8 +140,7 @@ def test_a_self_upgrading_admission_hands_off_before_the_next_dispatch(tmp_path,
     handoff = spawn["last_event"]
     assert handoff.type == EventType.SIGNAL and handoff.body["signal"] == HANDOFF_SIGNAL
     assert handoff.ticket == "upgrade" and handoff.body["parked"] == ["red"]
-    assert handoff.body["commit"] == next(e.body["commit"] for e in journal(root).read()
-                                        if e.ticket == "upgrade" and e.body.get("to") == "merged")
+    assert handoff.body["commit"] == next(e.body["commit"] for e in journal(root).read() if e.ticket == "upgrade" and e.body.get("to") == "merged")
     # The parked set survives: the child reports the parent's red; the parent printed nothing of its own.
     out = capsys.readouterr().out
     assert out.count("drain quiescent") == 1
@@ -156,13 +152,12 @@ def test_the_carried_parked_set_rides_every_handoff_in_the_chain(tmp_path, order
     commit_ticket(root, "red", confirmed(priority="P0"))
     commit_ticket(root, "one", confirmed(priority="P1"))
     commit_ticket(root, "two", confirmed(priority="P2"))
-    script = Script({"red": ["gate_failed", "gate_failed"], "one": ["merged:chupa/a.py"],
-                     "two": ["merged:specs/b.md"]})
+    script = Script({"red": ["gate_failed", "gate_failed"], "one": ["merged:chupa/a.py"], "two": ["merged:specs/b.md"]})
 
     code, child = drain(root, script, order)
 
     assert code == 0
-    assert [s["argv"][len(REEXEC):] for s in child.spawns] == [["--parked", "red"], ["--parked", "red"]]
+    assert [s["argv"][len(REEXEC) :] for s in child.spawns] == [["--parked", "red"], ["--parked", "red"]]
     assert script.calls == [("parent", "red"), ("parent", "one"), ("child1", "two"), ("child2", "red")]
     # One awaiting parent per self-upgrading admission; each exits with its child's code.
     assert order.count("spawn") == 2 and order[-2:] == ["exit 0", "exit 0"]
@@ -185,16 +180,13 @@ def test_retry_budget_spent_before_the_re_exec_stays_spent_in_the_child(tmp_path
     commit_ticket(root, "red", confirmed(priority="P0"))
     commit_ticket(root, "gate", confirmed(priority="P1"))
     commit_ticket(root, "upgrade", confirmed(depends="- gate", priority="P2"))
-    script = Script({"red": ["gate_failed", "gate_failed", "merged:docs/never.md"],
-                     "gate": ["gate_failed", "merged:docs/gate.md"],
-                     "upgrade": ["merged:chupa/thing.py"]})
+    script = Script({"red": ["gate_failed", "gate_failed", "merged:docs/never.md"], "gate": ["gate_failed", "merged:docs/gate.md"], "upgrade": ["merged:chupa/thing.py"]})
 
     code, child = drain(root, script, order)
 
     assert code == 0
     # Both reds were re-offered (one unit each) BEFORE the upgrade admission handed off.
-    assert script.calls == [("parent", "red"), ("parent", "gate"), ("parent", "red"), ("parent", "gate"),
-                            ("parent", "upgrade")]
+    assert script.calls == [("parent", "red"), ("parent", "gate"), ("parent", "red"), ("parent", "gate"), ("parent", "upgrade")]
     assert len(child.spawns) == 1
     # The child re-derives the budget from the journal: `red`'s spent unit is never re-armed by the exec.
     assert retry_draws(root, "red") == 1
@@ -243,8 +235,7 @@ def test_a_seed_stems_premise_road_names_the_plan_first(root, order, capsys):
     plan = root / "CHUPA_PLAN.md"
     plan.write_text(plan.read_text() + "\n## 19. Phases\n\n### 19.L Law\n\nLaw.\n\n### 19.P1 Phase 1\n\nP1.\n")
     git_out(root, "commit", "-m", "plan", "--", "CHUPA_PLAN.md")
-    seed = confirmed().replace("source: human", "source: seed", 1).replace(
-        "## Context", "## Plan contract\n- 19.L\n- 19.P1\n\n## Context", 1)
+    seed = confirmed().replace("source: human", "source: seed", 1).replace("## Context", "## Plan contract\n- 19.L\n- 19.P1\n\n## Context", 1)
     commit_ticket(root, "seeded", seed)
     drain(root, Script({"seeded": [PREMISE]}), order)
 

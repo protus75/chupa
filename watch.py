@@ -18,8 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 # A stage the engine log records; Check and merge are mechanical and leave no stage events.
-STEP_NAMES = {"implement": "Implement", "review": "Review", "diagnose": "Diagnose", "rework": "Rework",
-              "retro": "Retro", "triage": "Triage", "author": "Author"}
+STEP_NAMES = {"implement": "Implement", "review": "Review", "diagnose": "Diagnose", "rework": "Rework", "retro": "Retro", "triage": "Triage", "author": "Author"}
 SETTLED = {"merged", "already_satisfied"}
 
 
@@ -104,11 +103,9 @@ def capability(events: list[dict], stem: str, surface: str) -> str:
     window = events
     for i, e in enumerate(events):
         body = e.get("body", {})
-        if (e.get("ticket") == stem and body.get("signal") == "reject_verdict" and body.get("verdict") == "keep"
-                and body.get("actor") == "operator"):
-            window = events[i + 1:]
-    rung = next((e["body"]["rung"] for e in reversed(window) if e.get("type") == "cap_consumed"
-                 and e.get("ticket") == stem and e["body"].get("cap") == "retry" and "rung" in e["body"]), None)
+        if e.get("ticket") == stem and body.get("signal") == "reject_verdict" and body.get("verdict") == "keep" and body.get("actor") == "operator":
+            window = events[i + 1 :]
+    rung = next((e["body"]["rung"] for e in reversed(window) if e.get("type") == "cap_consumed" and e.get("ticket") == stem and e["body"].get("cap") == "retry" and "rung" in e["body"]), None)
     if rung:
         return f"{rung['tier']}/{rung['effort']} (escalated)"
     meta = frontmatter(ROOT / "tickets" / stem / "ticket.md")
@@ -186,10 +183,8 @@ def queue(events: list[dict], last_state: dict[str, dict]) -> list[tuple[str, st
             continue
         open_deps = [d for d in depends(path) if last_state.get(d, {}).get("to") not in SETTLED]
         if stem in waiting_on_person:
-            spent = next((e["body"].get("mechanical") for e in reversed(events) if e.get("ticket") == stem
-                          and e.get("body", {}).get("signal") == "diagnosis"), None)
-            why = (f"NEEDS YOUR KEEP OR KILL ({spent})" if spent and "cap spent" in spent
-                   else "held; the drain retries it when new work runs out")
+            spent = next((e["body"].get("mechanical") for e in reversed(events) if e.get("ticket") == stem and e.get("body", {}).get("signal") == "diagnosis"), None)
+            why = f"NEEDS YOUR KEEP OR KILL ({spent})" if spent and "cap spent" in spent else "held; the drain retries it when new work runs out"
         elif open_deps:
             why = "waits on " + ", ".join(open_deps)
         elif last is None:
@@ -222,8 +217,7 @@ def snapshot() -> str:
     lines.append("")
     if running:
         for stem in running:
-            attempt = sum(1 for e in events if e.get("type") == "state_transition" and e.get("ticket") == stem
-                          and e["body"].get("to") not in ("running", None))
+            attempt = sum(1 for e in events if e.get("type") == "state_transition" and e.get("ticket") == stem and e["body"].get("to") not in ("running", None))
             step, began, surface = current_step(log, stem)
             when = f" for {ago(began)} (since {clock(began)})" if began else ""
             lines.append(f"Now: {stem}  attempt {attempt + 1}  step: {step}{when}")

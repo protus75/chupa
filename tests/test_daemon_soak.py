@@ -4,8 +4,8 @@ All observations here are synthetic construction values in disposable repositori
 never the phase exit artifact.
 """
 
-import importlib
 import asyncio
+import importlib
 import json
 import os
 from copy import deepcopy
@@ -52,11 +52,19 @@ async def report(root):
     return DaemonSoakReport(
         produced_by_spec_version=DAEMON_SOAK_SPEC_VERSION,
         produced_at_sha=await git.rev_parse(root, "HEAD"),
-        entries=[DaemonSoakEntry(
-            member=member, planted_fault="synthetic fault • construction only",
-            expected=expected, observed=expected, disposition=disposition,
-            producing_run=f"synthetic-{index}/0", auditor=[], green=True,
-        ) for index, (member, (expected, disposition)) in enumerate(zip(MEMBERS, PAIRS))],
+        entries=[
+            DaemonSoakEntry(
+                member=member,
+                planted_fault="synthetic fault • construction only",
+                expected=expected,
+                observed=expected,
+                disposition=disposition,
+                producing_run=f"synthetic-{index}/0",
+                auditor=[],
+                green=True,
+            )
+            for index, (member, (expected, disposition)) in enumerate(zip(MEMBERS, PAIRS))
+        ],
     )
 
 
@@ -76,10 +84,20 @@ async def test_daemon_soak_schema_is_closed(root):
     assert DAEMON_SOAK_MEMBERS == MEMBERS
     assert isinstance(valid, Artifact)
     assert set(DaemonSoakReport.model_fields) == {
-        "artifact_schema_version", "produced_by_spec_version", "produced_at_sha", "entries",
+        "artifact_schema_version",
+        "produced_by_spec_version",
+        "produced_at_sha",
+        "entries",
     }
     assert set(DaemonSoakEntry.model_fields) == {
-        "member", "planted_fault", "expected", "observed", "disposition", "producing_run", "auditor", "green",
+        "member",
+        "planted_fault",
+        "expected",
+        "observed",
+        "disposition",
+        "producing_run",
+        "auditor",
+        "green",
     }
     assert DaemonSoakReport.model_validate_json(valid.model_dump_json()) == valid
     for key in ("produced_by_spec_version", "produced_at_sha", "entries"):
@@ -95,9 +113,7 @@ async def test_daemon_soak_schema_is_closed(root):
     extra["entries"][0]["group"] = "unearned"
     rejects(extra)
 
-    for entries in ([], data["entries"][:-1], data["entries"][1:],
-                    data["entries"] * 2, list(reversed(data["entries"])),
-                    [data["entries"][0], data["entries"][0], data["entries"][2]]):
+    for entries in ([], data["entries"][:-1], data["entries"][1:], data["entries"] * 2, list(reversed(data["entries"])), [data["entries"][0], data["entries"][0], data["entries"][2]]):
         rejects(data | {"entries": entries})
     for field, values in {
         "member": ["unknown", " worker_killed_mid_run", 1],
@@ -105,9 +121,23 @@ async def test_daemon_soak_schema_is_closed(root):
         "expected": ["", " \t\n", 1, None],
         "observed": ["", " \t\n", 1, None],
         "disposition": ["unknown", " alert", 1],
-        "producing_run": ["", "synthetic", "synthetic/-1", "synthetic/1.0", "synthetic/+1",
-                          "synthetic/١", "synthetic/0/1", "Upper/0", "under_score/0", "a/0",
-                          "-bad/0", "a" * 65 + "/0", "retro/0", "synthetic/0\n", 1],
+        "producing_run": [
+            "",
+            "synthetic",
+            "synthetic/-1",
+            "synthetic/1.0",
+            "synthetic/+1",
+            "synthetic/١",
+            "synthetic/0/1",
+            "Upper/0",
+            "under_score/0",
+            "a/0",
+            "-bad/0",
+            "a" * 65 + "/0",
+            "retro/0",
+            "synthetic/0\n",
+            1,
+        ],
         "auditor": ["violation", [""], [" \t\n"], [1], None],
         "green": [1, 0, "true", "false", None],
     }.items():
@@ -144,10 +174,11 @@ async def test_daemon_soak_green_matches_observation_and_auditor(root):
         data = entry.model_dump()
         for other_expected, other_disposition in PAIRS:
             if other_expected != entry.expected:
-                for changes in ({"expected": other_expected, "observed": other_expected},
-                                {"disposition": other_disposition},
-                                {"expected": other_expected, "observed": other_expected,
-                                 "disposition": other_disposition}):
+                for changes in (
+                    {"expected": other_expected, "observed": other_expected},
+                    {"disposition": other_disposition},
+                    {"expected": other_expected, "observed": other_expected, "disposition": other_disposition},
+                ):
                     with pytest.raises(ValidationError):
                         DaemonSoakEntry.model_validate(data | changes)
         for observed in (entry.expected, "unexpected_observation"):
@@ -196,14 +227,20 @@ async def test_daemon_soak_writer_validates_before_write(root, monkeypatch):
     with monkeypatch.context() as patch:
         patch.setattr(Git, "_call", forbidden)
         patch.setattr(Journal, "append", forbidden)
-        invalid = [valid.model_copy(update={"produced_at_sha": ""}),
-                   DaemonSoakReport.model_construct(**(valid.model_dump() | {"entries": []})),
-                   valid.model_copy(update={"entries": list(reversed(valid.entries))})]
+        invalid = [
+            valid.model_copy(update={"produced_at_sha": ""}),
+            DaemonSoakReport.model_construct(**(valid.model_dump() | {"entries": []})),
+            valid.model_copy(update={"entries": list(reversed(valid.entries))}),
+        ]
         for index, entry in enumerate(valid.entries):
-            for changes in ({"observed": "unexpected", "green": False},
-                            {"auditor": ["violation"], "green": False},
-                            {"observed": "unexpected"}, {"auditor": ["violation"]},
-                            {"green": 1}, {"expected": "invented"}):
+            for changes in (
+                {"observed": "unexpected", "green": False},
+                {"auditor": ["violation"], "green": False},
+                {"observed": "unexpected"},
+                {"auditor": ["violation"]},
+                {"green": 1},
+                {"expected": "invented"},
+            ):
                 entries = list(valid.entries)
                 entries[index] = entry.model_copy(update=changes)
                 invalid.append(valid.model_copy(update={"entries": entries}))
@@ -236,21 +273,18 @@ async def test_daemon_soak_uses_registered_checks_lift(root, monkeypatch, case):
             pytest.fail("machinery import/startup must not produce a soak report or prepare host work")
 
         with monkeypatch.context() as patch:
-            patch.setattr(rig.fs, "write", lambda path, data: (
-                forbidden() if path.name == DAEMON_SOAK_REPORT else LocalFileSystem().write(path, data)))
+            patch.setattr(rig.fs, "write", lambda path, data: forbidden() if path.name == DAEMON_SOAK_REPORT else LocalFileSystem().write(path, data))
             importlib.reload(daemon_soak)
             patch.setattr(daemon_soak, "write_report", forbidden)
-            assert await serve.serve(rig.checkout, plan="# Plan\n", read=lambda stem: None,
-                stems=lambda: (), prepare=forbidden,
-                signals=lambda stop: (stop(), lambda: None)[1]) == 0
+            assert await serve.serve(rig.checkout, plan="# Plan\n", read=lambda stem: None, stems=lambda: (), prepare=forbidden, signals=lambda stop: (stop(), lambda: None)[1]) == 0
         assert not list(root.rglob(DAEMON_SOAK_REPORT))
-        assert not any(path.endswith("/" + DAEMON_SOAK_REPORT)
-                       for path in await rig.checkout.git.ls_files(root))
+        assert not any(path.endswith("/" + DAEMON_SOAK_REPORT) for path in await rig.checkout.git.ls_files(root))
         return
 
     fs = LocalFileSystem()
     fs.write(root / "config.yaml", CONFIG.encode())
     from tests.test_stages import adopt_conduct
+
     conduct = adopt_conduct(root)
     ctx = context(root, [])
     rel = f"tickets/{STEM}/{DAEMON_SOAK_REPORT}"
@@ -277,8 +311,7 @@ async def test_daemon_soak_uses_registered_checks_lift(root, monkeypatch, case):
     assert outbox.is_file()
     if case != "equal-copy":
         assert not (root / rel).exists()
-    record = "".join(f"## {name}\n\n{'ok' if name == 'Outcome' else 'none'}\n\n"
-                     for name in stages.RUN_RECORD_SECTIONS)
+    record = "".join(f"## {name}\n\n{'ok' if name == 'Outcome' else 'none'}\n\n" for name in stages.RUN_RECORD_SECTIONS)
     fs.write(root / f"tickets/{STEM}/run.md", record.encode())
     original_exec = ctx.exec_.run
     verified = []
@@ -304,9 +337,9 @@ async def test_daemon_soak_uses_registered_checks_lift(root, monkeypatch, case):
         return 0, "", ""
 
     monkeypatch.setattr(ctx.exec_, "run", execute)
-    slip = stages.PackingSlip(produced_by_spec_version=1, produced_at_sha=source.produced_at_sha,
-        stem=STEM, branch=STEM, outcome="ok", summary="construction fixture",
-        run_record=f"tickets/{STEM}/run.md")
+    slip = stages.PackingSlip(
+        produced_by_spec_version=1, produced_at_sha=source.produced_at_sha, stem=STEM, branch=STEM, outcome="ok", summary="construction fixture", run_record=f"tickets/{STEM}/run.md"
+    )
     head = await ctx.git.rev_parse(root, "HEAD")
     result = await stages.check(ctx, ticket, slip, attempt=0)
     assert verified == [["soak-fixture", f"--out={rel}"]]
@@ -342,9 +375,11 @@ def test_daemon_soak_command_writes_report_only_on_green(tmp_path, monkeypatch, 
     destination = tmp_path / DAEMON_SOAK_REPORT
     calls = []
     writer = daemon_soak.write_report
+
     def written(path, report, fs):
         calls.append((path, report))
         writer(path, report, fs)
+
     monkeypatch.setattr(daemon_soak, "write_report", written)
     assert daemon_soak.main(["--out", str(destination)]) == 0
     [(path, produced)] = calls
@@ -354,12 +389,14 @@ def test_daemon_soak_command_writes_report_only_on_green(tmp_path, monkeypatch, 
     assert destination.read_bytes() == (produced.model_dump_json(indent=2) + "\n").encode()
     original_bytes = destination.read_bytes()
     observe = daemon_soak._observe
+
     async def missing(member):
         if member.name == "conflict_resolution_rungs":
             # Remove a required report from the member's own Box, after genuine production runs.
             message = next(m for m in member.owner.box.messages() if m.origin == "unresolved")
             member.owner.box._path(message).unlink()
         return await observe(member)
+
     monkeypatch.setattr(daemon_soak, "_observe", missing)
     for output in (destination, tmp_path / "absent" / DAEMON_SOAK_REPORT):
         assert daemon_soak.main(["--out", str(output)]) != 0
@@ -370,8 +407,6 @@ def test_daemon_soak_command_writes_report_only_on_green(tmp_path, monkeypatch, 
     assert not (tmp_path / "absent").exists()
     monkeypatch.setattr(daemon_soak, "_observe", observe)
     command_out = tmp_path / "command" / DAEMON_SOAK_REPORT
-    rc, out, err = asyncio.run(SubprocessExec().run(
-        ["uv", "run", "python", "-m", "eval.daemon_soak", "--out", str(command_out)],
-        cwd=Path.cwd(), env=os.environ, timeout=120))
+    rc, out, err = asyncio.run(SubprocessExec().run(["uv", "run", "python", "-m", "eval.daemon_soak", "--out", str(command_out)], cwd=Path.cwd(), env=os.environ, timeout=120))
     assert rc == 0, out + err
     assert command_out.read_bytes() == original_bytes

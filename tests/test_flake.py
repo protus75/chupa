@@ -7,13 +7,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from chupa import __main__ as cli, daemon
+from chupa import __main__ as cli
+from chupa import daemon
 from chupa.box import Box, BoxError, Message, Resolution, signature
 from chupa.config import Caps
 from chupa.flake import Flake, FlakeError, GreenRerunEvidence, RerunEvidence
 from chupa.journal import EventType, Journal
 from chupa.seams import LocalFileSystem
-from tests.test_cli import Clock, ENV, Stages, root, ticket, write
+from tests.test_cli import ENV, Clock, Stages, root, ticket, write
 from tests.test_daemon_composition import CoreRig, assert_startup_pause_wiring
 
 
@@ -26,21 +27,27 @@ def rig(tmp_path):
     journal = Journal(tmp_path / "state", Clock())
     box = Box(tmp_path / "box", LocalFileSystem())
     escalations = []
-    flake = daemon.flake_detection(journal=journal, box=box,
-                                  config=SimpleNamespace(caps=Caps()), escalate=escalations.append)
+    flake = daemon.flake_detection(journal=journal, box=box, config=SimpleNamespace(caps=Caps()), escalate=escalations.append)
     return SimpleNamespace(journal=journal, box=box, flake=flake, escalations=escalations)
 
 
 def detect(rig, test_id="tests/test_12.py::test_34", reason="assert 12 /tmp/a.py"):
-    return rig.flake.detect(test_id=test_id, evidence=evidence(test_id),
-                            summary="Named test failed then passed on bare rerun", reason=reason)
+    return rig.flake.detect(test_id=test_id, evidence=evidence(test_id), summary="Named test failed then passed on bare rerun", reason=reason)
 
 
 def release(rig, identity, fix="fix-flake"):
-    rig.journal.append(EventType.SIGNAL, {
-        "kind": "flake_released", "test_id": identity.test_id, "signature": identity.signature,
-        "box_id": identity.box_id, "fix_stem": fix,
-    }, ticket=None, key=f"flake-release/{identity.box_id}/{fix}")
+    rig.journal.append(
+        EventType.SIGNAL,
+        {
+            "kind": "flake_released",
+            "test_id": identity.test_id,
+            "signature": identity.signature,
+            "box_id": identity.box_id,
+            "fix_stem": fix,
+        },
+        ticket=None,
+        key=f"flake-release/{identity.box_id}/{fix}",
+    )
 
 
 @pytest.mark.asyncio
@@ -52,17 +59,24 @@ async def test_flake_construction_is_idle(monkeypatch):
     box = SimpleNamespace(enqueue=forbid, get=forbid)
     tasks = asyncio.all_tasks()
     monkeypatch.setattr(asyncio, "create_task", forbid)
-    flake = daemon.flake_detection(journal=journal, box=box,
-                                  config=SimpleNamespace(caps=Caps()), escalate=forbid)
+    flake = daemon.flake_detection(journal=journal, box=box, config=SimpleNamespace(caps=Caps()), escalate=forbid)
     assert flake.journal is journal and flake.box is box and flake.cap == 5
     assert asyncio.all_tasks() == tasks
 
 
-@pytest.mark.parametrize("change", [
-    {"first_result": "pass"}, {"rerun_result": "fail"}, {"same_workspace": False},
-    {"unchanged_code": False}, {"bare_rerun": False}, {"test_id": ""},
-    {"test_id": "whole command"}, {"bare_rerun": 1},
-])
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"first_result": "pass"},
+        {"rerun_result": "fail"},
+        {"same_workspace": False},
+        {"unchanged_code": False},
+        {"bare_rerun": False},
+        {"test_id": ""},
+        {"test_id": "whole command"},
+        {"bare_rerun": 1},
+    ],
+)
 def test_detection_requires_named_bare_rerun_evidence(rig, monkeypatch, change):
     def forbid(*args, **kwargs):
         raise AssertionError("invalid evidence reached state")
@@ -72,8 +86,7 @@ def test_detection_requires_named_bare_rerun_evidence(rig, monkeypatch, change):
         probe.setattr(rig.journal, "read", forbid)
         probe.setattr(rig.journal, "append", forbid)
         with pytest.raises(FlakeError, match="provide one named test"):
-            rig.flake.detect(test_id=evidence().test_id, evidence=replace(evidence(), **change),
-                             summary="fail then pass", reason="failure")
+            rig.flake.detect(test_id=evidence().test_id, evidence=replace(evidence(), **change), summary="fail then pass", reason="failure")
         for kwargs in ({"test_id": " "}, {"summary": " "}, {"reason": ""}):
             args = dict(test_id=evidence().test_id, evidence=evidence(), summary="fail then pass", reason="failure")
             args.update(kwargs)
@@ -85,12 +98,10 @@ def test_detection_requires_named_bare_rerun_evidence(rig, monkeypatch, change):
 def test_flake_report_uses_box_identity(rig):
     first = detect(rig)
     assert detect(rig, reason="assert 99 /other/path.py") == first
-    message, = rig.box.messages()
-    assert message.signature == signature("failure_report", evidence().test_id, "check", "gate_failed",
-                                          reason="assert 12 /tmp/a.py")
+    (message,) = rig.box.messages()
+    assert message.signature == signature("failure_report", evidence().test_id, "check", "gate_failed", reason="assert 12 /tmp/a.py")
     assert message.origin == evidence().test_id
-    assert (message.message_class, message.stage, message.outcome, message.status) == (
-        "failure_report", "check", "gate_failed", "pending")
+    assert (message.message_class, message.stage, message.outcome, message.status) == ("failure_report", "check", "gate_failed", "pending")
     assert message.verdict is message.resolution is message.bug_origin is message.has_repro is None
     assert set(message.model_dump()) == set(Message.model_fields)
     assert first.active[message.id].signature == message.signature
@@ -123,12 +134,11 @@ def test_detection_signal_and_quarantine(rig, monkeypatch):
     projection = detect(rig)
     order.append("visible")
     assert order == ["report", "append", "durable", "visible"]
-    event, = rig.journal.read()
-    message, = rig.box.messages()
+    (event,) = rig.journal.read()
+    (message,) = rig.box.messages()
     assert event.type == EventType.SIGNAL and event.ticket is None
     assert event.key == f"flake/{message.id}"
-    assert event.body == dict(kind="flake_detected", test_id=message.origin,
-                             signature=message.signature, box_id=message.id)
+    assert event.body == dict(kind="flake_detected", test_id=message.origin, signature=message.signature, box_id=message.id)
     assert projection.tests == {message.origin}
     assert set(projection.active) == {message.id}
 
@@ -136,7 +146,7 @@ def test_detection_signal_and_quarantine(rig, monkeypatch):
 def test_detection_replay_and_conflicting_identity(rig, monkeypatch):
     projection = detect(rig)
     assert detect(rig) == projection and len(rig.journal.read()) == 1
-    identity, = projection.active.values()
+    (identity,) = projection.active.values()
     release(rig, identity)
     assert not detect(rig).tests and len(rig.journal.read()) == 2
     original = rig.box.get
@@ -144,27 +154,32 @@ def test_detection_replay_and_conflicting_identity(rig, monkeypatch):
     with pytest.raises(FlakeError, match="repair the evidence"):
         detect(rig)
     assert len(rig.journal.read()) == 2
-    rig.journal.append(EventType.SIGNAL, {
-        "kind": "flake_detected", "test_id": "other", "signature": identity.signature,
-        "box_id": identity.box_id,
-    }, key=f"flake/{identity.box_id}")
+    rig.journal.append(
+        EventType.SIGNAL,
+        {
+            "kind": "flake_detected",
+            "test_id": "other",
+            "signature": identity.signature,
+            "box_id": identity.box_id,
+        },
+        key=f"flake/{identity.box_id}",
+    )
     with pytest.raises(FlakeError, match="conflicting detection identity"):
         rig.flake.quarantine()
 
 
 def test_quarantine_reconstructs_across_segments(rig):
     first = detect(rig)
-    identity, = first.active.values()
+    (identity,) = first.active.values()
     (rig.journal.dir / "000002-20260102.jsonl").touch()
     second = detect(rig, reason="a different failure")
     assert len(second.active) == 2 and second.tests == {identity.test_id}
     release(rig, identity)
     rig.journal.append(EventType.SIGNAL, {"kind": "drain_handoff"}, ticket="a-ticket")
-    restart = Flake(journal=Journal(rig.journal.dir.parent, Clock()), box=rig.box,
-                    cap=5, escalate=rig.escalations.append)
+    restart = Flake(journal=Journal(rig.journal.dir.parent, Clock()), box=rig.box, cap=5, escalate=rig.escalations.append)
     assert len(restart.quarantine().active) == 1
     assert restart.quarantine().tests == {identity.test_id}
-    remaining, = restart.quarantine().active.values()
+    (remaining,) = restart.quarantine().active.values()
     release(rig, remaining)
     assert not restart.quarantine().tests
     # Historical duplicate detections cannot resurrect a released report.
@@ -174,10 +189,17 @@ def test_quarantine_reconstructs_across_segments(rig):
     assert len(list(rig.journal.read_segments())) == 2
 
 
-@pytest.mark.parametrize("change", [
-    {"kind": "drain_handoff"}, {"test_id": " "}, {"signature": "A" * 64},
-    {"signature": 123}, {"box_id": ""}, {"extra": "field"},
-])
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"kind": "drain_handoff"},
+        {"test_id": " "},
+        {"signature": "A" * 64},
+        {"signature": 123},
+        {"box_id": ""},
+        {"extra": "field"},
+    ],
+)
 def test_projection_refuses_malformed_records(rig, change):
     body = dict(kind="flake_detected", test_id="test", signature="a" * 64, box_id="box")
     body.update(change)
@@ -188,9 +210,8 @@ def test_projection_refuses_malformed_records(rig, change):
 
 @pytest.mark.parametrize("fault", ["ticket", "key", "type", "unmatched", "release_identity", "fix"])
 def test_projection_refuses_bad_envelopes_and_releases(rig, fault):
-    identity, = detect(rig).active.values()
-    body = dict(kind="flake_released", test_id=identity.test_id, signature=identity.signature,
-                box_id=identity.box_id, fix_stem="fix")
+    (identity,) = detect(rig).active.values()
+    body = dict(kind="flake_released", test_id=identity.test_id, signature=identity.signature, box_id=identity.box_id, fix_stem="fix")
     envelope = dict(ticket=None, key=f"flake-release/{identity.box_id}/fix")
     type_ = EventType.SIGNAL
     if fault == "ticket":
@@ -261,8 +282,7 @@ def test_detection_failures_and_crash_replay(rig, monkeypatch, boundary):
             probe.setattr(rig.flake, "escalate", fail)
         with pytest.raises(RuntimeError, match="injected crash"):
             detect(rig)
-    rig.flake = Flake(journal=Journal(rig.journal.dir.parent, Clock()), box=rig.box,
-                      cap=rig.flake.cap, escalate=rig.escalations.append)
+    rig.flake = Flake(journal=Journal(rig.journal.dir.parent, Clock()), box=rig.box, cap=rig.flake.cap, escalate=rig.escalations.append)
     if boundary == "durable":
         assert rig.flake.quarantine().tests == {evidence().test_id}
     else:
@@ -280,9 +300,7 @@ def test_detection_failures_and_crash_replay(rig, monkeypatch, boundary):
 @pytest.mark.parametrize("verb", ["run", "drain"])
 @pytest.mark.parametrize("trip", [None, "construction", "invocation"])
 def test_flake_detection_is_dormant(root, tmp_path, monkeypatch, verb, trip):
-    dormant = Flake(journal=Journal(root / ".chupa/state", Clock()),
-                    box=Box(root / ".chupa/state/box", LocalFileSystem()),
-                    cap=5, escalate=lambda message: None)
+    dormant = Flake(journal=Journal(root / ".chupa/state", Clock()), box=Box(root / ".chupa/state/box", LocalFileSystem()), cap=5, escalate=lambda message: None)
 
     def forbid_construct(*args, **kwargs):
         raise AssertionError("production constructed flake hook")
@@ -298,11 +316,9 @@ def test_flake_detection_is_dormant(root, tmp_path, monkeypatch, verb, trip):
 
     def wired_control(checkout):
         if trip == "construction":
-            daemon.flake_detection(journal=checkout.journal, box=dormant.box,
-                                   config=checkout.config, escalate=dormant.escalate)
+            daemon.flake_detection(journal=checkout.journal, box=dormant.box, config=checkout.config, escalate=dormant.escalate)
         elif trip == "invocation":
-            dormant.detect(test_id=evidence().test_id, evidence=evidence(),
-                           summary="Named test failed then passed", reason="assertion failed")
+            dormant.detect(test_id=evidence().test_id, evidence=evidence(), summary="Named test failed then passed", reason="assertion failed")
         return control(checkout)
 
     monkeypatch.setattr(cli, "build_control", wired_control)
@@ -310,12 +326,10 @@ def test_flake_detection_is_dormant(root, tmp_path, monkeypatch, verb, trip):
     stages = Stages()
 
     def exercise_cli():
-        assert cli.main([verb, "work"] if verb == "run" else [verb], cwd=root,
-                        env=ENV, clock=Clock(), pipeline=stages) == 0
+        assert cli.main([verb, "work"] if verb == "run" else [verb], cwd=root, env=ENV, clock=Clock(), pipeline=stages) == 0
         assert stages.calls == ["work"] and stages.lock_held == [True]
         assert not Box(root / ".chupa/state/box", LocalFileSystem()).messages()
-        assert not any(e.body.get("kind") in {"flake_detected", "flake_released"}
-                       for e in stages.checkout.journal.read())
+        assert not any(e.body.get("kind") in {"flake_detected", "flake_released"} for e in stages.checkout.journal.read())
 
     async def exercise_core():
         calls = []
@@ -324,6 +338,7 @@ def test_flake_detection_is_dormant(root, tmp_path, monkeypatch, verb, trip):
             async def dispatch(t):
                 calls.append(t.stem)
                 return "merged"
+
             return dispatch
 
         directory = tmp_path / "core"
@@ -349,9 +364,7 @@ def test_flake_detection_is_dormant(root, tmp_path, monkeypatch, verb, trip):
 @pytest.mark.parametrize("verb", ["run", "drain"])
 @pytest.mark.parametrize("trip", [None, "construction", "invocation"])
 def test_flake_release_is_dormant(root, tmp_path, monkeypatch, verb, trip):
-    dormant = Flake(journal=Journal(root / ".chupa/state", Clock()),
-                    box=Box(root / ".chupa/state/box", LocalFileSystem()),
-                    cap=5, escalate=lambda message: None)
+    dormant = Flake(journal=Journal(root / ".chupa/state", Clock()), box=Box(root / ".chupa/state/box", LocalFileSystem()), cap=5, escalate=lambda message: None)
 
     def forbid_construct(*args, **kwargs):
         raise AssertionError("production constructed flake hook")
@@ -368,8 +381,7 @@ def test_flake_release_is_dormant(root, tmp_path, monkeypatch, verb, trip):
 
     def wired_control(checkout):
         if trip == "construction":
-            daemon.flake_detection(journal=checkout.journal, box=dormant.box,
-                                   config=checkout.config, escalate=dormant.escalate)
+            daemon.flake_detection(journal=checkout.journal, box=dormant.box, config=checkout.config, escalate=dormant.escalate)
         elif trip == "invocation":
             dormant.release(box_id="box-probe")
         return control(checkout)
@@ -379,12 +391,10 @@ def test_flake_release_is_dormant(root, tmp_path, monkeypatch, verb, trip):
     stages = Stages()
 
     def exercise_cli():
-        assert cli.main([verb, "work"] if verb == "run" else [verb], cwd=root,
-                        env=ENV, clock=Clock(), pipeline=stages) == 0
+        assert cli.main([verb, "work"] if verb == "run" else [verb], cwd=root, env=ENV, clock=Clock(), pipeline=stages) == 0
         assert stages.calls == ["work"] and stages.lock_held == [True]
         assert not Box(root / ".chupa/state/box", LocalFileSystem()).messages()
-        assert not any(e.body.get("kind") in {"flake_detected", "flake_released"}
-                       for e in stages.checkout.journal.read())
+        assert not any(e.body.get("kind") in {"flake_detected", "flake_released"} for e in stages.checkout.journal.read())
 
     async def exercise_core():
         calls = []
@@ -393,6 +403,7 @@ def test_flake_release_is_dormant(root, tmp_path, monkeypatch, verb, trip):
             async def dispatch(t):
                 calls.append(t.stem)
                 return "merged"
+
             return dispatch
 
         directory = tmp_path / "core"
@@ -416,8 +427,7 @@ def test_flake_release_is_dormant(root, tmp_path, monkeypatch, verb, trip):
 
 
 def green(identity, fix="fix-flake", **changes):
-    value = GreenRerunEvidence(identity.test_id, fix, Clock()() + timedelta(seconds=1),
-                              "pass", True, True, True)
+    value = GreenRerunEvidence(identity.test_id, fix, Clock()() + timedelta(seconds=1), "pass", True, True, True)
     return replace(value, **changes)
 
 
@@ -434,7 +444,7 @@ async def test_release_construction_is_idle(monkeypatch):
 
 @pytest.mark.parametrize("resolution", [None, "tombstone", "decision", "ticket"])
 def test_release_resolves_exact_box_identity(rig, resolution, monkeypatch):
-    identity, = detect(rig).active.values()
+    (identity,) = detect(rig).active.values()
     # A merge whose name resembles the report and summary supplies no resolution.
     rig.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="fix-flake")
     if resolution:
@@ -457,7 +467,7 @@ def test_release_resolves_exact_box_identity(rig, resolution, monkeypatch):
 
 @pytest.mark.parametrize("fault", ["missing", "id", "signature", "origin", "message_class", "stage", "outcome"])
 def test_release_box_identity_refusal(rig, monkeypatch, fault):
-    identity, = detect(rig).active.values()
+    (identity,) = detect(rig).active.values()
     resolved(rig, identity)
     before = rig.journal.read()
     original = rig.box.get
@@ -475,12 +485,28 @@ def test_release_box_identity_refusal(rig, monkeypatch, fault):
     assert rig.journal.read() == before and rig.flake.quarantine().tests == {identity.test_id}
 
 
-@pytest.mark.parametrize("fault", [
-    "valid", "another_merge", "ok", "unmerged", "pre_merge", "another_test", "another_fix",
-    "failed", "absent", "unnamed", "unobserved", "workspace", "code", "naive", "not_boolean",
-])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "valid",
+        "another_merge",
+        "ok",
+        "unmerged",
+        "pre_merge",
+        "another_test",
+        "another_fix",
+        "failed",
+        "absent",
+        "unnamed",
+        "unobserved",
+        "workspace",
+        "code",
+        "naive",
+        "not_boolean",
+    ],
+)
 def test_release_requires_matching_merge_and_named_green_rerun(rig, fault):
-    identity, = detect(rig).active.values()
+    (identity,) = detect(rig).active.values()
     resolved(rig, identity, merge=fault not in {"another_merge", "ok", "unmerged"})
     if fault == "another_merge":
         rig.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="another-fix")
@@ -488,10 +514,14 @@ def test_release_requires_matching_merge_and_named_green_rerun(rig, fault):
         rig.journal.append(EventType.STATE_TRANSITION, {"to": "ok"}, ticket="fix-flake")
     changes = {
         "pre_merge": {"observed_at": Clock()() - timedelta(seconds=1)},
-        "another_test": {"test_id": "other"}, "another_fix": {"fix_stem": "other"},
-        "failed": {"result": "fail"}, "unnamed": {"test_id": ""},
-        "unobserved": {"observed": False}, "workspace": {"same_workspace": False},
-        "code": {"unchanged_code": False}, "naive": {"observed_at": datetime(2026, 1, 1)},
+        "another_test": {"test_id": "other"},
+        "another_fix": {"fix_stem": "other"},
+        "failed": {"result": "fail"},
+        "unnamed": {"test_id": ""},
+        "unobserved": {"observed": False},
+        "workspace": {"same_workspace": False},
+        "code": {"unchanged_code": False},
+        "naive": {"observed_at": datetime(2026, 1, 1)},
         "not_boolean": {"observed": 1},
     }
     observation = None if fault == "absent" else green(identity, **changes.get(fault, {}))
@@ -506,7 +536,7 @@ def test_release_requires_matching_merge_and_named_green_rerun(rig, fault):
 
 @pytest.mark.parametrize("fail_append", [False, True])
 def test_release_signal_is_write_ahead(rig, monkeypatch, fail_append):
-    identity, = detect(rig).active.values()
+    (identity,) = detect(rig).active.values()
     resolved(rig, identity)
     append = rig.journal.append
     order = []
@@ -515,8 +545,7 @@ def test_release_signal_is_write_ahead(rig, monkeypatch, fail_append):
         assert rig.flake.quarantine().tests == {identity.test_id}
         assert type_ == EventType.SIGNAL
         assert envelope == {"ticket": None, "key": f"flake-release/{identity.box_id}/fix-flake"}
-        assert body == dict(kind="flake_released", test_id=identity.test_id,
-                            signature=identity.signature, box_id=identity.box_id, fix_stem="fix-flake")
+        assert body == dict(kind="flake_released", test_id=identity.test_id, signature=identity.signature, box_id=identity.box_id, fix_stem="fix-flake")
         order.append("append")
         if fail_append:
             raise OSError("append failure")
@@ -539,7 +568,7 @@ def test_release_signal_is_write_ahead(rig, monkeypatch, fail_append):
 
 @pytest.mark.parametrize("crash", ["before", "after", None])
 def test_release_replay_and_restart(rig, monkeypatch, crash):
-    identity, = detect(rig).active.values()
+    (identity,) = detect(rig).active.values()
     (rig.journal.dir / "000002-20260102.jsonl").touch()
     resolved(rig, identity)
     append = rig.journal.append
@@ -556,8 +585,7 @@ def test_release_replay_and_restart(rig, monkeypatch, crash):
                 rig.flake.release(box_id=identity.box_id, evidence=green(identity))
     else:
         rig.flake.release(box_id=identity.box_id, evidence=green(identity))
-    rig.flake = daemon.flake_detection(journal=Journal(rig.journal.dir.parent, Clock()), box=rig.box,
-                                       config=SimpleNamespace(caps=Caps()), escalate=rig.escalations.append)
+    rig.flake = daemon.flake_detection(journal=Journal(rig.journal.dir.parent, Clock()), box=rig.box, config=SimpleNamespace(caps=Caps()), escalate=rig.escalations.append)
     assert rig.flake.quarantine().tests == ({identity.test_id} if crash == "before" else set())
     if crash == "before":
         rig.flake.release(box_id=identity.box_id, evidence=green(identity))
@@ -569,7 +597,7 @@ def test_release_replay_and_restart(rig, monkeypatch, crash):
 
 
 def test_release_preserves_other_quarantines(rig):
-    first, = detect(rig).active.values()
+    (first,) = detect(rig).active.values()
     second = detect(rig, reason="different failure").active
     other = detect(rig, "unrelated").active
     resolved(rig, first)
@@ -588,13 +616,12 @@ def test_release_preserves_other_quarantines(rig):
 
 @pytest.mark.parametrize("fault", ["malformed", "unmatched", "conflicting", "resolution"])
 def test_release_refuses_conflicting_history(rig, fault, monkeypatch):
-    identity, = detect(rig).active.values()
+    (identity,) = detect(rig).active.values()
     resolved(rig, identity)
     rig.flake.release(box_id=identity.box_id, evidence=green(identity))
     if fault == "resolution":
         get = rig.box.get
-        monkeypatch.setattr(rig.box, "get", lambda id: get(id).model_copy(update={
-            "resolution": Resolution(kind="ticket", link="other-fix")}))
+        monkeypatch.setattr(rig.box, "get", lambda id: get(id).model_copy(update={"resolution": Resolution(kind="ticket", link="other-fix")}))
     else:
         if fault == "conflicting":
             release(rig, identity, "other-fix")
@@ -610,19 +637,21 @@ def test_release_refuses_conflicting_history(rig, fault, monkeypatch):
 
 @pytest.mark.parametrize("fault", ["read", "corrupt", "box"])
 def test_release_read_failures_propagate(rig, monkeypatch, fault):
-    identity, = detect(rig).active.values()
+    (identity,) = detect(rig).active.values()
     resolved(rig, identity)
     before = rig.journal.read()
     if fault == "corrupt":
         from chupa.journal import JournalCorruption
-        segment, = rig.journal.dir.glob("*.jsonl")
+
+        (segment,) = rig.journal.dir.glob("*.jsonl")
         segment.write_bytes(segment.read_bytes() + b"corrupt\n")
         error = JournalCorruption
     else:
+
         def fail(*args):
             raise OSError("source read failure")
-        monkeypatch.setattr(rig.journal if fault == "read" else rig.box,
-                            "read" if fault == "read" else "get", fail)
+
+        monkeypatch.setattr(rig.journal if fault == "read" else rig.box, "read" if fault == "read" else "get", fail)
         error = OSError
     with pytest.raises(error):
         rig.flake.release(box_id=identity.box_id, evidence=green(identity))

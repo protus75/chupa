@@ -20,8 +20,7 @@ from tests.test_terminal import author, clock, diagnosis_reply, repo  # noqa: F4
 def run(repo: Path, script: list, verb: str = "run") -> tuple[int, FakeLLM]:
     llm = FakeLLM(script)
     argv = [verb, STEM] if verb == "run" else [verb]
-    code = main(argv, cwd=repo, env=ENV, clock=clock, pipeline=lambda c: runner.bind(c, llm),
-                reexec=NoChild())
+    code = main(argv, cwd=repo, env=ENV, clock=clock, pipeline=lambda c: runner.bind(c, llm), reexec=NoChild())
     return code, llm
 
 
@@ -84,12 +83,9 @@ def test_infra_harvest_precedes_cap_and_terminal_and_carries_spooled_error(repo)
     assert h.findings == [] and "provider exploded at call" in h.reason
     assert not (repo / "tickets" / STEM / "attempts" / "0" / "leak.txt").exists()
     history = events(repo)
-    lift = next(i for i, e in enumerate(history) if e.type == EventType.EFFECT_COMPLETION
-                and e.key == f"ticket-plane/{STEM}/0/harvest")
-    cap = next(i for i, e in enumerate(history) if e.type == EventType.CAP_CONSUMED
-               and e.body["cap"] == "infra")
-    terminal = next(i for i, e in enumerate(history) if e.type == EventType.STATE_TRANSITION
-                    and e.body.get("to") == "infra_error")
+    lift = next(i for i, e in enumerate(history) if e.type == EventType.EFFECT_COMPLETION and e.key == f"ticket-plane/{STEM}/0/harvest")
+    cap = next(i for i, e in enumerate(history) if e.type == EventType.CAP_CONSUMED and e.body["cap"] == "infra")
+    terminal = next(i for i, e in enumerate(history) if e.type == EventType.STATE_TRANSITION and e.body.get("to") == "infra_error")
     assert lift < cap < terminal
     assert not (repo / ".chupa" / "state" / "worktrees" / STEM).exists()
 
@@ -104,9 +100,7 @@ def test_harvest_failure_is_soft(repo, monkeypatch):
     code, _ = run(repo, [RuntimeError("provider failed"), diagnosis_reply()])
     assert code == 1
     history = events(repo)
-    assert [e.body for e in history if e.type == EventType.SIGNAL
-            and e.body.get("signal") == "harvest_failed"] == [
-                {"signal": "harvest_failed", "error": "RuntimeError: cannot harvest"}]
+    assert [e.body for e in history if e.type == EventType.SIGNAL and e.body.get("signal") == "harvest_failed"] == [{"signal": "harvest_failed", "error": "RuntimeError: cannot harvest"}]
     assert any(e.type == EventType.STATE_TRANSITION and e.body.get("to") == "infra_error" for e in history)
     assert not (repo / ".chupa" / "state" / "worktrees" / STEM).exists()
 
@@ -115,8 +109,7 @@ def test_missing_worktree_skips_harvest(repo, monkeypatch):
     author(repo)
 
     async def no_workspace(ctx, ticket):
-        return StagesRun(attempt=0, results={"implement": StageResult(
-            outcome="premise_failed", artifact=None, findings=[], cost=Cost())})
+        return StagesRun(attempt=0, results={"implement": StageResult(outcome="premise_failed", artifact=None, findings=[], cost=Cost())})
 
     monkeypatch.setattr(runner, "run_stages", no_workspace)
     code, _ = run(repo, [])
@@ -136,8 +129,7 @@ def test_drain_reentry_quotes_prior_harvest_and_summarizes_older(repo):
     author(repo)
     first = "first dead end"
     second = "second dead end"
-    code, llm = run(repo, [RuntimeError(first), diagnosis_reply(), RuntimeError(second), diagnosis_reply(),
-                           agent({"chupa/thing.py": "ok\n"}), verdict()], verb="drain")
+    code, llm = run(repo, [RuntimeError(first), diagnosis_reply(), RuntimeError(second), diagnosis_reply(), agent({"chupa/thing.py": "ok\n"}), verdict()], verb="drain")
     assert code == 0
     renders = [criteria(r.rendered) for r in llm.requests if r.surface == "implement"]
     assert len(renders) == 3

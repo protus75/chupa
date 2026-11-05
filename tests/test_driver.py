@@ -172,10 +172,7 @@ def test_hung_call_is_aborted_at_stuck_budget_and_prompt_survives(tmp_path):
 
     async def bounded():
         async with asyncio.timeout(5):  # wall-clock guard: a driver that skips abort_current deadlocks here
-            return await driver.run(
-                ECHO, Stub(text="hi"), ticket="t-echo", attempt=1, workspace=Path("."),
-                tier="medium", effort="low", stuck_budget=90.0,
-                expected_budget=300.0, scope_fence=())
+            return await driver.run(ECHO, Stub(text="hi"), ticket="t-echo", attempt=1, workspace=Path("."), tier="medium", effort="low", stuck_budget=90.0, expected_budget=300.0, scope_fence=())
 
     result = asyncio.run(bounded())
     assert result.outcome == "timeout"
@@ -245,8 +242,7 @@ def test_failing_review_reprompts_with_its_findings(tmp_path):
     finding = Finding(code="review", message="needs revision", paved_road="revise it")
 
     async def review(artifact, call_seq):
-        return GateReport(code="review", verdict="fail" if call_seq == 1 else "pass",
-                          findings=[finding] if call_seq == 1 else [])
+        return GateReport(code="review", verdict="fail" if call_seq == 1 else "pass", findings=[finding] if call_seq == 1 else [])
 
     stage = LlmStage(surface="implement", emits=Echo, gates=[], render=render, review=review)
     driver, _ = build(tmp_path, FakeLLM([echo_json("hi"), echo_json("hi")]))
@@ -268,8 +264,7 @@ def test_terminal_review_finding_returns_all_hard_findings_after_one_call(tmp_pa
     async def review(artifact, call_seq):
         return GateReport(code="review", verdict="fail", findings=[terminal])
 
-    stage = LlmStage(surface="implement", emits=Echo, gates=[SyncGate()], render=render,
-                     review=review, terminal_findings=frozenset({"stop"}))
+    stage = LlmStage(surface="implement", emits=Echo, gates=[SyncGate()], render=render, review=review, terminal_findings=frozenset({"stop"}))
     llm = FakeLLM([echo_json("hi")])
     driver, _ = build(tmp_path, llm)
     result = run(driver, stage)
@@ -282,9 +277,7 @@ def test_stage_without_hooks_keeps_its_request_shape(tmp_path):
     llm = FakeLLM([echo_json("hi")])
     driver, _ = build(tmp_path, llm)
     assert run(driver).outcome == "ok"
-    assert [(request.surface, request.ticket, request.worktree) for request in llm.requests] == [
-        ("implement", "t-echo", Path("."))
-    ]
+    assert [(request.surface, request.ticket, request.worktree) for request in llm.requests] == [("implement", "t-echo", Path("."))]
 
 
 def test_reprompts_are_bounded_by_the_retry_cap(tmp_path):
@@ -405,6 +398,7 @@ def test_engine_log_rotates_by_size(tmp_path):
 def test_exit_read_window_materialization(tmp_path, monkeypatch, history):
     from dataclasses import asdict
     from types import SimpleNamespace
+
     from chupa.journal import EventType
     from chupa.seams import LocalFileSystem
     from chupa.stages import resolve_exit_window
@@ -428,21 +422,23 @@ def test_exit_read_window_materialization(tmp_path, monkeypatch, history):
         driver.clock.now += timedelta(seconds=1)
         j.append(EventType.SIGNAL, body, ticket=None)
     snapshot = j.read()
-    boundary = max((i for i, e in enumerate(snapshot)
-                    if e.type == EventType.EFFECT_COMPLETION and (e.key or "").startswith("retro/")), default=-1)
-    suffix = snapshot[boundary + 1:]
-    canonical = {f"{kind}: current retro window": [asdict(e) for e in suffix if e.type == kind]
-                 for kind in ("signal", "state_transition", "effect_completion")}
+    boundary = max((i for i, e in enumerate(snapshot) if e.type == EventType.EFFECT_COMPLETION and (e.key or "").startswith("retro/")), default=-1)
+    suffix = snapshot[boundary + 1 :]
+    canonical = {f"{kind}: current retro window": [asdict(e) for e in suffix if e.type == kind] for kind in ("signal", "state_transition", "effect_completion")}
     declarations = "-   signal  :   current retro window  \n- state_transition: current retro window\n- effect_completion: current retro window\n"
+
     def ticket(stem, declaration=declarations):
         return SimpleNamespace(stem=stem, sections={"Exit-read window": declaration})
+
     consumed = resolve_exit_window(ticket("phase5-exit"), snapshot)
     assert consumed == resolve_exit_window(ticket("phase6-exit"), snapshot)
     writes = []
     fs = LocalFileSystem()
+
     def write(path, data):
         writes.append((path, data))
         fs.write(path, data)
+
     monkeypatch.setattr(driver.spool._fs, "write", write)
     # Later events cannot change any declaration in the already resolved snapshot.
     j.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="appended-later")
@@ -451,8 +447,7 @@ def test_exit_read_window_materialization(tmp_path, monkeypatch, history):
     path = driver.materialize_exit_window(consumed, workspace)
     assert len(writes) == 1 and writes[0][0] == path
     assert json.loads(path.read_text()) == canonical
-    assert all(set(event) == {"v", "type", "ts", "ticket", "key", "body"}
-               for events in canonical.values() for event in events)
+    assert all(set(event) == {"v", "type", "ts", "ticket", "key", "body"} for events in canonical.values() for event in events)
     if history not in {"empty", "no-match"}:
         signals = canonical["signal: current retro window"]
         assert signals[0] == signals[2] and signals[0]["ticket"] is None

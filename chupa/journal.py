@@ -33,16 +33,45 @@ class EventType(StrEnum):
 
 Dispatch = Literal["retry", "escalate", "reject_queue", "spec_gap_hold"]
 
-SIGNAL_NAMES: frozenset[str] = frozenset({
-    "author_invoked", "checkpoint_push_failed", "control_decision", "dead_dependency",
-    "diagnose_eval_start", "diagnosis", "draft_confirmed", "drain_halted", "drain_handoff",
-    "flake_detected", "flake_released", "hardening_round", "harvest_failed", "kill_applied",
-    "merge_conflict_facts", "merge_red_streak", "merge_tree_mismatch", "provider_call_outcome",
-    "provider_cap_wait", "recovery_alert", "reject_arrival", "reject_verdict", "requisition_verdict", "review_baseline",
-    "retro_failed", "retro_ticket_authored", "retro_prompt_spec_change_merged", "tombstone_auto_reopened",
-    "rework_order", "storm_breaker_trip", "storm_occurrence", "supersedes", "ticket_intake",
-    "triage_pass", "watcher_parse_failure",
-})
+SIGNAL_NAMES: frozenset[str] = frozenset(
+    {
+        "author_invoked",
+        "checkpoint_push_failed",
+        "control_decision",
+        "dead_dependency",
+        "diagnose_eval_start",
+        "diagnosis",
+        "draft_confirmed",
+        "drain_halted",
+        "drain_handoff",
+        "flake_detected",
+        "flake_released",
+        "hardening_round",
+        "harvest_failed",
+        "kill_applied",
+        "merge_conflict_facts",
+        "merge_red_streak",
+        "merge_tree_mismatch",
+        "provider_call_outcome",
+        "provider_cap_wait",
+        "recovery_alert",
+        "reject_arrival",
+        "reject_verdict",
+        "requisition_verdict",
+        "review_baseline",
+        "retro_failed",
+        "retro_ticket_authored",
+        "retro_prompt_spec_change_merged",
+        "tombstone_auto_reopened",
+        "rework_order",
+        "storm_breaker_trip",
+        "storm_occurrence",
+        "supersedes",
+        "ticket_intake",
+        "triage_pass",
+        "watcher_parse_failure",
+    }
+)
 
 
 def dispatch_of(body: Mapping[str, Any]) -> Dispatch | None:
@@ -79,11 +108,11 @@ def run_terminals(events: Iterable[Any], stem: str) -> list[Any]:
     for event in events:
         if event.type != EventType.STATE_TRANSITION or event.ticket != stem:
             continue
-        state = event.body.get('to')
-        if state == 'running':
+        state = event.body.get("to")
+        if state == "running":
             running = True
         elif state in TERMINAL_STATES:
-            if running or 'provider_drought' not in event.body:
+            if running or "provider_drought" not in event.body:
                 terminals.append(event)
             running = False
     return terminals
@@ -122,9 +151,7 @@ class Journal:
         """End this handle's writes: the drain's self-upgrade handoff closes it before its child takes the lock."""
         self._closed = True
 
-    def append(
-        self, type: str, body: dict[str, Any], *, ticket: str | None = None, key: str | None = None
-    ) -> Event:
+    def append(self, type: str, body: dict[str, Any], *, ticket: str | None = None, key: str | None = None) -> Event:
         """Write one event and fsync it before returning (write-ahead)."""
         if self._closed:
             raise RuntimeError(f"{self.dir} handle is closed: a handed-off drain never writes after its spawn")
@@ -139,8 +166,7 @@ class Journal:
         if type == EventType.SIGNAL:
             names = [body[field] for field in ("signal", "kind") if field in body]
             if len(names) != 1 or not isinstance(names[0], str) or names[0] not in SIGNAL_NAMES:
-                raise ValueError("signal body must carry exactly one of signal or kind naming a member "
-                                 "of SIGNAL_NAMES; use a listed name or add the name with its consumer")
+                raise ValueError("signal body must carry exactly one of signal or kind naming a member of SIGNAL_NAMES; use a listed name or add the name with its consumer")
         event = Event(EVENT_VERSIONS[type], type, render_ts(self._clock()), ticket, key, body)
         data = (json.dumps(asdict(event), separators=(",", ":")) + "\n").encode()
 
@@ -150,9 +176,7 @@ class Journal:
             _truncate_torn_tail(segment)
             self._tail_repaired = True
         records = _parse_segment(segment, active=True)
-        if segment.stat().st_size >= ROLL_BYTES or (
-            records and now - datetime.fromisoformat(records[0].ts) >= ROLL_AGE
-        ):
+        if segment.stat().st_size >= ROLL_BYTES or (records and now - datetime.fromisoformat(records[0].ts) >= ROLL_AGE):
             segment = self._create_segment(int(segment.name[:6]) + 1, now)
         fd = os.open(segment, os.O_WRONLY | os.O_APPEND)
         try:
@@ -182,16 +206,10 @@ class Journal:
         for path in paths:
             match = _SEGMENT_NAME.match(path.name)
             if match is None:
-                raise JournalCorruption(
-                    f"{path}: not a journal segment name (expected NNNNNN-YYYYMMDD.jsonl); "
-                    "move it out of the journal directory"
-                )
+                raise JournalCorruption(f"{path}: not a journal segment name (expected NNNNNN-YYYYMMDD.jsonl); move it out of the journal directory")
             seq = match.group(1)
             if seq in seen:
-                raise JournalCorruption(
-                    f"segments {seen[seq]} and {path.name} share sequence {seq}; "
-                    "segment order is ambiguous -- restore the journal directory from backup"
-                )
+                raise JournalCorruption(f"segments {seen[seq]} and {path.name} share sequence {seq}; segment order is ambiguous -- restore the journal directory from backup")
             seen[seq] = path.name
         return paths
 
@@ -224,10 +242,7 @@ def _parse_segment(path: Path, *, active: bool) -> tuple[Event, ...]:
     # split leaves b"" after a terminating newline; anything else is an unterminated tail.
     tail = lines.pop()
     if tail and not active:
-        raise JournalCorruption(
-            f"{path}: torn final line in a rolled segment (line {len(lines) + 1}); "
-            "rolled segments are immutable -- restore it from backup"
-        )
+        raise JournalCorruption(f"{path}: torn final line in a rolled segment (line {len(lines) + 1}); rolled segments are immutable -- restore it from backup")
     return tuple(_parse_line(path, n, raw) for n, raw in enumerate(lines, start=1))
 
 
@@ -245,10 +260,7 @@ def _parse_line(path: Path, lineno: int, raw: bytes) -> Event:
     if not isinstance(v, int) or isinstance(v, bool) or v < 1:
         raise JournalCorruption(f"{where}: event version must be a positive integer, got {v!r}")
     if v > EVENT_VERSIONS[type_]:
-        raise JournalCorruption(
-            f"{where}: {type_} v{v} is newer than this engine reads (v{EVENT_VERSIONS[type_]}); "
-            "upgrade the engine"
-        )
+        raise JournalCorruption(f"{where}: {type_} v{v} is newer than this engine reads (v{EVENT_VERSIONS[type_]}); upgrade the engine")
     if not isinstance(ts, str) or not _is_pinned_ts(ts):
         raise JournalCorruption(f"{where}: ts {ts!r} is not the pinned aware-UTC isoformat rendering")
     for name, value in (("ticket", ticket), ("key", key)):

@@ -14,19 +14,18 @@ from chupa.seams import LocalFileSystem
 from tests.test_cli import root
 from tests.test_effects import Crash, FakeClock
 
-
 ACCEPTED = "matching lifecycle and hold identities"
 STALE = "read the current lifecycle and submit a new request"
-SHAPE = ('submit a new request with exactly {request_id: nonempty ASCII letters/digits/_/-, '
-         'lifecycle_id: nonempty string, verb: pause | resume | kill, hold_id: string | null}; '
-         'match request_id to the filename; pause/kill require null hold_id; '
-         'for resume read the current hold and submit its exact nonempty identity')
+SHAPE = (
+    "submit a new request with exactly {request_id: nonempty ASCII letters/digits/_/-, "
+    "lifecycle_id: nonempty string, verb: pause | resume | kill, hold_id: string | null}; "
+    "match request_id to the filename; pause/kill require null hold_id; "
+    "for resume read the current hold and submit its exact nonempty identity"
+)
 
 
-def decision(id, *, life="life-1", verb="kill", hold=None,
-             result="accepted", reason=ACCEPTED):
-    return {"kind": control.CONTROL_DECISION, "request_id": id, "lifecycle_id": life,
-            "verb": verb, "hold_id": hold, "decision": result, "reason": reason}
+def decision(id, *, life="life-1", verb="kill", hold=None, result="accepted", reason=ACCEPTED):
+    return {"kind": control.CONTROL_DECISION, "request_id": id, "lifecycle_id": life, "verb": verb, "hold_id": hold, "decision": result, "reason": reason}
 
 
 class Rig:
@@ -39,8 +38,7 @@ class Rig:
         self.inbox = self.reconstruct()
 
     def apply(self, projection):
-        assert any(e.body.get("decision") == "accepted" and
-                   e.body.get("lifecycle_id") == self.life for e in self.journal.read())
+        assert any(e.body.get("decision") == "accepted" and e.body.get("lifecycle_id") == self.life for e in self.journal.read())
         self.applications.append(projection)
         if projection != self.projection:
             self.changes.append(projection)
@@ -49,10 +47,13 @@ class Rig:
 
     def reconstruct(self, apply=None):
         return daemon.control_inbox(
-            journal=self.journal, lifecycle_id=self.life, holds=lambda: self.holds,
+            journal=self.journal,
+            lifecycle_id=self.life,
+            holds=lambda: self.holds,
             apply=apply or self.apply,
             files=lambda: reversed(list((self.state / "control/inbox").glob("*"))),
-            read=Path.read_bytes)
+            read=Path.read_bytes,
+        )
 
     def publish(self, id, verb="kill", hold=None, life=None):
         publish_request(self.state, ControlRequest(id, life or self.life, verb, hold), self.fs)
@@ -88,8 +89,10 @@ def test_kill_decision_precedes_projection(tmp_path, monkeypatch):
 
     rig.inbox.apply = apply
     append = rig.journal.append
+
     def failed(*args, **kwargs):
         raise OSError("append refused")
+
     monkeypatch.setattr(rig.journal, "append", failed)
     with pytest.raises(OSError, match="append refused"):
         rig.inbox.consume()
@@ -106,15 +109,11 @@ def malformed_kills():
     values = [None, [], "private-payload", True, 1, {}, {**good, "extra": "private-payload"}]
     values += [{k: v for k, v in good.items() if k != missing} for missing in good]
     for key in good:
-        values += [{**good, key: value} for value in (None, True, 1, [], {})
-                   if key != "hold_id" or value is not None]
-    values += [{**good, "request_id": value} for value in
-               ("", "other", "../escape", "a/b", "a\\b", "é", "a.b", "a b", "a\n")]
+        values += [{**good, key: value} for value in (None, True, 1, [], {}) if key != "hold_id" or value is not None]
+    values += [{**good, "request_id": value} for value in ("", "other", "../escape", "a/b", "a\\b", "é", "a.b", "a b", "a\n")]
     values += [{**good, "lifecycle_id": ""}, {**good, "hold_id": "hold"}]
     values += [{**good, "verb": value} for value in ("", "KILL", "stop")]
-    return [json.dumps(value).encode() for value in values] + [
-        b"{", b"\xff", b'{"request_id":"request","request_id":"request",'
-        b'"lifecycle_id":"life-1","verb":"kill","hold_id":null}']
+    return [json.dumps(value).encode() for value in values] + [b"{", b"\xff", b'{"request_id":"request","request_id":"request","lifecycle_id":"life-1","verb":"kill","hold_id":null}']
 
 
 @pytest.mark.parametrize("raw", malformed_kills())
@@ -126,9 +125,7 @@ def test_kill_identity_and_shape_fail_closed(tmp_path, raw):
     for name in ("é.json", ".request.json", ".control-private.tmp", "unsafe.name.json", "safe.txt"):
         rig.fs.publish(path.with_name(name), b"private-payload")
     rig.inbox.consume()
-    assert rig.decisions() == [decision("00-stale", life="old-life", result="stale", reason=STALE),
-                               decision("request", life=None, verb=None,
-                                        result="rejected", reason=SHAPE)]
+    assert rig.decisions() == [decision("00-stale", life="old-life", result="stale", reason=STALE), decision("request", life=None, verb=None, result="rejected", reason=SHAPE)]
     assert rig.projection == ControlProjection(rig.life) and rig.applications == []
     rig.publish("zz-current")
     rig.inbox.consume()
@@ -159,6 +156,7 @@ def test_kill_decision_crash_recovery(tmp_path, monkeypatch, point, failure):
     rig = Rig(tmp_path)
     path = rig.publish("kill")
     append = rig.journal.append
+
     def interrupted(*args, **kwargs):
         if point == "before-append":
             raise failure()
@@ -166,12 +164,14 @@ def test_kill_decision_crash_recovery(tmp_path, monkeypatch, point, failure):
         if point == "after-append":
             raise failure()
         return event
+
     def apply(projection):
         if point == "before-apply":
             raise failure()
         rig.apply(projection)
         if point == "after-apply":
             raise failure()
+
     monkeypatch.setattr(rig.journal, "append", interrupted)
     rig.inbox.apply = apply
     with pytest.raises(failure):
@@ -193,29 +193,24 @@ def test_kill_decision_crash_recovery(tmp_path, monkeypatch, point, failure):
     assert new.applications == []
     new.publish("old-kill", life=rig.life)
     new.inbox.consume()
-    assert new.decisions() == [decision("kill"),
-                               decision("old-kill", result="stale", reason=STALE)]
+    assert new.decisions() == [decision("kill"), decision("old-kill", result="stale", reason=STALE)]
     assert new.projection == ControlProjection("new-life") and new.applications == []
 
 
 def test_kill_projection_stays_latched(tmp_path):
     rig = Rig(tmp_path)
     rig.holds = {"admission", "storm"}
-    for id, verb, hold in (("50-pause", "pause", None), ("40-release", "resume", "30-pause"),
-                           ("30-pause", "pause", None), ("20-storm", "resume", "storm"),
-                           ("10-kill", "kill", None)):
+    for id, verb, hold in (("50-pause", "pause", None), ("40-release", "resume", "30-pause"), ("30-pause", "pause", None), ("20-storm", "resume", "storm"), ("10-kill", "kill", None)):
         rig.publish(id, verb, hold)
     rig.inbox.consume()
-    assert [d["request_id"] for d in rig.decisions()] == [
-        "10-kill", "20-storm", "30-pause", "40-release", "50-pause"]
+    assert [d["request_id"] for d in rig.decisions()] == ["10-kill", "20-storm", "30-pause", "40-release", "50-pause"]
     assert all(d["decision"] == "accepted" for d in rig.decisions())
     assert all(p.kill_requested for p in rig.applications)
     assert [p.pause_id for p in rig.applications] == [None, None, "30-pause", None, "50-pause"]
     assert rig.holds == {"admission"}
     rig.publish("60-resume", "resume", "50-pause")
     rig.inbox.consume()
-    assert rig.projection == ControlProjection(rig.life, None,
-                                               frozenset({"storm", "30-pause", "50-pause"}), True)
+    assert rig.projection == ControlProjection(rig.life, None, frozenset({"storm", "30-pause", "50-pause"}), True)
     rig.publish("70-admission", "resume", "admission")
     rig.inbox.consume()
     assert rig.holds == set() and rig.projection.kill_requested
@@ -228,6 +223,7 @@ def test_kill_projection_stays_latched(tmp_path):
 
 def test_kill_signal_journal_is_active_in_drain(root, tmp_path, monkeypatch):
     from tests.test_kill_cli_activation import applications, exercise_live_cli_kill
+
     checkout, writer = exercise_live_cli_kill(root, monkeypatch)
     assert writer.ctx.driver.journal is checkout.control.inbox.journal is checkout.journal
     [application] = applications(checkout.journal)

@@ -21,10 +21,7 @@ class LockHeld(Exception):
 
     def __init__(self, path: Path, holder: dict[str, Any] | None) -> None:
         who = json.dumps(holder) if holder else "unknown holder (identity not yet written)"
-        super().__init__(
-            f"{path} is held by {who}; wait for that process to exit or stop it -- the kernel frees"
-            " the lock when it dies, so never delete the lockfile"
-        )
+        super().__init__(f"{path} is held by {who}; wait for that process to exit or stop it -- the kernel frees the lock when it dies, so never delete the lockfile")
         self.path = path
         self.holder = holder
 

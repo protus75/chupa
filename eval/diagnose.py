@@ -3,7 +3,6 @@
 import argparse
 import asyncio
 import hashlib
-import json
 import os
 import sys
 from collections import Counter
@@ -19,14 +18,13 @@ from chupa.config import Config, load_config
 from chupa.driver import Driver
 from chupa.git import Git
 from chupa.journal import EventType, Journal
-from chupa.lockfile import Lockfile
 from chupa.llm import AgentEffort, AgentTier
-from chupa.providers import ProviderLLM, resolve
+from chupa.lockfile import Lockfile
+from chupa.providers import ProviderLLM, ProviderSession, resolve
+from chupa.runner import call_timeout
 from chupa.seams import Clock, LocalFileSystem, SubprocessExec
 from chupa.specs import load_spec
 from chupa.stages import DiagnosisMaterial, diagnose_stage
-from chupa.providers import ProviderSession
-from chupa.runner import call_timeout
 from chupa.timers import Timers
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -37,8 +35,7 @@ RUN_USD_CAP = 5.00
 RUN_DEADLINE_S = 2400.0
 CALL_STUCK_S = 600.0
 SIGNAL = "diagnose_eval_start"
-Outcome = Literal["agree", "disagree", "invalid_artifact", "timeout", "infra_error",
-                  "skipped_cost_cap", "skipped_deadline"]
+Outcome = Literal["agree", "disagree", "invalid_artifact", "timeout", "infra_error", "skipped_cost_cap", "skipped_deadline"]
 
 
 class _Closed(BaseModel):
@@ -127,26 +124,34 @@ def _agreement(rows: Sequence[CaseResult]) -> Agreement:
 
 
 def _report(rows: list[CaseResult], spec, sha: str) -> Report:
-    return Report(schema_version=1, complete=all(r.outcome != "skipped_deadline" for r in rows),
-                  spec_version=spec.meta.version, tier=spec.meta.tier, effort=spec.meta.effort,
-                  usd_cap=RUN_USD_CAP, usd_spent=sum(r.usd for r in rows), fixtures_sha=sha,
-                  cases=rows, agreement=_agreement(rows))
+    return Report(
+        schema_version=1,
+        complete=all(r.outcome != "skipped_deadline" for r in rows),
+        spec_version=spec.meta.version,
+        tier=spec.meta.tier,
+        effort=spec.meta.effort,
+        usd_cap=RUN_USD_CAP,
+        usd_spent=sum(r.usd for r in rows),
+        fixtures_sha=sha,
+        cases=rows,
+        agreement=_agreement(rows),
+    )
 
 
 def _write(path: Path, report: Report) -> None:
     LocalFileSystem().write(path, (report.model_dump_json(indent=2) + "\n").encode())
 
 
-async def run_eval(*, config: Config, driver: Driver, journal: Journal, cases: Sequence[Case],
-                   clock: Clock, specs_dir: Path = SPECS, report_path: Path = REPORT,
-                   progress: Callable[[str], None] = lambda _: None) -> Report:
+async def run_eval(
+    *, config: Config, driver: Driver, journal: Journal, cases: Sequence[Case], clock: Clock, specs_dir: Path = SPECS, report_path: Path = REPORT, progress: Callable[[str], None] = lambda _: None
+) -> Report:
     spec = load_spec((specs_dir / "diagnose.md").read_text())
     sha = fixtures_sha(cases[0]._path.parent if cases and cases[0]._path else FIXTURES)
     prior = None
     if report_path.exists():
         try:
             prior = Report.model_validate_json(report_path.read_text())
-        except (OSError, ValidationError):
+        except OSError, ValidationError:
             raise CaseError(f"{report_path}: invalid report; delete eval/diagnose_report.json to start over") from None
         if prior.fixtures_sha != sha or prior.spec_version != spec.meta.version:
             raise CaseError(f"{report_path}: corpus or spec changed; delete eval/diagnose_report.json to start over")
@@ -169,22 +174,27 @@ async def run_eval(*, config: Config, driver: Driver, journal: Journal, cases: S
         else:
             outcome = None
         if outcome is not None:
-            row = CaseResult(name=case.name, expected=case.expected, got=None, outcome=outcome,
-                             usd=0.0, seconds=0.0, provider=None, model=None)
+            row = CaseResult(name=case.name, expected=case.expected, got=None, outcome=outcome, usd=0.0, seconds=0.0, provider=None, model=None)
         else:
-            material = DiagnosisMaterial(ticket=case.ticket, terminal=case.harvest.terminal,
-                                         stage=case.harvest.stage, harvest=case.harvest,
-                                         run_record=case.run_record)
-            result = await driver.run(diagnose_stage(spec, material), material,
-                                      ticket=f"diagnose-eval-{case.name}", attempt=attempt, workspace=ROOT,
-                                      tier=spec.meta.tier, effort=spec.meta.effort,
-                                      stuck_budget=min(CALL_STUCK_S, left), expected_budget='eval', scope_fence=())
+            material = DiagnosisMaterial(ticket=case.ticket, terminal=case.harvest.terminal, stage=case.harvest.stage, harvest=case.harvest, run_record=case.run_record)
+            result = await driver.run(
+                diagnose_stage(spec, material),
+                material,
+                ticket=f"diagnose-eval-{case.name}",
+                attempt=attempt,
+                workspace=ROOT,
+                tier=spec.meta.tier,
+                effort=spec.meta.effort,
+                stuck_budget=min(CALL_STUCK_S, left),
+                expected_budget="eval",
+                scope_fence=(),
+            )
             reply = result.artifact
             got = reply.verdict if result.outcome == "ok" and isinstance(reply, DiagnosisReply) else None
             result_outcome = ("agree" if got == case.expected else "disagree") if got else result.outcome
-            row = CaseResult(name=case.name, expected=case.expected, got=got, outcome=result_outcome,
-                             usd=result.cost.usd, seconds=result.cost.seconds,
-                             provider=result.cost.provider, model=result.cost.model)
+            row = CaseResult(
+                name=case.name, expected=case.expected, got=got, outcome=result_outcome, usd=result.cost.usd, seconds=result.cost.seconds, provider=result.cost.provider, model=result.cost.model
+            )
             largest = max(largest, row.usd)
         rows[case.name] = row
         current = _report([rows[c.name] for c in cases if c.name in rows], spec, sha)
@@ -233,13 +243,11 @@ async def _run(config: Config) -> Report:
         timers.reconstruct()
         timers.fire_due()
         session = ProviderSession(config, journal=journal, clock=_clock, sleep=asyncio.sleep, timers=timers)
-        llm = ProviderLLM(config, exec_=exec_, fs=LocalFileSystem(), env=env, cwd=ROOT, timeout=call_timeout(config),
-                          session=session)
+        llm = ProviderLLM(config, exec_=exec_, fs=LocalFileSystem(), env=env, cwd=ROOT, timeout=call_timeout(config), session=session)
         if problems := await llm.preflight():
-            raise CaseError('; '.join(problems))
+            raise CaseError("; ".join(problems))
         driver = Driver.from_config(config, llm=llm, env=env, clock=_clock, sleep=asyncio.sleep)
-        return await run_eval(config=config, driver=driver, journal=driver.journal,
-                              cases=load_cases(), clock=_clock, progress=print)
+        return await run_eval(config=config, driver=driver, journal=driver.journal, cases=load_cases(), clock=_clock, progress=print)
     finally:
         try:
             if session is not None:

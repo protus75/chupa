@@ -5,14 +5,14 @@ No test supplies, refreshes or commits the receipt consumed by the exit read.
 """
 
 import asyncio
-from copy import deepcopy
-from datetime import datetime
-from functools import lru_cache
 import json
 import math
 import os
-from pathlib import Path
 import re
+from copy import deepcopy
+from datetime import datetime
+from functools import lru_cache
+from pathlib import Path
 
 import pytest
 import yaml
@@ -27,8 +27,7 @@ from chupa.tickets import _bullets, _sections, split_frontmatter, ticket_path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXIT_HEAD = "8447c72d45c5c14c7bddc1b24778ff8e68f72808"
-PAYLOADS = ("retro-drain-invoker", "retro-box-activation", "scorecard-reporting",
-            "status-projection", "baseline-binding-reader", "retro-doctor-cli")
+PAYLOADS = ("retro-drain-invoker", "retro-box-activation", "scorecard-reporting", "status-projection", "baseline-binding-reader", "retro-doctor-cli")
 
 
 @lru_cache
@@ -43,8 +42,7 @@ def _committed(path, head=EXIT_HEAD):
 def _dependencies(stem):
     text = _committed(ticket_path(stem))
     frontmatter, _ = split_frontmatter(text)
-    assert yaml.safe_load(frontmatter)["state"] != "rejected", (
-        f"premise_failed: {stem} needs a merged same-goal successor and rewired dependencies")
+    assert yaml.safe_load(frontmatter)["state"] != "rejected", f"premise_failed: {stem} needs a merged same-goal successor and rewired dependencies"
     sections, errors = _sections(text, ticket_path(stem))
     assert not errors
     if sections["Depends on"].strip() in {"none", "- none"}:
@@ -55,8 +53,7 @@ def _dependencies(stem):
 
 
 def test_phase5_exit_dependency_coverage():
-    registry = yaml.safe_load(re.search(r"^# BEGIN_REGISTRY_P5\n(.*?)^# END_REGISTRY_P5$",
-        _committed("CHUPA_PLAN.md"), re.M | re.S)[1])
+    registry = yaml.safe_load(re.search(r"^# BEGIN_REGISTRY_P5\n(.*?)^# END_REGISTRY_P5$", _committed("CHUPA_PLAN.md"), re.M | re.S)[1])
     assert tuple(s for a in registry["admissions"][:-1] for s in a) == PAYLOADS
     assert _dependencies("phase5-exit") == ("phase5-continue-05",)
     reached, pending = set(), ["phase5-continue-05"]
@@ -77,8 +74,7 @@ def test_phase5_exit_dependency_coverage():
 def _receipt():
     paths = _git("ls-tree", "-r", "--name-only", EXIT_HEAD, "--", "tickets/retro").splitlines()
     receipts = [p for p in paths if re.fullmatch(r"tickets/retro/[0-9]{6}\.md", p)]
-    assert receipts, ("premise_failed: tickets/retro/<seq>.md absent; machinery retro-drain-invoker + "
-                      "scorecard-reporting, producer forced pre-exit retro")
+    assert receipts, "premise_failed: tickets/retro/<seq>.md absent; machinery retro-drain-invoker + scorecard-reporting, producer forced pre-exit retro"
     path = max(receipts)
     text = _committed(path)
     assert text.startswith("# Retro receipt\n\n```json\n")
@@ -109,9 +105,7 @@ def _ancestor(older, newer):
 def _table(text):
     block = text.split("## Surface scorecard\n", 1)[1]
     lines = [line for line in block.splitlines() if line.startswith("|")]
-    assert lines[:2] == [
-        "| Surface | Evaluated tickets | Catches | Escapes | Bypass count | Catch rate | Escape rate | Prune candidate |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |"]
+    assert lines[:2] == ["| Surface | Evaluated tickets | Catches | Escapes | Bypass count | Catch rate | Escape rate | Prune candidate |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |"]
     rows = {}
     for line in lines[2:]:
         columns = [v.strip() for v in line.strip("|").split("|")]
@@ -129,8 +123,7 @@ def _table(text):
 
 
 def _validate_receipt(path, text, record):
-    assert set(record) == {"window_boundary", "window_start", "window_final_event", "provenance",
-        "measurements", "calibration_divergence", "tombstone_digest", "tombstone_reopens", "proposals"}
+    assert set(record) == {"window_boundary", "window_start", "window_final_event", "provenance", "measurements", "calibration_divergence", "tombstone_digest", "tombstone_reopens", "proposals"}
     boundary = record["window_boundary"]
     assert boundary == "initial" or re.fullmatch(r"retro/[1-9][0-9]*", boundary)
     sequence = int(Path(path).stem)
@@ -148,8 +141,7 @@ def _validate_receipt(path, text, record):
     _ancestor(head, EXIT_HEAD)
     # The final seeder merge precedes the forced dispatch hook as well as the last payload.
     for stem in ("retro-doctor-cli", "phase5-continue-05"):
-        feature = _git("log", EXIT_HEAD, "--format=%H", "--fixed-strings",
-            f"--grep=chupa-ticket: {stem}").splitlines()
+        feature = _git("log", EXIT_HEAD, "--format=%H", "--fixed-strings", f"--grep=chupa-ticket: {stem}").splitlines()
         assert len(feature) == 1
         _ancestor(feature[0], head)
     producer = _git("log", EXIT_HEAD, "-1", "--format=%H", "--", path).strip()
@@ -161,8 +153,7 @@ def _validate_receipt(path, text, record):
     assert isinstance(record["tombstone_digest"], list) and isinstance(record["tombstone_reopens"], list)
 
     measured = record["measurements"]
-    assert set(measured) == {"merges", "merged_count", "usd", "input_tokens", "output_tokens",
-                              "spikes", "elapsed_seconds", "check_observations"}
+    assert set(measured) == {"merges", "merged_count", "usd", "input_tokens", "output_tokens", "spikes", "elapsed_seconds", "check_observations"}
     _number(measured["usd"])
     for direction in ("input", "output"):
         tokens = measured[f"{direction}_tokens"]
@@ -194,15 +185,12 @@ def _validate_receipt(path, text, record):
     for row, reference in zip(measured["elapsed_seconds"], references, strict=True):
         assert set(row) == {"ticket", "commit", "actual_seconds", "predicted_seconds", "divergence_seconds"}
         assert (row["ticket"], row["commit"]) == reference
-        expected = (re.search(r"^- expected: (\d+)m$",
-                    _committed(ticket_path(row["ticket"]), row["commit"]), re.M)
-                    if row["commit"] is not None else None)
+        expected = re.search(r"^- expected: (\d+)m$", _committed(ticket_path(row["ticket"]), row["commit"]), re.M) if row["commit"] is not None else None
         assert row["predicted_seconds"] == (int(expected[1]) * 60 if expected else None)
         for key in ("actual_seconds", "predicted_seconds", "divergence_seconds"):
             if row[key] is not None:
                 _number(row[key], nonnegative=key != "divergence_seconds")
-        difference = (row["actual_seconds"] - row["predicted_seconds"]
-                      if row["actual_seconds"] is not None and row["predicted_seconds"] is not None else None)
+        difference = row["actual_seconds"] - row["predicted_seconds"] if row["actual_seconds"] is not None and row["predicted_seconds"] is not None else None
         assert row["divergence_seconds"] == difference
 
     # Runtime operands come from the receipt. Match whole observation batches to actual
@@ -219,8 +207,8 @@ def _validate_receipt(path, text, record):
             invoice = Invoice.model_validate_json(_committed(f"tickets/{stem}/checks.json", commit))
             assert invoice.stem == stem
             batch = [[stem, r.code, r.verdict, r.code in invoice.bypassed] for r in invoice.reports]
-            if batch and remaining[:len(batch)] == batch:
-                del remaining[:len(batch)]
+            if batch and remaining[: len(batch)] == batch:
+                del remaining[: len(batch)]
                 matched = True
                 break
         assert matched, "Check observations do not derive from committed production invoices"
@@ -233,7 +221,7 @@ def _validate_receipt(path, text, record):
     for surface, row in rows.items():
         evaluated, catches, escapes, bypasses, catch_rate, escape_rate, prune = row
         assert escapes == 0 and escape_rate == 0, "Phase 5 escape column is not zero"
-        assert catches <= evaluated and catch_rate == pytest.approx(catches / evaluated if evaluated else 0, abs=.00005)
+        assert catches <= evaluated and catch_rate == pytest.approx(catches / evaluated if evaluated else 0, abs=0.00005)
         assert prune == (evaluated >= 25 and catches == 0)
         if surface != "review":
             observed = [o for o in observations if o[1] == surface]
@@ -254,32 +242,42 @@ def test_phase5_exit_committed_retro():
     _validate_receipt(*_receipt())
 
 
-@pytest.mark.parametrize("corruption", ["stem", "surface", "fixture", "stale", "spec", "commit",
-    "usd", "nan", "tokens", "bool-tokens", "observations", "escape", "catch", "boundary", "final-event"])
+@pytest.mark.parametrize("corruption", ["stem", "surface", "fixture", "stale", "spec", "commit", "usd", "nan", "tokens", "bool-tokens", "observations", "escape", "catch", "boundary", "final-event"])
 def test_phase5_exit_retro_provenance(corruption):
     path, text, original = _receipt()
     record = deepcopy(original)
     measured = record["measurements"]
-    if corruption == "stem": measured["merges"][0]["ticket"] = "fixture-invented"
-    elif corruption == "surface": text += "| invented | 1 | 0 | 0 | 0 | 0.0000 | 0.0000 | false |\n"
-    elif corruption == "fixture": record["provenance"]["head"] = "fixture-head"
+    if corruption == "stem":
+        measured["merges"][0]["ticket"] = "fixture-invented"
+    elif corruption == "surface":
+        text += "| invented | 1 | 0 | 0 | 0 | 0.0000 | 0.0000 | false |\n"
+    elif corruption == "fixture":
+        record["provenance"]["head"] = "fixture-head"
     elif corruption == "stale":
-        record["provenance"]["head"] = _git("log", EXIT_HEAD, "--format=%H", "--fixed-strings",
-            "--grep=chupa-ticket: retro-drain-invoker").splitlines()[0]
-    elif corruption == "spec": record["provenance"]["spec_version"] = "0.0"
-    elif corruption == "commit": measured["merges"][0]["commit"] = EXIT_HEAD
-    elif corruption == "usd": measured["usd"] = "2.00"
-    elif corruption == "nan": measured["usd"] = float("nan")
-    elif corruption == "tokens": measured["input_tokens"]["unknown_calls"] = 1.5
-    elif corruption == "bool-tokens": measured["output_tokens"]["known"] = True
-    elif corruption == "observations": measured["check_observations"][0][2] = "fail"
-    elif corruption == "escape": text = text.replace("| 0.0000 | false |", "| 0.1000 | false |", 1)
+        record["provenance"]["head"] = _git("log", EXIT_HEAD, "--format=%H", "--fixed-strings", "--grep=chupa-ticket: retro-drain-invoker").splitlines()[0]
+    elif corruption == "spec":
+        record["provenance"]["spec_version"] = "0.0"
+    elif corruption == "commit":
+        measured["merges"][0]["commit"] = EXIT_HEAD
+    elif corruption == "usd":
+        measured["usd"] = "2.00"
+    elif corruption == "nan":
+        measured["usd"] = float("nan")
+    elif corruption == "tokens":
+        measured["input_tokens"]["unknown_calls"] = 1.5
+    elif corruption == "bool-tokens":
+        measured["output_tokens"]["known"] = True
+    elif corruption == "observations":
+        measured["check_observations"][0][2] = "fail"
+    elif corruption == "escape":
+        text = text.replace("| 0.0000 | false |", "| 0.1000 | false |", 1)
     elif corruption == "catch":
         evaluated = _table(text)["diff_budget"][0]
-        text = text.replace(f"| diff_budget | {evaluated} | 0 | 0 | 0 | 0.0000 |",
-                            f"| diff_budget | {evaluated} | 1 | 0 | 0 | {1 / evaluated:.4f} |")
-    elif corruption == "boundary": record["window_boundary"] = "fixture-window"
-    else: record["window_final_event"]["ticket"] = "fixture-invented"
+        text = text.replace(f"| diff_budget | {evaluated} | 0 | 0 | 0 | 0.0000 |", f"| diff_budget | {evaluated} | 1 | 0 | 0 | {1 / evaluated:.4f} |")
+    elif corruption == "boundary":
+        record["window_boundary"] = "fixture-window"
+    else:
+        record["window_final_event"]["ticket"] = "fixture-invented"
     with pytest.raises(AssertionError):
         _validate_receipt(path, text, record)
 
@@ -304,8 +302,8 @@ def test_phase5_exit_retro_box(tmp_path, monkeypatch):
 
 def test_phase5_exit_baseline(tmp_path):
     from chupa.policy import BASELINED_SURFACES, TIERS
-    from tests.test_baseline import (test_baseline_states_and_latest_signal as states,
-                                    test_baseline_routing_and_spec_drift as drift)
+    from tests.test_baseline import test_baseline_routing_and_spec_drift as drift
+    from tests.test_baseline import test_baseline_states_and_latest_signal as states
 
     _passing_invoice("baseline-binding-reader", "tests/test_baseline.py")
     source = _committed("tests/test_baseline.py")
@@ -320,9 +318,9 @@ def test_phase5_exit_baseline(tmp_path):
 
 
 def test_phase5_exit_production_composition(tmp_path, monkeypatch):
-    from tests.test_scorecard import test_scorecard_totals_and_rendering as scorecard
-    from tests.test_retro import test_receipt_uses_engine_provenance_usage_calibration_and_tombstones as retro
     from tests.test_drain import test_drain_retro_due_quiescence_and_pre_exit as forced
+    from tests.test_retro import test_receipt_uses_engine_provenance_usage_calibration_and_tombstones as retro
+    from tests.test_scorecard import test_scorecard_totals_and_rendering as scorecard
 
     # These unchanged proofs exercise real Check -> production_evidence -> scorecard ->
     # Retro and the routed drain pre-exit hook, with injected seams in disposable repos.
@@ -330,6 +328,9 @@ def test_phase5_exit_production_composition(tmp_path, monkeypatch):
         directory = tmp_path / name
         directory.mkdir()
         with monkeypatch.context() as patch:
-            if name == "scorecard": scorecard(directory, patch)
-            elif name == "retro": retro(directory)
-            else: forced(directory, patch, "pre-exit")
+            if name == "scorecard":
+                scorecard(directory, patch)
+            elif name == "retro":
+                retro(directory)
+            else:
+                forced(directory, patch, "pre-exit")

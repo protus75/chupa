@@ -7,15 +7,16 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-from chupa import config as config_module, daemon
+from chupa import config as config_module
+from chupa import daemon
 from chupa.__main__ import main
 from chupa.config import ConfigError, ConfigSnapshot, load_config, snapshot_config
 from chupa.daemon import DaemonAdmission, snapshot_dispatch
 from chupa.journal import EventType
 from chupa.seams import LocalFileSystem
-from tests.test_cli import ENV, Clock, root, ticket, write, with_retro_driver
+from tests.test_cli import ENV, Clock, root, ticket, with_retro_driver, write
 from tests.test_config import VALID
-from tests.test_daemon_admission import assert_reachable, assert_idle, tickets, turn
+from tests.test_daemon_admission import assert_idle, assert_reachable, tickets, turn
 
 
 def put_config(directory, text=VALID):
@@ -50,17 +51,22 @@ def assert_detached(source, snapshot):
         assert snapshot == source
 
 
-@pytest.mark.parametrize("extras", ["", """worktree_root: elsewhere
+@pytest.mark.parametrize(
+    "extras",
+    [
+        "",
+        """worktree_root: elsewhere
 report_inbox: inbox
 notify: [notify-send, chupa]
 context_files: [docs/first.md, docs/second.md]
 scheduler: {max_unmerged: 5}
 caps: {retry: 2}
 box_policy: {failure_report: draft}
-"""])
+""",
+    ],
+)
 def test_snapshot_preserves_all_validated_config_values(tmp_path, extras):
-    text = VALID.replace("[{provider: claude, model: sonnet}]",
-                         "[{provider: claude, model: sonnet}, {provider: claude}]")
+    text = VALID.replace("[{provider: claude, model: sonnet}]", "[{provider: claude, model: sonnet}, {provider: claude}]")
     if extras:
         text = text.replace("kind: cli", "kind: cli\n    auth: PROVIDER_TOKEN")
         text = text.replace(", est_cost_per_call_usd: 0.25", "")
@@ -165,6 +171,7 @@ async def test_dispatch_captures_once_and_keeps_snapshot_until_completion(tmp_pa
             assert snapshot is bound[0]
             assert python_values(snapshot) == expected
             return terminal
+
         return callback
 
     monkeypatch.setattr(daemon, "snapshot_config", capture)
@@ -191,12 +198,12 @@ async def test_next_dispatch_observes_valid_config_edits(tmp_path, tickets):
 
         async def callback(ticket):
             return "merged"
+
         return callback
 
     admission = DaemonAdmission(snapshot_dispatch(lambda: load_config(None, cwd=tmp_path), bind))
     assert await admission.dispatch(tickets[0]) == "merged"
-    changed = VALID.replace("model: sonnet", "model: opus").replace(
-        "gate_severity: {scope_fence: hard}", "gate_severity: {scope_fence: soft}")
+    changed = VALID.replace("model: sonnet", "model: opus").replace("gate_severity: {scope_fence: hard}", "gate_severity: {scope_fence: soft}")
     put_config(tmp_path, changed + "drain: {max_ticket_minutes: 120}\nscheduler: {max_unmerged: 4}\n")
     assert await admission.dispatch(tickets[1]) == "merged"
     before, after = snapshots
@@ -233,6 +240,7 @@ async def test_waiting_dispatch_captures_after_admission(tmp_path, tickets):
                     await finish.wait()
                     finished.append(ticket)
             return "merged"
+
         return callback
 
     admission = DaemonAdmission(snapshot_dispatch(load, bind))
@@ -253,10 +261,18 @@ async def test_waiting_dispatch_captures_after_admission(tmp_path, tickets):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("invalid", [None, "bad: [", VALID + "notify: null\n",
-    VALID.replace("schema_version: 1", "schema_version: 2"), VALID + "unknown: value\n",
-    VALID.replace("provider: claude", "provider: missing"),
-    VALID.replace("surface: implement", "surface: review").replace("kind: cli", "kind: api")])
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        None,
+        "bad: [",
+        VALID + "notify: null\n",
+        VALID.replace("schema_version: 1", "schema_version: 2"),
+        VALID + "unknown: value\n",
+        VALID.replace("provider: claude", "provider: missing"),
+        VALID.replace("surface: implement", "surface: review").replace("kind: cli", "kind: api"),
+    ],
+)
 async def test_invalid_reload_never_binds_or_uses_stale_config(tmp_path, tickets, invalid):
     put_config(tmp_path)
     bound, called = [], []
@@ -267,6 +283,7 @@ async def test_invalid_reload_never_binds_or_uses_stale_config(tmp_path, tickets
         async def callback(ticket):
             called.append(ticket)
             return "merged"
+
         return callback
 
     admission = DaemonAdmission(snapshot_dispatch(lambda: load_config(None, cwd=tmp_path), bind))
@@ -321,6 +338,7 @@ async def test_snapshot_dispatch_unwinds_failures_and_cancellation(tmp_path, tic
                     cleaning.set()
                     await release.wait()
             return "merged"
+
         return callback
 
     monkeypatch.setattr(daemon, "snapshot_config", capture)
@@ -351,7 +369,7 @@ async def test_snapshot_dispatch_unwinds_failures_and_cancellation(tmp_path, tic
         with pytest.raises(ValueError) as caught:
             await admission.dispatch(tickets[0])
         assert caught.value is error
-        assert calls == ["load", "capture", "bind", "callback"][:["load", "capture", "bind", "callback"].index(failure) + 1]
+        assert calls == ["load", "capture", "bind", "callback"][: ["load", "capture", "bind", "callback"].index(failure) + 1]
         assert_idle(admission)
         failing = False
         assert await admission.dispatch(tickets[1]) == "merged"
@@ -369,6 +387,7 @@ def test_config_snapshot_is_dormant(root, monkeypatch, verb, operation):
             calls.append(ticket.stem)
             checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=ticket.stem)
             return "merged"
+
         return with_retro_driver(checkout, callback)
 
     def probe(*args):
@@ -379,8 +398,7 @@ def test_config_snapshot_is_dormant(root, monkeypatch, verb, operation):
         monkeypatch.setattr(config_module, operation, probe)
 
     def wired(checkout):
-        return DaemonAdmission(daemon.snapshot_dispatch(
-            lambda: checkout.config, lambda snapshot: pipeline(checkout))).dispatch
+        return DaemonAdmission(daemon.snapshot_dispatch(lambda: checkout.config, lambda snapshot: pipeline(checkout))).dispatch
 
     write(root, "work", ticket())
     argv = ["run", "work"] if verb == "run" else ["drain"]
@@ -391,8 +409,7 @@ def test_config_snapshot_is_dormant(root, monkeypatch, verb, operation):
     assert calls == ["work"]
 
     repo = Path(__file__).resolve().parents[1]
-    sources = {".".join(path.relative_to(repo).with_suffix("").parts): path.read_text()
-               for path in (repo / "chupa").rglob("*.py")}
+    sources = {".".join(path.relative_to(repo).with_suffix("").parts): path.read_text() for path in (repo / "chupa").rglob("*.py")}
     sources["chupa"] = sources.pop("chupa.__init__")
     from tests.test_daemon_composition import CoreRig, assert_core_wiring, without_core_import
 

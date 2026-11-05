@@ -6,22 +6,27 @@ from types import SimpleNamespace
 
 import pytest
 
-from chupa import __main__ as entry, control
+from chupa import __main__ as entry
+from chupa import control
 from chupa.journal import Journal
-from chupa.lockfile import LockHeld, Lockfile
+from chupa.lockfile import Lockfile, LockHeld
 from chupa.seams import LocalFileSystem
-from tests.test_cli import Clock, ENV, Stages, root, ticket, write
+from tests.test_cli import ENV, Clock, Stages, root, ticket, write
 
 
 @pytest.mark.parametrize("dirless", [False, True, "draft", "Reject"])
 def test_confirm_held_without_writer_lock(tmp_path, monkeypatch, capsys, dirless):
     import asyncio
-    from tests.test_mergequeue import ctx as context_fixture, ready, commit, admission_control
-    from tests.test_supervised_merge_hold import hold
+
     from chupa import runner
     from chupa.journal import EventType
     from chupa.tickets import stamp
+    from tests.test_mergequeue import admission_control, commit, ready
+    from tests.test_mergequeue import ctx as context_fixture
+    from tests.test_supervised_merge_hold import hold
+
     ctx = context_fixture.__wrapped__(tmp_path)
+
     async def exercise():
         if dirless in ("draft", "Reject"):
             ticket = await ready(ctx)
@@ -45,7 +50,10 @@ def test_confirm_held_without_writer_lock(tmp_path, monkeypatch, capsys, dirless
             try:
                 assert await asyncio.to_thread(entry.main, ["confirm", ticket.stem], cwd=ctx.repo, env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: True, lambda _: "y")) == 0
                 consumer.inbox.consume()
-                async def confirmed(stem, request_id): await runner.confirm_draft(stem, request_id, ctx)
+
+                async def confirmed(stem, request_id):
+                    await runner.confirm_draft(stem, request_id, ctx)
+
                 await consumer.inbox.settle_admissions(confirmed)
                 events = ctx.driver.journal.read()
                 await consumer.inbox.settle_admissions(confirmed)
@@ -64,15 +72,19 @@ def test_confirm_held_without_writer_lock(tmp_path, monkeypatch, capsys, dirless
         before = path.read_bytes()
         if dirless:
             path.unlink()
+
         def forbidden(*_a, **_k):
             pytest.fail("held publisher took writer role, rebuilt work, or rearmed Reject")
+
         try:
             with monkeypatch.context() as patch:
                 patch.setattr(Lockfile, "acquire", forbidden)
                 patch.setattr(Journal, "append", forbidden)
                 for _ in range(2):
-                    assert await asyncio.to_thread(entry.main, ["confirm", ticket.stem], cwd=ctx.repo,
-                        env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: True, lambda _: "y"), pipeline=forbidden) == 0
+                    assert (
+                        await asyncio.to_thread(entry.main, ["confirm", ticket.stem], cwd=ctx.repo, env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: True, lambda _: "y"), pipeline=forbidden)
+                        == 0
+                    )
             files = list((ctx.config.state_dir / "control/inbox").glob("*.json"))
             assert len(files) == 2
             assert all(json.loads(p.read_bytes())["hold_id"] == held.hold_id for p in files)
@@ -84,14 +96,19 @@ def test_confirm_held_without_writer_lock(tmp_path, monkeypatch, capsys, dirless
         [result] = await queue.process()
         assert result.outcome == "ok" and not ctx.worktree(ticket.stem).exists()
         assert not any(e.body.get("signal") == "reject_verdict" or e.type == "cap_consumed" for e in ctx.driver.journal.read())
+
     asyncio.run(exercise())
 
 
 def test_reject_held_candidate(tmp_path):
     import asyncio
-    from tests.test_mergequeue import ctx as context_fixture, ready
+
+    from tests.test_mergequeue import ctx as context_fixture
+    from tests.test_mergequeue import ready
     from tests.test_supervised_merge_hold import hold
+
     ctx = context_fixture.__wrapped__(tmp_path)
+
     async def exercise():
         ticket, queue, held = await hold(ctx)
         await ready(ctx, "dependent", fence=("chupa/dependent.py",), changes={"chupa/dependent.py": "ok\n"})
@@ -105,8 +122,7 @@ def test_reject_held_candidate(tmp_path):
         control.write_active(ctx.config.state_dir, queue.control.projection, ctx.fs, hold_id=None)
         before = await ctx.git.rev_parse(ctx.repo, "main")
         try:
-            assert await asyncio.to_thread(entry.main, ["reject", ticket.stem], cwd=ctx.repo,
-                env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: True, lambda _: "y")) == 0
+            assert await asyncio.to_thread(entry.main, ["reject", ticket.stem], cwd=ctx.repo, env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: True, lambda _: "y")) == 0
             queue.control.inbox.consume()
             [result] = await queue.process()
         finally:
@@ -117,12 +133,14 @@ def test_reject_held_candidate(tmp_path):
         assert any(e.ticket == "dependent" and e.body.get("signal") == "dead_dependency" for e in events)
         assert not any(e.type == "cap_consumed" or e.body.get("verdict") == "keep" for e in events)
         assert not ctx.worktree(ticket.stem).exists()
+
     asyncio.run(exercise())
 
 
 def invoke(root, verb):
     def forbidden(_):
         pytest.fail("control constructed a pipeline")
+
     return entry.main([verb], cwd=root, env=ENV, clock=Clock(), pipeline=forbidden)
 
 
@@ -144,8 +162,10 @@ def test_live_pause_resume_publish_without_journal_write(root, monkeypatch, caps
     lock = acquire(root)
     ids = iter(["pause-exact", "resume-exact"])
     monkeypatch.setattr(entry, "uuid4", lambda: SimpleNamespace(hex=next(ids)))
+
     def forbidden(*args, **kwargs):
         pytest.fail("publisher wrote the journal or took the writer role")
+
     monkeypatch.setattr(Journal, "append", forbidden)
     monkeypatch.setattr(entry, "build_control", forbidden)
     monkeypatch.setattr(Lockfile, "release", forbidden)
@@ -156,8 +176,7 @@ def test_live_pause_resume_publish_without_journal_write(root, monkeypatch, caps
         discovery(root, "life-exact", "pause-exact")
         assert invoke(root, "resume") == 0
         assert capsys.readouterr().out == "resume submitted: resume-exact\n"
-        assert requests(root) == [asdict(control.ControlRequest("pause-exact", "life-exact", "pause", None)),
-                                  asdict(control.ControlRequest("resume-exact", "life-exact", "resume", "pause-exact"))]
+        assert requests(root) == [asdict(control.ControlRequest("pause-exact", "life-exact", "pause", None)), asdict(control.ControlRequest("resume-exact", "life-exact", "resume", "pause-exact"))]
         assert not (root / ".chupa/state/journal").exists()
         contender = Lockfile(lock.state_dir, instance_id="contender", clock=Clock())
         with pytest.raises(LockHeld):
@@ -167,12 +186,23 @@ def test_live_pause_resume_publish_without_journal_write(root, monkeypatch, caps
         lock.release()
 
 
-@pytest.mark.parametrize("raw", [None, b"null\n", b"{", b"{}", b'[]',
-    b'{"lifecycle_id":"","hold_id":"hold"}', b'{"lifecycle_id":1,"hold_id":null}',
-    b'{"lifecycle_id":"life","hold_id":""}', b'{"lifecycle_id":"life","hold_id":true}',
-    b'{"lifecycle_id":"life","hold_id":null,"extra":1}',
-    b'{"lifecycle_id":"life","lifecycle_id":"other","hold_id":null}',
-    b'{"lifecycle_id":"life","hold_id":null}'])
+@pytest.mark.parametrize(
+    "raw",
+    [
+        None,
+        b"null\n",
+        b"{",
+        b"{}",
+        b"[]",
+        b'{"lifecycle_id":"","hold_id":"hold"}',
+        b'{"lifecycle_id":1,"hold_id":null}',
+        b'{"lifecycle_id":"life","hold_id":""}',
+        b'{"lifecycle_id":"life","hold_id":true}',
+        b'{"lifecycle_id":"life","hold_id":null,"extra":1}',
+        b'{"lifecycle_id":"life","lifecycle_id":"other","hold_id":null}',
+        b'{"lifecycle_id":"life","hold_id":null}',
+    ],
+)
 def test_resume_requires_current_pause_identity(root, raw, capsys):
     lock = acquire(root)
     try:
@@ -197,20 +227,26 @@ def test_pause_resume_apply_directly_under_lock(root, monkeypatch, capsys, verb,
     if stale:
         discovery(root, "old-life", "old-hold")
         control.publish_request(state, control.ControlRequest("old-pause", "old-life", "pause", None), LocalFileSystem())
+
     def contents():
         return {p.relative_to(state): p.read_bytes() for p in state.rglob("*") if p.is_file() and p.name != "chupa.lock"}
+
     before = contents()
     trace = []
     original_acquire, original_release = Lockfile.acquire, Lockfile.release
+
     def acquired(self):
         original_acquire(self)
         trace.append("acquire")
+
     def released(self):
         assert self.held
         trace.append("release")
         original_release(self)
+
     def forbidden(*args, **kwargs):
         pytest.fail("idle control allocated identity, constructed consumer or changed a record")
+
     with monkeypatch.context() as patch:
         patch.setattr(Lockfile, "acquire", acquired)
         patch.setattr(Lockfile, "release", released)
@@ -229,10 +265,12 @@ def test_pause_resume_apply_directly_under_lock(root, monkeypatch, capsys, verb,
     stages = Stages()
     lifecycles = []
     original = entry.build_control
+
     def build(checkout):
         consumer = original(checkout)
         lifecycles.append(consumer.projection.lifecycle_id)
         return consumer
+
     monkeypatch.setattr(entry, "build_control", build)
     assert entry.main(["drain"], cwd=root, env=ENV, clock=Clock(), pipeline=stages) == 0
     assert stages.calls == ["work"] and stages.lock_held == [True]
@@ -247,27 +285,32 @@ def test_control_routing_lock_and_restart_races(root, monkeypatch, capsys):
     original = Lockfile.acquire
     next_owner = Lockfile(root / ".chupa/state", instance_id="next-owner", clock=Clock())
     replacement = Lockfile(root / ".chupa/state", instance_id="replacement", clock=Clock())
+
     # No preflight discovery check: an engine wins the CLI's actual lock acquisition.
     def race(self):
         if self is not replacement and not replacement.held:
             original(replacement)
         return original(self)
+
     monkeypatch.setattr(Lockfile, "acquire", race)
     try:
         assert invoke(root, "pause") == 2
         assert "retry after" in capsys.readouterr().err and requests(root) == []
         discovery(root, "old-life", "old-hold")
         publish = control.publish_request
+
         def replace_before_publication(state, request, fs):
             replacement.release()
             original(next_owner)
             discovery(root, "new-life")
             publish(state, request, fs)
+
         monkeypatch.setattr(control, "publish_request", replace_before_publication)
         assert invoke(root, "resume") == 0
         [request] = requests(root)
         assert request["lifecycle_id"] == "old-life" and request["hold_id"] == "old-hold"
         from tests.test_control import Rig
+
         new = Rig(replacement.state_dir, lifecycle="new-life")
         new.inbox.consume()
         assert new.decisions()[0]["decision"] == "stale" and new.projection.pause_id is None
@@ -287,12 +330,16 @@ def test_cli_observables_detect_removed_bindings(root, monkeypatch, binding):
     if binding == "idle-lock":
         trace = []
         original = Lockfile.acquire
+
         def traced_acquire(lock):
             trace.append("lock")
             original(lock)
+
         monkeypatch.setattr(Lockfile, "acquire", traced_acquire)
+
         async def bypass(checkout, verb):
             return 0
+
         monkeypatch.setattr(entry, "_control", bypass)
         assert invoke(root, "pause") == 0
         with pytest.raises(AssertionError):
@@ -302,9 +349,11 @@ def test_cli_observables_detect_removed_bindings(root, monkeypatch, binding):
     try:
         discovery(root, "target-life", "exact-hold")
         original = control.publish_request
+
         def broken(state, request, fs):
             if binding == "identity":
                 original(state, control.ControlRequest(request.request_id, "wrong-life", "resume", "wrong-hold"), fs)
+
         monkeypatch.setattr(control, "publish_request", broken)
         assert invoke(root, "resume") == 0
         with pytest.raises(AssertionError):
@@ -321,11 +370,9 @@ def test_resume_publishes_selected_hold_identity(root, monkeypatch, capsys):
     monkeypatch.setattr(entry, "uuid4", lambda: SimpleNamespace(hex=next(ids)))
     try:
         # Selection is explicit: a dispatch pause projection must not replace the supplied admission id.
-        control.write_active(lock.state_dir, control.ControlProjection("life", "pause"),
-                             LocalFileSystem(), hold_id="admission-exact")
+        control.write_active(lock.state_dir, control.ControlProjection("life", "pause"), LocalFileSystem(), hold_id="admission-exact")
         assert invoke(root, "resume") == 0
-        assert requests(root) == [asdict(control.ControlRequest(
-            "first-resume", "life", "resume", "admission-exact"))]
+        assert requests(root) == [asdict(control.ControlRequest("first-resume", "life", "resume", "admission-exact"))]
         assert invoke(root, "resume") == 0
         assert len(requests(root)) == 2
         assert all(r["hold_id"] == "admission-exact" for r in requests(root))

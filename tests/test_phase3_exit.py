@@ -1,10 +1,10 @@
 """Phase 3 exit reads the producer's committed evidence, never live daemon state."""
 
-from pathlib import Path
 import re
+from pathlib import Path
 
-import yaml
 import pytest
+import yaml
 
 from chupa.artifacts import DAEMON_SOAK_MEMBERS, DAEMON_SOAK_REPORT, DaemonSoakReport
 from chupa.tickets import _bullets, _sections, ticket_path
@@ -27,8 +27,7 @@ def _dependencies(stem):
 
 def test_phase3_exit_dependency_coverage():
     plan = (ROOT / "CHUPA_PLAN.md").read_text()
-    registry = yaml.safe_load(re.search(
-        r"^# BEGIN_REGISTRY_P3\n(.*?)^# END_REGISTRY_P3$", plan, re.M | re.S)[1])
+    registry = yaml.safe_load(re.search(r"^# BEGIN_REGISTRY_P3\n(.*?)^# END_REGISTRY_P3$", plan, re.M | re.S)[1])
     assert registry["admissions"][-1] == ["phase3-exit"]
     preceding = {stem for admission in registry["admissions"][:-1] for stem in admission}
     assert _dependencies("phase3-exit") == ("phase3-continue-27",)

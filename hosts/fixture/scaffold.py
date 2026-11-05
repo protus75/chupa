@@ -4,7 +4,6 @@ import json
 import shutil
 from pathlib import Path
 
-
 SOURCE = Path(__file__).resolve().parent
 SCENARIOS = ("merge-add", "merge-bonus", "merge-floor", "regression", "escape")
 SURFACES = ("author", "implement", "review", "triage")
@@ -55,8 +54,7 @@ def scripted_reply(root, name, surface, prompt, writes, *, workspace=None):
         raise ValueError("permission grant disagrees with surface; use the existing Claude adapter")
     if surface == "implement":
         # Closed host edit vocabulary; no arbitrary path or code execution.
-        if set(row["edits"]) != ({"settings.json", "fixtures/report_regression.py", "fixtures/replay.json"}
-                                 if name == "regression" else {"settings.json"}):
+        if set(row["edits"]) != ({"settings.json", "fixtures/report_regression.py", "fixtures/replay.json"} if name == "regression" else {"settings.json"}):
             raise ValueError("undeclared host edit; select the declared settings and regression fixture edits")
         target = work / "settings.json"
         if target.is_symlink() or not target.is_file():

@@ -14,14 +14,14 @@ from chupa.box import Box, DecisionRecord, render_record
 from chupa.effects import Effects
 from chupa.journal import EventType, Journal
 from chupa.llm import FakeLLM, LLMResult
-from chupa.retro import (Retro, RetroArtifact, measurements, production_evidence, project_window,
-                         render_report, select_trigger)
-from chupa.specs import RENDER_BOUND_CHARS, REQ_RENDER_HEADROOM, data_open, data_close, entry_unit_gap, resolve_plan_contract
-from tests.test_drain import Clock, make_root, pause_checkout, confirmed, commit_ticket
+from chupa.retro import Retro, RetroArtifact, measurements, production_evidence, project_window, render_report, select_trigger
+from chupa.specs import RENDER_BOUND_CHARS, REQ_RENDER_HEADROOM, data_close, data_open, entry_unit_gap, resolve_plan_contract
+from tests.test_drain import Clock, commit_ticket, confirmed, make_root, pause_checkout
 
 
 def rig(tmp_path, script=()):
     from chupa.__main__ import build_control
+
     c = pause_checkout(make_root(tmp_path))
     c = replace(c, journal=Journal(c.config.state_dir, c.clock), control=None)
     c = replace(c, control=build_control(c))
@@ -32,8 +32,7 @@ def rig(tmp_path, script=()):
 
 
 def completed(journal, sequence):
-    return journal.append(EventType.EFFECT_COMPLETION, {"result": {"commit": "receipt"}},
-                          key=f"retro/{sequence}")
+    return journal.append(EventType.EFFECT_COMPLETION, {"result": {"commit": "receipt"}}, key=f"retro/{sequence}")
 
 
 def merged(journal, stem="one", commit=None):
@@ -46,10 +45,8 @@ def test_window_uses_completed_report_boundary(tmp_path):
     assert project_window([]).events == () and project_window([]).started_at is None
     assert select_trigger(project_window([]), measurements(project_window([])), c.clock(), forced=False) is None
     first = merged(j, "first", "real-merge-sha")
-    j.append(EventType.EFFECT_COMPLETION, {"result": {}, "cost": {
-        "usd": 1.25, "input_tokens": 10, "output_tokens": None}}, key="llm/first/0/implement/0/1")
-    j.append(EventType.EFFECT_COMPLETION, {"result": {}, "cost": {
-        "usd": .5, "input_tokens": None, "output_tokens": 4}}, key="llm/first/0/review/0/1")
+    j.append(EventType.EFFECT_COMPLETION, {"result": {}, "cost": {"usd": 1.25, "input_tokens": 10, "output_tokens": None}}, key="llm/first/0/implement/0/1")
+    j.append(EventType.EFFECT_COMPLETION, {"result": {}, "cost": {"usd": 0.5, "input_tokens": None, "output_tokens": 4}}, key="llm/first/0/review/0/1")
     j.append(EventType.EFFECT_INTENT, {}, key="retro/1")
     initial = project_window(j.read())
     assert initial.events[0] == first and initial.boundary == "initial"
@@ -58,10 +55,8 @@ def test_window_uses_completed_report_boundary(tmp_path):
     assert facts["usd"] == 1.75
     assert facts["input_tokens"] == {"known": 10, "unknown_calls": 1}
     assert facts["output_tokens"] == {"known": 4, "unknown_calls": 1}
-    report = render_report(initial, facts, {"head": "actual-head", "spec_version": "1.0"}, [],
-                           RetroArtifact(proposals=[]))
-    assert report == render_report(initial, facts, {"head": "actual-head", "spec_version": "1.0"}, [],
-                                  RetroArtifact(proposals=[]))
+    report = render_report(initial, facts, {"head": "actual-head", "spec_version": "1.0"}, [], RetroArtifact(proposals=[]))
+    assert report == render_report(initial, facts, {"head": "actual-head", "spec_version": "1.0"}, [], RetroArtifact(proposals=[]))
     assert '"usd": 1.75' in report and '"actual-head"' in report
     completed(j, 1)
     older = merged(j, "older")
@@ -87,9 +82,11 @@ def test_window_over_headroom_is_read_on_demand(tmp_path, monkeypatch, size):
     driver = writer.stages.driver
     writes = []
     write = driver.spool._fs.write
+
     def captured(path, content):
         writes.append(path)
         write(path, content)
+
     monkeypatch.setattr(driver.spool._fs, "write", captured)
     result = asyncio.run(hook(forced=True))
     assert result == {"commit": asyncio.run(c.git.rev_parse(c.repo, "HEAD"))}
@@ -106,10 +103,9 @@ def test_window_over_headroom_is_read_on_demand(tmp_path, monkeypatch, size):
         assert path in writes
         assert path == driver.spool.root / "retro/1/1/retro/call-01/window.jsonl"
         assert [json.loads(line) for line in path.read_text().splitlines()] == expected
-    completion, = [e for e in c.journal.read() if e.key == "retro/1" and e.type == EventType.EFFECT_COMPLETION]
+    (completion,) = [e for e in c.journal.read() if e.key == "retro/1" and e.type == EventType.EFFECT_COMPLETION]
     assert completion.body == {"result": result}
-    assert asyncio.run(c.git._run(c.repo, "show", "--name-only", "--format=", result["commit"])).splitlines() == [
-        "tickets/retro/000001.md"]
+    assert asyncio.run(c.git._run(c.repo, "show", "--name-only", "--format=", result["commit"])).splitlines() == ["tickets/retro/000001.md"]
 
 
 @pytest.mark.parametrize("kind", ["merges", "elapsed", "override", "rework", "gate-failure", "integration-red"])
@@ -117,6 +113,7 @@ def test_retro_trigger_boundaries(tmp_path, kind):
     c, writer, hook, llm = rig(tmp_path)
     j = c.journal
     limit = 25 if kind == "merges" else 5
+
     def operand(n):
         stem = f"admission-{n}"
         j.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket=stem)
@@ -125,35 +122,38 @@ def test_retro_trigger_boundaries(tmp_path, kind):
         elif kind == "rework":
             from chupa.rework import rework
             from chupa.tickets import validate_ticket
+
             ticket = validate_ticket(stem, confirmed(), c.repo)
             writer.stages.driver.llm = FakeLLM(['{"action": "escalate", "tickets": []}'])
-            result = asyncio.run(rework(writer.ctx, ticket, confirmed(), [], attempt=n,
-                workspace=c.repo, tier="medium", effort="low", stuck_budget=120,
-                handoff=None))
+            result = asyncio.run(rework(writer.ctx, ticket, confirmed(), [], attempt=n, workspace=c.repo, tier="medium", effort="low", stuck_budget=120, handoff=None))
             assert result.outcome == "ok"
         elif kind == "gate-failure":
             from chupa.tickets import validate_ticket
+
             ticket = validate_ticket(stem, confirmed(), c.repo)
-            assert asyncio.run(runner.failure_terminal(writer.ctx, ticket, outcome="gate_failed", stage="check",
-                               findings=[], attempt=n)) == "gate_failed"
+            assert asyncio.run(runner.failure_terminal(writer.ctx, ticket, outcome="gate_failed", stage="check", findings=[], attempt=n)) == "gate_failed"
         elif kind == "integration-red":
             writer.queue._facts(stem, set(), set(), red=["work/red.py"])
         elif kind == "override":
             from chupa.stages import Invoice
+
             path = f"tickets/{stem}/checks.json"
-            invoice = Invoice(produced_by_spec_version=1, produced_at_sha="branch", stem=stem, passed=True,
-                changed_files=[], inserted_lines=0, bypassed=["scope_fence"], reports=[])
+            invoice = Invoice(produced_by_spec_version=1, produced_at_sha="branch", stem=stem, passed=True, changed_files=[], inserted_lines=0, bypassed=["scope_fence"], reports=[])
+
             async def publish():
                 c.fs.write(c.repo / path, invoice.model_dump_json().encode())
                 await c.git.add(c.repo, [path])
                 await c.git.commit(c.repo, "checks", only=[path])
                 return {"commit": await c.git.rev_parse(c.repo, "HEAD")}
+
             asyncio.run(writer.stages.driver.effects.run(publish, key=f"ticket-plane/{stem}/0/checks", ticket=stem))
             merged(j, stem)
+
     def due():
         window = project_window(j.read())
         facts = asyncio.run(production_evidence(window, c))
         return select_trigger(window, facts, c.clock(), forced=False)
+
     if kind == "elapsed":
         merged(j)
         c.clock.now += timedelta(days=7, microseconds=-1)
@@ -190,14 +190,18 @@ def test_report_commit_replays_without_advancing_unfinished_window(tmp_path, mon
     c, writer, hook, llm = rig(tmp_path, ['{"proposals": []}'])
     merged(c.journal)
     window = project_window(c.journal.read())
+
     # Even a committed file does not close the unfinished effect's journal window.
     class Crash(BaseException):
         pass
+
     append = c.journal.append
+
     def crash(type_, body, **kwargs):
         if type_ == EventType.EFFECT_COMPLETION and kwargs.get("key") == "retro/1":
             raise Crash()
         return append(type_, body, **kwargs)
+
     with monkeypatch.context() as patch:
         patch.setattr(c.journal, "append", crash)
         with pytest.raises(Crash):
@@ -216,17 +220,18 @@ def test_report_commit_replays_without_advancing_unfinished_window(tmp_path, mon
     assert effects[-1].ticket is None and effects[-1].body == {"result": {"commit": head}}
     assert asyncio.run(hook.commit_report(driver, window, "must never be written")) == {"commit": head}
     assert receipt.read_bytes() == body and project_window(c.journal.read()).boundary == "retro/1"
-    assert asyncio.run(c.git._run(c.repo, "show", "--name-only", "--format=", head)).splitlines() == [
-        "tickets/retro/000001.md"]
+    assert asyncio.run(c.git._run(c.repo, "show", "--name-only", "--format=", head)).splitlines() == ["tickets/retro/000001.md"]
 
 
 def test_report_file_without_intent_cannot_replace_the_production_receipt(tmp_path):
     c, writer, hook, llm = rig(tmp_path, ['{"proposals": []}'])
     path = "tickets/retro/000001.md"
+
     async def inherited():
         c.fs.write(c.repo / path, b"an inherited file is not completed evidence\n")
         await c.git.add(c.repo, [path])
         await c.git.commit(c.repo, "inherited file", only=[path])
+
     asyncio.run(inherited())
     assert project_window(c.journal.read()).boundary == "initial"
     merged(c.journal)
@@ -242,9 +247,14 @@ def test_failed_retro_suppresses_window_until_completion(tmp_path):
     merged(c.journal)
     assert asyncio.run(hook(forced=True)) is None
     [failed] = [e for e in c.journal.read() if e.body.get("kind") == "retro_failed"]
-    assert asdict(failed) == {"v": 1, "type": "signal", "ts": failed.ts, "ticket": None,
-        "key": "retro-failed/initial/forced", "body": {"kind": "retro_failed", "window_boundary": "initial",
-        "trigger": "forced", "error_code": "ValueError"}}
+    assert asdict(failed) == {
+        "v": 1,
+        "type": "signal",
+        "ts": failed.ts,
+        "ticket": None,
+        "key": "retro-failed/initial/forced",
+        "body": {"kind": "retro_failed", "window_boundary": "initial", "trigger": "forced", "error_code": "ValueError"},
+    }
     [message] = Box(c.config.state_dir / "box", c.fs).messages()
     assert message.origin == failed.key and message.message_class == "failure_report"
     assert "secret diagnostic" not in json.dumps(failed.body) + message.summary
@@ -275,8 +285,11 @@ def test_failed_retro_suppresses_window_until_completion(tmp_path):
 
 
 def test_artifact_is_closed_and_proposals_pair_the_risks():
-    for raw in ({"proposals": [], "merged_count": 999}, {"proposals": [{"fixed_failure": "failure"}]},
-                {"proposals": [{"fixed_failure": "failure", "overcorrection_risk": "risk", "proposed_spec_paths": ["../x.md"]}]}):
+    for raw in (
+        {"proposals": [], "merged_count": 999},
+        {"proposals": [{"fixed_failure": "failure"}]},
+        {"proposals": [{"fixed_failure": "failure", "overcorrection_risk": "risk", "proposed_spec_paths": ["../x.md"]}]},
+    ):
         with pytest.raises(ValidationError):
             RetroArtifact.model_validate(raw)
     plan = (Path(__file__).resolve().parents[1] / "CHUPA_PLAN.md").read_text()
@@ -287,10 +300,9 @@ def test_artifact_is_closed_and_proposals_pair_the_risks():
 
 def test_receipt_uses_engine_provenance_usage_calibration_and_tombstones(tmp_path):
     from chupa.driver import LlmStage
-    proposal = {"fixed_failure": "A witnessed failure", "overcorrection_risk": "Rejecting useful inputs",
-                "proposed_spec_paths": ["specs/review.md"]}
-    prior = LLMResult(text='{"proposals": []}', usd=2.3, input_tokens=None, output_tokens=7,
-                      provider="measured-provider", model="measured-model")
+
+    proposal = {"fixed_failure": "A witnessed failure", "overcorrection_risk": "Rejecting useful inputs", "proposed_spec_paths": ["specs/review.md"]}
+    prior = LLMResult(text='{"proposals": []}', usd=2.3, input_tokens=None, output_tokens=7, provider="measured-provider", model="measured-model")
     c, writer, hook, llm = rig(tmp_path, [prior, json.dumps({"proposals": [proposal]})])
     commit_ticket(c.repo, "one", confirmed())
     record = DecisionRecord(id="retired", kind="tombstone", link="one", reopen_after_days=7)
@@ -299,8 +311,7 @@ def test_receipt_uses_engine_provenance_usage_calibration_and_tombstones(tmp_pat
     c.journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket="one")
     c.clock.now += timedelta(seconds=120)
     stage = LlmStage(surface="review", emits=RetroArtifact, gates=[], render=lambda *_: "usage probe")
-    assert asyncio.run(driver.run(stage, None, ticket="one", attempt=0, workspace=c.repo, tier="medium",
-        effort="low", stuck_budget=600, expected_budget=300, scope_fence=())).outcome == "ok"
+    assert asyncio.run(driver.run(stage, None, ticket="one", attempt=0, workspace=c.repo, tier="medium", effort="low", stuck_budget=600, expected_budget=300, scope_fence=())).outcome == "ok"
     head = asyncio.run(c.git.rev_parse(c.repo, "HEAD"))
     merged(c.journal, "one", head)
     assert asyncio.run(hook(forced=True))["commit"] != head
@@ -310,31 +321,29 @@ def test_receipt_uses_engine_provenance_usage_calibration_and_tombstones(tmp_pat
     assert data["measurements"]["usd"] == 2.3 and data["measurements"]["merged_count"] == 1
     assert data["measurements"]["input_tokens"] == {"known": 0, "unknown_calls": 1}
     assert data["measurements"]["output_tokens"] == {"known": 7, "unknown_calls": 0}
-    assert data["calibration_divergence"] == [{"ticket": "one", "commit": head,
-        "actual_seconds": 120.0, "predicted_seconds": 600, "divergence_seconds": -480.0}]
+    assert data["calibration_divergence"] == [{"ticket": "one", "commit": head, "actual_seconds": 120.0, "predicted_seconds": 600, "divergence_seconds": -480.0}]
     assert data["tombstone_digest"] == [{**record.model_dump(), "body": "Evidence digest\n"}]
     assert data["proposals"] == [proposal]
     assert all(request.worktree is None for request in llm.requests)
-    message, = Box(c.config.state_dir / "box", c.fs).messages()
+    (message,) = Box(c.config.state_dir / "box", c.fs).messages()
     assert message.message_class == "retro_finding" and message.retro_report_key == "retro/1"
     assert {key: getattr(message, key) for key in proposal} == proposal
-    completion, = [e for e in c.journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key == "retro/1"]
-    occurrence, = [e for e in c.journal.read() if e.body.get("kind") == "storm_occurrence"]
+    (completion,) = [e for e in c.journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key == "retro/1"]
+    (occurrence,) = [e for e in c.journal.read() if e.body.get("kind") == "storm_occurrence"]
     assert c.journal.read().index(completion) < c.journal.read().index(occurrence)
 
 
 def test_retro_itemizes_confirmed_class_tombstones(tmp_path, monkeypatch):
     from chupa.box import Resolution, record_path
     from chupa.daemon import storm_producer
+
     c, writer, hook, llm = rig(tmp_path, ['{"proposals": []}'])
     box = storm_producer(root=c.config.state_dir / "box", fs=c.fs, journal=c.journal, clock=c.clock)
-    id, _ = box.enqueue(message_class="failure_report", origin="test", summary="confirmed-class failure",
-                        occurrence_id="original")
+    id, _ = box.enqueue(message_class="failure_report", origin="test", summary="confirmed-class failure", occurrence_id="original")
     record = DecisionRecord(id=f"tombstone-{id}", kind="tombstone", link="known", reopen_after_days=7)
     c.fs.write(c.repo / record_path(record.id), render_record(record, "Witnessed failure\n").encode())
     box.resolve(id, Resolution(kind="tombstone", link=record.id))
-    expected = {**record.model_dump(), "body": "Witnessed failure\n", "box_id": id,
-                "message_class": "failure_report", "reports": 0, "reopen": False}
+    expected = {**record.model_dump(), "body": "Witnessed failure\n", "box_id": id, "message_class": "failure_report", "reports": 0, "reopen": False}
     before = {p: p.read_bytes() for p in box.root.glob("*.json")}
     with monkeypatch.context() as patch:
         patch.setattr(c.fs, "write", lambda *_: pytest.fail("tombstone projection wrote"))
@@ -349,26 +358,36 @@ def test_retro_itemizes_confirmed_class_tombstones(tmp_path, monkeypatch):
     assert asyncio.run(hook(forced=True))["commit"]
     data = json.loads((c.repo / "tickets/retro/000001.md").read_text().split("```json\n")[1].split("\n```")[0])
     assert data["tombstone_digest"] == [expected]
-    assert data["tombstone_reopens"] == [{"kind": "tombstone_auto_reopened", "box_id": id,
-                                         "signature": box.get(id).signature, "reports": 3}]
+    assert data["tombstone_reopens"] == [{"kind": "tombstone_auto_reopened", "box_id": id, "signature": box.get(id).signature, "reports": 3}]
 
 
 def test_escape_report_projection(tmp_path, monkeypatch):
-    from tests.test_triage import escape_rig, escape_report
     from chupa.scorecard import project_scorecard
-    from chupa.status import project, render as render_status
+    from chupa.status import project
+    from chupa.status import render as render_status
+    from tests.test_triage import escape_report, escape_rig
+
     async def scenario():
         c, writer, box, checked, admitted = await escape_rig(tmp_path)
         c, message, _ = await escape_report(c, commit=admitted.commit, paths=["chupa/thing.py"])
         window = project_window(c.journal.read())
         evidence = await production_evidence(window, c)
         before = c.journal.read()
+
         def forbidden(*args, **kwargs):
             pytest.fail("pure escape projection performed an effect or read")
+
         with monkeypatch.context() as patch:
-            for target, method in ((c.fs, "write"), (c.git, "_run"), (c.journal, "append"),
-                                   (c.journal, "read"), (writer.stages.driver.llm, "call"),
-                                   (Path, "read_text"), (Path, "read_bytes"), (Box, "resolve")):
+            for target, method in (
+                (c.fs, "write"),
+                (c.git, "_run"),
+                (c.journal, "append"),
+                (c.journal, "read"),
+                (writer.stages.driver.llm, "call"),
+                (Path, "read_text"),
+                (Path, "read_bytes"),
+                (Box, "resolve"),
+            ):
                 patch.setattr(target, method, forbidden)
             card = project_scorecard(window)
             receipt = render_report(window, evidence, {}, [], RetroArtifact(proposals=[]))
@@ -382,4 +401,5 @@ def test_escape_report_projection(tmp_path, monkeypatch):
         result = await Retro(c, writer)(forced=True)
         receipt = await c.git._run(c.repo, "show", f"{result['commit']}:tickets/retro/000001.md")
         assert "| review | 1 | 0 | 1 |" in receipt
+
     asyncio.run(scenario())

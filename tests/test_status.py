@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from chupa import __main__ as cli, runner
+from chupa import __main__ as cli
+from chupa import runner
 from chupa.__main__ import _status, main
 from chupa.box import Box, Resolution
 from chupa.daemon import storm_producer
@@ -20,19 +21,16 @@ from chupa.specs import entry_unit_gap, load_spec, required_units, resolve_plan_
 from chupa.status import project, reject_queue, render
 from tests.test_cli import ENV
 from tests.test_drain import Clock, make_root
-from tests.test_retro_box import PROPOSAL
 from tests.test_retro import completed, merged, rig
+from tests.test_retro_box import PROPOSAL
 from tests.test_scorecard import invoice, review, rows
 
 
 def test_settled_stem_never_awaits_verdict(tmp_path):
     journal = Journal(tmp_path, Clock())
     for terminal in ("already_satisfied", "merged"):
-        journal.append(EventType.STATE_TRANSITION,
-            {"to": "gate_failed", "routed": "reject_queue"}, ticket=terminal)
-        journal.append(EventType.STATE_TRANSITION,
-            {"to": terminal, "stage": "check", "reason": terminal,
-             "dispatch": "reject_queue", "routed": "reject_queue"}, ticket=terminal)
+        journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "routed": "reject_queue"}, ticket=terminal)
+        journal.append(EventType.STATE_TRANSITION, {"to": terminal, "stage": "check", "reason": terminal, "dispatch": "reject_queue", "routed": "reject_queue"}, ticket=terminal)
         assert reject_queue(journal.read()) == {}
         journal.append(EventType.SIGNAL, {"signal": "reject_arrival"}, ticket=terminal)
         assert reject_queue(journal.read()) == {}
@@ -52,14 +50,14 @@ def test_status_surfaces_confirmed_class_tombstones(tmp_path, monkeypatch, capsy
         box.resolve(id, Resolution(kind="tombstone", link=f"tombstone-{id}"))
         ids.append(id)
     before = {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}
+
     def forbidden(*args, **kwargs):
         raise AssertionError("status tried to write")
+
     monkeypatch.setattr(LocalFileSystem, "write", forbidden)
     monkeypatch.setattr(Journal, "append", forbidden)
     git = Git(SubprocessExec(), env=ENV, timeout=30)
-    provenance = {"head": asyncio.run(git.rev_parse(root, "HEAD")),
-                  "spec_version": load_spec((runner.SPECS_DIR / "retro.md").read_text()).meta.version,
-                  "at": clock().isoformat()}
+    provenance = {"head": asyncio.run(git.rev_parse(root, "HEAD")), "spec_version": load_spec((runner.SPECS_DIR / "retro.md").read_text()).meta.version, "at": clock().isoformat()}
     status = project(journal.read(), box=box, provenance=provenance)
     assert status.tombstones == tuple((m.id, m.message_class, 0) for m in box.messages()[:2])
     output = render(status)
@@ -73,8 +71,7 @@ def test_status_surfaces_confirmed_class_tombstones(tmp_path, monkeypatch, capsy
     before = journal.read()
     current = project(before, box=Box(box.root, fs))
     assert current.tombstones == ((ids[1], "retro_finding", 0),)
-    assert current.reopens == ({"kind": "tombstone_auto_reopened", "box_id": ids[0],
-                                "signature": box.get(ids[0]).signature, "reports": 3},)
+    assert current.reopens == ({"kind": "tombstone_auto_reopened", "box_id": ids[0], "signature": box.get(ids[0]).signature, "reports": 3},)
     assert ids[0] in render(current) and journal.read() == before
 
 
@@ -92,8 +89,7 @@ def test_status_entry_unit():
 def test_status_current_window_scorecard(tmp_path):
     c, writer, _, _ = rig(tmp_path)
     asyncio.run(invoice(c, writer, "old"))
-    old_cost = LLMResult(text='{"verdict":"approve","summary":"ok","findings":[]}',
-        usd=2, input_tokens=None, output_tokens=3, provider="fake", model="fake")
+    old_cost = LLMResult(text='{"verdict":"approve","summary":"ok","findings":[]}', usd=2, input_tokens=None, output_tokens=3, provider="fake", model="fake")
     asyncio.run(review(c, writer, "old", "approve", cost=old_cost))
     merged(c.journal, "old")
     c.journal.append(EventType.EFFECT_INTENT, {}, key="retro/1")
@@ -106,14 +102,12 @@ def test_status_current_window_scorecard(tmp_path):
         assert inv.passed and "scope_fence" in inv.bypassed
         if n == 23:
             assert not rows(asyncio.run(_status(c)).scorecard)["scope_fence"].prune_candidate
-    completion = next(e for e in reversed(c.journal.read())
-                      if e.type == EventType.EFFECT_COMPLETION and (e.key or "").endswith("/checks"))
+    completion = next(e for e in reversed(c.journal.read()) if e.type == EventType.EFFECT_COMPLETION and (e.key or "").endswith("/checks"))
     c.journal.append(completion.type, completion.body, ticket=completion.ticket, key=completion.key)
     c.journal.append(EventType.EFFECT_INTENT, {}, ticket="unfinished", key="ticket-plane/unfinished/0/checks")
     c.fs.write(c.repo / "tickets/current-24/checks.json", b"mutable bytes are not evidence")
     asyncio.run(review(c, writer, "current-24", "snag"))
-    cost = LLMResult(text='{"verdict":"approve","summary":"ok","findings":[]}',
-        usd=1.25, input_tokens=11, output_tokens=None, provider="fake", model="fake")
+    cost = LLMResult(text='{"verdict":"approve","summary":"ok","findings":[]}', usd=1.25, input_tokens=11, output_tokens=None, provider="fake", model="fake")
     asyncio.run(review(c, writer, "current-24", "approve", attempt=1, cost=cost))
     head = asyncio.run(c.git.rev_parse(c.repo, "HEAD"))
     merged(c.journal, "current-24", head)
@@ -166,12 +160,14 @@ def test_status_production_provenance(tmp_path, monkeypatch, capsys):
     expected = {"head": head, "spec_version": load_spec(spec_text).meta.version, "at": c.clock().isoformat()}
     assert expected["spec_version"] == "7.3"
     projected = []
+
     def capture(events, **kwargs):
         assert kwargs["provenance"] == expected
         assert kwargs["window"].evidence == {**measurements(project_window(events)), "check_observations": []}
         result = project(events, **kwargs)
         projected.append(result)
         return result
+
     monkeypatch.setattr(cli, "project", capture)
     assert main(["status"], cwd=c.repo, env=ENV, clock=c.clock) == 0
     output = capsys.readouterr().out
@@ -193,10 +189,8 @@ def test_status_preserves_sections_and_is_write_free(tmp_path, monkeypatch, caps
         asyncio.run(invoice(c, writer, "checked"))
         merged(c.journal, "done")
         c.journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket="active")
-        c.journal.append(EventType.STATE_TRANSITION,
-            {"to": "gate_failed", "stage": "check", "routed": "reject_queue"}, ticket="held")
-        c.journal.append(EventType.SIGNAL, {"signal": "ticket_intake", "source": "human", "state": "confirmed",
-            "commit": "123456789abcdef"}, ticket="new")
+        c.journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "stage": "check", "routed": "reject_queue"}, ticket="held")
+        c.journal.append(EventType.SIGNAL, {"signal": "ticket_intake", "source": "human", "state": "confirmed", "commit": "123456789abcdef"}, ticket="new")
         c.journal.append(EventType.EFFECT_COMPLETION, {"result": {}, "cost": {"usd": 2}}, key="llm/spend/0/x/1/1")
         id, _ = box.enqueue(message_class="failure_report", origin="test", summary="visible", occurrence_id="original")
         box.resolve(id, Resolution(kind="tombstone", link="retired"))
@@ -204,18 +198,24 @@ def test_status_preserves_sections_and_is_write_free(tmp_path, monkeypatch, caps
         box.resolve(reopened, Resolution(kind="tombstone", link="other"))
         for n in range(3):
             box.record_rereport(reopened, occurrence_id=f"report/{n}")
-        legacy = ("merged:\n- done\n\nin flight:\n- active\n\nblocked:\n- held: gate_failed\n\n"
+        legacy = (
+            "merged:\n- done\n\nin flight:\n- active\n\nblocked:\n- held: gate_failed\n\n"
             "intake:\n- new: source: human, state: confirmed, commit 123456789abc\n\nspend:\n$2.00\n\n"
             "Reject queue:\n- held: gate_failed at check -- confirm held after editing, or reject held\n\n"
             f"Confirmed-class tombstones:\n- {id}: failure_report, 0 re-reports\n\n"
-            f"Tombstone reopens:\n- {reopened}: reopened at 3 re-reports\n")
+            f"Tombstone reopens:\n- {reopened}: reopened at 3 re-reports\n"
+        )
     else:
-        legacy = ("merged:\n(none)\n\nin flight:\n(none)\n\nblocked:\n(none)\n\nintake:\n(none)\n\n"
+        legacy = (
+            "merged:\n(none)\n\nin flight:\n(none)\n\nblocked:\n(none)\n\nintake:\n(none)\n\n"
             "spend:\n$0.00\n\nReject queue:\n(none)\n\nConfirmed-class tombstones:\n(none)\n\n"
-            "Tombstone reopens:\n(none)\n")
+            "Tombstone reopens:\n(none)\n"
+        )
     before = {p: p.read_bytes() for p in c.repo.rglob("*") if p.is_file()}
+
     def forbidden(*args, **kwargs):
         pytest.fail("status invoked a write or active engine seam")
+
     for name in ("write", "publish", "replace"):
         monkeypatch.setattr(LocalFileSystem, name, forbidden)
     monkeypatch.setattr(Journal, "append", forbidden)
@@ -229,9 +229,11 @@ def test_status_preserves_sections_and_is_write_free(tmp_path, monkeypatch, caps
     for name in ("enqueue", "record_rereport", "record_verdict", "resolve", "recover"):
         monkeypatch.setattr(Box, name, forbidden)
     git_run = Git._run
+
     async def read_only(git, repo, *args):
         assert args[0] in {"show", "rev-parse"}
         return await git_run(git, repo, *args)
+
     monkeypatch.setattr(Git, "_run", read_only)
     assert main(["status"], cwd=c.repo, env=ENV, clock=c.clock, pipeline=forbidden) == 0
     first = capsys.readouterr().out
