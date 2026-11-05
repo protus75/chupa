@@ -39,6 +39,7 @@ The ticket format still knows the bootstrap plan: a `## Plan contract` section w
 - In: `tests/test_rework.py` `original`: stop writing the plan and adding `## Plan contract`. `tests/test_closed_sets.py`: update `OPTIONAL_SECTIONS` and `SECTIONS`. `tests/test_host_loop.py`: drop the `chupa.specs` plan imports left unused.
 - In: `docs/host-authoring.md`: delete the "Host tickets omit `Plan contract`" line. `docs/how-chupa-works.md` section 13: delete the plan-pointers and plan-reads bullets.
 - This ticket overrides the `CLAUDE.md`/`AGENTS.md` rules that treat `CHUPA_PLAN.md` as a spec: do not edit `CHUPA_PLAN.md`.
+- In: `tests/test_closed_sets.py` `test_specs_closed_sets_and_constants`: also drop the `specs.CITABLE_SECTIONS`, `specs.ENTRY_PARTS`, `specs.MAX_ADMISSION_PAYLOADS`, `specs.PLAN_UNITS`, `specs.REFUSED_SECTIONS` and `tickets.SEED_REFUSED_SECTIONS` assertions.
 - Out: `CHUPA_PLAN.md` itself, committed ticket files, `source: seed` validity, `Finding`, the journal.
 
 ## Scope fence
