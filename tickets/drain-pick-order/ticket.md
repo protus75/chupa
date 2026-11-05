@@ -29,6 +29,8 @@ Drain's `_select` returns every fresh ticket before any re-offer, whatever their
 - chupa/drain.py
 - tests/test_drain.py
 - tests/test_drain_upgrade.py
+- tests/test_drain_reentry.py
+- tests/test_seed_successor.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
