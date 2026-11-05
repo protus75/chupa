@@ -26,6 +26,7 @@ state: confirmed
 - In: `tests/test_storm_notification_activation.py`: drop `"bootstrap"` and `"main-ingest"` from `SITES`, delete their branch in `exercise_site`, and drop the `ingest_bootstrap`/`ingest_main_checkout` imports. Origin strings such as `"bootstrap-ingest"` used as plain test data elsewhere stay.
 - In: `tests/test_daemon_composition.py` `test_production_boxes_receive_rereport_callback`: drop the `"bootstrap"` and `"main-ingest"` sites.
 - In: `docs/how-chupa-works.md` section 13: delete the bootstrap-files bullet (the folder and the box ingest).
+- In: `tests/test_box.py` `test_signature_recipe`: replace `BOOTSTRAP_ORIGIN` with the literal `"bootstrap-ingest"`.
 - Out: existing box messages on disk (their `bootstrap-ingest` origin is free text and stays readable), the merge admission reason `"bootstrap"` (it names inline admission and is journaled), every other box behavior.
 
 ## Scope fence
