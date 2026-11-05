@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-Untouched merge base 68839572 passed both Verification commands: 105 focused tests and 3946 full-suite tests. Changing premise_bounce to 1 only in memory reproduced the shakeout failure, so it is not base-red. The working tree remains clean.
+Attempts take precedence when multiple caps are spent; already-spent daemon dispatches journal abandoned, while published splits still retire their parent.
 
 ## Dead ends
 
-An in-memory premise_bounce override of 2 for the affected member restored its test; a test-only workaround would leave the standalone shakeout member broken.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-60m expected; approximately 3m spent verifying the scope blocker.
+Completed within the 60-minute expected budget.
 
