@@ -34,6 +34,8 @@ Commit `e99990cb` bulk-applied ruff lint fixes and formatting from the command l
   - F841 in `tests/test_kill_cli_activation.py:820,842`: drop the unused binding and keep the call.
   - E402 in `tests/test_gates.py:316`: move the import to the top, unless the late import is deliberate. In that case add `# noqa: E402` with a comment saying why.
 
+  - Findings that merges after `e99990cb` added: I001 and three E501 in `chupa/stages.py`, and `ruff format` changes in `chupa/stages.py` and `tests/test_testreport.py`.
+
   Line numbers are as of `e99990cb`; find them with `uv run ruff check .`.
 - Out: any other lint rule or behavior change; `CHUPA_PLAN.md` and every `.md` file; chupa's `config.yaml` checks (a later ticket); the text-matching tests (ticket `source-graph-ast`).
 
@@ -50,6 +52,8 @@ Commit `e99990cb` bulk-applied ruff lint fixes and formatting from the command l
 - tests/test_journal.py
 - tests/test_kill_cli_activation.py
 - tests/test_gates.py
+- chupa/stages.py
+- tests/test_testreport.py
 
 ## Acceptance criteria
 1. `uv run ruff check .` exits 0 with the committed configuration. It fails if a finding remains or a needed ignore is missing.
