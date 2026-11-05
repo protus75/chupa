@@ -23,14 +23,16 @@ The Implement prompt says nothing about how to write tests, so implementers writ
   - For each assertion, name the likely wrong implementation it rules out; the fixture must give a different value under that wrong version. Examples: the right copy vs the wrong copy, innings 1-5 vs all 9, one row vs duplicates.
   - Never assert a value that a default, a zero, or a shared fixture would produce anyway.
   - On a retry, check every assertion this way, not only the one a finding names.
-  Bump `version` one minor step from the version `prompts-drop-plan` leaves (expected "2.1").
+  Bump `version` from "2.0" to "2.1".
 - In: `tests/test_specs.py`: update the implement version pins; assert each of the three rules is in the loaded implement spec body.
+- In: `tests/test_stages.py`: update the `spec: implement 2.0` pin in the run.md assertion to the bumped version.
 - In: `docs/how-chupa-works.md` section 4.2: the Implement prompt carries these test-writing rules.
 - Out: every other spec, the retry block in `chupa/stages.py`, review.
 
 ## Scope fence
 - specs/implement.md
 - tests/test_specs.py
+- tests/test_stages.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
