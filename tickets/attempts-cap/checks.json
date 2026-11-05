@@ -1,18 +1,20 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "c7c53f9d9835eef2a4aeffc05d650631faf6a8b2",
+  "produced_at_sha": "be1bd0a6f0f1d28372b744f245bf86dbaada0909",
   "stem": "attempts-cap",
   "passed": true,
   "changed_files": [
     "chupa/caps.py",
     "chupa/config.py",
+    "chupa/daemon.py",
     "chupa/drain.py",
     "chupa/runner.py",
     "docs/host-contract.md",
     "docs/how-chupa-works.md",
+    "eval/shakeout/drain.py",
+    "eval/shakeout/runner.py",
     "tests/test_caps.py",
-    "tests/test_closed_sets.py",
     "tests/test_config.py",
     "tests/test_daemon_config.py",
     "tests/test_diagnose.py",
@@ -21,11 +23,10 @@
     "tests/test_hardening.py",
     "tests/test_ladder.py",
     "tests/test_seed_path.py",
-    "tests/test_shakeout.py",
     "tests/test_terminal.py",
     "tests/test_triage.py"
   ],
-  "inserted_lines": 277,
+  "inserted_lines": 305,
   "bypassed": [],
   "reports": [
     {
@@ -77,7 +78,7 @@
         "tests/test_config.py"
       ],
       "rc": 0,
-      "tail": "........................................................................ [ 61%]\n..............................................                           [100%]\n118 passed in 2.64s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "bringing up nodes...\nbringing up nodes...\n\n........................................................................ [ 59%]\n..................................................                       [100%]\n122 passed in 1.59s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -88,7 +89,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "....................................................... [ 74%]\n........................................................................ [ 76%]\n........................................................................ [ 77%]\n........................................................................ [ 79%]\n........................................................................ [ 81%]\n........................................................................ [ 83%]\n........................................................................ [ 85%]\n........................................................................ [ 87%]\n........................................................................ [ 89%]\n........................................................................ [ 90%]\n........................................................................ [ 92%]\n........................................................................ [ 94%]\n........................................................................ [ 96%]\n........................................................................ [ 98%]\n.............................................................            [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/attempts-cap/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3877 passed, 1 warning in 332.80s (0:05:32)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "........................................................ [ 76%]\n........................................................................ [ 78%]\n........................................................................ [ 79%]\n........................................................................ [ 81%]\n........................................................................ [ 83%]\n........................................................................ [ 85%]\n........................................................................ [ 87%]\n........................................................................ [ 89%]\n........................................................................ [ 90%]\n........................................................................ [ 92%]\n........................................................................ [ 94%]\n........................................................................ [ 96%]\n........................................................................ [ 98%]\n........................................................................ [ 99%]\n...                                                                      [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/attempts-cap/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3963 passed, 1 warning in 65.31s (0:01:05)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
