@@ -1,20 +1,28 @@
 # chupa
 
-chupa is a continuously running orchestration engine that authors and runs
-tickets against host repos, including itself. This README is GENERATED from
-CHUPA_PLAN.md (the `# BEGIN_README` block in its appendix) -- edit that block,
-never this file. CHUPA_PLAN.md is canonical for everything: read section 0
-(cold start, prerequisites, the conductor and its rungs, the self-hosting
-handoff) first, and run its one-time cold-start paste to seed the repo, venv,
-and deps before any command below.
+chupa runs tickets against a git repository: Implement writes the change on a branch, Check runs
+mechanical gates, Review has a model judge the diff, and Merge squashes it onto `main`. Failures
+are harvested, diagnosed, retried within caps, or held for a human. chupa develops itself: this
+repo is both the engine and its first host.
 
-The lifecycle is four commands, run in order:
+## Docs
 
-    python3 bootstrap/conductor.py            # bootstrap: Phase 0 then Phase 1, gated per deliverable
-    python3 bootstrap/conductor.py --auto     # same, unattended (no verdict pauses)
-    uv run python -m chupa drain             # after Phase 1: ONE drain self-hosts Phases 2-6 to quiescence
-    uv run python -m chupa serve             # cutover: start the continuous daemon on host work (after GO is recorded)
+- `docs/how-chupa-works.md`: how chupa behaves today. Tickets keep it current.
+- `docs/host-contract.md`: the config schema and host-facing contract.
+- `docs/host-authoring.md`: what to write in a ticket.
 
-Once `serve` is running, control it with `kill` / `pause` / `resume`; `status`
-and `doctor` inspect at any time. Section 18 lists every verb; section 13
-touchpoint 7 is the GO/cutover gate `serve` waits behind.
+`CHUPA_PLAN.md` is the frozen record of how chupa was first built. It is history, not a reference.
+
+## Commands
+
+In this repo, use `./dev.py`:
+
+    ./dev.py new STEM [--kind feature|bug|chore]   # write a ticket skeleton
+    ./dev.py lint [STEM...]                         # check tickets
+    ./dev.py drain                                  # run every eligible ticket to quiescence
+    ./dev.py status                                 # what ran, what is held, total spend
+    ./dev.py confirm STEM / ./dev.py reject STEM    # keep or kill a held ticket
+    ./dev.py kill                                   # stop a running drain
+    ./dev.py test [args]                            # run the test suite
+
+Every chupa verb is listed in `docs/how-chupa-works.md` section 2.
