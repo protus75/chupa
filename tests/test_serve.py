@@ -1123,9 +1123,14 @@ async def test_serve_admission_holds_and_cleanup(root, monkeypatch, case):
     if case == "red-streak":
         changes = {stem: {f"chupa/{stem}.py": "red\n" if stem != "green" else "ok\n"}
                    for stem in ("one", "two", "three", "green")}
-        rig = await admission_graph(root, monkeypatch, changes)
+        async def moved(rig, ctx, ticket, attempt):
+            if ticket.stem != "green":
+                rig.fs.write(root / "chupa/integration-marker", b"moved\n")
+                await ctx.git.add(root, ["chupa/integration-marker"])
+                await ctx.git.commit(root, "move main after check")
+        rig = await admission_graph(root, monkeypatch, changes, settled=moved)
         admission_config(root, command=["python3", "-c", "from pathlib import Path; import sys; "
-            "sys.exit(int(any(p.read_text().startswith('red') for p in Path('chupa').glob('*.py'))))"])
+            "sys.exit(int(Path('chupa/integration-marker').exists() and any(p.read_text().startswith('red') for p in Path('chupa').glob('*.py'))))"])
         for stem, priority in zip(changes, ("P0", "P1", "P2", "P3"), strict=True):
             admission_ticket(root, stem, paths=(f"chupa/{stem}.py",), priority=priority)
         offers, empty = [], asyncio.Event()
@@ -1139,7 +1144,13 @@ async def test_serve_admission_holds_and_cleanup(root, monkeypatch, case):
                 assert ("green", "merged") not in rig.returns
                 empty.set()
                 return []
-            return await process(queue)
+            result = await process(queue)
+            marker = root / "chupa/integration-marker"
+            if marker.exists():
+                marker.unlink()
+                await rig.checkout.git.add(root, ["chupa/integration-marker"])
+                await rig.checkout.git.commit(root, "reset integration marker")
+            return result
         monkeypatch.setattr(MergeQueue, "offer", offered)
         monkeypatch.setattr(MergeQueue, "process", processed)
         run = await start_admission(rig, monkeypatch)

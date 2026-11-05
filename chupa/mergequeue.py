@@ -20,8 +20,6 @@ from chupa.drain import authored_at, sort_key
 from chupa.gates import GateReport, run_gates
 from chupa.git import GitError, RebaseRefused
 from chupa.journal import Event, EventType, TERMINAL_STATES, run_seq
-from chupa.providers import child_env
-from chupa.seams import ExecutableNotFound
 from chupa.stages import CommandResult, Evidence, StageContext
 from chupa.tickets import TICKETS_DIR, Ticket, ticket_path, validate_ticket
 
@@ -271,24 +269,7 @@ class MergeQueue:
 
     async def _command(self, ticket: Ticket, attempt: int, argv: list[str], code: str,
                        name: str) -> tuple[CommandResult, GateReport]:
-        road = "make the configured command exit 0 on the rebased candidate and retry"
-        try:
-            rc, out, err = await self.ctx.exec_.run(
-                argv, cwd=self.ctx.worktree(ticket.stem), env=child_env(self.ctx.env, self.ctx.config),
-                timeout=ticket.stuck_minutes * 60.0)
-        except TimeoutError:
-            rc, out, err = None, "", f"timed out after the ticket's stuck budget ({ticket.stuck_minutes}m)"
-            road = "make the command finish within the ticket's stuck budget or correct that budget and retry"
-        except ExecutableNotFound as exc:
-            rc, out, err = None, "", str(exc)
-            road = "install the executable or correct argv/PATH in the child environment and retry"
-        self.ctx.driver.spool.write(ticket.stem, attempt, name,
-                                    f"$ {' '.join(argv)}\n[exit {rc}]\n--- stdout\n{out}\n--- stderr\n{err}")
-        tail = self.ctx.driver.redactor.scrub((out + err)[-stages.OUTPUT_TAIL_CHARS:])
-        result = CommandResult(argv=list(argv), rc=rc, tail=tail, base_red=False)
-        findings = [] if rc == 0 else [self._finding(
-            f"{argv!r} exited {rc}: {tail.strip() or '(no output)'}", road, code=code)]
-        return result, GateReport(code=code, verdict="fail" if findings else "pass", findings=findings)
+        return await stages.run_host_command(self.ctx, ticket, attempt, argv, code, name)
 
     async def host_checks(self, ticket: Ticket, *, attempt: int, safety: bool
                           ) -> tuple[list[CommandResult], list[GateReport]]:

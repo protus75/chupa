@@ -39,6 +39,7 @@ from chupa.stages import (
     gather_evidence,
     dirty_code,
     read_review,
+    triggered_hosts, run_host_command,
 )
 from chupa.tickets import TICKETS_DIR, Ticket, TicketInvalid, ticket_path, validate_ticket
 
@@ -363,7 +364,11 @@ async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResu
         severity["requisition_review"] = "hard"  # a seeded branch needs an exact committed approval
     gated = [run_gates(CHECK_GATES, evidence, worktree, severity=severity),
              run_gates(MERGE_GATES, candidate, ctx.repo, severity=severity)]
-    if hard := [f for g in gated for r in g.hard_failures for f in r.findings]:
+    host = []
+    for n, entry in triggered_hosts(ctx, evidence.changed_files, hard_only=True):
+        _, report = await run_host_command(ctx, ticket, attempt, entry.argv, entry.code, f"merge/host-{n:02d}.txt")
+        host.extend(report.findings)
+    if hard := [f for g in gated for r in g.hard_failures for f in r.findings] + host:
         return _refused(hard, Cost(seconds=(ctx.driver.clock() - started).total_seconds()))
 
     admission = await write_squash(ctx, ticket, reviewed, attempt=attempt)

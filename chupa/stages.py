@@ -689,6 +689,26 @@ class CommandResult(_Strict):
     base_red: bool = False
 
 
+async def run_host_command(ctx, ticket, attempt, argv, code, name, *, cwd=None):
+    road = "make the configured command exit 0 on the rebased candidate and retry"
+    try:
+        rc, out, err = await ctx.exec_.run(
+            argv, cwd=cwd or ctx.worktree(ticket.stem), env=child_env(ctx.env, ctx.config),
+            timeout=ticket.stuck_minutes * 60.0)
+    except TimeoutError:
+        rc, out, err = None, "", f"timed out after the ticket's stuck budget ({ticket.stuck_minutes}m)"
+        road = "make the command finish within the ticket's stuck budget or correct that budget and retry"
+    except ExecutableNotFound as exc:
+        rc, out, err = None, "", str(exc)
+        road = "install the executable or correct argv/PATH in the child environment and retry"
+    ctx.driver.spool.write(ticket.stem, attempt, name,
+                                f"$ {' '.join(argv)}\n[exit {rc}]\n--- stdout\n{out}\n--- stderr\n{err}")
+    tail = ctx.driver.redactor.scrub((out + err)[-OUTPUT_TAIL_CHARS:])
+    result = CommandResult(argv=list(argv), rc=rc, tail=tail, base_red=False)
+    findings = [] if rc == 0 else [Finding(
+        message=ctx.driver.redactor.scrub(f"{argv!r} exited {rc}: {tail.strip() or '(no output)'}"), paved_road=road, code=code)]
+    return result, GateReport(code=code, verdict="fail" if findings else "pass", findings=findings)
+
 class Evidence(_Strict):
     """Everything the mechanical gates judge, gathered once per branch head (the stage layer's job)."""
 
@@ -948,6 +968,45 @@ def _report(code: str, findings: list[Finding]) -> GateReport:
 
 def _in_fence(path: str, prefixes: Sequence[str]) -> bool:
     return any(path == p or path.startswith(p if p.endswith("/") else p + "/") for p in prefixes)
+
+
+def triggered_hosts(ctx, changed_files, *, hard_only=False):
+    return [(n, entry) for n, entry in enumerate(ctx.config.review.mechanical, 1)
+            if (not hard_only or entry.severity == "hard")
+            and (entry.trigger == "always" or any(_in_fence(path, entry.trigger) for path in changed_files))]
+
+
+async def check_hosts(ctx, ticket, changed_files, attempt):
+    reports, hard = [], []
+    for n, entry in triggered_hosts(ctx, changed_files):
+        result, report = await run_host_command(ctx, ticket, attempt, entry.argv, entry.code, f"check/host-{n:02d}.txt")
+        if result.rc != 0:
+            base = await ctx.git.merge_base(ctx.repo, MAIN, ticket.stem)
+            base_worktree = ctx.config.worktree_root / ".base" / ticket.stem
+            if base_worktree.exists():
+                await ctx.git.worktree_remove(ctx.repo, base_worktree)
+            base_worktree.parent.mkdir(parents=True, exist_ok=True)
+            await ctx.git.worktree_add_detached(ctx.repo, base_worktree, base)
+            try:
+                baseline, _ = await run_host_command(ctx, ticket, attempt, entry.argv, entry.code,
+                    f"check/host-{n:02d}-base.txt", cwd=base_worktree)
+            finally:
+                await ctx.git.worktree_remove(ctx.repo, base_worktree)
+            if baseline.rc != 0:
+                from chupa.daemon import storm_producer
+                box = storm_producer(root=ctx.config.state_dir / BOX_DIR, fs=ctx.fs,
+                                     journal=ctx.driver.journal, clock=ctx.driver.clock)
+                prefix = ctx.driver.redactor.scrub(f"`{' '.join(entry.argv)}` fails on the merge base ")
+                summary = f"{prefix}{base[:8]} too; fix main, not this ticket"
+                if not any(m.message_class == "failure_report" and m.origin == ticket.stem and m.outcome == "base_red"
+                           and m.summary.startswith(prefix) for m in box.messages()):
+                    box.enqueue(message_class="failure_report", origin=ticket.stem, stage="check", outcome="base_red",
+                                summary=summary, occurrence_id=arrival_id("base-red", ticket.stem, attempt, "check", n))
+                report = _report(entry.code, [])
+            elif entry.severity == "hard":
+                hard.extend(report.findings)
+        reports.append(report)
+    return reports, hard
 
 
 class ScopeFenceGate:
@@ -1310,6 +1369,7 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
     outbox = ctx.worktree(stem) / TICKETS_DIR / stem
     evidence = await gather_evidence(ctx, ticket, slip.outcome, attempt=attempt)
     gated = run_gates(CHECK_GATES, evidence, ctx.worktree(stem), severity=check_severity(ctx, ticket))
+    host_reports, host_hard = await check_hosts(ctx, ticket, evidence.changed_files, attempt)
     required = [name for name in KNOWN_ARTIFACTS
                 if any(f"{TICKETS_DIR}/{stem}/{name}" in arg
                        for argv in ticket.verification for arg in argv)]
@@ -1325,16 +1385,16 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
     seeds = [prior[key] for key in sorted(prior)]
     new_paths: list[Path] = []
     seed_report = None
-    if seeding and gated.passed:
+    if seeding and gated.passed and not host_hard:
         seeds, new_paths = await _review_seeds(ctx, ticket, attempt=attempt, own=own, prior=prior)
         seed_findings = [finding for seed in seeds if seed.verdict != "approve" for finding in seed.findings]
         seed_report = _report("requisition_review", seed_findings)
-    passed = gated.passed and not missing and (seed_report is None or seed_report.verdict == "pass")
+    passed = gated.passed and not host_hard and not missing and (seed_report is None or seed_report.verdict == "pass")
     invoice = Invoice(
         produced_by_spec_version=CHECK_SPEC_VERSION, produced_at_sha=evidence.head_sha, stem=stem,
         passed=passed, changed_files=evidence.changed_files, inserted_lines=evidence.inserted_lines,
         bypassed=sorted({b.code for b in ticket.frontmatter.gate_bypass}),
-        reports=[*gated.reports, *([required_report] if required_report is not None else []),
+        reports=[*gated.reports, *host_reports, *([required_report] if required_report is not None else []),
                  *([seed_report] if seed_report is not None else [])], seeds=seeds,
         verification=evidence.verification,
     )
@@ -1360,13 +1420,15 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
     cost = Cost(seconds=active_seconds())
     if not passed:
         hard = [f for r in gated.hard_failures for f in r.findings]
+        hard.extend(f for r in host_reports for f in r.findings)
         if required_report is not None:
             hard.extend(required_report.findings)
         if seed_report is not None:
             hard.extend(seed_report.findings)
         return StageResult(outcome="gate_failed", artifact=invoice, findings=hard, cost=cost)
     outcome = "already_satisfied" if slip.outcome == "already_satisfied" else "ok"
-    return StageResult(outcome=outcome, artifact=invoice, findings=gated.findings, cost=cost)
+    return StageResult(outcome=outcome, artifact=invoice,
+                       findings=[*gated.findings, *(f for r in host_reports for f in r.findings)], cost=cost)
 
 
 # --- Review -------------------------------------------------------------------------------------

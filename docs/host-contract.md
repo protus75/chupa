@@ -219,11 +219,17 @@ false). Failure requires findings with paved roads; code must match the gate.
 Severity belongs to the runner, with all engine codes hard at merge unless
 `review.gate_severity` overrides them.
 
-`MergeQueue.host_checks(ticket, *, attempt, safety)` runs review.mechanical argv
+Check runs every triggered `review.mechanical` entry in config order after engine gates.
+An always trigger matches every change; a path prefix matches an equal path or a descendant.
+Hard failures block Check, soft failures are recorded, and failures also red at the merge
+base are filed as pre-existing and excluded from the verdict and retry findings. Inline
+merge reruns triggered hard entries on the rebased candidate. Both and
+`MergeQueue.host_checks(ticket, *, attempt, safety)` use the same runner for argv
 in the candidate worktree with explicit child env and the ticket stuck timeout.
 rc 0 passes; nonzero, timeout and missing executable fail with repair roads.
 It consumes exit status, not optional structured findings from stdout. Output
-is spooled to `merge-safety/host-NN.txt` or `merge-integration/host-NN.txt`;
+is spooled to `check/host-NN.txt`, `merge/host-NN.txt`,
+`merge-safety/host-NN.txt` or `merge-integration/host-NN.txt`;
 returned tails are redacted and captured output is scrubbed at the spool seam.
 Every safety_checks code must resolve to exactly one hard mechanical entry;
 invalid designations fail before commands. Integration selects only always/hard

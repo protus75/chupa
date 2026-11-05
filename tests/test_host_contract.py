@@ -256,7 +256,7 @@ def test_host_contract_seam_inventory(tmp_path):
         assert captured[-1][2] == "capture.txt"
         if verdict == "fail":
             assert report.findings[0].paved_road and "SECRET" not in report.findings[0].message
-    command = inspect.getsource(MergeQueue._command)
+    command = inspect.getsource(__import__("chupa.stages", fromlist=["run_host_command"]).run_host_command)
     assert "rc == 0" in command and "spool.write" in command and "redactor.scrub" in command
     mentions("Clock = Callable[[], datetime]", "Sleep = Callable[[float], Awaitable[None]]",
              "outer cancellation", "signal-not-reap", "stdin_path", "explicit required env",

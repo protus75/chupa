@@ -159,7 +159,8 @@ the Suggestion Box as a `suggestion`.
 2. A failing command is rerun at the merge base. If it also fails there it is **base-red**: a
    pre-existing failure, excluded from the verdict and filed once to the Suggestion Box.
 3. Runs the engine Check gates (section 5.1).
-4. Writes and lifts `checks.json`.
+4. Runs triggered host checks in config order, attributing failures also red at base to main.
+5. Writes and lifts `checks.json`.
 
 A hard gate failure ends the attempt `gate_failed`. Soft failures are recorded and the run
 continues. `already_satisfied` stops here: there is no diff to review.
@@ -179,13 +180,13 @@ Inline merge:
 
 1. Rebases the branch onto current `main`. A refused rebase is `gate_failed`.
 2. Re-runs Verification (and the bug regression) on the rebased candidate.
-3. Runs the Check gates and the Merge gates (section 5.1). Any hard failure refuses the merge;
+3. Runs the Check gates, Merge gates and triggered hard host checks (section 5.1). Any hard failure refuses the merge;
    `main` is untouched and the branch is kept.
 4. Squash-commits onto `main`: subject `chupa(<stem>): <first Goal line>`, trailers
    `chupa-ticket: <stem>` and `chupa-reviewed-sha: <sha>`. Journals `to: merged`.
 5. Removes the worktree and deletes the branch.
 
-Inline merge does not run host checks, merge strategies, or the conflict ladder; a rebase
+Inline merge does not run merge strategies or the conflict ladder; a rebase
 conflict is simply refused.
 
 ## 5. Checks
@@ -235,10 +236,12 @@ from the intake evidence check. The Check gate still verifies the regression pro
 ### 5.4 Host checks
 
 A host declares its own checks in `review.mechanical` (`code`, `argv`, `trigger: always` or a
-list of path prefixes, `severity: hard | soft`). Today they run **only in the `serve` merge
-queue** (section 7.2): the safety tier runs the hard entries named in `merge.safety_checks`, and
-the integration tier runs every `trigger: always` + `severity: hard` entry. They never run at
-Check or in `run`/`drain` merges, and path-triggered or soft entries never run anywhere.
+list of path prefixes, `severity: hard | soft`). Check runs every triggered entry in order;
+prefixes match an equal path or a descendant. A base-red failure is filed and excluded from
+Check and retry findings. Soft failures are recorded without blocking. Inline merge reruns
+triggered hard entries on the rebased candidate. The `serve` merge queue (section 7.2) runs
+the hard entries named in `merge.safety_checks` at safety and every always/hard entry at
+integration. All use one shared command runner.
 
 Config load refuses a declared `review.surfaces` entry (host review prompts); remove
 the entries because host review surfaces are not supported yet.
@@ -398,7 +401,7 @@ For each candidate, in pick order:
    resolved mechanically (`union` for append-only files, `regenerate` re-runs a generator).
    Anything else aborts the rebase and hands the ticket to Rework.
 2. **Safety tier:** scope fence, run record, Merge gates, and host safety checks.
-3. **Integration tier:** all Check and Merge gates, plus host `always` + `hard` checks.
+3. **Integration tier:** all Check and Merge gates, plus host `always` + `hard` checks through the shared runner also used by Check and inline merge.
 4. **Red streak:** three different stems failing integration in a row pause the queue; `resume`
    with the advertised hold releases it.
 5. **Supervision:** unless the configured review model is covered by a recorded GO baseline
