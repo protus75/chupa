@@ -1,0 +1,15 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "c285cfdca6a6b070bffec098997db8c08456dc8c",
+  "stem": "serve-self-upgrade",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "abandon-human",
+  "lessons": [],
+  "mechanical": "premise_bounce cap spent",
+  "spec_version": "1.2",
+  "provider": null,
+  "model": null
+}
