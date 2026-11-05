@@ -37,7 +37,7 @@ Each spine cap (`chupa/caps.py`) counts on its own and nothing bounds a ticket's
 - In: existing tests change only where they assert or rely on the old default values.
 - In: update `docs/how-chupa-works.md` section 6.4 (the `attempts` cap, new defaults, what counts as a failed attempt), so the doc matches the code when this merges.
 - In: if `uv run pytest -q` fails only on tests that also fail on the merge base, those failures are pre-existing: Check excuses them (base-red). Commit the work and list them in the run record; never stop with `premise_failed` for them.
-- In: `eval/shakeout/runner.py`'s `_premise_false` scenario sets `premise_bounce: 2` on its own bench config (as `_identical_terminals` already sets `retry` and `diagnosis`), so the shakeout battery keeps proving one premise bounce without a re-offer under the new defaults.
+- In: both shakeout members that exercise a premise bounce, `eval/shakeout/runner.py` `_premise_false` and `eval/shakeout/drain.py` `_premise_park_release` (its unchanged park, then a ticket-edit release, needs a second premise bounce), set `premise_bounce: 2` on their own bench config (as `_identical_terminals` already sets `retry` and `diagnosis`), so the shakeout battery keeps proving one premise bounce without a re-offer under the new defaults.
 - Out: the escalation ladder's rung order, quarantine and poison caps, THRESH spend budgets, and the plan text.
 
 ## Scope fence
@@ -48,7 +48,7 @@ Each spine cap (`chupa/caps.py`) counts on its own and nothing bounds a ticket's
 - chupa/drain.py
 - docs/host-contract.md
 - tests/
-- eval/shakeout/runner.py
+- eval/shakeout/
 - chupa/daemon.py
 
 ## Acceptance criteria
