@@ -20,7 +20,7 @@ none
 - chupa/specs.py
 
 ## Goal / Why
-Every Implement, requisition-review, and Diagnose call is told to read or judge against `CHUPA_PLAN.md` (a "plan contract", plan sections, spec-gap units, seeding rules, "plan defect" RMAs). The plan is a frozen bootstrap record, not a spec, so these instructions steer models toward a document that no longer governs anything. After this change, none of the three prompts mentions the plan, seeding, spec gaps, or units. The engine stops injecting plan text and stops requiring or validating `kind`/`unit` on model replies.
+Every Implement, requisition-review, and Diagnose call is told to read or judge against `CHUPA_PLAN.md` (a "plan contract", plan sections, spec-gap units, seeding rules, "plan defect" RMAs). The plan is a frozen bootstrap record, not a spec, so these instructions steer models toward a document that no longer governs anything. After this change, none of the three prompts mentions the plan, seeding, spec gaps, or units. The engine stops injecting plan text and stops requiring or validating `kind`/`unit` on model replies. Its earlier premise failure (the full suite was red on main because a test parsed a ticket naming a deleted file) was fixed on main by `da13b247`.
 
 ## Scope in / Scope out
 - In: `specs/implement.md`: delete the plan-contract data block and every mention of it; delete the seeding-ticket exception in Task step 1 and "except new seed ticket files" in step 4; delete "(section 11.7)"; delete the `kind`/`unit`/`spec_gap`/`authoring_error` paragraph in Output format. Keep its guidance as plain text: a ticket that contradicts merged code or is malformed, or whose `## Scope fence` lacks a path the criteria force, is a `premise` finding naming that file. Bump `version` to "2.0".
