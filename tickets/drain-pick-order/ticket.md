@@ -22,6 +22,12 @@ Drain's `_select` returns every fresh ticket before any re-offer, whatever their
 ## Scope in / Scope out
 - In: `chupa/drain.py` `_select`: one candidate list ordered by `sort_key`. Each entry keeps its re-offer flag, so `_run_one` still draws `retry` for a re-offer exactly as today. Eligibility (held, budget, storm, drought, over-budget, Reject-queue rules) is unchanged. The docstring states the order.
 - In: `tests/test_drain.py`: tests for the new order. Update any existing test that asserts fresh-before-re-offer to assert the `sort_key` order instead.
+- In: tests that encode the old order. A full-suite run with only the `_select` change applied fails exactly these:
+  - `tests/test_drain.py::test_a_red_independent_ticket_parks_and_the_next_still_runs` and `::test_rework_split_successors_release_original_dependents`;
+  - `tests/test_drain_upgrade.py::test_a_self_upgrading_admission_hands_off_before_the_next_dispatch`, `::test_the_carried_parked_set_rides_every_handoff_in_the_chain` and `::test_retry_budget_spent_before_the_re_exec_stays_spent_in_the_child`;
+  - `tests/test_shakeout.py::test_invalid_output_exhausted_member_observes_bounded_reprompts_and_harvest` and `::test_stuck_budget_kill_member_observes_abort_harvest_and_followup_merge`, whose replies are scripted in `eval/shakeout/driver.py`.
+
+  Update each to the new order: an older red ticket with `retry` budget now re-runs before younger fresh work at the same priority, bounded by its caps. Keep every other assertion.
 - In: `docs/how-chupa-works.md` section 7.1 step 3: replace "Fresh tickets run before re-offers" with the single order.
 - Out: quiescence re-offers and machine keep; eligibility; `sort_key`; the serve scheduler.
 
@@ -31,6 +37,8 @@ Drain's `_select` returns every fresh ticket before any re-offer, whatever their
 - tests/test_drain_upgrade.py
 - tests/test_drain_reentry.py
 - tests/test_seed_successor.py
+- tests/test_shakeout.py
+- eval/shakeout/driver.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
