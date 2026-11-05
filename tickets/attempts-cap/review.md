@@ -1,11 +1,11 @@
 # Review: snag
 
-The attempts cap and new defaults are implemented, but the new premise_bounce default breaks the real shakeout member while a test patch hides it, and the new `_admit` check gives settled stems a dead-end refusal.
+The attempts count, defaults, routing and drain report are correct, but `runner.drive` adds an attempts pre-flight the ticket explicitly forbids, and `docs/how-chupa-works.md` section 6.1 still states the old failure sequence.
 
 ## Findings
 
-- [acceptance] tests/test_shakeout.py:220 The test monkeypatches `Bench.initialize` to set `premise_bounce: 2`, so `premise_park_release` passes only in this test. The real member in `eval/shakeout/drain.py` still runs on the shipped default of 1 through `eval.shakeout.run`. There, the first `premise_failed` spends the cap and routes the stem to Reject. `_next` then never re-offers it after the ticket edit, so `assert stem in released.merged` fails and the battery goes red. (do instead: Remove the monkeypatch and set `premise_bounce: 2` inside `_premise_park_release` with `bench.configure`, as other members already override caps. `eval/` is outside this ticket's Scope fence, so a human must widen the fence to include `eval/shakeout/drain.py` before this can land.)
-- [logic] chupa/runner.py:722 The attempts-spent refusal in `_admit` runs before the already-merged and non-confirmed state checks. A merged or otherwise settled stem with five or more failed terminals in its lineage is told to run drain and then `confirm`. `_settle` skips settled stems, so it is never routed, and `confirm` then refuses because the stem is not in the Reject queue. The operator should have received the existing 'already merged' refusal and its road to author a new stem. (do instead: Move the attempts check below the merged and `state != confirmed` refusals in `_admit`, and add a test that runs a merged stem with five prior failures and expects the 'already merged' refusal.)
+- [scope] chupa/runner.py:151 The ticket says "Add no separate attempts check in any caller, `_admit`, or the scheduler" and that "routing at the terminal is what stops a spent stem". This new block at the top of `drive` is a separate attempts check in a caller. It tests `spent(...) == "attempts"` before any stage runs and adds a new behavior: it journals a synthetic `abandoned` terminal with `routed: reject_queue` for a run that never attempted anything. That terminal replaces the stem's real failed terminal as its latest Reject-queue entry. This is the `_admit` refusal from the earlier attempt moved one call down, not the routing the ticket specified. (do instead: Delete the pre-flight block and rely on `failure_terminal` routing the failure that reaches the cap, with the existing `drain._select` and scheduler holds stopping the stem afterward. Remove `test_attempts_cap_spent_daemon_dispatch_returns_a_routed_terminal`, which pins this path. If stems already over the limit with no routed terminal need handling, file that in the Suggestion Box as a separate ticket.)
+- [acceptance] docs/how-chupa-works.md:- Section 6.1 still says that after any other non-ok terminal `runner.drive` does, in order: "4. `infra_error` / `timeout` draw the `infra` cap; `premise_failed` draws `premise_bounce`." and "5. **Diagnosis** (section 6.3), unless the outcome is `budget_exceeded` or an over-bound render." and "6. **Rework** if diagnosis said `split`, or the render was over bound". The diff's new branch at `chupa/runner.py:198` skips all of these when the failure reaches `caps.attempts`: no cap draw, no spec-gap hold, no Diagnosis and no Rework, including for an over-bound render. Section 6.4's new text describes the skipped model calls, but 6.1's ordered list is left stating the old sequence, and the `infra` and `premise_bounce` draw skip is documented nowhere. (do instead: Add a step to the section 6.1 list after the drought or quota step: a failure that reaches `caps.attempts` goes straight to the terminal, routed to the Reject queue with reason `attempts cap spent`, skipping the cap draw, spec-gap hold, Diagnosis and Rework steps.)
 
 ## Record
 
@@ -13,31 +13,31 @@ The attempts cap and new defaults are implemented, but the new premise_bounce de
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "c7c53f9d9835eef2a4aeffc05d650631faf6a8b2",
+  "produced_at_sha": "be1bd0a6f0f1d28372b744f245bf86dbaada0909",
   "stem": "attempts-cap",
-  "reviewed_sha": "c7c53f9d9835eef2a4aeffc05d650631faf6a8b2",
-  "summary": "The attempts cap and new defaults are implemented, but the new premise_bounce default breaks the real shakeout member while a test patch hides it, and the new `_admit` check gives settled stems a dead-end refusal.",
+  "reviewed_sha": "be1bd0a6f0f1d28372b744f245bf86dbaada0909",
+  "summary": "The attempts count, defaults, routing and drain report are correct, but `runner.drive` adds an attempts pre-flight the ticket explicitly forbids, and `docs/how-chupa-works.md` section 6.1 still states the old failure sequence.",
   "findings": [
     {
-      "code": "acceptance",
-      "path": "tests/test_shakeout.py",
-      "line": 220,
-      "message": "The test monkeypatches `Bench.initialize` to set `premise_bounce: 2`, so `premise_park_release` passes only in this test. The real member in `eval/shakeout/drain.py` still runs on the shipped default of 1 through `eval.shakeout.run`. There, the first `premise_failed` spends the cap and routes the stem to Reject. `_next` then never re-offers it after the ticket edit, so `assert stem in released.merged` fails and the battery goes red.",
-      "paved_road": "Remove the monkeypatch and set `premise_bounce: 2` inside `_premise_park_release` with `bench.configure`, as other members already override caps. `eval/` is outside this ticket's Scope fence, so a human must widen the fence to include `eval/shakeout/drain.py` before this can land.",
+      "code": "scope",
+      "path": "chupa/runner.py",
+      "line": 151,
+      "message": "The ticket says \"Add no separate attempts check in any caller, `_admit`, or the scheduler\" and that \"routing at the terminal is what stops a spent stem\". This new block at the top of `drive` is a separate attempts check in a caller. It tests `spent(...) == \"attempts\"` before any stage runs and adds a new behavior: it journals a synthetic `abandoned` terminal with `routed: reject_queue` for a run that never attempted anything. That terminal replaces the stem's real failed terminal as its latest Reject-queue entry. This is the `_admit` refusal from the earlier attempt moved one call down, not the routing the ticket specified.",
+      "paved_road": "Delete the pre-flight block and rely on `failure_terminal` routing the failure that reaches the cap, with the existing `drain._select` and scheduler holds stopping the stem afterward. Remove `test_attempts_cap_spent_daemon_dispatch_returns_a_routed_terminal`, which pins this path. If stems already over the limit with no routed terminal need handling, file that in the Suggestion Box as a separate ticket.",
       "kind": null,
       "unit": null
     },
     {
-      "code": "logic",
-      "path": "chupa/runner.py",
-      "line": 722,
-      "message": "The attempts-spent refusal in `_admit` runs before the already-merged and non-confirmed state checks. A merged or otherwise settled stem with five or more failed terminals in its lineage is told to run drain and then `confirm`. `_settle` skips settled stems, so it is never routed, and `confirm` then refuses because the stem is not in the Reject queue. The operator should have received the existing 'already merged' refusal and its road to author a new stem.",
-      "paved_road": "Move the attempts check below the merged and `state != confirmed` refusals in `_admit`, and add a test that runs a merged stem with five prior failures and expects the 'already merged' refusal.",
+      "code": "acceptance",
+      "path": "docs/how-chupa-works.md",
+      "line": null,
+      "message": "Section 6.1 still says that after any other non-ok terminal `runner.drive` does, in order: \"4. `infra_error` / `timeout` draw the `infra` cap; `premise_failed` draws `premise_bounce`.\" and \"5. **Diagnosis** (section 6.3), unless the outcome is `budget_exceeded` or an over-bound render.\" and \"6. **Rework** if diagnosis said `split`, or the render was over bound\". The diff's new branch at `chupa/runner.py:198` skips all of these when the failure reaches `caps.attempts`: no cap draw, no spec-gap hold, no Diagnosis and no Rework, including for an over-bound render. Section 6.4's new text describes the skipped model calls, but 6.1's ordered list is left stating the old sequence, and the `infra` and `premise_bounce` draw skip is documented nowhere.",
+      "paved_road": "Add a step to the section 6.1 list after the drought or quota step: a failure that reaches `caps.attempts` goes straight to the terminal, routed to the Reject queue with reason `attempts cap spent`, skipping the cap draw, spec-gap hold, Diagnosis and Rework steps.",
       "kind": null,
       "unit": null
     }
   ],
-  "spec_version": "1.1",
+  "spec_version": "1.2",
   "provider": "claude",
   "model": "claude-opus-5-5",
   "verdict": "snag"
