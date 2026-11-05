@@ -1,10 +1,10 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-none
+The first test run failed because the conduct files differed from their committed versions; the full suite passed after committing them.
 
 ## Dead ends
 
