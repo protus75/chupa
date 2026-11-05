@@ -110,6 +110,7 @@ class MechanicalCheck(_Strict):
 class AutofixCommand(_Strict):
     code: str
     argv: Argv
+    files: Annotated[list[str], Field(min_length=1)]
 
 
 class ReviewSurface(_Strict):

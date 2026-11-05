@@ -10,6 +10,7 @@ The run's terminal `state_transition` is not written here: that is the runner's 
 
 import asyncio
 import difflib
+import fnmatch
 import hashlib
 import json
 import re
@@ -1436,12 +1437,17 @@ async def lift_seeds(ctx: StageContext, stem: str, paths: list[Path], *, attempt
 async def check_autofix(ctx, ticket, attempt):
     worktree = ctx.worktree(ticket.stem)
     files = [path for path in await ctx.git.diff_names(ctx.repo, MAIN, ticket.stem) if not _in_fence(path, [TICKETS_DIR]) and (worktree / path).is_file()]
+    selections = [[path for path in files if any(fnmatch.fnmatch(path, pattern) for pattern in entry.files)] for entry in ctx.config.review.autofix]
+    selected = {path for paths in selections for path in paths}
+    files = [path for path in files if path in selected]
     if not files:
         return [], []
     before = {path: (worktree / path).read_bytes() for path in files}
     reports = []
-    for n, entry in enumerate(ctx.config.review.autofix, 1):
-        result, report = await run_host_command(ctx, ticket, attempt, [*entry.argv, *files], entry.code, f"check/autofix-{n:02d}.txt")
+    for n, (entry, paths) in enumerate(zip(ctx.config.review.autofix, selections, strict=True), 1):
+        if not paths:
+            continue
+        result, report = await run_host_command(ctx, ticket, attempt, [*entry.argv, *paths], entry.code, f"check/autofix-{n:02d}.txt")
         reports.append(report)
         if result.rc != 0:
             await ctx.git.restore(worktree, files, source=ticket.stem)

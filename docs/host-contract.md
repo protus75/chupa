@@ -28,8 +28,8 @@ routing:
   - {tier: medium, surface: review, candidates: [{provider: codex}]}
   - {tier: medium, surface: implement, candidates: [{provider: codex, model: host-model}]}
 review:
-  autofix: # changed files are appended to each argv
-    - {code: host-fix, argv: [uv, run, ruff, format]}
+  autofix: # matching changed files are appended to each argv
+    - {code: host-fix, argv: [uv, run, ruff, format], files: ["*.py"]}
   mechanical: # argv lists, never shell commands; choose your host's checks
     - {code: host-test, argv: [uv, run, pytest, -q], trigger: always, severity: hard}
     - {code: host-style, argv: [uv, run, ruff, check], trigger: [src/], severity: soft}
@@ -89,7 +89,7 @@ Review:
   required: []
   defaults: {autofix: [], mechanical: [], surfaces: [], trigger_map: {}, gate_severity: {}}
 AutofixCommand:
-  required: [code, argv]
+  required: [code, argv, files]
   defaults: {}
 MechanicalCheck:
   required: [code, argv, trigger, severity]
@@ -225,8 +225,9 @@ false). Failure requires findings with paved roads; code must match the gate.
 Severity belongs to the runner, with all engine codes hard at merge unless
 `review.gate_severity` overrides them.
 
-Check first runs `review.autofix` entries in order on existing changed files outside `tickets/`,
-appending those paths to each argv. If their bytes change, it commits them as
+Check first runs `review.autofix` entries in order on existing changed files outside `tickets/`
+that match the entry's required nonempty `files` allowlist of fnmatch patterns, appending those
+paths to its argv. An entry with no matching files is skipped. If their bytes change, it commits them as
 `chupa(<stem>): autofix` before Verification and gates. On failure it stops, restores
 the listed files to the branch head, records a hard failure and continues Check.
 

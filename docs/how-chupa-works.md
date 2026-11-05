@@ -154,7 +154,7 @@ the Suggestion Box as a `suggestion`.
 
 ### 4.3 Check
 
-1. Runs configured autofix commands on existing changed files outside `tickets/` and commits changes.
+1. Runs configured autofix commands on existing changed files outside `tickets/` matching each entry's `files` patterns and commits changes.
 2. Runs each `## Verification` command in the worktree (provider keys removed from the
    environment, timeout = the ticket's stuck budget, output spooled to `check/verify-NN.txt`).
 3. A failing command is rerun at the merge base. If it also fails there it is **base-red**: a

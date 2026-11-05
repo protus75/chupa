@@ -112,7 +112,7 @@ def test_autofix_config_loading(ctx, tmp_path):
     from chupa.config import ConfigError, load_config
 
     raw = yaml.safe_load((ctx.repo / "config.yaml").read_text())
-    raw["review"]["autofix"] = [{"code": "fix", "argv": ["fix"]}]
+    raw["review"]["autofix"] = [{"code": "fix", "argv": ["fix"], "files": ["*.py"]}]
     path = tmp_path / "config.yaml"
 
     def load():
@@ -120,10 +120,16 @@ def test_autofix_config_loading(ctx, tmp_path):
         return load_config(path, cwd=tmp_path)
 
     assert load().review.autofix[0].argv == ["fix"]
-    for entry in ({"code": "fix", "argv": []}, {"code": "fix", "argv": ["fix"], "extra": 1}):
+    for entry in ({"code": "fix", "argv": [], "files": ["*.py"]}, {"code": "fix", "argv": ["fix"], "files": ["*.py"], "extra": 1}):
         raw["review"]["autofix"] = [entry]
         with pytest.raises(ConfigError):
             load()
+
+    for entry in ({"code": "fix", "argv": ["fix"]}, {"code": "fix", "argv": ["fix"], "files": []}):
+        raw["review"]["autofix"] = [entry]
+        with pytest.raises(ConfigError) as exc:
+            load()
+        assert exc.value.key == "review.autofix.0.files"
 
 
 def test_autofix_commits_selected_files_and_evaluates_head(ctx, monkeypatch):
@@ -135,7 +141,7 @@ def test_autofix_commits_selected_files_and_evaluates_head(ctx, monkeypatch):
         root = ctx.worktree(ticket.stem)
         (root / "chupa/other.py").unlink()
         await commit(ctx, root, ["chupa/other.py"], "delete")
-        ctx.config.review.autofix = [AutofixCommand(code="fix", argv=["host", "fix"])]
+        ctx.config.review.autofix = [AutofixCommand(code="fix", argv=["host", "fix"], files=["*.py"])]
         original = ctx.exec_.run
         calls = []
 
@@ -168,7 +174,7 @@ def test_autofix_no_change_and_already_satisfied(ctx, monkeypatch):
         root = ctx.worktree(ticket.stem)
         head = await ctx.git.rev_parse(ctx.repo, ticket.stem)
         (root / "chupa/thing.py").write_text("uncommitted\n")
-        ctx.config.review.autofix = [AutofixCommand(code="fix", argv=["host", "fix"])]
+        ctx.config.review.autofix = [AutofixCommand(code="fix", argv=["host", "fix"], files=["*.py"])]
         calls = scripted(ctx, monkeypatch, [(0, "", "")])
         await checked(ctx, ticket)
         assert len(calls) == 1 and await ctx.git.rev_parse(ctx.repo, ticket.stem) == head
@@ -191,7 +197,7 @@ def test_autofix_failure_restores_and_blocks_seeds(ctx, monkeypatch):
         path.chmod(0o755)
         await commit(ctx, root, ["chupa/thing.py"], "executable")
         head = await ctx.git.rev_parse(ctx.repo, ticket.stem)
-        ctx.config.review.autofix = [AutofixCommand(code="bad", argv=["host", "bad"]), AutofixCommand(code="later", argv=["host", "later"])]
+        ctx.config.review.autofix = [AutofixCommand(code="bad", argv=["host", "bad"], files=["*.py"]), AutofixCommand(code="later", argv=["host", "later"], files=["*.py"])]
         original = ctx.exec_.run
         calls = []
 
@@ -226,9 +232,60 @@ def test_autofix_skips_when_no_files(ctx, monkeypatch):
         root = ctx.worktree(ticket.stem)
         (root / "chupa/thing.py").unlink()
         await commit(ctx, root, ["chupa/thing.py"], "delete")
-        ctx.config.review.autofix = [AutofixCommand(code="fix", argv=["host", "fix"])]
+        ctx.config.review.autofix = [AutofixCommand(code="fix", argv=["host", "fix"], files=["*.py"])]
         calls = scripted(ctx, monkeypatch, [])
         await checked(ctx, ticket)
         assert not calls
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("fail", [False, True])
+def test_autofix_selection_and_union(ctx, monkeypatch, fail):
+    from chupa.config import AutofixCommand
+
+    async def run():
+        changes = {"a.py": "python\n", "config.yaml": "yaml\n", ".gitignore": "ignore\n"}
+        ticket = await ready(ctx, changes=changes, fence=tuple(changes))
+        root = ctx.worktree(ticket.stem)
+        head = await ctx.git.rev_parse(ctx.repo, ticket.stem)
+        ctx.config.review.autofix = [
+            AutofixCommand(code="py", argv=["host", "py"], files=["*.py"]),
+            AutofixCommand(code="yaml", argv=["host", "yaml"], files=["*.yaml"]),
+        ]
+        original = ctx.exec_.run
+        calls = []
+
+        async def execute(argv, **kw):
+            if argv[0] == "host":
+                calls.append(list(argv))
+                (root / argv[-1]).write_text("fixed\n")
+                return (1 if fail and argv[1] == "yaml" else 0), "", ""
+            return await original(argv, **kw)
+
+        monkeypatch.setattr(ctx.exec_, "run", execute)
+        result = await checked(ctx, ticket)
+        assert calls == [["host", "py", "a.py"], ["host", "yaml", "config.yaml"]]
+        if fail:
+            assert result.outcome == "gate_failed"
+            assert await ctx.git.rev_parse(ctx.repo, ticket.stem) == head
+            assert all((root / path).read_text() == data for path, data in changes.items())
+        else:
+            assert result.outcome == "ok"
+            assert (await ctx.git._run(root, "log", "-1", "--format=%s")).strip() == f"chupa({ticket.stem}): autofix"
+            assert set((await ctx.git._run(root, "show", "--format=", "--name-only", "HEAD")).split()) == {"a.py", "config.yaml"}
+
+    asyncio.run(run())
+
+
+def test_autofix_skips_unmatched_files(ctx, monkeypatch):
+    from chupa.config import AutofixCommand
+
+    async def run():
+        ticket = await ready(ctx, changes={"config.yaml": "changed\n"}, fence=("config.yaml",))
+        ctx.config.review.autofix = [AutofixCommand(code="py", argv=["host", "py"], files=["*.py"])]
+        calls = scripted(ctx, monkeypatch, [])
+        result = await checked(ctx, ticket)
+        assert result.outcome == "ok" and not calls
 
     asyncio.run(run())
