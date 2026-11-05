@@ -605,6 +605,8 @@ with the fix. The full field inventory is in `docs/host-contract.md`.
 
 ## 12. Host projects
 
+The block carries only process rules that hold for every host; codebase rules belong in the project-owned remainder.
+
 - `chupa core` writes the managed block between `<!-- chupa:core begin -->` and
   `<!-- chupa:core end -->` in `CLAUDE.md` (for `claude`) or `AGENTS.md` (other CLIs), for each
   routed provider. On first adoption the block goes above the existing content; after that only

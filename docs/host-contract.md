@@ -181,6 +181,7 @@ schema. Every future version bump must ship its migration step.
 
 Engine-owned `<!-- chupa:core begin -->` and `<!-- chupa:core end -->` lines
 delimit the managed conduct block; the remainder is project-owned content.
+The block carries only process rules that hold for every host; codebase rules belong in the project-owned remainder.
 Engine process wins over host content. Do not hand-edit the core: `chupa core`
 inserts or refreshes it, then commit the routed files. Routed candidates select
 CLAUDE.md for provider name `claude`, AGENTS.md otherwise, deduplicated;
