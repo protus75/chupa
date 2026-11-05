@@ -64,6 +64,7 @@ After this change `serve` notices when the engine's own source changes and hands
 - chupa/journal.py
 - tests/test_serve.py
 - tests/test_drain_upgrade.py
+- tests/test_drain.py
 - tests/test_closed_sets.py
 - tests/test_vocabularies.py
 - docs/how-chupa-works.md
