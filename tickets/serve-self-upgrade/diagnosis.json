@@ -1,15 +1,20 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "c285cfdca6a6b070bffec098997db8c08456dc8c",
+  "produced_at_sha": "5cedbdac3a43c8df8116203ef39f8f42b4401490",
   "stem": "serve-self-upgrade",
-  "attempt": 0,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "premise_bounce cap spent",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Drop the `self.queue.held` term from `upgrade_idle` in chupa/serve.py. Per the ticket, idle means no running ticket and a merge queue with no pending or active candidate. Policy-held candidates (mergequeue.py:145-150) survive restart via the journal, so they must not block handoff.",
+    "Add a test in tests/test_serve.py: one merge candidate is review-policy held when the engine `chupa` tree changes. Assert that serve journals `serve_handoff`, releases the lock before the spawn and spawns exactly once.",
+    "Re-check the other extra idle term the run record names, waiting on merge-result delivery: keep it only if a test shows that a handoff before delivery loses a merge result. Otherwise use the ticket's idle definition exactly.",
+    "Leave the rest unchanged. The shared argv builder, journal signal, docs and drain passthrough had no review findings. Re-run both verification commands after the fix."
+  ],
+  "mechanical": null,
   "spec_version": "1.2",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
