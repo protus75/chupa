@@ -335,6 +335,7 @@ class _Drain:
         tickets: dict[str, Ticket] = {}
         invalid: dict[str, str] = {}
         drafts: list[str] = []
+        states = last_states(self.c.journal.read())
         for path in sorted((repo / TICKETS_DIR).glob(f"*/{TICKET_FILE}")):
             stem = path.parent.name
             rel = ticket_path(stem)
@@ -343,7 +344,8 @@ class _Drain:
             try:
                 ticket = parse_ticket(stem, path.read_text(), repo, plan=plan)
             except TicketInvalid as e:
-                invalid[stem] = "; ".join(f"[{f.code}] {f.message} ({f.paved_road})" for f in e.findings)
+                if states.get(stem) not in SETTLED | RETIRED:
+                    invalid[stem] = "; ".join(f"[{f.code}] {f.message} ({f.paved_road})" for f in e.findings)
                 continue
             if ticket.frontmatter.state == "draft":
                 drafts.append(stem)

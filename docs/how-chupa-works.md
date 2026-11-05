@@ -381,7 +381,7 @@ Keep and kill require a person at an interactive terminal to type the exact stem
 4. **Quiescence:** when nothing is eligible, it re-offers parked stems with budget (drawing
    `retry`), forces a retro, and stops when nothing changes.
 5. **Report:** merged, parked (with reasons and the command to continue), blocked on depends,
-   invalid tickets, drafts awaiting confirm.
+   invalid tickets excluding those settled or rejected in the journal, drafts awaiting confirm.
 
 Bounds: `drain.max_runtime_hours` (default 12) halts it (exit 1).
 
