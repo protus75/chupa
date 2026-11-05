@@ -93,7 +93,7 @@ AutofixCommand:
   defaults: {}
 MechanicalCheck:
   required: [code, argv, trigger, severity]
-  defaults: {}
+  defaults: {results: unset}
 ReviewSurface:
   required: [name, trigger, rules_doc, severity]
   defaults: {}
@@ -246,6 +246,14 @@ returned tails are redacted and captured output is scrubbed at the spool seam.
 Every safety_checks code must resolve to exactly one hard mechanical entry;
 invalid designations fail before commands. Integration selects only always/hard
 entries. Host surfaces use their own triggers; trigger_map concerns engine gates.
+
+An entry may set `results` to a worktree-relative file written with `-p chupa.testreport
+--chupa-results <path>`. Check removes it before each run and reads fresh results. A failed
+command with failed tests runs once more; failed-then-passed tests in changed files block as
+flaky, while unedited flakes enter quarantine unless its cap is full. Failed tests block unless
+quarantined and unedited. A passing quarantined test is released after its report resolves to a
+merged fix ticket. Missing or invalid results after a successful run or rerun fail the entry.
+Merge-time checks continue to use exit status alone.
 
 The minimal seams in `chupa/seams.py` are:
 

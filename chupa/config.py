@@ -105,6 +105,14 @@ class MechanicalCheck(_Strict):
     argv: Argv
     trigger: Trigger
     severity: Severity
+    results: str | None = None
+
+    @field_validator("results")
+    @classmethod
+    def _results_path(cls, value: str | None) -> str | None:
+        if value is not None and (not value.strip() or Path(value).is_absolute() or ".." in Path(value).parts):
+            raise ValueError("results must be a worktree-relative file path")
+        return value
 
 
 class AutofixCommand(_Strict):

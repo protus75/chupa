@@ -48,7 +48,7 @@ def storm_producer(*, root: Path, fs: FileSystem, journal: Journal, clock: Clock
 
 
 def flake_detection(*, journal: Journal, box: Box, config: Config, escalate: Callable[[str], None]) -> Flake:
-    """Dormant detection/release boundary supplied with the lock holder's existing writers."""
+    """Detection/release boundary supplied with the lock holder's existing writers."""
     return Flake(journal=journal, box=box, cap=config.caps.quarantine, escalate=escalate)
 
 

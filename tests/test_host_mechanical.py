@@ -119,6 +119,8 @@ def test_autofix_config_loading(ctx, tmp_path):
         path.write_text(yaml.safe_dump(raw))
         return load_config(path, cwd=tmp_path)
 
+    raw["review"]["mechanical"] = [{"code": "tests", "argv": ["pytest"], "trigger": "always", "severity": "hard", "results": "results.json"}]
+    assert load().review.mechanical[0].results == "results.json"
     assert load().review.autofix[0].argv == ["fix"]
     for entry in ({"code": "fix", "argv": [], "files": ["*.py"]}, {"code": "fix", "argv": ["fix"], "files": ["*.py"], "extra": 1}):
         raw["review"]["autofix"] = [entry]
@@ -287,5 +289,121 @@ def test_autofix_skips_unmatched_files(ctx, monkeypatch):
         calls = scripted(ctx, monkeypatch, [])
         result = await checked(ctx, ticket)
         assert result.outcome == "ok" and not calls
+
+    asyncio.run(run())
+
+
+def results_script(ctx, monkeypatch, runs):
+    import json
+
+    original = ctx.exec_.run
+    calls = []
+
+    async def execute(argv, **kw):
+        if argv[0] != "host":
+            return await original(argv, **kw)
+        calls.append(kw["cwd"])
+        rc, outcomes = runs.pop(0)
+        if outcomes is not None:
+            (kw["cwd"] / "results.json").write_text(json.dumps({"schema_version": 1, "tests": outcomes}))
+        return rc, "", ""
+
+    monkeypatch.setattr(ctx.exec_, "run", execute)
+    return calls
+
+
+def test_results_detection_and_replay(ctx, monkeypatch):
+    async def run():
+        test = "tests/test_a.py::test_x"
+        ticket = await ready(ctx)
+        ctx.config.review.mechanical = [host("tests").model_copy(update={"results": "results.json"})]
+        runs = [(1, {test: "failed"}), (0, {test: "passed"})] * 2
+        results_script(ctx, monkeypatch, runs)
+        for _ in range(2):
+            assert (await checked(ctx, ticket)).outcome == "ok"
+        assert len([e for e in ctx.driver.journal.read() if e.body.get("kind") == "flake_detected"]) == 1
+        assert len(Box(ctx.config.state_dir / BOX_DIR, ctx.fs).messages()) == 1
+        assert (ctx.config.state_dir / f"spools/{ticket.stem}/0/check/host-01-rerun.txt").exists()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("edited,second,expected", [(True, "passed", "gate_failed"), (False, "failed", "gate_failed")])
+def test_results_block_edited_flake_and_real_failure(ctx, monkeypatch, edited, second, expected):
+    async def run():
+        test = "tests/test_a.py::test_x"
+        ticket = await ready(ctx, changes={"tests/test_a.py": "changed"} if edited else None, fence=("tests/test_a.py",) if edited else ("chupa/thing.py",))
+        ctx.config.review.mechanical = [host("tests").model_copy(update={"results": "results.json"})]
+        results_script(ctx, monkeypatch, [(1, {test: "failed"}), (0 if second == "passed" else 1, {test: second}), (0, {})])
+        result = await checked(ctx, ticket)
+        assert result.outcome == expected and any(test in f.message for f in result.findings)
+        assert not any(e.body.get("kind") == "flake_detected" for e in ctx.driver.journal.read())
+
+    asyncio.run(run())
+
+
+def test_results_quarantine_release_and_reflake(ctx, monkeypatch):
+    from chupa.box import Resolution
+    from chupa.daemon import flake_detection, storm_producer
+    from chupa.journal import EventType
+
+    async def run():
+        test = "tests/test_a.py::test_x"
+        ticket = await ready(ctx)
+        ctx.config.review.mechanical = [host("tests").model_copy(update={"results": "results.json"})]
+        box = storm_producer(root=ctx.config.state_dir / BOX_DIR, fs=ctx.fs, journal=ctx.driver.journal, clock=ctx.driver.clock)
+        flake = flake_detection(journal=ctx.driver.journal, box=box, config=ctx.config, escalate=lambda _: None)
+        runs = [(1, {test: "failed"}), (0, {test: "passed"}), (1, {test: "failed"}), (1, {test: "failed"}), (0, {test: "passed"}), (0, {test: "passed"}), (1, {test: "failed"}), (0, {test: "passed"})]
+        results_script(ctx, monkeypatch, runs)
+        assert (await checked(ctx, ticket)).outcome == "ok"
+        identity = next(iter(flake.quarantine().active.values()))
+        assert (await checked(ctx, ticket)).outcome == "ok"
+        box.resolve(identity.box_id, Resolution(kind="ticket", link="fix-x"))
+        assert (await checked(ctx, ticket)).outcome == "ok" and test in flake.quarantine().tests
+        ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="fix-x")
+        assert (await checked(ctx, ticket)).outcome == "ok" and test not in flake.quarantine().tests
+        assert (await checked(ctx, ticket)).outcome == "ok"
+        assert test in flake.quarantine().tests and len(box.messages()) == 2
+        assert identity.box_id not in flake.quarantine().active
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("runs", [[(0, None), (0, {})], [(1, {"a": "failed"}), (0, None), (0, {})], [(1, {"a": "failed"}), (1, {"a": "passed"}), (0, {})]])
+def test_results_fail_closed(ctx, monkeypatch, runs):
+    async def run():
+        ticket = await ready(ctx)
+        ctx.config.review.mechanical = [host("tests").model_copy(update={"results": "results.json"})]
+        missing = runs[0][1] is None or runs[1][1] is None
+        results_script(ctx, monkeypatch, runs)
+        result = await checked(ctx, ticket)
+        assert result.outcome == "gate_failed"
+        if missing:
+            assert any("results.json" in f.message for f in result.findings)
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("edited,cap", [(True, False), (False, True)])
+def test_results_edited_quarantine_and_cap(ctx, monkeypatch, edited, cap):
+    from chupa.daemon import flake_detection, storm_producer
+    from chupa.flake import RerunEvidence
+
+    async def run():
+        test = "tests/test_a.py::test_x"
+        ticket = await ready(ctx, changes={"tests/test_a.py": "changed"} if edited else None, fence=("tests/test_a.py",) if edited else ("chupa/thing.py",))
+        ctx.config.review.mechanical = [host("tests").model_copy(update={"results": "results.json"})]
+        ctx.config.caps.quarantine = 1
+        box = storm_producer(root=ctx.config.state_dir / BOX_DIR, fs=ctx.fs, journal=ctx.driver.journal, clock=ctx.driver.clock)
+        flake = flake_detection(journal=ctx.driver.journal, box=box, config=ctx.config, escalate=lambda _: None)
+        existing = "other" if cap else test
+        flake.detect(test_id=existing, evidence=RerunEvidence(existing, "fail", "pass", True, True, True), summary="existing", reason="existing", occurrence_id="existing")
+        second = "passed" if cap else "failed"
+        results_script(ctx, monkeypatch, [(1, {test: "failed"}), (0 if cap else 1, {test: second}), (0, {})])
+        result = await checked(ctx, ticket)
+        assert result.outcome == "gate_failed" and any(test in f.message for f in result.findings)
+        if cap:
+            assert any("quarantine-cap crossed" in f.message for f in result.findings)
+            assert test not in flake.quarantine().tests
 
     asyncio.run(run())

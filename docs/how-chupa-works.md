@@ -244,6 +244,12 @@ triggered hard entries on the rebased candidate. The `serve` merge queue (sectio
 the hard entries named in `merge.safety_checks` at safety and every always/hard entry at
 integration. All use one shared command runner.
 
+An entry may declare a worktree-relative `results` file written by `chupa.testreport`. Check
+clears it before each run and reruns a failing command with failed tests once. Edited flakes
+block; unedited flakes are quarantined unless the cap is full. Quarantined unedited failures
+do not block, and a passing quarantined test is released when its resolved fix has merged.
+Missing or invalid results after a successful run or rerun fail the entry.
+
 Config load refuses a declared `review.surfaces` entry (host review prompts); remove
 the entries because host review surfaces are not supported yet.
 `review.trigger_map` is accepted by config and read by nothing.
@@ -305,7 +311,7 @@ which counts failed terminal `state_transition` events directly and journals no 
 | `infra` | 3 | each `infra_error` or `timeout` (not droughts) |
 | `premise_bounce` | 1 | each `premise_failed` (not over-bound renders) |
 | `hardening` | 1 | each spec-gap hold (bootstrap-era, section 13) |
-| `quarantine` | 5 | flake quarantine size (not wired) |
+| `quarantine` | 5 | flake quarantine size |
 | `poison` | 2 | read by nothing |
 
 Failed attempts are `gate_failed`, `premise_failed`, `infra_error`, and `timeout` terminals.
@@ -366,7 +372,7 @@ Keep and kill require a person at an interactive terminal to type the exact stem
   (or with an unfinished effect) is reaped: harvested, journaled `abandoned`, worktree removed.
   `abandoned` stems stay eligible. A `running` stem cannot be confirmed or rejected until it is
   reaped.
-- **Flaky tests:** detection and quarantine code exists (`chupa/flake.py`) but nothing calls it.
+- **Flaky tests:** Check quarantines unedited fail-then-pass tests and releases them after a merged fix and a passing observation. Edited flakes and cap-blocked flakes fail Check.
 
 ## 7. Drain and serve
 

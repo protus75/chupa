@@ -1011,11 +1011,84 @@ def triggered_hosts(ctx, changed_files, *, hard_only=False):
     ]
 
 
+def _detection_letters(number):
+    letters = ""
+    while number:
+        number, digit = divmod(number - 1, 26)
+        letters = chr(ord("a") + digit) + letters
+    return letters
+
+
+async def _check_host_results(ctx, ticket, entry, n, attempt, changed_files):
+    from chupa.daemon import flake_detection, storm_producer
+    from chupa.flake import GreenRerunEvidence, RerunEvidence
+    from chupa.testreport import ResultsInvalid, read_results
+
+    root = ctx.worktree(ticket.stem)
+    path = root / entry.results
+    box = storm_producer(root=ctx.config.state_dir / BOX_DIR, fs=ctx.fs, journal=ctx.driver.journal, clock=ctx.driver.clock)
+    escalations = []
+    flake = flake_detection(journal=ctx.driver.journal, box=box, config=ctx.config, escalate=escalations.append)
+
+    async def run(name):
+        path.unlink(missing_ok=True)
+        result, report = await run_host_command(ctx, ticket, attempt, entry.argv, entry.code, name)
+        try:
+            results = read_results(path.read_text())
+        except (OSError, UnicodeError, ResultsInvalid):
+            results = None
+        return result, report, results
+
+    def invalid():
+        return _report(entry.code, [Finding(code=entry.code, path=entry.results, message=f"Missing or invalid results file: {entry.results}", paved_road=f"make the command write it via -p chupa.testreport --chupa-results {entry.results}")])
+
+    result, report, first = await run(f"check/host-{n:02d}.txt")
+    if first is None:
+        return invalid() if result.rc == 0 else report
+    last = first
+    if result.rc != 0 and "failed" in first.values():
+        result, report, last = await run(f"check/host-{n:02d}-rerun.txt")
+        if last is None:
+            return invalid()
+        projection = flake.quarantine()
+        findings = []
+        flaky = {test for test, outcome in first.items() if outcome == "failed" and last.get(test) == "passed"}
+        for test in sorted(flaky):
+            edited = test.split("::", 1)[0] in changed_files
+            if edited:
+                findings.append(Finding(code=entry.code, message=f"{test} is flaky and its file was edited", paved_road="make it deterministic by faking time, IO and ordering"))
+            elif test not in projection.tests:
+                count = 1 + sum(identity.test_id == test and box_id not in projection.active for box_id, identity in projection.detected.items())
+                projection = flake.detect(test_id=test, evidence=RerunEvidence(test, "fail", "pass", True, True, True), summary=f"{test} failed then passed for {ticket.stem}", reason=f"failed then passed on a bare rerun; detection {_detection_letters(count)}", occurrence_id=arrival_id("flake-detection", ticket.stem, attempt, test, n))
+                if test not in projection.tests:
+                    findings.append(Finding(code=entry.code, message=f"{test}: {escalations[-1]}", paved_road="fix and release existing quarantines before admitting this test"))
+        for test, outcome in sorted(last.items()):
+            if outcome == "failed" and (test not in projection.tests or test.split("::", 1)[0] in changed_files):
+                findings.append(Finding(code=entry.code, message=f"{test} failed on rerun", paved_road="fix the failing test"))
+        if result.rc != 0 and "failed" not in last.values():
+            findings.extend(report.findings)
+        report = _report(entry.code, findings)
+
+    events = ctx.driver.journal.read()
+    for identity in list(flake.quarantine().active.values()):
+        if last.get(identity.test_id) != "passed":
+            continue
+        message = box.get(identity.box_id)
+        resolution = message.resolution
+        fix = resolution.link if message.status == "resolved" and resolution is not None and resolution.kind == "ticket" else None
+        if fix and any(event.type == EventType.STATE_TRANSITION and event.ticket == fix and event.body.get("to") == "merged" for event in events):
+            flake.release(box_id=identity.box_id, evidence=GreenRerunEvidence(identity.test_id, fix, ctx.driver.clock(), "pass", True, True, True))
+    return report
+
+
 async def check_hosts(ctx, ticket, changed_files, attempt):
     reports, hard = [], []
     for n, entry in triggered_hosts(ctx, changed_files):
-        result, report = await run_host_command(ctx, ticket, attempt, entry.argv, entry.code, f"check/host-{n:02d}.txt")
-        if result.rc != 0:
+        if entry.results is None:
+            _, report = await run_host_command(ctx, ticket, attempt, entry.argv, entry.code, f"check/host-{n:02d}.txt")
+        else:
+            report = await _check_host_results(ctx, ticket, entry, n, attempt, changed_files)
+        if report.verdict == "fail":
             base = await ctx.git.merge_base(ctx.repo, MAIN, ticket.stem)
             base_worktree = ctx.config.worktree_root / ".base" / ticket.stem
             if base_worktree.exists():
@@ -1023,7 +1096,16 @@ async def check_hosts(ctx, ticket, changed_files, attempt):
             base_worktree.parent.mkdir(parents=True, exist_ok=True)
             await ctx.git.worktree_add_detached(ctx.repo, base_worktree, base)
             try:
+                if entry.results is not None:
+                    (base_worktree / entry.results).unlink(missing_ok=True)
                 baseline, _ = await run_host_command(ctx, ticket, attempt, entry.argv, entry.code, f"check/host-{n:02d}-base.txt", cwd=base_worktree)
+                if entry.results is not None:
+                    from chupa.testreport import ResultsInvalid, read_results
+
+                    try:
+                        read_results((base_worktree / entry.results).read_text())
+                    except (OSError, UnicodeError, ResultsInvalid):
+                        pass
             finally:
                 await ctx.git.worktree_remove(ctx.repo, base_worktree)
             if baseline.rc != 0:
