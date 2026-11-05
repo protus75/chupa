@@ -26,7 +26,7 @@ Engine plane (chupa-owned) is HOW work runs: ticket schema, prompt specs, gates,
 Host plane (target-repo-owned) is WHAT to build: architecture, domain rules, stack, design docs; it enters the pipeline only as data.
 Engine wins on process, host wins on content. In this repo chupa is both engine and its own first host.
 
-**Read first:** `CHUPA_PLAN.md` is canonical for all design detail; this file carries only conduct, never a copy of the plan.
+**Read first:** `docs/how-chupa-works.md` describes the code and is maintained by tickets; `CHUPA_PLAN.md` is the frozen bootstrap design record.
 
 **AGENTS.md** is the curated subset loaded by non-Claude agent CLIs (codex is routed to Implement). This file is canonical on conflict; a rule add/change/remove touches both files in the same change. (section 17)
 
@@ -46,10 +46,10 @@ Every rule below is behavioral (no gate checks it yet): the prose is the only en
   Why: a hold with no reachable release is fail-stuck, not fail-closed. (sections 2, 11)
 - **Files + journal are the source of truth.** Derived views (status, backlog, ledger, scorecard) are projections: never hand-edit one, never cite one as authority.
   Why: two authorities diverge; crash recovery folds the journal. (D3)
-- **Generated files are render targets, never write targets.** README.md and `bootstrap/conductor.py` extract from the plan's appendix sentinel blocks; CLAUDE.md is authored from plan section 17 by Phase 0 deliverable 1 (AGENTS.md by the first deliverable that routes a non-Claude agent CLI). A change edits the plan and reruns the generator, never the rendered file.
-  Why: a hand-edit is overwritten on the next render and the plan drifts from reality. (section 1)
-- **The plan is the seed.** A plan defect (gap, bug, wrong spec) is fixed in the plan, then regenerated: rerun the owning deliverable, deleting and regenerating the affected tickets or code. Hand-edit a ticket or code file ONLY for a defect provably not the plan's, OR under the blocking-defect fast path (drain's forward progress stopped: edit and commit the plan FIRST, then the minimal congruent code fix by hand in the same session; regeneration ticket optional). Never hand-edit before the plan's status is determined.
-  Why: an artifact the seed cannot reproduce is lost on the next regeneration. (sections 1, 19)
+- **Generated files are render targets, never write targets.** Change the owning source and regenerate generated files. Tickets edit CLAUDE.md and AGENTS.md directly, as with any other documentation.
+  Why: regeneration overwrites edits to generated files; maintained documentation follows the code.
+- **The plan is the seed.** `CHUPA_PLAN.md` is a frozen bootstrap design record and is never edited. A ticket updates the documentation its change affects.
+  Why: current documentation describes the code while the plan preserves its history.
 - **All git through `git.py`.** Argv lists, dir-pinned. Worktree cleanup via `worktree remove` + `prune`, never bare `rm -rf`. No `gh`, no PRs in the loop.
   Why: local main is the blessed line; GitHub is a non-blocking sidecar. (section 10)
 - **File second problems; never fold them in.** A second problem goes to the Suggestion Box, not the current diff. A pre-existing failure is verified on the base commit, then filed.
@@ -75,16 +75,17 @@ A human-present chat session is the one context the pipeline machinery does not 
   Why: the reader's attention is the scarce resource.
 - **Comments explain why, not what.** Comment only invariants, hazards, and deliberate-looking-wrong choices; match surrounding density.
   Why: what-comments rot as the code changes; why-comments do not.
-- **Plan prose is pure spec.** Rules stated tersely; no incident citations, session references, or change history in plan prose. Provenance lives in the Suggestion Box, the journal, and git history. Sole exception: plan section 22 (uncited rationale appendix).
-  Why: the plan is the seed and must read as current spec, not history. (sections 17, 22)
+- **Documentation follows changes.** A ticket updates the documentation its change affects; `CHUPA_PLAN.md` is frozen and never edited.
+  Why: current documentation describes the code while the plan preserves its history.
 - **Track open threads.** A reply that raises several questions or options owns that list until it is empty. Restate unresolved threads every turn; the user engaging on one thread never closes the others.
   Why: a dropped thread is a silently lost decision.
 - **Announce unsolicited dives.** Name any investigation or authoring the user did not request in 1-2 sentences and get a now / after / skip decision before spending the time; the requested task always runs first. (Autonomous pipeline stages are exempt: they file same-turn via the Suggestion Box.)
   Why: unrequested work spends the user's time without consent.
-- **Supervising session.** A session the user directs to run the conductor or drain and repair its stops is an operator under the section 19 recovery order and the closed touchpoint list. Run the conductor with `--auto` and the drain as a background process; act only when the process exits. Recovery-order work at a stop is requested work, never an unsolicited dive.
-  - Stop for the user on: a plan edit changing a section 3 decision, a section 18 refusal, a section 20 open decision, or the 19.L bootstrap contract; an expired agent login; a Reject-queue keep or kill (diagnose and propose; a ticket edit following a committed plan fix is applied directly); a stem stopping again on a cause already repaired (one repair per cause).
-  - Each recovery reports the plan commit, any hand-fix commit, the filed cause ticket, and the continuing command.
-  Why: an unattended drain stalls without an operator; bounded authority keeps design decisions with the user. (section 19)
+- **Supervising session.** A session may, unasked, fix a ticket's lint or format errors, add a file missing from its `## Scope fence` or `## Context`, correct a stale path, make a simple wording update, and run or restart the drain.
+  A session may not run `confirm` or `reject`, retry or re-feed a stem whose caps are spent, edit a running ticket, change a ticket's goal or scope, or hand-rewrite a ticket the engine authored. Those decisions go to the user.
+  Why: the queue keeps moving on obvious fixes while every judgment call stays with the user.
+- **Command surface.** A session runs or gives the user `./dev.py` subcommands, never raw `uv run python -m chupa ...`; a missing command becomes a new `./dev.py` subcommand. Give commands for the user in a copy/paste code block.
+  Why: one memorable command surface.
 - **Instance first, cause captured.** A reported problem gets the minimal unblock first, and a separately filed cause ticket in the same session. (section 14)
   Why: unblocking without capturing the cause guarantees a repeat.
 - **Git session safety.**

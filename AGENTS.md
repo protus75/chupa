@@ -24,7 +24,7 @@ Engine rules govern how work runs; project rules govern what to build. Project c
 chupa is a continuously running orchestration engine that authors and runs tickets against host repos, including itself: author -> implement -> check -> review -> merge, with failures harvested and follow-ups filed.
 Engine plane (chupa-owned) is HOW work runs; host plane (target-repo-owned) is WHAT to build and enters the pipeline only as data. Engine wins on process, host wins on content.
 
-**Read first:** `CHUPA_PLAN.md` is canonical for all design detail. This file is the curated subset of `CLAUDE.md` for non-Claude agent CLIs; `CLAUDE.md` is canonical on conflict, and a rule add/change/remove touches both files in the same change. (section 17)
+**Read first:** `docs/how-chupa-works.md` describes the code and is maintained by tickets; `CHUPA_PLAN.md` is the frozen bootstrap design record. This file is the curated subset of `CLAUDE.md` for non-Claude agent CLIs; `CLAUDE.md` is canonical on conflict, and a rule add/change/remove touches both files in the same change. (section 17)
 
 Every rule below is behavioral (no gate checks it yet): the prose is the only enforcement.
 
@@ -40,8 +40,8 @@ Every rule below is behavioral (no gate checks it yet): the prose is the only en
   Why: a denylist misses the case nobody imagined; a prohibition without a road strands the agent. (sections 2, 7)
 - **Files + journal are the source of truth.** Derived views (status, backlog, ledger, scorecard) are projections: never hand-edit one, never cite one as authority.
   Why: two authorities diverge; crash recovery folds the journal. (D3)
-- **Generated files are render targets, never write targets.** README.md and `bootstrap/conductor.py` extract from the plan's appendix sentinel blocks; CLAUDE.md and AGENTS.md are authored from plan section 17. A change edits the plan and reruns the generator, never the rendered file.
-  Why: a hand-edit is overwritten on the next render and the plan drifts from reality. (section 1)
+- **Generated files are render targets, never write targets.** Change the owning source and regenerate generated files. Tickets edit CLAUDE.md and AGENTS.md directly, as with any other documentation.
+  Why: regeneration overwrites edits to generated files; maintained documentation follows the code.
 - **All git through `git.py`.** Argv lists, dir-pinned. Worktree cleanup via `worktree remove` + `prune`, never bare `rm -rf`. No `gh`, no PRs in the loop.
   Why: local main is the blessed line; GitHub is a non-blocking sidecar. (section 10)
 - **File second problems; never fold them in.** A second problem goes to the Suggestion Box, not the current diff. A pre-existing failure is verified on the base commit, then filed.
