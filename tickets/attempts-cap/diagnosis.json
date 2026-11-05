@@ -1,18 +1,16 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "be1bd0a6f0f1d28372b744f245bf86dbaada0909",
+  "produced_at_sha": "cb843411132d7cc11923887c0a58f9973120c86c",
   "stem": "attempts-cap",
-  "attempt": 7,
+  "attempt": 8,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "Delete the pre-flight block at the top of `runner.drive` that tests `spent(...) == \"attempts\"` and journals an `abandoned` terminal. The ticket says: add no separate attempts check in any caller, `_admit`, or the scheduler.",
-    "Remove `test_attempts_cap_spent_daemon_dispatch_returns_a_routed_terminal`, which pins the pre-flight. Keep `test_attempts_cap_routes_to_reject_queue`, proving the failure that reaches the cap routes with reason \"attempts cap spent\" and no model call.",
-    "Do not move the refusal elsewhere. Per the ticket, routing in `failure_terminal` stops a spent stem: `serve`'s scheduler holds Reject-queue stems, and `drain._select` already consults `caps.spent`. Stems already over the limit with no routed terminal go to the Suggestion Box.",
-    "In `docs/how-chupa-works.md` section 6.1, add a step after the drought or quota step: a failure reaching `caps.attempts` goes straight to the terminal, routed to the Reject queue with reason `attempts cap spent`, skipping the cap draw, spec-gap hold, Diagnosis and Rework.",
-    "Keep the rest of the diff: review found the attempts count, defaults, routing and drain report correct. After the edits, rerun `uv run pytest -q` and confirm no test asserts a pre-flight `abandoned` terminal. Update the run record's note about already-spent daemon dispatches."
+    "Keep the implementation and tests: review found them correct, and 3961 tests passed. Clear the one finding by editing the `Premise park` bullet in docs/how-chupa-works.md section 6.7; it still says the stem waits for a `ticket.md` change.",
+    "Rewrite that bullet as the finding's paved road says: under default `premise_bounce: 1`, the first `premise_failed` routes to the Reject queue via `premise_bounce cap spent`, and only operator `confirm` releases it. The `ticket.md` park and no-retry re-offer apply only when a host sets it above 1.",
+    "The ticket limits the doc scope to section 6.4 but also requires the doc to match the code at merge. So reread all of docs/how-chupa-works.md for other statements the new defaults falsify, and correct only those; do not change any cap behavior to fit the old text."
   ],
   "mechanical": null,
   "spec_version": "1.1",
