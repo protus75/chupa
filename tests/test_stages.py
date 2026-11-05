@@ -321,17 +321,6 @@ def test_named_missing_report_fails_even_when_other_commands_pass(repo, monkeypa
 # --- transitions --------------------------------------------------------------------------------
 
 
-def test_implement_renders_numeric_plan_contract_section(repo):
-    (repo / "CHUPA_PLAN.md").write_text("# Plan\n\n## 11. Failure spine\n\nSpine prose.\n")
-    git(repo, "commit", "-am", "plan section 11")
-
-    result, llm, _ = run(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()],
-                         plan_contract="## Plan contract\n- section 11\n\n")
-
-    assert outcomes(result) == {"implement": "ok", "check": "ok", "review": "ok"}
-    assert "## 11. Failure spine\n\nSpine prose." in llm.requests[0].rendered
-
-
 def test_bare_numeric_plan_contract_bullet_is_refused_at_intake(repo):
     (repo / "CHUPA_PLAN.md").write_text("# Plan\n\n## 11. Failure spine\n")
     author(repo, plan_contract="## Plan contract\n- 11\n\n")
@@ -347,7 +336,7 @@ def test_implement_check_review_all_ok_with_artifacts_and_provenance(repo):
     assert outcomes(result) == {"implement": "ok", "check": "ok", "review": "ok"}
     head = git(repo, "rev-parse", STEM).strip()
     slip, invoice, review = (r.artifact for r in result.results.values())
-    assert isinstance(slip, PackingSlip) and slip.produced_at_sha == head and slip.produced_by_spec_version == 1
+    assert isinstance(slip, PackingSlip) and slip.produced_at_sha == head and slip.produced_by_spec_version == 2
     assert isinstance(invoice, Invoice) and invoice.passed and invoice.changed_files == ["chupa/thing.py"]
     assert invoice.produced_at_sha == head
     assert isinstance(review, ApprovedInvoice) and review.reviewed_sha == head and review.spec_version == "1.2"
@@ -359,7 +348,7 @@ def test_implement_check_review_all_ok_with_artifacts_and_provenance(repo):
     assert read_review((canonical / "review.md").read_text()) == review
     assert Invoice.model_validate_json((canonical / "checks.json").read_text()) == invoice
     run_md = (canonical / "run.md").read_text()
-    assert "## Outcome\n\nok\n" in run_md and "- provider: fake\n- model: fake\n- spec: implement 1.5" in run_md
+    assert "## Outcome\n\nok\n" in run_md and "- provider: fake\n- model: fake\n- spec: implement 2.0" in run_md
     assert git(repo, "diff", "--name-only", f"main...{STEM}").split() == ["chupa/thing.py"]
     outbox = config.worktree_root / STEM / "tickets" / STEM
     assert sorted(p.name for p in outbox.iterdir()) == ["ticket.md"]  # lifted and unlinked

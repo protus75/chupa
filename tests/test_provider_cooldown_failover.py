@@ -212,7 +212,7 @@ async def test_mid_run_drought_is_harvested_without_spine_draws(root, monkeypatc
         if nested:
             from chupa.requisition import review_ticket
             from tests.test_requisition import TICKET
-            await review_ticket(ctx.driver, repo=root, plan=PLAN, stem='seed', text=TICKET.replace('context.txt', 'config.yaml'),
+            await review_ticket(ctx.driver, repo=root, stem='seed', text=TICKET.replace('context.txt', 'config.yaml'),
                 specs_dir=runner.SPECS_DIR, tier='medium', stem_slot=ticket.stem,
                 run_seq=0, attempt=attempt, call_seq=1, expected_budget=600)
         return await stage(rig, ctx.driver, stem=ticket.stem, surface='review')

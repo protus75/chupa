@@ -33,7 +33,7 @@ from chupa.hostfiles import CORE_TEMPLATE, CoreDriftGate, committed_core
 from chupa.journal import EVENT_VERSIONS, TERMINAL_STATES, EventType, run_seq
 from chupa.providers import child_env
 from chupa.seams import ExecutableNotFound, FileSystem, ProcessExec
-from chupa.specs import PlanContractError, RenderOverBound, Spec, entry_unit_gap, hardenable_units, load_spec, plan_id, render, required_units, resolve_plan_contract, without_unit
+from chupa.specs import PlanContractError, RenderOverBound, Spec, entry_unit_gap, load_spec, plan_id, render, required_units, resolve_plan_contract, without_unit
 from chupa.tickets import read_plan
 from chupa.tickets import _HEADING, _bullets, _sections, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, TicketInvalid, ticket_path, validate_ticket
 
@@ -486,14 +486,13 @@ async def lift_outbox(ctx: StageContext, stem: str, kind: str, *, attempt: int,
 # --- Implement ----------------------------------------------------------------------------------
 
 
-def implement_inputs(repo: Path, plan: str, ticket_text: str, ticket: Ticket,
+def implement_inputs(repo: Path, ticket_text: str, ticket: Ticket,
                      context_files: Sequence[Path]) -> dict[str, str]:
     """The production Implement inputs, also used to measure a ticket at authoring."""
     paths = list(dict.fromkeys([*ticket.context, *(str(p) for p in context_files)]))
     context = "\n\n".join(f"### {p}\n{(repo / p).read_text()}" for p in paths) or "none"
     return {
         "ticket": ticket_text,
-        "plan_contract": resolve_plan_contract(plan, ticket.plan_contract) if ticket.plan_contract else "none",
         "context": context,
     }
 
@@ -584,18 +583,7 @@ def _in_criteria_position(ticket_text: str, block: str) -> str:
 
 def implement_stage(ctx: StageContext, ticket: Ticket, worktree: Path,
                     kept: Sequence[str] = ()) -> tuple[LlmStage, Spec]:
-    from chupa.requisition import validate_finding_units
-
     spec = _spec(ctx, "implement")
-    plan = read_plan(ctx.repo) or ""
-    units = hardenable_units(plan, ticket.stem, ticket.plan_contract)
-
-    class TicketImplementReply(ImplementReply):
-        @model_validator(mode="after")
-        def _finding_units(self) -> "TicketImplementReply":
-            validate_finding_units(self.findings, units)
-            return self
-
     ticket_text = (ctx.repo / ticket_path(ticket.stem)).read_text()
     if "Exit-read window" in ticket.sections:
         ticket_text += ("\nConsumed exit evidence: read `.chupa/exit-read-window.json` in this worktree. "
@@ -606,12 +594,12 @@ def implement_stage(ctx: StageContext, ticket: Ticket, worktree: Path,
         ticket_text = _in_criteria_position(ticket_text, (
             f"{APPROVED_SEEDS}\n\nThese seeds passed requisition_review and are already in your worktree."
             " Leave each one byte-identical and author only the rest:\n" + "\n".join(f"- {p}" for p in kept)))
-    inputs = implement_inputs(worktree, plan, ticket_text, ticket, ctx.config.context_files)
+    inputs = implement_inputs(worktree, ticket_text, ticket, ctx.config.context_files)
 
     def render_ticket(_: Ticket, findings: list[Finding]) -> str:
         return render(spec, {**inputs, "retry_findings": findings_text(findings)})
 
-    return LlmStage(surface="implement", emits=TicketImplementReply, gates=[], render=render_ticket), spec
+    return LlmStage(surface="implement", emits=ImplementReply, gates=[], render=render_ticket), spec
 
 
 def run_record(reply: ImplementReply | None, cost: Cost, spec: Spec, second_problem_ids: Sequence[str],
@@ -1323,7 +1311,7 @@ async def _review_one(ctx: StageContext, ticket: Ticket, seed_stem: str, rel: st
         return SeedReview(stem=seed_stem, ticket_sha=sha, verdict="snag", findings=findings,
                           mechanical="seed frontmatter")
     reviewed = await review_ticket(
-        ctx.driver, repo=ctx.repo, plan=plan, stem=seed_stem, text=data.decode(), specs_dir=ctx.specs_dir,
+        ctx.driver, repo=ctx.repo, stem=seed_stem, text=data.decode(), specs_dir=ctx.specs_dir,
         tier=parsed.frontmatter.agent_tier, stem_slot=ticket.stem, run_seq=attempt, attempt=attempt,
         call_seq=call_seq, prior=_prior_review(earlier, data.decode()), siblings=siblings,
      expected_budget=ticket.expected_minutes * 60.0)

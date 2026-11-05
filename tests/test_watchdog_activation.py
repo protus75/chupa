@@ -113,7 +113,7 @@ async def test_every_production_driver_surface_is_watched(tmp_path, monkeypatch)
     async def nested(artifact, seq):
         d = ctx.driver.detector
         rig.exec.reply = '{"verdict":"approve","summary":"reviewed","findings":[]}'
-        verdict = await review_ticket(ctx.driver, repo=tmp_path, plan='', stem='candidate',
+        verdict = await review_ticket(ctx.driver, repo=tmp_path, stem='candidate',
             text=TICKET, specs_dir=SPECS, tier='medium', stem_slot='author', run_seq=8,
             attempt=0, call_seq=seq, expected_budget=ctx.driver.detector.expected_seconds)
         assert verdict.verdict == 'approve' and ctx.driver.detector is d
@@ -139,7 +139,7 @@ async def test_every_production_driver_surface_is_watched(tmp_path, monkeypatch)
     async def nested_rework(artifact, seq):
         parent = ctx.driver.detector
         rig.exec.reply = '{"verdict":"approve","summary":"reviewed","findings":[]}'
-        verdict = await review_ticket(ctx.driver, repo=tmp_path, plan='', stem='candidate',
+        verdict = await review_ticket(ctx.driver, repo=tmp_path, stem='candidate',
             text=TICKET, specs_dir=SPECS, tier='medium', stem_slot=ticket.stem, run_seq=0,
             attempt=1, call_seq=seq, expected_budget=ticket.expected_minutes * 60)
         assert verdict.verdict == 'approve' and ctx.driver.detector is parent
@@ -153,7 +153,7 @@ async def test_every_production_driver_surface_is_watched(tmp_path, monkeypatch)
     # Check's separate requisition calls carry the seeding parent's budget authority.
     standalone = []
     for seq in (1, 2):
-        verdict = await review_ticket(ctx.driver, repo=tmp_path, plan='', stem='candidate',
+        verdict = await review_ticket(ctx.driver, repo=tmp_path, stem='candidate',
             text=TICKET, specs_dir=SPECS, tier='medium', stem_slot='seeding', run_seq=0,
             attempt=0, call_seq=seq, expected_budget=ticket.expected_minutes * 60)
         assert verdict.verdict == 'approve'

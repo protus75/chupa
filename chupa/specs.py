@@ -351,15 +351,6 @@ def required_units(plan: str, stem: str, plan_contract: Iterable[str]) -> tuple[
                                *(uid for uid in plan_contract if uid in entries)]))
 
 
-def hardenable_units(plan: str, stem: str, plan_contract: Iterable[str]) -> tuple[str, ...]:
-    """Own entry, cited entries, then cited phases' non-exit rows, even when their headings are absent."""
-    entries = {f"19.P{phase}.{name}": f"19.P{phase}" for name, (phase, row) in registry_rows(plan).items()
-               if not row.get("exit")}
-    cites = tuple(plan_contract)
-    return tuple(dict.fromkeys([*required_units(plan, stem, cites),
-                               *(uid for cite in cites for uid, phase in entries.items() if phase == cite)]))
-
-
 def entry_unit_gap(plan: str, uid: str) -> str | None:
     """Why a registry row's entry unit cannot govern its seed (missing or lacking a SPEC DEPTH part); None when it can."""
     slices = _units(plan)[0].get(uid, [])

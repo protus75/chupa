@@ -627,9 +627,10 @@ remains and does not apply to ordinary tickets:
   `CHUPA_PLAN.md#...` fence anchors, resolved against `CHUPA_PLAN.md`. The plan structure lint.
 - **Spec-gap hardening:** a `spec_gap` finding holds the stem and files a `plan-gap-<n>` ticket
   that edits `CHUPA_PLAN.md` (`chupa/hardening.py`, `runner.hold_on_hardening`); the `hardening`
-  cap; `plan_units` on terminals.
+  cap; `plan_units` on terminals. Spec-gap hardening is reached only through the seed review's
+  mechanical entry-unit check.
 - **Plan reads:** runtime reads of `CHUPA_PLAN.md` go through one function; an absent plan is
-  tolerated for hosts that do not have the file.
+  tolerated for hosts that do not have the file. Prompts carry no plan text.
 - **Phase exits:** a forced retro before any `phase<N>-exit` stem; eval report artifacts
   (shakeout, soak, reliability battery, host loop, exit receipt).
 - **Bootstrap files:** `bootstrap/` (conductor, state, operator setup) and the box's bootstrap
