@@ -740,6 +740,7 @@ def test_new_round_covers_only_gaps_not_unchanged_in_the_prior_round(repo):
     from chupa.hardening import rounds
     from chupa.runner import hold_on_hardening
     ctx = two_gap_context(repo)
+    ctx.config.caps.hardening = 2
     gaps = {"19.P3.gamma-seed": ["fact A"], "19.P3.delta-seed": ["fact B"]}
     asyncio.run(hold_on_hardening(ctx, ticket(repo), gaps, attempt=0))
     ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "already_satisfied"}, ticket="plan-gap-1")

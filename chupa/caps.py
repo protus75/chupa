@@ -1,6 +1,6 @@
 """Lineage-scoped failure-spine cap accounting (CHUPA_PLAN.md section 11.2)."""
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 from chupa.config import Caps, Config, ConfigSnapshot
 from chupa.journal import Event, EventType, Journal
@@ -39,9 +39,23 @@ def remaining(caps_config: Caps | ConfigSnapshot, events: Iterable[Event], stem:
     return getattr(caps_config, cap) - draws(events, stem, cap)
 
 
-def spent(caps_config: Caps | ConfigSnapshot, events: Iterable[Event], stem: str) -> str | None:
+def failed_attempt(terminal: Mapping) -> bool:
+    return (terminal.get("to") in {"gate_failed", "premise_failed", "infra_error", "timeout"}
+            and not (terminal.get("to") == "infra_error" and terminal.get("reason") == "provider_drought"))
+
+
+def failed_attempts(events: Iterable[Event], stem: str) -> int:
+    """Failures are terminals, never cap draws; only an operator keep resets them."""
+    return sum(e.type == EventType.STATE_TRANSITION and e.ticket == stem and failed_attempt(e.body)
+               for e in lineage(events, stem))
+
+
+def spent(caps_config: Caps | ConfigSnapshot, events: Iterable[Event], stem: str,
+          *, pending: Mapping | None = None) -> str | None:
     # Materialize once: callers may pass a journal iterator, not only a list.
     history = tuple(events)
+    if failed_attempts(history, stem) + (failed_attempt(pending) if pending is not None else 0) >= caps_config.attempts:
+        return "attempts"
     return next((cap for cap in CAPS if remaining(caps_config, history, stem, cap) <= 0), None)
 
 

@@ -253,12 +253,12 @@ def test_a_spent_retry_cap_stays_parked_and_is_never_reoffered(root, capsys):
     j = journal(root)
     j.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket="spent")
     j.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "stage": "check"}, ticket="spent")
-    for _ in range(6):  # the shipped default retry cap
+    for _ in range(3):  # the shipped default retry cap
         j.append(EventType.CAP_CONSUMED, {"cap": "retry", "ticket_sha": "x"}, ticket="spent")
     script = Script()
     assert drain(root, script) == 0
     assert script.calls == []
-    assert "spent: gate_failed at check; retry cap spent (6/6)" in capsys.readouterr().out
+    assert "spent: gate_failed at check; retry cap spent (3/3)" in capsys.readouterr().out
 
 
 def test_a_retry_unit_drawn_in_one_invocation_stays_spent_in_the_next(tmp_path, capsys):
@@ -277,7 +277,7 @@ def test_a_retry_unit_drawn_in_one_invocation_stays_spent_in_the_next(tmp_path, 
 
 
 def test_the_budget_fold_counts_only_retry_named_draws(tmp_path):
-    root = make_root(tmp_path, "caps: {retry: 3}\n")
+    root = make_root(tmp_path, "caps: {retry: 3, diagnosis: 6}\n")
     commit_ticket(root, "red", confirmed())
     j = journal(root)
     j.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "stage": "review"}, ticket="red")

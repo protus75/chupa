@@ -46,6 +46,9 @@ async def _premise_park_release(bench: Bench) -> Observation:
     stem = "premise-park-release"
     bench.add_ticket(stem, _ticket(stem, "premise.txt", "test -f premise.txt"))
     _configure_diagnosis(bench)
+    bench.configure(bench.config.model_copy(update={
+        "caps": bench.config.caps.model_copy(update={"premise_bounce": 2}),
+    }))
     finding = {"code": "premise", "message": "fixture premise is false",
                "paved_road": "correct the fixture premise"}
     bench.script([json.dumps({"outcome": "premise_failed", "summary": "premise", "surprises": "none",

@@ -497,7 +497,8 @@ class TicketWriter:
         await runner.harvest_failure(ctx, ticket, attempt=attempt, stage="merge", outcome=outcome,
                                      findings=handoff.findings, results=())
         reply = None
-        if not spent(ctx.config.caps, ctx.driver.journal.read(), ticket.stem):
+        if not spent(ctx.config.caps, ctx.driver.journal.read(), ticket.stem,
+                     pending={"to": outcome}):
             reply = await apply_rework(ctx, ticket, handoff.findings, attempt=attempt, handoff=handoff)
         return await runner.failure_terminal(ctx, ticket, outcome=outcome, stage="merge",
                                              findings=handoff.findings, attempt=attempt, reworked=reply,

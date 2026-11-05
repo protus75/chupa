@@ -65,7 +65,8 @@ def test_valid_config_loads_from_cwd_with_shipped_defaults(tmp_path):
     assert cfg.merge.strategies[0].argv == ["uv", "lock"]
     assert cfg.scheduler.max_unmerged == 2
     assert cfg.caps.model_dump() == {
-        "diagnosis": 6, "retry": 6, "premise_bounce": 2, "hardening": 3, "infra": 6, "quarantine": 5, "poison": 2,
+        "diagnosis": 3, "retry": 3, "premise_bounce": 1, "hardening": 1, "infra": 3,
+        "attempts": 5, "quarantine": 5, "poison": 2,
     }
     assert cfg.seeding.max_seeds_per_admission == 3
     assert cfg.circuit_breaker.k == 3
@@ -107,7 +108,7 @@ def test_explicit_values_override_defaults_and_partial_blocks_keep_the_rest(tmp_
     text = VALID + textwrap.dedent(
         """\
         worktree_root: /tmp/wt
-        caps: {retry: 4}
+        caps: {retry: 2}
         box_policy: {failure_report: draft}
         notify: [notify-send, chupa]
         report_inbox: inbox
@@ -116,7 +117,7 @@ def test_explicit_values_override_defaults_and_partial_blocks_keep_the_rest(tmp_
     )
     cfg = load_config(write(tmp_path, text), cwd=tmp_path)
     assert cfg.worktree_root == Path("/tmp/wt")
-    assert cfg.caps.retry == 4 and cfg.caps.diagnosis == 6
+    assert cfg.caps.retry == 2 and cfg.caps.diagnosis == 3
     assert cfg.box_policy["failure_report"] == "draft"
     assert cfg.box_policy["suggestion"] == "draft"
     assert cfg.notify == ["notify-send", "chupa"]

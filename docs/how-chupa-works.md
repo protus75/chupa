@@ -261,11 +261,13 @@ After any other non-ok terminal, `runner.drive` does, in order:
 2. **`ticket_changed`** journals a `gate_failed` terminal routed to the Reject queue, removes
    the worktree, and stops (section 6.7), skipping the cap, Diagnosis, and Rework steps.
 3. A provider **drought** or quota result parks the stem with no diagnosis (section 8.3).
-4. `infra_error` / `timeout` draw the `infra` cap; `premise_failed` draws `premise_bounce`.
-5. **Diagnosis** (section 6.3), unless the outcome is `budget_exceeded` or an over-bound render.
-6. **Rework** if diagnosis said `split`, or the render was over bound (section 6.5).
-7. Decide the dispatch (retry, escalate, or the Reject queue) and journal the terminal.
-8. Remove the worktree.
+4. A failure reaching `caps.attempts` goes straight to the terminal, routed to the Reject queue
+   with reason `attempts cap spent`, skipping the cap draw, spec-gap hold, Diagnosis, and Rework.
+5. `infra_error` / `timeout` draw the `infra` cap; `premise_failed` draws `premise_bounce`.
+6. **Diagnosis** (section 6.3), unless the outcome is `budget_exceeded` or an over-bound render.
+7. **Rework** if diagnosis said `split`, or the render was over bound (section 6.5).
+8. Decide the dispatch (retry, escalate, or the Reject queue) and journal the terminal.
+9. Remove the worktree.
 
 ### 6.2 Harvest
 
@@ -289,21 +291,29 @@ with no model call. `diagnosis.json` is lifted and a `diagnosis` signal is journ
 
 ### 6.4 Caps and escalation
 
-Caps bound how much one ticket can fail. Draws are journaled `cap_consumed` events counted over
-the stem's **lineage**: every event since the last operator keep. Editing `ticket.md` never
-resets a cap; only an operator `confirm` does.
+Caps bound how much one ticket can fail over the stem's **lineage**: every event since the
+last operator keep. Editing `ticket.md` never resets a cap; only an operator `confirm` does.
+Machine keeps never reset counts. Draws are journaled `cap_consumed` events, except `attempts`,
+which counts failed terminal `state_transition` events directly and journals no cap draw.
 
 | Cap | Default | Drawn by |
 |---|---|---|
-| `diagnosis` | 6 | each diagnosis call |
-| `retry` | 6 (never above `diagnosis`) | each drain re-offer |
-| `infra` | 6 | each `infra_error` or `timeout` (not droughts) |
-| `premise_bounce` | 2 | each `premise_failed` (not over-bound renders) |
-| `hardening` | 3 | each spec-gap hold (bootstrap-era, section 13) |
+| `attempts` | 5 | total failed attempts per lineage |
+| `diagnosis` | 3 | each diagnosis call |
+| `retry` | 3 (never above `diagnosis`) | each drain re-offer |
+| `infra` | 3 | each `infra_error` or `timeout` (not droughts) |
+| `premise_bounce` | 1 | each `premise_failed` (not over-bound renders) |
+| `hardening` | 1 | each spec-gap hold (bootstrap-era, section 13) |
 | `quarantine` | 5 | flake quarantine size (not wired) |
 | `poison` | 2 | read by nothing |
 
-Nothing bounds the total: each cap counts on its own.
+Failed attempts are `gate_failed`, `premise_failed`, `infra_error`, and `timeout` terminals.
+An `infra_error` with reason `provider_drought`, `budget_exceeded`, an `abandoned` reap,
+settled terminals, and `rejected` do not count. The failure reaching `caps.attempts` is itself
+routed with reason `attempts cap spent`, without another diagnosis or rework call, including
+merge-conflict handoffs. Terminal routing also counts a pending failure after a published Rework
+update or escalation and leaves the published ticket text intact. A published split still retires
+its parent. The drain report shows the failed-attempt total, for example `attempts cap spent (5/5)`.
 
 A spent cap, or a `reject` / `abandon-human` verdict, routes the stem to the Reject queue.
 `escalate`, or the same failure reason three times running, moves the stem up one **rung**: the
@@ -345,8 +355,10 @@ Keep and kill require a person at an interactive terminal to type the exact stem
   not release this hold. Stage boundaries, admission, and queued or confirmed merge admissions
   all check the dispatch identity. Rework updates between attempts are fresh ticket inputs.
 
-- **Premise park:** after `premise_failed`, the stem waits until its committed `ticket.md`
-  changes. The re-offer draws no retry.
+- **Premise park:** with the default `premise_bounce: 1`, the first `premise_failed` spends
+  the cap and routes to the Reject queue via `premise_bounce cap spent`; only an operator
+  `confirm` releases it. When a host sets `premise_bounce` above 1 and caps still have budget,
+  the stem parks until its committed `ticket.md` changes. That re-offer draws no retry.
 - **`budget_exceeded`:** not diagnosed, draws nothing. Ticket stages pass no spend budget, so in
   practice only eval runs reach it.
 - **Reconcile:** at the start of `run`, `drain`, and `serve`, any stem still marked `running`

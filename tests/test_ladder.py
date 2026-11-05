@@ -102,7 +102,7 @@ def test_reject_verdicts_auto_keep_once_and_draw_down(repo, verdict_):
              and e.body.get("signal") == "reject_verdict"]
     assert [e.body for e in keeps] == [{"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}]
     assert draws(events(repo), STEM, "retry") == 1
-    assert remaining(load_config(None, cwd=repo).caps, events(repo), STEM, "retry") == 5
+    assert remaining(load_config(None, cwd=repo).caps, events(repo), STEM, "retry") == 2
 
 
 def test_exhausted_ladder_routes_and_auto_keeps(repo):
@@ -130,7 +130,7 @@ def test_same_retry_wall_climbs_on_second_terminal(repo):
 
 
 def test_three_identical_reasons_climb_even_after_different_verdict(repo):
-    (repo / "config.yaml").write_text(ROUTING)
+    (repo / "config.yaml").write_text(ROUTING + "\ncaps: {diagnosis: 4}\n")
     author(repo)
     llm = run_drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("retry"),
                            agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("escalate"),

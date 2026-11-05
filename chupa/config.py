@@ -143,11 +143,12 @@ class Scheduler(_Strict):
 
 
 class Caps(_Strict):
-    diagnosis: Count = 6
-    retry: Count = 6
-    premise_bounce: Count = 2
-    hardening: Count = 3  # held spec-gap terminals per lineage (section 11.4)
-    infra: Count = 6
+    diagnosis: Count = 3
+    retry: Count = 3
+    premise_bounce: Count = 1
+    hardening: Count = 1  # held spec-gap terminals per lineage (section 11.4)
+    infra: Count = 3
+    attempts: Count = 5
     quarantine: Count = 5
     poison: Count = 2
 

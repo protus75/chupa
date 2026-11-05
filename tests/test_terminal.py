@@ -113,7 +113,7 @@ def test_a_premise_failure_journals_its_terminal(repo):
 
     assert code == runner.EXIT_TICKET
     assert transitions(repo)[-1] == {"to": "premise_failed", "stage": "implement",
-                                     "reason": "premise", "dispatch": "retry"}
+                                     "reason": "premise", "dispatch": "reject_queue", "routed": "reject_queue"}
     assert (repo / "tickets" / STEM / "ticket.md").is_file()
 
 

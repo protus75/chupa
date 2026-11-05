@@ -188,6 +188,10 @@ async def drive(ctx: StageContext, ticket: Ticket, *, admission=None, consume_ha
     if drought is not None or quota:
         return await failure_terminal(ctx, ticket, outcome=result.outcome, stage=stage,
             findings=result.findings, attempt=run.attempt, provider_drought=drought)
+    if spent(ctx.config.caps, ctx.driver.journal.read(), ticket.stem,
+             pending={"to": result.outcome}) == "attempts":
+        return await failure_terminal(ctx, ticket, outcome=result.outcome, stage=stage,
+                                      findings=result.findings, attempt=run.attempt)
     if result.outcome in {"infra_error", "timeout"}:
         ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
         consume(ctx.driver.journal, ticket.stem, "infra", ticket_sha)
@@ -320,6 +324,12 @@ async def failure_terminal(ctx: StageContext, ticket: Ticket, *, outcome: str, s
                     message_class="failure_report", origin=ticket.stem, stage=stage, outcome=outcome,
                     summary="; ".join(f"{f.message}; {f.paved_road}" for f in extra),
                         occurrence_id=arrival_id("rework-failure", ticket.stem, attempt, stage, outcome))
+    if not split and provider_drought is None and spent(
+            ctx.config.caps, history, ticket.stem, pending=terminal) == "attempts":
+        terminal["reason"] = spent_reason("attempts")
+        dispatch = "reject_queue"
+        mechanical = False
+        verdict = "abandon-human"
     if not mechanical and not split and verdict is not None:
         previous = [e.body for e in history if e.type == EventType.STATE_TRANSITION
                     and e.ticket == ticket.stem and e.body.get("to") in TERMINAL_STATES]

@@ -110,6 +110,7 @@ def test_one_open_round_engine_wide(repo):
     from tests.test_stages import STEM, git
     add_registry_row(repo)
     ctx, _ = context(repo, [])
+    ctx.config.caps.hardening = 2
     plan = repo / "CHUPA_PLAN.md"
     plan.write_text(plan.read_text().replace("[gamma-seed]", "[gamma-seed, delta-seed]").replace(
         "  gamma-seed:", "  delta-seed: {fence: [chupa/thing.py]}\n  gamma-seed:"))

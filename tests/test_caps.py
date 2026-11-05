@@ -3,17 +3,141 @@
 import pytest
 
 from chupa import runner
-from chupa.artifacts import Cost, StageResult
+from chupa.artifacts import Cost, Finding, StageResult
 from chupa.__main__ import main
-from chupa.caps import CAPS, capability, consume, draws, remaining, spent, spent_reason
+from chupa.caps import CAPS, capability, consume, draws, failed_attempts, remaining, spent, spent_reason
 from chupa.config import Caps
 from chupa.journal import EventType, Journal
 from chupa.llm import FakeLLM
 from chupa.stages import StagesRun
+from chupa.status import reject_queue
 from chupa.tickets import validate_ticket
 from tests.test_cli import git_out
 from tests.test_drain import Clock, Script, commit_ticket, confirmed, drain, journal, make_root
 from tests.test_terminal import ENV, STEM, author, clock, diagnosis_reply, repo
+from tests.test_mergequeue import ctx as admission_context, ready
+from tests.test_daemon_composition import production_writer
+
+
+def test_attempts_cap_counts_every_failed_terminal(tmp_path):
+    j = Journal(tmp_path, clock)
+    config = Caps()
+    for body in [
+        {"to": "running"}, {"to": "infra_error", "reason": "provider_drought"},
+        {"to": "budget_exceeded"}, {"to": "abandoned"}, {"to": "merged"},
+        {"to": "already_satisfied"}, {"to": "rejected"}, {"to": "invalid_artifact"},
+    ]:
+        j.append(EventType.STATE_TRANSITION, body, ticket="red")
+    j.append(EventType.STATE_TRANSITION, {"to": "gate_failed"}, ticket="other")
+    assert failed_attempts(j.read(), "red") == 0
+    for i, outcome in enumerate(["gate_failed", "premise_failed", "infra_error", "timeout", "gate_failed"]):
+        assert spent(config, iter(j.read()), "red") is None
+        if i == 4:
+            assert spent(config, iter(j.read()), "red", pending={"to": outcome}) == "attempts"
+            assert failed_attempts(j.read(), "red") == 4
+        j.append(EventType.STATE_TRANSITION, {"to": outcome}, ticket="red")
+        assert failed_attempts(j.read(), "red") == i + 1
+    assert spent(config, j.read(), "red") == "attempts"
+    assert spent_reason("attempts") == "attempts cap spent"
+    assert not any(e.type == EventType.CAP_CONSUMED for e in j.read())
+    j.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}, ticket="red")
+    assert spent(config, j.read(), "red") == "attempts"
+    j.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "operator"}, ticket="red")
+    assert failed_attempts(j.read(), "red") == 0
+    assert spent(config, j.read(), "red") is None
+    with pytest.raises(ValueError, match="DECLARED_CAPS"):
+        consume(j, "red", "attempts", "sha")
+
+
+@pytest.mark.parametrize("outcome", ["gate_failed", "premise_failed", "infra_error", "timeout"])
+def test_attempts_cap_routes_to_reject_queue(repo, monkeypatch, capsys, outcome):
+    author(repo)
+    j = Journal(repo / ".chupa/state", clock)
+    for prior in ["gate_failed", "premise_failed", "infra_error", "timeout"]:
+        j.append(EventType.STATE_TRANSITION, {"to": prior}, ticket=STEM)
+
+    async def stage_seam(ctx, ticket):
+        return StagesRun(attempt=4, results={"implement": StageResult(
+            outcome=outcome, artifact=None, cost=Cost(), findings=[Finding(
+                code="premise", kind="spec_gap", unit="19.P3.example",
+                message="still failing", paved_road="repair the ticket")])})
+
+    monkeypatch.setattr(runner, "run_stages", stage_seam)
+    llm = FakeLLM([])
+    assert main(["drain"], cwd=repo, env=ENV, clock=clock,
+                pipeline=lambda c: runner.bind(c, llm)) == 0
+    events = j.read()
+    assert llm.requests == []
+    assert failed_attempts(events, STEM) == 5
+    assert reject_queue(events)[STEM] == {
+        "to": outcome, "stage": "implement", "reason": "attempts cap spent",
+        "dispatch": "reject_queue", "routed": "reject_queue"}
+    assert not any(e.type == EventType.CAP_CONSUMED and e.body["cap"] != "retry" for e in events)
+    assert "attempts cap spent (5/5)" in capsys.readouterr().out
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("delivery", ["drive", "consume_result"])
+async def test_attempts_cap_skips_conflict_rework(admission_context, monkeypatch, delivery):
+    from chupa.mergequeue import ConflictHandoff
+
+    _, writer = production_writer(admission_context, [])
+    ctx = writer.ctx
+    ticket = await ready(ctx)
+    for _ in range(4):
+        ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed"}, ticket=ticket.stem)
+    handoff = ConflictHandoff(stem=ticket.stem, reviewed_sha="reviewed", conflicted_paths=[],
+                              findings=[Finding(code="post_rebase_regate", message="conflict",
+                                                paved_road="fresh review")])
+    if delivery == "drive":
+        async def stages(ctx, ticket):
+            return StagesRun(attempt=4, results={"review": StageResult(
+                outcome="ok", artifact=None, findings=[], cost=Cost())})
+        async def admission(ticket, *, attempt):
+            return handoff
+        monkeypatch.setattr(runner, "run_stages", stages)
+        assert await runner.drive(ctx, ticket, admission=admission,
+                                  consume_handoff=writer.consume_handoff) == "gate_failed"
+    else:
+        await writer.consume_result(ticket, handoff, attempt=4)
+    events = ctx.driver.journal.read()
+    assert failed_attempts(events, ticket.stem) == 5
+    assert reject_queue(events)[ticket.stem]["reason"] == "attempts cap spent"
+    assert ctx.driver.llm.requests == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", ["split", "update", "escalate"])
+async def test_attempts_cap_preserves_published_rework(admission_context, action):
+    from chupa.daemon import apply_rework
+    from tests.test_rework import order, requisition, successors
+
+    _, writer = production_writer(admission_context, [])
+    ctx = writer.ctx
+    ticket = await ready(ctx)
+    for _ in range(4):
+        ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed"}, ticket=ticket.stem)
+    text = (ctx.repo / f"tickets/{ticket.stem}/ticket.md").read_text()
+    proposals = (successors(text.strip()) if action == "split" else
+                 [(ticket.stem, text.strip().replace("holds the word ok", "holds ok after narrowing"))]
+                 if action == "update" else [])
+    ctx.driver.llm = FakeLLM([order(action, proposals), *[requisition() for _ in proposals]])
+    reworked = await apply_rework(ctx, ticket, [], attempt=4)
+    assert reworked.outcome == "ok"
+    result = await runner.failure_terminal(ctx, ticket, outcome="gate_failed", stage="merge",
+        findings=[], attempt=4, reworked=reworked, rework_requested=True)
+    events = ctx.driver.journal.read()
+    assert failed_attempts(events, ticket.stem) == 5
+    if action == "split":
+        assert result == "rejected" and ticket.stem not in reject_queue(events)
+        assert "state: rejected" in (ctx.repo / f"tickets/{ticket.stem}/ticket.md").read_text()
+    else:
+        assert result == "gate_failed"
+        assert reject_queue(events)[ticket.stem] == {
+            "to": "gate_failed", "stage": "merge", "reason": "attempts cap spent",
+            "dispatch": "reject_queue", "routed": "reject_queue"}
+    for stem, proposal in proposals:
+        assert await ctx.git._run(ctx.repo, "show", f"HEAD:tickets/{stem}/ticket.md") == proposal
 
 
 def test_fold_counts_only_named_cap_and_stem_across_ticket_revisions(tmp_path):

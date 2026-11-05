@@ -55,7 +55,7 @@ report_inbox: inbox
 notify: [notify-send, chupa]
 context_files: [docs/first.md, docs/second.md]
 scheduler: {max_unmerged: 5}
-caps: {retry: 4}
+caps: {retry: 2}
 box_policy: {failure_report: draft}
 """])
 def test_snapshot_preserves_all_validated_config_values(tmp_path, extras):

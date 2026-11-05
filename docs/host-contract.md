@@ -60,7 +60,7 @@ Config:
     worktree_root: unset
     routing_default_tier: medium
     scheduler: {max_unmerged: 2}
-    caps: {diagnosis: 6, retry: 6, premise_bounce: 2, hardening: 3, infra: 6, quarantine: 5, poison: 2}
+    caps: {diagnosis: 3, retry: 3, premise_bounce: 1, hardening: 1, infra: 3, attempts: 5, quarantine: 5, poison: 2}
     seeding: {max_seeds_per_admission: 3}
     circuit_breaker: {k: 3, cooldown_minutes: 10}
     drain: {max_runtime_hours: 12, max_ticket_minutes: 90}
@@ -106,7 +106,7 @@ Scheduler:
   defaults: {max_unmerged: 2}
 Caps:
   required: []
-  defaults: {diagnosis: 6, retry: 6, premise_bounce: 2, hardening: 3, infra: 6, quarantine: 5, poison: 2}
+  defaults: {diagnosis: 3, retry: 3, premise_bounce: 1, hardening: 1, infra: 3, attempts: 5, quarantine: 5, poison: 2}
 Seeding:
   required: []
   defaults: {max_seeds_per_admission: 3}

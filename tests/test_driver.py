@@ -291,12 +291,12 @@ def test_reprompts_are_bounded_by_the_retry_cap(tmp_path):
     stage = LlmStage(surface="implement", emits=Echo, gates=[MustSayHello()], render=render)
     llm = FakeLLM([echo_json("no")] * 20)
     driver, state = build(tmp_path, llm)
-    assert driver.retry_cap == 6  # shipped caps.retry default
+    assert driver.retry_cap == 3  # shipped caps.retry default
     result = run(driver, stage)
     assert result.outcome == "gate_failed"
-    assert len(llm.requests) == 1 + 6  # the first call plus six re-prompts
+    assert len(llm.requests) == 1 + 3  # the first call plus three re-prompts
     assert [f.code for f in result.findings] == ["run_record"]
-    assert not (spool(state) / "implement" / "call-08").exists()
+    assert not (spool(state) / "implement" / "call-05").exists()
 
 
 def test_exhausted_invalid_output_terminals_invalid_artifact(tmp_path):

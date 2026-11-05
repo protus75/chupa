@@ -581,12 +581,13 @@ class _Drain:
                             if e.type == EventType.STATE_TRANSITION and e.ticket == stem)
                 where = f" at {body['stage']}" if "stage" in body else ""
                 spent_cap = caps.spent(self.c.config.caps, events, stem)
-                drawn = caps.draws(events, stem, spent_cap or "retry")
+                drawn = (caps.failed_attempts(events, stem) if spent_cap == "attempts"
+                         else caps.draws(events, stem, spent_cap or "retry"))
                 cap_limit = getattr(self.c.config.caps, spent_cap or "retry")
                 if awaits := awaited_hardening(events, stem):
                     why, road = (f"{to}{where}; spec gap held on round {body['round']} ({', '.join(awaits)})",
                                  "the drain runs the hardening tickets first, then re-runs this stem free")
-                elif stem in held:
+                elif stem in held and spent_cap is None:
                     why, road = f"{to}{where}; parked until its committed ticket.md changes", self._premise_road(t)
                 elif spent_cap is None:  # only a halt leaves budget unspent: the continuing drain re-offers it
                     why, road = (f"{to}{where}; {cap_limit - drawn} of {cap_limit} retry units left",

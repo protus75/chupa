@@ -212,11 +212,11 @@ def test_invalid_replies_leave_pending_without_commit(tmp_path, monkeypatch):
     root, box = root_with_box(tmp_path)
     id = enqueue(box, "invalid reply")
     before = subjects(root)
-    llm = FakeLLM(["{}"] * 7)
+    llm = FakeLLM(["{}"] * 4)
     assert run(root, monkeypatch, llm) == 0
     assert box.get(id).status == "pending" and box.get(id).verdict is None
     assert subjects(root) == before
-    assert len(llm.requests) == 7
+    assert len(llm.requests) == 4
 
 
 def test_report_ingested_before_pending_scan(tmp_path, monkeypatch):
@@ -255,12 +255,12 @@ def test_report_author_failure_is_decision(tmp_path, monkeypatch):
     arrival(root)
     config = root / "config.yaml"
     config.write_text(config.read_text() + "report_inbox: inbox\n")
-    llm = FakeLLM([reply("author"), *[json.dumps({"stem": "broken", "ticket": "bad"})] * 7])
+    llm = FakeLLM([reply("author"), *[json.dumps({"stem": "broken", "ticket": "bad"})] * 4])
     assert run(root, monkeypatch, llm) == 0
     message, = box.messages()
     assert message.resolution == Resolution(kind="decision", link=f"decision-{message.id}")
     assert len([e for e in events(root) if e.body.get("signal") == "author_invoked"]) == 1
-    assert len([r for r in llm.requests if r.surface == "author"]) == 7
+    assert len([r for r in llm.requests if r.surface == "author"]) == 4
     assert not (root / "tickets/broken").exists()
     assert "tickets/broken" not in git_out(root, "status", "--porcelain")
     assert run(root, monkeypatch, FakeLLM([])) == 0

@@ -144,13 +144,13 @@ def test_spent_caps_short_circuit_after_infra_draw(repo, cap, expected):
         path.write_text(path.read_text() + "\ncaps: {infra: 1}\n")
     else:
         consume(Journal(repo / ".chupa" / "state", clock), STEM, "diagnosis", "old-ticket-sha")
-        # Default cap is six, so fill the remaining lineage draws.
+        # Fill the remaining lineage draws up to the configured cap.
         for _ in range(load_config(None, cwd=repo).caps.diagnosis - 1):
             consume(Journal(repo / ".chupa" / "state", clock), STEM, "diagnosis", "old-ticket-sha")
     code, llm = invoke(repo, [RuntimeError("provider failed")])
     assert code == runner.EXIT_TICKET
     assert [r.surface for r in llm.requests if r.surface == "diagnose"] == []
-    assert draws(history(repo), STEM, "diagnosis") == (6 if cap == "diagnosis" else 0)
+    assert draws(history(repo), STEM, "diagnosis") == (3 if cap == "diagnosis" else 0)
     assert diagnosis(repo).mechanical == expected
     assert next(e.body["mechanical"] for e in history(repo) if e.type == EventType.SIGNAL
                 and e.body.get("signal") == "diagnosis") == expected
