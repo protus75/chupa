@@ -382,7 +382,7 @@ Keep and kill require a person at an interactive terminal to type the exact stem
 2. Loops: reload config, honor pause/kill, maybe run a retro, scan committed tickets, pick the
    next ticket, run it, merge it inline.
 3. **Pick order:** confirmed, unsettled, not rejected, every dependency settled (through split
-   successors); then priority P0-P3, then authored age, then stem. Fresh tickets run before
+   successors); then priority P0-P3, then authored age, then stem, across fresh tickets and
    re-offers. Skipped: storm-held, drought-parked, Reject-queue stems without budget, and tickets
    whose `stuck` exceeds `drain.max_ticket_minutes` (default 90).
 4. **Quiescence:** when nothing is eligible, it re-offers parked stems with budget (drawing

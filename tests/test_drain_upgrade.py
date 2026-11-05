@@ -127,8 +127,8 @@ def test_a_self_upgrading_admission_hands_off_before_the_next_dispatch(tmp_path,
     code, child = drain(root, script, order)
 
     assert code == 0
-    # The parent stopped at the upgrade: `after` and the re-offer ran in the child, on the upgraded checkout.
-    assert script.calls == [("parent", "red"), ("parent", "upgrade"), ("child1", "after"), ("child1", "red")]
+    # The parent spends the retry before the upgrade; `after` runs in the child.
+    assert script.calls == [("parent", "red"), ("parent", "red"), ("parent", "upgrade"), ("child1", "after")]
     (spawn,) = child.spawns
     assert spawn["argv"] == ["uv", "run", "python", "-m", "chupa", "drain", "--parked", "red"]
     assert spawn["timeout"] is None and spawn["stdin_path"] is None
@@ -158,7 +158,7 @@ def test_the_carried_parked_set_rides_every_handoff_in_the_chain(tmp_path, order
 
     assert code == 0
     assert [s["argv"][len(REEXEC) :] for s in child.spawns] == [["--parked", "red"], ["--parked", "red"]]
-    assert script.calls == [("parent", "red"), ("parent", "one"), ("child1", "two"), ("child2", "red")]
+    assert script.calls == [("parent", "red"), ("parent", "red"), ("parent", "one"), ("child1", "two")]
     # One awaiting parent per self-upgrading admission; each exits with its child's code.
     assert order.count("spawn") == 2 and order[-2:] == ["exit 0", "exit 0"]
 
@@ -186,7 +186,7 @@ def test_retry_budget_spent_before_the_re_exec_stays_spent_in_the_child(tmp_path
 
     assert code == 0
     # Both reds were re-offered (one unit each) BEFORE the upgrade admission handed off.
-    assert script.calls == [("parent", "red"), ("parent", "gate"), ("parent", "red"), ("parent", "gate"), ("parent", "upgrade")]
+    assert script.calls == [("parent", "red"), ("parent", "red"), ("parent", "gate"), ("parent", "gate"), ("parent", "upgrade")]
     assert len(child.spawns) == 1
     # The child re-derives the budget from the journal: `red`'s spent unit is never re-armed by the exec.
     assert retry_draws(root, "red") == 1

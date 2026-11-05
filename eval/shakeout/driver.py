@@ -28,6 +28,9 @@ async def _invalid_output_exhausted(bench: Bench) -> Observation:
             "not JSON",
             '{"outcome": "not-a-valid-outcome"}',
             _diagnosis("reject"),
+            "not JSON",
+            "not JSON",
+            _diagnosis("reject"),
             lambda req: _commit(req, {"valid.txt": "ok\n"}),
             json.dumps({"verdict": "approve", "summary": "approved", "findings": []}),
         ]
@@ -57,6 +60,9 @@ async def _stuck_budget_kill(bench: Bench) -> Observation:
     bench.script(
         [
             lambda _req: (bench.advance_sleep(), HANG)[1],
+            _diagnosis("reject"),
+            "not JSON",
+            "not JSON",
             _diagnosis("reject"),
             lambda req: _commit(req, {"followup.txt": "ok\n"}),
             json.dumps({"verdict": "approve", "summary": "approved", "findings": []}),

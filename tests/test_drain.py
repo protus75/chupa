@@ -210,6 +210,18 @@ def test_priority_outranks_age(root):
     assert script.calls == ["new-p0", "old-p3"]
 
 
+@pytest.mark.parametrize("red_priority, expected", [("P1", ["red", "fresh"]), ("P2", ["fresh", "red"])])
+def test_reoffer_and_fresh_share_priority_age_order(root, red_priority, expected):
+    intake_at(root, "red", START)
+    commit_ticket(root, "red", confirmed(priority=red_priority))
+    commit_ticket(root, "fresh", confirmed(priority="P1"))
+    journal(root).append(EventType.STATE_TRANSITION, {"to": "gate_failed"}, ticket="red")
+    script = Script()
+    assert drain(root, script) == 0
+    assert script.calls == expected
+    assert retry_draws(root, "red") == 1
+
+
 # --- park, re-offer, and the journal-derived retry budget -------------------------------------------
 
 
@@ -223,8 +235,8 @@ def test_a_red_independent_ticket_parks_and_the_next_still_runs(tmp_path, capsys
 
     script = Script({"aaa-red": ["gate_failed", "gate_failed"]}, {"aaa-red": findings})
     assert drain(root, script) == 0  # quiescence with a parked red still exits zero
-    # Eligible work runs ahead of the re-offer; the one retry unit is then spent.
-    assert script.calls == ["aaa-red", "bbb-green", "aaa-red"]
+    # The older red re-offer spends its retry before the younger ticket runs.
+    assert script.calls == ["aaa-red", "aaa-red", "bbb-green"]
     out = capsys.readouterr().out
     parked = out.split("parked:\n", 1)[1].split("\n\n", 1)[0]
     assert "aaa-red: gate_failed at review; retry cap spent (1/1)" in parked
@@ -602,7 +614,7 @@ def test_rework_split_successors_release_original_dependents(root):
 
     script = Script({"original": ["rejected"], "leaf-a": ["already_satisfied"], "leaf-b": ["gate_failed", "already_satisfied"]}, {"original": split})
     assert drain(root, script) == 0
-    assert script.calls == ["original", "leaf-a", "leaf-b", "piece-two", "leaf-b", "dependent"]
+    assert script.calls == ["original", "leaf-a", "leaf-b", "leaf-b", "piece-two", "dependent"]
     assert retry_draws(root, "original") == 0 and retry_draws(root, "leaf-b") == 1
     assert "piece-one" not in script.calls and script.calls.count("original") == 1
 

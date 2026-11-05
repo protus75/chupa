@@ -378,7 +378,7 @@ class _Drain:
         last: Mapping[str, str],
         held: set[str],
     ) -> tuple[Ticket | None, bool]:
-        """The next dispatch: fresh eligible work first, then re-offers, each in (priority, age) order."""
+        """The next eligible dispatch in (priority, authored age, stem) order, fresh or re-offered."""
         retired_hardeners = {r.hardener for r in rounds(events) if round_state(events, r.number) == "closed"}
         open_ = {s: t for s, t in scan.tickets.items() if t.frontmatter.state == "confirmed" and last.get(s) not in SETTLED | RETIRED and s not in retired_hardeners}
         edges = {s: list(t.depends) for s, t in open_.items()}
@@ -394,7 +394,7 @@ class _Drain:
         authored = authored_at(events)
         ready = sorted((t for t in open_.values() if t.stem not in maps and set(t.depends) <= settled), key=lambda t: sort_key(t, authored))
         awaiting = reject_queue(events)
-        fresh, reoffers = [], []
+        candidates = []
         storm_held = set(self.c.control.storm_holds().values()) if self.c.control is not None else set()
         self.storm_waiting = False
         self.provider_deadlines = []
@@ -432,13 +432,11 @@ class _Drain:
                         self.provider_deadlines.append(drought.deadline)
                     continue
             if last.get(t.stem) is None:
-                fresh.append(t)
+                candidates.append((t, False))
             elif t.stem not in held and budget:
-                reoffers.append(t)
-        if fresh:
-            return fresh[0], False
-        if reoffers:
-            return reoffers[0], True
+                candidates.append((t, True))
+        if candidates:
+            return candidates[0]
         return None, False
 
     async def _run_one(self, ticket: Ticket, reoffer: bool, sha: str) -> None:
