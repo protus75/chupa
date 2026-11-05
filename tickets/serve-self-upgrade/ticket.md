@@ -67,6 +67,10 @@ After this change `serve` notices when the engine's own source changes and hands
 - tests/test_drain.py
 - tests/test_closed_sets.py
 - tests/test_vocabularies.py
+- tests/test_daemon_composition.py
+- tests/test_restart_timers.py
+- tests/test_provider_cooldown_failover.py
+- tests/test_daemon_soak.py
 - docs/how-chupa-works.md
 - docs/host-contract.md
 
