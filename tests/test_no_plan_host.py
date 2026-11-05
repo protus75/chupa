@@ -51,7 +51,7 @@ def test_kill_without_plan_files_dead_dependency(tmp_path):
     root = no_plan(tmp_path)
     commit_ticket(root, "parent", confirmed())
     commit_ticket(root, "child", confirmed(depends="- parent"))
-    assert main(["reject", "parent"], cwd=root, env=ENV, clock=Clock(), terminal=(lambda: True, lambda _: "parent")) == 0
+    assert main(["reject", "parent"], cwd=root, env=ENV, clock=Clock(), terminal=(lambda: True, lambda _: "y")) == 0
     assert any(e.ticket == "child" and e.body.get("signal") == "dead_dependency" for e in journal(root).read())
     assert "failure_report" in next((root / ".chupa/state/box").glob("*.json")).read_text()
 

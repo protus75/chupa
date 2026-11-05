@@ -1391,7 +1391,7 @@ def _mid_run_hold(repo, monkeypatch, *, committed, failed=False):
                 pipeline=lambda c: runner.bind(c, llm)) == 0
     assert len(llm.requests) == 1
     monkeypatch.setattr(stages, "implement", original)
-    assert main(["confirm", STEM], cwd=repo, env=ENV, clock=clock, terminal=(lambda: True, lambda _: STEM)) == 0
+    assert main(["confirm", STEM], cwd=repo, env=ENV, clock=clock, terminal=(lambda: True, lambda _: "y")) == 0
     fresh = FakeLLM([agent({"chupa/thing.py": "ok\n"}), verdict()])
     from tests.test_drain_reentry import NoChild
     assert main(["drain"], cwd=repo, env=ENV, clock=clock,

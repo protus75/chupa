@@ -29,8 +29,8 @@ def test_confirm_held_without_writer_lock(tmp_path, monkeypatch, capsys, dirless
             if dirless == "Reject":
                 ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket=ticket.stem)
                 ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "routed": "reject_queue"}, ticket=ticket.stem)
-                assert await asyncio.to_thread(entry.main, ["confirm", ticket.stem], cwd=ctx.repo, env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: True, lambda _: ticket.stem)) == 0
-                assert await asyncio.to_thread(entry.main, ["confirm", ticket.stem], cwd=ctx.repo, env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: True, lambda _: ticket.stem)) == 2
+                assert await asyncio.to_thread(entry.main, ["confirm", ticket.stem], cwd=ctx.repo, env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: True, lambda _: "y")) == 0
+                assert await asyncio.to_thread(entry.main, ["confirm", ticket.stem], cwd=ctx.repo, env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: True, lambda _: "y")) == 2
                 assert [e.body["verdict"] for e in ctx.driver.journal.read() if e.body.get("signal") == "reject_verdict"] == ["keep"]
                 return
             ctx.fs.write(path, stamp(path.read_text(), "state", "draft").encode())
@@ -43,7 +43,7 @@ def test_confirm_held_without_writer_lock(tmp_path, monkeypatch, capsys, dirless
             lock.acquire()
             control.write_active(ctx.config.state_dir, consumer.projection, ctx.fs, hold_id=None)
             try:
-                assert await asyncio.to_thread(entry.main, ["confirm", ticket.stem], cwd=ctx.repo, env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: True, lambda _: ticket.stem)) == 0
+                assert await asyncio.to_thread(entry.main, ["confirm", ticket.stem], cwd=ctx.repo, env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: True, lambda _: "y")) == 0
                 consumer.inbox.consume()
                 async def confirmed(stem, request_id): await runner.confirm_draft(stem, request_id, ctx)
                 await consumer.inbox.settle_admissions(confirmed)
@@ -72,7 +72,7 @@ def test_confirm_held_without_writer_lock(tmp_path, monkeypatch, capsys, dirless
                 patch.setattr(Journal, "append", forbidden)
                 for _ in range(2):
                     assert await asyncio.to_thread(entry.main, ["confirm", ticket.stem], cwd=ctx.repo,
-                        env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: True, lambda _: ticket.stem), pipeline=forbidden) == 0
+                        env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: True, lambda _: "y"), pipeline=forbidden) == 0
             files = list((ctx.config.state_dir / "control/inbox").glob("*.json"))
             assert len(files) == 2
             assert all(json.loads(p.read_bytes())["hold_id"] == held.hold_id for p in files)
@@ -106,7 +106,7 @@ def test_reject_held_candidate(tmp_path):
         before = await ctx.git.rev_parse(ctx.repo, "main")
         try:
             assert await asyncio.to_thread(entry.main, ["reject", ticket.stem], cwd=ctx.repo,
-                env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: True, lambda _: ticket.stem)) == 0
+                env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: True, lambda _: "y")) == 0
             queue.control.inbox.consume()
             [result] = await queue.process()
         finally:

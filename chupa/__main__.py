@@ -465,10 +465,10 @@ async def _verdict(checkout, stem, verb, read_input):
         preview = "no ticket file"
     print(f"{stem}: {preview}")
     try:
-        answer = read_input(f"Type {stem} to {verb}: ")
+        answer = read_input(f"{verb} {stem}? [y/N] ")
     except EOFError:
         answer = ""
-    if answer != stem:
+    if answer.strip().lower() not in {"y", "yes"}:
         print("verdict aborted")
         return 1
     if held is None:
