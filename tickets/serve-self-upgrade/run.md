@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-tests/test_drain.py assumes the old re-exec command has a five-element prefix; the required --project arguments make the prefix seven elements.
+The idle check also waits for held running candidates and merge-result delivery before handoff.
 
 ## Dead ends
 
-Implemented the requested handoff and ran the verification suite; the full suite failed because the out-of-scope test passes argv[5:] to the child CLI.
+An initial full-suite run was invalidated by an edit during the run; later runs exposed and helped fix a merge-result handoff race.
 
 ## Second problems filed
 
