@@ -1,9 +1,9 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "f10117246c028ef85b80fb32efe462946a3fb213",
+  "produced_at_sha": "fc83075846e73e95f736d140262fc6745bc8a756",
   "stem": "prompts-drop-plan",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "premise_failed",
   "stage": "implement",
   "verdict": "abandon-human",
