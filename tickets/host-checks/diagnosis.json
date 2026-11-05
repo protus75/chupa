@@ -1,15 +1,20 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "2999950783460f46c56fb1247b0e00805f20d4e8",
+  "produced_at_sha": "7d3e0a2e5af71c4981eaa9d6082cbfd81aec6cae",
   "stem": "host-checks",
-  "attempt": 1,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "premise_bounce cap spent",
+  "attempt": 2,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "In `check_hosts` (chupa/stages.py), when the base rerun is red, replace that entry's `reports` item with `_report(entry.code, [])`. `_prior_findings` returns findings from every `fail` report, and the ticket charges base-red to neither Check nor retry.",
+    "Keep exactly one report per triggered entry, the `check/host-<nn>.txt` spool and the existing base_red box message. Change only the base-red report, mirroring how `VerificationGate` excludes `r.base_red` results from its verdict.",
+    "Update `test_base_red_entry_is_preexisting` so it expects a `pass` report with no findings. Also make Check fail on another gate while a host entry is red at base, then assert `_prior_findings` or `prior_attempts` omits the base-red finding.",
+    "Keep real failures as they are: a hard or soft entry that is green at base keeps its `fail` report and findings. The ticket requires a soft failure to record `fail` while Check proceeds, so scope the report replacement to `baseline.rc != 0` only."
+  ],
+  "mechanical": null,
   "spec_version": "1.1",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
