@@ -1,10 +1,10 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The same failure was reproduced on the base commit; the implementation changes remain uncommitted.
+Verification passed with 3,187 tests and one serializer warning.
 
 ## Dead ends
 
@@ -12,7 +12,7 @@ none
 
 ## Second problems filed
 
-- box-000318-8bfc4261: tests/test_cli.py::test_retro_doctor_entry_unit fails because tickets/phase5-continue-04/ticket.md references the missing tests/test_seeded_phase3_core.py.
+none
 
 ## Resolved engine/model
 
