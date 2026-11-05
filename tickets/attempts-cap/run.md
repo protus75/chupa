@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Drain needed attempts-cap reporting to take precedence over the premise-park message.
+Updated documentation sections 6.1 and 6.7 alongside 6.4 to clarify terminal routing and the default premise-cap release through operator confirm.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60 minutes; completed in approximately 9 minutes.
+Completed within the expected 60-minute budget.
 
