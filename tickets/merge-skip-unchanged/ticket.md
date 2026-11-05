@@ -37,6 +37,7 @@ Inline merge (`run` and `drain`) always reruns Verification, the bug regression,
 - In: tests.
   - `tests/test_host_mechanical.py`: `test_inline_merge_reruns_triggered_hard_entries` commits a code change to `main` before merging, so it still exercises the rerun. Add a test where `main` gains only a `tickets/` commit: no host command runs and the merge succeeds.
   - `tests/test_mergequeue.py`: add a test where `main` gains only a `tickets/` commit. No host command runs in either tier, and the candidate merges. Any existing queue test whose assertion depends on a merge-time rerun commits a code change to `main` first.
+  - `tests/test_serve.py`, `tests/test_daemon_composition.py`, `tests/test_daemon_soak_runner.py` (and its `eval/daemon_soak.py` scenario): each asserts `merge-integration/` or `merge-safety/` spools. A scenario that must keep the rerun commits a main-side code change before admission; assertions are not weakened.
   - `tests/test_merge.py`, `tests/test_bug_gate.py`, `tests/test_mergequeue.py`: any inline-merge test whose assertion depends on a merge-time rerun (a Check gate, host check, Verification or bug-regression failure at merge) commits a code change to `main` before merging, so it keeps testing the rerun path. Assertions are not weakened.
 - In: `docs/how-chupa-works.md` section 4.5: steps 2-3 apply only when the rebase brought a change outside `tickets/`; otherwise only the Merge gates run. Section 7.2.1: the same skip applies to the host safety checks and the integration tier.
 - Out: Check; the gates themselves; flaky-test handling.
@@ -48,6 +49,10 @@ Inline merge (`run` and `drain`) always reruns Verification, the bug regression,
 - tests/test_merge.py
 - tests/test_bug_gate.py
 - tests/test_mergequeue.py
+- tests/test_serve.py
+- tests/test_daemon_composition.py
+- tests/test_daemon_soak_runner.py
+- eval/daemon_soak.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
