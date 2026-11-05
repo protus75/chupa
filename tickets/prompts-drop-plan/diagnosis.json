@@ -1,0 +1,15 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "f10117246c028ef85b80fb32efe462946a3fb213",
+  "stem": "prompts-drop-plan",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "abandon-human",
+  "lessons": [],
+  "mechanical": "premise_bounce cap spent",
+  "spec_version": "1.1",
+  "provider": null,
+  "model": null
+}
