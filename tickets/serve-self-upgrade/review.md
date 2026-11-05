@@ -1,10 +1,10 @@
-# Review: snag
+# Review: approve
 
-Serve's self-upgrade handoff is mostly correct, but its idle check also waits on policy-held merge candidates, so a held merge can stop admission indefinitely without ever handing off.
+The diff meets all six testable criteria. Serve records the engine's chupa/specs trees at startup and re-checks them at admission and merge boundaries; on a change it stops admitting, waits until idle, and hands off in drain's order (journal, cleanup, close, release lock, spawn) with kill-wins checks. One shared reexec_argv builds the argv for both verbs, drain keeps its --parked arguments, and the docs are updated.
 
 ## Findings
 
-- [logic] chupa/serve.py:311 `upgrade_idle` requires `not self.queue.held`. `MergeQueue.held` holds candidates parked on a review-policy hold, which only a human release or later coverage clears (mergequeue.py:145-150). Once an engine change is seen, `admissible` and `dispatch` stop admitting new work. If a candidate is held at that point, serve stays in that state until someone releases the hold: it admits nothing and never hands off. That is a fail-stuck state. The ticket's idle condition is only 'no ticket is running and the merge queue has no pending or active candidate'. Held admissions already survive a restart through the journal (`held_admissions`), so a handoff does not need to wait for them. (do instead: Drop the `self.queue.held` term so idle means: no running ticket, and the queue has no pending or active candidate. Add a test where one candidate is held when the engine tree changes, and assert that serve still hands off.)
+none
 
 ## Record
 
@@ -12,24 +12,14 @@ Serve's self-upgrade handoff is mostly correct, but its idle check also waits on
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "5cedbdac3a43c8df8116203ef39f8f42b4401490",
+  "produced_at_sha": "399d2986ad3270ccc354d97597636ea28d1f2bf1",
   "stem": "serve-self-upgrade",
-  "reviewed_sha": "5cedbdac3a43c8df8116203ef39f8f42b4401490",
-  "summary": "Serve's self-upgrade handoff is mostly correct, but its idle check also waits on policy-held merge candidates, so a held merge can stop admission indefinitely without ever handing off.",
-  "findings": [
-    {
-      "code": "logic",
-      "path": "chupa/serve.py",
-      "line": 311,
-      "message": "`upgrade_idle` requires `not self.queue.held`. `MergeQueue.held` holds candidates parked on a review-policy hold, which only a human release or later coverage clears (mergequeue.py:145-150). Once an engine change is seen, `admissible` and `dispatch` stop admitting new work. If a candidate is held at that point, serve stays in that state until someone releases the hold: it admits nothing and never hands off. That is a fail-stuck state. The ticket's idle condition is only 'no ticket is running and the merge queue has no pending or active candidate'. Held admissions already survive a restart through the journal (`held_admissions`), so a handoff does not need to wait for them.",
-      "paved_road": "Drop the `self.queue.held` term so idle means: no running ticket, and the queue has no pending or active candidate. Add a test where one candidate is held when the engine tree changes, and assert that serve still hands off.",
-      "kind": null,
-      "unit": null
-    }
-  ],
+  "reviewed_sha": "399d2986ad3270ccc354d97597636ea28d1f2bf1",
+  "summary": "The diff meets all six testable criteria. Serve records the engine's chupa/specs trees at startup and re-checks them at admission and merge boundaries; on a change it stops admitting, waits until idle, and hands off in drain's order (journal, cleanup, close, release lock, spawn) with kill-wins checks. One shared reexec_argv builds the argv for both verbs, drain keeps its --parked arguments, and the docs are updated.",
+  "findings": [],
   "spec_version": "1.2",
   "provider": "claude",
   "model": "claude-opus-5-5",
-  "verdict": "snag"
+  "verdict": "approve"
 }
 ```
