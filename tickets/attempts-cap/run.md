@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Attempts take precedence when multiple caps are spent; already-spent daemon dispatches journal abandoned, while published splits still retire their parent.
+Drain needed attempts-cap reporting to take precedence over the premise-park message.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the 60-minute expected budget.
+Expected 60 minutes; completed in approximately 9 minutes.
 
