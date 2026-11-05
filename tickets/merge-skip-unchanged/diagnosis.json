@@ -1,0 +1,15 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "2bd93fdb13c6065ce0f9711a49ef5a8fded23c75",
+  "stem": "merge-skip-unchanged",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "abandon-human",
+  "lessons": [],
+  "mechanical": "premise_bounce cap spent",
+  "spec_version": "1.2",
+  "provider": null,
+  "model": null
+}
