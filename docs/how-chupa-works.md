@@ -615,6 +615,8 @@ The block carries only process rules that hold for every host; codebase rules be
   tells chupa how to run (for example "chupa must ...") is refused.
 - The `core_drift` gate fails a ticket when a routed conduct file's block is not current.
 - `doctor` checks a host's setup without changing anything.
+- The `chupa.testreport` pytest plugin accepts `--chupa-results PATH` and writes JSON with
+  `schema_version: 1` and a `tests` map from pytest node IDs to `passed`, `failed`, or `skipped`.
 - A host provides `config.yaml`, its conduct files, and its tickets. `docs/host-contract.md` is
   the full host-facing contract.
 
