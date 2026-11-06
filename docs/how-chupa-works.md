@@ -40,6 +40,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 |---|---|---|
 | `status` | no | Prints the journal projection (section 10.3). Read-only. |
 | `lint [stem ...]` | no | Validates ticket grammar, intake claims, and committable bug evidence without running tickets or writing files, journal events, or git state. With no stems, checks every ticket except those settled or rejected in the journal; with no journal, checks all tickets. Prints each finding and its fix, then `lint: <valid>/<total> tickets valid`. Exits 0 when valid, 1 for findings, or 2 for a missing named ticket or unreadable tickets directory. |
+| `covgate [--gate PATH] [--report PATH]` | no | Reads `test-gate.toml` and `coverage.json` by default (paths relative to the invocation directory); checks repository, package, and file coverage. Exits 0 on pass, 1 on threshold failures, or 2 for invalid or missing inputs. |
 | `doctor` | no | Checks venv, git, config load, lock probe, journal readability. Exit 2 on any failure. |
 | `core` | no | Rewrites the managed `chupa:core` block in each routed agent's conduct file (section 12). |
 | `migrate-config` | no | Migrates a `schema_version: 0` config to the current schema. |

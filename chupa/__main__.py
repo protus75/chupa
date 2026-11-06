@@ -212,6 +212,9 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("kill", help="submit kill to the running engine; refuse when nothing is running")
     sub.add_parser("review", help="review a committed ticket under the lock").add_argument("stem")
     sub.add_parser("triage", help="make one sequential pass over pending suggestions under the lock")
+    covgate = sub.add_parser("covgate", help="check a coverage JSON report against thresholds")
+    covgate.add_argument("--gate", type=Path, default=Path("test-gate.toml"))
+    covgate.add_argument("--report", type=Path, default=Path("coverage.json"))
     new = sub.add_parser("new", help="template tickets/<stem>/ticket.md and lint it")
     new.add_argument("stem")
     new.add_argument("--kind", choices=("feature", "bug", "chore"), default="feature")
@@ -246,6 +249,8 @@ def main(
         if args.verb == "migrate-config":
             migrate_config(args.config, cwd=repo, fs=LocalFileSystem())
             return 0
+        if args.verb == "covgate":
+            return _covgate(repo, args.gate, args.report)
         if args.verb == "new":
             return _new(repo, args.stem, args.kind)
         if args.verb == "doctor":
@@ -333,6 +338,26 @@ def main(
         print(f"chupa {args.verb}: {e}{road}", file=sys.stderr)
         return runner.EXIT_REFUSED
 
+
+
+def _covgate(repo: Path, gate_path: Path, report_path: Path) -> int:
+    import json
+    from chupa.covgate import GateInvalid, evaluate, parse_gate
+
+    try:
+        gate = parse_gate((repo / gate_path).read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, GateInvalid) as exc:
+        print(f"chupa covgate: invalid gate {gate_path}: {exc} -- fix the gate file and retry", file=sys.stderr)
+        return 2
+    try:
+        report = json.loads((repo / report_path).read_text(encoding="utf-8"))
+        failures = evaluate(gate, report)
+    except (OSError, UnicodeError, ValueError) as exc:
+        print(f"chupa covgate: invalid report {report_path}: {exc} -- generate a coverage.py JSON format 3 report and retry", file=sys.stderr)
+        return 2
+    for failure in failures:
+        print(failure)
+    return 1 if failures else 0
 
 async def _review(checkout: runner.Checkout, stem: str) -> int:
     from chupa.driver import Driver
