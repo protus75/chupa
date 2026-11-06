@@ -1,7 +1,7 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "2530be735a8b46e8952e82863b3233ce95f27167",
+  "produced_at_sha": "640aff57808293594ccae2506d5b69941e2f1327",
   "stem": "merge-skip-unchanged",
   "passed": true,
   "changed_files": [
@@ -18,7 +18,7 @@
     "tests/test_serve.py",
     "tests/test_supervised_merge_hold.py"
   ],
-  "inserted_lines": 171,
+  "inserted_lines": 177,
   "bypassed": [],
   "reports": [
     {
@@ -71,7 +71,7 @@
         "tests/test_mergequeue.py"
       ],
       "rc": 0,
-      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/merge-skip-unchanged\nconfigfile: pyproject.toml\nplugins: xdist-3.8.0, timeout-2.5.0, asyncio-1.4.0\ntimeout: 120.0s\ntimeout method: thread\ntimeout func_only: False\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncreated: 20/20 workers\n20 workers [281 items]\n\n........................................................................ [ 25%]\n........................................................................ [ 51%]\n........................................................................ [ 76%]\n.................................................................        [100%]\n============================= 281 passed in 8.19s ==============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/merge-skip-unchanged\nconfigfile: pyproject.toml\nplugins: xdist-3.8.0, timeout-2.5.0, asyncio-1.4.0\ntimeout: 120.0s\ntimeout method: thread\ntimeout func_only: False\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncreated: 20/20 workers\n20 workers [281 items]\n\n........................................................................ [ 25%]\n........................................................................ [ 51%]\n........................................................................ [ 76%]\n.................................................................        [100%]\n============================= 281 passed in 8.42s ==============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -84,7 +84,7 @@
         "never_reaches_review"
       ],
       "rc": 0,
-      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/merge-skip-unchanged\nconfigfile: pyproject.toml\nplugins: xdist-3.8.0, timeout-2.5.0, asyncio-1.4.0\ntimeout: 120.0s\ntimeout method: thread\ntimeout func_only: False\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncreated: 20/20 workers\n20 workers [1 item]\n\n.                                                                        [100%]\n============================== 1 passed in 1.10s ===============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/merge-skip-unchanged\nconfigfile: pyproject.toml\nplugins: xdist-3.8.0, timeout-2.5.0, asyncio-1.4.0\ntimeout: 120.0s\ntimeout method: thread\ntimeout func_only: False\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncreated: 20/20 workers\n20 workers [1 item]\n\n.                                                                        [100%]\n============================== 1 passed in 1.09s ===============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -95,7 +95,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "................................................ [ 69%]\n........................................................................ [ 71%]\n........................................................................ [ 73%]\n........................................................................ [ 75%]\n........................................................................ [ 78%]\n........................................................................ [ 80%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 86%]\n........................................................................ [ 89%]\n........................................................................ [ 91%]\n........................................................................ [ 93%]\n........................................................................ [ 95%]\n........................................................................ [ 98%]\n..............................................................           [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/merge-skip-unchanged/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3230 passed, 1 warning in 64.50s (0:01:04)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "................................................ [ 69%]\n........................................................................ [ 71%]\n........................................................................ [ 73%]\n........................................................................ [ 75%]\n........................................................................ [ 78%]\n........................................................................ [ 80%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 86%]\n........................................................................ [ 89%]\n........................................................................ [ 91%]\n........................................................................ [ 93%]\n........................................................................ [ 95%]\n........................................................................ [ 98%]\n..............................................................           [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/merge-skip-unchanged/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3230 passed, 1 warning in 64.49s (0:01:04)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
