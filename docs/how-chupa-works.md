@@ -65,6 +65,7 @@ Each test has a 120-second hard limit.
 | `test [args]` | pytest with those args |
 | `new STEM [--kind K]` | `chupa new <stem> --kind feature\|bug\|chore` (default `feature`) |
 | `lint [STEM...]` | `chupa lint [stem ...]` (read-only; no writer lock) |
+| `run STEM` | `chupa run <stem>`: one ticket through every stage, under the lock |
 | `status`, `drain`, `kill` | the matching chupa verb |
 | `confirm STEM...`, `reject STEM...` | `chupa confirm` or `chupa reject` once per stem; a person at a terminal answers `y` for each stem |
 

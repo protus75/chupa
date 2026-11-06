@@ -22,8 +22,10 @@ what content its tickets carry, never the format.
 
 ## What each section is for
 
-- `Depends on`: tickets that must merge first.
-- `Runs before`: stems this ticket runs ahead of when both are eligible. This soft order never blocks.
+- `Depends on`: tickets whose merged code this ticket needs. Use it only for that: a failed
+  dependency blocks every ticket behind it.
+- `Runs before`: stems this ticket runs ahead of when both are eligible. This soft order never
+  blocks; use it, not `Depends on`, for any other ordering.
 - `Context`: files the implementing agent reads before starting; they are embedded in its prompt.
   They must already exist: a file the ticket creates belongs in `Scope fence` only.
 - `On-demand`: existing files the agent may need but that are too large to embed; it reads them

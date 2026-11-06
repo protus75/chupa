@@ -6,6 +6,7 @@
     ./dev.py new STEM [--kind K]  author and lint a feature, bug, or chore ticket
     ./dev.py lint [STEM...]   validate tickets without running or writing anything
     ./dev.py status           the engine's projected state
+    ./dev.py run STEM         run one ticket through every stage
     ./dev.py drain            run every eligible ticket to quiescence
     ./dev.py watch [--once]   live view: running ticket, step, model, and the queue
     ./dev.py kill             hard-stop the running drain or serve
@@ -42,6 +43,7 @@ def main() -> None:
     new = sub.add_parser("new", help="author and lint a ticket")
     new.add_argument("stem")
     new.add_argument("--kind", choices=("feature", "bug", "chore"), default="feature")
+    sub.add_parser("run", help="run one ticket through every stage").add_argument("stem")
     sub.add_parser("drain", help="run every eligible ticket to quiescence")
     sub.add_parser("kill", help="hard-stop the running drain or serve")
     sub.add_parser("watch", help="live view of the drain and the queue").add_argument("--once", action="store_true")
@@ -54,6 +56,8 @@ def main() -> None:
         run(["uv", "run", "pytest", "-q", *args.args])
     elif args.task == "new":
         chupa("new", args.stem, "--kind", args.kind)
+    elif args.task == "run":
+        chupa("run", args.stem)
     elif args.task == "lint":
         chupa("lint", *args.stems)
     elif args.task == "watch":
