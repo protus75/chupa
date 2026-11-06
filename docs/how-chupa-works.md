@@ -158,7 +158,8 @@ log tails) when this is a retry. The model works in the worktree with write acce
 - `ok`: it committed the change.
 - `already_satisfied`: every acceptance criterion already holds on `main`; Check must prove it
   with green Verification on an empty diff.
-- `premise_failed`: the ticket cannot be done as written; findings say why.
+- `premise_failed`: the ticket cannot be done as written; findings say why and name every forced
+  file outside the scope fence separately.
 
 The Implement prompt separates unit and integration suites. Unit tests use fakes for clock,
 filesystem, processes and network, avoid disk, network and processes, and run in milliseconds.

@@ -22,7 +22,7 @@ from chupa.specs import (
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parent.parent / "specs"
-    for name, version in (("implement", "2.2"), ("requisition_review", "3.0"), ("diagnose", "1.2")):
+    for name, version in (("implement", "2.3"), ("requisition_review", "3.0"), ("diagnose", "1.2")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
@@ -33,7 +33,7 @@ def test_implement_spec_consumer_read():
     assert lint_spec(text) == []
     assert len(text.splitlines()) <= SPEC_MAX_LINES
     spec = load_spec(text)
-    assert spec.meta.version == "2.2"
+    assert spec.meta.version == "2.3"
     assert spec.meta.model_dump(exclude={"version"}) == {
         "llm_surface": "implement",
         "consumes": "ticket",
@@ -46,6 +46,11 @@ def test_implement_spec_consumer_read():
     assert tuple(line[3:] for line in spec.body.splitlines() if line.startswith("## ")) == SPEC_SECTIONS
     rendered = render(spec, {name: f"fixture {name}" for name in spec.inputs})
     task = " ".join(rendered.split("## Task\n", 1)[1].split("## Inputs\n", 1)[0].split())
+    assert (
+        "Before replying `premise_failed` for a scope reason, work the change through every file the "
+        "acceptance criteria and `## Verification` commands force, and report each forced file outside "
+        "`## Scope fence` as its own finding; never stop at the first."
+    ) in task
     assert (
         "Before changing how production code stores or emits a value (null versus empty string, type, column or field name, encoding), search the repository for that value's consumers and read them."
     ) in task
