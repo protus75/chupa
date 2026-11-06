@@ -1,10 +1,10 @@
-# Review: snag
+# Review: approve
 
-The runtime plan removal and finished-ticket skips are correct, but parse_ticket also stops applying the seed cite law when no plan is passed, which changes validate_ticket/lint behavior on hosts without CHUPA_PLAN.md.
+The diff meets every acceptance criterion: no runtime path reads or passes the plan any more, the drain scan and the watcher skip stems that are settled or rejected before parsing them, both new tests fail if finished tickets are parsed or live ones are skipped, parse_ticket's plan-less bridge matches the ticket, the seed-cite check from the prior finding is left unchanged, and docs sections 7.1 and 7.2 state the skip.
 
 ## Findings
 
-- [logic] chupa/tickets.py:401 The ticket's bridge only drops `## Plan contract` resolution and the 'plan is absent' finding when `plan` is None. This line also adds `and plan is not None` to the `source: seed` cite check, which used to run as `_seed_cites(stem, plan_ids, plan or "", path)`. `validate_ticket` passes `read_plan(repo)`, which is None when the host has no CHUPA_PLAN.md. In that case a `source: seed` ticket that is missing its `19.L`/phase-unit cites used to be rejected by validate_ticket and lint, and now it passes. The ticket's Definition of rejected lists any change to validate_ticket or lint behavior. (do instead: Restore `if fm is not None and fm.source == "seed": findings += _seed_cites(stem, plan_ids, plan or "", path)` so that only Plan contract resolution depends on `plan`.)
+none
 
 ## Record
 
@@ -12,24 +12,14 @@ The runtime plan removal and finished-ticket skips are correct, but parse_ticket
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "3b58f317f7d2d82afba8474aa436f8041c1a2791",
+  "produced_at_sha": "b3a38baf0d017be657595553d20c65c1f118e127",
   "stem": "plan-off-serve-path",
-  "reviewed_sha": "3b58f317f7d2d82afba8474aa436f8041c1a2791",
-  "summary": "The runtime plan removal and finished-ticket skips are correct, but parse_ticket also stops applying the seed cite law when no plan is passed, which changes validate_ticket/lint behavior on hosts without CHUPA_PLAN.md.",
-  "findings": [
-    {
-      "code": "logic",
-      "path": "chupa/tickets.py",
-      "line": 401,
-      "message": "The ticket's bridge only drops `## Plan contract` resolution and the 'plan is absent' finding when `plan` is None. This line also adds `and plan is not None` to the `source: seed` cite check, which used to run as `_seed_cites(stem, plan_ids, plan or \"\", path)`. `validate_ticket` passes `read_plan(repo)`, which is None when the host has no CHUPA_PLAN.md. In that case a `source: seed` ticket that is missing its `19.L`/phase-unit cites used to be rejected by validate_ticket and lint, and now it passes. The ticket's Definition of rejected lists any change to validate_ticket or lint behavior.",
-      "paved_road": "Restore `if fm is not None and fm.source == \"seed\": findings += _seed_cites(stem, plan_ids, plan or \"\", path)` so that only Plan contract resolution depends on `plan`.",
-      "kind": null,
-      "unit": null
-    }
-  ],
+  "reviewed_sha": "b3a38baf0d017be657595553d20c65c1f118e127",
+  "summary": "The diff meets every acceptance criterion: no runtime path reads or passes the plan any more, the drain scan and the watcher skip stems that are settled or rejected before parsing them, both new tests fail if finished tickets are parsed or live ones are skipped, parse_ticket's plan-less bridge matches the ticket, the seed-cite check from the prior finding is left unchanged, and docs sections 7.1 and 7.2 state the skip.",
+  "findings": [],
   "spec_version": "1.4",
   "provider": "claude",
   "model": "claude-opus-5-5",
-  "verdict": "snag"
+  "verdict": "approve"
 }
 ```
