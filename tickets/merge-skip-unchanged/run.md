@@ -8,7 +8,7 @@ Skipped integration tiers leave the existing red streak unchanged.
 
 ## Dead ends
 
-An initial full-suite run overlapped a source edit and produced a fixture-copy mismatch; the stable rerun passed.
+An initial implementation exposed existing tests that needed main-side code changes; the reviewed prior implementation supplied those adjustments.
 
 ## Second problems filed
 
