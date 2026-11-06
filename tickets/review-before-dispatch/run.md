@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The focused gate tests passed, but the full suite could not pass: the shakeout premise-park member edits a ticket and redispatches it with no review reply for the new content. The implementation remains uncommitted.
+The full suite passed with four pytest workers: 3,049 tests passed. All six requisition gate tests passed.
 
 ## Dead ends
 
-Considered automatically approving edited tickets in the shared Bench helper, but that would hide the review being exercised and change unrelated shakeout scenarios.
+The initial unrestricted parallel run exhausted workers; the final verification used four workers.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-The ticket budgets 75 minutes expected and 90 minutes stuck; elapsed time was not measured.
+Expected 75 minutes; elapsed time was not measured.
 
