@@ -7,6 +7,7 @@ state: confirmed
 
 ## Depends on
 - remove-plan-gap-hardening
+- remove-seeding
 
 ## Context
 - chupa/watcher.py
