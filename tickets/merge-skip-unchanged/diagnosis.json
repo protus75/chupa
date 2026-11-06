@@ -1,15 +1,20 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "d6427b258f21ca7664fbff63e1861d3289993919",
+  "produced_at_sha": "2530be735a8b46e8952e82863b3233ce95f27167",
   "stem": "merge-skip-unchanged",
-  "attempt": 1,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "premise_bounce cap spent",
+  "attempt": 2,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Qualify docs/how-chupa-works.md section 5.4 (Host checks): inline merge's triggered hard rerun, the serve queue's safety-tier `merge.safety_checks`, and the integration tier run only when main changed a path outside `tickets/` since the reviewed merge base, or when the branch diff is empty.",
+    "Wherever section 5.4 applies the skip, say that otherwise only the Merge gates run, and cross-reference sections 4.5 and 7.2.1 so all three sections state the skip the same way.",
+    "Before finishing, grep docs/how-chupa-works.md for every other sentence describing merge-time reruns (Verification, bug regression, Check gates, host checks, merge-safety/merge-integration spools). Qualify each one too, not just 4.5 and 7.2.1.",
+    "Keep the merged-quality code, shared decision function and test changes from attempt 2. Review found no defect in them. Limit this attempt to the documentation fix and rerun the Verification commands."
+  ],
+  "mechanical": null,
   "spec_version": "1.2",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
