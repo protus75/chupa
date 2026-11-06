@@ -6,7 +6,7 @@ state: confirmed
 ---
 
 ## Depends on
-- remove-bootstrap-ingest
+- none
 
 ## Context
 - docs/how-chupa-works.md
