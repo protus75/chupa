@@ -20,6 +20,7 @@ none
 - tests/test_cli.py
 - docs/host-running.md
 - tests/test_host_running.py
+- tests/test_host_contract.py
 
 ## Goal / Why
 The `vscode-chupa` extension's "Ask Claude: diagnose" and "Ask Claude: review" menu items open a Claude Code chat with a prompt. Today that prompt is hard-coded as JavaScript template strings in `askClaude` in `vscode-chupa/extension.js`. This has three problems:
@@ -38,7 +39,7 @@ After this change:
 ## Scope in / Scope out
 - In: `specs/ask/diagnose.md`, `specs/ask/running.md`, `specs/ask/review.md`.
   - Each is a plain Markdown template, not a driver spec: no frontmatter, never passed to `load_spec`.
-  - Each uses `string.Template` placeholders `${stem}`, `${ticket}` (`tickets/<stem>/ticket.md`), and `${state_dir}` (the config's `state_dir`, relative to the repo root).
+  - Each uses `string.Template` placeholders `${stem}`, `${ticket}` (`tickets/<stem>/ticket.md`), and `${state_dir}` (the config's `state_dir`, relative to the repo root when it lies under the repo root, otherwise absolute).
   - Their text is the extension's current three prompts with three changes:
     - `.chupa/state` becomes `${state_dir}`;
     - the phrase "following CLAUDE.md section B" is dropped, because Claude Code loads the workspace's conduct file itself;
@@ -63,13 +64,14 @@ After this change:
   - `test_each_kind_renders_stem_ticket_and_state_dir`: a config whose `state_dir` is not `.chupa/state` shows up in the output;
   - `test_host_notes_appended_as_data_block_only_when_set`;
   - `test_prompt_verb_refuses_missing_ticket`;
-  - `test_prompt_verb_takes_no_lock`: no lockfile appears under `state_dir`.
+  - `test_state_dir_outside_repo_renders_absolute`: an absolute `state_dir` outside the repo appears as that absolute path;
+  - `test_prompt_verb_writes_no_state`: after a successful `prompt` run, `state_dir` does not exist, so no lockfile, journal event, or file was written.
 - In: `tests/test_config.py`: `ask_notes` defaults to `None` and parses from YAML.
 - In: docs.
   - `docs/how-chupa-works.md` section 2.1: a `prompt` row.
   - Section 8.4: one sentence saying that `specs/ask/` holds operator prompt templates rendered by `prompt`, not driver specs.
   - Section 11: `ask_notes`.
-  - `docs/host-contract.md`: `ask_notes` as the host's way to add guidance to these prompts.
+  - `docs/host-contract.md`: `ask_notes` as the host's way to add guidance to these prompts, and `ask_notes: unset` under `Config.defaults` in the `config-fields` block.
   - `docs/host-running.md`: a `prompt` row in the verb table, in the format of the `core` row, marked as working while serve runs.
 - Out: the driver, `load_spec`, the eight driver specs, the extension's menu, and `dev.py`.
 
