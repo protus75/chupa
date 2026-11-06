@@ -1,18 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "6de2f7c88aa8466e64a8368246055b0bccd6552f",
+  "produced_at_sha": "734615e92bcf6502830d33879a0d2e9c84ade8a2",
   "stem": "serve-self-upgrade",
-  "attempt": 3,
+  "attempt": 4,
   "terminal": "gate_failed",
-  "stage": "check",
+  "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "tests/test_serve.py::test_report_consumer_is_sequential failed in both gate runs: the heartbeat mtime never advanced while triage held the admission slot. Treat this as a regression from this diff, not timing flakiness. 'Passed without overlapping suites' is not acceptable evidence.",
-    "The engine-tree check before admission must not block or delay the serve loop's heartbeat while a ticket holds the admission slot. Keep the tree-id read off the path that stamps the heartbeat, or make sure it returns before the next SERVE_POLL_S tick.",
-    "Find out what git seam the CoreRig in tests/test_daemon_composition.py gives serve. If its engine checkout is not a git repo or its fake exec does not answer the tree-id reads, startup must log self-upgrade off once and stop watching. It must not hang or retry on each admission.",
-    "Before committing, run `uv run pytest tests/test_serve.py -k report_consumer_is_sequential` several times in a row on its own. Then run both Verification commands in sequence, never in parallel, and confirm each exits 0.",
-    "If the test also fails on the base commit, verify that and file it as a second problem rather than changing the test. Otherwise do not loosen the test's heartbeat assertion to make the suite pass."
+    "Criterion 2: add a test in tests/test_serve.py where the engine is a separate git checkout under tmp_path with its own chupa/ tree, not the host root. Commit a chupa/ change there while serve is idle. Assert serve_handoff is journaled and the spawn happens once, all from serve's own admission check.",
+    "Criterion 1: push the chupa/ change through a real serve merge, using a ticket whose implement step edits chupa/. Never call check_upgrade from the test, so the test fails if the respond/merge boundary calls are removed.",
+    "Criterion 1, docs-only case: push a docs/-only change through a real serve merge too, and assert the fake re-exec seam was never called. A direct commit to the repo does not test this.",
+    "Keep the handoff mechanics that review accepted: the shared drain argv builder, the lock released before the spawn, and the kill-wins rule. Change only the tests that review flagged, then run the full uv run pytest -q one command at a time."
   ],
   "mechanical": null,
   "spec_version": "1.2",
