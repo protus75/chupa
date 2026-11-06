@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-Stored proposal paths remain package-relative and are converted to repository paths in model requests.
+The previous attempt’s 43-file diff exceeded the gate; the current ticket still requires more than 30 files even before accounting for every affected test.
 
 ## Dead ends
 
-none
+Inspected the required move, consumers, tests, and diff-budget gate; making the complete change would repeat the known gate failure.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 75 minutes; completed in less than 75 minutes.
+The ticket allowed 75 minutes; the blocking gate conflict was identified during initial inspection.
 
