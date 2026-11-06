@@ -1,0 +1,19 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "3faa54e361a52bc253b7c50393959814802c27ce",
+  "stem": "stop-at-boundary",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "In docs/how-chupa-works.md section 2.1, update the `serve` row to say serve runs until `kill`, `stop`, or a signal. The review found that the row still says only `kill` or a signal, but serve now exits 0 when it accepts `stop`.",
+    "Optionally, add one sentence to section 7.2 of docs/how-chupa-works.md. It should say an accepted `stop` waits for the same idle condition as the self-upgrade handoff, then exits without spawning. This follows the reviewer's paved road.",
+    "Keep the rest of the implementation. The reviewer found control, drain (including the self-upgrade child), serve, the CLI and dev.py correct, and all 3035 tests passed. Fix only the stale docs. Search the doc for other lines saying serve runs until `kill` and update them too."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
