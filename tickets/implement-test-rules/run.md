@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-20 minutes expected; approximately 4 minutes elapsed.
+none
 
