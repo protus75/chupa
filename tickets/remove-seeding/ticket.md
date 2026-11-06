@@ -61,6 +61,7 @@ state: confirmed
 - docs/host-contract.md
 - tests/test_serve.py
 - tests/test_hostfiles.py
+- tests/test_host_mechanical.py
 
 ## Acceptance criteria
 1. `grep -rn -E "SeedSafetyGate|gather_seeds|lift_seeds|_review_seeds|_review_one|APPROVED_SEEDS|max_seeds_per_admission" chupa` prints nothing.
