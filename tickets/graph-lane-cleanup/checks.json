@@ -1,14 +1,14 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "e8119daa9d3098ac00243da4d7d0096b23a94dde",
+  "produced_at_sha": "1db1ece8cd2701c5fff43899df43bacffbb025f9",
   "stem": "graph-lane-cleanup",
   "passed": false,
   "changed_files": [
     "vscode-chupa/media/graph.js",
     "vscode-chupa/media/view.js"
   ],
-  "inserted_lines": 22,
+  "inserted_lines": 19,
   "bypassed": [],
   "reports": [
     {
@@ -62,8 +62,8 @@
           "-e",
           "const vm=require('vm'),c={};vm.createContext(c);vm.runInContext(require('fs').readFileSync('vscode-chupa/media/graph.js','utf8')+';this.f=toViewModels',c);const v=c.f([{id:'a',parentIds:['b','d']},{id:'b',parentIds:['c','d']},{id:'c',parentIds:['d']},{id:'d',parentIds:[]}]);for(const m of v){if(m.outputSwimlanes.filter(n=>n.id==='d').length>2)throw new Error(m.item.id)}"
         ],
-        "head_sha": "e8119daa9d3098ac00243da4d7d0096b23a94dde",
-        "base_sha": "4ba768ea85e228ec93dd16ddde46983e6a3594ec",
+        "head_sha": "1db1ece8cd2701c5fff43899df43bacffbb025f9",
+        "base_sha": "89d26933cef6b880320c6dd549fd2ba03a548add",
         "overlay_paths": [],
         "evidence_paths": [
           "tickets/graph-lane-cleanup/evidence/lanes.txt"
@@ -103,7 +103,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "[100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/graph-lane-cleanup/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/test_testguard.py::test_xdist_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_guarded_calls_and_asyncio\ntests/test_testguard.py::test_setup_and_teardown\ntests/test_testguard.py::test_guards_are_phase_scoped\ntests/test_testguard.py::test_budget_and_slowest\ntests/test_testguard.py::test_budget_and_slowest\n  /home/djp/source/chupa/.chupa/state/worktrees/graph-lane-cleanup/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3029 passed, 10 warnings in 69.80s (0:01:09)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "[100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/graph-lane-cleanup/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/test_testguard.py::test_guarded_calls_and_asyncio\ntests/test_testguard.py::test_setup_and_teardown\ntests/test_testguard.py::test_guards_are_phase_scoped\ntests/test_testguard.py::test_budget_and_slowest\ntests/test_testguard.py::test_budget_and_slowest\ntests/test_testguard.py::test_xdist_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\n  /home/djp/source/chupa/.chupa/state/worktrees/graph-lane-cleanup/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3029 passed, 10 warnings in 65.31s (0:01:05)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
