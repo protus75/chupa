@@ -14,12 +14,16 @@ argv. A `premise_failed` stem stays parked until its committed `ticket.md` chang
 
 import asyncio
 import json
+import os
+import sys
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 
 from chupa import caps
+from chupa.enginelog import EngineLog
+from chupa.redact import Redactor
 from chupa.journal import TERMINAL_STATES, Event, EventType, render_ts
 from chupa.lockfile import Lockfile
 from chupa.reconcile import reconcile
@@ -183,8 +187,12 @@ async def drain(
     if consumer is None:
         raise Refusal("admission control consumer absent", "construct it with `build_control` at the composition root and supply it as `Checkout.control`")
     lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
+    log = EngineLog(checkout.config.state_dir / "engine.log", Redactor.from_config(checkout.config, checkout.env), checkout.clock)
+    pid = os.getpid()
     lock.acquire()
+    outcome = "quiescent"
     try:
+        log.event("engine_start", verb="drain", pid=pid)
         if stop_lifecycle is not None:
             consumer.inbox.lifecycle_id = stop_lifecycle
             consumer.inbox.recover()
@@ -239,14 +247,17 @@ async def drain(
         if run._stopping():
             await consumer.apply_kill(dispatch.abort_current)
             report.killed = True
+            outcome = "killed"
             return report
         if run.upgrade is None:
             report.stopped = consumer.projection.stop_requested
+            outcome = "stopped" if report.stopped else "halted" if report.halted else "quiescent"
             return report
         stem, commit = run.upgrade
         carried = run.parked_stems()
         checkout.journal.append(EventType.SIGNAL, {"signal": HANDOFF_SIGNAL, "commit": commit, "parked": list(carried), "merged": list(report.merged)}, ticket=stem)
         checkout.journal.close()
+        outcome = "handoff"
     finally:
         try:
             try:
@@ -254,7 +265,11 @@ async def drain(
             finally:
                 consumer.retire()
         finally:
-            lock.release()
+            try:
+                exc = sys.exception()
+                log.event("engine_stop", verb="drain", pid=pid, outcome=f"error: {type(exc).__name__}" if exc else outcome)
+            finally:
+                lock.release()
     # The fixed HANDOFF order: journaled, journal closed, lock free -- the child is the only writer,
     # and the parent does nothing after the spawn but exit with its code.
     report.handoff, _, _ = await reexec.run(

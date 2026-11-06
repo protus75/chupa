@@ -1475,3 +1475,22 @@ async def test_stop_at_paused_checkpoint_admits_nothing(root):
     report = await run_drain(checkout, script(checkout), reexec=NoChild(), before_dispatch=request_both)
     assert report.stopped and report.exit_code == 0 and script.calls == []
     assert checkout.control.projection.pause_id == "10-pause"
+
+
+def test_lifecycle_log_precedes_lock_release(root, monkeypatch):
+    import os
+
+    release = Lockfile.release
+    observed = []
+
+    def released(lock):
+        rows = [json.loads(line) for line in (root / ".chupa/state/engine.log").read_text().splitlines()]
+        observed.extend(e for e in rows if e["event"] in {"engine_start", "engine_stop"})
+        release(lock)
+
+    monkeypatch.setattr(Lockfile, "release", released)
+    assert drain(root, Script()) == 0
+    assert [(e["event"], e["verb"], e["pid"], e.get("outcome")) for e in observed] == [
+        ("engine_start", "drain", os.getpid(), None), ("engine_stop", "drain", os.getpid(), "quiescent")
+    ]
+    assert all("engine_start" not in str((e.type, e.body)) and "engine_stop" not in str((e.type, e.body)) for e in journal(root).read())

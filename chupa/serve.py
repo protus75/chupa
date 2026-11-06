@@ -1,6 +1,8 @@
 """Continuous foreground lifetime."""
 
 import asyncio
+import os
+import sys
 import re
 from collections.abc import Awaitable, Callable, Iterable
 from contextlib import asynccontextmanager
@@ -497,6 +499,7 @@ class Serve:
     async def run(self) -> int:
         c = self.checkout
         lock = Lockfile(c.config.state_dir, instance_id=await c.git.describe(c.repo), clock=c.clock)
+        pid = os.getpid()
         lock.acquire()
 
         def restore():
@@ -504,7 +507,10 @@ class Serve:
 
         code = 0
         upgrade_stop = False
+        failure_type = None
+        handoff = False
         try:
+            self.log.event("engine_start", verb="serve", pid=pid)
             try:
                 try:
                     self.trees = await self.engine_trees()
@@ -522,7 +528,7 @@ class Serve:
             pending_failure = None
 
             async def guarded(callback):
-                nonlocal pending_failure, code
+                nonlocal pending_failure, code, failure_type
                 try:
                     await callback()
                     raise RuntimeError("owned serve consumer returned unexpectedly")
@@ -531,6 +537,7 @@ class Serve:
                     # belong to this lifetime's cleanup, not another worker failure.
                     if not self.stopping and not self.control.projection.kill_requested:
                         pending_failure = exc
+                        failure_type = type(exc).__name__
                         code = 2 if isinstance(exc, (ConfigError, runner.Refusal, ProviderSetupError, JournalCorruption, ExecutableNotFound)) else 1
                     self.stop()
                     raise
@@ -586,6 +593,7 @@ class Serve:
             except asyncio.CancelledError:
                 self.stop()
             except Exception as exc:
+                failure_type = type(exc).__name__
                 self.log.event("serve_failed", error=str(exc))
                 code = 2 if isinstance(exc, (ConfigError, runner.Refusal, ProviderSetupError, JournalCorruption, ExecutableNotFound)) else 1
                 self.stop()
@@ -598,8 +606,10 @@ class Serve:
                 await _protected_cleanup(cleanup)
             except asyncio.CancelledError:
                 if cleanup.cancelled():
+                    failure_type = "CancelledError"
                     code = 1
             except Exception as exc:
+                failure_type = type(exc).__name__
                 self.log.event("serve_cleanup_failed", error=str(exc))
                 if code != 2:
                     code = 1
@@ -615,8 +625,15 @@ class Serve:
                 try:
                     self.control.retire()
                 finally:
-                    restore()
-                    lock.release()
+                    try:
+                        restore()
+                    finally:
+                        try:
+                            exc = sys.exception()
+                            outcome = f"error: {type(exc).__name__}" if exc else f"error: {failure_type}" if failure_type else "killed" if self.control.projection.kill_requested else "handoff" if handoff else "stopped"
+                            self.log.event("engine_stop", verb="serve", pid=pid, outcome=outcome)
+                        finally:
+                            lock.release()
         if handoff:
             code, _, _ = await self.reexec.run(reexec_argv(self.argv, engine=self.engine), cwd=c.repo, env=c.env, timeout=None)
         return code

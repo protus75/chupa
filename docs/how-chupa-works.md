@@ -607,7 +607,7 @@ Everything lives under `state_dir` (this repo: `.chupa/state`).
 | Path | Holds |
 |---|---|
 | `journal/NNNNNN-YYYYMMDD.jsonl` | The journal (section 10.2). |
-| `engine.log` | Diagnostics, redacted, rotated; never authoritative. |
+| `engine.log` | Diagnostics including `engine_start` and `engine_stop`, redacted, rotated; never authoritative. |
 | `queue.json` | Derived pick order, timestamp, and `Runs before` hints for watch. |
 | `spools/` | Per-attempt prompts, outputs, and command output; `spools/providers/` holds raw CLI captures. |
 | `chupa.lock` | The single-writer lock. Its JSON identity is informational; the kernel frees the lock when the holder dies. |

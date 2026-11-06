@@ -199,15 +199,7 @@ def snapshot() -> dict:
     shown = {r["stem"] for r in rows}
     for r in rows:
         r["depends"] = [d for d in r["depends"] if d in shown]
-    steps = [
-        {
-            "ts": e["ts"],
-            "stem": e.get("stem"),
-            "step": watch.STEP_NAMES.get(e.get("surface"), e.get("surface")),
-            "verb": "start" if e["event"] == "stage_start" else f"end ({e.get('outcome', '?')})",
-        }
-        for e in reversed([e for e in log if e.get("event") in ("stage_start", "stage_end")][-STEPS:])
-    ]
+    steps = watch.recent_steps(state, log, STEPS)
     return {
         "at": watch.datetime.now().astimezone().isoformat(),
         "engine": alive,

@@ -72,3 +72,33 @@ def test_queue_counts_a_split_dependency_met_by_its_successors(tmp_path, monkeyp
     ]
     last_state = {e["ticket"]: e["body"] for e in events if e["type"] == "state_transition"}
     assert watch.queue(events, last_state, set()) == [("P1", "child", "ready, not run yet")]
+
+
+def test_recent_steps_merges_engine_and_stage_events(tmp_path, monkeypatch):
+    monkeypatch.setattr(watch, "ROOT", tmp_path)
+    (tmp_path / "config.yaml").write_text("state_dir: state\n")
+    state = tmp_path / "state"
+    state.mkdir()
+    log = [
+        {"ts": f"2026-01-01T00:00:0{i}+00:00", **event}
+        for i, event in enumerate([
+            {"event": "engine_start", "verb": "drain", "pid": 41},
+            {"event": "stage_start", "stem": "alpha", "surface": "implement"},
+            {"event": "stage_end", "stem": "alpha", "surface": "implement", "outcome": "ok"},
+            {"event": "engine_stop", "verb": "drain", "pid": 41, "outcome": "quiescent"},
+            {"event": "engine_start", "verb": "serve", "pid": 42},
+        ])
+    ]
+    (state / "engine.log").write_text("".join(json.dumps(e) + "\n" for e in log))
+    monkeypatch.setattr(watch, "processes", lambda: [])
+    rows = watch.recent_steps(state, log, 20)
+    assert [(r["stem"], r["text"]) for r in rows] == [
+        (None, "serve started (pid 42)"), (None, "serve ended without a stop record (killed?)"),
+        (None, "drain stopped (quiescent)"), ("alpha", "Implement end (ok)"),
+        ("alpha", "Implement start"), (None, "drain started (pid 41)"),
+    ]
+    assert [r["ts"] for r in rows] == sorted((r["ts"] for r in rows), reverse=True)
+    lines = watch.snapshot().split("Recent steps:\n", 1)[1].splitlines()
+    assert lines == [f"  {watch.clock(r['ts'])}  " + (f"{r['stem']}  " if r['stem'] else "") + r['text'] for r in rows]
+    monkeypatch.setattr(watch, "lock_holder", lambda state: object())
+    assert len(watch.recent_steps(state, log, 20)) == 5

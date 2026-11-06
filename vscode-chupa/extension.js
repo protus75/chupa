@@ -196,9 +196,11 @@ class StepsTree {
 	getTreeItem(step) {
 		const clock = new Date(step.ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 		const item = new vscode.TreeItem(`${clock}  ${step.stem ?? ''}`);
-		item.description = `${step.step} ${step.verb}`;
-		item.tooltip = `${new Date(step.ts).toLocaleString()}\n${step.stem ?? ''}: ${step.step} ${step.verb}`;
-		item.iconPath = new vscode.ThemeIcon(step.verb === 'start' ? 'debug-start' : step.verb.includes('ok') ? 'pass' : 'circle-slash');
+		item.description = step.text;
+		item.tooltip = `${new Date(step.ts).toLocaleString()}\n${step.stem ? step.stem + ': ' : ''}${step.text}`;
+		const icon = step.stem ? (step.text.endsWith(' start') ? 'debug-start' : step.text.includes('ok') ? 'pass' : 'circle-slash') :
+			step.text.includes('ended without a stop record') ? 'warning' : step.text.includes(' started ') ? 'debug-start' : 'debug-stop';
+		item.iconPath = new vscode.ThemeIcon(icon);
 		if (step.stem) {
 			item.command = { command: 'chupa.openTicket', title: 'Open ticket.md', arguments: [`tickets/${step.stem}/ticket.md`] };
 		}

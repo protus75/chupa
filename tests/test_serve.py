@@ -388,6 +388,9 @@ async def test_serve_worker_failure_and_kill_suppression(root, monkeypatch, endi
         release.set()
     await until(rig, run.done)
     assert await run == (0 if ending in {"kill", "signal"} else 1)
+    lifecycle = [json.loads(line) for line in rig.owner.log.path.read_text().splitlines() if json.loads(line)["event"] == "engine_stop"]
+    expected = {"exception": "error: ValueError", "return": "error: RuntimeError", "cancel": "error: CancelledError", "kill": "killed", "signal": "stopped"}
+    assert [e["outcome"] for e in lifecycle] == [expected[ending]]
     if ending in {"kill", "signal"}:
         assert failures == []
     else:
@@ -2020,3 +2023,28 @@ async def test_live_keep_dispatches_again_without_restart(root, monkeypatch):
         assert not run.done()
     finally:
         await finish(rig, run)
+
+
+@pytest.mark.asyncio
+async def test_serve_control_stop_lifecycle_log(root, monkeypatch):
+    import os
+
+    rig = await graph(root, monkeypatch)
+    released = []
+    release = Lockfile.release
+
+    def observed(lock):
+        rows = [json.loads(line) for line in rig.owner.log.path.read_text().splitlines()]
+        released.extend(e for e in rows if e["event"] in {"engine_start", "engine_stop"})
+        release(lock)
+
+    monkeypatch.setattr(Lockfile, "release", observed)
+    run = asyncio.create_task(rig.owner.run())
+    await until(rig, rig.owner.ready.is_set)
+    request(rig, "stop", "lifecycle-stop")
+    await until(rig, run.done)
+    assert await run == 0
+    assert [(e["event"], e["verb"], e["pid"], e.get("outcome")) for e in released] == [
+        ("engine_start", "serve", os.getpid(), None), ("engine_stop", "serve", os.getpid(), "stopped")
+    ]
+    assert all("engine_start" not in str((e.type, e.body)) and "engine_stop" not in str((e.type, e.body)) for e in rig.journal.read())

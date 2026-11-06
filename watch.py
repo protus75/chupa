@@ -265,6 +265,26 @@ def queue(events: list[dict], last_state: dict[str, dict], running: set[str]) ->
     return ordered + [row for row in rows if row[1] in by_stem]
 
 
+def recent_steps(state: Path, log: list[dict], limit: int) -> list[dict]:
+    """Merge stage and engine lifetime events, newest first."""
+    rows = []
+    lifecycle = [e for e in log if e.get("event") in ("engine_start", "engine_stop")]
+    for e in log:
+        event = e.get("event")
+        if event in ("stage_start", "stage_end"):
+            verb = "start" if event == "stage_start" else f"end ({e.get('outcome', '?')})"
+            rows.append({"ts": e["ts"], "stem": e.get("stem"), "text": f"{STEP_NAMES.get(e.get('surface'), e.get('surface'))} {verb}"})
+        elif event == "engine_start":
+            rows.append({"ts": e["ts"], "stem": None, "text": f"{e['verb']} started (pid {e['pid']})"})
+        elif event == "engine_stop":
+            rows.append({"ts": e["ts"], "stem": None, "text": f"{e['verb']} stopped ({e['outcome']})"})
+    if lifecycle:
+        latest = max(enumerate(lifecycle), key=lambda pair: (pair[1]["ts"], pair[0]))[1]
+        if latest["event"] == "engine_start" and lock_holder(state) is None:
+            rows.append({"ts": latest["ts"], "stem": None, "text": f"{latest['verb']} ended without a stop record (killed?)"})
+    return sorted(rows, key=lambda row: row["ts"], reverse=True)[:limit]
+
+
 def snapshot() -> str:
     state = state_dir()
     events = journal(state)
@@ -313,12 +333,12 @@ def snapshot() -> str:
     pending = queue(events, last_state, set(running))
     lines += ["", f"Queue ({len(pending)} to do):"]
     lines += [f"  {priority}  {stem}  {why}" for priority, stem, why in pending] or ["  (empty)"]
-    recent = [e for e in log if e.get("event") in ("stage_start", "stage_end")][-8:]
+    recent = recent_steps(state, log, 8)
     if recent:
         lines += ["", "Recent steps:"]
-        for e in recent:
-            verb = "start" if e["event"] == "stage_start" else f"end ({e.get('outcome', '?')})"
-            lines.append(f"  {clock(e['ts'])}  {e.get('stem')}  {STEP_NAMES.get(e.get('surface'), e.get('surface'))} {verb}")
+        for row in recent:
+            stem = f"{row['stem']}  " if row["stem"] is not None else ""
+            lines.append(f"  {clock(row['ts'])}  {stem}{row['text']}")
     return "\n".join(lines)
 
 
