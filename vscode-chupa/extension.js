@@ -40,9 +40,13 @@ function askClaude(ctx, task) {
 		return;
 	}
 	const report = ' Write the report to me in plain English: say what happened and why without engine jargon, and name files, stems, and commands only where I need them. End with a "Recommendation" section that tells me what to do next, as exact `./dev.py` commands or edits in a copy/paste block.';
-	const prompt = (task === 'diagnose'
-		? `Diagnose chupa ticket \`${stem}\` (${ctx.chupaSection}). Read tickets/${stem}/ticket.md, its latest diagnosis and state transitions in .chupa/state/journal/, and its attempt spools under .chupa/state/spools/${stem}/. Say why it is stuck or failing and propose the minimal unblock and the cause ticket, following CLAUDE.md section B.`
-		: `Review chupa ticket \`${stem}\` against the merged code: read tickets/${stem}/ticket.md and every file it names, then list what would stop it from passing Implement, Check, and Review as written, following CLAUDE.md section B.`) + report;
+	// A running ticket gets a read-only check: editing its ticket.md mid-run stops the run with ticket_changed.
+	const prompts = {
+		running: `Check whether chupa ticket \`${stem}\` is progressing or stuck in its current run. This is read-only: do not edit tickets/${stem}/ticket.md or any file the run touches, because editing a running ticket stops the run (ticket_changed). Read the ticket, its latest stage_start and stage_end events in .chupa/state/engine.log (compare elapsed time with stuck_budget), its state transitions in .chupa/state/journal/, and the newest output in its attempt spools under .chupa/state/spools/${stem}/. Recommend one of: wait, \`./dev.py stop\` (finish this ticket, then exit), or \`./dev.py kill\`, following CLAUDE.md section B.`,
+		diagnose: `Diagnose chupa ticket \`${stem}\` (${ctx.chupaSection}). Read tickets/${stem}/ticket.md, its latest diagnosis and state transitions in .chupa/state/journal/, and its attempt spools under .chupa/state/spools/${stem}/. Say why it is stuck or failing and propose the minimal unblock and the cause ticket, following CLAUDE.md section B.`,
+		review: `Review chupa ticket \`${stem}\` against the merged code: read tickets/${stem}/ticket.md and every file it names, then list what would stop it from passing Implement, Check, and Review as written, following CLAUDE.md section B.`,
+	};
+	const prompt = prompts[task === 'diagnose' && ctx.chupaSection === 'running' ? 'running' : task] + report;
 	vscode.env.openExternal(vscode.Uri.parse(`${vscode.env.uriScheme}://anthropic.claude-code/open?prompt=${encodeURIComponent(prompt)}`));
 }
 
@@ -216,6 +220,7 @@ function activate(context) {
 		vscode.window.registerWebviewViewProvider('chupa.tickets', tickets),
 		vscode.commands.registerCommand('chupa.refresh', () => snapshot.refresh()),
 		vscode.commands.registerCommand('chupa.openTicket', openTicket),
+		vscode.commands.registerCommand('chupa.openSettings', () => vscode.commands.executeCommand('workbench.action.openSettings', '@ext:chupa.vscode-chupa')),
 		vscode.commands.registerCommand('chupa.ticket.open', ctx => openTicket(`tickets/${ctx.chupaStem}/ticket.md`)),
 		vscode.commands.registerCommand('chupa.ticket.review', ctx => devCommand('review', ctx.chupaStem)),
 		vscode.commands.registerCommand('chupa.ticket.lint', ctx => devCommand('lint', ctx.chupaStem)),

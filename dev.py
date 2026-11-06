@@ -20,6 +20,7 @@ Standard library only, so any python3 starts it; every task runs through uv in t
 """
 
 import argparse
+import json
 import subprocess
 import sys
 import tempfile
@@ -73,7 +74,13 @@ def main() -> None:
         except KeyboardInterrupt:
             pass
     elif args.task == "vscode":
-        # --force reinstalls over the same version; the window picks the new files up on reload.
+        # VS Code keeps an extension's old icon and views until its version changes, so every install bumps the patch.
+        manifest = ROOT / "vscode-chupa" / "package.json"
+        package = json.loads(manifest.read_text())
+        major, minor, patch = package["version"].split(".")
+        package["version"] = f"{major}.{minor}.{int(patch) + 1}"
+        manifest.write_text(json.dumps(package, indent="\t") + "\n")
+        print(f"dev: vscode-chupa version {package['version']}", flush=True)
         with tempfile.TemporaryDirectory() as tmp:
             vsix = str(Path(tmp) / "vscode-chupa.vsix")
             pack = ["npx", "--yes", "@vscode/vsce", "package", "--allow-missing-repository", "--skip-license", "--no-dependencies", "-o", vsix]

@@ -63,7 +63,14 @@ function render(snap) {
 		}
 		return reach.get(stem);
 	};
-	const reduced = stem => deps.get(stem).filter(d => !deps.get(stem).some(o => o !== d && reachable(o).has(d)));
+	// Lane order, left to right (the ticket's listed order says nothing about layout): dependencies on the main line,
+	// nearest first, so each peels off left into it with no lane between; then blocked dependencies, farthest first,
+	// so the outermost ends first at its own dot and never pushes a later one's dot outward.
+	const position = new Map(snap.rows.map((r, i) => [r.stem, i]));
+	const blocked = new Set(snap.rows.filter(r => r.section === 'blocked').map(r => r.stem));
+	const laneKey = d => (blocked.has(d) ? [1, -position.get(d)] : [0, position.get(d)]);
+	const byLane = (a, b) => laneKey(a)[0] - laneKey(b)[0] || laneKey(a)[1] - laneKey(b)[1];
+	const reduced = stem => deps.get(stem).filter(d => !deps.get(stem).some(o => o !== d && reachable(o).has(d))).sort(byLane);
 	const items = snap.rows.map((r, i) => {
 		const below = snap.rows[i + 1]?.stem;
 		const kind = r.section === 'running' ? 'HEAD' : 'node';
@@ -78,7 +85,7 @@ function render(snap) {
 		const row = el('div', `row ${r.section}`);
 		row.dataset.stem = r.stem;
 		// Context keys for the right-click menu's `when` clauses in package.json; the command receives this object.
-		row.dataset.vscodeContext = JSON.stringify({ chupaStem: r.stem, chupaSection: r.section, chupaHeld: r.held, preventDefaultContextMenuItems: true });
+		row.dataset.vscodeContext = JSON.stringify({ chupaStem: r.stem, chupaSection: r.section, chupaHeld: r.held, chupaDraft: r.draft, chupaRunnable: r.runnable, chupaCommitted: r.committed, chupaEngine: snap.engine, preventDefaultContextMenuItems: true });
 		row.append(renderGraph(vms[i], COLOR[r.section]));
 		row.append(el('span', 'stem', r.stem));
 		row.append(el('span', 'status', r.status));

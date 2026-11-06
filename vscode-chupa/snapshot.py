@@ -61,6 +61,20 @@ def simulate(candidates: dict, done: set[str], authored: dict, *, strict: bool) 
     return order
 
 
+def uncommitted_tickets() -> tuple[set[str], set[str]]:
+    """(stems whose ticket.md differs from HEAD or is untracked, stems never committed): not yet on the ticket plane."""
+    out = subprocess.run(["git", "status", "--porcelain", "--", "tickets"], cwd=ROOT, capture_output=True, text=True).stdout
+    dirty, new = set(), set()
+    for line in out.splitlines():
+        code, path = line[:2], line[3:]
+        # `tickets/<stem>/ticket.md` changed, or the whole `tickets/<stem>/` dir is untracked.
+        if path.endswith("/ticket.md") or (path.endswith("/") and len(Path(path).parts) == 2):
+            dirty.add(Path(path).parts[1])
+            if code == "??":
+                new.add(Path(path).parts[1])
+    return dirty, new
+
+
 def commits() -> dict[str, dict]:
     out = subprocess.run(["git", "log", "--format=%H%x1f%h%x1f%an%x1f%aI%x1f%s", "main"], cwd=ROOT, capture_output=True, text=True).stdout
     rows = {}
@@ -98,7 +112,11 @@ def snapshot() -> dict:
     blocked = simulate({s: t for s, t in open_.items() if s not in queued_stems}, settled | set(running) | queued_stems, authored, strict=False)
     blocked_stems = {t.stem for t in blocked}
 
+    dirty, new = uncommitted_tickets()
+
     def why_blocked(t) -> str:
+        if t.stem in new:
+            return "new: confirmed by next intake"  # human intake auto-confirms a new hand-written ticket
         if t.frontmatter.state != "confirmed":
             return t.frontmatter.state
         if t.stem in held:
@@ -127,6 +145,12 @@ def snapshot() -> dict:
             "runsBefore": list(t.runs_before) if t else [],
             "path": f"tickets/{stem}/ticket.md",
             "held": stem in held,
+            # Only a committed draft awaits `chupa confirm`; intake confirms a new hand-written one itself.
+            "draft": bool(t) and t.frontmatter.state == "draft" and stem not in new,
+            # A committed draft can be confirmed while another process holds the lock; an uncommitted one cannot.
+            "committed": stem not in dirty,
+            # What `chupa run` accepts: confirmed, every dependency settled (it also needs the lock).
+            "runnable": bool(t) and t.frontmatter.state == "confirmed" and set(t.depends) <= settled,
         }
 
     rows = [base(t.stem, "blocked", why_blocked(t)) for t in reversed(blocked)]

@@ -59,14 +59,24 @@ function toViewModels(items) {
 		let firstParentAdded = false;
 		// Unlike git history, a parentless row is not the root: lanes for other rows still pass through it.
 		for (const node of inputSwimlanes) {
+			if (node.id === null) {
+				continue; // last row's held-open gap closes here, where no dot sits in it
+			}
 			if (node.id === item.id) {
 				if (!firstParentAdded && item.parentIds.length > 0) {
 					outputSwimlanes.push({ id: item.parentIds[0], color: item.laneColor ?? node.color });
 					firstParentAdded = true;
+				} else {
+					// Every other lane into this node ends at its dot. Hold its column open for one row, so the lanes to
+					// its right shift left in the next row, not across this row's merge curves and dot.
+					outputSwimlanes.push({ id: null, color: undefined });
 				}
 				continue;
 			}
 			outputSwimlanes.push({ ...node });
+		}
+		while (outputSwimlanes.at(-1)?.id === null) {
+			outputSwimlanes.pop();
 		}
 		for (let i = firstParentAdded ? 1 : 0; i < item.parentIds.length; i++) {
 			let color = i === 0 ? item.laneColor : item.branchColor;
@@ -95,6 +105,9 @@ function renderGraph(vm, dotColor) {
 	let outputSwimlaneIndex = 0;
 	for (let index = 0; index < inputSwimlanes.length; index++) {
 		const color = inputSwimlanes[index].color;
+		if (inputSwimlanes[index].id === null) {
+			continue; // a gap held open by the row above: nothing to draw, and toViewModels gave it no output slot
+		}
 		if (inputSwimlanes[index].id === item.id) {
 			if (index !== circleIndex) {
 				const path = createPath(color);
@@ -104,9 +117,9 @@ function renderGraph(vm, dotColor) {
 					`H ${SWIMLANE_WIDTH * (circleIndex + 1)}`,
 				].join(' '));
 				svg.append(path);
-			} else {
-				outputSwimlaneIndex++;
 			}
+			// Each lane into the node fills one output slot: its first parent or a held-open gap.
+			outputSwimlaneIndex++;
 		} else if (outputSwimlaneIndex < outputSwimlanes.length && inputSwimlanes[index].id === outputSwimlanes[outputSwimlaneIndex].id) {
 			if (index === outputSwimlaneIndex) {
 				svg.append(drawVerticalLine(SWIMLANE_WIDTH * (index + 1), 0, SWIMLANE_HEIGHT, color));
