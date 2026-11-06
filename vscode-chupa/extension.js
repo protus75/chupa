@@ -39,9 +39,10 @@ function askClaude(ctx, task) {
 	if (!stem || !STEM.test(stem)) {
 		return;
 	}
-	const prompt = task === 'diagnose'
+	const report = ' Write the report to me in plain English: say what happened and why without engine jargon, and name files, stems, and commands only where I need them. End with a "Recommendation" section that tells me what to do next, as exact `./dev.py` commands or edits in a copy/paste block.';
+	const prompt = (task === 'diagnose'
 		? `Diagnose chupa ticket \`${stem}\` (${ctx.chupaSection}). Read tickets/${stem}/ticket.md, its latest diagnosis and state transitions in .chupa/state/journal/, and its attempt spools under .chupa/state/spools/${stem}/. Say why it is stuck or failing and propose the minimal unblock and the cause ticket, following CLAUDE.md section B.`
-		: `Review chupa ticket \`${stem}\` against the merged code: read tickets/${stem}/ticket.md and every file it names, then list what would stop it from passing Implement, Check, and Review as written, following CLAUDE.md section B.`;
+		: `Review chupa ticket \`${stem}\` against the merged code: read tickets/${stem}/ticket.md and every file it names, then list what would stop it from passing Implement, Check, and Review as written, following CLAUDE.md section B.`) + report;
 	vscode.env.openExternal(vscode.Uri.parse(`${vscode.env.uriScheme}://anthropic.claude-code/open?prompt=${encodeURIComponent(prompt)}`));
 }
 
