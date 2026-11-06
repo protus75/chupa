@@ -17,7 +17,7 @@ kind: feature
 - docs/host-contract.md
 
 ## Goal / Why
-A host should install chupa with `uv tool install chupa` and run `chupa <verb>`, instead of running `python -m chupa` from a chupa checkout. The VS Code extension, published to the Marketplace and Open VSX, needs that installed command to exist (2026-11-06). Today `pyproject.toml` has no `[build-system]` and no console script, so `uv build` cannot produce an installable wheel. The name `chupa` is unclaimed on PyPI (checked 2026-11-06).
+A host should install chupa with `uv tool install chupa` and run `chupa <verb>`, instead of running `python -m chupa` from a chupa checkout. The VS Code extension, published to the VS Code Marketplace, needs that installed command to exist (2026-11-06). Today `pyproject.toml` has no `[build-system]` and no console script, so `uv build` cannot produce an installable wheel. The name `chupa` is unclaimed on PyPI (checked 2026-11-06).
 
 After this change:
 - `uv build` produces a wheel that carries `chupa/specs/` and installs a `chupa` command that runs `chupa.__main__:main`;
@@ -38,7 +38,7 @@ After this change:
   - `README.md`: one install line.
 - Out:
   - git tags and pushes;
-  - the license field (an open decision for the user);
+  - a license: the package carries none;
   - version bumps;
   - the VS Code extension;
   - CI publishing;
