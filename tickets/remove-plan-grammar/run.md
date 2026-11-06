@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-none
+Additional tests outside the named resolver block directly exercised deleted plan functions and were removed; unrelated spec-lint coverage was retained.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Expected 60 minutes; completed within the budget. Both verification commands passed, including 2,983 full-suite tests.
 
