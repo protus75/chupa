@@ -48,15 +48,9 @@ Inline merge (`run` and `drain`) always reruns Verification, the bug regression,
 ## Scope fence
 - chupa/merge.py
 - chupa/mergequeue.py
-- tests/test_host_mechanical.py
-- tests/test_merge.py
-- tests/test_bug_gate.py
-- tests/test_mergequeue.py
-- tests/test_serve.py
-- tests/test_daemon_composition.py
-- tests/test_daemon_soak_runner.py
 - eval/daemon_soak.py
 - docs/how-chupa-works.md
+- tests
 
 ## Acceptance criteria
 1. Skip when unchanged. A reviewed branch with a code change, where `main` gains only a commit under `tickets/` after Check, merges with zero host-command calls and no `merge/verify-*` or `merge/host-*` spool files. A test fails if any host command or Verification command runs. Checked by `uv run pytest tests/test_host_mechanical.py`.
