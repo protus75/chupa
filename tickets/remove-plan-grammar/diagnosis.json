@@ -1,0 +1,19 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "acc8431b05500401249800a8ad7a70cb3f62ab22",
+  "stem": "remove-plan-grammar",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Restore `test_lint_reports_file_line_numbers` unchanged in tests/test_specs.py, e.g. right after `test_validate_data_blocks_flags_unpaired_delimiter`. It tests `lint_spec`, which the ticket keeps, so deleting it breaks the Definition of rejected.",
+    "In tests/test_specs.py, delete only the tests that call the removed plan functions (`plan_id`, `resolve_plan_contract`, `unit_sha`, `without_unit`, `required_units`, `entry_unit_gap`, `registry_rows`, `lint_plan`). Check each test in the `--- Plan contract resolver ---` block before removing it.",
+    "Before committing, diff the test names removed from each test file against the explicit delete lists in the ticket's Scope in. Any removed test not on a list must be restored."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
