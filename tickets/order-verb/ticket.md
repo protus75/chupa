@@ -53,7 +53,8 @@ After this change, `chupa order <stem> [--priority P0|P1|P2|P3] [--runs-before [
   - `test_order_sets_priority`: only the `priority:` line changes;
   - `test_order_sets_and_clears_runs_before`;
   - `test_order_refuses_cycle_and_leaves_file`;
-  - `test_order_refuses_running_and_settled`;
+  - `test_order_refuses_running_settled_and_rejected`: running, settled, and rejected last states are each refused and the file is unchanged;
+  - `test_order_refuses_bad_stem_and_no_option`: a non-kebab stem, a missing stem, and a call with neither option each exit 2 and write nothing;
   - `test_order_takes_no_lock`: no `.chupa` dir is created.
 - In: docs.
   - `docs/how-chupa-works.md` section 2.1: a row for `order`.
@@ -74,7 +75,7 @@ After this change, `chupa order <stem> [--priority P0|P1|P2|P3] [--runs-before [
 - docs/host-running.md
 
 ## Acceptance criteria
-1. `uv run pytest -q tests/test_cli.py` exits 0, including the five tests above.
+1. `uv run pytest -q tests/test_cli.py` exits 0, including the six tests above.
 2. `node --check vscode-chupa/extension.js` exits 0, and `vscode-chupa/package.json` declares both commands with `webview/context` entries limited to queued and blocked rows.
 3. `docs/how-chupa-works.md` sections 2.1 and 2.2, `docs/host-authoring.md`, and the `docs/host-running.md` verb table describe `order`.
 4. `uv run pytest -q` exits 0.
