@@ -1,4 +1,4 @@
-"""Provider layer (CHUPA_PLAN.md section 6): registry + routing, key-scoped child env, the cli adapters.
+"""Provider layer: registry + routing, key-scoped child env, the cli adapters.
 
 Session admission selects from the ordered route before its LLM effect. `CliAdapter` is the
 shared base and the trust boundary -- write-grant derivation, redaction of both sinks (the captured
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 # Closed allowlist of tree-writing surfaces: every other surface is called read-only.
 WRITING_SURFACES = frozenset({"implement"})
 
-# Section 0: the value prompt 1 authors when the operator stated none; it must never reach a model.
+# The value prompt 1 authors when the operator stated none; it must never reach a model.
 PLACEHOLDER = "OPERATOR-SETS-THIS"
 
 FailureClass = Literal["rate_limited", "quota_exhausted", "outage", "auth_error", "model_error", "unclassified"]
@@ -113,7 +113,7 @@ def _candidate(config, tier, surface, cand):
     if PLACEHOLDER in (model, provider.auth):
         raise ProviderSetupError(
             f"routing for tier {tier!r}, surface {surface!r} resolves to provider {provider.name!r} still carrying"
-            f" {PLACEHOLDER}; set the operator values in config.yaml (Phase 1 prerequisites, section 0)"
+            f" {PLACEHOLDER}; set the operator values in config.yaml"
         )
     return Served(provider, model)
 
@@ -547,7 +547,7 @@ class ProviderLLM:
         self._active: CliAdapter | None = None
 
     async def preflight(self) -> list[str]:
-        """Section 6.11: every routed (provider, model) answering a probe; each cli compared with its latest release.
+        """Every routed (provider, model) answering a probe; each cli compared with its latest release.
 
         Returns each refusal (a failing probe) with its paved road; a stale cli whose probes pass is only a
         notice, left on `preflight_notices` (a newer release can lag its platform build).

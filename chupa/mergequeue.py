@@ -1,4 +1,4 @@
-"""Dormant serial admission (19.P3.merge-queue); production routing remains in merge.py."""
+"""Dormant serial admission; production routing remains in merge.py."""
 
 import asyncio
 import re

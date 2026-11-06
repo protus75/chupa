@@ -1,4 +1,4 @@
-"""Reconcile-on-entry (CHUPA_PLAN.md sections 6, 11, 18): reap orphaned in-flight runs before dispatch.
+"""Reconcile-on-entry: reap orphaned in-flight runs before dispatch.
 
 Called under the sole writer lock with no live run ownership, so an open run is provably dead.
 Harvest precedes the `abandoned` terminal, recovery evidence and worktree removal.

@@ -1,4 +1,4 @@
-"""Reviewed Rework orders and journal supersession (19.P3.rework-stage)."""
+"""Reviewed Rework orders and journal supersession."""
 
 import asyncio
 import json

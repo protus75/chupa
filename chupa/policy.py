@@ -1,4 +1,4 @@
-"""Starting-state policy for box-authored tickets (plan section 12)."""
+"""Starting-state policy for box-authored tickets."""
 
 from collections.abc import Sequence
 from pathlib import Path

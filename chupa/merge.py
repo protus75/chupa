@@ -1,4 +1,4 @@
-"""Inline merge and explicit serve admission (CHUPA_PLAN.md sections 7, 9, 10; 19.P3.serve-merge-admission).
+"""Inline merge and explicit serve admission.
 
 Per admission, all before main moves: restore the worktree's ticket plane -> rebase onto main ->
 re-run the mechanical hard set on the rebased candidate -> require the pinned review approval ->
@@ -10,7 +10,7 @@ Check reruns. Review approval implies an ok Check at that head: run_stages reach
 Review only after Check succeeds. Merge gates still run.
 
 A refusal leaves main untouched and the branch in place; journaling a non-ok terminal is the
-runner's (section 11.2).
+runner's responsibility.
 """
 
 import asyncio
@@ -92,7 +92,7 @@ class Admission(Artifact):
 
 
 class TicketSchemaGate:
-    """Main's `ticket.md` still passes the section 13 grammar: a hand edit mid-run is re-judged here."""
+    """Main's `ticket.md` still passes the ticket grammar: a hand edit mid-run is re-judged here."""
 
     code = "ticket_schema"
 
@@ -105,7 +105,7 @@ class TicketSchemaGate:
 
 
 class PostRebaseGate:
-    """The branch carries code only (section 10): a committed `tickets/**` path never rides the code lane."""
+    """The branch carries code only: a committed `tickets/**` path never rides the code lane."""
 
     code = "post_rebase_regate"
 
@@ -119,7 +119,7 @@ class PostRebaseGate:
 
 
 class ApprovalGate:
-    """`correctness_review` participates as the pinned approval, never a re-executed call (section 9).
+    """`correctness_review` participates as the pinned approval, never a re-executed call.
 
     The approval must name the pre-rebase head: it carries across a clean rebase, never across new commits.
     """
@@ -149,7 +149,7 @@ MERGE_GATES = (TicketSchemaGate(), PostRebaseGate(), ApprovalGate())
 
 
 class AdmissionBoundary:
-    """Explicit, idle composition and memory-only delivery (19.P3.serve-merge-admission)."""
+    """Explicit, idle composition and memory-only delivery."""
 
     def __init__(self, ctx: StageContext, *, mode: str = "inline", queue: "MergeQueue | None" = None, waiting=nullcontext) -> None:
         from chupa.runner import Refusal
@@ -197,7 +197,7 @@ class AdmissionBoundary:
 
 
 def squash_message(ticket: Ticket, reviewed_sha: str) -> str:
-    """Subject `chupa(<stem>): <Goal line>` plus the trailers reconcile maps a commit back by (section 10)."""
+    """Subject `chupa(<stem>): <Goal line>` plus the trailers reconcile maps a commit back by."""
     goal = next(line.strip() for line in ticket.sections["Goal / Why"].splitlines() if line.strip())
     return f"chupa({ticket.stem}): {goal}\n\nchupa-ticket: {ticket.stem}\nchupa-reviewed-sha: {reviewed_sha}\n"
 

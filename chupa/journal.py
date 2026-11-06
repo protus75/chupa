@@ -1,4 +1,4 @@
-"""Segmented append-only JSONL journal (D3; CHUPA_PLAN.md section 6).
+"""Segmented append-only JSONL journal.
 
 The newest segment rolls synchronously on append at the size or age boundary.
 """
@@ -88,7 +88,7 @@ def dispatch_of(body: Mapping[str, Any]) -> Dispatch | None:
 # Current event-schema version per type; readers refuse newer.
 EVENT_VERSIONS: dict[str, int] = {t.value: 1 for t in EventType}
 
-# Reserved shape (D2): readable, never emitted in v1.
+# Reserved shape: readable, never emitted in v1.
 _NOT_EMITTED = frozenset({EventType.CHECKPOINT.value})
 
 _ENVELOPE_KEYS = ("v", "type", "ts", "ticket", "key", "body")

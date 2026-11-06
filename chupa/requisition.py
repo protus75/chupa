@@ -1,4 +1,4 @@
-"""Read-only authored-ticket feasibility review (CHUPA_PLAN.md sections 7, 8, 19.L)."""
+"""Read-only authored-ticket feasibility review."""
 
 import hashlib
 import re

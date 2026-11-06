@@ -170,7 +170,7 @@ def test_routing_hole_is_a_setup_refusal_naming_the_row(tmp_path):
 def test_placeholder_row_is_refused_before_any_call(tmp_path):
     cfg = config(tmp_path, CONFIG.replace("x-med", PLACEHOLDER))
     exec_ = FakeExec()
-    with pytest.raises(ProviderSetupError, match="Phase 1 prerequisites"):
+    with pytest.raises(ProviderSetupError, match="set the operator values in config.yaml"):
         call(cfg, exec_, tmp_path, req("implement", worktree=tmp_path))
     assert exec_.calls == []
 
@@ -416,7 +416,7 @@ def test_abort_current_group_kills_the_active_child(tmp_path):
     assert exec_.killed == [4242]
 
 
-# --- provider preflight (section 6.11) ---
+# --- provider preflight ---
 
 
 class PreflightExec:

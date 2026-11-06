@@ -1,4 +1,4 @@
-"""Managed conduct bytes and atomic refresh (CHUPA_PLAN.md sections 8, 15, 17)."""
+"""Managed conduct bytes and atomic refresh."""
 
 import ast
 import hashlib
@@ -86,7 +86,7 @@ def _process_override(remainder: bytes) -> bool:
 
 
 def classify_core(data: bytes | None, *, template: bytes | None = None) -> CoreClassification:
-    """Judge supplied bytes against this branch's fresh render, without effects (19.P6)."""
+    """Judge supplied bytes against this branch's fresh render, without effects."""
     previous = data if data is not None else b""
     try:
         project = parse(previous)
@@ -160,7 +160,7 @@ async def committed_core(workspace, config, git):
 
 
 class CoreDriftGate:
-    """Only current committed routed conduct may enter main (sections 7, 8). Never repairs."""
+    """Only current committed routed conduct may enter main. Never repairs."""
 
     code = "core_drift"
 

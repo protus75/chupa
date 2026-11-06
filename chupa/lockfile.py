@@ -1,4 +1,4 @@
-"""Single-writer lockfile (CHUPA_PLAN.md D2, section 6): one advisory flock per checkout.
+"""Single-writer lockfile: one advisory flock per checkout.
 
 Correctness comes from `flock` alone: the kernel frees the lock when the holder
 dies, so there is no liveness protocol and no stale-pid reclaim. The recorded

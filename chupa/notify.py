@@ -1,4 +1,4 @@
-"""Effect-backed escalation delivery and journal-derived replay (19.P4.notify-transport)."""
+"""Effect-backed escalation delivery and journal-derived replay."""
 
 import asyncio
 import json

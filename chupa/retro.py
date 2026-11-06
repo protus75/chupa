@@ -1,4 +1,4 @@
-"""Lock-held retro receipts and the shared ordered journal window (19.P5.retro-drain-invoker)."""
+"""Lock-held retro receipts and the shared ordered journal window."""
 
 import hashlib
 import json

@@ -1,4 +1,4 @@
-"""Lock-held startup and idle recovery (CHUPA_PLAN.md 19.P3.restart-timers)."""
+"""Lock-held startup and idle recovery."""
 
 import asyncio
 from collections.abc import Callable

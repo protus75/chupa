@@ -1,4 +1,4 @@
-"""The LLM seam (CHUPA_PLAN.md section 6) and its scripted fake."""
+"""The LLM seam and its scripted fake."""
 
 import asyncio
 import math

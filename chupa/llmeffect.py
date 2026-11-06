@@ -1,4 +1,4 @@
-"""The LLM call as an effect (CHUPA_PLAN.md sections 2 and 6).
+"""The LLM call as an effect.
 
 Keyed `llm/<stem>/<run_seq>/<surface>/<attempt>/<call_seq>`: one cost-bearing completion per call,
 and a same-key re-entry (no intervening terminal, so the same run_seq) replays the recorded result

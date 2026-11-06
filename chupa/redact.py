@@ -1,4 +1,4 @@
-"""Redaction seam (CHUPA_PLAN.md section 6): one shared filter every captured-stream writer is built with.
+"""Redaction seam: one shared filter every captured-stream writer is built with.
 
 Writer-site checklist (extend in the same change that adds a writer of a captured stream):
 - attempt-spool writer: chupa/driver.py `Spool`
@@ -6,7 +6,7 @@ Writer-site checklist (extend in the same change that adds a writer of a capture
 - attempt-spool writer: chupa/providers.py `CliAdapter.invoke` (prompt, cli event stream, stderr)
 - journal writer: chupa/journal.py -- NOT YET WIRED; its one secret-bearing producer, the LLM effect
   result, is scrubbed before it becomes the completion record (chupa/llmeffect.py `llm_call`)
-- harvest serialization: not built (Phase 2)
+- harvest serialization: not built
 """
 
 from collections.abc import Mapping
