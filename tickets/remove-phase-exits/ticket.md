@@ -57,6 +57,11 @@ Two pieces exist only for the bootstrap's phase-exit tickets: the drain forces a
 - tests/test_tickets.py
 - tests/test_closed_sets.py
 - docs/how-chupa-works.md
+- tests/test_seed_successor.py
+- tests/test_cli.py
+- tests/test_daemon_admission.py
+- tests/test_daemon_config.py
+- tests/test_drain_upgrade.py
 
 ## Acceptance criteria
 1. `grep -rn -E "Exit-read window|exit_window|exit-read-window|phase\[0-8\]-exit" chupa` prints nothing.
