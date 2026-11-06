@@ -47,40 +47,10 @@ A ticket an AI writes in a chat session reaches Implement without the buildabili
 
 ## Scope fence
 - chupa/runner.py
-- tests/approval.py
-- tests/test_requisition_gate.py
 - eval/shakeout/bench.py
 - eval/reliability_battery.py
-- tests/test_terminal.py
-- tests/test_stages.py
-- tests/test_mergequeue.py
-- tests/test_cli.py
-- tests/test_serve.py
-- tests/test_kill_cli_activation.py
-- tests/test_shakeout.py
-- tests/test_drain.py
-- tests/test_ladder.py
-- tests/test_diagnose.py
-- tests/test_provider_cooldown_failover.py
-- tests/test_caps.py
-- tests/test_reliability_battery.py
-- tests/test_merge.py
-- tests/test_harvest.py
-- tests/test_drain_reentry.py
-- tests/test_second_problems.py
-- tests/test_storm_producer.py
-- tests/test_reject_queue.py
-- tests/test_hostfiles.py
-- tests/test_daemon_composition.py
-- tests/test_watchdog_activation.py
-- tests/test_supervised_merge_hold.py
-- tests/test_retro_box.py
-- tests/test_kill_signal_journal.py
-- tests/test_kill_executor_abort.py
-- tests/test_harvest_orphans.py
-- tests/test_daemon_soak.py
-- tests/test_audit.py
 - docs/how-chupa-works.md
+- tests
 
 ## Acceptance criteria
 1. An unreviewed ticket gets exactly one review call before Implement, and approved content gets none, checked by `uv run pytest tests/test_requisition_gate.py -k "reviewed_once_then_runs or approved_content_runs_without_review"`.
