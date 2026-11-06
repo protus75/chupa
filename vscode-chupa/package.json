@@ -2,7 +2,7 @@
 	"name": "vscode-chupa",
 	"displayName": "chupa tickets",
 	"description": "chupa's tickets as an SCM-style dependency graph: blocked, queued, running, merged.",
-	"version": "0.0.11",
+	"version": "0.0.12",
 	"publisher": "chupa",
 	"license": "MIT",
 	"engines": {

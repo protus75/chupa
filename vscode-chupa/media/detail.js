@@ -45,6 +45,9 @@ function content(row) {
 	head.append(el('span', `badge ${row.section}`, row.section), el('span', 'detail-stem', ` ${row.stem}`));
 	box.append(head);
 	box.append(el('div', 'detail-meta', row.status + (row.priority ? ` · ${row.priority}` : '')));
+	if (row.review) {
+		box.append(el('div', 'detail-meta', `review: ${row.review}`));
+	}
 	if (row.section === 'merged') {
 		const c = row.commit;
 		if (c) {

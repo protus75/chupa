@@ -75,6 +75,17 @@ def uncommitted_tickets() -> tuple[set[str], set[str]]:
     return dirty, new
 
 
+def committed_ticket_shas() -> dict[str, str]:
+    """Each stem's committed ticket.md blob: the content a `requisition_verdict` approves by `ticket_sha`."""
+    out = subprocess.run(["git", "ls-tree", "-r", "HEAD", "--", "tickets"], cwd=ROOT, capture_output=True, text=True).stdout
+    shas = {}
+    for line in out.splitlines():
+        meta, path = line.split("\t", 1)
+        if path.endswith("/ticket.md"):
+            shas[Path(path).parts[1]] = meta.split()[2]
+    return shas
+
+
 def commits() -> dict[str, dict]:
     out = subprocess.run(["git", "log", "--format=%H%x1f%h%x1f%an%x1f%aI%x1f%s", "main"], cwd=ROOT, capture_output=True, text=True).stdout
     rows = {}
@@ -113,6 +124,25 @@ def snapshot() -> dict:
     blocked_stems = {t.stem for t in blocked}
 
     dirty, new = uncommitted_tickets()
+    blobs = committed_ticket_shas()
+    verdicts: dict[str, dict[str, str]] = {}  # stem -> ticket_sha -> last verdict for that content
+    for e in events:
+        body = e.get("body", {})
+        if e.get("type") == "signal" and body.get("signal") == "requisition_verdict" and e.get("ticket"):
+            verdicts.setdefault(e["ticket"], {})[body.get("ticket_sha")] = body.get("verdict")
+
+    def review(stem: str) -> str:
+        """The buildability review for the ticket's current committed text; the drain reviews before a first run."""
+        if stem in new or stem not in blobs:
+            return "not reviewed: reviewed before its first run, once committed"
+        verdict = verdicts.get(stem, {}).get(blobs[stem])
+        if verdict == "approve":
+            return "approved"
+        if verdict:
+            return f"{verdict} on this text: edit the ticket to address the findings"
+        if verdicts.get(stem):
+            return "approved an earlier version: re-reviewed before it runs"
+        return "not reviewed: reviewed before its first run"
 
     def why_blocked(t) -> str:
         if t.stem in new:
@@ -151,6 +181,7 @@ def snapshot() -> dict:
             "committed": stem not in dirty,
             # What `chupa run` accepts: confirmed, every dependency settled (it also needs the lock).
             "runnable": bool(t) and t.frontmatter.state == "confirmed" and set(t.depends) <= settled,
+            "review": review(stem) if section != "merged" else "",
         }
 
     rows = [base(t.stem, "blocked", why_blocked(t)) for t in reversed(blocked)]
