@@ -276,7 +276,7 @@ async def test_daemon_soak_uses_registered_checks_lift(root, monkeypatch, case):
             patch.setattr(rig.fs, "write", lambda path, data: forbidden() if path.name == DAEMON_SOAK_REPORT else LocalFileSystem().write(path, data))
             importlib.reload(daemon_soak)
             patch.setattr(daemon_soak, "write_report", forbidden)
-            assert await serve.serve(rig.checkout, plan="# Plan\n", read=lambda stem: None, stems=lambda: (), prepare=forbidden, signals=lambda stop: (stop(), lambda: None)[1]) == 0
+            assert await serve.serve(rig.checkout, read=lambda stem: None, stems=lambda: (), prepare=forbidden, signals=lambda stop: (stop(), lambda: None)[1]) == 0
         assert not list(root.rglob(DAEMON_SOAK_REPORT))
         assert not any(path.endswith("/" + DAEMON_SOAK_REPORT) for path in await rig.checkout.git.ls_files(root))
         return

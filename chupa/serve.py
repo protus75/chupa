@@ -78,7 +78,6 @@ class Serve:
         checkout: runner.Checkout,
         *,
         config_path: Path | None = None,
-        plan: str | None = None,
         read: Callable[[str], str | None],
         stems: Callable[[], Iterable[str]],
         prepare=runner.prepare_pipeline,
@@ -135,7 +134,7 @@ class Serve:
                 published = self.published.get(ticket.stem)
                 if published is not None and published[0] is ticket and published[1] != sha:
                     try:
-                        fresh = parse_ticket(ticket.stem, committed, local.repo, plan=plan)
+                        fresh = parse_ticket(ticket.stem, committed, local.repo)
                     except TicketInvalid:
                         return "running"
                     self.publish(fresh, committed)
@@ -156,8 +155,7 @@ class Serve:
         self.core = build_daemon_core(
             checkout,
             config_path=config_path,
-            plan=plan,
-            read=read,
+                read=read,
             debounce=SERVE_POLL_S,
             quarantined=lambda: set(),
             drought_parked=lambda: set(),
@@ -583,7 +581,6 @@ async def serve(
     checkout: runner.Checkout,
     *,
     config_path: Path | None = None,
-    plan: str | None = None,
     read: Callable[[str], str | None] | None = None,
     stems: Callable[[], Iterable[str]] | None = None,
     prepare=runner.prepare_pipeline,
@@ -594,5 +591,5 @@ async def serve(
 ) -> int:
     from chupa.__main__ import build_serve
 
-    owner = build_serve(checkout, config_path=config_path, plan=plan, read=read, stems=stems, prepare=prepare, signals=signals, failure=failure, argv=argv, reexec=reexec)
+    owner = build_serve(checkout, config_path=config_path, read=read, stems=stems, prepare=prepare, signals=signals, failure=failure, argv=argv, reexec=reexec)
     return await owner.run()

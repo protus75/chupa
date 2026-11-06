@@ -213,7 +213,6 @@ class _Member:
         files = {
             "config.yaml": yaml.safe_dump(config),
             ".gitignore": ".chupa/\n",
-            "CHUPA_PLAN.md": "# Disposable soak plan\n",
             "verify.py": _CHECK,
             "verify-safety.py": "from pathlib import Path\nassert all(int(Path(p).read_text()) in (0, 1) for p in ('a.txt', 'b.txt'))\n",
             "a.txt": "0\n",
@@ -337,7 +336,7 @@ class _Member:
             restart._reconcile = reconciled
             return lambda: None
 
-        self.task = asyncio.create_task(serve.serve(self.checkout, plan="# Disposable soak plan\n", prepare=self.prepare, signals=signals))
+        self.task = asyncio.create_task(serve.serve(self.checkout, prepare=self.prepare, signals=signals))
         await self.until(lambda: self.owner is not None and self.owner.ready.is_set())
         checkpoint = self.owner.checkpoint
         poll = checkpoint.poll

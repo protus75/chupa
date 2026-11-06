@@ -24,7 +24,7 @@ from chupa.scheduler import Scheduler
 from chupa.stages import StageContext
 from chupa.tickets import INTAKE_SIGNAL
 from chupa.watcher import WATCHER_PARSE_FAILURE, Watcher
-from tests.test_cli import PLAN, root, write
+from tests.test_cli import root, write
 from tests.test_daemon_admission import assert_idle
 from tests.test_daemon_config import assert_detached, python_values
 from tests.test_mergequeue import ctx as admission_context
@@ -130,7 +130,7 @@ async def test_production_watchdog_shares_active_executor(root, monkeypatch):
 
     serving = rig
     rig.fs.publish = LocalFileSystem().publish
-    rig.owner = cli.build_serve(rig.checkout, plan=PLAN)
+    rig.owner = cli.build_serve(rig.checkout)
     write(root, "continuous", text())
     run = asyncio.create_task(serving.owner.run())
     try:
@@ -173,7 +173,6 @@ class CoreRig:
         self.core = cli.build_daemon_core(
             self.checkout,
             config_path=config_path,
-            plan=PLAN,
             read=self.files.get,
             debounce=5,
             quarantined=lambda: self.quarantine,
@@ -221,7 +220,7 @@ def assert_core_wiring(rig):
     assert core.scheduler.dispatch == core.admission.dispatch
     assert core.watcher.publish == core.scheduler.update
     assert core.watcher.remove == core.scheduler.remove
-    assert core.watcher.read == rig.files.get and core.watcher.plan == PLAN
+    assert core.watcher.read == rig.files.get
     assert core.watcher.clock is rig.checkout.clock and core.watcher.sleep == rig.checkout.sleep
     assert core.watcher.debounce == 5
     assert core.scheduler.max_unmerged == rig.checkout.config.scheduler.max_unmerged
@@ -2080,7 +2079,7 @@ async def test_production_serve_graph_is_reachable(root, monkeypatch):
 
     rig = await graph(root, monkeypatch)
     before = asyncio.all_tasks()
-    owner = Serve(rig.checkout, plan=PLAN, read=rig.owner.read, stems=rig.owner.stems)
+    owner = Serve(rig.checkout, read=rig.owner.read, stems=rig.owner.stems)
     assert asyncio.all_tasks() == before and owner.tasks.tasks == ()
     assert rig.journal.read() == [] and owner.core.restart.timers.journal is rig.journal
     rig.owner = owner

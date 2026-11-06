@@ -398,7 +398,7 @@ Keep and kill require a person at an interactive terminal to type the exact stem
 ### 7.1 `drain`
 
 1. Takes the lock, reconciles, fires due timers, runs the provider preflight, runs intake once.
-2. Loops: reload config, honor pause/kill/stop, maybe run a retro, scan committed tickets, pick the
+2. Loops: reload config, honor pause/kill/stop, maybe run a retro, scan committed tickets (skipping stems settled or rejected in the journal), pick the
    next ticket, run it, merge it inline.
 3. **Pick order:** confirmed, unsettled, not rejected, every dependency settled (through split
    successors); among eligible fresh tickets and re-offers, `## Runs before` orders named stems
@@ -422,7 +422,7 @@ Both verbs use `uv run --project <engine checkout> python -m chupa` followed by 
 The continuous daemon. On start it takes the lock, reconciles and rebuilds timers,
 publishes `state_dir/control/active.json`, and runs four loops (every 0.1s):
 
-- **Watcher:** runs intake and re-reads tickets, debounced; a ticket that fails to parse keeps
+- **Watcher:** runs intake and re-reads tickets, debounced, skipping stems settled or rejected in the journal; a ticket that fails to parse keeps
   its last good version.
 - **Dispatch:** the scheduler runs one ticket at a time. It waits while
   `scheduler.max_unmerged` (default 2) finished tickets are waiting to merge, while paused, or
@@ -666,6 +666,6 @@ remains and does not apply to ordinary tickets:
 
 - **Plan pointers:** the `## Plan contract` ticket section and
   `CHUPA_PLAN.md#...` fence anchors, resolved against `CHUPA_PLAN.md`. The plan structure lint.
-- **Plan reads:** runtime reads of `CHUPA_PLAN.md` go through one function; an absent plan is
+- **Plan reads:** ticket validation reads `CHUPA_PLAN.md` through one function; an absent plan is
   tolerated for hosts that do not have the file. Prompts carry no plan text.
 - **Eval report artifacts:** shakeout, soak, reliability battery, host loop, exit receipt.

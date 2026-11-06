@@ -38,7 +38,6 @@ from chupa.tickets import (
     _porcelain,
     evidence_findings,
     missing_evidence_findings,
-    read_plan,
     split_frontmatter,
     stem_findings,
     template,
@@ -80,7 +79,6 @@ def build_daemon_core(
     checkout: runner.Checkout,
     *,
     config_path: Path | None = None,
-    plan: str | None,
     read: Callable[[str], str | None],
     debounce: float,
     quarantined: Callable[[], Set[str]],
@@ -118,7 +116,6 @@ def build_daemon_core(
         journal=checkout.journal,
         load=lambda: load_config(config_path, cwd=checkout.repo),
         bind=bind,
-        plan=plan,
         read=read,
         clock=checkout.clock,
         sleep=checkout.sleep,
@@ -153,7 +150,7 @@ def build_daemon_core(
 
 
 def build_serve(
-    checkout: runner.Checkout, *, config_path=None, plan=None, read=None, stems=None, prepare=runner.prepare_pipeline, signals=None, failure=None, argv=("serve",), reexec=None
+    checkout: runner.Checkout, *, config_path=None, read=None, stems=None, prepare=runner.prepare_pipeline, signals=None, failure=None, argv=("serve",), reexec=None
 ) -> serve.Serve:
     """Compose filesystem delivery at the same root as every other real seam."""
 
@@ -164,7 +161,6 @@ def build_serve(
     return serve.Serve(
         checkout,
         config_path=config_path,
-        plan=plan,
         read=read or read_ticket,
         stems=stems or (lambda: (p.parent.name for p in (checkout.repo / "tickets").glob("*/ticket.md"))),
         prepare=prepare,
@@ -342,7 +338,7 @@ def main(
             print("\n".join(line for _, line in lines) if lines else "no pending suggestions")
             return 0
         if args.verb == "serve":
-            return asyncio.run(serve.serve(checkout, config_path=args.config, plan=read_plan(repo), signals=_serve_signals, argv=invocation, reexec=reexec or SubprocessExec()))
+            return asyncio.run(serve.serve(checkout, config_path=args.config, signals=_serve_signals, argv=invocation, reexec=reexec or SubprocessExec()))
         checkout = replace(checkout, control=build_control(checkout))
         checkout.control.load_config = lambda: load_config(args.config, cwd=repo)
         dispatch = pipeline(checkout)

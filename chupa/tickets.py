@@ -261,7 +261,7 @@ def _criteria(text: str) -> list[str]:
     return items
 
 
-def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None) -> Ticket:
+def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None = None) -> Ticket:
     """Validate one ticket against the full section 13 grammar; raise TicketInvalid with every finding.
 
     `repo` resolves `Context` / `On-demand` existence and ordering stems.
@@ -386,9 +386,8 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None) -> Ticke
         for item in items:
             try:
                 pid = plan_id(item)
-                if plan is None:
-                    raise PlanContractError(_f(f"`## Plan contract` cites {item!r} but {PLAN_FILE} is absent", f"restore {PLAN_FILE} at the repo root"))
-                resolve_plan_contract(plan, [pid])
+                if plan is not None:
+                    resolve_plan_contract(plan, [pid])
             except PlanContractError as e:
                 findings.append(e.finding.model_copy(update={"code": CODE, "path": path, "message": f"`## Plan contract`: {e.finding.message}"}))
                 continue

@@ -36,7 +36,6 @@ from chupa.tickets import (
     depends_cycle,
     intake,
     parse_ticket,
-    read_plan,
     ticket_path,
 )
 
@@ -364,21 +363,21 @@ class _Drain:
         """Committed tickets only: a ticket file dirty in the working tree is not yet on the ticket plane."""
         repo = self.c.repo
         dirty = {p for _, p in _porcelain(await self.c.git.status_porcelain(repo))}
-        plan = read_plan(repo)
         tickets: dict[str, Ticket] = {}
         invalid: dict[str, str] = {}
         drafts: list[str] = []
         states = last_states(self.c.journal.read())
         for path in sorted((repo / TICKETS_DIR).glob(f"*/{TICKET_FILE}")):
             stem = path.parent.name
+            if states.get(stem) in SETTLED | {"rejected"}:
+                continue
             rel = ticket_path(stem)
             if any(p == rel or (p.endswith("/") and rel.startswith(p)) for p in dirty):
                 continue
             try:
-                ticket = parse_ticket(stem, path.read_text(), repo, plan=plan)
+                ticket = parse_ticket(stem, path.read_text(), repo)
             except TicketInvalid as e:
-                if states.get(stem) not in SETTLED | RETIRED:
-                    invalid[stem] = "; ".join(f"[{f.code}] {f.message} ({f.paved_road})" for f in e.findings)
+                invalid[stem] = "; ".join(f"[{f.code}] {f.message} ({f.paved_road})" for f in e.findings)
                 continue
             if ticket.frontmatter.state == "draft":
                 drafts.append(stem)

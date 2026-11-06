@@ -10,7 +10,7 @@ from chupa.__main__ import main
 from chupa.daemon import DaemonAdmission
 from chupa.journal import EventType
 from chupa.tickets import parse_ticket
-from tests.test_cli import ENV, PLAN, Clock, root, ticket, with_retro_driver, write
+from tests.test_cli import ENV, Clock, root, ticket, with_retro_driver, write
 
 
 @pytest.fixture
@@ -18,7 +18,7 @@ def tickets(tmp_path):
     (tmp_path / "chupa").mkdir()
     (tmp_path / "chupa/thing.py").write_text("")
     text = ticket().replace("priority: P2", "state: confirmed\nsource: human\npriority: P2", 1)
-    return tuple(parse_ticket(stem, text, tmp_path, plan=PLAN) for stem in ("first", "second"))
+    return tuple(parse_ticket(stem, text, tmp_path) for stem in ("first", "second"))
 
 
 async def turn():

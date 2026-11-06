@@ -34,7 +34,7 @@ from chupa.seams import Clock, FileSystem, GroupExec, Sleep
 from chupa.stages import DiagnosisMaterial, StageContext, diagnose, lift_outbox, run_stages, ticket_change_findings, write_diagnosis
 from chupa.status import SETTLED, last_states, reject_queue
 from chupa.storm import arrival_id
-from chupa.tickets import INTAKE_SIGNAL, Ticket, TicketInvalid, intake, parse_ticket, read_plan, split_frontmatter, stamp, stem_findings, ticket_path, validate_ticket
+from chupa.tickets import INTAKE_SIGNAL, Ticket, TicketInvalid, intake, parse_ticket, split_frontmatter, stamp, stem_findings, ticket_path, validate_ticket
 
 EXIT_MERGED = 0
 EXIT_TICKET = 1
@@ -568,7 +568,7 @@ async def _dead_dependents(dead: str, checkout: Checkout) -> None:
         stem = path.parent.name
         if stem == dead or _ticket_state(path) != "confirmed" or last.get(stem) in SETTLED | {"rejected"}:
             continue
-        ticket = parse_ticket(stem, path.read_text(), checkout.repo, plan=read_plan(checkout.repo))
+        ticket = parse_ticket(stem, path.read_text(), checkout.repo)
         for dependency in sorted(set(ticket.depends) & deaths):
             if not any(e.type == EventType.SIGNAL and e.ticket == stem and e.body.get("signal") == "dead_dependency" and e.body.get("dead") == dependency for e in history):
                 box.enqueue(

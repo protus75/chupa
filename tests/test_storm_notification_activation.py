@@ -558,7 +558,7 @@ async def test_storm_leaves_daemon_selection_and_accounting_unchanged(admission_
         pytest.fail("storm invoked an external notification")
 
     monkeypatch.setattr("chupa.effects.Effects.run", forbidden)
-    core = cli.build_daemon_core(checkout, plan=None, read=lambda _: None, debounce=0, quarantined=lambda: set(), drought_parked=lambda: set(), completed_unmerged=lambda: 0, prepare=prepare)
+    core = cli.build_daemon_core(checkout, read=lambda _: None, debounce=0, quarantined=lambda: set(), drought_parked=lambda: set(), completed_unmerged=lambda: 0, prepare=prepare)
     box = core.control._recover.__self__
     six(box)
     core.scheduler.update(one)
@@ -594,7 +594,7 @@ def test_production_startup_recovers_without_new_arrival(admission_context, star
     if startup == "daemon":
         journal = Journal(ctx.config.state_dir, clock)
         checkout = runner.Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git, journal, ctx.fs, clock)
-        core = cli.build_daemon_core(checkout, plan=None, read=lambda _: None, debounce=0, quarantined=lambda: set(), drought_parked=lambda: set(), completed_unmerged=lambda: 0)
+        core = cli.build_daemon_core(checkout, read=lambda _: None, debounce=0, quarantined=lambda: set(), drought_parked=lambda: set(), completed_unmerged=lambda: 0)
         before = snapshot(ctx.config.state_dir)
         assert len(trips(journal)) == 0
         assert snapshot(ctx.config.state_dir) == before

@@ -13,7 +13,7 @@ from chupa.journal import EventType, Journal
 from chupa.scheduler import Scheduler
 from chupa.tickets import INTAKE_SIGNAL, parse_ticket
 from chupa.watcher import WATCHER_PARSE_FAILURE, Watcher
-from tests.test_cli import PLAN, TICKET
+from tests.test_cli import TICKET
 
 
 class Time:
@@ -69,7 +69,6 @@ class Rig:
         self.files = {}
         self.watcher = Watcher(
             root,
-            plan=PLAN,
             read=self.files.get,
             journal=self.journal,
             publish=self.scheduler.update,
@@ -88,7 +87,7 @@ class Rig:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(raw)
         self.files[stem] = raw
-        ticket = parse_ticket(stem, raw, self.root, plan=PLAN)
+        ticket = parse_ticket(stem, raw, self.root)
         self.scheduler.update(ticket)
         return ticket
 
@@ -475,3 +474,17 @@ async def test_runs_before_ignores_ineligible_targets(rig, inactive):
     rig.scheduler.update(replace(hint, runs_before=("target",)))
     await rig.drain()
     assert rig.calls == ["old", "new"]
+
+
+@pytest.mark.asyncio
+async def test_watcher_skips_finished_tickets(rig):
+    rig.add("merged")
+    await rig.publish("merged")
+    rig.transition("merged", "merged")
+    rig.files.update({"merged": "unparseable", "live": "unparseable"})
+    await rig.publish("merged", "live")
+    failures = [e.ticket for e in rig.journal.read() if e.body.get("signal") == WATCHER_PARSE_FAILURE]
+    assert failures == ["live"]
+    assert "merged" not in rig.watcher.cache
+    assert "merged" not in rig.scheduler.pending
+    assert "live" not in rig.scheduler.pending

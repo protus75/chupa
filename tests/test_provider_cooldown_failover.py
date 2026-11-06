@@ -24,7 +24,7 @@ from chupa.redact import Redactor
 from chupa.seams import SubprocessExec
 from chupa.tickets import intake
 from chupa.timers import Timers
-from tests.test_cli import PLAN, root, write
+from tests.test_cli import root, write
 from tests.test_daemon_composition import CoreRig
 from tests.test_providers import CONFIG
 from tests.test_restart_timers import held, repository
@@ -356,7 +356,7 @@ async def test_one_provider_payload_and_timers_per_session(root, monkeypatch):
     assert report.exit_code == 0 and len(seen) == 2 and seen[0] is seen[1] is checkout.control.providers
     assert not seen[0].waits
     rig.fs.publish = __import__("chupa.seams", fromlist=["LocalFileSystem"]).LocalFileSystem().publish
-    rig.owner = cli.build_serve(rig.checkout, plan=PLAN)
+    rig.owner = cli.build_serve(rig.checkout)
     write(root, "continuous", text())
     running = asyncio.create_task(rig.owner.run())
     try:
@@ -685,7 +685,7 @@ async def test_escalated_drought_uses_effective_route(root, monkeypatch, entry, 
         from chupa.seams import LocalFileSystem
 
         rig.fs.publish = LocalFileSystem().publish
-        rig.owner = cli.build_serve(rig.checkout, plan=PLAN)
+        rig.owner = cli.build_serve(rig.checkout)
         control = rig.owner.control
     else:
         control = rig.core.control

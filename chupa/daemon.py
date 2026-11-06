@@ -28,7 +28,7 @@ from chupa.scheduler import Scheduler
 from chupa.seams import Clock, FileSystem, Sleep
 from chupa.stages import StageContext, StageName, Stages, StagesRun
 from chupa.storm import StormBreaker
-from chupa.tickets import Ticket, parse_ticket, read_plan, ticket_path
+from chupa.tickets import Ticket, parse_ticket, ticket_path
 from chupa.timers import Timers
 from chupa.watcher import Watcher
 
@@ -353,7 +353,7 @@ async def apply_rework(ctx: StageContext, ticket: Ticket, findings: list[Finding
         return StageResult(outcome="gate_failed", artifact=None, cost=Cost(), findings=[Finding(code="ticket_schema", message="Rework has no usable workspace", paved_road=road)])
     try:
         text = await ctx.git._run(ctx.repo, "show", f"HEAD:{ticket_path(ticket.stem)}")
-        original = parse_ticket(ticket.stem, text, ctx.repo, plan=read_plan(ctx.repo))
+        original = parse_ticket(ticket.stem, text, ctx.repo)
         tier, effort = runner.capability(original, ctx.driver.journal.read())
         result = await rework(ctx, original, text, findings, attempt=attempt, workspace=workspace, tier=tier, effort=effort, stuck_budget=original.stuck_minutes * 60, handoff=handoff)
         if result.outcome != "ok":
@@ -486,7 +486,6 @@ def daemon_core(
     journal: Journal,
     load: Callable[[], Config],
     bind: Callable[[ConfigSnapshot], Dispatch],
-    plan: str | None,
     read: Callable[[str], str | None],
     clock: Clock,
     sleep: Sleep,
@@ -510,7 +509,6 @@ def daemon_core(
     watcher = Watcher(
         repo,
         journal=journal,
-        plan=plan,
         read=read,
         publish=scheduler.update,
         remove=scheduler.remove,

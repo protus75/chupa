@@ -14,6 +14,7 @@ from chupa.tickets import (
     TicketInvalid,
     depends_cycle,
     intake,
+    parse_ticket,
     template,
     validate_ticket,
 )
@@ -207,6 +208,24 @@ def test_unresolvable_plan_contract_section_is_refused(repo):
         findings = refusal(root, VALID.replace("- section 11", f"- {bad}"))
         assert len(findings) == 1 and "Plan contract" in findings[0].message, bad
     assert do_intake(root, g, journal).committed == ()
+
+
+def test_plan_contract_without_plan_keeps_ids_but_does_not_resolve(repo):
+    root, _, _ = repo
+    raw = complete(VALID.replace("- section 11", "- section 99"))
+    assert parse_ticket("t-one", raw, root).plan_contract == ("99",)
+    with pytest.raises(TicketInvalid) as exc:
+        parse_ticket("t-one", raw, root, plan=PLAN)
+    assert "Plan contract" in messages(exc.value.findings)
+
+
+def test_seed_without_plan_still_requires_seed_cites(repo):
+    root, _, _ = repo
+    seed = complete(VALID.replace("---\npriority", "---\nstate: confirmed\nsource: seed\npriority"))
+    (root / "CHUPA_PLAN.md").unlink()
+    with pytest.raises(TicketInvalid) as exc:
+        validate_ticket("t-one", seed, root)
+    assert "must cite `19.L`" in messages(exc.value.findings)
 
 
 def test_plan_contract_section_with_its_own_subsection_is_refused(repo):

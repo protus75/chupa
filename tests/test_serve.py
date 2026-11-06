@@ -24,7 +24,7 @@ from chupa.merge import Admission
 from chupa.mergequeue import CONFLICT_FACTS, RED_STREAK, TREE_MISMATCH, MergeQueue, TreeMismatch
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.stages import Invoice, PackingSlip
-from tests.test_cli import ENV, PLAN, root, write
+from tests.test_cli import ENV, root, write
 from tests.test_daemon_composition import sources
 from tests.test_restart_timers import orphan, repository
 from tests.test_scheduler import import_closure, text, turn
@@ -51,7 +51,6 @@ async def graph(root, monkeypatch, **kwargs):
     rig.exec.reply = reply("decision")
     owner = serve.Serve(
         rig.checkout,
-        plan=PLAN,
         read=lambda stem: (root / f"tickets/{stem}/ticket.md").read_text() if (root / f"tickets/{stem}/ticket.md").is_file() else None,
         stems=lambda: (p.parent.name for p in (root / "tickets").glob("*/ticket.md")),
         **kwargs,
@@ -260,7 +259,7 @@ async def test_serve_holds_lock_through_cleanup(root, monkeypatch):
     await until(rig, owner.ready.is_set)
     with pytest.raises(LockHeld):
         contender.acquire()
-    other = serve.Serve(rig.checkout, plan=PLAN, read=owner.read, stems=owner.stems)
+    other = serve.Serve(rig.checkout, read=owner.read, stems=owner.stems)
     try:
         with pytest.raises(LockHeld):
             await other.run()
@@ -534,7 +533,7 @@ async def test_serve_signal_stop_and_restart_recovery(root, monkeypatch, mode):
     assert not any(e.body.get("kind") in {"control_decision", "kill_applied"} for e in rig.journal.read())
     calls, _, _ = script(monkeypatch)
     old = rig.owner
-    rig.owner = serve.Serve(rig.checkout, plan=PLAN, read=old.read, stems=old.stems)
+    rig.owner = serve.Serve(rig.checkout, read=old.read, stems=old.stems)
     restarted = asyncio.create_task(rig.owner.run())
     try:
         await until(rig, lambda: len(terminals(rig, "work")) == 2)
@@ -602,7 +601,7 @@ async def test_serve_suspended_run_cleanup_and_restart(root, monkeypatch, mode):
     assert rig.owner.writers["work"].continuations == {}
     assert retained.ctx.worktree("work").exists() and not terminals(rig, "work")
     old = rig.owner
-    rig.owner = serve.Serve(rig.checkout, plan=PLAN, read=old.read, stems=old.stems)
+    rig.owner = serve.Serve(rig.checkout, read=old.read, stems=old.stems)
     restarted = asyncio.create_task(rig.owner.run())
     try:
         await until(rig, lambda: len(calls) == 2 and calls[-1][-1] == 1)
@@ -782,7 +781,7 @@ async def test_serve_author_uses_shared_journal(root, monkeypatch):
     )
     rig.checkout = replace(rig.checkout, config=load_config(None, cwd=root))
     old = rig.owner
-    rig.owner = serve.Serve(rig.checkout, plan=PLAN, read=old.read, stems=old.stems)
+    rig.owner = serve.Serve(rig.checkout, read=old.read, stems=old.stems)
 
     async def driving(self, stage, consumed, **kwargs):
         assert self.journal is self.effects._journal is rig.journal
@@ -997,7 +996,7 @@ async def start_admission(rig, monkeypatch):
         return rig.owner
 
     monkeypatch.setattr(cli, "build_serve", built)
-    run = asyncio.create_task(serve.serve(rig.checkout, plan=PLAN, prepare=rig.prepare))
+    run = asyncio.create_task(serve.serve(rig.checkout, prepare=rig.prepare))
     await until(rig, lambda: rig.owner.ready.is_set())
     return run
 
@@ -1619,7 +1618,7 @@ async def test_serve_reconciles_notifications_at_startup_and_poll(root, monkeypa
     finally:
         await finish(rig, run)
     prior = rig.owner
-    rig.owner = cli.build_serve(rig.checkout, plan=PLAN, read=prior.read, stems=prior.stems)
+    rig.owner = cli.build_serve(rig.checkout, read=prior.read, stems=prior.stems)
     heartbeat = rig.checkout.config.state_dir / "heartbeat"
     stamp = heartbeat.stat().st_mtime_ns
     restarted = asyncio.create_task(rig.owner.run())
@@ -1698,7 +1697,7 @@ async def test_serve_failed_notify_backoff_and_restart(root, monkeypatch):
         await finish(rig, run)
     (root / "notify-fails").unlink()
     prior = rig.owner
-    rig.owner = cli.build_serve(rig.checkout, plan=PLAN, read=prior.read, stems=prior.stems)
+    rig.owner = cli.build_serve(rig.checkout, read=prior.read, stems=prior.stems)
     restarted = asyncio.create_task(rig.owner.run())
     try:
         await until(rig, lambda: len(notify_completions(rig)) == 1)
@@ -1787,7 +1786,7 @@ async def test_dispatch_republishes_ticket_changed_after_publication(root, monke
     original = (root / "tickets/work/ticket.md").read_text()
     from chupa.tickets import parse_ticket
 
-    ticket = parse_ticket("work", original, root, plan=PLAN)
+    ticket = parse_ticket("work", original, root)
     rig.owner.publish(ticket, original)
     revised = original.replace("## Scope fence\n- chupa/", "## Scope fence\n- revised/")
     assert revised != original

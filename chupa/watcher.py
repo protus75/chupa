@@ -7,6 +7,7 @@ from pathlib import Path
 
 from chupa.journal import EventType, Journal
 from chupa.seams import Clock, Sleep
+from chupa.status import SETTLED, last_states
 from chupa.tickets import Ticket, TicketInvalid, parse_ticket, ticket_path
 
 WATCHER_PARSE_FAILURE = "watcher_parse_failure"
@@ -17,7 +18,6 @@ class Watcher:
         self,
         repo: Path,
         *,
-        plan: str | None,
         read: Callable[[str], str | None],
         journal: Journal,
         publish: Callable[[Ticket], None],
@@ -27,7 +27,6 @@ class Watcher:
         debounce: float,
     ) -> None:
         self.repo = repo
-        self.plan = plan
         self.read = read
         self.journal = journal
         self.publish = publish
@@ -47,13 +46,17 @@ class Watcher:
         async def consume() -> None:
             while (remaining := (deadline - self.clock()).total_seconds()) > 0:
                 await self.sleep(remaining)
+            if last_states(self.journal.read()).get(stem) in SETTLED | {"rejected"}:
+                self.cache.pop(stem, None)
+                self.remove(stem)
+                return
             text = self.read(stem)
             if text is None:
                 self.cache.pop(stem, None)
                 self.remove(stem)
                 return
             try:
-                ticket = parse_ticket(stem, text, self.repo, plan=self.plan)
+                ticket = parse_ticket(stem, text, self.repo)
             except TicketInvalid as e:
                 self.journal.append(EventType.SIGNAL, {"signal": WATCHER_PARSE_FAILURE, "path": ticket_path(stem), "reason": str(e)}, ticket=stem, key=None)
                 return

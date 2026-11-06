@@ -17,7 +17,7 @@ from chupa.lockfile import Lockfile, LockHeld
 from chupa.restart import Restart
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.timers import Timers
-from tests.test_cli import ENV, PLAN, root
+from tests.test_cli import ENV, root
 from tests.test_daemon_composition import CoreRig, assert_startup_pause_wiring
 from tests.test_providers import CONFIG
 from tests.test_scheduler import Time, turn
@@ -67,7 +67,7 @@ def test_restart_regates_historical_held_receipt(tmp_path, monkeypatch, moved):
 
             monkeypatch.setattr(stages, name, observed)
         checkout = runner.Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git, ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
-        owner = cli.build_serve(checkout, plan="# Plan\n")
+        owner = cli.build_serve(checkout)
         await owner.core.startup()
         assert ticket.stem in owner.queue.pending and ctx.worktree(ticket.stem).exists()
         [result] = await owner.queue.process()
@@ -295,7 +295,7 @@ async def test_recovery_alert_through_serve_entrypoint(root, monkeypatch):
 
     monkeypatch.setattr(runner, "harvest_orphan", harvest)
     baseline = asyncio.all_tasks()
-    task = asyncio.create_task(serve.serve(rig.checkout, plan=PLAN, signals=signals))
+    task = asyncio.create_task(serve.serve(rig.checkout, signals=signals))
     try:
         await entered.wait()
         assert calls == [] and dead.exists()

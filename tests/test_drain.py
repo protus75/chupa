@@ -435,6 +435,29 @@ def test_drain_report_omits_invalid_settled_and_rejected_tickets(root, capsys):
     assert "merged:" not in block and "rejected:" not in block
 
 
+def test_drain_scan_skips_finished_tickets(root, capsys, monkeypatch):
+    from chupa import drain as drain_module
+
+    for stem in ("merged", "rejected", "unsettled"):
+        commit_ticket(root, stem, "unparseable")
+    j = journal(root)
+    j.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="merged")
+    j.append(EventType.STATE_TRANSITION, {"to": "rejected"}, ticket="rejected")
+    parsed = []
+    original = drain_module.parse_ticket
+
+    def record(stem, *args, **kwargs):
+        parsed.append(stem)
+        return original(stem, *args, **kwargs)
+
+    monkeypatch.setattr(drain_module, "parse_ticket", record)
+    assert drain(root, Script()) == 0
+    block = capsys.readouterr().out.split("invalid committed tickets:\n", 1)[1].split("\n\n", 1)[0]
+    assert "unsettled:" in block
+    assert "merged:" not in block and "rejected:" not in block
+    assert set(parsed) == {"unsettled"}
+
+
 def test_lock_contention_stops_the_drain_with_exit_2(root):
     write(root, "add-thing", ticket())
     holder = Lockfile(root / ".chupa" / "state", instance_id="other", clock=Clock())

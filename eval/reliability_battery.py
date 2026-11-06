@@ -152,7 +152,6 @@ class _Member:
         files = {
             "config.yaml": yaml.safe_dump(config),
             ".gitignore": ".chupa/\n",
-            "CHUPA_PLAN.md": "# Disposable battery plan\n",
             "work.txt": "base\n",
             "verify.py": "from pathlib import Path\nassert Path('work.txt').read_text().strip() in {'base', 'recovered'}\n",
         }
@@ -171,7 +170,7 @@ class _Member:
             self.writers.append(writer)
             return writer
 
-        self.owner = cli.build_serve(checkout, plan=files["CHUPA_PLAN.md"], prepare=prepare)
+        self.owner = cli.build_serve(checkout, prepare=prepare)
         self.core = self.owner.core
         self.checkout = self.owner.checkout
         self.session = self.core.control.providers
