@@ -1,22 +1,38 @@
-"""Carried reproducer for duplicate dependency lanes in the Tickets view graph."""
+"""Carried reproducer for the Tickets view graph layout (duplicate lanes, blocked-to-queued lanes, rotation colors)."""
 
 import json
-import shutil
-import subprocess
 import sys
 import traceback
 from pathlib import Path
 
+SECTIONS = {"blocked", "queued", "running", "merged"}
+
+
+def row(stem: str, section: str, depends: list[str]) -> dict:
+    return {"stem": stem, "section": section, "depends": depends}
+
 
 def main() -> int:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     try:
-        node = shutil.which("node")
-        if node is None:
-            raise RuntimeError("node is not on PATH")
-        code = subprocess.run([node, str(Path(__file__).resolve().parent / "fixtures" / "graph_lanes.js")], check=False).returncode
-        if code not in (0, 1):
-            raise RuntimeError(f"graph_lanes.js exited {code}")
-        defect = code == 1
+        from chupa.graph import layout
+    except ModuleNotFoundError as error:
+        if error.name != "chupa.graph":
+            traceback.print_exc(file=sys.stderr)
+            print(json.dumps({"regression_result": "error"}))
+            return 2
+        # The base commit computes the layout in vscode-chupa/media JavaScript, which is the defect.
+        print(json.dumps({"regression_result": "defect"}))
+        return 1
+    try:
+        shared = layout([row("a", "queued", ["d"]), row("b", "queued", ["d"]), row("c", "queued", []), row("d", "running", [])])
+        blocked = layout([row("x", "blocked", ["y"]), row("y", "queued", []), row("z", "running", [])])
+        lanes = [lane for g in shared + blocked for lane in g["lanesIn"] + g["lanesOut"] if lane["id"] is not None]
+        defect = (
+            any(sum(lane["id"] == "d" for lane in g["lanesOut"]) > 2 for g in shared)
+            or blocked[0]["parents"] != []
+            or any(lane["section"] not in SECTIONS for lane in lanes)
+        )
     except Exception:
         traceback.print_exc(file=sys.stderr)
         print(json.dumps({"regression_result": "error"}))
