@@ -279,12 +279,7 @@ def test_serve_closed_sets_and_constants():
 
 
 def test_specs_closed_sets_and_constants():
-    assert specs.CITABLE_SECTIONS == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20)
     assert specs.ENGINE_LLM_SURFACES == frozenset({"author", "diagnose", "implement", "requisition_review", "retro", "review", "rework", "triage"})
-    assert specs.ENTRY_PARTS == ("Owner", "Records", "Observable", "Tests")
-    assert specs.MAX_ADMISSION_PAYLOADS == 2
-    assert specs.PLAN_UNITS == ("19.L", "19.I", "19.P0", "19.P1", "19.P2", "19.P3", "19.P4", "19.P5", "19.P6", "19.P7", "19.P8")
-    assert specs.REFUSED_SECTIONS == frozenset({22})
     assert specs.RENDER_BOUND_CHARS == 400000
     assert specs.REQ_RENDER_HEADROOM == 0.75
     assert specs.SPEC_MAX_LINES == 200
@@ -321,7 +316,7 @@ def test_thresh_closed_sets_and_constants():
 
 def test_tickets_closed_sets_and_constants():
     assert set(get_args_deep(tickets.Level)) == {"high", "low", "max", "medium"}
-    assert tickets.OPTIONAL_SECTIONS == ("Runs before", "On-demand", "Plan contract", "Regression")
+    assert tickets.OPTIONAL_SECTIONS == ("Runs before", "On-demand", "Regression")
     assert tickets.REQUIRED_SECTIONS == ("Depends on", "Context", "Goal / Why", "Scope in / Scope out", "Scope fence", "Acceptance criteria", "Verification", "Definition of rejected", "Time budget")
     assert tickets.RESERVED_STEMS == frozenset({"decisions", "retro"})
     assert tickets.SECTIONS == (
@@ -336,10 +331,8 @@ def test_tickets_closed_sets_and_constants():
         "Time budget",
         "Runs before",
         "On-demand",
-        "Plan contract",
         "Regression",
     )
-    assert tickets.SEED_REFUSED_SECTIONS == frozenset({"0", "19", "21", "22"})
 
 
 def test_triage_closed_sets_and_constants():

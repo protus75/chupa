@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT))
 import watch  # noqa: E402
 from chupa.drain import RETIRED, authored_at, order_tickets  # noqa: E402
 from chupa.rework import settled_dependencies  # noqa: E402
-from chupa.tickets import TicketInvalid, parse_ticket, read_plan  # noqa: E402
+from chupa.tickets import TicketInvalid, parse_ticket  # noqa: E402
 
 SETTLED = watch.SETTLED
 # Recent Steps keeps more history than watch's 8 because its view scrolls.
@@ -27,15 +27,14 @@ STEPS = 40
 
 
 def load_tickets(skip: set[str]) -> tuple[dict, dict]:
-    """Full engine parse of unsettled tickets only: the plan-cite check makes it cost ~75ms a ticket."""
-    plan = read_plan(ROOT)
+    """Full engine parse of unsettled tickets only."""
     parsed, invalid = {}, {}
     for path in sorted((ROOT / "tickets").glob("*/ticket.md")):
         stem = path.parent.name
         if stem in skip:
             continue
         try:
-            parsed[stem] = parse_ticket(stem, path.read_text(), ROOT, plan=plan)
+            parsed[stem] = parse_ticket(stem, path.read_text(), ROOT)
         except TicketInvalid as e:
             invalid[stem] = str(e).splitlines()[0] if str(e) else "invalid ticket"
     return parsed, invalid

@@ -47,8 +47,6 @@ what content its tickets carry, never the format.
 - `Definition of rejected`: outcomes that mean the branch is thrown away even if it passes.
 - `Time budget`: `expected` is your estimate; `stuck` is the deadline that stops the run.
 
-Host tickets omit `Plan contract`; it resolves against chupa's own plan.
-
 ## Path matching
 
 A fence entry matches a file when the file IS that path or lives under it as a directory:

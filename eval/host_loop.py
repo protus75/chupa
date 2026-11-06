@@ -93,7 +93,6 @@ class FixtureLoop:
 
     async def initialize(self):
         scaffold.copy_host(self.root)
-        self.fs.write(self.root / "CHUPA_PLAN.md", b"# Disposable score host plan\n")
         self.fs.write(self.root / ".gitignore", b".chupa/\n.fixture-runtime/\ninbox/\n__pycache__/\n")
         # Committed report fixtures remain inputs; runtime intake uses an empty disposable inbox.
         cfg = self.root / "config.yaml"

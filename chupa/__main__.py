@@ -189,7 +189,7 @@ def watchdog_observation(workspace: Path, fence):
     def snapshot():
         files = {}
         for prefix in fence:
-            path = workspace / prefix.partition("#")[0]
+            path = workspace / prefix
             paths = path.rglob("*") if path.is_dir() else (path,)
             for candidate in paths:
                 if candidate.is_file():

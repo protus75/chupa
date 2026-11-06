@@ -143,7 +143,6 @@ def repo(tmp_path: Path) -> Path:
     root = tmp_path / "repo"
     (root / "chupa").mkdir(parents=True)
     (root / "chupa" / "thing.py").write_text("")
-    (root / "CHUPA_PLAN.md").write_text("# Plan\n")
     (root / "config.yaml").write_text(CONFIG)
     (root / ".gitignore").write_text(".chupa/\n")
     adopt_conduct(root)
@@ -153,10 +152,10 @@ def repo(tmp_path: Path) -> Path:
     return root
 
 
-def author(repo: Path, bypass: str = "", plan_contract: str = "") -> None:
+def author(repo: Path, bypass: str = "") -> None:
     path = repo / "tickets" / STEM / "ticket.md"
     path.parent.mkdir(parents=True)
-    path.write_text(TICKET.format(bypass=bypass).replace("## Goal / Why", plan_contract + "## Goal / Why"))
+    path.write_text(TICKET.format(bypass=bypass))
     git(repo, "add", "tickets")
     git(repo, "commit", "-m", f"chupa({STEM}): ticket")
     from tests.approval import approve
@@ -203,8 +202,8 @@ def verdict(v: str = "approve", findings: list | None = None) -> str:
 SNAG = {"code": "logic", "path": "chupa/thing.py", "line": 1, "message": "wrong word", "paved_road": "write ok"}
 
 
-def run(repo: Path, script: list, bypass: str = "", plan_contract: str = ""):
-    author(repo, bypass, plan_contract)
+def run(repo: Path, script: list, bypass: str = ""):
+    author(repo, bypass)
     config = load_config(None, cwd=repo)
     llm = FakeLLM(script)
     clock = lambda: datetime(2026, 10, 5, tzinfo=UTC)  # noqa: E731
@@ -298,15 +297,6 @@ def test_named_missing_report_fails_even_when_other_commands_pass(repo, monkeypa
 
 
 # --- transitions --------------------------------------------------------------------------------
-
-
-def test_bare_numeric_plan_contract_bullet_is_refused_at_intake(repo):
-    (repo / "CHUPA_PLAN.md").write_text("# Plan\n\n## 11. Failure spine\n")
-    author(repo, plan_contract="## Plan contract\n- 11\n\n")
-
-    with pytest.raises(TicketInvalid) as e:
-        validate_ticket(STEM, (repo / "tickets" / STEM / "ticket.md").read_text(), repo)
-    assert any("Plan contract" in finding.message for finding in e.value.findings)
 
 
 def test_implement_check_review_all_ok_with_artifacts_and_provenance(repo):
@@ -516,21 +506,6 @@ def evidence(**kw) -> Evidence:
     return Evidence(**{**base, **kw})
 
 
-UNIT_MAIN = "## 19. P\n\n### 19.P3 Phase\n\nreg\n\n### 19.P4 Next\n\nn\n"
-UNIT_HEAD = UNIT_MAIN.replace("### 19.P4 Next", "### 19.P3.row Row\n\n- **Owner:** o\n\n### 19.P4 Next")
-
-
-def test_scope_fence_admits_a_plan_edit_confined_to_its_anchored_unit(tmp_path):
-    gate = ScopeFenceGate()
-    anchored = dict(scope_fence=["CHUPA_PLAN.md#19.P3.row"], changed_files=["CHUPA_PLAN.md"])
-    assert gate.check(evidence(**anchored, plan_main=UNIT_MAIN, plan_head=UNIT_HEAD), tmp_path).verdict == "pass"
-    escaped = UNIT_HEAD.replace("reg\n", "reg edited\n")
-    assert gate.check(evidence(**anchored, plan_main=UNIT_MAIN, plan_head=escaped), tmp_path).verdict == "fail"
-    other = dict(anchored, scope_fence=["CHUPA_PLAN.md#19.P3.other"])
-    assert gate.check(evidence(**other, plan_main=UNIT_MAIN, plan_head=UNIT_HEAD), tmp_path).verdict == "fail"
-    assert gate.check(evidence(changed_files=["CHUPA_PLAN.md"]), tmp_path).verdict == "fail"
-
-
 def test_diff_budget_caps_files_and_inserted_lines(tmp_path):
     gate = DiffBudgetGate()
     assert gate.check(evidence(), tmp_path).verdict == "pass"
@@ -548,25 +523,18 @@ def test_run_record_gate_requires_every_section_and_a_closed_outcome(tmp_path):
 
 
 def test_gather_safety_evidence_runs_no_verification(repo, monkeypatch):
-    import dataclasses
-
     from chupa import stages
     from tests.test_merge import context
 
     author(repo)
     ctx = context(repo, [])
     ticket = validate_ticket(STEM, (repo / "tickets" / STEM / "ticket.md").read_text(), repo)
-    ticket = dataclasses.replace(ticket, scope_fence=("chupa/thing.py", "CHUPA_PLAN.md#19.P3.row"))
 
     async def scenario():
-        ctx.fs.write(repo / "CHUPA_PLAN.md", UNIT_MAIN.encode())
-        await ctx.git.add(repo, ["CHUPA_PLAN.md"])
-        await ctx.git.commit(repo, "plan")
         ctx.fs.write(repo / "tickets" / STEM / "run.md", b"lifted run record")
         await ctx.git.worktree_add(repo, ctx.worktree(STEM), STEM, "main")
         (ctx.worktree(STEM) / "chupa/thing.py").write_text("ok\n")
-        ctx.fs.write(ctx.worktree(STEM) / "CHUPA_PLAN.md", UNIT_HEAD.encode())
-        await ctx.git.add(ctx.worktree(STEM), ["chupa/thing.py", "CHUPA_PLAN.md"])
+        await ctx.git.add(ctx.worktree(STEM), ["chupa/thing.py"])
         await ctx.git.commit(ctx.worktree(STEM), "work")
         original = ctx.exec_.run
         calls = []
@@ -578,7 +546,6 @@ def test_gather_safety_evidence_runs_no_verification(repo, monkeypatch):
         monkeypatch.setattr(ctx.exec_, "run", recording)
         safety = await stages.gather_safety_evidence(ctx, ticket, "ok")
         assert safety.verification == []
-        assert safety.plan_main == UNIT_MAIN and safety.plan_head == UNIT_HEAD
         assert safety.run_record == "lifted run record" and safety.inserted_lines > 0
         assert all(argv[0] == "git" and "worktree" not in argv for argv, _ in calls)
         full = await stages.gather_evidence(ctx, ticket, "ok", attempt=0)
@@ -619,18 +586,6 @@ def test_full_gather_evidence_reuses_safety_gatherer(repo, monkeypatch):
         assert not (ctx.config.worktree_root / ".base" / STEM).exists()
 
     asyncio.run(scenario())
-
-
-def test_scope_fence_admits_a_plan_edit_confined_to_all_anchored_units(tmp_path):
-    gate = ScopeFenceGate()
-    main = UNIT_HEAD.replace("### 19.P4 Next", "### 19.P3.other Other\n\nold\n\n### 19.P4 Next")
-    head = main.replace("- **Owner:** o", "- **Owner:** changed").replace("old\n", "new\n")
-    anchored = dict(scope_fence=["CHUPA_PLAN.md#19.P3.row", "CHUPA_PLAN.md#19.P3.other"], changed_files=["CHUPA_PLAN.md"], plan_main=main)
-    assert gate.check(evidence(**anchored, plan_head=head), tmp_path).verdict == "pass"
-    assert gate.check(evidence(**anchored, plan_head=head.replace("reg\n", "escaped\n")), tmp_path).verdict == "fail"
-    inserted = main.replace("### 19.P4 Next", "### 19.P3.missing Missing\n\nadded\n\n### 19.P4 Next")
-    anchored["scope_fence"].append("CHUPA_PLAN.md#19.P3.missing")
-    assert gate.check(evidence(**anchored, plan_head=inserted.replace("old\n", "new\n")), tmp_path).verdict == "pass"
 
 
 async def report_context(repo, *, verification=None, source=None, script=None):
@@ -854,3 +809,29 @@ async def test_host_loop_and_receipt_registered_checks_lift(repo, tmp_path, name
         assert not lifts and not (repo / target).exists()
     assert not (ctx.worktree(STEM) / target).exists()
     assert all(not p.exists() for p in captured)
+
+
+def test_scope_fence_refuses_a_plan_edit(repo):
+    from dataclasses import replace
+
+    from chupa import stages
+    from tests.test_merge import context
+
+    author(repo)
+    ctx = context(repo, [])
+    ticket = validate_ticket(STEM, (repo / "tickets" / STEM / "ticket.md").read_text(), repo)
+    ticket = replace(ticket, scope_fence=("CHUPA_PLAN.md#19.P3.row",))
+
+    async def scenario():
+        ctx.fs.write(repo / "CHUPA_PLAN.md", b"## 19. Plan\n\n### 19.P3.row Row\n\nold\n")
+        await ctx.git.add(repo, ["CHUPA_PLAN.md"])
+        await ctx.git.commit(repo, "plan base")
+        await ctx.git.worktree_add(repo, ctx.worktree(STEM), STEM, "main")
+        ctx.fs.write(ctx.worktree(STEM) / "CHUPA_PLAN.md", b"## 19. Plan\n\n### 19.P3.row Row\n\nnew\n")
+        await ctx.git.add(ctx.worktree(STEM), ["CHUPA_PLAN.md"])
+        await ctx.git.commit(ctx.worktree(STEM), "edit plan")
+        result = ScopeFenceGate().check(await stages.gather_safety_evidence(ctx, ticket, "ok"), ctx.worktree(STEM))
+        assert result.verdict == "fail"
+        assert result.findings[0].path == "CHUPA_PLAN.md"
+
+    asyncio.run(scenario())

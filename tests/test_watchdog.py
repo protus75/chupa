@@ -201,7 +201,7 @@ class DetectorRig:
             effects=Effects(self.journal), notifications=Delivery(), argv=argv, owner="work", ticket="work", run_sequence=sequence, identity="implement", log=self.log
         )
         self.files, self.waited = {}, 0.0
-        self.observation = ScopeObservation(("out/", "CHUPA_PLAN.md#19.P4.owned"), lambda: self.files.copy())
+        self.observation = ScopeObservation(("out/",), lambda: self.files.copy())
         self.detector = Detector(
             expected_minutes=expected, stuck_minutes=stuck, clock=self.time, sleep=self.time.sleep, observe=self.observation, cap_wait=lambda: self.waited, log=self.log, notify=self.transport
         )
@@ -253,26 +253,6 @@ def test_spend_resets_only_on_observed_scope_mutation(tmp_path, seconds, region)
         assert d.spend == (1 if mutation == "same" else 0)
         rig.call(estimate=1)
     assert d.bases == {}  # Progress never completes a call or learns its basis.
-
-    plan = tmp_path / "CHUPA_PLAN.md"
-    plan.write_text("## 19. Registry\n### 19.P4.owned Owned\ncontent\n### 19.P4.other Other\nunrelated\n")
-    rig.snapshot_disk()
-    d.decide()
-    rig.call(estimate=1)
-    plan.write_text(plan.read_text().replace("unrelated", "different unrelated bytes"))
-    rig.snapshot_disk()
-    d.decide()
-    assert d.spend == 1
-    plan.write_text(plan.read_text().replace("content", "changed content"))
-    rig.snapshot_disk()
-    d.decide()
-    assert d.spend == 0 and d.region == region
-    rig.call(estimate=1)
-    plan.write_text("## 19. Registry\n### 19.P4.other Other\nunrelated\n")
-    rig.snapshot_disk()
-    d.decide()
-    assert d.spend == 0  # Removing the admitted unit is progress too.
-
 
 def test_spend_metering_and_threshold(tmp_path):
     rig = DetectorRig(tmp_path)

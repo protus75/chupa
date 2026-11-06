@@ -55,7 +55,6 @@ class Bench:
         self.fs = LocalFileSystem()
         self.fs.write(self.repo / "config.yaml", _CONFIG.encode())
         self.fs.write(self.repo / ".gitignore", b".chupa/\n")
-        self.fs.write(self.repo / "CHUPA_PLAN.md", b"# Shakeout bench\n")
         self.config = load_config(None, cwd=self.repo)
         self.clock = AdvancingClock()
         self._sleep_wake = asyncio.Event()
@@ -92,7 +91,7 @@ class Bench:
                 await self.git.commit(self.repo, "bench routed conduct", only=changed)
             return
         await self.git.init(self.repo, branch="main")
-        await self.git.add(self.repo, ["config.yaml", ".gitignore", "CHUPA_PLAN.md", *(p.name for p in conduct)])
+        await self.git.add(self.repo, ["config.yaml", ".gitignore", *(p.name for p in conduct)])
         await self.git.commit(self.repo, "bench base")
         self._initialized = True
 

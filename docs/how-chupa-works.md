@@ -670,8 +670,4 @@ The block carries only process rules that hold for every host; codebase rules be
 chupa built itself from `CHUPA_PLAN.md` through self-seeding phases, now finished. This code
 remains and does not apply to ordinary tickets:
 
-- **Plan pointers:** the `## Plan contract` ticket section and
-  `CHUPA_PLAN.md#...` fence anchors, resolved against `CHUPA_PLAN.md`. The plan structure lint.
-- **Plan reads:** ticket validation reads `CHUPA_PLAN.md` through one function; an absent plan is
-  tolerated for hosts that do not have the file. Prompts carry no plan text.
 - **Eval report artifacts:** shakeout, soak, reliability battery, host loop, exit receipt.

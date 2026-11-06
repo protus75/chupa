@@ -8,7 +8,6 @@ from chupa.driver import _observe
 from chupa.llm import LLMAborted, LLMResult
 from chupa.providers import ADAPTERS, ProviderSetupError, Served
 from chupa.seams import Clock, Sleep
-from chupa.specs import unit_sha
 
 SPIRAL_SPEND_MULTIPLIER = 3
 
@@ -51,7 +50,7 @@ class EventConsumer:
 
 
 class ScopeObservation:
-    """Project an injected path/byte snapshot onto the admitted fence, including plan slices."""
+    """Project an injected path/byte snapshot onto the admitted fence, using whole paths."""
 
     def __init__(self, fence: Sequence[str], snapshot: Callable[[], Mapping[str, bytes]]) -> None:
         self.fence, self.snapshot = fence, snapshot
@@ -59,12 +58,8 @@ class ScopeObservation:
     def __call__(self) -> dict:
         files = self.snapshot()
         observed = {
-            path: data for path, data in files.items() if any(path == prefix or path.startswith(prefix if prefix.endswith("/") else prefix + "/") for prefix in self.fence if "#" not in prefix)
+            path: data for path, data in files.items() if any(path == prefix or path.startswith(prefix if prefix.endswith("/") else prefix + "/") for prefix in self.fence)
         }
-        for prefix in self.fence:
-            if prefix.startswith("CHUPA_PLAN.md#"):
-                data = files.get("CHUPA_PLAN.md")
-                observed[prefix] = unit_sha(data.decode(), prefix.partition("#")[2]) if data is not None else None
         return observed
 
 

@@ -28,12 +28,9 @@ SNAG = Finding(code="scope", path="chupa/thing.py", line=1, message="narrow the 
 
 async def original(ctx, *, source="human", payload=""):
     text = TICKET.format(bypass="agent_tier: high\nagent_effort: low\n").replace("source: human", f"source: {source}")
-    if source == "seed":
-        ctx.fs.write(ctx.repo / "CHUPA_PLAN.md", b"# Plan\n## 19. Construction\n### 19.L Authoring\nRules.\n### 19.P3 Phase\nRules.\n")
-        text = text.replace("## Goal / Why", "## Plan contract\n- 19.L\n- 19.P3\n\n## Goal / Why")
     text = text.replace("`thing.py` holds the word ok.", "`thing.py` holds the word ok." + payload)
     ctx.fs.write(ctx.repo / ticket_path("original"), text.encode())
-    await commit(ctx, ctx.repo, [ticket_path("original"), "CHUPA_PLAN.md"])
+    await commit(ctx, ctx.repo, [ticket_path("original")])
     return validate_ticket("original", text, ctx.repo), text
 
 
