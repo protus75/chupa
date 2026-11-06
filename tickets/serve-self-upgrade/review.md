@@ -1,11 +1,11 @@
 # Review: snag
 
-The handoff mechanics look right, but no test covers acceptance criterion 2, and the self-hosted test fakes the upgrade check by hand, so the admission and merge-pass wiring is never exercised.
+Serve's self-upgrade can hand off while a ticket is still mid-ticket: once an upgrade is pending, writer continuations are never dispatched, and the idle check doesn't count them.
 
 ## Findings
 
-- [acceptance] tests/test_serve.py:1868 Criterion 2 is not tested. It requires a host serve whose engine checkout differs from the host repo to hand off at its next admission check after the engine's `chupa` tree changes outside serve. Both new handoff tests set `rig.owner.engine = root`, which makes the engine the host repo, and no test uses a separate engine checkout. (do instead: Add a test that sets `rig.owner.engine` to a separate git checkout under tmp_path with its own `chupa/` tree. Commit a `chupa/` change there while serve is idle and do not call `check_upgrade` by hand. Assert that serve journals `serve_handoff` and spawns once from its own admission-boundary check.)
-- [acceptance] tests/test_serve.py:1898 Criterion 1 says a merge touching `chupa/` triggers the handoff, and the ticket requires the tree check at admission and merge-queue boundaries. Both tests commit straight to the repo and then call `rig.owner.check_upgrade()` directly. The calls in `respond`/`merge` (serve.py) are never exercised, so the tests would still pass if those boundary calls were removed. The docs-only case also never goes through a merge. (do instead: Drive the change through a real serve merge, as other serve tests do: a ticket whose implement step changes `chupa/` (or only `docs/`). Let serve's own post-merge and pre-admission `check_upgrade` calls detect it, without calling `check_upgrade` from the test.)
+- [logic] chupa/serve.py:318 upgrade_idle() checks only scheduler.active, admission.active, admission.task and the queue's pending/active entries. It ignores TicketWriter continuations, which are tickets paused at a stage boundary (next_stage set) that have not reached a terminal. So when a ticket is parked in a continuation, for example after a ConflictHandoff or a yielded boundary, serve sees itself as idle and hands off mid-ticket. The ticket forbids this ('A handoff that spawns ... mid-ticket'). (do instead: Make upgrade_idle() also require that no writer is active or holds continuations, e.g. `not any(w.active or w.continuations for w in self.writers.values())`, and add a test where a continuation exists when the upgrade is detected.)
+- [logic] chupa/serve.py:331 Once self.upgrade is set, dispatch() skips scheduler.dispatch_next() entirely. That makes the writer exemption added to select() at line 246 (`self.upgrade is None or ticket.stem in self.writers`) dead code. In-flight tickets with continuations can never resume, so they either stall serve forever or get abandoned by the handoff. (do instead: Keep calling dispatch_next() while an upgrade is pending and let select() refuse new stems (it already exempts writers), so continuing tickets run to their terminal before upgrade_idle() allows the handoff.)
 
 ## Record
 
@@ -13,26 +13,26 @@ The handoff mechanics look right, but no test covers acceptance criterion 2, and
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "734615e92bcf6502830d33879a0d2e9c84ade8a2",
+  "produced_at_sha": "30c45ffa9695a94760ea06a813654ee200374705",
   "stem": "serve-self-upgrade",
-  "reviewed_sha": "734615e92bcf6502830d33879a0d2e9c84ade8a2",
-  "summary": "The handoff mechanics look right, but no test covers acceptance criterion 2, and the self-hosted test fakes the upgrade check by hand, so the admission and merge-pass wiring is never exercised.",
+  "reviewed_sha": "30c45ffa9695a94760ea06a813654ee200374705",
+  "summary": "Serve's self-upgrade can hand off while a ticket is still mid-ticket: once an upgrade is pending, writer continuations are never dispatched, and the idle check doesn't count them.",
   "findings": [
     {
-      "code": "acceptance",
-      "path": "tests/test_serve.py",
-      "line": 1868,
-      "message": "Criterion 2 is not tested. It requires a host serve whose engine checkout differs from the host repo to hand off at its next admission check after the engine's `chupa` tree changes outside serve. Both new handoff tests set `rig.owner.engine = root`, which makes the engine the host repo, and no test uses a separate engine checkout.",
-      "paved_road": "Add a test that sets `rig.owner.engine` to a separate git checkout under tmp_path with its own `chupa/` tree. Commit a `chupa/` change there while serve is idle and do not call `check_upgrade` by hand. Assert that serve journals `serve_handoff` and spawns once from its own admission-boundary check.",
+      "code": "logic",
+      "path": "chupa/serve.py",
+      "line": 318,
+      "message": "upgrade_idle() checks only scheduler.active, admission.active, admission.task and the queue's pending/active entries. It ignores TicketWriter continuations, which are tickets paused at a stage boundary (next_stage set) that have not reached a terminal. So when a ticket is parked in a continuation, for example after a ConflictHandoff or a yielded boundary, serve sees itself as idle and hands off mid-ticket. The ticket forbids this ('A handoff that spawns ... mid-ticket').",
+      "paved_road": "Make upgrade_idle() also require that no writer is active or holds continuations, e.g. `not any(w.active or w.continuations for w in self.writers.values())`, and add a test where a continuation exists when the upgrade is detected.",
       "kind": null,
       "unit": null
     },
     {
-      "code": "acceptance",
-      "path": "tests/test_serve.py",
-      "line": 1898,
-      "message": "Criterion 1 says a merge touching `chupa/` triggers the handoff, and the ticket requires the tree check at admission and merge-queue boundaries. Both tests commit straight to the repo and then call `rig.owner.check_upgrade()` directly. The calls in `respond`/`merge` (serve.py) are never exercised, so the tests would still pass if those boundary calls were removed. The docs-only case also never goes through a merge.",
-      "paved_road": "Drive the change through a real serve merge, as other serve tests do: a ticket whose implement step changes `chupa/` (or only `docs/`). Let serve's own post-merge and pre-admission `check_upgrade` calls detect it, without calling `check_upgrade` from the test.",
+      "code": "logic",
+      "path": "chupa/serve.py",
+      "line": 331,
+      "message": "Once self.upgrade is set, dispatch() skips scheduler.dispatch_next() entirely. That makes the writer exemption added to select() at line 246 (`self.upgrade is None or ticket.stem in self.writers`) dead code. In-flight tickets with continuations can never resume, so they either stall serve forever or get abandoned by the handoff.",
+      "paved_road": "Keep calling dispatch_next() while an upgrade is pending and let select() refuse new stems (it already exempts writers), so continuing tickets run to their terminal before upgrade_idle() allows the handoff.",
       "kind": null,
       "unit": null
     }
