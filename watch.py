@@ -10,6 +10,7 @@ Standard library only.
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import time
@@ -54,9 +55,25 @@ def started(pid: int) -> datetime:
     return datetime.strptime(text, "%a %b %d %H:%M:%S %Y").astimezone()
 
 
+def this_repo(pid: int, config: str | None) -> bool:
+    """Whether a drain runs against this checkout: its --config is ours, or it has none and runs here."""
+    try:
+        cwd = Path(os.readlink(f"/proc/{pid}/cwd"))
+    except OSError:
+        return False
+    return (cwd / config).resolve() == ROOT / "config.yaml" if config else cwd.resolve() == ROOT
+
+
 def drain_processes(rows: list[tuple[int, int, str]]) -> list[int]:
-    """Every engine drain process, oldest first; a self-upgrade re-exec leaves its parent waiting on the child."""
-    pids = [pid for pid, _, args in rows if re.match(r"\S*python3? -m chupa drain\b", args)]
+    """This repo's engine drain processes, oldest first; a self-upgrade re-exec leaves its parent waiting on the child.
+
+    Another host's drain also runs `python -m chupa --config <its config> drain` from this venv.
+    """
+    pids = []
+    for pid, _, args in rows:
+        match = re.match(r"\S*python3? -m chupa (?:--config (\S+) )?drain\b", args)
+        if match and this_repo(pid, match.group(1)):
+            pids.append(pid)
     return sorted(pids, key=started)
 
 

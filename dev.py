@@ -10,6 +10,7 @@
     ./dev.py run STEM         run one ticket through every stage
     ./dev.py drain            run every eligible ticket to quiescence
     ./dev.py watch [--once]   live view: running ticket, step, model, and the queue
+    ./dev.py vscode           package and install the vscode-chupa extension (then reload the window)
     ./dev.py kill             hard-stop the running drain or serve
     ./dev.py stop             finish the running ticket and exit
     ./dev.py confirm STEM...  keep each named ticket
@@ -21,6 +22,7 @@ Standard library only, so any python3 starts it; every task runs through uv in t
 import argparse
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -50,6 +52,7 @@ def main() -> None:
     sub.add_parser("kill", help="hard-stop the running drain or serve")
     sub.add_parser("stop", help="finish the running ticket and exit")
     sub.add_parser("watch", help="live view of the drain and the queue").add_argument("--once", action="store_true")
+    sub.add_parser("vscode", help="package and install the vscode-chupa extension")
     for verb in ("confirm", "reject", "review"):
         sub.add_parser(verb, help=f"{verb} each named ticket").add_argument("stems", nargs="+")
     args = parser.parse_args()
@@ -69,6 +72,16 @@ def main() -> None:
             subprocess.run([sys.executable, str(ROOT / "watch.py"), *(["--once"] if args.once else [])], cwd=ROOT)
         except KeyboardInterrupt:
             pass
+    elif args.task == "vscode":
+        # --force reinstalls over the same version; the window picks the new files up on reload.
+        with tempfile.TemporaryDirectory() as tmp:
+            vsix = str(Path(tmp) / "vscode-chupa.vsix")
+            pack = ["npx", "--yes", "@vscode/vsce", "package", "--allow-missing-repository", "--skip-license", "--no-dependencies", "-o", vsix]
+            print("$", " ".join(pack), flush=True)
+            if subprocess.run(pack, cwd=ROOT / "vscode-chupa", check=False).returncode != 0:
+                sys.exit("dev: packaging vscode-chupa failed")
+            run(["code", "--install-extension", vsix, "--force"])
+        print("dev: run Developer: Reload Window to load it")
     elif args.task in {"confirm", "reject", "review"}:
         for stem in args.stems:
             chupa(args.task, stem)

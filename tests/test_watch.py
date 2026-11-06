@@ -22,3 +22,17 @@ def test_queue_projection_and_fallback(tmp_path, monkeypatch):
         ("P1", "old", "ready, not run yet"),
         ("P0", "blocked", "waits on missing"),
     ]
+
+
+def test_drain_processes_only_this_repo(tmp_path, monkeypatch):
+    # Another host's drain runs from this venv with its own --config; only this checkout's drains count.
+    monkeypatch.setattr(watch, "ROOT", tmp_path)
+    monkeypatch.setattr(watch.os, "readlink", lambda path: str(tmp_path))
+    monkeypatch.setattr(watch, "started", lambda pid: pid)
+    rows = [
+        (30, 1, "/v/bin/python3 -m chupa --config config.yaml drain"),
+        (10, 1, "/v/bin/python3 -m chupa drain"),
+        (20, 1, "/v/bin/python3 -m chupa --config /elsewhere/config.yaml drain"),
+        (40, 1, "/v/bin/python3 -m chupa serve"),
+    ]
+    assert watch.drain_processes(rows) == [10, 30]

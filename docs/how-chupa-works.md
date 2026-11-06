@@ -71,6 +71,12 @@ Each test has a 120-second hard limit.
 | `run STEM` | `chupa run <stem>`: one ticket through every stage, under the lock |
 | `status`, `drain`, `kill`, `stop` | the matching chupa verb |
 | `confirm STEM...`, `reject STEM...` | `chupa confirm` or `chupa reject` once per stem; a person at a terminal answers `y` for each stem |
+| `watch [--once]` | `watch.py`, without `uv`: a read-only live view of this checkout's drain and the queue |
+| `vscode` | packages `vscode-chupa/` with `npx @vscode/vsce` and installs it with `code --install-extension --force`; reload the window to load it |
+
+`vscode-chupa/` is an operator-only VS Code extension: an Activity Bar view of every ticket as an
+SCM-style graph (blocked, queued, running, merged) with a detail pane. `vscode-chupa/snapshot.py`
+builds its data read-only from the journal, `watch.py`, and `order_tickets`; the engine never runs it.
 
 ## 3. Tickets
 

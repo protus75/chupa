@@ -1,0 +1,42 @@
+{
+	"name": "vscode-chupa",
+	"displayName": "chupa tickets",
+	"description": "chupa's tickets as an SCM-style dependency graph: blocked, queued, running, merged.",
+	"version": "0.0.6",
+	"publisher": "chupa",
+	"license": "MIT",
+	"engines": { "vscode": "^1.90.0" },
+	"main": "./extension.js",
+	"activationEvents": ["workspaceContains:watch.py"],
+	"contributes": {
+		"viewsContainers": {
+			"activitybar": [
+				{ "id": "chupa", "title": "chupa", "icon": "media/icon.svg" }
+			]
+		},
+		"views": {
+			"chupa": [
+				{ "type": "webview", "id": "chupa.tickets", "name": "chupa tickets" }
+			]
+		},
+		"configuration": {
+			"title": "chupa",
+			"properties": {
+				"chupa.refreshSeconds": {
+					"type": "number",
+					"default": 15,
+					"minimum": 0,
+					"description": "Seconds between timed refreshes of the chupa tickets view. Journal, queue, engine log and ticket file changes always refresh it; 0 turns the timer off."
+				}
+			}
+		},
+		"commands": [
+			{ "command": "chupa.refresh", "title": "Refresh", "icon": "$(refresh)" }
+		],
+		"menus": {
+			"view/title": [
+				{ "command": "chupa.refresh", "when": "view == chupa.tickets", "group": "navigation" }
+			]
+		}
+	}
+}

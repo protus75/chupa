@@ -23,7 +23,7 @@ Every rule below is behavioral (no gate checks it yet): the prose is the only en
 
 ## Engine conduct
 
-- **Pure Python.** No shell scripts, no `shell=True`, no string-assembled commands. External binaries only via argv-list wrapper modules; run only in the chupa venv.
+- **Pure Python.** No shell scripts, no `shell=True`, no string-assembled commands. External binaries only via argv-list wrapper modules; run only in the chupa venv. Exception: `vscode-chupa/` is an operator-only VS Code extension in JavaScript; the engine never imports or runs it.
   Why: shell glue is the orchestration failure this design bans. (D1)
 - **Simplest thing that satisfies the ticket.** No speculative features, gates, config knobs, or metadata; every addition cites the incident that earned it.
   Why: feature/check accretion is the primary failure mode. (goal 1, D10)
