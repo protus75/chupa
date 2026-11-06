@@ -101,6 +101,8 @@ def test_hold_after_green_before_main_mutation(ctx, monkeypatch, case):
             from chupa.config import MechanicalCheck
 
             ctx.config.review.mechanical = [MechanicalCheck(code="combined", argv=["false"], trigger="always", severity="hard")]
+        ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved\n")
+        await commit(ctx, ctx.repo, ["chupa/other.py"], "main moves")
         order = []
         for name in ("gather_safety_evidence", "gather_evidence"):
             original = getattr(stages, name)

@@ -312,6 +312,9 @@ def test_a_failing_hard_gate_blocks_admission(repo):
 def test_base_red_verification_does_not_refuse_merge_regating(repo):
     ctx, ticket, attempt = reviewed(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
     ticket = dataclasses.replace(ticket, verification=(("grep", "-q", "absent", "chupa/thing.py"),))
+    (repo / "chupa/other.py").write_text("main moved\n")
+    git(repo, "add", "chupa/other.py")
+    git(repo, "commit", "-m", "main moves")
 
     result = admit(ctx, ticket, attempt)
 
@@ -834,6 +837,9 @@ def test_core_drift_merge_rerun(repo, mode, change):
                 ticket_with_fence = ticket
         else:
             ticket_with_fence = ticket
+        ctx.fs.write(repo / "chupa/other.py", b"main moved\n")
+        await ctx.git.add(repo, ["chupa/other.py"])
+        await ctx.git.commit(repo, "main moves")
         before = await ctx.git.rev_parse(repo, "main")
         if mode == "inline":
             result = await merge(ctx, ticket_with_fence, attempt=attempt)
@@ -913,6 +919,9 @@ def test_core_activation_first_adoption_merge(repo, mode, omitted):
         if omitted is not None:
             assert any(f.path == omitted and f.code == "core_drift" for f in run.results["check"].findings)
             await approve(ctx, ticket)
+        ctx.fs.write(repo / "chupa/other.py", b"main moved\n")
+        await ctx.git.add(repo, ["chupa/other.py"])
+        await ctx.git.commit(repo, "main moves")
         before = await ctx.git.rev_parse(repo, "main")
 
         async def admission(local, attempt):

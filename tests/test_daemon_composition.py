@@ -1020,6 +1020,9 @@ async def test_composed_merge_queue_admits_reviewed_candidate(admission_context,
     assert callable(callback) and queue.ctx is ctx and queue.escalate is consumer
     ticket = await ready(ctx, verification=(("grep", "-q", "ok", "chupa/thing.py"),))
     reviewed = await ctx.git.rev_parse(ctx.repo, ticket.stem)
+    ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved\n")
+    await ctx.git.add(ctx.repo, ["chupa/other.py"])
+    await ctx.git.commit(ctx.repo, "main moves")
     queue.offer(ticket, attempt=7)
     assert queue.pending == {ticket.stem: (ticket, 7)}
     [result] = await queue.process()
@@ -1916,6 +1919,9 @@ async def test_composed_admission_holds_accept_identity_bound_resume(admission_c
             ctx.config.review.mechanical = [host("integration")]
             scripted(ctx, monkeypatch, [(1, "", "red")] * 3)
             tickets = [await ready(ctx, stem, changes={f"chupa/{stem}.py": "ok"}, fence=(f"chupa/{stem}.py",)) for stem in ("one", "two", "three")]
+            ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved\n")
+            await ctx.git.add(ctx.repo, ["chupa/other.py"])
+            await ctx.git.commit(ctx.repo, "main moves")
             for ticket in tickets:
                 queue.offer(ticket, attempt=0)
             assert len(await queue.process()) == 3

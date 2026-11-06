@@ -389,6 +389,8 @@ def test_bug_gate_merge_wiring(ctx, monkeypatch, mode, case):
             return await original(argv, **kw)
 
         monkeypatch.setattr(ctx.exec_, "run", execute)
+        ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved\n")
+        await commit(ctx, ctx.repo, ["chupa/other.py"], "main moves")
         before = await ctx.git.rev_parse(ctx.repo, "main")
         result = await admit(ctx, ticket, mode)
         if case in ("red-head", "green-base"):
@@ -450,6 +452,8 @@ def test_bug_gate_merge_report_custody(ctx, monkeypatch, mode, bypass):
             return read(p, *args, **kw)
 
         monkeypatch.setattr(Path, "read_text", guarded)
+        ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved\n")
+        await commit(ctx, ctx.repo, ["chupa/other.py"], "main moves")
         before = await ctx.git.rev_parse(ctx.repo, "main")
         result = await admit(ctx, ticket, mode)
         assert result.outcome == ("ok" if bypass else "gate_failed"), result.findings

@@ -114,6 +114,9 @@ def test_supervised_confirm_regates_moved_main(ctx, monkeypatch, case):
             path = "tickets/unrelated.txt" if case == "ticket-plane" else "chupa/thing.py" if case == "conflict" else "chupa/other.py"
             ctx.fs.write(ctx.repo / path, b"conflict\n" if case == "conflict" else b"moved\n")
             await commit(ctx, ctx.repo, [path], "intervening main")
+        if case in {"two", "ticket-plane"}:
+            ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved for regate\n")
+            await commit(ctx, ctx.repo, ["chupa/other.py"])
         if case == "red":
             ctx.config.review.mechanical = [host("semantic", argv=["false"])]
         calls = []
@@ -304,6 +307,8 @@ def test_safety_failure_skips_integration(ctx, monkeypatch, failure):
         elif failure == "requisition_review":
             ctx.driver.journal.append(EventType.SIGNAL, {"signal": "ticket_intake", "seeded_by": ticket.stem}, ticket="missing-seed")
         else:
+            ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved\n")
+            await commit(ctx, ctx.repo, ["chupa/other.py"])
             ctx.config.review.mechanical = [host("fast")]
             ctx.config.merge.safety_checks = ["fast"]
             scripted(ctx, monkeypatch, [(1, "", "red")])
@@ -348,9 +353,32 @@ def test_verification_uses_rebased_worktree(ctx, base_red):
     run(scenario())
 
 
+
+@pytest.mark.parametrize("stale", [False, True])
+def test_queue_skips_unchanged_code(ctx, monkeypatch, stale):
+    async def scenario():
+        ticket = await ready(ctx, verification=(("host", "verify"),))
+        if stale:
+            await approve(ctx, ticket, sha="older")
+        ctx.config.review.mechanical = [host("check")]
+        ctx.config.merge.safety_checks = ["check"]
+        calls = scripted(ctx, monkeypatch, [])
+        queue = MergeQueue(ctx, escalate=lambda _: None)
+        queue.red_stems.append("earlier")
+        result = await admission(ctx, ticket, queue=queue)
+        assert not calls and queue.red_stems == ["earlier"]
+        assert result.outcome == ("gate_failed" if stale else "ok")
+        if stale:
+            assert any(f.code == "correctness_review" for f in result.findings)
+        assert not list((ctx.config.state_dir / "spools" / ticket.stem / "0").rglob("*.txt"))
+
+    run(scenario())
+
 def test_always_hard_host_checks_run_before_squash(ctx, monkeypatch):
     async def scenario():
         ticket = await ready(ctx)
+        ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved\n")
+        await commit(ctx, ctx.repo, ["chupa/other.py"], "main moves")
         ctx.config.review.mechanical = [host("first"), host("skip", severity="soft"), host("last")]
         ctx.config.merge.safety_checks = ["last", "first"]
         calls = scripted(ctx, monkeypatch, [(0, "", "")] * 4)
@@ -429,6 +457,8 @@ def test_host_check_environment_timeout_and_redaction(ctx, monkeypatch, safety):
 def test_host_check_failure_reports(ctx, monkeypatch, failure, rc, road, safety):
     async def scenario():
         ticket = await ready(ctx)
+        ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved\n")
+        await commit(ctx, ctx.repo, ["chupa/other.py"], "main moves")
         ctx.config.review.mechanical = [host("configured-code")]
         ctx.config.merge.safety_checks = ["configured-code"] if safety else []
         scripted(ctx, monkeypatch, [failure])
@@ -465,6 +495,8 @@ def test_host_check_selection_fails_closed(ctx, monkeypatch, designation):
     async def scenario():
         ticket = await ready(ctx)
         entries = {"missing": [], "ambiguous": [host("fast"), host("fast")], "soft": [host("fast", severity="soft")], "path": [host("fast", trigger=["unrelated/"])]}
+        ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved\n")
+        await commit(ctx, ctx.repo, ["chupa/other.py"], "main moves")
         ctx.config.review.mechanical = entries[designation] + [host("soft", severity="soft"), host("path", trigger=["chupa/"])]
         ctx.config.merge.safety_checks = ["fast"]
         calls = scripted(ctx, monkeypatch, [(0, "", "")])
@@ -486,6 +518,8 @@ def test_host_check_selection_fails_closed(ctx, monkeypatch, designation):
 def test_host_checks_have_no_base_red_exemption(ctx, monkeypatch):
     async def scenario():
         ticket = await ready(ctx, verification=(("grep", "-q", "absent", "chupa/thing.py"),))
+        ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved\n")
+        await commit(ctx, ctx.repo, ["chupa/other.py"], "main moves")
         ctx.config.review.mechanical = [host("host-red")]
         calls = scripted(ctx, monkeypatch, [(1, "", "red")])
         before = await ctx.git.rev_parse(ctx.repo, "main")
@@ -671,12 +705,16 @@ def test_tree_mismatch_escalates_and_pauses(ctx, monkeypatch):
 def test_distinct_red_streak_pause_and_resume(ctx, monkeypatch):
     async def scenario():
         tickets = [await ready(ctx, stem, changes={f"chupa/{stem}.py": "ok"}, fence=(f"chupa/{stem}.py",)) for stem in ["one", "two", "three", "green"]]
+        ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved\n")
+        await commit(ctx, ctx.repo, ["chupa/other.py"], "main moves")
         ctx.config.review.mechanical = [host("integration")]
         calls = scripted(ctx, monkeypatch, [(1, "", "red")] * 4 + [(0, "", "")] * 2)
         escalations = []
         queue = MergeQueue(ctx, escalate=escalations.append, control=admission_control(ctx))
         await admission(ctx, tickets[0], queue=queue)
         await approve(ctx, tickets[0])
+        ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved again\n")
+        await commit(ctx, ctx.repo, ["chupa/other.py"])
         await admission(ctx, tickets[0], queue=queue, attempt=1)
         assert queue.red_stems == ["one"]
         # Safety failures neither reset nor increment the integration streak.
@@ -684,6 +722,8 @@ def test_distinct_red_streak_pause_and_resume(ctx, monkeypatch):
         await admission(ctx, bad, queue=queue)
         assert queue.red_stems == ["one"] and len(calls) == 2
         await approve(ctx, tickets[1])
+        ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved third time\n")
+        await commit(ctx, ctx.repo, ["chupa/other.py"])
         await admission(ctx, tickets[1], queue=queue)
         queue.offer(tickets[2], attempt=0)
         queue.offer(tickets[3], attempt=0)
@@ -701,6 +741,8 @@ def test_distinct_red_streak_pause_and_resume(ctx, monkeypatch):
         # Green also resets a sub-limit streak without requiring resume.
         queue.red_stems.append("earlier")
         again = await ready(ctx, "again", changes={"chupa/again.py": "ok"}, fence=("chupa/again.py",))
+        ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved for green\n")
+        await commit(ctx, ctx.repo, ["chupa/other.py"])
         assert (await admission(ctx, again, queue=queue)).outcome == "ok" and not queue.red_stems
 
     run(scenario())
@@ -859,6 +901,8 @@ def test_conflict_facts_shapes(ctx, monkeypatch, mode):
         else:
             ticket, path = await ready(ctx), None
         if mode == "red":
+            ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved\n")
+            await commit(ctx, ctx.repo, ["chupa/other.py"])
             ctx.config.review.mechanical = [host("red")]
             scripted(ctx, monkeypatch, [(1, "", "output must not be journaled")])
         await admission(ctx, ticket)
@@ -975,6 +1019,8 @@ def test_inline_admission_does_not_use_merge_queue(ctx, monkeypatch):
 def test_resume_waits_for_active_admission(ctx, monkeypatch, cancel):
     async def scenario():
         tickets = [await ready(ctx, stem, changes={f"chupa/{stem}.py": "ok"}, fence=(f"chupa/{stem}.py",)) for stem in ("one", "two", "three")]
+        ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved\n")
+        await commit(ctx, ctx.repo, ["chupa/other.py"], "main moves")
         ctx.config.review.mechanical = [host("integration")]
         scripted(ctx, monkeypatch, [(1, "", "red")] * 3)
         queue = MergeQueue(ctx, escalate=lambda _: None, control=admission_control(ctx))

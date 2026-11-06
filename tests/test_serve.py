@@ -1400,7 +1400,15 @@ async def test_serve_admission_refusal_keeps_main_green(root, monkeypatch, failu
                 ctx.fs.write(ctx.worktree(ticket.stem) / "tickets/forbidden.md", b"forbidden")
                 await ctx.git.add(ctx.worktree(ticket.stem), ["tickets/forbidden.md"])
                 await ctx.git.commit(ctx.worktree(ticket.stem), "committed ticket-plane violation")
+            if failure == "host-red":
+                ctx.fs.write(root / "main-moved.txt", b"main moved\n")
+                await ctx.git.add(root, ["main-moved.txt"])
+                await ctx.git.commit(root, "main moves")
             rig.before = await ctx.git.rev_parse(root, "main")
+        elif ticket.stem == "next":
+            ctx.fs.write(root / "main-moved-next.txt", b"main moved before next admission\n")
+            await ctx.git.add(root, ["main-moved-next.txt"])
+            await ctx.git.commit(root, "main moves before next admission")
 
     rig = await admission_graph(root, monkeypatch, {"work": {"chupa/thing.py": "ok red\n"}, "main-side": {"chupa/other.py": "moved\n"}, "next": {"chupa/next.py": "ok\n"}}, settled=settled)
     admission_config(root, command=["false"] if failure == "host-red" else command, safety=failure == "safety")

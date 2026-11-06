@@ -334,6 +334,30 @@ def test_core_drift_reachable_from_production_gates(root, monkeypatch, mode):
     import chupa.mergequeue as queue_module
 
     monkeypatch.setattr(queue_module, "run_gates", observe)
+    async def move_main(ctx):
+        ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved\n")
+        await ctx.git.add(ctx.repo, ["chupa/other.py"])
+        await ctx.git.commit(ctx.repo, "main moves")
+
+    original_merge = merge.merge
+
+    async def inline(ctx, ticket, **kwargs):
+        await move_main(ctx)
+        return await original_merge(ctx, ticket, **kwargs)
+
+    original_admit = queue_module.MergeQueue._admit
+
+    moved = False
+
+    async def queued_admit(queue, ticket, attempt):
+        nonlocal moved
+        if not moved:
+            await move_main(queue.ctx)
+            moved = True
+        return await original_admit(queue, ticket, attempt)
+
+    monkeypatch.setattr(runner, "merge", inline)
+    monkeypatch.setattr(queue_module.MergeQueue, "_admit", queued_admit)
     if mode == "inline":
         write(root, "work", ticket_text())
         llm = FakeLLM([agent({"chupa/thing.py": "ok\n"}), verdict()])

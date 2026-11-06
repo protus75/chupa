@@ -5,6 +5,10 @@ re-run the mechanical hard set on the rebased candidate -> require the pinned re
 squash-merge with trailers -> journal `to: merged` -> delete the worktree and branch. Run/drain
 admit inline; serve offers through AdmissionBoundary and its serial MergeQueue consumer.
 
+When main changed only tickets/ since the reviewed merge base, nonempty branches skip
+Check reruns. Review approval implies an ok Check at that head: run_stages reaches
+Review only after Check succeeds. Merge gates still run.
+
 A refusal leaves main untouched and the branch in place; journaling a non-ok terminal is the
 runner's (section 11.2).
 """
@@ -37,6 +41,7 @@ from chupa.stages import (
     check_severity,
     dirty_code,
     gather_evidence,
+    gather_safety_evidence,
     read_review,
     run_host_command,
     ticket_change_findings,
@@ -322,6 +327,10 @@ def retro_bridge_findings(ctx: StageContext, ticket: Ticket) -> list[Finding]:
     return []
 
 
+async def main_code_unchanged(ctx: StageContext, reviewed: str) -> bool:
+    return not any(not path.startswith(f"{TICKETS_DIR}/") for path in await ctx.git.diff_names(ctx.repo, reviewed, MAIN))
+
+
 async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResult:
     """Admit one reviewed branch to main, or refuse it with findings and main untouched."""
     stem = ticket.stem
@@ -331,6 +340,8 @@ async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResu
         return _refused(findings, Cost())
     reviewed = await ctx.git.rev_parse(ctx.repo, stem)
     seeds, checks_text = await gather_seeds(ctx, ticket)
+
+    unchanged = await main_code_unchanged(ctx, reviewed)
 
     # Lifted outbox copies show as tracked deletions in a worktree born from a main that already held
     # them, and a dirty tree refuses the rebase. Restoring to the branch's committed ticket plane (which
@@ -343,14 +354,19 @@ async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResu
         cost = Cost(seconds=(ctx.driver.clock() - started).total_seconds())
         return _refused([Finding(code="post_rebase_regate", message=f"rebase onto main refused: {e.err.strip()}", paved_road=f"re-run `run {stem}` so Implement re-branches from current main")], cost)
 
-    evidence = await gather_evidence(ctx, ticket, "ok", attempt=attempt, stage="merge")
+    evidence = await gather_safety_evidence(ctx, ticket, "ok")
+    skip = unchanged and bool(evidence.changed_files)
+    if not skip:
+        evidence = await gather_evidence(ctx, ticket, "ok", attempt=attempt, stage="merge")
     candidate = read_candidate(ctx, ticket, reviewed, evidence.changed_files, seeds, checks_text)
     severity = check_severity(ctx, ticket)
     if candidate.seeds:
         severity["requisition_review"] = "hard"  # a seeded branch needs an exact committed approval
-    gated = [run_gates(CHECK_GATES, evidence, worktree, severity=severity), run_gates(MERGE_GATES, candidate, ctx.repo, severity=severity)]
+    gated = [run_gates(MERGE_GATES, candidate, ctx.repo, severity=severity)]
+    if not skip:
+        gated.insert(0, run_gates(CHECK_GATES, evidence, worktree, severity=severity))
     host = []
-    for n, entry in triggered_hosts(ctx, evidence.changed_files, hard_only=True):
+    for n, entry in ([] if skip else triggered_hosts(ctx, evidence.changed_files, hard_only=True)):
         _, report = await run_host_command(ctx, ticket, attempt, entry.argv, entry.code, f"merge/host-{n:02d}.txt")
         host.extend(report.findings)
     if hard := [f for g in gated for r in g.hard_failures for f in r.findings] + host:

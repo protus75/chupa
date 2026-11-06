@@ -181,6 +181,8 @@ session. Verdicts: `approve`, `snag` (findings: `logic`, `acceptance`, `scope`, 
 ### 4.5 Merge
 
 `run` and `drain` merge inline (`merge.merge`); `serve` uses the merge queue (section 7.2).
+For a nonempty branch, if main changed only paths under `tickets/` since the reviewed
+merge base, the Check reruns and host checks are skipped; Merge gates still run.
 Inline merge:
 
 1. Rebases the branch onto current `main`. A refused rebase is `gate_failed`.
@@ -243,10 +245,12 @@ from the intake evidence check. The Check gate still verifies the regression pro
 A host declares its own checks in `review.mechanical` (`code`, `argv`, `trigger: always` or a
 list of path prefixes, `severity: hard | soft`). Check runs every triggered entry in order;
 prefixes match an equal path or a descendant. A base-red failure is filed and excluded from
-Check and retry findings. Soft failures are recorded without blocking. Inline merge reruns
-triggered hard entries on the rebased candidate. The `serve` merge queue (section 7.2) runs
-the hard entries named in `merge.safety_checks` at safety and every always/hard entry at
-integration. All use one shared command runner.
+Check and retry findings. Soft failures are recorded without blocking. When main changed a path
+outside `tickets/` since the reviewed merge base, or the branch diff is empty, inline merge reruns
+triggered hard entries on the rebased candidate. The `serve` merge queue runs the hard entries
+named in `merge.safety_checks` at safety and every always/hard entry at integration under the
+same conditions. Otherwise only the Merge gates run, alongside the queue safety gates; see
+sections 4.5 and 7.2.1. All use one shared command runner.
 
 An entry may declare a worktree-relative `results` file written by `chupa.testreport`. Check
 clears it before each run and reruns a failing command with failed tests once. Edited flakes
@@ -420,6 +424,10 @@ Maintenance on each loop: control requests, timers, orphan sweeps, heartbeat
 `serve` stops.
 
 #### 7.2.1 Merge queue (serve only)
+
+For a nonempty branch with only `tickets/` changes on main since the reviewed merge
+base, the safety host checks and integration tier are skipped; safety and Merge
+gates still run. Empty branches take the full path for report custody.
 
 For each candidate, in pick order:
 

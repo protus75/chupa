@@ -7,7 +7,7 @@ import pytest
 from chupa import merge, stages
 from chupa.box import BOX_DIR, Box
 from chupa.seams import ExecutableNotFound
-from tests.test_mergequeue import ctx, host, ready, scripted
+from tests.test_mergequeue import approve, commit, ctx, host, ready, scripted
 from tests.test_stages import SECRET
 
 
@@ -95,6 +95,8 @@ def test_timeout_and_missing_executable_fail_closed(ctx, monkeypatch, failure):
 def test_inline_merge_reruns_triggered_hard_entries(ctx, monkeypatch):
     async def run():
         ticket = await ready(ctx)
+        ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved\n")
+        await commit(ctx, ctx.repo, ["chupa/other.py"])
         ctx.config.review.mechanical = [host("red"), host("soft", severity="soft"), host("skip", trigger=["other"])]
         calls = scripted(ctx, monkeypatch, [(1, "red", "")])
         before = await ctx.git.rev_parse(ctx.repo, "main")
@@ -105,6 +107,24 @@ def test_inline_merge_reruns_triggered_hard_entries(ctx, monkeypatch):
 
     asyncio.run(run())
 
+
+
+@pytest.mark.parametrize("stale", [False, True])
+def test_inline_merge_skips_unchanged_code(ctx, monkeypatch, stale):
+    async def run():
+        ticket = await ready(ctx, verification=(("host", "verify"),))
+        if stale:
+            await approve(ctx, ticket, sha="older")
+        ctx.config.review.mechanical = [host("check")]
+        calls = scripted(ctx, monkeypatch, [])
+        result = await merge.merge(ctx, ticket, attempt=0)
+        assert not calls
+        assert result.outcome == ("gate_failed" if stale else "ok")
+        if stale:
+            assert any(f.code == "correctness_review" for f in result.findings)
+        assert not list((ctx.config.state_dir / f"spools/{ticket.stem}/0/merge").glob("*"))
+
+    asyncio.run(run())
 
 def test_autofix_config_loading(ctx, tmp_path):
     import yaml

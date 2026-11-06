@@ -389,6 +389,7 @@ class MergeQueue:
 
         try:
             reviewed = receipt["reviewed_sha"] if retained else await ctx.git.rev_parse(ctx.repo, stem)
+            unchanged = await merge.main_code_unchanged(ctx, reviewed)
             candidate_base = await ctx.git.rev_parse(ctx.repo, "main")
             seeds, checks_text = await merge.gather_seeds(ctx, ticket)
             await ctx.git.restore(worktree, [TICKETS_DIR], source=stem)
@@ -415,6 +416,7 @@ class MergeQueue:
                     step = ctx.git.rebase_continue(worktree)
 
             evidence = await stages.gather_safety_evidence(ctx, ticket, "ok")
+            skip = unchanged and bool(evidence.changed_files)
             candidate = merge.read_candidate(ctx, ticket, reviewed, evidence.changed_files, seeds, checks_text)
             severity = stages.check_severity(ctx, ticket)
             if candidate.seeds:
@@ -424,28 +426,32 @@ class MergeQueue:
                 run_gates((g for g in stages.CHECK_GATES if g.code in {"scope_fence", "run_record"}), scoped, worktree, severity=severity),
                 run_gates(merge.MERGE_GATES, candidate, ctx.repo, severity=severity),
             ]
-            _, host = await self.host_checks(ticket, attempt=attempt, safety=True)
+            _, host = ([], []) if skip else await self.host_checks(ticket, attempt=attempt, safety=True)
             hard = strategy_findings + [f for g in safety for r in g.hard_failures for f in r.findings]
             hard += [f for r in host if r.verdict == "fail" for f in r.findings]
             if hard:
                 self._facts(stem, conflicts, hits)
                 return refused(hard)
 
-            evidence = await stages.gather_evidence(ctx, ticket, "ok", attempt=attempt, stage="merge-integration")
-            scoped, strategy_findings = self._scoped(evidence, ticket)
-            candidate = merge.read_candidate(ctx, ticket, reviewed, evidence.changed_files, seeds, checks_text)
-            integration = [run_gates(stages.CHECK_GATES, scoped, worktree, severity=severity), run_gates(merge.MERGE_GATES, candidate, ctx.repo, severity=severity)]
-            _, host = await self.host_checks(ticket, attempt=attempt, safety=False)
-            hard = strategy_findings + [f for g in integration for r in g.hard_failures for f in r.findings]
-            hard += [f for r in host if r.verdict == "fail" for f in r.findings]
-            self._facts(stem, conflicts, hits, red=evidence.changed_files if hard else [])
-            if hard:
-                if stem not in self.red_stems:
-                    self.red_stems.append(stem)
-                if len(self.red_stems) == RED_STREAK_LIMIT:
-                    self._hold(stem, {"kind": RED_STREAK, "stems": list(self.red_stems), "limit": RED_STREAK_LIMIT})
-                return refused(hard)
-            self.red_stems.clear()
+            integration = []
+            if not skip:
+                evidence = await stages.gather_evidence(ctx, ticket, "ok", attempt=attempt, stage="merge-integration")
+                scoped, strategy_findings = self._scoped(evidence, ticket)
+                candidate = merge.read_candidate(ctx, ticket, reviewed, evidence.changed_files, seeds, checks_text)
+                integration = [run_gates(stages.CHECK_GATES, scoped, worktree, severity=severity), run_gates(merge.MERGE_GATES, candidate, ctx.repo, severity=severity)]
+                _, host = await self.host_checks(ticket, attempt=attempt, safety=False)
+                hard = strategy_findings + [f for g in integration for r in g.hard_failures for f in r.findings]
+                hard += [f for r in host if r.verdict == "fail" for f in r.findings]
+                self._facts(stem, conflicts, hits, red=evidence.changed_files if hard else [])
+                if hard:
+                    if stem not in self.red_stems:
+                        self.red_stems.append(stem)
+                    if len(self.red_stems) == RED_STREAK_LIMIT:
+                        self._hold(stem, {"kind": RED_STREAK, "stems": list(self.red_stems), "limit": RED_STREAK_LIMIT})
+                    return refused(hard)
+                self.red_stems.clear()
+            else:
+                self._facts(stem, conflicts, hits)
             checked_tree = await ctx.git.rev_parse(worktree, "HEAD^{tree}")
             candidate_sha = await ctx.git.rev_parse(worktree, "HEAD")
             covered, reason, served = await self._policy(ticket, attempt, reviewed)

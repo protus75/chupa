@@ -274,6 +274,10 @@ class _Member:
                             json.dumps(dict(outcome="ok", summary="Implemented fixture", surprises="none", second_problems=[], dead_ends="none", predicted_vs_actual="bounded fixture", findings=[]))
                         )
                 elif req.surface == "review":
+                    if stem == "unresolved" and stem not in member.moves and member.terminals(stem):
+                        member.fs.write(member.root / "rerun.txt", b"main moved for regating\n")
+                        await member.git.add(member.root, ["rerun.txt"])
+                        await member.git.commit(member.root, "move main before retry admission")
                     if stem in member.moves:
                         candidate = local.config.worktree_root / stem
                         before = await member.verify(candidate)
