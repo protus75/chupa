@@ -2074,7 +2074,7 @@ async def test_production_serve_graph_is_reachable(root, monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "site", ["implement", "fallback-raises", "fallback-absent", "dependency", "base", "flake", "bootstrap", "main-ingest", "operator", "core", "serve", "drain", "driver", "retro"]
+    "site", ["implement", "fallback-raises", "fallback-absent", "dependency", "base", "flake", "operator", "core", "serve", "drain", "driver", "retro"]
 )
 async def test_production_boxes_receive_rereport_callback(admission_context, tmp_path, monkeypatch, site):
     import inspect

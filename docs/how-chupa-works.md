@@ -660,5 +660,3 @@ remains and does not apply to ordinary tickets:
   tolerated for hosts that do not have the file. Prompts carry no plan text.
 - **Phase exits:** a forced retro before any `phase<N>-exit` stem; eval report artifacts
   (shakeout, soak, reliability battery, host loop, exit receipt).
-- **Bootstrap files:** `bootstrap/` (conductor, state, operator setup) and the box's bootstrap
-  ingest.

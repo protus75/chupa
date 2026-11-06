@@ -13,7 +13,7 @@ from chupa import __main__ as cli
 from chupa import daemon, runner, stages
 from chupa import journal as journal_module
 from chupa.artifacts import Cost, Finding, StageResult
-from chupa.box import Box, BoxError, Message, Resolution, Verdict, ingest_bootstrap, ingest_main_checkout
+from chupa.box import Box, BoxError, Message, Resolution, Verdict
 from chupa.flake import Flake, RerunEvidence
 from chupa.journal import EventType, Journal
 from chupa.llm import FakeLLM
@@ -305,7 +305,7 @@ def test_storm_activation_does_not_hold_dispatch_or_notify(tmp_path, monkeypatch
     assert all(m.status == "pending" for m in box.messages())
 
 
-SITES = ("implement", "fallback-raises", "fallback-absent", "dependency", "base", "flake", "bootstrap", "main-ingest")
+SITES = ("implement", "fallback-raises", "fallback-absent", "dependency", "base", "flake")
 
 
 async def exercise_site(ctx, monkeypatch, site, attempt=2):
@@ -403,20 +403,6 @@ async def exercise_site(ctx, monkeypatch, site, attempt=2):
             assert flake.release(box_id=box_id) == projection
         assert journal.read() == before
         stage, origin = "check", test_id
-    else:
-        text = "  same é 1  \n\n same é 2\n"
-        source_digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
-        parts = [["bootstrap-ingest", source_digest, n] for n in (1, 3)]
-        if site == "bootstrap":
-            ids = ingest_bootstrap(box, text)
-            assert len(ids) == 2 and ids[0] == ids[1]
-            assert ingest_bootstrap(box, text) == ids
-        else:
-            ctx.fs.write(ctx.repo / "bootstrap/suggestions.md", text.encode())
-            before_count = len(box.messages())
-            assert await ingest_main_checkout(ctx.repo, ctx.git, ctx.fs, journal=journal, clock=clock) == 1 - before_count
-            assert await ingest_main_checkout(ctx.repo, ctx.git, ctx.fs, journal=journal, clock=clock) == 0
-        stage, origin = None, "bootstrap-ingest"
     return box, parts, stage, origin
 
 
@@ -426,7 +412,7 @@ def test_production_arrival_site_closure(admission_context, monkeypatch, site):
     hook = Mock(wraps=daemon.storm_producer)
     monkeypatch.setattr(daemon, "storm_producer", hook)
     box, parts, stage, origin = asyncio.run(exercise_site(ctx, monkeypatch, site))
-    assert hook.call_count >= (1 if site in {"flake", "bootstrap"} else 2)
+    assert hook.call_count >= (1 if site == "flake" else 2)
     incoming = occurrences(ctx.driver.journal)
     assert len(incoming) == len(parts)
     assert all(e.body["emitting_stage"] == stage and e.body["emitting_origin"] == origin for e in incoming)
@@ -477,7 +463,7 @@ def test_production_arrival_preserves_caller_behavior(admission_context, monkeyp
         (report,) = box.messages()
         assert report.summary == "Rework refused; shrink and retry"
         assert (report.message_class, report.origin, report.stage, report.outcome) == ("failure_report", STEM, "review", "gate_failed")
-    if site in {"implement", "flake", "bootstrap", "main-ingest"}:
+    if site in {"implement", "flake"}:
         assert len(box.messages()) == 1  # distinct arrivals preserve the existing signature dedup
 
 
