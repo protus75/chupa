@@ -10,7 +10,6 @@ The run's terminal `state_transition` is not written here: that is the runner's 
 
 import asyncio
 import ast
-import difflib
 import fnmatch
 import hashlib
 import json
@@ -48,7 +47,6 @@ from chupa.artifacts import (
     StageResult,
 )
 from chupa.box import BOX_DIR
-from chupa.caps import lineage
 from chupa.config import Config, ConfigSnapshot, Severity
 from chupa.driver import Driver, LlmStage
 from chupa.gates import BugEvidence, GateReport, RegressionRun, run_gates
@@ -57,9 +55,9 @@ from chupa.hostfiles import CORE_TEMPLATE, CoreDriftGate, committed_core
 from chupa.journal import EVENT_VERSIONS, EventType, run_seq
 from chupa.providers import child_env
 from chupa.seams import ExecutableNotFound, FileSystem, ProcessExec
-from chupa.specs import PlanContractError, RenderOverBound, Spec, entry_unit_gap, load_spec, plan_id, render, required_units, resolve_plan_contract, without_unit
+from chupa.specs import RenderOverBound, Spec, load_spec, render, without_unit
 from chupa.storm import arrival_id
-from chupa.tickets import _HEADING, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, TicketInvalid, _bullets, _sections, read_plan, ticket_path, validate_ticket
+from chupa.tickets import _HEADING, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, _bullets, read_plan, ticket_path, validate_ticket
 
 MAIN = "main"
 KNOWN_ARTIFACTS: Mapping[str, type[BaseModel]] = {
@@ -152,6 +150,7 @@ class Invoice(Artifact):
     inserted_lines: Annotated[int, Field(ge=0)]
     bypassed: list[str]  # gate codes the ticket's `gate_bypass` valve demoted to soft
     reports: list[GateReport]
+    # Historical checks.json files contain seed reviews; retro and triage parse them through Invoice.
     seeds: list[SeedReview] = []
     verification: list["CommandResult"] = []
 
@@ -625,21 +624,13 @@ def _in_criteria_position(ticket_text: str, block: str) -> str:
     return ticket_text.rstrip("\n") + "\n\n" + block + "\n"
 
 
-def implement_stage(ctx: StageContext, ticket: Ticket, worktree: Path, kept: Sequence[str] = ()) -> tuple[LlmStage, Spec]:
+def implement_stage(ctx: StageContext, ticket: Ticket, worktree: Path) -> tuple[LlmStage, Spec]:
     spec = _spec(ctx, "implement")
     ticket_text = (ctx.repo / ticket_path(ticket.stem)).read_text()
     if "Exit-read window" in ticket.sections:
         ticket_text += "\nConsumed exit evidence: read `.chupa/exit-read-window.json` in this worktree. Its keys are canonical declarations; values are exact journal event envelopes.\n"
     if (prior := prior_attempts(ctx, ticket.stem)) is not None:
         ticket_text = _in_criteria_position(ticket_text, prior)
-    if kept:
-        ticket_text = _in_criteria_position(
-            ticket_text,
-            (
-                f"{APPROVED_SEEDS}\n\nThese seeds passed requisition_review and are already in your worktree."
-                " Leave each one byte-identical and author only the rest:\n" + "\n".join(f"- {p}" for p in kept)
-            ),
-        )
     inputs = implement_inputs(worktree, ticket_text, ticket, ctx.config.context_files)
 
     def render_ticket(_: Ticket, findings: list[Finding]) -> str:
@@ -666,8 +657,7 @@ async def implement(ctx: StageContext, ticket: Ticket, *, attempt: int) -> Stage
     windows = resolve_exit_window(ticket, ctx.driver.journal.read()) if "Exit-read window" in ticket.sections else {}
     worktree = await prepare_worktree(ctx, stem)
     ctx.driver.materialize_exit_window(windows, worktree)
-    kept = _restore_approved_seeds(ctx, stem, worktree) if TICKETS_DIR in ticket.scope_fence else []
-    stage, spec = implement_stage(ctx, ticket, worktree, kept)
+    stage, spec = implement_stage(ctx, ticket, worktree)
     try:
         result = await ctx.driver.run(
             stage,
@@ -1365,223 +1355,6 @@ def check_severity(ctx: StageContext, ticket: Ticket) -> dict[str, Severity]:
     return severity
 
 
-VERDICT_SIGNAL = "requisition_verdict"
-APPROVED_SEEDS = "## Approved seeds (keep verbatim)"
-
-
-def _seed_verdicts(ctx: StageContext, stem: str) -> dict[str, Mapping]:
-    """Each seed's latest `requisition_verdict` inside the seeding ticket's lineage (section 19 PRIOR REVIEW)."""
-    return {
-        e.ticket: e.body
-        for e in lineage(ctx.driver.journal.read(), stem)
-        if e.type == EventType.SIGNAL and e.ticket is not None and e.body.get("signal") == VERDICT_SIGNAL and e.body.get("seeding") == stem
-    }
-
-
-def _prior_review(verdict: Mapping | None, text: str) -> str:
-    if verdict is None:
-        return "none"
-    items = "\n".join(f"- [{f['code']}] ({f.get('kind')}) {_one_line(f['message'])}" for f in verdict.get("findings", [])) or "- none"
-    diff = "".join(difflib.unified_diff(verdict["text"].splitlines(keepends=True), text.splitlines(keepends=True), "judged", "current")) or "(unchanged)"
-    return f"Verdict: {verdict['verdict']}\nFindings:\n{items}\n\nDiff from the judged text:\n{diff}"
-
-
-def _restore_approved_seeds(ctx: StageContext, stem: str, worktree: Path) -> list[str]:
-    """APPROVAL STICKS: an approved, unlifted seed re-enters the retry's fresh worktree byte-identical."""
-    kept = []
-    for seed, verdict in sorted(_seed_verdicts(ctx, stem).items()):
-        rel = ticket_path(seed)
-        if verdict["verdict"] == "approve" and not (ctx.repo / rel).exists():
-            ctx.fs.write(worktree / rel, verdict["text"].encode())
-            kept.append(rel)
-    return kept
-
-
-def _seeded_stems(ctx: StageContext, stem: str) -> set[str]:
-    return {e.ticket for e in ctx.driver.journal.read() if e.type == EventType.SIGNAL and e.ticket is not None and e.body.get("signal") == "ticket_intake" and e.body.get("seeded_by") == stem}
-
-
-async def _prior_seed_reviews(ctx: StageContext, stem: str, own: set[str]) -> dict[str, SeedReview]:
-    path = f"{TICKETS_DIR}/{stem}/checks.json"
-    try:
-        text = await ctx.git._run(ctx.repo, "show", f"{MAIN}:{path}")
-    except GitError:
-        return {}
-    invoice = Invoice.model_validate_json(text)
-    return {seed.stem: seed for seed in invoice.seeds if seed.stem in own and seed.verdict == "approve"}
-
-
-async def _review_seeds(ctx: StageContext, ticket: Ticket, *, attempt: int, own: set[str], prior: dict[str, SeedReview]) -> tuple[list[SeedReview], list[Path]]:
-    """Judge only new or changed ticket.md files; an identical foreign main file is not a candidate."""
-    stem = ticket.stem
-    worktree = ctx.worktree(stem)
-    plan = read_plan(ctx.repo) or ""
-    verdicts = _seed_verdicts(ctx, stem)
-    reviews = dict(prior)
-    new_paths: list[Path] = []
-    candidates = sorted(p for p in (worktree / TICKETS_DIR).glob(f"*/{TICKET_FILE}") if p.parent.name != stem)
-    candidate_index = 0
-    for path in candidates:
-        seed_stem = path.parent.name
-        rel = ticket_path(seed_stem)
-        data = path.read_bytes()
-        sha = hashlib.sha1(f"blob {len(data)}\0".encode() + data).hexdigest()
-        try:
-            main_sha = await ctx.git.rev_parse(ctx.repo, f"{MAIN}:{rel}")
-        except GitError:
-            main_sha = None
-        if main_sha == sha and (seed_stem not in own or (seed_stem in reviews and reviews[seed_stem].ticket_sha == sha)):
-            continue
-        candidate_index += 1
-        earlier = verdicts.get(seed_stem)
-        if earlier is not None and earlier["verdict"] == "approve" and earlier["ticket_sha"] == sha:
-            # An approve holds while the bytes match: no re-review (section 19).
-            reviews[seed_stem] = SeedReview(stem=seed_stem, ticket_sha=sha, verdict="approve", findings=[], mechanical="approved earlier")
-            if main_sha is None:
-                new_paths.append(path)
-            continue
-        review = await _review_one(
-            ctx, ticket, seed_stem, rel, data, sha, main_sha, plan, worktree, earlier, siblings={p.parent.name for p in candidates} - {seed_stem}, attempt=attempt, call_seq=candidate_index
-        )
-        reviews[seed_stem] = review
-        text = data.decode(errors="replace")
-        ctx.driver.journal.append(
-            EventType.SIGNAL,
-            {
-                "signal": VERDICT_SIGNAL,
-                "seeding": stem,
-                "verdict": review.verdict,
-                "ticket_sha": sha,
-                "findings": [f.model_dump(mode="json", exclude_none=True) for f in review.findings],
-                "text": text,
-            },
-            ticket=seed_stem,
-        )
-        if main_sha is None and review.verdict == "approve":
-            new_paths.append(path)
-    return [reviews[key] for key in sorted(reviews)], new_paths
-
-
-async def _review_one(
-    ctx: StageContext,
-    ticket: Ticket,
-    seed_stem: str,
-    rel: str,
-    data: bytes,
-    sha: str,
-    main_sha: str | None,
-    plan: str,
-    worktree: Path,
-    earlier: Mapping | None,
-    *,
-    siblings: set[str],
-    attempt: int,
-    call_seq: int,
-) -> SeedReview:
-    """One seed's verdict: mechanical refusals first, then the requisition_review call with its prior review."""
-    from chupa.requisition import review_ticket  # requisition imports implement_inputs from this module
-
-    def snag(message: str, road: str, mechanical: str, kind: str = "authoring_error") -> SeedReview:
-        finding = Finding(code="requisition_review", path=rel, message=message, paved_road=road, kind=kind)
-        return SeedReview(stem=seed_stem, ticket_sha=sha, verdict="snag", findings=[finding], mechanical=mechanical)
-
-    if main_sha is not None and main_sha != sha:
-        return snag(f"{rel} already exists on main", "a seeding run only creates new stems; use a fresh stem", "existing stem")
-    # Read citations without resolving them: a missing registry entry must gap before grammar refuses it.
-    sections, _ = _sections(data.decode(errors="replace"), rel)
-    bullets, _ = _bullets(sections.get("Plan contract", ""), "Plan contract", rel)
-    citations = []
-    for bullet in bullets:
-        try:
-            citations.append(plan_id(bullet))
-        except PlanContractError:
-            pass  # Grammar reports malformed ids after the SPEC DEPTH check.
-    units = required_units(plan, seed_stem, citations)
-    gaps = [
-        Finding(code="requisition_review", path=rel, message=gap, paved_road="harden the entry unit through section 11.4; never invent its facts in the seed", kind="spec_gap", unit=uid)
-        for uid in units
-        if (gap := entry_unit_gap(plan, uid)) is not None
-    ]
-    if gaps:
-        return SeedReview(stem=seed_stem, ticket_sha=sha, verdict="snag", findings=gaps, mechanical="entry unit gap")
-    outside_contract = []
-    fence = in_contract = False
-    for line in data.decode(errors="replace").splitlines():
-        if line.lstrip().startswith("```"):
-            fence = not fence
-        if not fence and (heading := _HEADING.match(line)):
-            in_contract = heading.group(1) == "Plan contract"
-        if not in_contract:
-            outside_contract.append(line)
-    seed_body = _one_line("\n".join(outside_contract))
-    for uid in citations:
-        try:
-            resolved = resolve_plan_contract(plan, [uid])
-        except PlanContractError:
-            continue  # Grammar reports ids that do not resolve.
-        for line in resolved.splitlines():
-            normalized = _one_line(line)
-            if len(normalized) >= 60 and normalized in seed_body:
-                return snag(f'cited unit {uid} text copied: "{normalized[:80]}"', "cite the unit in `## Plan contract`; never copy its text", "unit text copied")
-    try:
-        parsed = validate_ticket(seed_stem, data.decode(), ctx.repo, siblings)
-    except UnicodeDecodeError:
-        return snag("ticket.md is not UTF-8", "write UTF-8 ticket text", "ticket lint failed")
-    except TicketInvalid as exc:
-        findings = [f.model_copy(update={"kind": "authoring_error"}) for f in exc.findings]
-        return SeedReview(stem=seed_stem, ticket_sha=sha, verdict="snag", findings=findings, mechanical="ticket lint failed")
-    findings = []
-    if parsed.frontmatter.source != "seed":
-        findings.append(Finding(code="requisition_review", path=rel, message="seed source must be seed", paved_road="set frontmatter `source: seed`", kind="authoring_error"))
-    if parsed.frontmatter.state != "confirmed":
-        findings.append(Finding(code="requisition_review", path=rel, message="seed state must be confirmed", paved_road="set frontmatter `state: confirmed`", kind="authoring_error"))
-    if findings:
-        return SeedReview(stem=seed_stem, ticket_sha=sha, verdict="snag", findings=findings, mechanical="seed frontmatter")
-    reviewed = await review_ticket(
-        ctx.driver,
-        repo=ctx.repo,
-        stem=seed_stem,
-        text=data.decode(),
-        specs_dir=ctx.specs_dir,
-        tier=parsed.frontmatter.agent_tier,
-        stem_slot=ticket.stem,
-        run_seq=attempt,
-        attempt=attempt,
-        call_seq=call_seq,
-        prior=_prior_review(earlier, data.decode()),
-        siblings=siblings,
-        expected_budget=ticket.expected_minutes * 60.0,
-    )
-    return SeedReview(stem=seed_stem, ticket_sha=reviewed.ticket_sha, verdict=reviewed.verdict, findings=list(reviewed.findings), mechanical=reviewed.mechanical)
-
-
-async def lift_seeds(ctx: StageContext, stem: str, paths: list[Path], *, attempt: int) -> None:
-    """One ticket-plane commit for the approved new ticket.md paths, followed by per-seed intake events."""
-    if not paths:
-        return
-    rels = [ticket_path(p.parent.name) for p in paths]
-
-    async def commit() -> dict:
-        for src, rel in zip(paths, rels, strict=True):
-            ctx.fs.write(ctx.repo / rel, src.read_bytes())
-            src.unlink()
-        await ctx.git.add(ctx.repo, rels)
-        await ctx.git.commit(ctx.repo, f"chupa({stem}): seeds", only=rels)
-        return {"commit": await ctx.git.rev_parse(ctx.repo, MAIN)}
-
-    key = f"ticket-plane/{stem}/{attempt}/seeds"
-    committed = await ctx.driver.effects.run(commit, key=key, ticket=stem)
-    for path in paths:
-        seed_stem = path.parent.name
-        if not any(
-            e.type == EventType.SIGNAL and e.ticket == seed_stem and e.body.get("signal") == "ticket_intake" and e.body.get("commit") == committed["commit"] and e.body.get("seeded_by") == stem
-            for e in ctx.driver.journal.read()
-        ):
-            ctx.driver.journal.append(
-                EventType.SIGNAL, {"signal": "ticket_intake", "source": "seed", "state": "confirmed", "new": True, "commit": committed["commit"], "seeded_by": stem}, ticket=seed_stem
-            )
-
-
 async def check_autofix(ctx, ticket, attempt):
     worktree = ctx.worktree(ticket.stem)
     files = [path for path in await ctx.git.diff_names(ctx.repo, MAIN, ticket.stem) if not _in_fence(path, [TICKETS_DIR]) and (worktree / path).is_file()]
@@ -1640,17 +1413,7 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
         if missing
         else None
     )
-    seeding = TICKETS_DIR in ticket.scope_fence
-    own = _seeded_stems(ctx, stem) if seeding else set()
-    prior = await _prior_seed_reviews(ctx, stem, own) if seeding else {}
-    seeds = [prior[key] for key in sorted(prior)]
-    new_paths: list[Path] = []
-    seed_report = None
-    if seeding and gated.passed and not host_hard:
-        seeds, new_paths = await _review_seeds(ctx, ticket, attempt=attempt, own=own, prior=prior)
-        seed_findings = [finding for seed in seeds if seed.verdict != "approve" for finding in seed.findings]
-        seed_report = _report("requisition_review", seed_findings)
-    passed = gated.passed and not host_hard and not missing and (seed_report is None or seed_report.verdict == "pass")
+    passed = gated.passed and not host_hard and not missing
     invoice = Invoice(
         produced_by_spec_version=CHECK_SPEC_VERSION,
         produced_at_sha=evidence.head_sha,
@@ -1659,8 +1422,7 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
         changed_files=evidence.changed_files,
         inserted_lines=evidence.inserted_lines,
         bypassed=sorted({b.code for b in ticket.frontmatter.gate_bypass}),
-        reports=[*autofix_reports, *gated.reports, *host_reports, *([required_report] if required_report is not None else []), *([seed_report] if seed_report is not None else [])],
-        seeds=seeds,
+        reports=[*autofix_reports, *gated.reports, *host_reports, *([required_report] if required_report is not None else [])],
         verification=evidence.verification,
     )
     ctx.fs.write(ctx.worktree(stem) / TICKETS_DIR / stem / "checks.json", (invoice.model_dump_json(indent=2) + "\n").encode())
@@ -1679,8 +1441,6 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
     except GitError as error:
         finding = Finding(code="verification", message=f"checks lift failed: {error}", paved_road="repair the ticket-plane Git failure and rerun Check")
         return StageResult(outcome="gate_failed", artifact=invoice.model_copy(update={"passed": False}), findings=[finding], cost=Cost(seconds=active_seconds()))
-    if passed:
-        await lift_seeds(ctx, stem, new_paths, attempt=attempt)
     cost = Cost(seconds=active_seconds())
     if not passed:
         hard = [f for r in gated.hard_failures for f in r.findings]
@@ -1688,8 +1448,6 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
         hard.extend(f for r in host_reports for f in r.findings)
         if required_report is not None:
             hard.extend(required_report.findings)
-        if seed_report is not None:
-            hard.extend(seed_report.findings)
         return StageResult(outcome="gate_failed", artifact=invoice, findings=hard, cost=cost)
     outcome = "already_satisfied" if slip.outcome == "already_satisfied" else "ok"
     return StageResult(outcome=outcome, artifact=invoice, findings=[*gated.findings, *(f for r in host_reports for f in r.findings)], cost=cost)

@@ -1567,7 +1567,6 @@ async def test_serve_conflict_handoff_runs_after_admission_unwinds(root, monkeyp
                 "ticket_schema",
                 "post_rebase_regate",
                 "correctness_review",
-                "requisition_review",
                 "scope_fence",
                 "verification",
                 "run_record",
@@ -1577,7 +1576,6 @@ async def test_serve_conflict_handoff_runs_after_admission_unwinds(root, monkeyp
                 "ticket_schema",
                 "post_rebase_regate",
                 "correctness_review",
-                "requisition_review",
             ]
             for tier in ("safety", "integration"):
                 assert "exit 0" in (rig.checkout.config.state_dir / f"spools/work/0/merge-{tier}/host-01.txt").read_text()

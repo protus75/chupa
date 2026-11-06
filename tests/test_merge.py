@@ -2,7 +2,6 @@
 
 import asyncio
 import dataclasses
-import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -21,10 +20,6 @@ from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.stages import StageContext, run_stages
 from chupa.tickets import validate_ticket
 from tests.test_cli import root
-from tests.test_seed_path import context as seed_context
-from tests.test_seed_path import repo as seed_repo
-from tests.test_seed_path import requisition, seed_text, write_seeds
-from tests.test_seed_path import ticket as seeding_ticket
 from tests.test_stages import ENV, SNAG, SPECS, STEM, _report_bytes, adopt_conduct, agent, author, git, report_context, verdict
 
 GOAL = "`thing.py` holds the word ok."
@@ -161,49 +156,15 @@ def test_foreground_admission_never_supervised_holds(repo, monkeypatch):
     test_bootstrap_pipeline_keeps_inline_admission(repo, monkeypatch, "run")
 
 
-@pytest.mark.parametrize("failure", ["ticket-plane", "missing-checks", "malformed-checks", "missing-approval", "wrong-sha", "missing-blob", "invalid-blob", "dirty-main"])
-def test_daemon_prechecks_precede_offer(seed_repo, monkeypatch, failure):
-    ctx, ticket, attempt = seed_reviewed(seed_repo)
+def test_daemon_prechecks_precede_offer(repo, monkeypatch):
+    ctx, ticket, attempt = reviewed(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
 
     async def scenario():
-        checks = "tickets/add-thing/checks.json"
-        seed = "tickets/alpha-seed/ticket.md"
-        code = "requisition_review"
-        if failure == "ticket-plane":
-            code = "post_rebase_regate"
-            path = ctx.worktree(ticket.stem) / "tickets/committed.md"
-            ctx.fs.write(path, b"forbidden code-lane ticket\n")
-            await ctx.git.add(ctx.worktree(ticket.stem), ["tickets/committed.md"])
-            await ctx.git.commit(ctx.worktree(ticket.stem), "code lane violation")
-        elif failure == "missing-checks":
-            (ctx.repo / checks).unlink()
-        elif failure == "malformed-checks":
-            ctx.fs.write(ctx.repo / checks, b"invalid")
-        elif failure in {"missing-approval", "wrong-sha"}:
-            data = json.loads((ctx.repo / checks).read_text())
-            if failure == "missing-approval":
-                data["seeds"] = []
-            else:
-                data["seeds"][0]["ticket_sha"] = "wrong"
-            ctx.fs.write(ctx.repo / checks, json.dumps(data).encode())
-        elif failure == "missing-blob":
-            (ctx.repo / seed).unlink()
-        elif failure == "invalid-blob":
-            ctx.fs.write(ctx.repo / seed, b"invalid")
-            data = json.loads((ctx.repo / checks).read_text())
-            data["seeds"][0]["ticket_sha"] = (await ctx.git._run(ctx.repo, "hash-object", seed)).strip()
-            ctx.fs.write(ctx.repo / checks, json.dumps(data).encode())
-        else:
-            # A dirty, valid replacement cannot cure committed wrong-SHA custody.
-            data = json.loads((ctx.repo / checks).read_text())
-            data["seeds"][0]["ticket_sha"] = "wrong"
-            valid = (ctx.repo / checks).read_bytes()
-            ctx.fs.write(ctx.repo / checks, json.dumps(data).encode())
-        if failure != "ticket-plane":
-            await ctx.git.add(ctx.repo, [seed, checks])
-            await ctx.git.commit(ctx.repo, "precheck refusal fixture")
-        if failure == "dirty-main":
-            ctx.fs.write(ctx.repo / checks, valid)
+        code = "post_rebase_regate"
+        path = ctx.worktree(ticket.stem) / "tickets/committed.md"
+        ctx.fs.write(path, b"forbidden code-lane ticket\n")
+        await ctx.git.add(ctx.worktree(ticket.stem), ["tickets/committed.md"])
+        await ctx.git.commit(ctx.worktree(ticket.stem), "code lane violation")
         ctx.config.review.gate_severity = {code: "soft"}
         before = await ctx.git.rev_parse(ctx.repo, "main")
         head = await ctx.git.rev_parse(ctx.repo, ticket.stem)
@@ -384,65 +345,14 @@ def test_a_conflicted_rebase_is_aborted_and_refused(repo):
     assert not (repo / ".git" / "worktrees" / STEM / "rebase-merge").exists()
 
 
-def seed_reviewed(repo):
-    seed = seed_text("alpha-seed")
-    ctx, llm = seed_context(repo, [write_seeds({"alpha-seed": seed}), requisition("approve"), verdict()])
-    ticket = seeding_ticket(repo)
-    run = asyncio.run(run_stages(ctx, ticket))
-    assert run.results["review"].outcome == "ok"
-    assert [req.surface for req in llm.requests] == ["implement", "requisition_review", "review"]
-    return ctx, ticket, run.attempt
 
 
-def test_merge_safety_refuses_a_seed_whose_committed_blob_changed(seed_repo):
-    ctx, ticket, attempt = seed_reviewed(seed_repo)
-    path = seed_repo / "tickets/alpha-seed/ticket.md"
-    path.write_text(path.read_text() + "\n")
-    git(seed_repo, "commit", "-am", "seed text changes after Check")
-    before = git(seed_repo, "rev-parse", "main").strip()
-
-    result = admit(ctx, ticket, attempt)
-
-    refused_untouched(ctx, result, before, "requisition_review")
-    assert any("no approve verdict pins" in f.message for f in result.findings)
 
 
-def test_merge_safety_rechecks_seed_lint_even_with_a_matching_approval(seed_repo):
-    ctx, ticket, attempt = seed_reviewed(seed_repo)
-    path = seed_repo / "tickets/alpha-seed/ticket.md"
-    path.write_text(path.read_text().replace("## Definition of rejected\nNeeds a new dependency.\n\n", ""))
-    checks_path = seed_repo / "tickets" / STEM / "checks.json"
-    checks = json.loads(checks_path.read_text())
-    checks["seeds"][0]["ticket_sha"] = git(seed_repo, "hash-object", str(path)).strip()
-    checks_path.write_text(json.dumps(checks))
-    git(seed_repo, "commit", "-am", "invalid seed and matching approval")
-    before = git(seed_repo, "rev-parse", "main").strip()
-
-    result = admit(ctx, ticket, attempt)
-
-    refused_untouched(ctx, result, before, "requisition_review")
-    assert any("Definition of rejected" in f.message for f in result.findings)
 
 
-def test_merge_safety_admits_a_seed_with_matching_recorded_approval(seed_repo):
-    ctx, ticket, attempt = seed_reviewed(seed_repo)
-
-    result = admit(ctx, ticket, attempt)
-
-    assert result.outcome == "ok", result.findings
-    assert (seed_repo / "tickets/alpha-seed/ticket.md").is_file()
-    assert git(seed_repo, "show", "--name-only", "--format=", "main").split() == ["chupa/thing.py"]
 
 
-def test_merge_safety_reads_committed_seed_and_checks_despite_dirty_main_checkout(seed_repo):
-    ctx, ticket, attempt = seed_reviewed(seed_repo)
-    (seed_repo / "tickets/alpha-seed/ticket.md").write_text("uncommitted invalid ticket\n")
-    (seed_repo / "tickets" / STEM / "checks.json").write_text("uncommitted invalid checks\n")
-
-    result = admit(ctx, ticket, attempt)
-
-    assert result.outcome == "ok", result.findings
-    assert git(seed_repo, "show", "main:tickets/alpha-seed/ticket.md") == seed_text("alpha-seed")
 
 
 def test_pipeline_requires_supplied_control(repo):

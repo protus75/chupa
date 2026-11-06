@@ -73,7 +73,6 @@ def test_valid_config_loads_from_cwd_with_shipped_defaults(tmp_path):
         "quarantine": 5,
         "poison": 2,
     }
-    assert cfg.seeding.max_seeds_per_admission == 3
     assert cfg.circuit_breaker.k == 3
     assert cfg.circuit_breaker.cooldown_minutes == 10
     assert cfg.drain.max_runtime_hours == 12

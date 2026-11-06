@@ -36,7 +36,6 @@ from chupa.stages import (
     KNOWN_ARTIFACTS,
     MAIN,
     ApprovedInvoice,
-    Invoice,
     StageContext,
     check_severity,
     dirty_code,
@@ -81,19 +80,7 @@ class Candidate(BaseModel):
     changed_files: list[str]
     ticket_text: str
     review_text: str | None  # main's `review.md`, None when absent
-    seeds: list["SeedOnMain"] = []
-    seed_checks_text: str | None = None
     provenance_findings: list[Finding] = []
-
-
-class SeedOnMain(BaseModel):
-    """A journaled seed's blob as committed on main before the admission rebase."""
-
-    model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
-
-    stem: NonBlank
-    ticket_sha: str | None
-    ticket_text: str | None
 
 
 class Admission(Artifact):
@@ -158,41 +145,7 @@ class ApprovalGate:
         return GateReport(code=self.code, verdict="fail", findings=[Finding(code=self.code, path=path, message=message, paved_road=road)])
 
 
-class SeedSafetyGate:
-    """MERGE-SAFETY: every journaled seed still has an approval for main's exact committed blob."""
-
-    code = "requisition_review"
-
-    def check(self, artifact: Candidate, workspace: Path) -> GateReport:
-        if not artifact.seeds:
-            return GateReport(code=self.code, verdict="pass")
-        path = f"{TICKETS_DIR}/{artifact.stem}/checks.json"
-        road = f"re-run `run {artifact.stem}` so Check records approvals for the committed seeds"
-        findings = []
-        if artifact.seed_checks_text is None:
-            findings.append(Finding(code=self.code, path=path, message="checks.json is missing on main", paved_road=road))
-            reviews = []
-        else:
-            try:
-                reviews = Invoice.model_validate_json(artifact.seed_checks_text).seeds
-            except ValidationError as exc:
-                findings.append(Finding(code=self.code, path=path, message=f"checks.json does not parse: {exc.error_count()} schema error(s)", paved_road=road))
-                reviews = []
-        for seed in artifact.seeds:
-            seed_path = ticket_path(seed.stem)
-            if seed.ticket_sha is None or seed.ticket_text is None:
-                findings.append(Finding(code=self.code, path=seed_path, message="seed is missing on main", paved_road=road))
-                continue
-            if not any(r.stem == seed.stem and r.verdict == "approve" and r.ticket_sha == seed.ticket_sha for r in reviews):
-                findings.append(Finding(code=self.code, path=seed_path, message="no approve verdict pins the committed seed ticket.md blob", paved_road=road))
-            try:
-                validate_ticket(seed.stem, seed.ticket_text, workspace)
-            except TicketInvalid as exc:
-                findings.extend(f.model_copy(update={"code": self.code}) for f in exc.findings)
-        return GateReport(code=self.code, verdict="fail" if findings else "pass", findings=findings)
-
-
-MERGE_GATES = (TicketSchemaGate(), PostRebaseGate(), ApprovalGate(), SeedSafetyGate())
+MERGE_GATES = (TicketSchemaGate(), PostRebaseGate(), ApprovalGate())
 
 
 class AdmissionBoundary:
@@ -217,9 +170,8 @@ class AdmissionBoundary:
             return _refused(findings, Cost(seconds=(ctx.driver.clock() - started).total_seconds()))
         reviewed = await ctx.git.rev_parse(ctx.repo, ticket.stem)
         paths = await ctx.git.diff_names(ctx.repo, MAIN, ticket.stem)
-        seeds, checks = await gather_seeds(ctx, ticket)
-        candidate = read_candidate(ctx, ticket, reviewed, paths, seeds, checks)
-        reports = run_gates((PostRebaseGate(), SeedSafetyGate()), candidate, ctx.repo, severity={"post_rebase_regate": "hard", "requisition_review": "hard"})
+        candidate = read_candidate(ctx, ticket, reviewed, paths)
+        reports = run_gates((PostRebaseGate(),), candidate, ctx.repo, severity={"post_rebase_regate": "hard"})
         if reports.hard_failures:
             return _refused([f for r in reports.hard_failures for f in r.findings], Cost(seconds=(ctx.driver.clock() - started).total_seconds()))
         assert self.queue is not None
@@ -254,32 +206,7 @@ def _refused(findings: list[Finding], cost: Cost) -> StageResult:
     return StageResult(outcome="gate_failed", artifact=None, findings=findings, cost=cost)
 
 
-async def gather_seeds(ctx: StageContext, ticket: Ticket) -> tuple[list[SeedOnMain], str | None]:
-    """Pin seed approval custody to main's committed blobs before the admission rebase."""
-    stem = ticket.stem
-    seeded_stems = sorted(
-        {e.ticket for e in ctx.driver.journal.read() if e.type == EventType.SIGNAL and e.ticket is not None and e.body.get("signal") == "ticket_intake" and e.body.get("seeded_by") == stem}
-    )
-    seeds = []
-    for seed_stem in seeded_stems:
-        path = ticket_path(seed_stem)
-        try:
-            sha = await ctx.git.rev_parse(ctx.repo, f"{MAIN}:{path}")
-            text = await ctx.git._run(ctx.repo, "show", f"{MAIN}:{path}")
-        except GitError:
-            sha, text = None, None
-        seeds.append(SeedOnMain(stem=seed_stem, ticket_sha=sha, ticket_text=text))
-    checks_text = None
-    if seeds:
-        try:
-            checks_text = await ctx.git._run(ctx.repo, "show", f"{MAIN}:{TICKETS_DIR}/{stem}/checks.json")
-        except GitError:
-            pass
-
-    return seeds, checks_text
-
-
-def read_candidate(ctx: StageContext, ticket: Ticket, reviewed: str, changed_files: list[str], seeds: list[SeedOnMain], checks_text: str | None) -> Candidate:
+def read_candidate(ctx: StageContext, ticket: Ticket, reviewed: str, changed_files: list[str]) -> Candidate:
     stem = ticket.stem
     review_md = ctx.repo / TICKETS_DIR / stem / "review.md"
     return Candidate(
@@ -288,8 +215,6 @@ def read_candidate(ctx: StageContext, ticket: Ticket, reviewed: str, changed_fil
         changed_files=changed_files,
         ticket_text=(ctx.repo / ticket_path(stem)).read_text(),
         review_text=review_md.read_text() if review_md.is_file() else None,
-        seeds=seeds,
-        seed_checks_text=checks_text,
         provenance_findings=retro_bridge_findings(ctx, ticket),
     )
 
@@ -339,7 +264,6 @@ async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResu
     if findings := await ticket_change_findings(ctx, stem):
         return _refused(findings, Cost())
     reviewed = await ctx.git.rev_parse(ctx.repo, stem)
-    seeds, checks_text = await gather_seeds(ctx, ticket)
 
     unchanged = await main_code_unchanged(ctx, reviewed)
 
@@ -358,10 +282,8 @@ async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResu
     skip = unchanged and bool(evidence.changed_files)
     if not skip:
         evidence = await gather_evidence(ctx, ticket, "ok", attempt=attempt, stage="merge")
-    candidate = read_candidate(ctx, ticket, reviewed, evidence.changed_files, seeds, checks_text)
+    candidate = read_candidate(ctx, ticket, reviewed, evidence.changed_files)
     severity = check_severity(ctx, ticket)
-    if candidate.seeds:
-        severity["requisition_review"] = "hard"  # a seeded branch needs an exact committed approval
     gated = [run_gates(MERGE_GATES, candidate, ctx.repo, severity=severity)]
     if not skip:
         gated.insert(0, run_gates(CHECK_GATES, evidence, worktree, severity=severity))

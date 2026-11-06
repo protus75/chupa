@@ -63,7 +63,6 @@ Config:
     routing_default_tier: medium
     scheduler: {max_unmerged: 2}
     caps: {diagnosis: 3, retry: 3, premise_bounce: 1, infra: 3, attempts: 5, quarantine: 5, poison: 2}
-    seeding: {max_seeds_per_admission: 3}
     circuit_breaker: {k: 3, cooldown_minutes: 10}
     drain: {max_runtime_hours: 12, max_ticket_minutes: 90}
     box_policy: {failure_report: confirmed, retro_finding: confirmed, override_report: draft, suggestion: draft, bug_report_self_diagnosed: confirmed, bug_report_player_repro: confirmed, bug_report_player_no_repro: draft}
@@ -112,9 +111,6 @@ Scheduler:
 Caps:
   required: []
   defaults: {diagnosis: 3, retry: 3, premise_bounce: 1, infra: 3, attempts: 5, quarantine: 5, poison: 2}
-Seeding:
-  required: []
-  defaults: {max_seeds_per_admission: 3}
 CircuitBreaker:
   required: []
   defaults: {k: 3, cooldown_minutes: 10}
@@ -212,7 +208,7 @@ defaults: {agent_tier: medium, agent_effort: medium, gate_bypass: []}
 
 State is `draft | confirmed | rejected | merged`; priority `P0 | P1 | P2 | P3`;
 kind `bug | feature | chore`; tier and effort `low | medium | high | max`.
-Source is `human`, `seed` or `box:<class>` matching `box:[a-z][a-z0-9_]*`.
+Source is `human`, historical `seed` or `box:<class>` matching `box:[a-z][a-z0-9_]*`.
 Each gate_bypass has only nonblank `code` (an engine gate code) and `reason`.
 Put ordering in Depends on and priority, not extra metadata. New human intake
 stamps source human and confirms; machine sources belong to engine authoring.

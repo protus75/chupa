@@ -2,7 +2,6 @@
 
 import hashlib
 import re
-from collections.abc import Collection
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -48,9 +47,9 @@ class RequisitionVerdict(Artifact):
     model: str | None
 
 
-def review_target(repo: Path, stem: str, text: str, siblings: Collection[str] = ()) -> Ticket:
+def review_target(repo: Path, stem: str, text: str) -> Ticket:
     """Use the complete ticket admission predicate, including reserved stems."""
-    return validate_ticket(stem, text, repo, siblings)
+    return validate_ticket(stem, text, repo)
 
 
 def _base_render(repo: Path, ticket: Ticket, text: str, specs_dir: Path) -> str:
@@ -82,9 +81,8 @@ async def review_ticket(
     call_seq: int,
     expected_budget: float | Literal["surface", "eval"],
     prior: str = "none",
-    siblings: Collection[str] = (),
 ) -> RequisitionVerdict:
-    ticket = review_target(repo, stem, text, siblings)
+    ticket = review_target(repo, stem, text)
     spec = load_spec((specs_dir / "requisition_review.md").read_text())
     ticket_bytes = text.encode()
     sha = hashlib.sha1(f"blob {len(ticket_bytes)}\0".encode() + ticket_bytes).hexdigest()

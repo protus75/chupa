@@ -230,7 +230,7 @@ def test_llm_closed_sets_and_constants():
 
 
 def test_merge_closed_sets_and_constants():
-    assert tuple(ident(g) for g in merge.MERGE_GATES) == ("TicketSchemaGate", "PostRebaseGate", "ApprovalGate", "SeedSafetyGate")
+    assert tuple(ident(g) for g in merge.MERGE_GATES) == ("TicketSchemaGate", "PostRebaseGate", "ApprovalGate")
     assert merge.MERGE_SPEC_VERSION == 1
 
 

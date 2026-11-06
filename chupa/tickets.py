@@ -263,7 +263,7 @@ def _criteria(text: str) -> list[str]:
     return items
 
 
-def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings: Collection[str] = ()) -> Ticket:
+def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None) -> Ticket:
     """Validate one ticket against the full section 13 grammar; raise TicketInvalid with every finding.
 
     `repo` resolves `Context` / `On-demand` existence and ordering stems.
@@ -306,7 +306,7 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings
             for dep in items:
                 if dep == stem:
                     findings.append(_f(f"`## Depends on` names the ticket itself ({dep!r})", "drop the self-edge", path))
-                elif not STEM.fullmatch(dep) or not ((tickets_root / dep / TICKET_FILE).is_file() or dep in siblings):
+                elif not STEM.fullmatch(dep) or not ((tickets_root / dep / TICKET_FILE).is_file()):
                     findings.append(_f(f"`## Depends on` stem {dep!r} does not resolve to an existing ticket", f"name an existing `{TICKETS_DIR}/<stem>/` dir, or `none`", path))
                 else:
                     depends.append(dep)
@@ -518,12 +518,9 @@ def _graph(repo: Path, section: str = "Depends on") -> dict[str, list[str]]:
     return edges
 
 
-def validate_ticket(stem: str, text: str, repo: Path, siblings: Collection[str] = ()) -> Ticket:
-    """The full intake lint: grammar, plan ids resolved against the repo's plan file, and acyclicity.
-
-    `siblings` are the other seeds of a seeding batch: a seed may depend on one before the batch lifts (19.L).
-    """
-    ticket = parse_ticket(stem, text, repo, plan=read_plan(repo), siblings=siblings)
+def validate_ticket(stem: str, text: str, repo: Path) -> Ticket:
+    """The full intake lint: grammar, plan ids resolved against the repo's plan file, and acyclicity."""
+    ticket = parse_ticket(stem, text, repo, plan=read_plan(repo))
     edges = _graph(repo)
     edges[stem] = list(ticket.depends)
     if cycle := depends_cycle(stem, edges):
@@ -636,7 +633,7 @@ def _intake_claims(stem: str, text: str, new: bool) -> tuple[str, list[Finding]]
         return text, [
             _f(
                 f"new stem claims `source: {source}`; only the machine writes `seed` or `box:<class>`",
-                "drop the `source:` line (intake stamps `source: human`) -- machine-originated work enters through the Suggestion Box or phase seeding",
+                "drop the `source:` line (intake stamps `source: human`) -- machine-originated work enters through the Suggestion Box",
                 path,
             )
         ]

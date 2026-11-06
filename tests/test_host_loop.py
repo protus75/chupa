@@ -4,8 +4,6 @@ import asyncio
 import copy
 import hashlib
 import json
-import os
-import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -15,10 +13,8 @@ from pydantic import ValidationError
 from chupa.artifacts import HOST_LOOP_EXPECTED, HOST_LOOP_MEMBERS, ExitReceipt, HostLoopReport, ReviewBaselineReport
 from chupa.audit import Violation
 from chupa.seams import LocalFileSystem, SubprocessExec
-from chupa.specs import ENTRY_PARTS, PlanContractError, entry_unit_gap, required_units, resolve_plan_contract
 from eval import host_loop
 from tests.test_eval_harness import corpus_results, report_fixture
-from tests.test_stages import repo
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -33,72 +29,6 @@ def loop_report():
     )
 
 
-def test_exit_receipt_entry_unit(repo):
-    plan = (ROOT / "CHUPA_PLAN.md").read_text()
-    own = "19.P6.exit-receipt-machinery"
-    ids = (own, "19.P6.fixture-host-scaffold", "19.P6.supervised-merge-hold", "19.P6.go-grade-machinery", "19.P6.go-grade-run")
-    assert required_units(plan, "exit-receipt-machinery", ("19.I", *ids)) == ids
-    assert required_units(plan, "phase6-exit", ("19.I", "19.L", "19.P6", own, "19.P6.go-grade-run", "19.P6.go-grade-machinery")) == (own, "19.P6.go-grade-run", "19.P6.go-grade-machinery")
-    assert ENTRY_PARTS == ("Owner", "Records", "Observable", "Tests")
-    resolved = resolve_plan_contract(plan, (*ids, *ids))
-    for uid in ids:
-        assert resolved.count(f"### {uid} ") == 1
-        assert entry_unit_gap(plan, uid) is None
-        unit = resolve_plan_contract(plan, (uid,))
-        for part in ENTRY_PARTS:
-            for replacement in ("", f"- **{part}:**"):
-                broken = re.sub(rf"^- \*\*{part}:\*\*.*$", replacement, unit, flags=re.M)
-                assert part in entry_unit_gap(broken, uid)
-        for broken in ("", unit + unit):
-            assert entry_unit_gap(broken, uid)
-            with pytest.raises(PlanContractError):
-                resolve_plan_contract(broken, (uid,))
-    # Terminal successor facts come from the phase and build laws, before any seed writer.
-    phase = resolve_plan_contract(plan, ("19.P6",))
-    laws = resolve_plan_contract(plan, ("19.L",))
-    assert "phase6-exit: {exit: true, depends: [exit-receipt-machinery]" in phase
-    assert "producer the exit's own harness run" in phase
-    assert "`phase6-exit` authors no seeds" in laws
-    assert "regenerable byte-identical" in laws
-    assert "19.P6.phase6-exit" not in required_units(plan, "phase6-exit", ("19.P6",))
-
-    # Enter the production admission check with the terminal successor's citations.
-    # Every missing part refuses before grammar, model review, or seed lift can write.
-    from types import SimpleNamespace
-
-    from chupa import stages
-    from tests.test_merge import context
-
-    ctx = context(repo, [])
-    data = ("## Plan contract\n" + "".join(f"- {u}\n" for u in ids)).encode()
-
-    async def admission():
-        for uid in ids:
-            unit = resolve_plan_contract(plan, (uid,))
-            for part in ENTRY_PARTS:
-                broken = re.sub(rf"^- \*\*{part}:\*\*.*$", "", unit, flags=re.M)
-                verdict = await stages._review_one(
-                    ctx,
-                    SimpleNamespace(stem="continuation"),
-                    "phase6-exit",
-                    "tickets/phase6-exit/ticket.md",
-                    data,
-                    "blob",
-                    None,
-                    plan.replace(unit, broken),
-                    ctx.worktree("continuation"),
-                    None,
-                    siblings=set(),
-                    attempt=0,
-                    call_seq=1,
-                )
-                assert verdict.verdict == "snag" and verdict.mechanical == "entry unit gap"
-                assert any(f.kind == "spec_gap" and f.unit == uid and part in f.message for f in verdict.findings)
-        assert ctx.driver.llm.requests == []
-        assert not (repo / "tickets/phase6-exit").exists()
-        assert ctx.driver.journal.read() == []
-
-    asyncio.run(admission())
 
 
 def test_host_loop_closed_schema():

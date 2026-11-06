@@ -380,20 +380,6 @@ def test_core_drift_reachable_from_production_gates(root, monkeypatch, mode):
     assert len(calls) >= 2 and all(hostfiles.parse(data) is not None for data in calls)
 
 
-def test_core_activation_entry_unit():
-    plan = (REPO / "CHUPA_PLAN.md").read_text()
-    own = "19.P6.core-drift-activation"
-    units = (own, "19.P6.core-renderer", "19.P6.core-drift-classifier")
-    ticket = parse_ticket("core-drift-activation", (REPO / "tickets/core-drift-activation/ticket.md").read_text(), REPO, plan=plan)
-    assert set(required_units(plan, ticket.stem, ticket.plan_contract)) == set(units)
-    for uid in units:
-        resolved = resolve_plan_contract(plan, (uid, uid))
-        assert resolved.count(f"### {uid} ") == 1
-        assert entry_unit_gap(plan, uid) is None
-        for part in ("Owner", "Records", "Observable", "Tests"):
-            for replacement in ("", f"- **{part}:**"):
-                broken = plan.replace(resolved, re.sub(rf"^- \*\*{part}:\*\*.*$", replacement, resolved, flags=re.M))
-                assert part in entry_unit_gap(broken, uid)
 
 
 def test_core_activation_first_adoption():

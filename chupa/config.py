@@ -167,10 +167,6 @@ class Caps(_Strict):
     poison: Count = 2
 
 
-class Seeding(_Strict):
-    max_seeds_per_admission: Count = 3
-
-
 class CircuitBreaker(_Strict):
     k: Count = 3
     cooldown_minutes: Count = 10
@@ -192,7 +188,6 @@ class Config(_Strict):
     merge: Merge
     scheduler: Scheduler = Scheduler()
     caps: Caps = Caps()
-    seeding: Seeding = Seeding()
     circuit_breaker: CircuitBreaker = CircuitBreaker()
     drain: Drain = Drain()
     engine_plane_safety_inventory: list[str]  # no shipped default: absence fails closed (section 12)

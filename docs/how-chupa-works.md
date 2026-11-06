@@ -83,7 +83,7 @@ Frontmatter fields that drive behavior:
 
 - `state`: `draft` (awaits `confirm`), `confirmed` (dispatchable), `rejected`, `merged`.
 - `source`: `human` (hand-written), `box:<class>` (written by the Author stage), `seed`
-  (bootstrap-era, section 13).
+  (historical bootstrap tickets; nothing writes it now).
 - `kind`: `feature`, `chore`, or `bug` (a bug must carry `## Regression` and evidence,
   section 5.2).
 - `priority` (P0-P3), `## Depends on`, and the optional `## Runs before` section order the queue. `agent_tier` / `agent_effort` pick the
@@ -226,7 +226,6 @@ Every engine gate is hard by default.
 | `ticket_schema` | The ticket on `main` no longer lints. |
 | `post_rebase_regate` | The branch commits anything under `tickets/`, or the rebase was refused. |
 | `correctness_review` | `review.md` on `main` is not an `approve` of the branch head that was reviewed. |
-| `requisition_review` | A seeded ticket lacks its approval (bootstrap-era, section 13). |
 
 ### 5.2 Bug tickets
 
@@ -651,9 +650,6 @@ The block carries only process rules that hold for every host; codebase rules be
 chupa built itself from `CHUPA_PLAN.md` through self-seeding phases, now finished. This code
 remains and does not apply to ordinary tickets:
 
-- **Seeding:** a ticket whose fence includes `tickets` writes `source: seed` tickets, reviewed by
-  `requisition_review` at its own Check and lifted as `chupa(<stem>): seeds`; the
-  `requisition_review` merge gate; `seeding.max_seeds_per_admission` (read by nothing).
 - **Plan pointers:** `## Plan contract` and `## Exit-read window` ticket sections and
   `CHUPA_PLAN.md#...` fence anchors, resolved against `CHUPA_PLAN.md`. The plan structure lint.
 - **Plan reads:** runtime reads of `CHUPA_PLAN.md` go through one function; an absent plan is

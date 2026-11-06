@@ -175,7 +175,6 @@ def test_autofix_commits_selected_files_and_evaluates_head(ctx, monkeypatch):
             return await original(argv, **kw)
 
         monkeypatch.setattr(ctx.exec_, "run", execute)
-        monkeypatch.setattr(stages, "_review_seeds", lambda *a, **kw: asyncio.sleep(0, result=([], [])))
         result = await checked(ctx, ticket)
         head = await ctx.git.rev_parse(ctx.repo, ticket.stem)
         assert calls == [["host", "fix", "chupa/thing.py"]]
@@ -208,7 +207,7 @@ def test_autofix_no_change_and_already_satisfied(ctx, monkeypatch):
     asyncio.run(run())
 
 
-def test_autofix_failure_restores_and_blocks_seeds(ctx, monkeypatch):
+def test_autofix_failure_restores_and_blocks_check(ctx, monkeypatch):
     from chupa.config import AutofixCommand
     from tests.test_mergequeue import commit
 
@@ -231,11 +230,7 @@ def test_autofix_failure_restores_and_blocks_seeds(ctx, monkeypatch):
                 return 1, "", "failed"
             return await original(argv, **kw)
 
-        async def seeds(*args, **kwargs):
-            pytest.fail("seed review ran")
-
         monkeypatch.setattr(ctx.exec_, "run", execute)
-        monkeypatch.setattr(stages, "_review_seeds", seeds)
         result = await checked(ctx, ticket)
         assert result.outcome == "gate_failed" and any(f.code == "bad" for f in result.findings)
         assert len(calls) == 1 and await ctx.git.rev_parse(ctx.repo, ticket.stem) == head

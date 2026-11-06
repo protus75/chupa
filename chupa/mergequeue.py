@@ -391,7 +391,6 @@ class MergeQueue:
             reviewed = receipt["reviewed_sha"] if retained else await ctx.git.rev_parse(ctx.repo, stem)
             unchanged = await merge.main_code_unchanged(ctx, reviewed)
             candidate_base = await ctx.git.rev_parse(ctx.repo, "main")
-            seeds, checks_text = await merge.gather_seeds(ctx, ticket)
             await ctx.git.restore(worktree, [TICKETS_DIR], source=stem)
             rebasing = True
             step = ctx.git.rebase_stop_at_conflict(worktree, stages.MAIN)
@@ -417,10 +416,8 @@ class MergeQueue:
 
             evidence = await stages.gather_safety_evidence(ctx, ticket, "ok")
             skip = unchanged and bool(evidence.changed_files)
-            candidate = merge.read_candidate(ctx, ticket, reviewed, evidence.changed_files, seeds, checks_text)
+            candidate = merge.read_candidate(ctx, ticket, reviewed, evidence.changed_files)
             severity = stages.check_severity(ctx, ticket)
-            if candidate.seeds:
-                severity["requisition_review"] = "hard"
             scoped, strategy_findings = self._scoped(evidence, ticket)
             safety = [
                 run_gates((g for g in stages.CHECK_GATES if g.code in {"scope_fence", "run_record"}), scoped, worktree, severity=severity),
@@ -437,7 +434,7 @@ class MergeQueue:
             if not skip:
                 evidence = await stages.gather_evidence(ctx, ticket, "ok", attempt=attempt, stage="merge-integration")
                 scoped, strategy_findings = self._scoped(evidence, ticket)
-                candidate = merge.read_candidate(ctx, ticket, reviewed, evidence.changed_files, seeds, checks_text)
+                candidate = merge.read_candidate(ctx, ticket, reviewed, evidence.changed_files)
                 integration = [run_gates(stages.CHECK_GATES, scoped, worktree, severity=severity), run_gates(merge.MERGE_GATES, candidate, ctx.repo, severity=severity)]
                 _, host = await self.host_checks(ticket, attempt=attempt, safety=False)
                 hard = strategy_findings + [f for g in integration for r in g.hard_failures for f in r.findings]

@@ -55,20 +55,3 @@ def test_kill_without_plan_files_dead_dependency(tmp_path):
     assert main(["reject", "parent"], cwd=root, env=ENV, clock=Clock(), terminal=(lambda: True, lambda _: "y")) == 0
     assert any(e.ticket == "child" and e.body.get("signal") == "dead_dependency" for e in journal(root).read())
     assert "failure_report" in next((root / ".chupa/state/box").glob("*.json")).read_text()
-
-
-def test_seed_review_without_plan(ctx):
-    from chupa.stages import _review_seeds
-    from tests.test_mergequeue import ready
-
-    async def scenario():
-        (ctx.repo / "CHUPA_PLAN.md").unlink()
-        await ctx.git._run(ctx.repo, "add", "-u", "CHUPA_PLAN.md")
-        await ctx.git.commit(ctx.repo, "remove plan")
-        ticket = await ready(ctx, fence=("tickets",))
-        candidate = confirmed().replace("source: human", "source: seed")
-        ctx.fs.write(ctx.worktree(ticket.stem) / "tickets/new-seed/ticket.md", candidate.encode())
-        reviews, _ = await _review_seeds(ctx, ticket, attempt=0, own=set(), prior={})
-        assert len(reviews) == 1 and reviews[0].mechanical == "ticket lint failed"
-
-    asyncio.run(scenario())

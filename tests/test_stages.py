@@ -395,6 +395,18 @@ def test_non_seeding_ticket_ignores_an_untracked_foreign_ticket(repo):
     assert f"chupa({STEM}): seeds" not in subjects(repo)
 
 
+def test_old_checks_json_with_seed_reviews_still_parses(repo):
+    run(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
+    old = json.loads((repo / "tickets" / STEM / "checks.json").read_text())
+    old["seeds"] = [{"stem": "phase-seed", "ticket_sha": "abc123", "verdict": "snag", "findings": [], "mechanical": "ticket lint failed"}]
+
+    parsed = Invoice.model_validate_json(json.dumps(old))
+
+    # Removing the historical field or rejecting its review schema must fail this parse.
+    assert len(parsed.seeds) == 1
+    assert parsed.seeds[0].model_dump() == old["seeds"][0]
+
+
 def test_old_checks_json_without_seeds_still_parses(repo):
     result, _, _ = run(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
     old = json.loads((repo / "tickets" / STEM / "checks.json").read_text())

@@ -21,7 +21,7 @@ from chupa.llm import FakeLLM
 from chupa.mergequeue import CONFLICT_FACTS, RED_STREAK, TREE_MISMATCH, ConflictHandoff, MergeQueue, TreeMismatch
 from chupa.providers import child_env
 from chupa.seams import ExecutableNotFound, LocalFileSystem, SubprocessExec
-from chupa.stages import ApprovedInvoice, CommandResult, Invoice, SeedReview, StageContext, render_review
+from chupa.stages import ApprovedInvoice, CommandResult, StageContext, render_review
 from chupa.tickets import validate_ticket
 from tests.test_stages import CONFIG, ENV, SECRET, SPECS, STEM, TICKET, adopt_conduct
 
@@ -286,7 +286,7 @@ def test_restore_rebase_safety_integration_order(ctx, monkeypatch):
     run(scenario())
 
 
-@pytest.mark.parametrize("failure", ["scope_fence", "run_record", "post_rebase_regate", "correctness_review", "ticket_schema", "requisition_review", "fast", "rebase"])
+@pytest.mark.parametrize("failure", ["scope_fence", "run_record", "post_rebase_regate", "correctness_review", "ticket_schema", "fast", "rebase"])
 def test_safety_failure_skips_integration(ctx, monkeypatch, failure):
     async def scenario():
         ticket = await ready(ctx, verification=(("no-verification-allowed",),))
@@ -304,8 +304,6 @@ def test_safety_failure_skips_integration(ctx, monkeypatch, failure):
             name = "review.md" if failure == "correctness_review" else "ticket.md"
             ctx.fs.write(ctx.repo / "tickets" / ticket.stem / name, b"invalid")
             await commit(ctx, ctx.repo, [f"tickets/{ticket.stem}/{name}"])
-        elif failure == "requisition_review":
-            ctx.driver.journal.append(EventType.SIGNAL, {"signal": "ticket_intake", "seeded_by": ticket.stem}, ticket="missing-seed")
         else:
             ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved\n")
             await commit(ctx, ctx.repo, ["chupa/other.py"])
@@ -583,43 +581,6 @@ def test_clean_rebase_carries_pinned_approval(ctx, approval):
     run(scenario())
 
 
-@pytest.mark.parametrize("changed", [False, True])
-def test_committed_seed_approval_preserved(ctx, changed):
-    async def scenario():
-        ticket = await ready(ctx)
-        seed_path = "tickets/seed/ticket.md"
-        ctx.fs.write(ctx.repo / seed_path, TICKET.format(bypass="").encode())
-        await commit(ctx, ctx.repo, [seed_path])
-        sha = await ctx.git.rev_parse(ctx.repo, f"main:{seed_path}")
-        invoice = Invoice(
-            produced_by_spec_version=1,
-            produced_at_sha="approved",
-            stem=ticket.stem,
-            passed=True,
-            changed_files=["chupa/thing.py"],
-            inserted_lines=1,
-            bypassed=[],
-            reports=[],
-            seeds=[SeedReview(stem="seed", ticket_sha=sha, verdict="approve", findings=[], mechanical=None)],
-        )
-        checks = f"tickets/{ticket.stem}/checks.json"
-        ctx.fs.write(ctx.repo / checks, invoice.model_dump_json().encode())
-        await commit(ctx, ctx.repo, [checks])
-        ctx.driver.journal.append(EventType.SIGNAL, {"signal": "ticket_intake", "seeded_by": ticket.stem}, ticket="seed")
-        if changed:
-            ctx.fs.write(ctx.repo / seed_path, (TICKET.format(bypass="") + "\n").encode())
-            await commit(ctx, ctx.repo, [seed_path])
-        # Dirty checkout cannot replace seed/check custody.
-        ctx.fs.write(ctx.repo / seed_path, b"invalid uncommitted seed")
-        ctx.fs.write(ctx.repo / checks, b"invalid uncommitted checks")
-        before = await ctx.git.rev_parse(ctx.repo, "main")
-        result = await admission(ctx, ticket)
-        if changed:
-            await unchanged(ctx, ticket, before, result, "requisition_review")
-        else:
-            assert result.outcome == "ok", result.findings
-
-    run(scenario())
 
 
 def test_squash_tree_trailers_and_retirement(ctx, monkeypatch):
@@ -840,7 +801,6 @@ def test_strategy_resolution_still_regates(ctx, monkeypatch):
             "ticket_schema",
             "post_rebase_regate",
             "correctness_review",
-            "requisition_review",
             "scope_fence",
             "verification",
             "run_record",
@@ -850,7 +810,6 @@ def test_strategy_resolution_still_regates(ctx, monkeypatch):
             "ticket_schema",
             "post_rebase_regate",
             "correctness_review",
-            "requisition_review",
         ]
         spool = ctx.config.state_dir / "spools" / ticket.stem / "0/merge-integration/verify-01.txt"
         assert spool.is_file() and "exit 0" in spool.read_text()
