@@ -38,6 +38,7 @@ from chupa.tickets import (
     _porcelain,
     evidence_findings,
     missing_evidence_findings,
+    order,
     split_frontmatter,
     stem_findings,
     template,
@@ -234,6 +235,10 @@ def _parser() -> argparse.ArgumentParser:
     new = sub.add_parser("new", help="template tickets/<stem>/ticket.md and lint it")
     new.add_argument("stem")
     new.add_argument("--kind", choices=("feature", "bug", "chore"), default="feature")
+    ordering = sub.add_parser("order", help="edit a ticket's priority or ordering")
+    ordering.add_argument("stem")
+    ordering.add_argument("--priority", choices=("P0", "P1", "P2", "P3"))
+    ordering.add_argument("--runs-before", nargs="*", metavar="STEM")
     run = sub.add_parser("run", help="drive one ticket through intake and the stage pipeline under the lock")
     run.add_argument("stem")
     for verb in ("confirm", "reject"):
@@ -308,6 +313,8 @@ def main(
         )
         if args.verb == "lint":
             return asyncio.run(_lint(checkout, args.stems))
+        if args.verb == "order":
+            return _order(checkout, args.stem, args.priority, args.runs_before)
         if args.verb == "status":
             print(render(asyncio.run(_status(checkout))), end="")
             return 0
@@ -617,6 +624,38 @@ async def _verdict(checkout, stem, verb, read_input, yes):
     request = control.AdmissionRequest(uuid4().hex, lifecycle, verb, stem, None, "operator")
     control.publish_request(checkout.config.state_dir, request, checkout.fs)
     print(f"{verb} submitted: {request.request_id} -- ./dev.py status shows the outcome")
+    return 0
+
+
+def _order(checkout, stem, priority, runs_before):
+    if findings := stem_findings(stem):
+        raise runner.Refusal(findings[0].message, findings[0].paved_road)
+    if priority is None and runs_before is None:
+        raise runner.Refusal("no ordering option supplied", "supply --priority or --runs-before")
+    path = checkout.repo / ticket_path(stem)
+    if not path.is_file():
+        raise runner.Refusal(f"{ticket_path(stem)} does not exist", f"author it with chupa new {stem}")
+    state = last_states(checkout.journal.read()).get(stem)
+    if state == "running":
+        raise runner.Refusal(f"{stem} is running; editing a ticket during its run stops it with ticket_changed", "reorder it after the run ends")
+    if state in SETTLED | {"rejected"}:
+        raise runner.Refusal(f"{stem} is {state}", "author follow-up work as a new ticket")
+    text = path.read_bytes().decode()
+    try:
+        try:
+            changed = order(text, priority=priority, runs_before=runs_before)
+        except (ValueError, StopIteration):
+            validate_ticket(stem, text, checkout.repo)
+            raise runner.Refusal("ticket ordering fields cannot be edited", "use ordinary priority and section headings, then retry order") from None
+        ticket = validate_ticket(stem, changed, checkout.repo)
+        if priority is not None and ticket.frontmatter.priority != priority:
+            raise runner.Refusal("priority line cannot be edited", "write priority as a plain `priority: P2` line, then retry order")
+    except TicketInvalid as exc:
+        finding = exc.findings[0]
+        raise runner.Refusal(finding.message, finding.paved_road) from None
+    checkout.fs.write(path, changed.encode())
+    fields = ([f"priority: {priority}"] if priority is not None else []) + ([f"runs before: {', '.join(runs_before) or '(cleared)'}"] if runs_before is not None else [])
+    print(f"ordered {stem}: {'; '.join(fields)}")
     return 0
 
 

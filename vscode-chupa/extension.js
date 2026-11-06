@@ -32,6 +32,28 @@ function devCommand(...args) {
 	terminal.sendText(`./dev.py ${args.join(' ')}${['confirm', 'reject'].includes(args[0]) ? ' --yes' : ''}`);
 }
 
+async function orderTicket(ctx, snapshot, field) {
+	const root = chupaRoot();
+	const row = snapshot.snap?.rows.find(r => r.stem === ctx?.chupaStem);
+	if (!root || !row || !STEM.test(row.stem)) return;
+	let args;
+	if (field === 'priority') {
+		const choice = await vscode.window.showQuickPick(['P0', 'P1', 'P2', 'P3'].map(label => ({ label, description: label === row.priority ? 'current' : '' })), { placeHolder: 'Set priority' });
+		if (!choice) return;
+		args = ['--priority', choice.label];
+	} else {
+		const choices = snapshot.snap.rows.filter(r => r.section !== 'merged' && r.stem !== row.stem && STEM.test(r.stem))
+			.map(r => ({ label: r.stem, picked: row.runsBefore.includes(r.stem) }));
+		const selected = await vscode.window.showQuickPick(choices, { canPickMany: true, placeHolder: 'Run before' });
+		if (!selected) return;
+		args = ['--runs-before', ...selected.map(item => item.label)];
+	}
+	execFile('./dev.py', ['order', row.stem, ...args], { cwd: root }, (err, stdout, stderr) => {
+		if (err) vscode.window.showErrorMessage((stderr || err.message).trim());
+		else snapshot.refresh();
+	});
+}
+
 // A new Claude Code chat with the ticket in its prompt, through the /open URI its extension handles (read from its
 // code, not documented, so an update may break it).
 function askClaude(ctx, task) {
@@ -237,6 +259,8 @@ function activate(context) {
 		vscode.commands.registerCommand('chupa.ticket.open', ctx => openTicket(`tickets/${ctx.chupaStem}/ticket.md`)),
 		vscode.commands.registerCommand('chupa.ticket.review', ctx => devCommand('review', ctx.chupaStem)),
 		vscode.commands.registerCommand('chupa.ticket.lint', ctx => devCommand('lint', ctx.chupaStem)),
+		vscode.commands.registerCommand('chupa.ticket.priority', ctx => orderTicket(ctx, snapshot, 'priority')),
+		vscode.commands.registerCommand('chupa.ticket.runsBefore', ctx => orderTicket(ctx, snapshot, 'runsBefore')),
 		vscode.commands.registerCommand('chupa.ticket.run', ctx => devCommand('run', ctx.chupaStem)),
 		vscode.commands.registerCommand('chupa.ticket.confirm', ctx => devCommand('confirm', ctx.chupaStem)),
 		vscode.commands.registerCommand('chupa.ticket.reject', ctx => devCommand('reject', ctx.chupaStem)),

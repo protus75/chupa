@@ -207,6 +207,73 @@ def test_new_refuses_a_bad_stem(root, capsys):
 # --- status -------------------------------------------------------------------------------------
 
 
+def order_ticket():
+    return ticket().replace("priority: P2", "state: confirmed\nsource: human\npriority: P2")
+
+
+def test_order_sets_priority(root, capsys):
+    original = order_ticket()
+    write(root, "first", original)
+    assert cli(root, "order", "first", "--priority", "P0") == 0
+    assert (root / "tickets/first/ticket.md").read_text() == original.replace("priority: P2", "priority: P0")
+    assert "priority: P0" in capsys.readouterr().out
+
+
+def test_order_sets_and_clears_runs_before(root):
+    original = order_ticket()
+    for stem in ("first", "second", "third"):
+        write(root, stem, original)
+    path = root / "tickets/first/ticket.md"
+    assert cli(root, "order", "first", "--runs-before", "second") == 0
+    assert path.read_text() == original.replace("## Context", "## Runs before\n- second\n\n## Context")
+    assert cli(root, "order", "first", "--runs-before", "third", "second") == 0
+    assert path.read_text() == original.replace("## Context", "## Runs before\n- third\n- second\n\n## Context")
+    assert cli(root, "order", "first", "--runs-before") == 0
+    assert path.read_text() == original
+
+
+def test_order_refuses_invalid_and_leaves_file(root, capsys):
+    original = order_ticket()
+    write(root, "first", original)
+    write(root, "second", original.replace("## Context", "## Runs before\n- first\n\n## Context"))
+    path = root / "tickets/first/ticket.md"
+    for target, message in (("second", "cycle"), ("first", "itself"), ("absent", "does not resolve")):
+        assert cli(root, "order", "first", "--runs-before", target) == 2
+        assert message in capsys.readouterr().err
+        assert path.read_text() == original
+
+
+@pytest.mark.parametrize("state", ["running", "merged", "already_satisfied", "rejected"])
+def test_order_refuses_running_settled_and_rejected(root, capsys, state):
+    original = order_ticket()
+    write(root, "first", original)
+    journal(root).append(EventType.STATE_TRANSITION, {"to": state}, ticket="first")
+    assert cli(root, "order", "first", "--priority", "P1") == 2
+    assert state in capsys.readouterr().err
+    assert (root / "tickets/first/ticket.md").read_text() == original
+
+
+def test_order_refuses_bad_stem_and_no_option(root, capsys):
+    original = order_ticket()
+    write(root, "first", original)
+    for args, message in ((("Bad_Stem", "--priority", "P1"), "kebab-case"), (("absent", "--priority", "P1"), "does not exist"), (("first",), "option")):
+        assert cli(root, "order", *args) == 2
+        assert message in capsys.readouterr().err
+        assert (root / "tickets/first/ticket.md").read_text() == original
+    assert not (root / ".chupa").exists()
+
+
+def test_order_takes_no_lock(root):
+    original = order_ticket()
+    write(root, "first", original)
+    head = git_out(root, "rev-parse", "HEAD")
+    assert cli(root, "order", "first", "--priority", "P3") == 0
+    assert (root / "tickets/first/ticket.md").read_text() == original.replace("priority: P2", "priority: P3")
+    assert not (root / ".chupa").exists()
+    assert git_out(root, "rev-parse", "HEAD") == head
+    assert git_out(root, "status", "--porcelain", "--", "tickets").startswith("??")
+
+
 def test_status_on_an_empty_journal(root, capsys):
     assert cli(root, "status") == 0
     out = capsys.readouterr().out

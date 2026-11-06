@@ -28,7 +28,7 @@ what content its tickets carry, never the format. See the [host run guide](host-
 - `Depends on`: tickets whose merged code this ticket needs. Use it only for that: a failed
   dependency blocks every ticket behind it.
 - `Runs before`: stems this ticket runs ahead of when both are eligible. This soft order never
-  blocks; use it, not `Depends on`, for any other ordering.
+  blocks; use it, not `Depends on`, for any other ordering. Use `chupa order` to change it or priority.
 - `Context`: files the implementing agent reads before starting; they are embedded in its prompt.
   They must already exist: a file the ticket creates belongs in `Scope fence` only.
 - `On-demand`: existing files the agent may need but that are too large to embed; it reads them

@@ -26,6 +26,7 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | `triage` | No | Make one pass over pending suggestions. |
 | `covgate` | Yes | Run a unit command and check its coverage report. |
 | `new` | Yes | Create and lint a ticket skeleton. |
+| `order` | Yes | Validate and edit a ticket's priority or runs-before ordering. |
 | `run` | No | Run one ticket through the pipeline. |
 | `confirm` | Yes | After interactive confirmation, publish a keep verdict to serve. |
 | `reject` | Yes | After interactive confirmation, publish a reject verdict to serve. |

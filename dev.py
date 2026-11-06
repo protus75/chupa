@@ -4,6 +4,7 @@
     ./dev.py                  the full suite
     ./dev.py test [args]      the suite, or the named tests (args go to pytest)
     ./dev.py new STEM [--kind K]  author and lint a feature, bug, or chore ticket
+    ./dev.py order STEM [--priority P] [--runs-before [STEM ...]]  reorder a ticket
     ./dev.py review STEM...   review each ticket against merged code
     ./dev.py lint [STEM...]   validate tickets without running or writing anything
     ./dev.py status           the engine's projected state
@@ -50,6 +51,10 @@ def main() -> None:
     new = sub.add_parser("new", help="author and lint a ticket")
     new.add_argument("stem")
     new.add_argument("--kind", choices=("feature", "bug", "chore"), default="feature")
+    order = sub.add_parser("order", help="edit a ticket's ordering")
+    order.add_argument("stem")
+    order.add_argument("--priority", choices=("P0", "P1", "P2", "P3"))
+    order.add_argument("--runs-before", nargs="*", metavar="STEM")
     sub.add_parser("run", help="run one ticket through every stage").add_argument("stem")
     sub.add_parser("serve", help="run the continuous daemon")
     sub.add_parser("drain", help="run every eligible ticket to quiescence")
@@ -69,6 +74,8 @@ def main() -> None:
         run(["uv", "run", "pytest", "-q", *args.args])
     elif args.task == "new":
         chupa("new", args.stem, "--kind", args.kind)
+    elif args.task == "order":
+        chupa("order", args.stem, *(["--priority", args.priority] if args.priority is not None else []), *(["--runs-before", *args.runs_before] if args.runs_before is not None else []))
     elif args.task == "run":
         chupa("run", args.stem)
     elif args.task == "lint":

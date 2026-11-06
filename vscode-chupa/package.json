@@ -147,6 +147,16 @@
 				"title": "Ticket lifecycle",
 				"category": "chupa",
 				"icon": "$(question)"
+			},
+			{
+				"command": "chupa.ticket.priority",
+				"title": "Set priority…",
+				"category": "chupa"
+			},
+			{
+				"command": "chupa.ticket.runsBefore",
+				"title": "Run before…",
+				"category": "chupa"
 			}
 		],
 		"menus": {
@@ -190,6 +200,16 @@
 					"command": "chupa.ticket.askReview",
 					"when": "webviewId == 'chupa.tickets' && chupaSection =~ /^(queued|blocked)$/",
 					"group": "4_claude@2"
+				},
+				{
+					"command": "chupa.ticket.priority",
+					"when": "webviewId == 'chupa.tickets' && chupaSection =~ /^(queued|blocked)$/",
+					"group": "2_engine"
+				},
+				{
+					"command": "chupa.ticket.runsBefore",
+					"when": "webviewId == 'chupa.tickets' && chupaSection =~ /^(queued|blocked)$/",
+					"group": "2_engine"
 				}
 			],
 			"commandPalette": [
@@ -227,6 +247,14 @@
 				},
 				{
 					"command": "chupa.openSettings",
+					"when": "false"
+				},
+				{
+					"command": "chupa.ticket.priority",
+					"when": "false"
+				},
+				{
+					"command": "chupa.ticket.runsBefore",
 					"when": "false"
 				}
 			],

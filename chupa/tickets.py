@@ -608,6 +608,38 @@ async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem) -> Inta
 # --- new ----------------------------------------------------------------------------------------
 
 
+def order(text: str, *, priority: str | None, runs_before: Sequence[str] | None) -> str:
+    """Edit ordering fields without rewriting the rest of the ticket."""
+    if priority is not None:
+        end = text.index("\n---\n", 4)
+        front = text[:end]
+        front = re.sub(r"(?m)^(priority\s*:\s*).*$", lambda m: m[1] + priority, front, count=1)
+        text = front + text[end:]
+    if runs_before is not None:
+        headings = []
+        offset = 0
+        fenced = False
+        for line in text.splitlines(keepends=True):
+            if line.lstrip().startswith("```"):
+                fenced = not fenced
+            elif not fenced and (match := _HEADING.match(line.rstrip("\n"))):
+                headings.append((match.group(1), offset))
+            offset += len(line)
+        existing = next((i for i, (name, _) in enumerate(headings) if name == "Runs before"), None)
+        if existing is not None:
+            start = headings[existing][1]
+            end = headings[existing + 1][1] if existing + 1 < len(headings) else len(text)
+            section = text[start:end]
+            trailing = re.search(r"\n*$", section).group()
+            replacement = "## Runs before\n" + "\n".join(f"- {s}" for s in runs_before) + trailing if runs_before else ""
+            text = text[:start] + replacement + text[end:]
+        elif runs_before:
+            i = next(i for i, (name, _) in enumerate(headings) if name == "Depends on")
+            end = headings[i + 1][1] if i + 1 < len(headings) else len(text)
+            text = text[:end] + "## Runs before\n" + "".join(f"- {s}\n" for s in runs_before) + "\n" + text[end:]
+    return text
+
+
 def template(kind: Literal["feature", "bug", "chore"]) -> str:
     """Authoring placeholders beside the grammar, with a regression proof only for bugs."""
     if kind not in {"feature", "bug", "chore"}:
