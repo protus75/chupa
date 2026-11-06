@@ -6,7 +6,7 @@ kind: feature
 ---
 
 ## Depends on
-- pytest-timeout
+- none
 
 ## Context
 - chupa/serve.py
