@@ -17,7 +17,7 @@ kind: chore
 - tests/test_watch.py
 
 ## Goal / Why
-The extension must be a thin drawing wrapper: all logic lives in the `chupa` package under pytest (rule added by `graph-lane-cleanup`). An audit on 2026-11-06 found decisions still made in JavaScript, untested, after `observe-verbs-host-extension` moves the snapshot into `chupa/observe.py` and the commands onto argv:
+The extension must be a thin drawing wrapper: all logic lives in the `chupa` package under pytest (the CLAUDE.md rule "The extension is a thin wrapper; chupa owns the logic"). An audit on 2026-11-06 found decisions still made in JavaScript, untested, after `observe-verbs-host-extension` moves the snapshot into `chupa/observe.py` and the commands onto argv:
 - `extension.js` `STEM` copies the stem rule `chupa/tickets.py` owns.
 - `askClaude` maps `diagnose` to `running` when the row's section is running.
 - `orderTicket` decides which tickets are runs-before choices and hardcodes `P0`..`P3`.
