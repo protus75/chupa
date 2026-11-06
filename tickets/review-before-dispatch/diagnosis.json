@@ -1,15 +1,20 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "b182c8513b6edda83147f99a2ec8fcb59a0bf741",
+  "produced_at_sha": "accd0aa1fa96b942fba2982efba9ed1b6c9c06bf",
   "stem": "review-before-dispatch",
-  "attempt": 1,
+  "attempt": 2,
   "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "premise_bounce cap spent",
+  "verdict": "reject",
+  "lessons": [
+    "The fence leaves out chupa/daemon.py, but the change forces it. daemon.py:502 builds Scheduler from journal and callables only, with no repo access. scheduler.py therefore cannot read the committed ticket.md sha that drain.premise_parked needs. Add chupa/daemon.py to the fence.",
+    "Give Scheduler an injected callable, built in daemon.py from repo through the git seam, that returns a stem's committed ticket.md sha. Do not derive the repo from the journal or state dir: a configured state_dir breaks that, and it bypasses the git seam.",
+    "Hold a stem in serve only when its last state is premise_failed and drain.premise_parked reports it parked at the sha that callable returns. Reuse premise_parked and do not add a second park check, as the ticket requires.",
+    "After amending the fence, run chupa review review-before-dispatch. Fix every finding until it approves, including tests that build Scheduler directly and must pass the new callable. All of tests is already fenced."
+  ],
+  "mechanical": null,
   "spec_version": "1.2",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
