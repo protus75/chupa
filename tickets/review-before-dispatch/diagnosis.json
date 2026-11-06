@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "365d4a754001ba1da65858d50205b8d983f06b5f",
+  "stem": "review-before-dispatch",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "The scope fence is incomplete: the gate breaks tests/test_seed_path.py (line 117, seed fixture dispatches with no approve and asserts the original request sequence) and tests/test_hardening.py (line 235). Add both files to `## Scope fence` before re-dispatching.",
+    "In tests/test_seed_path.py, update the dispatch fixture so it records an approve for the seed ticket (via tests/approval.py `approve`) or scripts a leading `requisition_review` reply, and update its request-sequence assertions, following the ticket's 'every remaining test the gate breaks' rule.",
+    "In tests/test_hardening.py, call `approve` before dispatching the ticket so the hardening path, not the new `requisition` premise_failed, produces the asserted terminal.",
+    "The last attempt never finished the full `uv run pytest -q` run, so other fence misses may exist. Run the whole suite once with the gate in place and list every failing file outside the fence in a single report, not one premise bounce per file."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
