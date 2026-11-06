@@ -67,9 +67,9 @@ def main() -> None:
     elif args.task == "lint":
         chupa("lint", *args.stems)
     elif args.task == "watch":
-        # watch.py is read-only and stdlib-only: no uv environment needed, and Ctrl-C is a normal exit.
+        # watch.py is read-only and imports the engine's rules, so it runs in the uv environment; Ctrl-C is a normal exit.
         try:
-            subprocess.run([sys.executable, str(ROOT / "watch.py"), *(["--once"] if args.once else [])], cwd=ROOT)
+            subprocess.run(["uv", "run", "python", str(ROOT / "watch.py"), *(["--once"] if args.once else [])], cwd=ROOT)
         except KeyboardInterrupt:
             pass
     elif args.task == "vscode":

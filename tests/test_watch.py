@@ -54,3 +54,21 @@ def test_running_needs_a_live_lock_holder_that_journaled_it(tmp_path):
     (tmp_path / "chupa.lock").write_text(json.dumps({"pid": dead.pid, "started_at": started}))
     assert watch.lock_holder(tmp_path) is None
     assert watch.running_stems(tmp_path, last) == []
+
+
+def test_queue_counts_a_split_dependency_met_by_its_successors(tmp_path, monkeypatch):
+    # A rejected parent whose split successors all merged is settled for the drain, so dependents are not waiting on it.
+    from chupa.rework import SUPERSEDES
+
+    monkeypatch.setattr(watch, "ROOT", tmp_path)
+    (tmp_path / "config.yaml").write_text("state_dir: state\n")
+    path = tmp_path / "tickets" / "child" / "ticket.md"
+    path.parent.mkdir(parents=True)
+    path.write_text("---\nstate: confirmed\npriority: P1\n---\n## Depends on\n- parent\n")
+    events = [
+        {"type": "state_transition", "ticket": "parent", "body": {"to": "rejected"}, "ts": "2026-01-01T00:00:00+00:00"},
+        {"type": "signal", "ticket": "parent", "body": {"signal": SUPERSEDES, "successors": ["part"]}, "ts": "2026-01-01T00:00:01+00:00"},
+        {"type": "state_transition", "ticket": "part", "body": {"to": "merged"}, "ts": "2026-01-01T00:00:02+00:00"},
+    ]
+    last_state = {e["ticket"]: e["body"] for e in events if e["type"] == "state_transition"}
+    assert watch.queue(events, last_state, set()) == [("P1", "child", "ready, not run yet")]

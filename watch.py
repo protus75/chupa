@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Live view of the running drain: the ticket, its step, and what this drain has done. Read-only.
 
-    python3 watch.py           refresh every 3 seconds until Ctrl-C
-    python3 watch.py --once    print one snapshot
+    ./dev.py watch           refresh every 3 seconds until Ctrl-C
+    ./dev.py watch --once    print one snapshot
 
 Reads the journal and engine log under the config's state_dir; writes nothing and takes no lock.
-Standard library only.
+Runs in the chupa venv so dependency status comes from the engine's own rule (`settled_dependencies`).
 """
 
 import argparse
@@ -16,6 +16,9 @@ import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
+
+from chupa.rework import settled_dependencies
 
 ROOT = Path(__file__).resolve().parent
 # A stage the engine log records; Check and merge are mechanical and leave no stage events.
@@ -60,12 +63,9 @@ def lock_holder(state: Path) -> datetime | None:
 
     A killed drain leaves its lockfile behind, so a pid that no longer exists holds nothing.
     """
-    # Separate except clauses: ruff's 3.14 target rewrites a tuple into syntax the 3.12 system python3 rejects.
     try:
         lock = json.loads((state / "chupa.lock").read_text())
-    except OSError:
-        return None
-    except ValueError:
+    except OSError, ValueError:
         return None
     if not lock.get("pid") or not lock.get("started_at"):
         return None
@@ -227,13 +227,15 @@ def queue(events: list[dict], last_state: dict[str, dict], running: set[str]) ->
     """Every confirmed ticket not yet settled, rejected, or running: (priority, stem, why it is waiting)."""
     done = SETTLED | {"rejected"}
     waiting_on_person = held(events)
+    # A dependency is met when it, or every leaf of the split that superseded it, settled: the drain's own test.
+    settled = settled_dependencies(SimpleNamespace(type=e.get("type"), body=e.get("body", {}), ticket=e.get("ticket"), ts=e.get("ts")) for e in events)
     rows = []
     for path in sorted((ROOT / "tickets").glob("*/ticket.md")):
         stem, meta = path.parent.name, frontmatter(path)
         last = last_state.get(stem, {}).get("to")
         if meta.get("state") != "confirmed" or last in done or stem in running:
             continue
-        open_deps = [d for d in depends(path) if last_state.get(d, {}).get("to") not in SETTLED]
+        open_deps = [d for d in depends(path) if d not in settled]
         if stem in waiting_on_person:
             spent = next((e["body"].get("mechanical") for e in reversed(events) if e.get("ticket") == stem and e.get("body", {}).get("signal") == "diagnosis"), None)
             why = f"NEEDS YOUR KEEP OR KILL ({spent})" if spent and "cap spent" in spent else "held; the drain retries it when new work runs out"
