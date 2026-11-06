@@ -31,11 +31,11 @@ After this change, `drain` and `serve` write an `engine_start` event to the engi
   - Right after `lock.acquire()`: `engine_start` with `verb` (`drain` or `serve`) and `pid`.
   - In the `finally` that releases the lock, before release: `engine_stop` with `verb`, `pid`, and `outcome`.
     - For drain, `outcome` is one of `quiescent`, `stopped`, `killed`, `halted`, `handoff`, or `error: <ExceptionType>`.
-    - For serve, it is `stopped`, `killed`, or `error: <ExceptionType>`.
+    - For serve, it is `stopped`, `killed`, `handoff`, or `error: <ExceptionType>`; a worker or loop failure serve catches itself (code 1 or 2) records the caught exception's type.
 - In: `watch.py`, under "Recent steps", and `vscode-chupa/snapshot.py`'s `steps`.
-  - Both include `engine_start` and `engine_stop` events in time order with the stage events, rendered as `<time>  drain started (pid N)` and `<time>  drain stopped (<outcome>)`.
-  - When the newest `engine_start` has no later `engine_stop` and `watch.lock_holder` reports no live holder, they add one line: `drain ended without a stop record (killed?)`.
-- In: `vscode-chupa/extension.js`: Recent Steps items for these events have no ticket name, a `debug-start` or `debug-stop` icon, and no open-ticket command.
+  - Both include `engine_start` and `engine_stop` events in time order with the stage events, rendered as `<time>  <verb> started (pid N)` and `<time>  <verb> stopped (<outcome>)`.
+  - When the newest `engine_start` has no later `engine_stop` and `watch.lock_holder` reports no live holder, they add one line, timed at that `engine_start`: `<verb> ended without a stop record (killed?)`.
+- In: `vscode-chupa/extension.js`: Recent Steps items for these events have no ticket name, a `debug-start` or `debug-stop` icon (`warning` for the ended-without-stop line), and no open-ticket command.
 - In: tests.
   - `tests/test_drain.py`: a drain to quiescence writes exactly one `engine_start` and one `engine_stop` with outcome `quiescent`, in that order, and both precede lock release.
   - `tests/test_serve.py`: a serve stopped through control writes both, with outcome `stopped`.
