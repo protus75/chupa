@@ -1,18 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "ad93ebbfc7f7d0354168928423da4d878696c6bd",
+  "produced_at_sha": "a676b4afe6ecacb32ab5232bd3709d56e5261313",
   "stem": "chupa-ruff-config",
-  "attempt": 1,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "reject",
+  "attempt": 2,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "split",
   "lessons": [
-    "The premise is stale. With the ticket's config applied, ruff check reports findings in chupa/__main__.py:404, chupa/covgate.py:79, chupa/rework.py, tests/test_baseline.py, tests/test_go_grade.py, tests/test_inbox.py and tests/test_rework.py. All of these are outside the fence.",
-    "ruff format --check reports 32 files to reformat, many outside the fence (e.g. tests/test_tickets.py:648). The format diff on e99990cb no longer matches current main. Re-run both checks on current main and re-list every affected file.",
-    "Re-author the fence and the 'remaining findings' list from a fresh `uv run ruff check .` and `uv run ruff format --check .` on the current base. Do not reuse the line numbers from e99990cb.",
-    "If the re-run list is large, split the ticket: one ticket for the pyproject/uv.lock config, the per-file ignores and the hand-fixed findings, and one for the bulk format pass. Each fence must name every file its check touches.",
-    "chupa/__main__.py has an I001 ignore, but the failure at line 404 is a different finding. Read the actual code before choosing between fixing it and adding an ignore. A new ignore beyond the five listed counts as rejected under the ticket."
+    "The work itself passed: ruff check, ruff format --check, uv lock --check and pytest (3076 passed) all exited 0. Only diff_budget failed, at 43 files against the 30-file limit; 299 inserted lines is well under 1500. So split by file count, without changing the approach.",
+    "Divide the ticket's fence into stems of at most 30 files each. The run touched 13 files under chupa/ and eval/, 28 under tests/, plus pyproject.toml and uv.lock. For example, one stem fixes the tests/ findings by hand, and a later stem adds the pyproject config and fixes chupa/ and eval/.",
+    "Each stem must state acceptance criteria it can meet alone. 'uv run ruff check .' exiting 0 belongs only in the stem that adds the [tool.ruff] config, after the other stems' fixes have merged. Use depends only where a stem needs another stem's merged code.",
+    "Keep the change from attempt 2: tests that used validate_ticket through an unused chupa.stages import now import it from chupa.tickets. Put this change in the same stem as the F401 removals in those test files."
   ],
   "mechanical": null,
   "spec_version": "1.2",
