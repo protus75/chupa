@@ -33,7 +33,7 @@ After this change, `chupa order <stem> [--priority P0|P1|P2|P3] [--runs-before [
   - It requires at least one of `--priority` and `--runs-before`.
 - In: what it does.
   - `--priority` replaces the frontmatter `priority:` value.
-  - `--runs-before STEM ...` replaces the `## Runs before` bullets with those stems, adding the section if absent.
+  - `--runs-before STEM ...` replaces the `## Runs before` bullets with those stems, adding the section directly after `## Depends on` if absent.
   - `--runs-before` with no stems removes the section.
   - Every other byte of the file is unchanged.
 - In: refusals. Each one is a `runner.Refusal` with a paved road, and leaves the file untouched:
@@ -51,11 +51,11 @@ After this change, `chupa order <stem> [--priority P0|P1|P2|P3] [--runs-before [
   Each runs `./dev.py order` with `execFile` (argv list, repo root as cwd). Each shows the command's refusal text in an error message on a non-zero exit, and refreshes the snapshot on success. Both commands are declared in `package.json` with `webview/context` entries using the existing `chupaSection` context key, and are hidden from the command palette.
 - In: tests in `tests/test_cli.py`:
   - `test_order_sets_priority`: only the `priority:` line changes;
-  - `test_order_sets_and_clears_runs_before`;
-  - `test_order_refuses_cycle_and_leaves_file`;
+  - `test_order_sets_and_clears_runs_before`: asserts the exact file text after adding the section, replacing its bullets, and removing it with a bare `--runs-before`; the removal gives back the original bytes;
+  - `test_order_refuses_invalid_and_leaves_file`: a cycle, a self-edge, and an unknown stem are each refused and the file is unchanged;
   - `test_order_refuses_running_settled_and_rejected`: running, settled, and rejected last states are each refused and the file is unchanged;
   - `test_order_refuses_bad_stem_and_no_option`: a non-kebab stem, a missing stem, and a call with neither option each exit 2 and write nothing;
-  - `test_order_takes_no_lock`: no `.chupa` dir is created.
+  - `test_order_takes_no_lock`: no `.chupa` dir is created, `HEAD` is unchanged, and the ticket edit is left uncommitted.
 - In: docs.
   - `docs/how-chupa-works.md` section 2.1: a row for `order`.
   - Section 2.2: a row for `./dev.py order`.
