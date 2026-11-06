@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-On the untouched branch, tests/test_policy.py passes; temporarily moving specs into chupa/specs makes test_standing_go_uses_the_table_and_each_override_drafts fail because it still reads ROOT / "specs". The move was restored and no changes were committed.
+Stored proposal paths remain package-relative and are converted to repository paths in model requests.
 
 ## Dead ends
 
-Checked the repository’s spec-path consumers; preserving the old directory would violate the acceptance criteria and rejection conditions.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Expected 75 minutes; completed in less than 75 minutes.
 
