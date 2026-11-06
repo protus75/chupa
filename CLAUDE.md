@@ -48,8 +48,8 @@ Every rule below is behavioral (no gate checks it yet): the prose is the only en
   Why: folded fixes blow scope and hide cause. (section 11)
 - **Read before write.** No command, claim, or test is written until the artifact that owns that fact has been read.
   Why: guessed facts are the cheapest bug to write and the costliest to find. (section 13)
-- **Lean ticket frontmatter.** Only fields the scheduler, a gate, or the authoring/triage policy reads. Execution ordering lives in `depends` and `priority`, never in prose.
-  Why: metadata for subsystems that do not exist is accretion; prose ordering is invisible to the scheduler. (section 13)
+- **Lean ticket frontmatter.** Only fields the scheduler, a gate, or the authoring/triage policy reads. `depends` names only a ticket whose merged code this one needs; all other ordering lives in `priority`, never in prose.
+  Why: metadata for subsystems that do not exist is accretion; prose ordering is invisible to the scheduler; a `depends` used for ordering blocks the queue when the first ticket fails. (section 13)
 - **Use the injectable seams.** Clock, process exec, filesystem, and notifications go through their seams; never called raw in engine code.
   Why: fake-driven tests and group-kill guarantees exist only at the seam. (section 15)
 - **Fenced by gates, not jailed.** v1 does not sandbox executed code; never rely on its goodwill. Never pass a provider key to a process that does not need it.
