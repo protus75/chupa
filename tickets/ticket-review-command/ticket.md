@@ -6,7 +6,7 @@ kind: feature
 ---
 
 ## Depends on
-- drop-plan-citations-3
+- none
 
 ## Context
 - chupa/requisition.py
@@ -40,6 +40,7 @@ kind: feature
 - docs/how-chupa-works.md
 - docs/host-authoring.md
 - README.md
+- tests/test_review_command.py
 
 ## Acceptance criteria
 1. An approve journals `requisition_verdict` against the committed blob, not the unstamped text, checked by `uv run pytest tests/test_review_command.py -k approve_journals_verdict_for_committed_blob`.
