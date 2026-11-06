@@ -442,7 +442,7 @@ publishes `state_dir/control/active.json`, and runs four loops (every 0.1s):
   its last good version.
 - **Dispatch:** the scheduler runs one ticket at a time. It waits while
   `scheduler.max_unmerged` (default 2) finished tickets are waiting to merge, while paused, or
-  while a stem is held (Reject queue, storm, drought, or premise park at unchanged ticket content). Each fresh dispatch reviews committed content without an existing approval before Implement. Among eligible tickets,
+  while a stem is held (Reject queue, storm, drought, or a premise or diff-budget park at unchanged ticket content). Each fresh dispatch reviews committed content without an existing approval before Implement. Among eligible tickets,
   `## Runs before` orders named stems after the ticket naming them; priority, authored age,
   and stem break ties. Edges to ineligible stems never block dispatch.
 - **Merge queue:** serial admission (section 7.2.1).

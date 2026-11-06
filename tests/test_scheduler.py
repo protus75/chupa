@@ -222,6 +222,17 @@ async def test_eligibility_and_hold_release(rig):
 
 
 @pytest.mark.asyncio
+async def test_scheduler_holds_diff_budget_failure(rig):
+    rig.add("work")
+    rig.transition("work", "running", ticket_sha=rig.files["work"])
+    rig.transition("work", "gate_failed", reason="diff_budget")
+    assert await rig.scheduler.dispatch_next() is None
+    rig.files["work"] += "\nchanged\n"
+    assert (await rig.scheduler.dispatch_next()).stem == "work"
+    assert rig.calls == ["work"]
+
+
+@pytest.mark.asyncio
 async def test_priority_age_and_stem_order(rig):
     for stem, priority in (("zzz-old", "P2"), ("aaa-new", "P2"), ("aaa-missing", "P2"), ("bbb-missing", "P2"), ("urgent", "P0"), ("low", "P3"), ("mid", "P1"), ("tie-aa", "P2"), ("tie-bb", "P2")):
         rig.add(stem, priority)

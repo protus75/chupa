@@ -1258,6 +1258,64 @@ def machine_keeps(root, stem="held"):
     return [e for e in journal(root).read() if e.ticket == stem and e.body == {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}]
 
 
+def test_diff_budget_failure_holds_until_ticket_changes(root, capsys):
+    from chupa.drain import _Drain
+
+    commit_ticket(root, "work", confirmed())
+    calls = []
+
+    def pipeline(checkout):
+        async def dispatch(ticket):
+            calls.append(ticket.stem)
+            body = {"to": "gate_failed", "reason": "verification,diff_budget", "routed": "reject_queue"} if len(calls) == 1 else {"to": "merged"}
+            checkout.journal.append(EventType.STATE_TRANSITION, body, ticket=ticket.stem)
+            return body["to"]
+        return with_retro_driver(checkout, dispatch)
+
+    assert main(["drain"], cwd=root, env=ENV, clock=Clock(), pipeline=pipeline) == 0
+    assert calls == ["work"]
+    assert not machine_keeps(root, "work")
+    assert "diff budget" in capsys.readouterr().out
+    checkout = pause_checkout(root)
+    run = _Drain(checkout, pipeline(checkout), frozenset())
+    run.last_dispatched = "work"
+    assert asyncio.run(run._between_tickets())
+    checkout.journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "reason": "diff_budget"}, ticket="work")
+    assert asyncio.run(run._between_tickets())  # An unrouted budget failure also ends the retry cycle.
+    commit_ticket(root, "work", confirmed().replace("returns ok.", "returns revised ok."))
+    assert not asyncio.run(run._between_tickets())
+    assert main(["drain"], cwd=root, env=ENV, clock=Clock(), pipeline=pipeline) == 0
+    assert calls == ["work", "work"]
+
+
+def test_other_gate_failure_is_still_reoffered(root):
+    commit_ticket(root, "work", confirmed())
+    calls = []
+
+    def pipeline(checkout):
+        async def dispatch(ticket):
+            calls.append(ticket.stem)
+            body = {"to": "gate_failed", "reason": "verification"} if len(calls) == 1 else {"to": "merged"}
+            checkout.journal.append(EventType.STATE_TRANSITION, body, ticket=ticket.stem)
+            return body["to"]
+        return with_retro_driver(checkout, dispatch)
+
+    assert main(["drain"], cwd=root, env=ENV, clock=Clock(), pipeline=pipeline) == 0
+    assert calls == ["work", "work"]
+
+
+def test_diff_budget_spent_cap_reports_cap_road(tmp_path, capsys):
+    root = make_root(tmp_path, "caps: {attempts: 1}\n")
+    commit_ticket(root, "work", confirmed())
+    prior_failure(root, extra={"reason": "diff_budget", "routed": "reject_queue"})
+    script = Script()
+    assert drain(root, script) == 0
+    output = capsys.readouterr().out
+    assert script.calls == []
+    assert "attempts cap spent" in output
+    assert "split or shrink the ticket under the diff budget" not in output
+
+
 def test_non_plan_bound_premise_reoffer_after_ticket_edit_draws_no_retry(root):
     commit_ticket(root, "work", confirmed())
     prior_failure(root, terminal="premise_failed", extra={"routed": "reject_queue"})

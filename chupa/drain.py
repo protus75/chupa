@@ -73,6 +73,18 @@ def premise_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:
     return last == PREMISE and ran_sha == ticket_sha
 
 
+def budget_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:
+    """Hold a diff-budget failure against the ticket content that produced it."""
+    body: Mapping = {}
+    ran_sha: str | None = None
+    for e in events:
+        if e.type == EventType.STATE_TRANSITION and e.ticket == stem:
+            body = e.body
+            if body.get("to") == "running":
+                ran_sha = body.get("ticket_sha")
+    return body.get("to") == "gate_failed" and "diff_budget" in body.get("reason", "").split(",") and ran_sha == ticket_sha
+
+
 def authored_at(events: Iterable[Event]) -> dict[str, str]:
     """Each stem's age anchor: the `ts` of its FIRST ticket-plane authoring-commit event."""
     first: dict[str, str] = {}
@@ -328,7 +340,7 @@ class _Drain:
             if material != self._offer_material() or events != prepared_events:
                 continue
             last = last_states(events)
-            held = {s for s in scan.tickets if last.get(s) == PREMISE and premise_parked(events, s, shas[s])}
+            held = {s for s in scan.tickets if (last.get(s) == PREMISE and premise_parked(events, s, shas[s])) or budget_parked(events, s, shas[s])}
             pick, reoffer = self._select(scan, events, last, held)
             if pick is None:
                 if self.provider_deadlines:
@@ -366,8 +378,9 @@ class _Drain:
             return True
         if self.c.control is not None and stem in self.c.control.storm_holds().values():
             return True
-        if body.get("to") == PREMISE and (self.c.repo / ticket_path(stem)).exists():
-            return premise_parked(events, stem, await self._sha(stem))
+        if body.get("to") in {PREMISE, "gate_failed"} and (self.c.repo / ticket_path(stem)).exists():
+            sha = await self._sha(stem)
+            return premise_parked(events, stem, sha) or budget_parked(events, stem, sha)
         return False
 
     def _offer_material(self) -> dict[str, bytes]:
@@ -601,7 +614,10 @@ class _Drain:
                 spent_cap = caps.spent(self.c.config.caps, events, stem)
                 drawn = caps.failed_attempts(events, stem) if spent_cap == "attempts" else caps.draws(events, stem, spent_cap or "retry")
                 cap_limit = getattr(self.c.config.caps, spent_cap or "retry")
-                if stem in held and spent_cap is None:
+                if stem in held and spent_cap is None and to == "gate_failed":
+                    why = f"{to}{where}; parked until its committed ticket.md changes"
+                    road = f"split or shrink the ticket under the diff budget and commit the `ticket.md` change, or retire it with `./dev.py reject {stem}`"
+                elif stem in held and spent_cap is None:
                     why, road = f"{to}{where}; parked until its committed ticket.md changes", self._premise_road(t)
                 elif spent_cap is None:  # only a halt leaves budget unspent: the continuing drain re-offers it
                     why, road = (f"{to}{where}; {cap_limit - drawn} of {cap_limit} retry units left", "`uv run python -m chupa drain` re-offers it")
@@ -614,7 +630,7 @@ class _Drain:
                     if "ticket_changed" in awaiting[stem].get("reason", "").split(","):
                         why = f"{to}{where}; ticket_changed; held for an operator"
                         road = f"review the change to {ticket_path(stem)}, then keep (./dev.py confirm {stem}) or kill (./dev.py reject {stem})"
-                    else:
+                    elif not (stem in held and to == "gate_failed" and spent_cap is None):
                         road = f"edit {ticket_path(stem)}, then uv run python -m chupa confirm {stem}; or retire it with uv run python -m chupa reject {stem}"
                 self.report.parked.append(Parked(stem, why, road, self._findings(stem)))
         self.report.invalid = sorted(scan.invalid.items())
