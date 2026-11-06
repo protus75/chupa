@@ -6,8 +6,10 @@ state: confirmed
 ---
 
 ## Depends on
-- prompts-drop-plan
-- implement-test-rules
+- none
+
+## Runs before
+- test-rules-prompt
 
 ## Context
 - eval/harness.py
