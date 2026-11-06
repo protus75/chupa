@@ -6,7 +6,7 @@ kind: chore
 ---
 
 ## Depends on
-- ticket-review-command
+- none
 
 ## Context
 - chupa/rework.py
