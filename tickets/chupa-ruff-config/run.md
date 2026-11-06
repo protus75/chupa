@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-With the requested configuration, Ruff reports four lint findings in chupa/stages.py and formatting changes in chupa/stages.py and tests/test_testreport.py, both outside the fence.
+The requested configuration reports lint findings in chupa/__main__.py, chupa/covgate.py, chupa/rework.py, tests/test_baseline.py, tests/test_go_grade.py, tests/test_inbox.py, and tests/test_rework.py; the format check reports 32 files needing formatting, including additional files outside the fence.
 
 ## Dead ends
 
-Tested the requested configuration and restored the temporary configuration and lockfile changes after identifying the scope conflict.
+Applied the requested configuration temporarily and ran both Ruff checks; restored pyproject.toml and uv.lock after identifying the scope conflict.
 
 ## Second problems filed
 
@@ -18,7 +18,7 @@ none
 
 - provider: codex
 - model: gpt-6.1-terra
-- spec: implement 2.0
+- spec: implement 2.1
 
 ## Predicted vs actual
 
