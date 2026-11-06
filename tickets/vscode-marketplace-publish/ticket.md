@@ -22,38 +22,45 @@ Hosts get `vscode-chupa` only by building it from a chupa checkout with `./dev.p
 Three things are missing today:
 - the manifest has no `repository` and no `extensionKind`;
 - there is no listing README;
-- there is no publish command.
+- there is no command that builds a release `.vsix`.
 
 Without `extensionKind`, VS Code may run the extension on the UI side under WSL or Remote-SSH, away from the repo and the `chupa` command.
 
-After this change, `./dev.py vscode-publish` publishes the current version to the Marketplace.
+Publishing is a manual browser upload on the Marketplace management page, which signs in with the user's Microsoft account. Azure DevOps global PATs, which `vsce publish` uses from a local machine, retire on 2026-12-01 (VS Code publishing docs), so nothing here uses a token.
+
+After this change, `./dev.py vscode-package` builds the current version's `.vsix` and prints where to upload it.
 
 ## Scope in / Scope out
 - In: `vscode-chupa/package.json`:
   - `"extensionKind": ["workspace"]`;
   - `"repository": {"type": "git", "url": "https://github.com/protus75/chupa.git"}`;
-  - `publisher` stays `chupa`;
+  - `publisher` becomes `chunkydragon`, the registered Marketplace publisher ID (`chupa` was taken), so the extension ID becomes `chunkydragon.vscode-chupa`;
   - remove the `license` field: the extension carries no license;
   - the `chupa.command` default becomes `["chupa"]`, the command `uv tool install chupa` puts on PATH. If `extension.js` repeats the default, it changes there too.
+  - `extension.js`'s `chupa.openSettings` filter `@ext:chupa.vscode-chupa` becomes `@ext:chunkydragon.vscode-chupa`.
 - In: `vscode-chupa/README.md`, the Marketplace listing page:
   - what the views show;
   - prerequisites: a repo with `tickets/`, and chupa installed (`uv tool install chupa`);
   - the `chupa.command` setting, with `["chupa"]` as the example for an installed engine;
   - that on WSL or Remote-SSH the extension runs on the remote side.
 - In: a new `.vscode/settings.json` sets `"chupa.command": ["uv", "run", "chupa"]` for this repo, which runs the `chupa` console script that `uv sync` installs into `.venv`. This repo needs no wrapper script.
-- In: `dev.py` gets a `vscode-publish` subcommand.
-  - It refuses with one message that names `VSCE_PAT` when it is unset, before packaging anything.
-  - Otherwise it packages once into a temporary directory with `npx --yes @vscode/vsce package --no-dependencies --skip-license -o <vsix>`, then runs `npx --yes @vscode/vsce publish --skip-license --packagePath <vsix>`. vsce reads `VSCE_PAT` from the environment, so the token never appears in argv.
-  - It publishes the manifest's current version and never bumps it; the Marketplace refuses a version it already holds.
+- In: `dev.py` gets a `vscode-package` subcommand.
+  - It runs `npx --yes @vscode/vsce package --no-dependencies --skip-license -o dist/vscode-chupa-<version>.vsix` (cwd `vscode-chupa/`, output path absolute under the repo root's `dist/`).
+  - Then it prints that path and `https://marketplace.visualstudio.com/manage/publishers/chunkydragon`.
+  - It packages the manifest's current version and never bumps it; the Marketplace refuses a version it already holds.
+  - It installs nothing and publishes nothing.
   - The module docstring's usage lines and `--help` list it.
+- In: `.gitignore` gains `dist/`.
 - In: docs.
-  - `docs/how-chupa-works.md` section 2.2: a `vscode-publish` row, plus the one-time setup the user does before the first publish:
-    a Marketplace publisher `chupa` and an Azure DevOps PAT with Marketplace Manage scope as `VSCE_PAT`.
+  - `docs/how-chupa-works.md` section 2.2: a `vscode-package` row, and how to release a version:
+    - bump `version` in `vscode-chupa/package.json`;
+    - run `./dev.py vscode-package`;
+    - upload the printed `.vsix` on the `chunkydragon` management page: New extension the first time, the extension's Update action after that.
   - `docs/host-contract.md`: a host installs the extension from the Marketplace (Cursor and VSCodium: Install from VSIX), and installs chupa with `uv tool install chupa`.
 - Out:
   - the `./dev.py vscode` local install path;
   - the extension's views and commands;
-  - CI publishing;
+  - `vsce publish`, tokens, and CI publishing;
   - git tags and pushes;
   - bundling Python or the engine into the VSIX;
   - Open VSX and any license.
@@ -64,31 +71,32 @@ After this change, `./dev.py vscode-publish` publishes the current version to th
 - vscode-chupa/extension.js
 - .vscode/settings.json
 - dev.py
+- .gitignore
 - docs/how-chupa-works.md
 - docs/host-contract.md
 
 ## Acceptance criteria
-1. `vscode-chupa/package.json` parses as JSON with `extensionKind == ["workspace"]`, a `repository.url` naming `github.com/protus75/chupa`, `publisher == "chupa"`, no `license` key, and `chupa.command` defaulting to `["chupa"]`. `.vscode/settings.json` sets `chupa.command` to `["uv", "run", "chupa"]`. `vscode-chupa/README.md` exists and `vscode-chupa/LICENSE` does not. The first Verification command checks all of this.
-2. With `VSCE_PAT` unset, `./dev.py vscode-publish` exits non-zero, its output names `VSCE_PAT`, and it runs no `npx`. The second Verification command checks this.
+1. `vscode-chupa/package.json` parses as JSON with `extensionKind == ["workspace"]`, a `repository.url` naming `github.com/protus75/chupa`, `publisher == "chunkydragon"`, no `license` key, and `chupa.command` defaulting to `["chupa"]`. `.vscode/settings.json` sets `chupa.command` to `["uv", "run", "chupa"]`. `vscode-chupa/README.md` exists and `vscode-chupa/LICENSE` does not. The first Verification command checks all of this.
+2. `./dev.py --help` lists `vscode-package`, `dev.py` contains no `VSCE_PAT`, and `.gitignore` lists `dist/`. The second Verification command checks this.
 3. `node --check vscode-chupa/extension.js` exits 0.
-4. `docs/how-chupa-works.md` section 2.2 describes `vscode-publish` and its one-time setup, and `docs/host-contract.md` describes installing the extension.
+4. `docs/how-chupa-works.md` section 2.2 describes `vscode-package` and the upload steps, and `docs/host-contract.md` describes installing the extension.
 5. `uv run pytest -q` exits 0.
 
 ## Verification
 ```
-uv run python -c "import json, pathlib; p = json.load(open('vscode-chupa/package.json')); assert p['extensionKind'] == ['workspace'] and 'github.com/protus75/chupa' in p['repository']['url'] and p['publisher'] == 'chupa' and 'license' not in p and p['contributes']['configuration']['properties']['chupa.command']['default'] == ['chupa']; assert json.load(open('.vscode/settings.json'))['chupa.command'] == ['uv', 'run', 'chupa']; assert pathlib.Path('vscode-chupa/README.md').is_file() and not pathlib.Path('vscode-chupa/LICENSE').exists()"
-uv run python -c "import os, subprocess; env = {k: v for k, v in os.environ.items() if k != 'VSCE_PAT'}; r = subprocess.run(['./dev.py', 'vscode-publish'], env=env, capture_output=True, text=True); out = r.stdout + r.stderr; assert r.returncode != 0 and 'VSCE_PAT' in out and 'npx' not in r.stdout, r"
+uv run python -c "import json, pathlib; p = json.load(open('vscode-chupa/package.json')); assert p['extensionKind'] == ['workspace'] and 'github.com/protus75/chupa' in p['repository']['url'] and p['publisher'] == 'chunkydragon' and 'license' not in p and p['contributes']['configuration']['properties']['chupa.command']['default'] == ['chupa']; assert json.load(open('.vscode/settings.json'))['chupa.command'] == ['uv', 'run', 'chupa']; assert pathlib.Path('vscode-chupa/README.md').is_file() and not pathlib.Path('vscode-chupa/LICENSE').exists()"
+uv run python -c "import subprocess, pathlib; h = subprocess.run(['./dev.py', '--help'], capture_output=True, text=True, check=True).stdout; assert 'vscode-package' in h, h; s = pathlib.Path('dev.py').read_text(); assert 'VSCE_PAT' not in s; assert 'dist/' in pathlib.Path('.gitignore').read_text().split()"
 node --check vscode-chupa/extension.js
 uv run pytest -q
 ```
 
 ## Definition of rejected
 Reject the branch if any of the following holds:
-- a token is passed in argv;
-- `vscode-publish` bumps the version, tags, or pushes;
+- anything uses a token or runs `vsce publish`;
+- `vscode-package` bumps the version, installs, tags, or pushes;
 - the VSIX bundles Python or engine code;
 - any license file or `license` field is added, or anything publishes to Open VSX;
-- `vscode-chupa/extension.js` changes beyond the `chupa.command` default.
+- `vscode-chupa/extension.js` changes beyond the `chupa.command` default and the `@ext:` settings filter.
 
 ## Time budget
 - expected: 30m
