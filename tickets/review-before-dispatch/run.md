@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-daemon_core receives the repository path but no Git or process-execution seam; its production caller owns checkout.git.
+The focused gate tests passed, but the full suite could not pass: the shakeout premise-park member edits a ticket and redispatches it with no review reply for the new content. The implementation remains uncommitted.
 
 ## Dead ends
 
-Considered constructing a new Git instance in daemon.py, but that would bypass the existing injected seam required by the ticket.
+Considered automatically approving edited tickets in the shared Bench helper, but that would hide the review being exercised and change unrelated shakeout scenarios.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+The ticket budgets 75 minutes expected and 90 minutes stuck; elapsed time was not measured.
 
