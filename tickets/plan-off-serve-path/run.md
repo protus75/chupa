@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Seed citation checks that depend on plan contents are skipped when no plan is supplied; validation with a supplied plan remains unchanged.
+none
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 45 minutes; completed within the budget.
+none
 
