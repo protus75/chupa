@@ -40,10 +40,11 @@ After this change:
 - In: `specs/ask/diagnose.md`, `specs/ask/running.md`, `specs/ask/review.md`.
   - Each is a plain Markdown template, not a driver spec: no frontmatter, never passed to `load_spec`.
   - Each uses `string.Template` placeholders `${stem}`, `${ticket}` (`tickets/<stem>/ticket.md`), and `${state_dir}` (the config's `state_dir`, relative to the repo root when it lies under the repo root, otherwise absolute).
-  - Their text is the extension's current three prompts with three changes:
+  - Their text is the extension's current three prompts with four changes:
     - `.chupa/state` becomes `${state_dir}`;
     - the phrase "following CLAUDE.md section B" is dropped, because Claude Code loads the workspace's conduct file itself;
     - each ends with the current plain-English and "Recommendation" instruction.
+    - the diagnose prompt drops the `(<section>)` parenthetical, because `prompt` receives no section.
 - In: `chupa/ask.py`:
   - `KINDS = ("diagnose", "running", "review")`;
   - `render(kind, stem, config, repo) -> str` substitutes the placeholders with `string.Template.substitute`, so a missing value raises;
