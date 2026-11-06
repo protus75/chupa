@@ -29,7 +29,7 @@ kind: feature
 - In: `chupa/runner.py`: split `verdict` into the lock-taking wrapper and one lock-free function that holds every keep, kill and draft-promotion rule it has today. Both the CLI path and serve call that function, so there is one implementation of the verdict rules.
 - In: `chupa/__main__.py` `_verdict`: on `LockHeld`, always publish an `AdmissionRequest` (`hold_id` null) for `confirm` and `reject`, replacing the draft-confirm-only fallback. The TTY `y` prompt is unchanged. Print `<verb> submitted: <request_id> -- ./dev.py status shows the outcome`.
 - In: `chupa/control.py` and `chupa/serve.py`:
-  - The inbox accepts a null-`hold_id` request when the stem is a committed draft or is in `reject_queue`, and decides it stale otherwise. The stale road is "run status; the stem is not awaiting a verdict".
+  - The inbox accepts a null-`hold_id` request for any stem the lock-free verdict path accepts: one with a `tickets/<stem>/ticket.md` or any journal event. It does not pre-filter by draft or Reject-queue membership; the shared verdict function gives its own refusals (already kept, settled, running, neither a draft nor queued). Only an unknown stem is decided stale, with the road "name a journaled stem or an existing ticket.md".
   - `settle_admissions` applies each accepted request once by calling the lock-free verdict function under an `Effects` key `ticket-plane/<stem>/<verb>/<request_id>`. The key keeps a crash or a repeated pass from applying it twice.
   - A verdict the function refuses (for example "already kept at this ticket content", or a settled stem) completes its effect with the refusal message and road. It is written to the engine log, and `status` shows it.
 - In: serve's dispatch re-offers a kept stem on its next scheduling pass, with no restart.
@@ -56,7 +56,7 @@ kind: feature
 2. While a lock is held, `reject <stem>` on a Reject-queue stem and on a committed draft stamps `state: rejected`, commits it, journals the `rejected` transition once, and files dead-dependent box messages exactly as the lock-free path does. Checked by `uv run pytest tests/test_control.py tests/test_control_cli.py`.
 3. A kept stem dispatches on serve's next scheduling pass without a restart. Checked by `uv run pytest tests/test_serve.py`.
 4. A second keep at unchanged ticket content, sent while serve runs, completes with the "already kept at this ticket content" refusal, which shows in `status`. It journals no second keep. Checked by `uv run pytest tests/test_control.py`.
-5. A request for a stem that is neither a draft nor in the Reject queue is decided stale. Checked by `uv run pytest tests/test_control.py`.
+5. A request for an unknown stem (no ticket file, no journal event) is decided stale. A request for a known stem that is neither a draft nor queued completes with the verdict function's refusal, not as stale. Checked by `uv run pytest tests/test_control.py`.
 6. The lock-free CLI path (no engine running) behaves exactly as before: the existing `tests/test_reject_queue.py` verdict tests pass unchanged.
 7. `uv run pytest -q` exits 0.
 
