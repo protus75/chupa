@@ -10,6 +10,7 @@ from pathlib import Path
 from chupa import runner, triage
 from chupa.config import ConfigError, snapshot_config
 from chupa.daemon import DaemonTasks, HeartbeatCycle, TicketWriter, WorkerFailureObserver, WorkerStop, _protected_cleanup, _stop_workers, checkpoint_push
+from chupa.drain import reexec_argv
 from chupa.effects import Effects
 from chupa.enginelog import EngineLog
 from chupa.git import GitError
@@ -21,7 +22,6 @@ from chupa.mergequeue import ConflictHandoff, regate_receipts
 from chupa.providers import ProviderLLM, ProviderSetupError
 from chupa.redact import Redactor
 from chupa.seams import ExecutableNotFound, SubprocessExec
-from chupa.drain import reexec_argv
 from chupa.stages import ticket_blob
 from chupa.storm import StormLedger
 from chupa.tickets import Ticket, TicketInvalid, intake, parse_ticket, ticket_path
@@ -148,9 +148,7 @@ class Serve:
                     latest = next((e.body for e in reversed(local.journal.read()) if e.type == EventType.STATE_TRANSITION and e.ticket == ticket.stem), {})
                     if "provider_drought" in latest:
                         self.core.scheduler.update(ticket)
-                    if not callback.continuations and not any(
-                        context is callback.ctx and stem in callback.queue.pending.keys() for stem, context in callback.queue.contexts.items()
-                    ):
+                    if not callback.continuations and not any(context is callback.ctx and stem in callback.queue.pending.keys() for stem, context in callback.queue.contexts.items()):
                         self.writers.pop(ticket.stem, None)
 
             return dispatch
@@ -307,7 +305,7 @@ class Serve:
         if self.trees is not None and self.upgrade is None:
             try:
                 trees = await self.engine_trees()
-            except (GitError, ValueError, OSError):
+            except GitError, ValueError, OSError:
                 self.trees = None
                 self.log.event("self_upgrade_off", reason="engine checkout tree ids unavailable")
                 return
@@ -315,10 +313,14 @@ class Serve:
                 self.upgrade = trees
 
     def upgrade_idle(self):
-        return (self.mutating is None and self.core.scheduler.active is None and self.core.admission.active is None
-                and self.core.admission.task is None
-                and not any(w.active or w.continuations for w in self.writers.values())
-                and (self.queue is None or not self.queue.pending and self.queue.active is None))
+        return (
+            self.mutating is None
+            and self.core.scheduler.active is None
+            and self.core.admission.active is None
+            and self.core.admission.task is None
+            and not any(w.active or w.continuations for w in self.writers.values())
+            and (self.queue is None or not self.queue.pending and self.queue.active is None)
+        )
 
     async def dispatch(self) -> None:
         response = self.responses[0]
@@ -453,7 +455,10 @@ class Serve:
         c = self.checkout
         lock = Lockfile(c.config.state_dir, instance_id=await c.git.describe(c.repo), clock=c.clock)
         lock.acquire()
-        restore = lambda: None
+
+        def restore():
+            return None
+
         code = 0
         upgrade_stop = False
         try:

@@ -17,7 +17,7 @@ from chupa.drain import authored_at, sort_key
 from chupa.effects import Effects
 from chupa.gates import GateReport, run_gates
 from chupa.git import GitError, RebaseRefused
-from chupa.journal import TERMINAL_STATES, Event, EventType, run_seq
+from chupa.journal import Event, EventType
 from chupa.stages import CommandResult, Evidence, StageContext
 from chupa.tickets import TICKETS_DIR, Ticket, ticket_path, validate_ticket
 
@@ -279,6 +279,7 @@ class MergeQueue:
         started = ctx.driver.clock()
         conflicts, hits = set(), set()
         rebasing = False
+
         def refused(findings: list[Finding]) -> StageResult:
             return merge._refused(findings, Cost(seconds=(ctx.driver.clock() - started).total_seconds()))
 

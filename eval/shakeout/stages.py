@@ -101,7 +101,10 @@ async def _scope_escape(bench: Bench) -> Observation:
     stem = "scope-escape"
     bench.add_ticket(stem, _ticket(stem, "inside.txt", "true"))
     _configure_diagnosis(bench)
-    action = lambda req: _commit(req, {"inside.txt": "ok\n", "outside.txt": "escape\n"})
+
+    def action(req):
+        return _commit(req, {"inside.txt": "ok\n", "outside.txt": "escape\n"})
+
     bench.script([action, _diagnosis("reject"), action])
     report = await bench.drain()
     terminal = _terminal(bench, stem)
@@ -118,7 +121,10 @@ async def _unfixable_lint_branch_only(bench: Bench) -> Observation:
     stem = "unfixable-lint"
     bench.add_ticket(stem, _ticket(stem, "branch-only.py", "test ! -f branch-only.py"))
     _configure_diagnosis(bench)
-    action = lambda req: _commit(req, {"branch-only.py": "broken\n"})
+
+    def action(req):
+        return _commit(req, {"branch-only.py": "broken\n"})
+
     bench.script([action, _diagnosis("reject"), action])
     report = await bench.drain()
     terminal = _terminal(bench, stem)
@@ -135,7 +141,10 @@ async def _review_reject(bench: Bench) -> Observation:
     bench.add_ticket(stem, _ticket(stem, "review.txt", "test -f review.txt"))
     _configure_diagnosis(bench)
     snag = {"code": "logic", "path": "review.txt", "line": 1, "message": "snagged fixture", "paved_road": "repair the fixture"}
-    action = lambda req: _commit(req, {"review.txt": "ok\n"})
+
+    def action(req):
+        return _commit(req, {"review.txt": "ok\n"})
+
     verdict = json.dumps({"verdict": "snag", "summary": "snag", "findings": [snag]})
     bench.script([action, verdict, _diagnosis("reject"), action, verdict])
     report = await bench.drain()

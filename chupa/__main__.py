@@ -140,7 +140,9 @@ def build_daemon_core(
     return core
 
 
-def build_serve(checkout: runner.Checkout, *, config_path=None, plan=None, read=None, stems=None, prepare=runner.prepare_pipeline, signals=None, failure=None, argv=("serve",), reexec=None) -> serve.Serve:
+def build_serve(
+    checkout: runner.Checkout, *, config_path=None, plan=None, read=None, stems=None, prepare=runner.prepare_pipeline, signals=None, failure=None, argv=("serve",), reexec=None
+) -> serve.Serve:
     """Compose filesystem delivery at the same root as every other real seam."""
 
     def read_ticket(stem):
@@ -266,8 +268,7 @@ def main(
             # ProcessExec starts a new session, orphaning the test run when Check kills
             # covgate's group on timeout; inheriting the group carries the kill to it.
             try:
-                return run_gate(command, gate_path=repo / args.gate, report_path=repo / args.report,
-                                run=lambda argv: subprocess.run(argv, cwd=repo, env=env).returncode)
+                return run_gate(command, gate_path=repo / args.gate, report_path=repo / args.report, run=lambda argv: subprocess.run(argv, cwd=repo, env=env).returncode)
             except FileNotFoundError:
                 print(f"chupa covgate: {command[0]} not found -- install it or correct the command after --", file=sys.stderr)
                 return 2
@@ -348,7 +349,16 @@ def main(
                     return getattr(dispatch, name)
 
             # The handoff uses its own process seam.
-            report = asyncio.run(drain.drain(checkout, DrainDispatch(), reexec=reexec or SubprocessExec(), parked=args.parked, stop_lifecycle=args.stop_lifecycle, argv=(["--config", str(args.config)] if args.config else []) + ["drain"]))
+            report = asyncio.run(
+                drain.drain(
+                    checkout,
+                    DrainDispatch(),
+                    reexec=reexec or SubprocessExec(),
+                    parked=args.parked,
+                    stop_lifecycle=args.stop_lifecycle,
+                    argv=(["--config", str(args.config)] if args.config else []) + ["drain"],
+                )
+            )
             if report.handoff is None:
                 print(report.render(), end="")
             return report.exit_code
@@ -357,8 +367,6 @@ def main(
         road = " -- repair the selected config and retry retro" if args.verb == "retro" and isinstance(e, ConfigError) else ""
         print(f"chupa {args.verb}: {e}{road}", file=sys.stderr)
         return runner.EXIT_REFUSED
-
-
 
 
 async def _review(checkout: runner.Checkout, stem: str) -> int:
@@ -399,11 +407,26 @@ async def _review(checkout: runner.Checkout, stem: str) -> int:
             driver = Driver.from_config(checkout.config, llm=llm, env=checkout.env, clock=checkout.clock, sleep=checkout.sleep, fs=checkout.fs)
             driver.journal = checkout.journal
             driver.effects = Effects(checkout.journal)
-            verdict = await requisition.review_ticket(driver, repo=checkout.repo, stem=stem, text=text, specs_dir=runner.SPECS_DIR,
-                tier=checkout.config.routing_default_tier, stem_slot=f"review-{stem}", run_seq=len(history), attempt=0, call_seq=1, expected_budget="surface")
+            verdict = await requisition.review_ticket(
+                driver,
+                repo=checkout.repo,
+                stem=stem,
+                text=text,
+                specs_dir=runner.SPECS_DIR,
+                tier=checkout.config.routing_default_tier,
+                stem_slot=f"review-{stem}",
+                run_seq=len(history),
+                attempt=0,
+                call_seq=1,
+                expected_budget="surface",
+            )
         finally:
             await session.close()
-        checkout.journal.append(EventType.SIGNAL, {"signal": "requisition_verdict", "verdict": verdict.verdict, "ticket_sha": verdict.ticket_sha, "provider": verdict.provider, "model": verdict.model, "spec_version": verdict.spec_version}, ticket=stem)
+        checkout.journal.append(
+            EventType.SIGNAL,
+            {"signal": "requisition_verdict", "verdict": verdict.verdict, "ticket_sha": verdict.ticket_sha, "provider": verdict.provider, "model": verdict.model, "spec_version": verdict.spec_version},
+            ticket=stem,
+        )
         print(f"review {stem}: {verdict.verdict} -- {verdict.summary}")
         for finding in verdict.findings:
             location = f" {finding.path}:{finding.line}" if finding.path and finding.line is not None else f" {finding.path}" if finding.path else ""

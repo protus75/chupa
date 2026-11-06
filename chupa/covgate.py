@@ -4,9 +4,9 @@ import json
 import math
 import sys
 import tomllib
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from collections.abc import Callable, Sequence
 
 
 class GateInvalid(ValueError):
@@ -62,11 +62,14 @@ def parse_gate(text: str) -> Gate:
         raise GateInvalid("coverage.default", "required")
     default = number(coverage["default"], "coverage.default")
     unit = table(data.get("unit", {}), "unit", {"budget_seconds"})
-    return Gate(default, number(coverage.get("repository", default), "coverage.repository"),
-                paths(coverage.get("packages", {}), "coverage.packages"),
-                paths(coverage.get("files", {}), "coverage.files"),
-                number(unit.get("budget_seconds", 60), "unit.budget_seconds", budget=True),
-                "repository" in coverage)
+    return Gate(
+        default,
+        number(coverage.get("repository", default), "coverage.repository"),
+        paths(coverage.get("packages", {}), "coverage.packages"),
+        paths(coverage.get("files", {}), "coverage.files"),
+        number(unit.get("budget_seconds", 60), "unit.budget_seconds", budget=True),
+        "repository" in coverage,
+    )
 
 
 def evaluate(gate: Gate, report: dict) -> list[str]:
@@ -79,7 +82,14 @@ def evaluate(gate: Gate, report: dict) -> list[str]:
         for path, entry in files.items():
             summary = entry["summary"]
             values = [summary["covered_lines"], summary["num_statements"], summary.get("covered_branches", 0), summary.get("num_branches", 0)]
-            if not isinstance(path, str) or any(type(n) is not int or n < 0 for n in values) or values[0] > values[1] or values[2] > values[3] or not isinstance(entry["missing_lines"], list) or any(type(n) is not int or n < 1 for n in entry["missing_lines"]):
+            if (
+                not isinstance(path, str)
+                or any(type(n) is not int or n < 0 for n in values)
+                or values[0] > values[1]
+                or values[2] > values[3]
+                or not isinstance(entry["missing_lines"], list)
+                or any(type(n) is not int or n < 1 for n in entry["missing_lines"])
+            ):
                 raise ValueError("invalid file summary or missing lines")
             counts[path] = values
     except (KeyError, TypeError, AttributeError) as exc:

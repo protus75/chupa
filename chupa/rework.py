@@ -165,7 +165,14 @@ async def rework(
                 if verdict.verdict == "approve":
                     ctx.driver.journal.append(
                         EventType.SIGNAL,
-                        {"signal": "requisition_verdict", "verdict": "approve", "ticket_sha": verdict.ticket_sha, "provider": verdict.provider, "model": verdict.model, "spec_version": verdict.spec_version},
+                        {
+                            "signal": "requisition_verdict",
+                            "verdict": "approve",
+                            "ticket_sha": verdict.ticket_sha,
+                            "provider": verdict.provider,
+                            "model": verdict.model,
+                            "spec_version": verdict.spec_version,
+                        },
                         ticket=proposal.stem,
                     )
                 errors.extend(verdict.findings)

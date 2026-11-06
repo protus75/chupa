@@ -280,7 +280,7 @@ async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResu
     if not skip:
         gated.insert(0, run_gates(CHECK_GATES, evidence, worktree, severity=severity))
     host = []
-    for n, entry in ([] if skip else triggered_hosts(ctx, evidence.changed_files, hard_only=True)):
+    for n, entry in [] if skip else triggered_hosts(ctx, evidence.changed_files, hard_only=True):
         _, report = await run_host_command(ctx, ticket, attempt, entry.argv, entry.code, f"merge/host-{n:02d}.txt")
         host.extend(report.findings)
     if hard := [f for g in gated for r in g.hard_failures for f in r.findings] + host:

@@ -20,11 +20,7 @@ _SHAPE = (
     "match request_id to the filename; pause/kill/stop require null hold_id; "
     "for resume read the current hold and submit its exact nonempty identity"
 )
-_ADMISSION_SHAPE = (
-    "publish a fresh committed draft confirm request "
-    "with exactly {request_id, lifecycle_id, verb, stem, hold_id, actor}; "
-    "actor is operator | machine and hold_id is null"
-)
+_ADMISSION_SHAPE = "publish a fresh committed draft confirm request with exactly {request_id, lifecycle_id, verb, stem, hold_id, actor}; actor is operator | machine and hold_id is null"
 
 
 @dataclass(frozen=True)

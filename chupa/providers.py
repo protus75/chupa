@@ -111,10 +111,7 @@ def _candidate(config, tier, surface, cand):
     provider = next(p for p in config.providers if p.name == cand.provider)  # load_config checked the reference
     model = cand.model if cand.model is not None else getattr(provider.models_by_tier, tier)
     if PLACEHOLDER in (model, provider.auth):
-        raise ProviderSetupError(
-            f"routing for tier {tier!r}, surface {surface!r} resolves to provider {provider.name!r} still carrying"
-            f" {PLACEHOLDER}; set the operator values in config.yaml"
-        )
+        raise ProviderSetupError(f"routing for tier {tier!r}, surface {surface!r} resolves to provider {provider.name!r} still carrying {PLACEHOLDER}; set the operator values in config.yaml")
     return Served(provider, model)
 
 

@@ -8,8 +8,8 @@ lift moves it to the canonical tickets dir as ONE ticket-plane commit `chupa(<st
 The run's terminal `state_transition` is not written here: that is the runner's (section 11.2).
 """
 
-import asyncio
 import ast
+import asyncio
 import fnmatch
 import hashlib
 import json
@@ -57,7 +57,8 @@ from chupa.providers import child_env
 from chupa.seams import ExecutableNotFound, FileSystem, ProcessExec
 from chupa.specs import RenderOverBound, Spec, load_spec, render, without_unit
 from chupa.storm import arrival_id
-from chupa.tickets import _HEADING, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, read_plan, ticket_path, validate_ticket
+from chupa.tickets import _HEADING, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, read_plan, ticket_path
+from chupa.tickets import validate_ticket as validate_ticket
 
 MAIN = "main"
 KNOWN_ARTIFACTS: Mapping[str, type[BaseModel]] = {
@@ -1010,7 +1011,7 @@ def _changed_lines(diff: str) -> dict[str, set[int]]:
                 lines.setdefault(path, set()).add(new_line)
                 new_line += 1
             elif line.startswith("-"):
-                if (i == 0 or body[i - 1][:1] not in "+-"):
+                if i == 0 or body[i - 1][:1] not in "+-":
                     end = i
                     while end < len(body) and body[end].startswith("-"):
                         end += 1
@@ -1058,12 +1059,22 @@ async def _check_host_results(ctx, ticket, entry, n, attempt, changed_files):
         result, report = await run_host_command(ctx, ticket, attempt, entry.argv, entry.code, name)
         try:
             results = read_results(path.read_text())
-        except (OSError, UnicodeError, ResultsInvalid):
+        except OSError, UnicodeError, ResultsInvalid:
             results = None
         return result, report, results
 
     def invalid():
-        return _report(entry.code, [Finding(code=entry.code, path=entry.results, message=f"Missing or invalid results file: {entry.results}", paved_road=f"make the command write it via -p chupa.testreport --chupa-results {entry.results}")])
+        return _report(
+            entry.code,
+            [
+                Finding(
+                    code=entry.code,
+                    path=entry.results,
+                    message=f"Missing or invalid results file: {entry.results}",
+                    paved_road=f"make the command write it via -p chupa.testreport --chupa-results {entry.results}",
+                )
+            ],
+        )
 
     result, report, first = await run(f"check/host-{n:02d}.txt")
     if first is None:
@@ -1080,8 +1091,18 @@ async def _check_host_results(ctx, ticket, entry, n, attempt, changed_files):
         if flaky and entry.coverage is not None:
             try:
                 contexts = _coverage_contexts(root / entry.coverage)
-            except (OSError, UnicodeError, ValueError, KeyError, TypeError):
-                return _report(entry.code, [Finding(code=entry.code, path=entry.coverage, message=f"Missing or invalid coverage contexts: {entry.coverage}", paved_road="run with --cov-context=test, and set [tool.coverage.json] show_contexts = true and [tool.coverage.run] core = \"ctrace\"")])
+            except OSError, UnicodeError, ValueError, KeyError, TypeError:
+                return _report(
+                    entry.code,
+                    [
+                        Finding(
+                            code=entry.code,
+                            path=entry.coverage,
+                            message=f"Missing or invalid coverage contexts: {entry.coverage}",
+                            paved_road='run with --cov-context=test, and set [tool.coverage.json] show_contexts = true and [tool.coverage.run] core = "ctrace"',
+                        )
+                    ],
+                )
             changed = _changed_lines(await ctx.git.diff(ctx.repo, MAIN, ticket.stem))
             covered = {context.split("|", 1)[0] for name, numbers in changed.items() for number in numbers for context in contexts.get(name, {}).get(str(number), []) if "|" in context}
         for test in sorted(flaky):
@@ -1090,7 +1111,13 @@ async def _check_host_results(ctx, ticket, entry, n, attempt, changed_files):
                 findings.append(Finding(code=entry.code, message=f"{test} is flaky and touches edited code", paved_road="make it deterministic by faking time, IO and ordering"))
             elif test not in projection.tests:
                 count = 1 + sum(identity.test_id == test and box_id not in projection.active for box_id, identity in projection.detected.items())
-                projection = flake.detect(test_id=test, evidence=RerunEvidence(test, "fail", "pass", True, True, True), summary=f"{test} failed then passed for {ticket.stem}", reason=f"failed then passed on a bare rerun; detection {_detection_letters(count)}", occurrence_id=arrival_id("flake-detection", ticket.stem, attempt, test, n))
+                projection = flake.detect(
+                    test_id=test,
+                    evidence=RerunEvidence(test, "fail", "pass", True, True, True),
+                    summary=f"{test} failed then passed for {ticket.stem}",
+                    reason=f"failed then passed on a bare rerun; detection {_detection_letters(count)}",
+                    occurrence_id=arrival_id("flake-detection", ticket.stem, attempt, test, n),
+                )
                 if test not in projection.tests:
                     findings.append(Finding(code=entry.code, message=f"{test}: {escalations[-1]}", paved_road="fix and release existing quarantines before admitting this test"))
         for test, outcome in sorted(last.items()):
@@ -1135,7 +1162,7 @@ async def check_hosts(ctx, ticket, changed_files, attempt):
 
                     try:
                         read_results((base_worktree / entry.results).read_text())
-                    except (OSError, UnicodeError, ResultsInvalid):
+                    except OSError, UnicodeError, ResultsInvalid:
                         pass
             finally:
                 await ctx.git.worktree_remove(ctx.repo, base_worktree)

@@ -466,7 +466,10 @@ def _require(member, condition, detail):
 async def _observe(member: _Member) -> DaemonSoakEntry:
     """Re-read this member's records after all owned lifetimes have finished."""
     m = member
-    need = lambda condition, detail: _require(m, condition, detail)
+
+    def need(condition, detail):
+        return _require(m, condition, detail)
+
     events = m.journal.read()
     need(
         m.task is None and all(o.tasks.tasks == () and all(t.done() for t in o.workers) and o.core.admission.task is None and not o.core.watcher._waits for o in m.lifetimes),
@@ -515,7 +518,8 @@ async def _observe(member: _Member) -> DaemonSoakEntry:
             receipt["reviewed_sha"] == review.reviewed_sha
             and (receipt["review_provider"], receipt["review_model"]) == ("claude", "script")
             and receipt["candidate_base_sha"] == m.admission_heads[stem]
-            and receipt["admission"] == "READY" and receipt["reason"] == "bootstrap",
+            and receipt["admission"] == "READY"
+            and receipt["reason"] == "bootstrap",
             f"{stem}/{sequence} served identity or admission evidence missing",
         )
         need(any(s == stem and result[0] == 0 for s, result in m.main_checks), f"{stem} main Verification after merge missing")

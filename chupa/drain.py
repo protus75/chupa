@@ -50,6 +50,8 @@ PREMISE = "premise_failed"
 HANDOFF_SIGNAL = "drain_handoff"
 # The engine plane the running process has loaded: admitting a change under either re-execs the drain.
 UPGRADE_PREFIXES = ("chupa/", "specs/")
+
+
 def reexec_argv(args: Iterable[str], *, engine: Path = Path(__file__).resolve().parent.parent) -> list[str]:
     return ["uv", "run", "--project", str(engine), "python", "-m", "chupa", *args]
 
@@ -256,7 +258,12 @@ async def drain(
             lock.release()
     # The fixed HANDOFF order: journaled, journal closed, lock free -- the child is the only writer,
     # and the parent does nothing after the spawn but exit with its code.
-    report.handoff, _, _ = await reexec.run(reexec_argv([*argv, *(a for stem in carried for a in ("--parked", stem)), *(["--stop-lifecycle", consumer.inbox.lifecycle_id] if consumer.projection.stop_requested else [])]), cwd=checkout.repo, env=checkout.env, timeout=None)
+    report.handoff, _, _ = await reexec.run(
+        reexec_argv([*argv, *(a for stem in carried for a in ("--parked", stem)), *(["--stop-lifecycle", consumer.inbox.lifecycle_id] if consumer.projection.stop_requested else [])]),
+        cwd=checkout.repo,
+        env=checkout.env,
+        timeout=None,
+    )
     return report
 
 
@@ -586,8 +593,7 @@ class _Drain:
                 else:
                     why, road = (
                         f"{to}{where}; {caps.spent_reason(spent_cap)} ({drawn}/{cap_limit})",
-                        "read the findings below and the engine log; fix the ticket and author a successor stem -- a"
-                        " `ticket.md` edit never re-arms the cap",
+                        "read the findings below and the engine log; fix the ticket and author a successor stem -- a `ticket.md` edit never re-arms the cap",
                     )
                 if stem in awaiting:
                     if "ticket_changed" in awaiting[stem].get("reason", "").split(","):

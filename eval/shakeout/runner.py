@@ -92,7 +92,10 @@ async def _identical_terminals(bench: Bench) -> Observation:
         )
     )
     snag = {"code": "logic", "path": "identical.txt", "line": 1, "message": "same wall", "paved_road": "repair the same wall"}
-    fail = lambda req: _commit(req, {"identical.txt": "still blocked\n"})
+
+    def fail(req):
+        return _commit(req, {"identical.txt": "still blocked\n"})
+
     verdict = json.dumps({"verdict": "snag", "summary": "snag", "findings": [snag]})
     bench.script(
         [

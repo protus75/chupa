@@ -310,7 +310,10 @@ async def _main(argv=None):
     parser.add_argument("--baseline", type=Path, required=True)
     args = parser.parse_args(argv)
     fs, exec_ = LocalFileSystem(), SubprocessExec()
-    clock = lambda: datetime.now(UTC)
+
+    def clock():
+        return datetime.now(UTC)
+
     git = Git(exec_, env={"PATH": "/usr/bin:/bin"}, timeout=10)
     try:
         try:
