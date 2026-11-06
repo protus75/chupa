@@ -96,6 +96,26 @@ async def admission(ctx, ticket, *, queue=None, attempt=0):
     return result
 
 
+@pytest.mark.parametrize("overlap", [True, False])
+def test_queue_refuses_dirty_overlap_instead_of_raising(ctx, overlap):
+    async def exercise():
+        ticket = await ready(ctx)
+        rel = "chupa/thing.py" if overlap else "chupa/other.py"
+        edit = b"operator edit\n"
+        ctx.fs.write(ctx.repo / rel, edit)
+        before = await ctx.git.rev_parse(ctx.repo, "main")
+        result = await admission(ctx, ticket)
+        if overlap:
+            await unchanged(ctx, ticket, before, result, "dirty_checkout")
+            assert not any((e.key or "").startswith("merge-regate/") for e in ctx.driver.journal.read())
+        else:
+            assert result.outcome == "ok" and await ctx.git.rev_parse(ctx.repo, "main") != before
+        assert (ctx.repo / rel).read_bytes() == edit
+        assert f" M {rel}" in (await ctx.git.status_porcelain(ctx.repo)).splitlines()
+
+    run(exercise())
+
+
 def test_green_candidate_merges_without_baseline_or_confirm(ctx):
     from chupa.mergequeue import regate_receipts
 

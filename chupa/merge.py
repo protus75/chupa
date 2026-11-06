@@ -248,6 +248,22 @@ async def main_code_unchanged(ctx: StageContext, reviewed: str) -> bool:
     return not any(not path.startswith(f"{TICKETS_DIR}/") for path in await ctx.git.diff_names(ctx.repo, reviewed, MAIN))
 
 
+async def dirty_overlap(ctx: StageContext, stem: str) -> list[Finding]:
+    records = iter((await ctx.git._run(ctx.repo, "status", "--porcelain", "-z")).split("\0"))
+    dirty = set()
+    for record in records:
+        if not record:
+            continue
+        if record[:2] != "??":
+            dirty.add(record[3:])
+            if "R" in record[:2] or "C" in record[:2]:
+                dirty.add(next(records))
+    overlap = sorted(dirty.intersection(await ctx.git.diff_names(ctx.repo, MAIN, stem)))
+    if not overlap:
+        return []
+    return [Finding(code="dirty_checkout", message=f"main checkout has local changes to {', '.join(overlap)} that the squash would overwrite", paved_road="commit or revert those edits in the main checkout; the ticket re-runs through the normal retry path")]
+
+
 async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResult:
     """Admit one reviewed branch to main, or refuse it with findings and main untouched."""
     stem = ticket.stem
@@ -286,6 +302,8 @@ async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResu
     if hard := [f for g in gated for r in g.hard_failures for f in r.findings] + host:
         return _refused(hard, Cost(seconds=(ctx.driver.clock() - started).total_seconds()))
 
+    if findings := await dirty_overlap(ctx, stem):
+        return _refused(findings, Cost(seconds=(ctx.driver.clock() - started).total_seconds()))
     admission = await write_squash(ctx, ticket, reviewed, attempt=attempt)
     await retire(ctx, stem)
     soft = [f for g in gated for f in g.findings]

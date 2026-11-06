@@ -82,6 +82,25 @@ def refused_untouched(ctx, result, main_before: str, code: str) -> None:
     assert not merged_events(ctx)
 
 
+@pytest.mark.parametrize("overlap", [True, False])
+def test_merge_refuses_dirty_overlap_instead_of_raising(repo, overlap):
+    ctx, ticket, attempt = reviewed(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
+    rel = "chupa/thing.py" if overlap else "chupa/other.py"
+    edit = b"operator edit\n"
+    (repo / rel).write_bytes(edit)
+    before = git(repo, "rev-parse", "main").strip()
+
+    result = admit(ctx, ticket, attempt)
+
+    if overlap:
+        refused_untouched(ctx, result, before, "dirty_checkout")
+        assert not any(e.type == EventType.EFFECT_INTENT and (e.key or "").startswith("merge/") for e in ctx.driver.journal.read())
+    else:
+        assert result.outcome == "ok" and git(repo, "rev-parse", "main").strip() != before
+    assert (repo / rel).read_bytes() == edit
+    assert f" M {rel}" in git(repo, "status", "--porcelain").splitlines()
+
+
 def test_a_passing_ticket_squash_merges_with_trailers_and_journals_merged(repo):
     ctx, ticket, attempt = reviewed(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
     head = git(repo, "rev-parse", STEM).strip()

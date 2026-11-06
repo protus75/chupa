@@ -369,6 +369,8 @@ class MergeQueue:
                     reason="bootstrap",
                 )
 
+            if findings := await merge.dirty_overlap(ctx, stem):
+                return refused(findings)
             await Effects(ctx.driver.journal).run(receipt_action, key=key, ticket=stem)
             return await self._finish(ticket, attempt, reviewed, checked_tree, started, [f for g in safety + integration for f in g.findings])
         finally:
