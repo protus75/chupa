@@ -11,6 +11,9 @@ none
 ## Context
 - chupa/runner.py
 - chupa/policy.py
+- config.yaml
+
+## On-demand
 - chupa/drain.py
 - chupa/serve.py
 - chupa/merge.py
@@ -21,7 +24,6 @@ none
 - chupa/retro.py
 - eval/harness.py
 - eval/diagnose.py
-- config.yaml
 - docs/how-chupa-works.md
 - docs/host-contract.md
 
@@ -97,6 +99,20 @@ After this change:
 - tests/test_watch.py
 - docs/how-chupa-works.md
 - docs/host-contract.md
+- chupa/__main__.py
+- chupa/artifacts.py
+- chupa/stages.py
+- chupa/box.py
+- chupa/retro.py
+- tests/test_config.py
+- tests/test_driver.py
+- tests/test_echo_stage.py
+- tests/test_llm_effect.py
+- tests/test_mergequeue.py
+- tests/test_policy.py
+- tests/test_provider_cooldown_failover.py
+- tests/test_retro.py
+- tests/test_status.py
 
 ## Acceptance criteria
 1. `specs/` does not exist and `chupa/specs/review.md` does. The first Verification command checks both, and fails if `runner.SPECS_DIR` is not `chupa/specs`.
