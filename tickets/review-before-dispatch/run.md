@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The new gate scenarios passed, but the full verification run did not complete; a targeted seed-path test confirmed the scope conflict. No changes were committed.
+Drain automatically re-offers a Reject-queued ticket with remaining cap budget; requisition snags consume no cap, so they require an explicit operator hold.
 
 ## Dead ends
 
-Adapted permitted dispatch fixtures, but tests/test_seed_path.py constructs and dispatches an unapproved seed ticket directly and asserts the original request sequence.
+Considered reusing the ticket_changed hold marker, but that would falsely report a ticket change instead of the review findings.
 
 ## Second problems filed
 
@@ -18,9 +18,9 @@ none
 
 - provider: codex
 - model: gpt-6.1-terra
-- spec: implement 2.0
+- spec: implement 2.1
 
 ## Predicted vs actual
 
-none
+The ticket budget was 75 minutes expected and 90 minutes stuck; work stopped after identifying the scope conflict.
 
