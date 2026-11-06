@@ -25,12 +25,12 @@ A `diff_budget` failure is a property of the ticket, not of the attempt. After t
 
 ## Scope in / Scope out
 - In: `chupa/drain.py`: a new predicate `budget_parked(events, stem, ticket_sha)` beside `premise_parked`: true when the stem's last state transition is `gate_failed` with `diff_budget` among its comma-separated `reason` values and its last `running` transition's `ticket_sha` equals `ticket_sha`. `premise_parked` is unchanged.
-- In: the drain's `held` set and the scheduler's `held` set (`chupa/scheduler.py`) each also include stems where `budget_parked` holds.
-- In: `_settle` reports a held `diff_budget` stem with the road "split or shrink the ticket under the diff budget and commit the `ticket.md` change, or retire it with `./dev.py reject <stem>`", not the premise road.
+- In: the drain's `held` set and the scheduler's `held` set (`chupa/scheduler.py`) each also include stems where `budget_parked` holds, and `Drain._between_tickets` also returns true for a budget-parked last-dispatched stem.
+- In: `_settle` reports a held `diff_budget` stem with the road "split or shrink the ticket under the diff budget and commit the `ticket.md` change, or retire it with `./dev.py reject <stem>`", not the premise road. It takes precedence over the Reject-queue (`awaiting`) road, except the `ticket_changed` case.
 - In: tests:
-  - `tests/test_drain.py` new `test_diff_budget_failure_holds_until_ticket_changes`: after a `diff_budget` `gate_failed`, an unchanged ticket is not re-dispatched, journals no machine `reject_verdict`, and its parked road names the diff budget; after a committed `ticket.md` edit it is re-dispatched;
+  - `tests/test_drain.py` new `test_diff_budget_failure_holds_until_ticket_changes`: after a `gate_failed` terminal journaled as the incident was (reason containing `diff_budget`, `routed: reject_queue`), an unchanged ticket is not re-dispatched, journals no machine `reject_verdict`, and its parked road names the diff budget, and `_between_tickets` is true for it; after a committed `ticket.md` edit it is re-dispatched;
   - `tests/test_drain.py` new `test_other_gate_failure_is_still_reoffered`: a `gate_failed` with reason `verification` at the unchanged sha is re-dispatched;
-  - `tests/test_scheduler.py` new `test_scheduler_holds_diff_budget_failure`: the scheduler does not pick an unchanged `diff_budget` stem.
+  - `tests/test_scheduler.py` new `test_scheduler_holds_diff_budget_failure`: with a `gate_failed` terminal whose reason is `diff_budget` and that is not routed to the Reject queue, the scheduler does not pick the unchanged stem, and picks it after its `ticket_sha` changes.
 - In: `docs/how-chupa-works.md`: the sentence describing the premise park also covers a `diff_budget` failure.
 - Out: `confirm`/`reject` behavior (`chupa/runner.py`); other gate failures; the diff budget values; Rework.
 
@@ -44,7 +44,7 @@ A `diff_budget` failure is a property of the ticket, not of the attempt. After t
 ## Acceptance criteria
 1. `test_diff_budget_failure_holds_until_ticket_changes` passes: the unchanged ticket's dispatches stay at one, and the edited ticket's reach two.
 2. `test_other_gate_failure_is_still_reoffered` passes: a `verification` gate failure is dispatched twice.
-3. `test_scheduler_holds_diff_budget_failure` passes.
+3. `test_scheduler_holds_diff_budget_failure` passes: the unrouted stem is not picked at the unchanged sha and is picked after the sha changes.
 4. `uv run pytest -q` exits 0.
 
 ## Verification
