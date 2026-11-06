@@ -645,6 +645,8 @@ The block carries only process rules that hold for every host; codebase rules be
 - `doctor` checks a host's setup without changing anything.
 - The `chupa.testreport` pytest plugin accepts `--chupa-results PATH` and writes JSON with
   `schema_version: 1` and a `tests` map from pytest node IDs to `passed`, `failed`, or `skipped`.
+- The `chupa.testguard` unit-run pytest plugin blocks process and network IO during test phases
+  and enforces the `test-gate.toml` unit time budget (60 seconds by default).
 - A host provides `config.yaml`, its conduct files, and its tickets. `docs/host-contract.md` is
   the full host-facing contract.
 
