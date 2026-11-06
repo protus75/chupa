@@ -5,7 +5,7 @@ emits: rework-order
 tier: high
 effort: high
 gates: [ticket_schema, requisition_review]
-version: "1.0"
+version: "1.1"
 ---
 ## Role
 
@@ -29,6 +29,15 @@ Add no escalation metadata. Change content only to narrow or divide the original
 needed predecessor dependencies and Context closure. Use no self-edge or dependency cycle;
 a split successor must not depend on the superseded original. Choose stems absent from ticket
 directories and journal identities. Each proposal receives separate grammar and feasibility review.
+
+For every proposal:
+
+- Every `## On-demand` path is an existing file covered by `## Scope fence`; put read-only
+  references in `## Context`.
+- `## Context` and `## On-demand` name only files on main now. A file a sibling successor
+  creates or moves appears only in `## Scope fence` and `## Verification`.
+- Each acceptance criterion names its check in backticks.
+- Each successor diff, counting renamed files, fits the diff budget named in the findings.
 
 Clear re-prompt findings before proposing another order. A feasibility snag returns findings;
 an RMA stops this invocation for the failure spine, never author around the refusal.
