@@ -17,6 +17,7 @@ none
 - vscode-chupa/package.json
 - docs/how-chupa-works.md
 - vscode-chupa/snapshot.py
+- docs/host-running.md
 
 ## On-demand
 - docs/host-authoring.md
@@ -58,6 +59,7 @@ After this change, `chupa order <stem> [--priority P0|P1|P2|P3] [--runs-before [
   - `docs/how-chupa-works.md` section 2.1: a row for `order`.
   - Section 2.2: a row for `./dev.py order`.
   - `docs/host-authoring.md`: one sentence beside `Runs before` naming `chupa order`.
+  - `docs/host-running.md`: an `order` row in the verb table beside `new`, "Works while serve runs?" = Yes.
 - Out: `Depends on` edits, all other frontmatter fields, intake, and the scheduler.
 
 ## Scope fence
@@ -69,11 +71,12 @@ After this change, `chupa order <stem> [--priority P0|P1|P2|P3] [--runs-before [
 - vscode-chupa/package.json
 - docs/how-chupa-works.md
 - docs/host-authoring.md
+- docs/host-running.md
 
 ## Acceptance criteria
 1. `uv run pytest -q tests/test_cli.py` exits 0, including the five tests above.
 2. `node --check vscode-chupa/extension.js` exits 0, and `vscode-chupa/package.json` declares both commands with `webview/context` entries limited to queued and blocked rows.
-3. `docs/how-chupa-works.md` sections 2.1 and 2.2 and `docs/host-authoring.md` describe `order`.
+3. `docs/how-chupa-works.md` sections 2.1 and 2.2, `docs/host-authoring.md`, and the `docs/host-running.md` verb table describe `order`.
 4. `uv run pytest -q` exits 0.
 
 ## Verification
