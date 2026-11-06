@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-The full suite passed on retry after a reliability-battery recovery-offer failure; that failure was not reproduced on the base commit and is not classified as pre-existing.
+The full suite passed with one Pydantic serializer warning from the daemon soak test.
 
 ## Dead ends
 
-An initial heartbeat fix exposed a watcher-lock race; the final change keeps the watcher responsive while waiting for admission.
+An initial heartbeat responsiveness adjustment did not resolve the parallel-suite failure; wrapping the watcher’s admission-lock wait in its existing responsiveness mechanism did.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 90 minutes; actual elapsed time was not measured.
+The ticket budget was 90 minutes expected and 180 minutes stuck; actual elapsed time was not measured.
 
