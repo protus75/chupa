@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "a984555f6a21bd605e01351891613c7bc3de343d",
+  "produced_at_sha": "d0d92a0fc4f465bbac97cf49d77e3aab86f1bcf9",
   "stem": "specs-in-package",
-  "attempt": 1,
-  "terminal": "gate_failed",
-  "stage": "check",
+  "attempt": 2,
+  "terminal": "premise_failed",
+  "stage": "implement",
   "verdict": "split",
   "lessons": [
-    "Split because the diff_budget finding allows at most 30 files and the diff had 43. Moving specs/ to chupa/specs/ alone touches 11 files. The code was sound (3025 passed, all Verification commands green), so keep its approach and divide the same edits into stems, each under 30 files.",
-    "Stem 1 (move): git mv specs chupa/specs; update runner.SPECS_DIR, policy.SPECS, stages.py, artifacts.py, watch.py, eval/harness.py, eval/diagnose.py, and only the tests that read real spec files. Keep it to 30 files or fewer; the files moved, so this is not a dual path.",
-    "Stem 2 (matchers), depends on stem 1: drain.UPGRADE_PREFIXES ('chupa/',) is already true, serve.engine_trees reads HEAD:chupa, merge.py regex matches chupa/specs/, tickets.py Context check, config.yaml inventory, plus test_closed_sets, test_drain_upgrade, test_merge, test_serve, test_tickets.",
-    "Stem 3 (box paths), depends on stem 1: change the one chupa/specs/retro.md sentence; author.py and triage.py add the chupa/ prefix to proposed_spec_paths in requests. Leave the box.py and retro.py pattern ^specs/...\\.md$ unchanged. Update test_author (AC5), test_retro_box and test_triage.",
-    "Stem 4 (docs), depends on stem 1: update the specs/ paths in docs/how-chupa-works.md sections 1, 4.2, 4.4, 6.3, 6.5, 7.1 and 8.4, and in docs/host-contract.md (the inventory example and the Instance custody restart sentence). Each stem's acceptance criteria and Verification cover only its own part."
+    "The hard diff-budget gate (chupa/stages.py:73) allows 30 changed files. This ticket needs at least 32: 11 moved spec files, 14 named production/config/doc files and 7+ tests. The previous attempt's 43-file diff failed the gate, so do not retry it as one change.",
+    "Child 1: git mv specs chupa/specs, plus the loaders (runner.SPECS_DIR, policy.SPECS, eval/harness.py, eval/diagnose.py, the spec-version read in watch.py or observe.py, ask.py if present) and the tests that read real spec files. Verification: the ticket's first Verification command plus pytest.",
+    "Child 2: depends on child 1. Repath the matchers and stored-path handling: drain.UPGRADE_PREFIXES, serve.engine_trees and the serve_handoff body, the merge.py regex, the tickets.py Context check, author/triage chupa/ prefixing, the retro.md sentence and config.yaml. It owns acceptance criteria 2-6.",
+    "Put the docs/how-chupa-works.md and docs/host-contract.md updates in whichever child has room under 30 files, or in a third child that depends on child 2. Count each renamed spec file toward the budget when sizing each child.",
+    "Keep no dual path in any child. Child 1 must not leave loaders accepting both specs/ and chupa/specs/, and the proposed_spec_paths pattern stays ^specs/[a-z0-9_-]+\\.md$ in every child, as the Definition of rejected requires."
   ],
   "mechanical": null,
   "spec_version": "1.2",
