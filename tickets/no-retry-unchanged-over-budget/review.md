@@ -1,10 +1,10 @@
-# Review: snag
+# Review: approve
 
-The hold and its tests match the ticket, but the new _settle diff_budget road ignores spent caps, so it can point to a ticket.md edit that cannot release the stem.
+The diff adds `budget_parked` and uses it in the drain's held set, in `_between_tickets` and in the scheduler hold. It reports the diff-budget road only when no cap is spent, so the prior finding is resolved. `premise_parked` is unchanged, other gate failures are still re-offered, the docs are updated, and the required tests are present.
 
 ## Findings
 
-- [logic] chupa/drain.py:617 The diff_budget road branch has no `spent_cap is None` guard, unlike the premise-park branch it sits beside. When a stem fails with diff_budget and its retry or attempts cap is spent, the parked report still says to commit the `ticket.md` change. The cap-spent road says the opposite: 'a `ticket.md` edit never re-arms the cap'. The operator is sent to a release that cannot work. (do instead: Add `and spent_cap is None` to the diff_budget condition at line 617 and to the matching awaiting guard at line 633. A cap-spent diff_budget stem then gets the cap-spent road and wording, while an uncapped budget park keeps the diff-budget road.)
+none
 
 ## Record
 
@@ -12,24 +12,14 @@ The hold and its tests match the ticket, but the new _settle diff_budget road ig
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "93374c1f439c8c90f22894183b32160b82ef901b",
+  "produced_at_sha": "d2342d3bb6e0903b814b272b8ec31bd01325cc36",
   "stem": "no-retry-unchanged-over-budget",
-  "reviewed_sha": "93374c1f439c8c90f22894183b32160b82ef901b",
-  "summary": "The hold and its tests match the ticket, but the new _settle diff_budget road ignores spent caps, so it can point to a ticket.md edit that cannot release the stem.",
-  "findings": [
-    {
-      "code": "logic",
-      "path": "chupa/drain.py",
-      "line": 617,
-      "message": "The diff_budget road branch has no `spent_cap is None` guard, unlike the premise-park branch it sits beside. When a stem fails with diff_budget and its retry or attempts cap is spent, the parked report still says to commit the `ticket.md` change. The cap-spent road says the opposite: 'a `ticket.md` edit never re-arms the cap'. The operator is sent to a release that cannot work.",
-      "paved_road": "Add `and spent_cap is None` to the diff_budget condition at line 617 and to the matching awaiting guard at line 633. A cap-spent diff_budget stem then gets the cap-spent road and wording, while an uncapped budget park keeps the diff-budget road.",
-      "kind": null,
-      "unit": null
-    }
-  ],
+  "reviewed_sha": "d2342d3bb6e0903b814b272b8ec31bd01325cc36",
+  "summary": "The diff adds `budget_parked` and uses it in the drain's held set, in `_between_tickets` and in the scheduler hold. It reports the diff-budget road only when no cap is spent, so the prior finding is resolved. `premise_parked` is unchanged, other gate failures are still re-offered, the docs are updated, and the required tests are present.",
+  "findings": [],
   "spec_version": "1.4",
   "provider": "claude",
   "model": "claude-opus-5-5",
-  "verdict": "snag"
+  "verdict": "approve"
 }
 ```
