@@ -350,6 +350,19 @@ def test_author_reprompts_for_reused_stem_and_invalid_ticket(tmp_path, monkeypat
     assert "already exists" in prompts[1]
     assert "ticket.md has no frontmatter" in prompts[2]
     assert (root / "tickets/fresh-ticket/ticket.md").exists()
+    keys = [e.key for e in _events(root) if e.type == EventType.EFFECT_COMPLETION and e.key and "/requisition_review/" in e.key]
+    assert len(keys) == 1 and keys[0].endswith("/3")
+
+
+def test_author_reviews_keep_unique_keys_when_one_reasks(tmp_path, monkeypatch):
+    root = make_root(tmp_path)
+    _routes(root)
+    _failure(_box(root))
+    llm = FakeLLM([reply("author"), author_reply("first"), "invalid", requisition_reply("snag", [SNAG]), author_reply("second"), requisition_reply("approve")])
+    assert _run(root, monkeypatch, llm) == 0
+    keys = [e.key for e in _events(root) if e.type == EventType.EFFECT_COMPLETION and e.key and "/requisition_review/" in e.key]
+    assert [key.rsplit("/", 1)[-1] for key in keys] == ["1", "2", "3"]
+    assert (root / "tickets/second/ticket.md").exists()
 
 
 def test_author_snag_reprompts_then_approve(tmp_path, monkeypatch):

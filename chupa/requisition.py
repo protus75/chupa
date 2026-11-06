@@ -42,6 +42,7 @@ class RequisitionVerdict(Artifact):
     findings: list[Finding]
     render_chars: Annotated[int, Field(ge=0)]
     mechanical: str | None
+    calls: int
     spec_version: NonBlank
     provider: str | None
     model: str | None
@@ -94,65 +95,73 @@ async def review_ticket(
         chars = int(re.search(r"rendered prompt is (\d+) characters", exc.finding.message).group(1))
     common = dict(produced_by_spec_version=int(spec.meta.version.split(".")[0]), produced_at_sha=sha, stem=stem, ticket_sha=sha, render_chars=chars, spec_version=spec.meta.version)
 
+    calls = 0
+
     def snag(message: str, mechanical: str, code: str = "requisition_review", road: str = "repair the ticket or review response and retry") -> RequisitionVerdict:
         return RequisitionVerdict(
-            **common, verdict="snag", summary=message, findings=[Finding(code=code, message=message, paved_road=road, kind="authoring_error")], mechanical=mechanical, provider=None, model=None
+            **common, verdict="snag", summary=message, findings=[Finding(code=code, message=message, paved_road=road, kind="authoring_error")], mechanical=mechanical, provider=None, model=None, calls=calls
         )
 
     if chars > REQ_RENDER_HEADROOM * RENDER_BOUND_CHARS:
         return snag(f"base Implement render has {chars} characters, over authoring headroom", "render over headroom", "render_feasibility", "shrink or split the ticket at authoring")
     assert base is not None
 
-    try:
-        prompt = render(spec, {"ticket": text, "context": "included in render", "render": base, "prior_review": prior, "retry_findings": "none"})
-    except RenderOverBound as exc:
-        return snag(str(exc), "review render over bound", road="shrink or split the ticket at authoring")
+    retry_findings = "none"
+    for current_seq in range(call_seq, call_seq + driver.retry_cap + 1):
+        try:
+            prompt = render(spec, {"ticket": text, "context": "included in render", "render": base, "prior_review": prior, "retry_findings": retry_findings})
+        except RenderOverBound as exc:
+            return snag(str(exc), "review render over bound", road="shrink or split the ticket at authoring")
 
-    name = f"requisition_review/call-{call_seq:02d}"
-    spool_stem = f"{stem_slot}/{run_seq}"
-    driver.spool.write(spool_stem, attempt, f"{name}/prompt.md", prompt)
-    req = LLMRequest(surface="requisition_review", rendered=prompt, tier=tier, effort=spec.meta.effort, ticket=None, worktree=None)
-    if driver._active is None:
-        driver.begin_watch(
-            owner=stem_slot,
-            ticket=None,
-            run_sequence=run_seq,
-            surface="requisition_review",
-            workspace=repo,
-            expected_budget=expected_budget,
-            stuck_budget=REQUISITION_STUCK_S,
-            scope_fence=(),
-            attempt=attempt,
-        )
-    try:
-        recorded = await driver.race(
-            lambda: llm_call(driver.effects, driver.watched_llm(), req, driver.redactor, ticket=stem, stem=stem_slot, run_seq=run_seq, attempt=attempt, call_seq=call_seq),
-            REQUISITION_STUCK_S,
-        )
-    except _StuckBudget:
-        return snag("requisition review timed out", "timeout", road="retry the authoring review")
-    except ProviderDrought, ProviderCallError:
-        raise
-    except Exception as exc:
-        message = f"requisition review provider failed: {type(exc).__name__}: {exc}"
-        driver.spool.write(spool_stem, attempt, f"{name}/error.txt", message)
-        return snag(message, "provider error", road="repair the provider and retry the authoring review")
-    result = LLMResult(**recorded)
-    driver.spool.write(spool_stem, attempt, f"{name}/output.txt", result.text)
-    try:
-        reply = RequisitionReply.model_validate_json(unwrap_fence(result.text))
-    except ValidationError as exc:
-        message = f"invalid requisition review reply: {exc.error_count()} schema error(s)"
-        return RequisitionVerdict(
-            **common,
-            verdict="snag",
-            summary=message,
-            findings=[Finding(code="requisition_review", message=message, paved_road="reply with a schema-valid requisition verdict", kind="authoring_error")],
-            mechanical="invalid reply",
-            provider=result.provider,
-            model=result.model,
-        )
-    return RequisitionVerdict(**common, verdict=reply.verdict, summary=reply.summary, findings=reply.findings, mechanical=None, provider=result.provider, model=result.model)
+        name = f"requisition_review/call-{current_seq:02d}"
+        spool_stem = f"{stem_slot}/{run_seq}"
+        driver.spool.write(spool_stem, attempt, f"{name}/prompt.md", prompt)
+        req = LLMRequest(surface="requisition_review", rendered=prompt, tier=tier, effort=spec.meta.effort, ticket=None, worktree=None)
+        if driver._active is None:
+            driver.begin_watch(
+                owner=stem_slot,
+                ticket=None,
+                run_sequence=run_seq,
+                surface="requisition_review",
+                workspace=repo,
+                expected_budget=expected_budget,
+                stuck_budget=REQUISITION_STUCK_S,
+                scope_fence=(),
+                attempt=attempt,
+            )
+        calls += 1
+        try:
+            recorded = await driver.race(
+                lambda: llm_call(driver.effects, driver.watched_llm(), req, driver.redactor, ticket=stem, stem=stem_slot, run_seq=run_seq, attempt=attempt, call_seq=current_seq),
+                REQUISITION_STUCK_S,
+            )
+        except _StuckBudget:
+            return snag("requisition review timed out", "timeout", road="retry the authoring review")
+        except ProviderDrought, ProviderCallError:
+            raise
+        except Exception as exc:
+            message = f"requisition review provider failed: {type(exc).__name__}: {exc}"
+            driver.spool.write(spool_stem, attempt, f"{name}/error.txt", message)
+            return snag(message, "provider error", road="repair the provider and retry the authoring review")
+        result = LLMResult(**recorded)
+        driver.spool.write(spool_stem, attempt, f"{name}/output.txt", result.text)
+        try:
+            reply = RequisitionReply.model_validate_json(unwrap_fence(result.text))
+        except ValidationError as exc:
+            if calls <= driver.retry_cap:
+                retry_findings = f"Reply must be only the JSON object. {exc}"
+                continue
+            message = f"invalid requisition review reply: {exc.error_count()} schema error(s)"
+            return RequisitionVerdict(
+                **common, calls=calls,
+                verdict="snag",
+                summary=message,
+                findings=[Finding(code="requisition_review", message=message, paved_road="reply with a schema-valid requisition verdict", kind="authoring_error")],
+                mechanical="invalid reply",
+                provider=result.provider,
+                model=result.model,
+            )
+        return RequisitionVerdict(**common, calls=calls, verdict=reply.verdict, summary=reply.summary, findings=reply.findings, mechanical=None, provider=result.provider, model=result.model)
 
 
 class RequisitionGate:

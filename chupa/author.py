@@ -216,6 +216,7 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
         return render(spec, inputs)
 
     open_tickets = await _open_tickets(checkout)
+    next_unused = 1
     reviewed: RequisitionVerdict | None = None
     reviewed_text: str | None = None
     reviewed_state: str | None = None
@@ -223,7 +224,7 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
     author_gate.message = message
 
     async def review_candidate(artifact: BaseModel, call_seq: int) -> GateReport:
-        nonlocal reviewed, reviewed_text, reviewed_state
+        nonlocal reviewed, reviewed_text, reviewed_state, next_unused
         assert isinstance(artifact, AuthorReply)
         if author_gate.check(artifact, checkout.repo).verdict == "fail":
             # Grammar-invalid candidates never spend a requisition review call.
@@ -239,6 +240,7 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
             reopen=message.reopen,
         )
         text = stamp(provisional, "state", state)
+        start = max(call_seq, next_unused)
         reviewed = await review_ticket(
             driver,
             repo=checkout.repo,
@@ -249,9 +251,10 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
             stem_slot="author",
             run_seq=pass_no,
             attempt=message.seq,
-            call_seq=call_seq,
+            call_seq=start,
             expected_budget=AUTHOR_STUCK_S / 2,
         )
+        next_unused = start + reviewed.calls
         reviewed_text = text
         reviewed_state = state
         findings = reviewed.findings

@@ -118,14 +118,28 @@ def test_approve_and_effect_key(tmp_path):
 
 
 def test_snag_and_invalid_reply(tmp_path):
-    repo, driver, llm = setup(tmp_path, [reply("snag", [FINDING]), reply("wrong")])
+    repo, driver, llm = setup(tmp_path, [reply("snag", [FINDING])] + [reply("wrong")] * 10)
     assert run(driver, repo).findings[0].paved_road == "add it to the fence"
     # A new call identity avoids replaying the first completion.
     invalid = asyncio.run(review_ticket(driver, repo=repo, stem="one-thing", text=TICKET, specs_dir=SPECS, tier="high", stem_slot="s", run_seq=0, attempt=1, call_seq=2, expected_budget="surface"))
     assert invalid.verdict == "snag" and invalid.mechanical == "invalid reply"
-    assert len(llm.requests) == 2
+    assert invalid.calls == 1 + driver.retry_cap
+    assert len(llm.requests) == 2 + driver.retry_cap
     with pytest.raises(Exception):
         RequisitionReply.model_validate_json(reply("approve", [FINDING]))
+
+
+def test_invalid_reply_is_reprompted_then_accepted(tmp_path):
+    valid = reply("snag", [FINDING])
+    repo, driver, llm = setup(tmp_path, [f"Here is the review:\n```json\n{valid}\n```", valid])
+    verdict = run(driver, repo)
+    assert verdict.verdict == "snag" and verdict.mechanical is None
+    assert verdict.findings[0].message == "missing file"
+    assert verdict.calls == 2 and len(llm.requests) == 2
+    assert "Invalid JSON" in llm.requests[1].rendered
+    assert "only the JSON object" in llm.requests[1].rendered
+    keys = [e.key for e in driver.journal.read() if e.type == "effect_completion" and e.key and "/requisition_review/" in e.key]
+    assert keys == ["llm/s/0/requisition_review/1/1", "llm/s/0/requisition_review/1/2"]
 
 
 def test_invalid_ticket_and_reserved_stem_spend_no_call(tmp_path):
@@ -144,7 +158,7 @@ def test_over_headroom_spends_no_call(tmp_path):
     assert verdict.verdict == "snag"
     assert verdict.mechanical == "render over headroom"
     assert verdict.findings[0].code == "render_feasibility"
-    assert llm.requests == []
+    assert verdict.calls == 0 and llm.requests == []
 
 
 def test_render_over_max_bound_is_still_headroom_snag(tmp_path):

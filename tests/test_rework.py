@@ -176,6 +176,34 @@ def test_split_order_requires_fresh_buildable_successors(ctx, monkeypatch, sourc
     run(scenario())
 
 
+@pytest.mark.parametrize("headroom", [False, True])
+def test_split_reviews_keep_unique_keys_when_one_reasks(ctx, monkeypatch, headroom):
+    async def scenario():
+        ticket, text = await original(ctx)
+        proposals = successors(text)
+        if headroom:
+            from chupa import requisition as requisition_module
+
+            base_render = requisition_module._base_render
+            monkeypatch.setattr(requisition_module, "_base_render", lambda repo, candidate, text, specs: "x" * RENDER_BOUND_CHARS if candidate.stem == "piece-one" else base_render(repo, candidate, text, specs))
+            ctx.driver.retry_cap = 0
+            script = [order("split", proposals), requisition()]
+        else:
+            script = [order("split", proposals), "invalid", requisition(), requisition()]
+        result, requests = await invoke(ctx, ticket, text, script)
+        keys = [e.key for e in ctx.driver.journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key and "/requisition_review/" in e.key]
+        if headroom:
+            assert result.outcome == "gate_failed"
+            assert [key.rsplit("/", 1)[-1] for key in keys] == ["2"]
+            assert len([r for r in requests if r.surface == "requisition_review"]) == 1
+        else:
+            assert result.outcome == "ok"
+            assert [key.rsplit("/", 1)[-1] for key in keys] == ["1", "2", "3"]
+            assert len([r for r in requests if r.surface == "requisition_review"]) == 3
+
+    run(scenario())
+
+
 @pytest.mark.parametrize(
     "case",
     [

@@ -137,7 +137,6 @@ async def rework(
                 return GateReport(code="ticket_schema", verdict="fail", findings=errors)
 
             for proposal in artifact.tickets:
-                review_seq += 1
                 verdict = await review_ticket(
                     ctx.driver,
                     repo=tree,
@@ -148,7 +147,7 @@ async def rework(
                     stem_slot=ticket.stem,
                     run_seq=attempt,
                     attempt=attempt,
-                    call_seq=review_seq,
+                    call_seq=review_seq + 1,
                     prior=json.dumps(
                         {
                             "action": artifact.action,
@@ -160,6 +159,7 @@ async def rework(
                     ),
                     expected_budget=ticket.expected_minutes * 60.0,
                 )
+                review_seq += max(verdict.calls, 1)
                 if verdict.verdict == "rma":
                     return GateReport(code="requisition_review", verdict="fail", findings=[f.model_copy(update={"code": "requisition_rma"}) for f in verdict.findings])
                 if verdict.verdict == "approve":
