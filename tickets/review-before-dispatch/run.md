@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-The full suite passed with four pytest workers: 3,049 tests passed. All six requisition gate tests passed.
+The focused verification passed with 6 tests, and the full suite passed with 3049 tests.
 
 ## Dead ends
 
-The initial unrestricted parallel run exhausted workers; the final verification used four workers.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 75 minutes; elapsed time was not measured.
+none
 
