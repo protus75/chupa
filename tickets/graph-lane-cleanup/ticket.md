@@ -24,6 +24,7 @@ After this change the main line stays in one lane, dependents of one ticket shar
 - In: `view.js` `render`: a blocked row's `parentIds` hold only its blocked dependencies. Its unmerged non-blocked dependencies stay in its status text and the Details view.
 - In: `view.js` `render`: queued and running rows set `branchColor: COLOR[r.section]`.
 - In: `graph.js` `toViewModels`: a non-first parent that already has a lane in this row's `outputSwimlanes` joins that lane instead of opening another. `renderGraph` draws the row's merge curve into that existing lane.
+- In: add the carried reproducer: copy `evidence/regress_graph_lanes.py` to `tests/regress_graph_lanes.py` and `evidence/graph_lanes.js` to `tests/fixtures/graph_lanes.js`, unchanged. It reports `defect` on the base commit.
 - In: update the comments in both files that describe the changed behavior.
 - Out: `extension.js`, `snapshot.py`, `view.css`, `detail.js`, the status text, row order, and the dot colors.
 - Touch no file outside `## Scope fence`.
@@ -31,9 +32,11 @@ After this change the main line stays in one lane, dependents of one ticket shar
 ## Scope fence
 - vscode-chupa/media/view.js
 - vscode-chupa/media/graph.js
+- tests/regress_graph_lanes.py
+- tests/fixtures/graph_lanes.js
 
 ## Acceptance criteria
-1. For rows `a(b,d)`, `b(c,d)`, `c(d)`, `d()`, no row's `outputSwimlanes` holds more than two lanes for `d`. The second Verification command checks this; it fails on the base commit.
+1. For rows `a(b,d)`, `b(c,d)`, `c(d)`, `d()`, no row's `outputSwimlanes` holds more than two lanes for `d`. `tests/regress_graph_lanes.py` checks this and reports `pass`.
 2. A blocked row whose dependencies are all unmerged and non-blocked has empty `parentIds`.
 3. Every queued or running row's branch lanes take `COLOR[r.section]`, never a `LANE_COLORS` entry.
 4. `node --check` passes for both files.
@@ -41,15 +44,16 @@ After this change the main line stays in one lane, dependents of one ticket shar
 ## Verification
 ```
 node --check vscode-chupa/media/view.js
-node -e "const vm=require('vm'),c={};vm.createContext(c);vm.runInContext(require('fs').readFileSync('vscode-chupa/media/graph.js','utf8')+';this.f=toViewModels',c);const v=c.f([{id:'a',parentIds:['b','d']},{id:'b',parentIds:['c','d']},{id:'c',parentIds:['d']},{id:'d',parentIds:[]}]);for(const m of v){if(m.outputSwimlanes.filter(n=>n.id==='d').length>2)throw new Error(m.item.id)}"
+uv run python tests/regress_graph_lanes.py
 uv run pytest -q
 ```
 
 ## Regression
 ```
-node -e "const vm=require('vm'),c={};vm.createContext(c);vm.runInContext(require('fs').readFileSync('vscode-chupa/media/graph.js','utf8')+';this.f=toViewModels',c);const v=c.f([{id:'a',parentIds:['b','d']},{id:'b',parentIds:['c','d']},{id:'c',parentIds:['d']},{id:'d',parentIds:[]}]);for(const m of v){if(m.outputSwimlanes.filter(n=>n.id==='d').length>2)throw new Error(m.item.id)}"
+uv run python tests/regress_graph_lanes.py
 ```
-- carries: vscode-chupa/media/graph.js
+- carries: tests/regress_graph_lanes.py
+- carries: tests/fixtures/graph_lanes.js
 
 ## Definition of rejected
 Reject the branch if any of the following holds:
