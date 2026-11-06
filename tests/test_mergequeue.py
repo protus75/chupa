@@ -311,7 +311,6 @@ def test_verification_uses_rebased_worktree(ctx, base_red):
     run(scenario())
 
 
-
 @pytest.mark.parametrize("stale", [False, True])
 def test_queue_skips_unchanged_code(ctx, monkeypatch, stale):
     async def scenario():
@@ -331,6 +330,7 @@ def test_queue_skips_unchanged_code(ctx, monkeypatch, stale):
         assert not list((ctx.config.state_dir / "spools" / ticket.stem / "0").rglob("*.txt"))
 
     run(scenario())
+
 
 def test_always_hard_host_checks_run_before_squash(ctx, monkeypatch):
     async def scenario():
@@ -539,8 +539,6 @@ def test_clean_rebase_carries_pinned_approval(ctx, approval):
             await unchanged(ctx, ticket, before, result, "correctness_review")
 
     run(scenario())
-
-
 
 
 def test_squash_tree_trailers_and_retirement(ctx, monkeypatch):

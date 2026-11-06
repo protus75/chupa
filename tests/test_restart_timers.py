@@ -37,9 +37,18 @@ def test_restart_regates_historical_held_receipt(tmp_path, monkeypatch, moved):
         reviewed = await ctx.git.rev_parse(ctx.repo, ticket.stem)
         base = await ctx.git.rev_parse(ctx.repo, "main")
         tree = await ctx.git.rev_parse(ctx.worktree(ticket.stem), "HEAD^{tree}")
-        receipt = dict(stem=ticket.stem, attempt=0, reviewed_sha=reviewed, candidate_base_sha=base,
-                       candidate_sha=reviewed, checked_tree=tree, review_provider=None, review_model=None,
-                       admission="HELD", reason="go_absent")
+        receipt = dict(
+            stem=ticket.stem,
+            attempt=0,
+            reviewed_sha=reviewed,
+            candidate_base_sha=base,
+            candidate_sha=reviewed,
+            checked_tree=tree,
+            review_provider=None,
+            review_model=None,
+            admission="HELD",
+            reason="go_absent",
+        )
         key = f"{MERGE_REGATE}/{ticket.stem}/0/{base}/{reviewed}"
         ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket=ticket.stem)
         ctx.driver.journal.append(EventType.EFFECT_COMPLETION, {"result": receipt}, ticket=ticket.stem, key=key)
@@ -48,11 +57,14 @@ def test_restart_regates_historical_held_receipt(tmp_path, monkeypatch, moved):
             await commit(ctx, ctx.repo, ["chupa/other.py"])
         calls = []
         from chupa import stages
+
         for name in ("gather_safety_evidence", "gather_evidence"):
             original = getattr(stages, name)
+
             async def observed(*args, _original=original, _name=name, **kwargs):
                 calls.append(_name)
                 return await _original(*args, **kwargs)
+
             monkeypatch.setattr(stages, name, observed)
         checkout = runner.Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git, ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
         owner = cli.build_serve(checkout, plan="# Plan\n")

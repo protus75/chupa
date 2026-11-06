@@ -26,8 +26,6 @@ from tests.test_triage import author_reply, reply, requisition_reply, root_with_
 PROPOSAL = {"fixed_failure": "Observed café failure", "overcorrection_risk": "Rejecting useful inputs", "proposed_spec_paths": ["specs/review.md", "specs/author.md"]}
 
 
-
-
 @pytest.mark.asyncio
 async def test_completed_retro_proposals_reach_prompt_spec_merge(tmp_path, monkeypatch):
     root, box = root_with_box(tmp_path)

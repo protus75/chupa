@@ -89,7 +89,14 @@ def test_approved_proposals_journal_requisition_approval(ctx):
             [record] = [event for event in records if event.ticket == stem]
             data = proposal.encode()
             sha = hashlib.sha1(f"blob {len(data)}\0".encode() + data).hexdigest()
-            assert record.body == {"signal": "requisition_verdict", "verdict": "approve", "ticket_sha": sha, "provider": "fake", "model": record.body["model"], "spec_version": record.body["spec_version"]}
+            assert record.body == {
+                "signal": "requisition_verdict",
+                "verdict": "approve",
+                "ticket_sha": sha,
+                "provider": "fake",
+                "model": record.body["model"],
+                "spec_version": record.body["spec_version"],
+            }
 
     run(scenario())
 

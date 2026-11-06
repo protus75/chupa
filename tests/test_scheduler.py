@@ -451,12 +451,11 @@ async def test_runs_before_orders_eligible_tickets(rig):
     rig.time.advance(10)
     hint = rig.add("new", priority="P2")
     from dataclasses import replace
+
     rig.scheduler.update(replace(hint, runs_before=("old",)))
     rig.intake("new")
     await rig.scheduler.dispatch_next()
-    assert json.loads((rig.root / "state/queue.json").read_text()) == {
-        "at": rig.time.now.isoformat(), "order": ["new", "old"], "runs_before": {"new": ["old"]}
-    }
+    assert json.loads((rig.root / "state/queue.json").read_text()) == {"at": rig.time.now.isoformat(), "order": ["new", "old"], "runs_before": {"new": ["old"]}}
     await rig.drain()
     assert rig.calls == ["new", "old"]
 
@@ -465,6 +464,7 @@ async def test_runs_before_orders_eligible_tickets(rig):
 @pytest.mark.parametrize("inactive", ["merged", "held"])
 async def test_runs_before_ignores_ineligible_targets(rig, inactive):
     from dataclasses import replace
+
     rig.add("target")
     if inactive == "merged":
         rig.transition("target", "merged")

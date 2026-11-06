@@ -93,8 +93,10 @@ def test_implement_spec_consumer_read():
         assert rule in task
     for rule in (
         "Put each test in the suite its kind belongs to, as the host lays them out (for a Python host, `tests/unit/` and `tests/integration/`).",
-        "A unit test checks one unit with fakes for the clock, filesystem, processes and network. It never reads or writes disk, opens a network connection or starts a process, and it runs in milliseconds.",
-        "An integration test checks a seam: an API, a command-line interface, a process boundary or real files. It uses fixtures or simulators so it finishes in bounded time and can run in parallel with other tests.",
+        "A unit test checks one unit with fakes for the clock, filesystem, processes and network. "
+        "It never reads or writes disk, opens a network connection or starts a process, and it runs in milliseconds.",
+        "An integration test checks a seam: an API, a command-line interface, a process boundary or real files. "
+        "It uses fixtures or simulators so it finishes in bounded time and can run in parallel with other tests.",
         "A test that can both pass and fail on the same code is broken. Remove the nondeterminism (fake time, fixed ordering, isolated state); never add retries.",
         "Never lower a coverage threshold or a test time budget unless an acceptance criterion requires it. When a gate cannot be met, reply `premise_failed` naming it.",
     ):
@@ -149,6 +151,7 @@ def test_review_spec_read_only():
     assert "a unit test that reads or writes disk, opens a network connection, starts a process, or depends on wall-clock time or test order" in logic
     assert "a lowered coverage threshold or test time budget the ticket does not require" in logic
     import re
+
     assert re.findall(r"^- `([^`]+)`:", spec.body, re.M) == ["logic", "acceptance", "scope", "leak"]
     assert validate_data_blocks(rendered) == []
 

@@ -645,8 +645,10 @@ def test_new_prints_bug_evidence_finding(repo, monkeypatch, capsys):
 def test_runs_before_parsing_and_refusals(repo):
     root, _, _ = repo
     write(root, "t-other", VALID)
+
     def hinted(target):
         return complete(VALID + f"\n## Runs before\n- {target}\n")
+
     assert validate_ticket("t-one", hinted("t-other"), root).runs_before == ("t-other",)
     for target in ("t-one", "missing", "none"):
         findings = refusal(root, hinted(target))

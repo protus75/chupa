@@ -52,10 +52,6 @@ def rows(card):
     return {row.surface: row for row in card.surfaces}
 
 
-
-
-
-
 def escape(journal, box_id, matches):
     return journal.append(
         EventType.EFFECT_COMPLETION,

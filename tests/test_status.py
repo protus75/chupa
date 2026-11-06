@@ -74,8 +74,6 @@ def test_status_surfaces_confirmed_class_tombstones(tmp_path, monkeypatch, capsy
     assert ids[0] in render(current) and journal.read() == before
 
 
-
-
 def test_status_current_window_scorecard(tmp_path):
     c, writer, _, _ = rig(tmp_path)
     asyncio.run(invoice(c, writer, "old"))

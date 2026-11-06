@@ -345,16 +345,6 @@ def test_a_conflicted_rebase_is_aborted_and_refused(repo):
     assert not (repo / ".git" / "worktrees" / STEM / "rebase-merge").exists()
 
 
-
-
-
-
-
-
-
-
-
-
 def test_pipeline_requires_supplied_control(repo):
     from chupa import merge as owner
     from chupa.__main__ import build_control

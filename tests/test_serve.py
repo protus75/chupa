@@ -1673,7 +1673,10 @@ async def test_serve_failed_notify_backoff_and_restart(root, monkeypatch):
     run = asyncio.create_task(rig.owner.run())
     try:
         await until(rig, lambda: rig.owner.notifications.retry_at)
-        intents = lambda: [e for e in rig.journal.read() if e.type == EventType.EFFECT_INTENT and e.key.startswith("notify/")]
+
+        def intents():
+            return [e for e in rig.journal.read() if e.type == EventType.EFFECT_INTENT and e.key.startswith("notify/")]
+
         assert len(intents()) == 1 and not notify_completions(rig)
         # Unrelated journal arrivals do not reset this key's failed-command backoff.
         retry_at = dict(rig.owner.notifications.retry_at)
