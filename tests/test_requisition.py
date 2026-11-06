@@ -15,7 +15,7 @@ from chupa.specs import RENDER_BOUND_CHARS, REQ_RENDER_HEADROOM, lint_spec, load
 from chupa.stages import StageContext, implement_inputs, implement_stage
 from chupa.tickets import TicketInvalid
 
-SPECS = Path(__file__).resolve().parent.parent / "specs"
+SPECS = Path(__file__).resolve().parent.parent / "chupa" / "specs"
 TICKET = """---
 state: confirmed
 source: human

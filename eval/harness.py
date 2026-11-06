@@ -1,6 +1,6 @@
 """Review-baseline eval: the catastrophic-NO-GO spike and GO grade.
 
-`run` drives specs/review.md over the fixtures with a shared USD 5 cap and journals one NO_GO signal.
+`run` drives chupa/specs/review.md over the fixtures with a shared USD 5 cap and journals one NO_GO signal.
 `--out` adds the harness-local Author graph and writes a validated report. Only operator `--record-go`
 with affirmative Author-graph judgment can record GO from complete, numerically passing evidence.
 
@@ -42,7 +42,7 @@ from chupa.timers import Timers
 
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = ROOT / "eval" / "fixtures"
-SPECS = ROOT / "specs"
+SPECS = ROOT / "chupa" / "specs"
 
 DefectClass = Literal["logic", "hidden_info_leak", "acceptance_mismatch", "scope_escape"]
 DEFECT_CLASSES: tuple[str, ...] = get_args(DefectClass)
@@ -511,7 +511,7 @@ async def _run(config: Config, env: Mapping[str, str], clock: Clock, *, out=None
 def main(argv: Sequence[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m eval.harness")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    run = sub.add_parser("run", help="score specs/review.md over eval/fixtures and journal the verdict signal")
+    run = sub.add_parser("run", help="score chupa/specs/review.md over eval/fixtures and journal the verdict signal")
     run.add_argument("--out", type=Path)
     run.add_argument("--record-go", type=Path, metavar="REPORT")
     run.add_argument("--approve-author-graph", action="store_true")

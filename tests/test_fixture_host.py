@@ -324,7 +324,7 @@ def test_fixture_cli_adapter_roundtrip(host):
             (host / "settings.json").write_bytes(base_settings)
             for surface, model in SURFACES.items():
                 env.update(CHUPA_FIXTURE_SCENARIO=name, CHUPA_FIXTURE_SURFACE=surface)
-                spec = load_spec((ROOT / "specs" / f"{surface}.md").read_text())
+                spec = load_spec((ROOT / "chupa" / "specs" / f"{surface}.md").read_text())
                 prompt = render(spec, {key: "fixture data " + key for key in spec.inputs})
                 before = (host / "settings.json").read_bytes()
                 result = await llm.call(LLMRequest(surface, prompt, "medium", "medium", name, host if surface == "implement" else None))

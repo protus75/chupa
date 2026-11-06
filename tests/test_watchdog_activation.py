@@ -22,7 +22,7 @@ from tests.test_requisition import TICKET
 from tests.test_scheduler import text, turn
 from tests.test_serve import finish, graph, terminals, until
 
-SPECS = Path(__file__).resolve().parents[1] / "specs"
+SPECS = Path(__file__).resolve().parents[1] / "chupa" / "specs"
 WATCH_CONFIG = CONFIG.replace(
     "review: {}",
     """  - {tier: high, surface: review, candidates: [{provider: claude, model: c-max}]}

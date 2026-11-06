@@ -23,7 +23,7 @@ def test_baseline_states_and_latest_signal(tmp_path):
     go.body["scorecard"] = {"unrelated": "evidence"}
     for events, state in [([], "ABSENT"), ([no_go], "NO_GO"), ([go], "GO"), ([go, no_go], "NO_GO"), ([no_go, go], "GO"), ([signal("GO", {})], "REVOKED")]:
         before = deepcopy(events)
-        result = resolve_baseline(snapshot_config(cfg), events, specs_dir=ROOT / "specs")
+        result = resolve_baseline(snapshot_config(cfg), events, specs_dir=ROOT / "chupa" / "specs")
         assert result.state == state and result.binds is (state == "GO")
         assert events == before
         with pytest.raises(FrozenInstanceError):
@@ -43,7 +43,7 @@ def test_baseline_routing_and_spec_drift(tmp_path, surface, tier):
     specs = tmp_path / "specs"
     specs.mkdir()
     for name in BASELINED_SURFACES:
-        (specs / f"{name}.md").write_text((ROOT / "specs" / f"{name}.md").read_text())
+        (specs / f"{name}.md").write_text((ROOT / "chupa" / "specs" / f"{name}.md").read_text())
 
     def read():
         return resolve_baseline(cfg, evidence, specs_dir=specs)
@@ -108,7 +108,7 @@ def test_baseline_invalid_inputs_fail_closed(tmp_path, bad):
     cfg = config(tmp_path)
     identity = baseline_identity(cfg)
     events = [signal("GO", identity)]
-    specs = ROOT / "specs"
+    specs = ROOT / "chupa" / "specs"
     row = identity["review"]["rows"]["low"]
     if bad == "empty-routing":
         cfg.routing = []
@@ -170,7 +170,7 @@ def test_baseline_invalid_inputs_fail_closed(tmp_path, bad):
         if bad == "unreadable-spec":
             (specs / "review.md").mkdir()
         if bad == "wrong-surface-spec":
-            (specs / "review.md").write_text((ROOT / "specs" / "author.md").read_text())
+            (specs / "review.md").write_text((ROOT / "chupa" / "specs" / "author.md").read_text())
     assert not resolve_baseline(cfg, events, specs_dir=specs).binds
 
 
@@ -184,7 +184,7 @@ def test_baseline_invalid_inputs_fail_closed_torn_tail(tmp_path):
     with path.open("ab") as stream:
         stream.write(json.dumps(torn_go).encode())  # complete JSON, incomplete journal line
     before = path.read_bytes()
-    assert resolve_baseline(cfg, journal.read(), specs_dir=ROOT / "specs").state == "NO_GO"
+    assert resolve_baseline(cfg, journal.read(), specs_dir=ROOT / "chupa" / "specs").state == "NO_GO"
     assert path.read_bytes() == before
     path.write_bytes(json.dumps(torn_go).encode()[:80])
-    assert resolve_baseline(cfg, journal.read(), specs_dir=ROOT / "specs").state == "ABSENT"
+    assert resolve_baseline(cfg, journal.read(), specs_dir=ROOT / "chupa" / "specs").state == "ABSENT"

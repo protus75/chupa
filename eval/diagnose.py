@@ -29,7 +29,7 @@ from chupa.timers import Timers
 
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = ROOT / "eval" / "diagnose_fixtures"
-SPECS = ROOT / "specs"
+SPECS = ROOT / "chupa" / "specs"
 REPORT = ROOT / "eval" / "diagnose_report.json"
 RUN_USD_CAP = 5.00
 RUN_DEADLINE_S = 2400.0

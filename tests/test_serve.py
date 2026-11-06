@@ -1843,9 +1843,9 @@ class UpgradeChild:
 
 
 async def enable_upgrade(rig, engine):
-    (engine / "specs").mkdir(exist_ok=True)
-    (engine / "specs/base.md").write_text("base")
-    await rig.checkout.git.add(engine, ["specs/base.md"])
+    (engine / "chupa/specs").mkdir(parents=True, exist_ok=True)
+    (engine / "chupa/specs/base.md").write_text("base")
+    await rig.checkout.git.add(engine, ["chupa/specs/base.md"])
     await rig.checkout.git.commit(engine, "engine trees")
     rig.owner.engine = engine
     rig.owner.reexec = UpgradeChild(rig)
@@ -1878,7 +1878,7 @@ async def test_upgrade_after_real_merge(root, monkeypatch, path):
             assert argv == ["uv", "run", "--project", str(rig.owner.engine), "python", "-m", "chupa", "--config", "config.yaml", "serve"]
             assert cwd == root and env == rig.checkout.env and timeout is None
             [handoff] = [e for e in rig.journal.read() if e.body.get("signal") == "serve_handoff"]
-            assert handoff.body == {"signal": "serve_handoff", "chupa": await rig.checkout.git.rev_parse(root, "HEAD:chupa"), "specs": await rig.checkout.git.rev_parse(root, "HEAD:specs")}
+            assert handoff.body == {"signal": "serve_handoff", "chupa": await rig.checkout.git.rev_parse(root, "HEAD:chupa")}
             assert rig.journal.read().index(terminals(rig, "work")[0]) < rig.journal.read().index(handoff)
         else:
             await until(rig, checked_after_merge.is_set)

@@ -150,7 +150,7 @@ def frontmatter(path: Path) -> dict[str, str]:
 def capability(events: list[dict], stem: str, surface: str) -> str:
     """Tier/effort chupa asked for: Implement uses the ticket (or its escalation rung); other steps use their spec."""
     if surface != "implement":
-        meta = frontmatter(ROOT / "specs" / f"{surface}.md")
+        meta = frontmatter(ROOT / "chupa" / "specs" / f"{surface}.md")
         return f"{meta.get('tier', '?')}/{meta.get('effort', '?')}" if meta else ""
     window = events
     for i, e in enumerate(events):

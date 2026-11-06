@@ -41,7 +41,7 @@ EXIT_TICKET = 1
 EXIT_REFUSED = 2
 
 # Engine plane: the prompt specs ship with the engine, not the host checkout it runs against.
-SPECS_DIR = Path(__file__).resolve().parent.parent / "specs"
+SPECS_DIR = Path(__file__).resolve().parent / "specs"
 HARVEST_TAIL_CHARS = 4_000
 IDENTICAL_K = 3
 

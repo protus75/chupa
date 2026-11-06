@@ -295,9 +295,9 @@ class Serve:
         await self.core.watcher.run(changes())
 
     async def engine_trees(self):
-        output = await self.checkout.git._run(self.engine, "rev-parse", "HEAD:chupa", "HEAD:specs")
+        output = await self.checkout.git._run(self.engine, "rev-parse", "HEAD:chupa")
         trees = output.splitlines()
-        if len(trees) != 2 or any(re.fullmatch(r"[0-9a-f]{40,64}", tree) is None for tree in trees):
+        if len(trees) != 1 or any(re.fullmatch(r"[0-9a-f]{40,64}", tree) is None for tree in trees):
             raise ValueError("engine tree ids unavailable")
         return tuple(trees)
 
@@ -600,7 +600,7 @@ class Serve:
             self.control.poll()
             handoff = upgrade_stop and self.upgrade is not None and self.upgrade_idle() and not self.control.projection.kill_requested and code == 0
             if handoff:
-                c.journal.append(EventType.SIGNAL, {"signal": "serve_handoff", "chupa": self.upgrade[0], "specs": self.upgrade[1]})
+                c.journal.append(EventType.SIGNAL, {"signal": "serve_handoff", "chupa": self.upgrade[0]})
             cleanup = asyncio.create_task(self.control.apply_kill(self.cleanup) if self.control.projection.kill_requested else self.cleanup())
             try:
                 await _protected_cleanup(cleanup)

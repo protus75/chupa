@@ -51,7 +51,7 @@ def test_retro_driver_access_is_public_and_read_only(repo):
         Retro(checkout, SimpleNamespace()).driver()
 
 
-SPECS = Path(__file__).resolve().parent.parent / "specs"
+SPECS = Path(__file__).resolve().parent.parent / "chupa" / "specs"
 SECRET = "sk-test-not-for-children"
 ENV = {
     "PATH": "/usr/bin:/bin",

@@ -19,7 +19,7 @@ from tests.test_triage import author_reply, reply
 
 
 def test_author_spec_requires_criteria_to_name_wrong_results():
-    spec = load_spec((Path(__file__).resolve().parent.parent / "specs/author.md").read_text())
+    spec = load_spec((Path(__file__).resolve().parent.parent / "chupa/specs/author.md").read_text())
     assert spec.meta.version == "1.1"
     assert "a criterion checked by a test names the wrong result the test rules out" in spec.body
     assert "A test that also passes on the wrong result checks nothing." in spec.body

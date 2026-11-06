@@ -77,12 +77,12 @@ def run(tmp_path: Path, fixtures: list[Fixture], script: list):
     llm = FakeLLM(script)
     driver = Driver.from_config(cfg, llm=llm, env={}, clock=lambda: NOW, sleep=_no_sleep)
     journal = Journal(cfg.state_dir, lambda: NOW)
-    body = asyncio.run(harness.run_baseline(config=cfg, driver=driver, journal=journal, fixtures=fixtures, specs_dir=ROOT / "specs", workspace=tmp_path))
+    body = asyncio.run(harness.run_baseline(config=cfg, driver=driver, journal=journal, fixtures=fixtures, specs_dir=ROOT / "chupa" / "specs", workspace=tmp_path))
     return body, journal, llm
 
 
 def test_review_spec_lints_clean():
-    assert lint_spec((ROOT / "specs" / "review.md").read_text()) == []
+    assert lint_spec((ROOT / "chupa" / "specs" / "review.md").read_text()) == []
 
 
 def test_committed_fixture_set_meets_the_spike_floor_and_differs_from_review():

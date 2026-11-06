@@ -13,7 +13,7 @@ from chupa.specs import load_spec
 BASELINE_SIGNAL = "review_baseline"
 BASELINED_SURFACES = ("review", "author")
 TIERS: tuple[AgentTier, ...] = get_args(AgentTier)
-SPECS = Path(__file__).resolve().parent.parent / "specs"
+SPECS = Path(__file__).resolve().parent / "specs"
 
 
 def baseline_identity(config: Config, specs_dir: Path = SPECS) -> dict:

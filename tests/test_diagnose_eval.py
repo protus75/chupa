@@ -99,7 +99,7 @@ def test_reachability_uses_production_render_and_writes_valid_report(tmp_path):
     assert report.agreement.agree == report.agreement.scored == 12
     assert [r.outcome for r in report.cases] == ["agree"] * 12
     assert diagnose.verify(state[4], corpus) == []
-    spec = load_spec((ROOT / "specs" / "diagnose.md").read_text())
+    spec = load_spec((ROOT / "chupa" / "specs" / "diagnose.md").read_text())
     for case, req in zip(corpus, state[3].requests, strict=True):
         material = DiagnosisMaterial(ticket=case.ticket, terminal=case.harvest.terminal, stage=case.harvest.stage, harvest=case.harvest, run_record=case.run_record)
         assert req.surface == "diagnose"

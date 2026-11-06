@@ -21,7 +21,7 @@ from chupa.specs import (
 
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
-    specs = Path(__file__).resolve().parent.parent / "specs"
+    specs = Path(__file__).resolve().parent.parent / "chupa" / "specs"
     for name, version in (("implement", "2.3"), ("requisition_review", "3.0"), ("diagnose", "1.2")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
@@ -29,7 +29,7 @@ def test_spec_lint_accepts_the_implement_and_requisition_specs():
 
 
 def test_implement_spec_consumer_read():
-    text = (Path(__file__).resolve().parent.parent / "specs/implement.md").read_text()
+    text = (Path(__file__).resolve().parent.parent / "chupa/specs/implement.md").read_text()
     assert lint_spec(text) == []
     assert len(text.splitlines()) <= SPEC_MAX_LINES
     spec = load_spec(text)
@@ -79,7 +79,7 @@ def test_implement_spec_consumer_read():
 
 
 def test_review_spec_read_only():
-    text = (Path(__file__).resolve().parent.parent / "specs/review.md").read_text()
+    text = (Path(__file__).resolve().parent.parent / "chupa/specs/review.md").read_text()
     assert lint_spec(text) == []
     assert len(text.splitlines()) <= SPEC_MAX_LINES
     spec = load_spec(text)
@@ -115,7 +115,7 @@ def test_review_spec_read_only():
 
 
 def test_review_spec_checks_docs():
-    text = (Path(__file__).resolve().parent.parent / "specs/review.md").read_text()
+    text = (Path(__file__).resolve().parent.parent / "chupa/specs/review.md").read_text()
     spec = load_spec(text)
     assert spec.meta.version == "1.4"
     assert spec.inputs == ("ticket", "diff", "prior_review", "retry_findings")
