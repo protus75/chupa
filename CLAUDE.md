@@ -29,6 +29,12 @@ Every rule below is behavioral (no gate checks it yet): the prose is the only en
 
 - **Pure Python.** No shell scripts, no `shell=True`, no string-assembled commands. External binaries only via argv-list wrapper modules; run only in the chupa venv. Exception: `vscode-chupa/` is an operator-only VS Code extension in JavaScript; the engine never imports or runs it.
   Why: shell glue is the orchestration failure this design bans. (D1)
+- **The extension is a thin wrapper; chupa owns the logic.** For any edit to `vscode-chupa/` or the code that feeds it (the snapshot builder, `chupa/graph.py`):
+  - JavaScript may only draw snapshot fields (DOM, SVG from given lane indexes), map a closed snapshot value to a CSS variable or ThemeIcon through a lookup table, wire VS Code APIs (views, menus, watchers, settings), keep UI state (hover, pin), and run argv that the snapshot or a setting supplies.
+  - JavaScript never filters, sorts, or derives rows; chooses graph edges or lanes; parses text; does time math; copies a chupa constant (stem rule, priorities, sections); or makes a policy choice (flags such as `--yes`).
+  - Paved road: add the value to the snapshot in the `chupa` package, cover it with pytest, and have the extension render it. A snapshot shape change updates its JavaScript reader in the same change.
+  - `chupa/graph.py` is pure (no I/O, no clock) and emits lanes with ticket sections, never colors or pixels.
+  Why: JavaScript logic is untested and duplicates Python rules; the graph's edge and lane code drew wrong lanes and was untestable without node (2026-11-06).
 - **Simplest thing that satisfies the ticket.** No speculative features, gates, config knobs, or metadata; every addition cites the incident that earned it.
   Why: feature/check accretion is the primary failure mode. (goal 1, D10)
 - **No dual-path code.** No compat shims, deprecation layers, or defensive parallel paths. Rename in place, update every call site in the same change, recover by `git revert`.
