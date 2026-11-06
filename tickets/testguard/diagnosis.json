@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "43e6e74c0b613651c719727d1594e6c2f58d1420",
+  "stem": "testguard",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Per AC2, the setup/teardown test must fail if either fixture's subprocess.run succeeds. Assert that each fixture's success marker string (e.g. 'setup process succeeded', 'teardown process succeeded') is absent from the inner output, so a run with one phase unguarded fails.",
+    "Do not count 'UnitIOBlocked' occurrences in the whole output. One error prints the name several times. Use result.stdout.fnmatch_lines, or a per-test check, to show that the setup-case test errors at setup and the teardown-case test errors at teardown, each naming UnitIOBlocked.",
+    "AC2 states the inner outcomes are passed=1, errors=2. Make the inner module for that check match this exactly, with no extra passing test, and assert that tally with assert_outcomes.",
+    "Keep chupa/testguard.py, the docs bullet, and the other acceptance tests as they are. The review found that the plugin matches the ticket. Change only the AC2 test in tests/test_testguard.py, then rerun both Verification commands."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
