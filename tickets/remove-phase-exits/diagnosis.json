@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "e6f54616cd4632e4b571ca40f9cb9f785eda9df5",
+  "stem": "remove-phase-exits",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Add tests/test_seed_successor.py to the Scope fence and On-demand. Its test_merged_parent_registers_and_runs_successor_in_same_drain (line 230) expects a retro at quiescence, which the ticket removes, so criterion 4 (`uv run pytest -q` exits 0) fails while that file stays outside the fence.",
+    "Scope in should name the edit to tests/test_seed_successor.py: drop the quiescence retro from its expected calls and from the related retro assertions. Do not weaken what it checks about the successor running in the same drain.",
+    "In tests/test_tickets.py test_grammar_refusals, change the `## Exit-read window` case's needle from 'unknown section' to 'unknown body section'. The refusal message the full suite printed reads 'unknown body section `## Exit-read window`'.",
+    "The focused retro tests passed in attempt 0. Keep that drain.py approach: delete only the phase-exit retro and the quiescence retro, keep `_run_retro(forced=False)`, and keep the `forced` parameter of Retro.__call__."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
