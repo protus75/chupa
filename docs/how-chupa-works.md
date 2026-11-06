@@ -560,8 +560,8 @@ in custody for the authored bug ticket.
 
 ### 9.5 Retro
 
-The retro reads the journal since the last report. During a drain it runs when due after 25 merges,
-7 days, or a spike of failures, and never at quiescence. Run it on demand with `retro`. It commits `tickets/retro/NNNNNN.md` (measurements,
+The retro reads the journal since the last report. During a drain it runs between tickets, never
+between attempts of one ticket, when due after 25 merges, 7 days, or a spike of failures. Run it on demand with `retro`. It commits `tickets/retro/NNNNNN.md` (measurements,
 scorecard, proposals) and files each proposal as a `retro_finding`.
 
 ### 9.6 Scorecard and baseline

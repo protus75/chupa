@@ -237,6 +237,7 @@ class _Drain:
         self.provider_deadlines = []
         self.report = Report()
         self.retro = None
+        self.last_dispatched: str | None = None
 
     async def run(self) -> Report:
         while True:
@@ -250,7 +251,8 @@ class _Drain:
                 await self.before_dispatch()
             if self._stopping():
                 return self.report
-            if self.retro is not None:
+            # Keep a ticket's retry cycle together before checking retro triggers.
+            if self.retro is not None and await self._between_tickets():
                 if hasattr(self.dispatch, "prepare"):
                     await self.dispatch.prepare()
                 await self._run_retro(forced=False)
@@ -295,6 +297,20 @@ class _Drain:
     def _stopping(self) -> bool:
         consumer = self.c.control
         return consumer is not None and consumer.projection.lifecycle_id == consumer.inbox.lifecycle_id and consumer.projection.kill_requested
+
+    async def _between_tickets(self) -> bool:
+        stem = self.last_dispatched
+        if stem is None:
+            return True
+        events = self.c.journal.read()
+        body = next((e.body for e in reversed(events) if e.type == EventType.STATE_TRANSITION and e.ticket == stem), {})
+        if body.get("to") in SETTLED | RETIRED or stem in reject_queue(events) or "provider_drought" in body:
+            return True
+        if self.c.control is not None and stem in self.c.control.storm_holds().values():
+            return True
+        if body.get("to") == PREMISE and (self.c.repo / ticket_path(stem)).exists():
+            return premise_parked(events, stem, await self._sha(stem))
+        return False
 
     def _offer_material(self) -> dict[str, bytes]:
         repo = self.c.repo
@@ -412,6 +428,7 @@ class _Drain:
                 caps.consume(self.c.journal, stem, "retry", sha, rung=body.get("rung"))
         # The `ticket.md` the run answers: a `premise_failed` verdict parks the stem until this changes.
         self.c.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": sha}, ticket=stem)
+        self.last_dispatched = stem
 
         async def abort():
             await self.dispatch.abort_current()

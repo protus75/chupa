@@ -972,6 +972,36 @@ def test_retro_hook_is_default_off(root):
     assert not any((e.key or "").startswith("llm/retro/") for e in checkout.journal.read())
 
 
+def test_due_retro_waits_for_retry_and_precedes_next_ticket(root):
+    from chupa.drain import drain as run_drain
+    from chupa.retro import measurements, project_window, select_trigger
+    from tests.test_drain_reentry import NoChild
+
+    commit_ticket(root, "aa", confirmed(priority="P0"))
+    commit_ticket(root, "bb", confirmed(priority="P1"))
+    checkout = pause_checkout(root)
+    for n in range(4):
+        checkout.journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed"}, ticket=f"prior-{n}")
+    trace = []
+    script = Script({"aa": ["gate_failed", "merged"]}, {"aa": lambda _: trace.append("aa"), "bb": lambda _: trace.append("bb")})
+    dispatch = script(checkout)
+
+    class Retro:
+        async def __call__(self, *, forced=False):
+            window = project_window(checkout.journal.read())
+            if trigger := select_trigger(window, measurements(window), checkout.clock(), forced=forced):
+                trace.append(f"retro:{trigger}")
+                checkout.journal.append(EventType.EFFECT_COMPLETION, {"result": {}}, key="retro/1")
+
+        async def abort_current(self):
+            pass
+
+    dispatch._retro = Retro()
+    report = asyncio.run(run_drain(checkout, dispatch, reexec=NoChild()))
+    assert report.merged == ["aa", "bb"]
+    assert trace == ["aa", "aa", "retro:gate-failure", "bb"]
+
+
 @pytest.mark.asyncio
 async def test_selected_retro_remains_killable_through_existing_control(root):
     from chupa import runner
