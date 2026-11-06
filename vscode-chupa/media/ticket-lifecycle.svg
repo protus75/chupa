@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 640" width="680" height="640" font-family="Segoe UI, system-ui, sans-serif" font-size="13" font-weight="600">
+  <!-- Colors match the vscode-chupa tickets view (media/view.css). Columns: holds x=120, happy path x=300, failures x=540. -->
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c8c8c8"/>
+    </marker>
+    <style>
+      .e { fill: none; stroke: #c8c8c8; stroke-width: 1.4; }
+      .blocked { fill: #EA5C00; }
+      .queued { fill: #3794FF; }
+      .running { fill: #3794FF; stroke: #fff; stroke-width: 3; }
+      .merged { fill: #B180D7; }
+      .retired { fill: #808080; }
+      text { fill: #fff; text-anchor: middle; dominant-baseline: central; }
+    </style>
+  </defs>
+  <rect width="680" height="640" fill="#1e1e1e"/>
+
+  <!-- Edges -->
+  <g class="e">
+    <!-- happy path -->
+    <path d="M300,58 V92" marker-end="url(#a)"/>
+    <path d="M300,128 V162" marker-end="url(#a)"/>
+    <path d="M300,198 V232" marker-end="url(#a)"/>
+    <path d="M300,268 V302" marker-end="url(#a)"/>
+    <path d="M300,338 V372" marker-end="url(#a)"/>
+    <path d="M300,408 V442" marker-end="url(#a)"/>
+    <path d="M300,478 V512" marker-end="url(#a)"/>
+    <path d="M300,548 V582" marker-end="url(#a)"/>
+
+    <!-- left: queue holds and Settled -->
+    <path d="M240,174 H180" marker-end="url(#a)"/>
+    <path d="M180,186 H240" marker-end="url(#a)"/>
+    <path d="M262,198 L170,232" marker-end="url(#a)"/>
+    <path d="M150,232 L242,198" marker-end="url(#a)"/>
+    <path d="M240,390 H120 V582" marker-end="url(#a)"/>
+
+    <!-- right: park, failures into Diagnose, Diagnose outcomes -->
+    <path d="M360,250 H475" marker-end="url(#a)"/>
+    <path d="M360,320 H420 M360,390 H420 M360,530 H420 M420,320 V530"/>
+    <path d="M360,460 H475" marker-end="url(#a)"/>
+    <path d="M540,442 V408" marker-end="url(#a)"/>
+    <path d="M540,372 V338" marker-end="url(#a)"/>
+    <path d="M540,478 V512" marker-end="url(#a)"/>
+    <path d="M540,548 V582" marker-end="url(#a)"/>
+
+    <!-- returns to Queued: Rework update, Diagnose retry, Verdict keep, Parked edit -->
+    <path d="M605,390 H640 M605,460 H640 M605,530 H640 M640,530 V180 H540"/>
+    <path d="M540,232 V180 H360" marker-end="url(#a)"/>
+  </g>
+
+  <!-- Center: happy path -->
+  <rect class="blocked" x="240" y="22" width="120" height="36" rx="8"/><text x="300" y="40">Draft</text>
+  <rect class="blocked" x="240" y="92" width="120" height="36" rx="8"/><text x="300" y="110">Blocked</text>
+  <rect class="queued" x="240" y="162" width="120" height="36" rx="8"/><text x="300" y="180">Queued</text>
+  <rect class="running" x="240" y="232" width="120" height="36" rx="8"/><text x="300" y="250">Requisition</text>
+  <rect class="running" x="240" y="302" width="120" height="36" rx="8"/><text x="300" y="320">Implement</text>
+  <rect class="running" x="240" y="372" width="120" height="36" rx="8"/><text x="300" y="390">Check</text>
+  <rect class="running" x="240" y="442" width="120" height="36" rx="8"/><text x="300" y="460">Review</text>
+  <rect class="running" x="240" y="512" width="120" height="36" rx="8"/><text x="300" y="530">Merge</text>
+  <rect class="merged" x="240" y="582" width="120" height="36" rx="8"/><text x="300" y="600">Merged</text>
+
+  <!-- Left -->
+  <rect class="blocked" x="60" y="162" width="120" height="36" rx="8"/><text x="120" y="180">Drought</text>
+  <rect class="blocked" x="60" y="232" width="120" height="36" rx="8"/><text x="120" y="250">Storm</text>
+  <rect class="merged" x="60" y="582" width="120" height="36" rx="8"/><text x="120" y="600">Settled</text>
+
+  <!-- Right -->
+  <rect class="blocked" x="475" y="232" width="130" height="36" rx="8"/><text x="540" y="250">Parked</text>
+  <rect class="retired" x="475" y="302" width="130" height="36" rx="8"/><text x="540" y="320">Superseded</text>
+  <rect class="running" x="475" y="372" width="130" height="36" rx="8"/><text x="540" y="390">Rework</text>
+  <rect class="running" x="475" y="442" width="130" height="36" rx="8"/><text x="540" y="460">Diagnose</text>
+  <rect class="blocked" x="475" y="512" width="130" height="36" rx="8"/><text x="540" y="530">Verdict</text>
+  <rect class="retired" x="475" y="582" width="130" height="36" rx="8"/><text x="540" y="600">Rejected</text>
+</svg>

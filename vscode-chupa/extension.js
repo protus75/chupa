@@ -112,6 +112,16 @@ ${scripts.map(s => `<script nonce="${nonce}" src="${uri(s)}"></script>`).join('\
 </body></html>`;
 }
 
+function showLifecycle(extensionUri) {
+	const media = vscode.Uri.joinPath(extensionUri, 'media');
+	const panel = vscode.window.createWebviewPanel('chupa.lifecycle', 'chupa ticket lifecycle', vscode.ViewColumn.Active, { localResourceRoots: [media] });
+	const svg = panel.webview.asWebviewUri(vscode.Uri.joinPath(media, 'ticket-lifecycle.svg'));
+	panel.webview.html = `<!doctype html>
+<html><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${panel.webview.cspSource};">
+</head><body><img src="${svg}" alt="chupa ticket lifecycle"></body></html>`;
+}
+
 class TicketsView {
 	constructor(extensionUri, snapshot, details) {
 		this.extensionUri = extensionUri;
@@ -222,6 +232,7 @@ function activate(context) {
 		vscode.window.registerWebviewViewProvider('chupa.tickets', tickets),
 		vscode.commands.registerCommand('chupa.refresh', () => snapshot.refresh()),
 		vscode.commands.registerCommand('chupa.openTicket', openTicket),
+		vscode.commands.registerCommand('chupa.lifecycle', () => showLifecycle(context.extensionUri)),
 		vscode.commands.registerCommand('chupa.openSettings', () => vscode.commands.executeCommand('workbench.action.openSettings', '@ext:chupa.vscode-chupa')),
 		vscode.commands.registerCommand('chupa.ticket.open', ctx => openTicket(`tickets/${ctx.chupaStem}/ticket.md`)),
 		vscode.commands.registerCommand('chupa.ticket.review', ctx => devCommand('review', ctx.chupaStem)),

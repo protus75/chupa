@@ -76,7 +76,9 @@ Each test has a 120-second hard limit.
 | `vscode` | bumps the patch version in `vscode-chupa/package.json` (VS Code keeps an extension's old icon until its version changes), packages it with `npx @vscode/vsce`, and installs it with `code --install-extension --force`; reload the window to load it |
 
 `vscode-chupa/` is an operator-only VS Code extension: an Activity Bar view of every ticket as an
-SCM-style graph (blocked, queued, running, merged) with a detail pane. `vscode-chupa/snapshot.py`
+SCM-style graph (blocked, queued, running, merged) with a detail pane. The Tickets view's `?`
+button opens `vscode-chupa/media/ticket-lifecycle.svg`, a hand-drawn diagram of ticket states.
+`vscode-chupa/snapshot.py`
 builds its data read-only from the journal, `watch.py`, and `order_tickets`; the engine never runs it.
 
 ## 3. Tickets

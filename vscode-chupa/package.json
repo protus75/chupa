@@ -2,7 +2,7 @@
 	"name": "vscode-chupa",
 	"displayName": "chupa tickets",
 	"description": "chupa's tickets as an SCM-style dependency graph: blocked, queued, running, merged.",
-	"version": "0.0.12",
+	"version": "0.0.13",
 	"publisher": "chupa",
 	"license": "MIT",
 	"engines": {
@@ -141,6 +141,12 @@
 				"command": "chupa.openSettings",
 				"title": "chupa Settings",
 				"icon": "$(gear)"
+			},
+			{
+				"command": "chupa.lifecycle",
+				"title": "Ticket lifecycle",
+				"category": "chupa",
+				"icon": "$(question)"
 			}
 		],
 		"menus": {
@@ -232,6 +238,11 @@
 				},
 				{
 					"command": "chupa.openSettings",
+					"when": "view == chupa.tickets",
+					"group": "navigation"
+				},
+				{
+					"command": "chupa.lifecycle",
 					"when": "view == chupa.tickets",
 					"group": "navigation"
 				},
