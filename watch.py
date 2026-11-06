@@ -55,22 +55,39 @@ def started(pid: int) -> datetime:
     return datetime.strptime(text, "%a %b %d %H:%M:%S %Y").astimezone()
 
 
-def engine_alive(state: Path) -> bool:
-    """Whether the lock holder (a drain, serve, or run) is still alive; a killed drain leaves its lockfile behind."""
+def lock_holder(state: Path) -> datetime | None:
+    """When the live lock holder (drain, serve, run, review, ...) started; None when no live process holds the lock.
+
+    A killed drain leaves its lockfile behind, so a pid that no longer exists holds nothing.
+    """
     # Separate except clauses: ruff's 3.14 target rewrites a tuple into syntax the 3.12 system python3 rejects.
     try:
         lock = json.loads((state / "chupa.lock").read_text())
     except OSError:
-        return False
+        return None
     except ValueError:
-        return False
+        return None
+    if not lock.get("pid") or not lock.get("started_at"):
+        return None
     try:
-        os.kill(lock.get("pid", 0), 0)
+        os.kill(lock["pid"], 0)
     except ProcessLookupError:
-        return False
+        return None
     except PermissionError:
-        return True
-    return bool(lock.get("pid"))
+        pass
+    return datetime.fromisoformat(lock["started_at"])
+
+
+def running_stems(state: Path, last_state: dict[str, dict]) -> list[str]:
+    """Stems journaled `running` by the live lock holder.
+
+    The journal's last `running` outlives a killed engine, and a later holder such as `review` does not reconcile it,
+    so a `running` journaled before the holder started is stale.
+    """
+    since = lock_holder(state)
+    if since is None:
+        return []
+    return [s for s, b in last_state.items() if b.get("to") == "running" and datetime.fromisoformat(b["ts"]) >= since]
 
 
 def this_repo(pid: int, config: str | None) -> bool:
@@ -264,8 +281,7 @@ def snapshot() -> str:
     for e in events:
         if e.get("type") == "state_transition" and e.get("ticket"):
             last_state[e["ticket"]] = {**e["body"], "ts": e["ts"]}
-    # The journal's last `running` outlives a killed engine; only a live lock holder makes it true.
-    running = [s for s, b in last_state.items() if b.get("to") == "running"] if engine_alive(state) else []
+    running = running_stems(state, last_state)
     lines.append("")
     if running:
         for stem in running:

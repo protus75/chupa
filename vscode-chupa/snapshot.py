@@ -85,9 +85,8 @@ def snapshot() -> dict:
         return last.get(stem, {}).get("to")
 
     merged = sorted((s for s in last if to(s) in SETTLED), key=lambda s: last[s]["ts"], reverse=True)
-    # The journal's last `running` outlives a killed engine; only a live lock holder makes it true.
-    alive = watch.engine_alive(state)
-    running = [s for s in last if to(s) == "running"] if alive else []
+    alive = watch.lock_holder(state) is not None
+    running = watch.running_stems(state, last)
     open_ = {s: t for s, t in tickets.items() if to(s) not in SETTLED | RETIRED and s not in running and t.frontmatter.state not in ("rejected", "merged")}
     runnable = {s: t for s, t in open_.items() if t.frontmatter.state == "confirmed" and s not in held}
     queued = simulate(runnable, set(merged) | set(running), authored, strict=True)

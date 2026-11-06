@@ -41,12 +41,16 @@ def test_drain_processes_only_this_repo(tmp_path, monkeypatch):
     assert watch.drain_processes(rows) == [10, 30]
 
 
-def test_engine_alive_needs_a_live_lock_holder(tmp_path):
-    # A killed drain leaves its lockfile and a journaled `running`; only a live pid means a ticket is running.
-    assert not watch.engine_alive(tmp_path)
-    (tmp_path / "chupa.lock").write_text(json.dumps({"pid": os.getpid()}))
-    assert watch.engine_alive(tmp_path)
+def test_running_needs_a_live_lock_holder_that_journaled_it(tmp_path):
+    # A killed drain leaves its lockfile and a journaled `running`; a later holder (review) must not revive it.
+    started = "2026-11-06T15:44:00+00:00"
+    last = {"stale": {"to": "running", "ts": "2026-11-06T14:50:00+00:00"}, "live": {"to": "running", "ts": "2026-11-06T15:45:00+00:00"}}
+    assert watch.lock_holder(tmp_path) is None
+    assert watch.running_stems(tmp_path, last) == []
+    (tmp_path / "chupa.lock").write_text(json.dumps({"pid": os.getpid(), "started_at": started}))
+    assert watch.running_stems(tmp_path, last) == ["live"]
     dead = subprocess.Popen([sys.executable, "-c", "pass"])
     dead.wait()
-    (tmp_path / "chupa.lock").write_text(json.dumps({"pid": dead.pid}))
-    assert not watch.engine_alive(tmp_path)
+    (tmp_path / "chupa.lock").write_text(json.dumps({"pid": dead.pid, "started_at": started}))
+    assert watch.lock_holder(tmp_path) is None
+    assert watch.running_stems(tmp_path, last) == []
