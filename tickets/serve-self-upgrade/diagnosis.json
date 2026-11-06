@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "734615e92bcf6502830d33879a0d2e9c84ade8a2",
+  "produced_at_sha": "30c45ffa9695a94760ea06a813654ee200374705",
   "stem": "serve-self-upgrade",
-  "attempt": 4,
+  "attempt": 5,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "Criterion 2: add a test in tests/test_serve.py where the engine is a separate git checkout under tmp_path with its own chupa/ tree, not the host root. Commit a chupa/ change there while serve is idle. Assert serve_handoff is journaled and the spawn happens once, all from serve's own admission check.",
-    "Criterion 1: push the chupa/ change through a real serve merge, using a ticket whose implement step edits chupa/. Never call check_upgrade from the test, so the test fails if the respond/merge boundary calls are removed.",
-    "Criterion 1, docs-only case: push a docs/-only change through a real serve merge too, and assert the fake re-exec seam was never called. A direct commit to the repo does not test this.",
-    "Keep the handoff mechanics that review accepted: the shared drain argv builder, the lock released before the spawn, and the kill-wins rule. Change only the tests that review flagged, then run the full uv run pytest -q one command at a time."
+    "In chupa/serve.py upgrade_idle(), also require that no TicketWriter is active or holds continuations, so a ticket paused at a stage boundary blocks the handoff. Review finding at line 318; the ticket rejects a handoff that spawns mid-ticket.",
+    "While an upgrade is pending, keep calling scheduler.dispatch_next() in dispatch() and let select() refuse only new stems. select() already exempts stems in self.writers, so continuing tickets resume and reach their terminal. Review finding at line 331.",
+    "Add a tests/test_serve.py case: a writer holds a continuation when the chupa tree change is seen. Assert serve admits no new stem, resumes the continuation, and spawns only after that ticket's terminal and an empty merge queue (acceptance criterion 3).",
+    "Keep everything else from the passing attempt: the shared argv builder, lock release before the spawn, kill-wins and non-git cases. Only the idle/dispatch gating failed review. Run the ticket's two verification commands before you commit."
   ],
   "mechanical": null,
   "spec_version": "1.2",
