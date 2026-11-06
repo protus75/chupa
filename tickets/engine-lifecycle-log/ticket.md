@@ -36,9 +36,9 @@ After this change, `drain` and `serve` write an `engine_start` event to the engi
   - When the newest `engine_start` has no later `engine_stop` and `watch.lock_holder` reports no live holder, they add one line, timed at that `engine_start`: `<verb> ended without a stop record (killed?)`.
 - In: `vscode-chupa/extension.js`: Recent Steps items for these events have no ticket name, a `debug-start` or `debug-stop` icon (`warning` for the ended-without-stop line), and no open-ticket command.
 - In: tests.
-  - `tests/test_drain.py`: a drain to quiescence writes exactly one `engine_start` and one `engine_stop` with outcome `quiescent`, in that order, and both precede lock release.
-  - `tests/test_serve.py`: a serve stopped through control writes both, with outcome `stopped`.
-  - `tests/test_watch.py`: Recent steps renders start, stop, and the "ended without a stop record" line.
+  - `tests/test_drain.py`: a drain to quiescence writes exactly one `engine_start` and one `engine_stop` with outcome `quiescent`, in that order, and both precede lock release. No journal event's type or body carries `engine_start` or `engine_stop`.
+  - `tests/test_serve.py`: a serve stopped through control writes both, with outcome `stopped`. No journal event's type or body carries either event.
+  - `tests/test_watch.py`: the fixture engine log mixes `stage_start`/`stage_end` with `engine_start`/`engine_stop`. Recent steps keeps every stage event and lists all of them in timestamp order. It also renders the start, stop, and "ended without a stop record" lines.
 - In: `docs/how-chupa-works.md`: the `engine.log` row in section 10.1 names `engine_start` and `engine_stop`.
 - Out: the journal, `run`, `review`, and other lock holders; log rotation; control semantics.
 
