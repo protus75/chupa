@@ -1,6 +1,6 @@
 # Review: approve
 
-The diff adds the `order` verb, the pure `tickets.order` edit helper, the dev.py passthrough, the extension menu items and the required docs, and the six tests cover each acceptance criterion within the scope fence.
+The diff adds the `chupa order` verb, the pure `order` text-edit helper, the dev.py passthrough, the extension's queued/blocked context-menu commands that call `./dev.py order` through execFile, the six required tests, and the four doc updates, with no defects found.
 
 ## Findings
 
@@ -12,10 +12,10 @@ none
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "37134664b8e0d651f19c2ad4c65204176a5bd6c8",
+  "produced_at_sha": "47bd66db29216c8ccfab74662d8a0d1364a80502",
   "stem": "order-verb",
-  "reviewed_sha": "37134664b8e0d651f19c2ad4c65204176a5bd6c8",
-  "summary": "The diff adds the `order` verb, the pure `tickets.order` edit helper, the dev.py passthrough, the extension menu items and the required docs, and the six tests cover each acceptance criterion within the scope fence.",
+  "reviewed_sha": "47bd66db29216c8ccfab74662d8a0d1364a80502",
+  "summary": "The diff adds the `chupa order` verb, the pure `order` text-edit helper, the dev.py passthrough, the extension's queued/blocked context-menu commands that call `./dev.py order` through execFile, the six required tests, and the four doc updates, with no defects found.",
   "findings": [],
   "spec_version": "1.4",
   "provider": "claude",
