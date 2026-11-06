@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "0883e400f84f505c2961d33cc3982da8aa4e268a",
+  "produced_at_sha": "a984555f6a21bd605e01351891613c7bc3de343d",
   "stem": "specs-in-package",
-  "attempt": 0,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "reject",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "split",
   "lessons": [
-    "Add tests/test_policy.py to the Scope fence. Its lines 48-72 pass ROOT / \"specs\" to baseline_identity and resolve_baseline, and the required git mv breaks test_standing_go_uses_the_table_and_each_override_drafts. Point those calls at ROOT / \"chupa\" / \"specs\".",
-    "In tests/test_policy.py, lines 76-79 use \"specs/\" and \"specs/triage.md\" only as synthetic engine_plane_safety_inventory and fence values. Change them only if they need to stay consistent with the config.yaml move to chupa/specs/.",
-    "No other unfenced test needs editing. tests/test_status.py builds its specs dir under tmp_path, and tests/test_retro.py:301 uses the stored box form \"specs/review.md\", which the ticket deliberately keeps valid.",
-    "Before re-running, grep tests/ for '\"specs\"' and '/specs' and check each hit against the fence. A forced file outside the fence makes the ticket impossible, so fence every one."
+    "Split because the diff_budget finding allows at most 30 files and the diff had 43. Moving specs/ to chupa/specs/ alone touches 11 files. The code was sound (3025 passed, all Verification commands green), so keep its approach and divide the same edits into stems, each under 30 files.",
+    "Stem 1 (move): git mv specs chupa/specs; update runner.SPECS_DIR, policy.SPECS, stages.py, artifacts.py, watch.py, eval/harness.py, eval/diagnose.py, and only the tests that read real spec files. Keep it to 30 files or fewer; the files moved, so this is not a dual path.",
+    "Stem 2 (matchers), depends on stem 1: drain.UPGRADE_PREFIXES ('chupa/',) is already true, serve.engine_trees reads HEAD:chupa, merge.py regex matches chupa/specs/, tickets.py Context check, config.yaml inventory, plus test_closed_sets, test_drain_upgrade, test_merge, test_serve, test_tickets.",
+    "Stem 3 (box paths), depends on stem 1: change the one chupa/specs/retro.md sentence; author.py and triage.py add the chupa/ prefix to proposed_spec_paths in requests. Leave the box.py and retro.py pattern ^specs/...\\.md$ unchanged. Update test_author (AC5), test_retro_box and test_triage.",
+    "Stem 4 (docs), depends on stem 1: update the specs/ paths in docs/how-chupa-works.md sections 1, 4.2, 4.4, 6.3, 6.5, 7.1 and 8.4, and in docs/host-contract.md (the inventory example and the Instance custody restart sentence). Each stem's acceptance criteria and Verification cover only its own part."
   ],
   "mechanical": null,
   "spec_version": "1.2",
