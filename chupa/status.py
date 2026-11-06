@@ -1,4 +1,4 @@
-"""The `status` projection (CHUPA_PLAN.md section 13 touchpoint 5): a deterministic, write-free fold of the journal.
+"""The `status` projection: a deterministic, write-free fold of the journal.
 
 A projection, never an authority: no gate or dispatch decision reads its rendering.
 """

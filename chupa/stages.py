@@ -1,11 +1,11 @@
-"""The Implement, Check, and Review stages (CHUPA_PLAN.md sections 4, 5, 9, 10, 13; 19.P1).
+"""The Implement, Check, and Review stages.
 
 Implement and Review are prompt specs run through the one driver; Check is mechanical. This module
-owns stage-evidence gathering and the stage-terminal OUTBOX lift (section 9's ownership law): each
+owns stage-evidence gathering and the stage-terminal OUTBOX lift: each
 stage writes its artifact into `tickets/<stem>/` inside the worktree, and at the stage terminal the
 lift moves it to the canonical tickets dir as ONE ticket-plane commit `chupa(<stem>): <kind>`.
 
-The run's terminal `state_transition` is not written here: that is the runner's (section 11.2).
+The run's terminal `state_transition` is not written here: that is the runner's.
 """
 
 import ast
@@ -69,7 +69,7 @@ KNOWN_ARTIFACTS: Mapping[str, type[BaseModel]] = {
     HOST_LOOP_REPORT: HostLoopReport,
     EXIT_RECEIPT: ExitReceipt,
 }
-# Section 7 diff budget: sized so every rendered review prompt fits the serving provider's bound.
+# Diff budget: sized so every rendered review prompt fits the serving provider's bound.
 DIFF_BUDGET_FILES = 30
 DIFF_BUDGET_INSERTED = 1_500
 # The mechanical Check has no prompt spec; this versions its own contract in the provenance slot.
@@ -85,7 +85,7 @@ RUN_RECORD_SECTIONS = (
 )
 
 StageName = Literal["implement", "check", "review"]
-# Section 11.2: the attempt-scoped re-entry block's heading, rendered in criteria-position.
+# The attempt-scoped re-entry block's heading, rendered in criteria-position.
 PRIOR_ATTEMPTS = "## Prior attempts (attempt-scoped, informational, unverified, not reviewed)"
 DIAGNOSIS_STUCK_S = 600.0
 
@@ -123,7 +123,7 @@ class ImplementReply(_Strict):
 
 
 class PackingSlip(Artifact):
-    """Implement's artifact: the branch plus its run record (section 4)."""
+    """Implement's artifact: the branch plus its run record."""
 
     stem: NonBlank
     branch: NonBlank
@@ -464,7 +464,7 @@ def _short(result: StageResult, outcome: Outcome, findings: list[Finding], artif
 
 
 async def prepare_worktree(ctx: StageContext, stem: str) -> Path:
-    """TEARDOWN-AND-CREATE (section 6): remove any worktree and branch a prior run left, then branch from main."""
+    """TEARDOWN-AND-CREATE: remove any worktree and branch a prior run left, then branch from main."""
     path = ctx.worktree(stem)
     if path.exists():
         await ctx.git.worktree_remove(ctx.repo, path)
@@ -484,7 +484,7 @@ async def prepare_worktree(ctx: StageContext, stem: str) -> Path:
 async def lift_outbox(ctx: StageContext, stem: str, kind: str, *, attempt: int, only: str | None = None) -> str | None:
     """Move the worktree outbox into the canonical ticket dir as ONE ticket-plane commit; None if empty.
 
-    `ticket.md` is never lifted: it stays read-only to the agent (section 10). Keyed with the run
+    `ticket.md` is never lifted: it stays read-only to the agent. Keyed with the run
     sequence, so a same-run re-entry never commits twice. A file byte-equal to its canonical copy is a prior
     run's artifact the worktree inherited from main, not this stage's output: it is never lifted.
     """
@@ -543,7 +543,7 @@ def _quoted(text: str) -> str:
 
 
 def prior_attempts(ctx: StageContext, stem: str) -> str | None:
-    """Section 11.2 re-entry: the prior terminal and its findings as a clear-these block; None on a first attempt.
+    """Re-entry: the prior terminal and its findings as a clear-these block; None on a first attempt.
 
     Folded fresh from the journal and the ticket dir every attempt, never written into `ticket.md`. Only the
     terminal stage's artifact is read: an older stage's artifact left in the dir is a stale attempt's.
@@ -648,7 +648,7 @@ async def implement(ctx: StageContext, ticket: Ticket, *, attempt: int) -> Stage
             scope_fence=ticket.scope_fence,
         )
     except RenderOverBound as e:
-        # The pre-call short-circuit: ticket-text arithmetic, parked like premise_failed (section 8).
+        # The pre-call short-circuit: ticket-text arithmetic, parked like premise_failed.
         return StageResult(outcome="premise_failed", artifact=None, findings=[e.finding], cost=Cost())
     if result.outcome != "ok":
         if result.cost.provider is not None:
@@ -847,7 +847,7 @@ async def gather_evidence(
     outbox = worktree / TICKETS_DIR / stem
     for path in _registered_files(outbox):
         path.unlink()
-    env = child_env(ctx.env, ctx.config)  # verification never inherits a provider key (section 6)
+    env = child_env(ctx.env, ctx.config)  # verification never inherits a provider key
     results = []
     red: list[tuple[int, list[str]]] = []
     timeout = ticket.stuck_minutes * 60.0
@@ -1178,9 +1178,9 @@ async def check_hosts(ctx, ticket, changed_files, attempt):
 
 
 class ScopeFenceGate:
-    """The implement stage's write allowlist (section 9): the committed diff within `## Scope fence`.
+    """The implement stage's write allowlist: the committed diff within `## Scope fence`.
 
-    The stem's own outbox is exempt except `ticket.md`, which stays read-only to the agent (section 10).
+    The stem's own outbox is exempt except `ticket.md`, which stays read-only to the agent.
     """
 
     code = "scope_fence"
@@ -1208,7 +1208,7 @@ class ScopeFenceGate:
 class VerificationGate:
     """The ticket's own `## Verification` commands, with base-red failures attributed to main.
 
-    An empty `ok` diff needs current checks-lift report custody (19.P3.outbox-only-admission).
+    An empty `ok` diff needs current checks-lift report custody.
     """
 
     code = "verification"
@@ -1247,13 +1247,13 @@ class VerificationGate:
 
 
 class RunRecordGate:
-    """`run.md` present with the fixed section set and a closed-vocab `## Outcome` (section 13)."""
+    """`run.md` present with the fixed section set and a closed-vocab `## Outcome`."""
 
     code = "run_record"
 
     def check(self, artifact: Evidence, workspace: Path) -> GateReport:
         path = f"{TICKETS_DIR}/{artifact.stem}/run.md"
-        road = "re-run Implement so the engine writes run.md with every section of section 13"
+        road = "re-run Implement so the engine writes run.md with every required section"
         if artifact.run_record is None:
             return _report(self.code, [Finding(code=self.code, path=path, message="run.md is missing", paved_road=road)])
         sections: dict[str, list[str]] = {}
@@ -1274,7 +1274,7 @@ class RunRecordGate:
 
 
 class DiffBudgetGate:
-    """A mechanical cap on the reviewable diff, so the review prompt fits its bound (section 7)."""
+    """A mechanical cap on the reviewable diff, so the review prompt fits its bound."""
 
     code = "diff_budget"
 
@@ -1454,7 +1454,7 @@ def review_stage(ctx: StageContext, ticket_text: str, diff: str, prior_review: s
 async def review(ctx: StageContext, ticket: Ticket, invoice: Invoice, *, attempt: int) -> StageResult:
     """Inspect: one separate-session review of `git diff main...<stem>`, pinned to the reviewed SHA.
 
-    approve -> ok; snag and rma -> gate_failed (the review surface is a gate, section 11); the
+    approve -> ok; snag and rma -> gate_failed (the review surface is a gate); the
     verdict-keyed artifact lands in `review.md` either way.
     """
     stem = ticket.stem
@@ -1526,7 +1526,7 @@ async def run_stages(ctx: StageContext, ticket: Ticket) -> StagesRun:
     """Implement -> Check -> Review for one ticket, single worker, in the process holding the lock.
 
     `already_satisfied`, proven by Check's green verification on an empty diff, stops before Review:
-    there is no diff to review and the ticket settles as a no-op (section 5 invariant 4).
+    there is no diff to review and the ticket settles as a no-op.
     """
     boundary = ctx.boundary
     dispatched = next((e.body for e in reversed(ctx.driver.journal.read()) if e.type == EventType.STATE_TRANSITION and e.ticket == ticket.stem), {})

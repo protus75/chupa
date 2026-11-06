@@ -1,4 +1,4 @@
-"""Pure journal-window surface accounting (19.P5.scorecard-reporting)."""
+"""Pure journal-window surface accounting."""
 
 from collections.abc import Mapping
 from dataclasses import dataclass

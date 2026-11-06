@@ -1,6 +1,6 @@
 """Ticket contract and runner intake.
 
-Intake stands in for the Phase 3 watcher: at invocation it lints every pending hand-authored
+At invocation, intake lints every pending hand-authored
 `tickets/<stem>/ticket.md` and ticket-plane-commits the clean ones, one commit per stem.
 """
 
@@ -23,7 +23,7 @@ from chupa.seams import FileSystem
 TICKETS_DIR = "tickets"
 TICKET_FILE = "ticket.md"
 STEM = re.compile(r"^[a-z0-9][a-z0-9-]{1,63}$")
-RESERVED_STEMS = frozenset({"decisions", "retro"})  # sibling dirs that match the stem regex (sections 14, 15)
+RESERVED_STEMS = frozenset({"decisions", "retro"})  # sibling dirs that match the stem regex
 INTAKE_SIGNAL = "ticket_intake"
 CODE = "ticket_schema"
 
@@ -156,7 +156,7 @@ def _sections(body: str, path: str) -> tuple[dict[str, str], list[Finding]]:
         if not fence and (m := _HEADING.match(line)):
             name = m.group(1)
             if name not in SECTIONS:
-                findings.append(_f(f"unknown body section `## {name}`", f"use only the section 13 sections: {', '.join(SECTIONS)}", path))
+                findings.append(_f(f"unknown body section `## {name}`", f"use only the allowed sections: {', '.join(SECTIONS)}", path))
             elif name in sections:
                 findings.append(_f(f"duplicate body section `## {name}`", "merge the two into one section", path))
             current = sections.setdefault(name, [])
@@ -224,7 +224,7 @@ def _criteria(text: str) -> list[str]:
 
 
 def parse_ticket(stem: str, text: str, repo: Path) -> Ticket:
-    """Validate one ticket against the full section 13 grammar; raise TicketInvalid with every finding.
+    """Validate one ticket against the full ticket grammar; raise TicketInvalid with every finding.
 
     `repo` resolves `Context` / `On-demand` existence and ordering stems.
     """
@@ -244,7 +244,7 @@ def parse_ticket(stem: str, text: str, repo: Path) -> Ticket:
         findings += [
             _f(
                 f"frontmatter `{'.'.join(map(str, err['loc']))}`: {err['msg']}",
-                f"frontmatter carries only {allowed}; fix the value to its closed vocabulary (section 13) or move non-scheduling detail into the body",
+                f"frontmatter carries only {allowed}; fix the value to its closed vocabulary or move non-scheduling detail into the body",
                 path,
             )
             for err in e.errors()

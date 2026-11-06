@@ -1,4 +1,4 @@
-"""Deterministic production soak and canonical report writer (19.P3.daemon-soak-runner)."""
+"""Deterministic production soak and canonical report writer."""
 
 import argparse
 import asyncio

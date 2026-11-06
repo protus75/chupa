@@ -17,18 +17,18 @@ from chupa.artifacts import Finding
 from chupa.gates import ENGINE_GATE_CODES
 from chupa.llm import AgentEffort, AgentTier
 
-# Section 8: one bound at every tier and effort, so climbing the ladder never shrinks it.
+# One bound at every tier and effort, so climbing the ladder never shrinks it.
 RENDER_BOUND_CHARS = 400_000
 # An authored ticket's base Implement render must fit this fraction of the bound.
 REQ_RENDER_HEADROOM = 0.75
 
-# Built, never spelled: a file carrying the raw delimiter can never be injected as Context (section 13).
+# Built, never spelled: a file carrying the raw delimiter can never be injected as Context.
 DATA_DELIM = "<<" + "chupa-data:"
 QUOTED_DELIM = "[chupa-data:"
 
 SPEC_SECTIONS = ("Role", "Task", "Inputs", "Output format", "On-failure")
 SPEC_MAX_LINES = 200
-# Section 5: the LLM stage names plus `diagnose` and `requisition_review`; config load extends with host surfaces.
+# The LLM stage names plus `diagnose` and `requisition_review`; config load extends with host surfaces.
 ENGINE_LLM_SURFACES: frozenset[str] = frozenset({"author", "implement", "review", "rework", "triage", "retro", "diagnose", "requisition_review"})
 
 _NAME = r"[a-z][a-z0-9_]*"

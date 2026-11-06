@@ -1,4 +1,4 @@
-"""Supervised disposable host evidence and canonical Phase 6 receipt writers."""
+"""Supervised disposable host evidence and canonical receipt writers."""
 
 import argparse
 import asyncio

@@ -1,4 +1,4 @@
-"""Continuous foreground lifetime (CHUPA_PLAN.md 19.P3.serve-activation)."""
+"""Continuous foreground lifetime."""
 
 import asyncio
 import re

@@ -1,4 +1,4 @@
-"""Injectable seams (CHUPA_PLAN.md section 15): engine code never calls these raw."""
+"""Injectable seams: engine code never calls these raw."""
 
 import asyncio
 import os
@@ -107,7 +107,7 @@ class SubprocessExec:
         if shutil.which(argv[0], path=env.get("PATH", "")) is None:
             raise ExecutableNotFound(argv[0])
         # The one unbounded caller -- the drain's self-upgrade handoff child -- streams to the operator through
-        # INHERITED stdio; its out/err come back empty (section 15).
+        # INHERITED stdio; its out/err come back empty.
         stream = None if timeout is None else subprocess.PIPE
         with open(stdin_path, "rb") if stdin_path else open(os.devnull, "rb") as stdin:
             proc = await asyncio.create_subprocess_exec(

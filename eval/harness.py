@@ -1,11 +1,11 @@
-"""Review-baseline eval (CHUPA_PLAN.md 19.P1): the catastrophic-NO-GO spike, the base Phase 6 grows to GO grade.
+"""Review-baseline eval: the catastrophic-NO-GO spike and GO grade.
 
 `run` drives specs/review.md over the fixtures with a shared USD 5 cap and journals one NO_GO signal.
 `--out` adds the harness-local Author graph and writes a validated report. Only operator `--record-go`
 with affirmative Author-graph judgment can record GO from complete, numerically passing evidence.
 
 `author` writes fixtures through a (provider, model) other than the one serving REVIEW, because
-same-family fixtures share the reviewer's blind spots and inflate the catch rate (section 6).
+same-family fixtures share the reviewer's blind spots and inflate the catch rate.
 
     uv run python -m eval.harness author [--provider codex --tier high] [--only NAME ...] [--force]
     uv run python -m eval.harness run --out tickets/<stem>/review-baseline-report.json

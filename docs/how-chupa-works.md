@@ -669,9 +669,6 @@ The block carries only process rules that hold for every host; codebase rules be
 - A host provides `config.yaml`, its conduct files, and its tickets. `docs/host-contract.md` is
   the full host-facing contract; Python hosts can use its `## Python host test setup`.
 
-## 13. Bootstrap-era machinery still in the code
-
-chupa built itself from `CHUPA_PLAN.md` through self-seeding phases, now finished. This code
-remains and does not apply to ordinary tickets:
+## 13. Eval report artifacts
 
 - **Eval report artifacts:** shakeout, soak, reliability battery, host loop, exit receipt.

@@ -1,4 +1,4 @@
-"""One operator-triggered, sequential Suggestion Box pass (plan section 12)."""
+"""One operator-triggered, sequential Suggestion Box pass."""
 
 import json
 import re

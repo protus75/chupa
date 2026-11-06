@@ -1,4 +1,4 @@
-"""Closed, disposable production provider battery (19.P4.reliability-battery)."""
+"""Closed, disposable production provider battery."""
 
 import argparse
 import asyncio

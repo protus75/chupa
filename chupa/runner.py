@@ -1,7 +1,7 @@
-"""The `run <stem>` scaffold verb (CHUPA_PLAN.md sections 11.2, 18, 19.P1): one ticket through intake, the
+"""The `run <stem>` scaffold verb: one ticket through intake, the
 single-writer lockfile, and the stage-dispatch seam, all in the one process holding the lock.
 
-Exit codes (section 18): 0 merged, 1 a non-ok ticket terminal, 2 an engine-plane refusal.
+Exit codes: 0 merged, 1 a non-ok ticket terminal, 2 an engine-plane refusal.
 """
 
 import asyncio
@@ -46,11 +46,11 @@ HARVEST_TAIL_CHARS = 4_000
 IDENTICAL_K = 3
 
 # The stage seam: drives the validated ticket through the stages and merge, journals the run's single
-# terminal transition (section 11), and returns that terminal state.
+# terminal transition, and returns that terminal state.
 Dispatch = Callable[[Ticket], Awaitable[str]]
 
 
-# The provider backstop is the drain ceiling every ticket stuck budget fits under (section 9.7):
+# The provider backstop is the drain ceiling every ticket stuck budget fits under:
 # the ticket's own stuck budget is the bound the driver enforces, never a shorter per-call cap.
 def call_timeout(config: Config) -> float:
     return config.drain.max_ticket_minutes * 60.0
@@ -121,7 +121,7 @@ async def prepare_pipeline(checkout: Checkout) -> Dispatch:
     for notice in llm.preflight_notices:
         print(f"chupa: provider preflight notice: {notice}", file=sys.stderr)
     if problems:
-        raise Refusal("provider preflight failed: " + "; ".join(problems), "fix each named provider, then run the same command again (section 6 provider preflight)")
+        raise Refusal("provider preflight failed: " + "; ".join(problems), "fix each named provider, then run the same command again (provider preflight)")
     return bind(checkout, llm)
 
 
@@ -132,7 +132,7 @@ def bind(checkout: Checkout, llm: LLM) -> Dispatch:
     ctx = StageContext(repo=checkout.repo, config=checkout.config, env=checkout.env, exec_=checkout.exec_, git=checkout.git, fs=checkout.fs, driver=driver, specs_dir=SPECS_DIR)
 
     def escalate(event: Event) -> None:
-        # Queue signals are already journaled; notification transport lands in Phase 4.
+        # Queue signals are already journaled; notification transport is handled separately.
         return None
 
     from chupa.daemon import TicketWriter
