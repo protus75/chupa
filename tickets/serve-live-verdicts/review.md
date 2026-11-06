@@ -1,10 +1,11 @@
 # Review: snag
 
-The live keep path, crash replay, refusal reporting and serve re-offer are implemented and tested, but no test covers acceptance criterion 2: a live `reject` while the lock is held.
+The keyed reject path is now tested and the live keep/reject/refusal flows look correct, but the diff adds an unrequested compatibility shim for the old confirm effect key and leaves runner.confirm_draft as a second, now-dead copy of the draft-promotion rules.
 
 ## Findings
 
-- [acceptance] tests/test_control.py:416 Criterion 2 is unmet. It requires tests showing that `reject <stem>`, sent while a lock is held, works on a Reject-queue stem and on a committed draft: it stamps `state: rejected`, commits it, journals the `rejected` transition once, and files dead-dependent box messages exactly as the lock-free path does. It names tests/test_control.py and tests/test_control_cli.py as the check. Every added or changed test publishes only `confirm` requests (`test_verdict_inbox_known_unknown_and_crash_replay`, the updated `test_confirm_held_without_writer_lock`, `test_live_keep_reoffers_and_reports_repeat`). Nothing tests the new keyed reject path: `verdict_locked(kill=True, key=...)`, the replay prefix, the keyed recommit block in `reject_ticket`, and the guarded `reject_verdict kill` and `rejected` appends. (do instead: Add tests in tests/test_control.py and/or tests/test_control_cli.py. With the lock held, run `reject` through `entry.main` or publish a null-`hold_id` reject request, then run `settle_admissions` (at least twice, once crashing mid-effect) for a Reject-queue stem and for a committed draft that has a confirmed dependent. Assert the committed `state: rejected`, exactly one `rejected` STATE_TRANSITION, exactly one `reject_verdict kill`, and the same dead-dependency box messages the lock-free `reject` files.)
+- [scope] chupa/control.py:257 settle_admissions adds a backward-compatibility branch the ticket does not ask for. It looks up a completed effect under the legacy key `ticket-plane/<stem>/confirmed/<request_id>` and re-journals `draft_confirmed` from it. The ticket specifies a single key, `ticket-plane/<stem>/<verb>/<request_id>`, and the repo bans compat shims and parallel paths. If this branch is dropped, an old accepted confirm re-runs through the shared verdict function and either applies or completes with that function's refusal. That outcome is already covered. (do instead: Delete the `old_key`/`old` lookup and its `draft_confirmed` re-append. Every accepted null-hold_id request then runs only through `Effects(...).run(apply, key=f"ticket-plane/{stem}/{verb}/{request_id}")`.)
+- [acceptance] chupa/runner.py:472 Scope-in requires one lock-free function holding every keep, kill and draft-promotion rule, so that there is one implementation of the verdict rules. After this diff, `runner.confirm_draft`, a separate draft-promotion implementation with its own stamp/commit/`draft_confirmed` logic, still exists. Its only live caller was serve's settle_admissions path, which this diff removed. `runner.committed_draft` likewise has no remaining caller. That leaves a second, unused copy of the draft-promotion rules alongside `verdict_locked`. (do instead: Remove `runner.confirm_draft` and `runner.committed_draft` from chupa/runner.py. `MergeQueue.confirm_draft` in chupa/mergequeue.py is now unreferenced and outside the fence, so file it in the Suggestion Box for removal instead of editing it here.)
 
 ## Record
 
@@ -12,17 +13,26 @@ The live keep path, crash replay, refusal reporting and serve re-offer are imple
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "3fe8726215547d325a2bb3a446e894ef792b8fb9",
+  "produced_at_sha": "f346bfc92197bdd7ecac72a9af839ef17a58f720",
   "stem": "serve-live-verdicts",
-  "reviewed_sha": "3fe8726215547d325a2bb3a446e894ef792b8fb9",
-  "summary": "The live keep path, crash replay, refusal reporting and serve re-offer are implemented and tested, but no test covers acceptance criterion 2: a live `reject` while the lock is held.",
+  "reviewed_sha": "f346bfc92197bdd7ecac72a9af839ef17a58f720",
+  "summary": "The keyed reject path is now tested and the live keep/reject/refusal flows look correct, but the diff adds an unrequested compatibility shim for the old confirm effect key and leaves runner.confirm_draft as a second, now-dead copy of the draft-promotion rules.",
   "findings": [
     {
+      "code": "scope",
+      "path": "chupa/control.py",
+      "line": 257,
+      "message": "settle_admissions adds a backward-compatibility branch the ticket does not ask for. It looks up a completed effect under the legacy key `ticket-plane/<stem>/confirmed/<request_id>` and re-journals `draft_confirmed` from it. The ticket specifies a single key, `ticket-plane/<stem>/<verb>/<request_id>`, and the repo bans compat shims and parallel paths. If this branch is dropped, an old accepted confirm re-runs through the shared verdict function and either applies or completes with that function's refusal. That outcome is already covered.",
+      "paved_road": "Delete the `old_key`/`old` lookup and its `draft_confirmed` re-append. Every accepted null-hold_id request then runs only through `Effects(...).run(apply, key=f\"ticket-plane/{stem}/{verb}/{request_id}\")`.",
+      "kind": null,
+      "unit": null
+    },
+    {
       "code": "acceptance",
-      "path": "tests/test_control.py",
-      "line": 416,
-      "message": "Criterion 2 is unmet. It requires tests showing that `reject <stem>`, sent while a lock is held, works on a Reject-queue stem and on a committed draft: it stamps `state: rejected`, commits it, journals the `rejected` transition once, and files dead-dependent box messages exactly as the lock-free path does. It names tests/test_control.py and tests/test_control_cli.py as the check. Every added or changed test publishes only `confirm` requests (`test_verdict_inbox_known_unknown_and_crash_replay`, the updated `test_confirm_held_without_writer_lock`, `test_live_keep_reoffers_and_reports_repeat`). Nothing tests the new keyed reject path: `verdict_locked(kill=True, key=...)`, the replay prefix, the keyed recommit block in `reject_ticket`, and the guarded `reject_verdict kill` and `rejected` appends.",
-      "paved_road": "Add tests in tests/test_control.py and/or tests/test_control_cli.py. With the lock held, run `reject` through `entry.main` or publish a null-`hold_id` reject request, then run `settle_admissions` (at least twice, once crashing mid-effect) for a Reject-queue stem and for a committed draft that has a confirmed dependent. Assert the committed `state: rejected`, exactly one `rejected` STATE_TRANSITION, exactly one `reject_verdict kill`, and the same dead-dependency box messages the lock-free `reject` files.",
+      "path": "chupa/runner.py",
+      "line": 472,
+      "message": "Scope-in requires one lock-free function holding every keep, kill and draft-promotion rule, so that there is one implementation of the verdict rules. After this diff, `runner.confirm_draft`, a separate draft-promotion implementation with its own stamp/commit/`draft_confirmed` logic, still exists. Its only live caller was serve's settle_admissions path, which this diff removed. `runner.committed_draft` likewise has no remaining caller. That leaves a second, unused copy of the draft-promotion rules alongside `verdict_locked`.",
+      "paved_road": "Remove `runner.confirm_draft` and `runner.committed_draft` from chupa/runner.py. `MergeQueue.confirm_draft` in chupa/mergequeue.py is now unreferenced and outside the fence, so file it in the Suggestion Box for removal instead of editing it here.",
       "kind": null,
       "unit": null
     }
