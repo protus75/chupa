@@ -1,5 +1,6 @@
 """Drive the production CLI core through injected delivery, process, filesystem and time seams."""
 
+import ast
 import asyncio
 import json
 from dataclasses import replace
@@ -1057,12 +1058,35 @@ def sources():
 
 
 def without_core_import(material):
-    edge = "from chupa.daemon import DaemonCore, PauseConsumer, daemon_core"
-    assert edge in material["chupa.__main__"]
-    return {
-        name: "\n".join(line[: len(line) - len(line.lstrip())] + "pass" if line.lstrip().startswith("from chupa.daemon import") else line for line in source.splitlines())
-        for name, source in material.items()
+    main = ast.parse(material["chupa.__main__"])
+    assert any(
+        isinstance(node, ast.ImportFrom)
+        and node.module == "chupa.daemon"
+        and {"DaemonCore", "PauseConsumer", "daemon_core"} <= {alias.name for alias in node.names}
+        for node in ast.walk(main)
+    )
+
+    class RemoveDaemon(ast.NodeTransformer):
+        def visit_Import(self, node):
+            return ast.copy_location(ast.Pass(), node) if any(alias.name == "chupa.daemon" for alias in node.names) else node
+
+        def visit_ImportFrom(self, node):
+            target = node.module == "chupa.daemon" or (node.module == "chupa" and any(alias.name == "daemon" for alias in node.names))
+            return ast.copy_location(ast.Pass(), node) if target else node
+
+    return {name: ast.unparse(RemoveDaemon().visit(ast.parse(source))) for name, source in material.items()}
+
+
+def test_without_core_import_handles_multiline_and_nested_imports():
+    material = {
+        "chupa.__main__": "from chupa.daemon import (\n    DaemonCore,\n    PauseConsumer,\n    StartupBoundary,\n    daemon_core,\n)\n",
+        "chupa.other": "def nested():\n    import chupa.daemon\n    from chupa import daemon\n    from chupa.daemon import StartupBoundary\n",
     }
+    removed = without_core_import(material)
+    for source in removed.values():
+        tree = ast.parse(source)
+        assert not any(isinstance(node, (ast.Import, ast.ImportFrom)) for node in ast.walk(tree))
+    assert len([node for node in ast.walk(ast.parse(removed["chupa.other"])) if isinstance(node, ast.Pass)]) == 3
 
 
 def assert_reachable(material):

@@ -17,23 +17,35 @@ from uuid import uuid4
 
 from chupa import control, drain, hostfiles, requisition, runner, serve, triage
 from chupa.config import ConfigError, ConfigSnapshot, load_config, migrate_config
-from chupa.daemon import DaemonCore, PauseConsumer, daemon_core
-from chupa.daemon import StartupBoundary
+from chupa.daemon import DaemonCore, PauseConsumer, StartupBoundary, daemon_core
 from chupa.git import Git, GitError
 from chupa.journal import EventType, Journal, JournalCorruption
-from chupa.lockfile import LockHeld, Lockfile
+from chupa.lockfile import Lockfile, LockHeld
 from chupa.notify import NOTIFY_TIMEOUT_S, NotificationReconciler
-from chupa.providers import ProviderLLM, ProviderSession, ProviderSetupError, routed_conduct_paths, child_env
+from chupa.providers import ProviderLLM, ProviderSession, ProviderSetupError, child_env, routed_conduct_paths
 from chupa.redact import Redactor
 from chupa.restart import Restart
-from chupa.seams import Clock, ExecutableNotFound, LocalFileSystem, ProcessExec, SubprocessExec
-from chupa.seams import CommandNotifications
-from chupa.status import SETTLED, last_states, project, render, reject_queue
+from chupa.seams import Clock, CommandNotifications, ExecutableNotFound, LocalFileSystem, ProcessExec, SubprocessExec
+from chupa.status import SETTLED, last_states, project, reject_queue, render
 from chupa.storm import StormLedger
+from chupa.tickets import (
+    IntakeRefused,
+    Ticket,
+    TicketInvalid,
+    _intake_claims,
+    _load_frontmatter,
+    _pending,
+    _porcelain,
+    evidence_findings,
+    missing_evidence_findings,
+    read_plan,
+    split_frontmatter,
+    stem_findings,
+    template,
+    ticket_path,
+    validate_ticket,
+)
 from chupa.timers import Timers
-from chupa.tickets import read_plan
-from chupa.tickets import IntakeRefused, Ticket, TicketInvalid, evidence_findings, missing_evidence_findings, stem_findings, template, ticket_path, validate_ticket
-from chupa.tickets import _intake_claims, _pending, _porcelain, _load_frontmatter, split_frontmatter
 
 GIT_TIMEOUT_S = 30.0
 

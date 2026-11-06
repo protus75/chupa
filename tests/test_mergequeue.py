@@ -903,12 +903,20 @@ def test_merge_queue_is_reachable_from_production():
     assert_reachable(sources)
     closure = import_closure("chupa.__main__", sources)
     assert "chupa.merge" in closure
-    edge = "from chupa.mergequeue import MergeQueue"
-    assert edge in sources["chupa.merge"]
-    removed = {
-        name: "\n".join(line[: len(line) - len(line.lstrip())] + "pass" if line.lstrip().startswith("from chupa.mergequeue import") else line for line in source.splitlines())
-        for name, source in sources.items()
-    }
+    assert any(
+        isinstance(node, ast.ImportFrom) and node.module == "chupa.mergequeue" and "MergeQueue" in {alias.name for alias in node.names}
+        for node in ast.walk(ast.parse(sources["chupa.merge"]))
+    )
+
+    class RemoveMergeQueue(ast.NodeTransformer):
+        def visit_Import(self, node):
+            return ast.copy_location(ast.Pass(), node) if any(alias.name == "chupa.mergequeue" for alias in node.names) else node
+
+        def visit_ImportFrom(self, node):
+            target = node.module == "chupa.mergequeue" or (node.module == "chupa" and any(alias.name == "mergequeue" for alias in node.names))
+            return ast.copy_location(ast.Pass(), node) if target else node
+
+    removed = {name: ast.unparse(RemoveMergeQueue().visit(ast.parse(source))) for name, source in sources.items()}
     with pytest.raises(AssertionError):
         assert_reachable(removed)
     for spelling in ["import chupa.mergequeue as queue", "from chupa import mergequeue as queue"]:
