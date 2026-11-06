@@ -24,7 +24,7 @@ from chupa.redact import Redactor
 from chupa.seams import ExecutableNotFound, SubprocessExec
 from chupa.stages import ticket_blob
 from chupa.storm import StormLedger
-from chupa.tickets import Ticket, TicketInvalid, intake, parse_ticket, ticket_path
+from chupa.tickets import Ticket, TicketInvalid, intake, parse_ticket, stamp, ticket_path
 
 SERVE_POLL_S = 0.1
 
@@ -178,7 +178,7 @@ class Serve:
         self.checkout = replace(checkout, control=self.core.control)
         self.control = self.core.control
         assert self.control is not None and self.core.restart is not None
-        self.control.inbox.draft = lambda stem: runner.committed_draft(self.checkout, stem)
+        self.control.inbox.known = lambda stem: (self.checkout.repo / ticket_path(stem)).is_file() or any(e.ticket == stem for e in self.checkout.journal.read())
         self.core.restart.admissions = self.reconstruct_admissions
         self.box = self.control._recover.__self__
         self.storm = StormLedger(journal=checkout.journal, clock=checkout.clock)
@@ -331,6 +331,56 @@ class Serve:
                 await response.wait(self.core.scheduler.dispatch_next())
             await response.wait(self.checkout.sleep(SERVE_POLL_S))
 
+    async def apply_verdict(self, stem, verb, key):
+        c = self.checkout
+        events = c.journal.read()
+        intents = [i for i, e in enumerate(events) if e.type == EventType.EFFECT_INTENT and e.key == key]
+        since = events[intents[0] + 1:] if intents else []
+        # A request-specific baseline is journaled before any ticket mutation.
+        baseline_key = key + "/baseline"
+        baselines = [e.body["result"] for e in events if e.type == EventType.EFFECT_COMPLETION and e.key == baseline_key]
+        async def baseline():
+            return await c.git.rev_parse(c.repo, "HEAD")
+        base = baselines[0] if baselines else await Effects(c.journal).run(baseline, key=baseline_key, ticket=stem)
+        signals = [e for e in since if e.ticket == stem]
+        path = c.repo / ticket_path(stem)
+        if baselines and len(intents) > 1 and path.is_file() and await c.git.rev_parse(c.repo, "HEAD") == base:
+            try:
+                committed = await c.git._run(c.repo, "show", f"{base}:{ticket_path(stem)}")
+            except GitError:
+                committed = None
+            state = "rejected" if verb == "reject" else "confirmed"
+            if committed is not None and path.read_text() != committed and path.read_text() == stamp(committed, "state", state):
+                await c.git.add(c.repo, [str(ticket_path(stem))])
+                await c.git.commit(c.repo, f"chupa({stem}): {state}", only=[str(ticket_path(stem))])
+        if verb == "confirm":
+            applied = any(e.body.get("signal") in ("draft_confirmed", "reject_verdict") and (e.body.get("signal") != "reject_verdict" or e.body.get("verdict") == "keep") for e in signals)
+            if not applied:
+                log = await c.git._run(c.repo, "log", "--format=%H%x00%s", f"{base}..HEAD", "--", str(ticket_path(stem)))
+                commits = [line.split("\0", 1) for line in log.splitlines() if "\0" in line]
+                confirmed = next((sha for sha, message in commits if message == f"chupa({stem}): confirmed"), None)
+                if confirmed:
+                    c.journal.append(EventType.SIGNAL, {"signal": "draft_confirmed", "commit": confirmed}, ticket=stem)
+                    applied = True
+        else:
+            applied = any(e.type == EventType.STATE_TRANSITION and e.body.get("to") == "rejected" for e in signals)
+            killed = any(e.body.get("signal") == "reject_verdict" and e.body.get("verdict") == "kill" for e in signals)
+            if killed and not applied:
+                c.journal.append(EventType.STATE_TRANSITION, {"to": "rejected"}, ticket=stem)
+                applied = True
+            if applied:
+                await runner._dead_dependents(stem, c)
+        refusal = None
+        if not applied:
+            try:
+                await runner.verdict_locked(stem, c, kill=verb == "reject")
+            except runner.Refusal as exc:
+                refusal = str(exc)
+                self.log.event("verdict_refused", stem=stem, verb=verb, reason=refusal)
+        if refusal is None and verb == "confirm" and stem in self.published:
+            self.core.scheduler.update(self.published[stem][0])
+        return {"refusal": refusal}
+
     async def merge(self) -> None:
         response = self.responses[1]
 
@@ -339,14 +389,9 @@ class Serve:
                 self.control.poll()
                 if self.stopping or self.control.projection.kill_requested:
                     return
+                await self.control.inbox.settle_admissions(self.apply_verdict)
                 if self.queue is None:
-
-                    async def confirm_draft(stem, request_id):
-                        await runner.confirm_draft(stem, request_id, runner.bind(self.checkout, None).ctx)
-
-                    await self.control.inbox.settle_admissions(confirm_draft)
                     return
-                await self.control.inbox.settle_admissions(self.queue.confirm_draft)
                 self.queue.deliveries = []
                 await self.queue.process()
                 for ticket, attempt, result in self.queue.deliveries:

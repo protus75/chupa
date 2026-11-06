@@ -131,11 +131,6 @@ class MergeQueue:
                     self.active = None
         return results
 
-    async def confirm_draft(self, stem, request_id):
-        from chupa import runner
-
-        await runner.confirm_draft(stem, request_id, self.ctx)
-
     async def retained_ticket(self, stem, receipt):
         ctx = self.ctx
         road = "restore the retained committed ticket, reviewed evidence and candidate; then restart serve"

@@ -607,18 +607,14 @@ async def _verdict(checkout, stem, verb, read_input):
     try:
         return await runner.verdict(stem, checkout, kill=verb == "reject")
     except LockHeld:
-        if verb != "confirm" or not runner.committed_draft(checkout, stem):
-            raise
-        text = await checkout.git._run(checkout.repo, "show", f"main:{ticket_path(stem)}")
-        if validate_ticket(stem, text, checkout.repo).frontmatter.state != "draft":
-            raise runner.Refusal("no committed draft", "restore the committed draft before confirming")
+        pass
     try:
         lifecycle, _ = control.read_active(checkout.config.state_dir, Path.read_bytes)
     except ValueError as exc:
         raise runner.Refusal("current control identity unavailable", str(exc)) from exc
     request = control.AdmissionRequest(uuid4().hex, lifecycle, verb, stem, None, "operator")
     control.publish_request(checkout.config.state_dir, request, checkout.fs)
-    print(f"{verb} submitted: {request.request_id}")
+    print(f"{verb} submitted: {request.request_id} -- ./dev.py status shows the outcome")
     return 0
 
 

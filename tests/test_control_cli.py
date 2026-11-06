@@ -42,7 +42,8 @@ def test_confirm_held_without_writer_lock(tmp_path, monkeypatch, capsys, dirless
             ctx.driver.journal.append(EventType.SIGNAL, {"signal": "ticket_intake", "state": "draft"}, ticket=ticket.stem)
             consumer = admission_control(ctx)
             checkout = runner.Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git, ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
-            consumer.inbox.draft = lambda stem: runner.committed_draft(checkout, stem)
+            consumer.inbox.known = lambda stem: (checkout.repo / f"tickets/{stem}/ticket.md").is_file()
+            owner = entry.build_serve(checkout)
             lock = Lockfile(ctx.config.state_dir, instance_id="live", clock=ctx.driver.clock)
             lock.acquire()
             control.write_active(ctx.config.state_dir, consumer.projection, ctx.fs, hold_id=None)
@@ -50,12 +51,9 @@ def test_confirm_held_without_writer_lock(tmp_path, monkeypatch, capsys, dirless
                 assert await asyncio.to_thread(entry.main, ["confirm", ticket.stem], cwd=ctx.repo, env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: True, lambda _: "y")) == 0
                 consumer.inbox.consume()
 
-                async def confirmed(stem, request_id):
-                    await runner.confirm_draft(stem, request_id, ctx)
-
-                await consumer.inbox.settle_admissions(confirmed)
+                await consumer.inbox.settle_admissions(owner.apply_verdict)
                 events = ctx.driver.journal.read()
-                await consumer.inbox.settle_admissions(confirmed)
+                await consumer.inbox.settle_admissions(owner.apply_verdict)
                 assert ctx.driver.journal.read() == events
                 assert "state: confirmed" in path.read_text()
                 assert sum(e.body.get("signal") == "draft_confirmed" for e in events) == 1
@@ -324,3 +322,113 @@ def test_stop_refuses_when_idle_and_publishes_when_live(root, capsys):
         assert request["verb"] == "stop" and request["lifecycle_id"] == "stop-life" and request["hold_id"] is None
     finally:
         lock.release()
+
+@pytest.mark.parametrize("kind", ["keep", "reject-queue", "reject-draft"])
+def test_live_verdict_recovery_and_refusal(tmp_path, monkeypatch, capsys, kind):
+    import asyncio
+
+    from chupa import runner
+    from chupa.journal import EventType
+    from chupa.status import project, render
+    from chupa.tickets import stamp
+    from tests.test_mergequeue import admission_control, commit, ready
+    from tests.test_mergequeue import ctx as context_fixture
+
+    ctx = context_fixture.__wrapped__(tmp_path)
+
+    async def exercise():
+        ticket = await ready(ctx)
+        stem = ticket.stem
+        path = ctx.repo / f"tickets/{stem}/ticket.md"
+        if kind == "reject-draft":
+            ctx.fs.write(path, stamp(path.read_text(), "state", "draft").encode())
+            await commit(ctx, ctx.repo, [f"tickets/{stem}/ticket.md"])
+        else:
+            ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "routed": "reject_queue"}, ticket=stem)
+        child = ctx.repo / "tickets/child/ticket.md"
+        ctx.fs.write(child, path.read_text().replace("state: draft", "state: confirmed").replace("## Depends on\nnone", f"## Depends on\n- {stem}").encode())
+        await commit(ctx, ctx.repo, ["tickets/child/ticket.md"])
+        checkout = runner.Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git, ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
+        owner = entry.build_serve(checkout)
+        inbox = admission_control(ctx).inbox
+        inbox.known = lambda name: (ctx.repo / f"tickets/{name}/ticket.md").is_file() or any(e.ticket == name for e in ctx.driver.journal.read())
+        lock = Lockfile(ctx.config.state_dir, instance_id="live", clock=ctx.driver.clock)
+        lock.acquire()
+        control.write_active(ctx.config.state_dir, control.ControlProjection(inbox.lifecycle_id), ctx.fs, hold_id=None)
+        verb = "confirm" if kind == "keep" else "reject"
+        try:
+            assert await asyncio.to_thread(entry.main, [verb, stem], cwd=ctx.repo, env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: True, lambda _: "y")) == 0
+            assert f"{verb} submitted:" in capsys.readouterr().out
+            inbox.consume()
+            original = owner.apply_verdict
+            async def crash_after(stem, verb, key):
+                await original(stem, verb, key)
+                raise RuntimeError("crash after mutation")
+            with pytest.raises(RuntimeError, match="crash after mutation"):
+                await inbox.settle_admissions(crash_after)
+            await inbox.settle_admissions(entry.build_serve(checkout).apply_verdict)
+            await inbox.settle_admissions(owner.apply_verdict)
+            events = ctx.driver.journal.read()
+            verdicts = [e.body for e in events if e.ticket == stem and e.body.get("signal") == "reject_verdict"]
+            if kind == "keep":
+                assert len(verdicts) == 1 and verdicts[0]["verdict"] == "keep" and verdicts[0]["actor"] == "operator"
+                assert await asyncio.to_thread(entry.main, [verb, stem], cwd=ctx.repo, env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: True, lambda _: "y")) == 0
+                inbox.consume()
+                await inbox.settle_admissions(owner.apply_verdict)
+                events = ctx.driver.journal.read()
+                assert "already kept at this ticket content" in render(project(events))
+                assert len([e for e in events if e.ticket == stem and e.body.get("signal") == "reject_verdict"]) == 1
+            else:
+                assert len(verdicts) == 1 and verdicts[0]["verdict"] == "kill"
+                assert sum(e.ticket == stem and e.type == EventType.STATE_TRANSITION and e.body.get("to") == "rejected" for e in events) == 1
+                assert "state: rejected" in await ctx.git._run(ctx.repo, "show", f"HEAD:tickets/{stem}/ticket.md")
+                assert (await ctx.git._run(ctx.repo, "log", "-1", "--format=%s")).strip() == f"chupa({stem}): rejected"
+                assert sum(e.ticket == "child" and e.body.get("signal") == "dead_dependency" and e.body.get("dead") == stem for e in events) == 1
+                assert len(list((ctx.config.state_dir / "box").glob("*.json"))) == 1
+        finally:
+            lock.release()
+
+    asyncio.run(exercise())
+
+
+def test_live_confirm_old_draft_and_unknown_stem(tmp_path):
+    import asyncio
+
+    from chupa import runner
+    from chupa.journal import EventType
+    from chupa.tickets import stamp
+    from tests.test_mergequeue import admission_control, commit, ready
+    from tests.test_mergequeue import ctx as context_fixture
+
+    ctx = context_fixture.__wrapped__(tmp_path)
+
+    async def exercise():
+        ticket = await ready(ctx)
+        stem = ticket.stem
+        path = ctx.repo / f"tickets/{stem}/ticket.md"
+        ctx.fs.write(path, stamp(path.read_text(), "state", "draft").encode())
+        await commit(ctx, ctx.repo, [f"tickets/{stem}/ticket.md"])
+        checkout = runner.Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git, ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
+        await runner.verdict(stem, checkout, kill=False)
+        ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "routed": "reject_queue"}, ticket=stem)
+        owner = entry.build_serve(checkout)
+        inbox = admission_control(ctx).inbox
+        inbox.known = lambda name: (ctx.repo / f"tickets/{name}/ticket.md").is_file() or any(e.ticket == name for e in ctx.driver.journal.read())
+        for identity, name in (("first", stem), ("missing", "missing"), ("known", "known")):
+            if name == "known":
+                ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed"}, ticket=name)
+            control.publish_request(ctx.config.state_dir, control.AdmissionRequest(identity, inbox.lifecycle_id, "confirm", name, None, "operator"), ctx.fs)
+        inbox.consume()
+        key = f"ticket-plane/{stem}/confirm/first"
+        ctx.driver.journal.append(EventType.EFFECT_INTENT, {}, ticket=stem, key=key)
+        await inbox.settle_admissions(owner.apply_verdict)
+        events = ctx.driver.journal.read()
+        decisions = {e.body["request_id"]: e.body for e in events if e.body.get("kind") == control.CONTROL_DECISION}
+        assert decisions["missing"]["decision"] == "stale" and "name a journaled stem" in decisions["missing"]["reason"]
+        assert decisions["known"]["decision"] == "accepted"
+        [refusal] = [e.body["result"]["refusal"] for e in events if e.type == EventType.EFFECT_COMPLETION and e.key == "ticket-plane/known/confirm/known"]
+        assert "neither a draft nor in the Reject queue" in refusal
+        assert sum(e.ticket == stem and e.body.get("signal") == "draft_confirmed" for e in events) == 1
+        assert sum(e.ticket == stem and e.body.get("signal") == "reject_verdict" and e.body.get("verdict") == "keep" for e in events) == 1
+
+    asyncio.run(exercise())

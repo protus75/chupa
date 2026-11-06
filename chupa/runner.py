@@ -34,7 +34,7 @@ from chupa.seams import Clock, FileSystem, GroupExec, Sleep
 from chupa.stages import DiagnosisMaterial, StageContext, StagesRun, diagnose, lift_outbox, run_stages, ticket_change_findings, write_diagnosis
 from chupa.status import SETTLED, last_states, reject_queue
 from chupa.storm import arrival_id
-from chupa.tickets import INTAKE_SIGNAL, Ticket, TicketInvalid, intake, parse_ticket, split_frontmatter, stamp, stem_findings, ticket_path, validate_ticket
+from chupa.tickets import Ticket, TicketInvalid, intake, parse_ticket, split_frontmatter, stamp, stem_findings, ticket_path, validate_ticket
 
 EXIT_MERGED = 0
 EXIT_TICKET = 1
@@ -490,74 +490,54 @@ async def verdict(stem: str, checkout: Checkout, *, kill: bool) -> int:
     lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
     lock.acquire()
     try:
-        intake_result = await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
-        if refused := intake_result.refused.get(stem):
-            raise Refusal(f"{ticket_path(stem)} failed intake: " + "; ".join(f.message for f in refused), "fix the ticket and retry the verdict")
-        history = checkout.journal.read()
-        rel = ticket_path(stem)
-        path = checkout.repo / rel
-        if not path.is_file() and not any(e.ticket == stem for e in history):
-            raise Refusal(f"unknown stem {stem}", "name a journaled stem or an existing ticket.md")
-        last = last_states(history).get(stem)
-        if last == "running":
-            raise Refusal(f"{stem} is running", "wait for its terminal, then retry")
-        if kill:
-            if last in SETTLED:
-                raise Refusal(f"{stem} is settled", "leave settled work in place")
-            changed = await reject_ticket(stem, checkout)
-            print(f"rejected {stem}" if changed else f"already rejected {stem}")
-            return EXIT_MERGED
-        if path.is_file() and _ticket_state(path) == "draft":
-            checkout.fs.write(path, stamp(path.read_text(), "state", "confirmed").encode())
-            await checkout.git.add(checkout.repo, [rel])
-            await checkout.git.commit(checkout.repo, f"chupa({stem}): confirmed", only=[rel])
-            sha = await checkout.git.rev_parse(checkout.repo, "HEAD")
-            checkout.journal.append(EventType.SIGNAL, {"signal": "draft_confirmed", "commit": sha}, ticket=stem)
-            print(f"confirmed draft {stem}")
-            return EXIT_MERGED
-        ticket_sha = await checkout.git.rev_parse(checkout.repo, f"HEAD:{rel}") if path.is_file() else None
-        prior_keep = next(
-            (
-                e
-                for e in reversed(history)
-                if e.type == EventType.SIGNAL and e.ticket == stem and e.body.get("signal") == "reject_verdict" and e.body.get("verdict") == "keep" and e.body.get("actor") == "operator"
-            ),
-            None,
-        )
-        if prior_keep is not None and prior_keep.body.get("ticket_sha") == ticket_sha:
-            raise Refusal(f"{stem} was already kept at this ticket content", "edit the ticket before re-enqueueing")
-        if stem not in reject_queue(history):
-            raise Refusal(f"{stem} is neither a draft nor in the Reject queue", "run `status` to list the Reject queue")
-        checkout.journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "operator", "ticket_sha": ticket_sha}, ticket=stem)
-        print(f"kept {stem}")
-        return EXIT_MERGED
+        return await verdict_locked(stem, checkout, kill=kill)
     finally:
         lock.release()
 
 
-def committed_draft(checkout, stem: str) -> bool:
-    path = checkout.repo / ticket_path(stem)
-    return path.is_file() and _ticket_state(path) == "draft" and any(e.ticket == stem and e.body.get("signal") == INTAKE_SIGNAL for e in checkout.journal.read())
-
-
-async def confirm_draft(stem: str, request_id: str, ctx) -> None:
+async def verdict_locked(stem: str, checkout: Checkout, *, kill: bool) -> int:
+    """Apply verdict rules with the writer lock already held."""
+    intake_result = await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
+    if refused := intake_result.refused.get(stem):
+        raise Refusal(f"{ticket_path(stem)} failed intake: " + "; ".join(f.message for f in refused), "fix the ticket and retry the verdict")
+    history = checkout.journal.read()
     rel = ticket_path(stem)
-    text = await ctx.git._run(ctx.repo, "show", f"main:{rel}")
-    ticket = validate_ticket(stem, text, ctx.repo)
-    if ticket.frontmatter.state not in ("draft", "confirmed") or (ctx.repo / rel).read_text() != text:
-        raise ValueError("restore the committed draft before publishing a fresh confirmation")
-
-    async def commit():
-        if ticket.frontmatter.state == "confirmed":
-            return {"commit": (await ctx.git._run(ctx.repo, "log", "-1", "--format=%H", "main", "--", rel)).strip()}
-        ctx.fs.write(ctx.repo / rel, stamp(text, "state", "confirmed").encode())
-        await ctx.git.add(ctx.repo, [rel])
-        await ctx.git.commit(ctx.repo, f"chupa({stem}): confirmed", only=[rel])
-        return {"commit": await ctx.git.rev_parse(ctx.repo, "HEAD")}
-
-    result = await Effects(ctx.driver.journal).run(commit, key=f"ticket-plane/{stem}/confirmed/{request_id}", ticket=stem)
-    if not any(e.ticket == stem and e.body.get("signal") == "draft_confirmed" and e.body.get("commit") == result["commit"] for e in ctx.driver.journal.read()):
-        ctx.driver.journal.append(EventType.SIGNAL, {"signal": "draft_confirmed", **result}, ticket=stem)
+    path = checkout.repo / rel
+    if not path.is_file() and not any(e.ticket == stem for e in history):
+        raise Refusal(f"unknown stem {stem}", "name a journaled stem or an existing ticket.md")
+    last = last_states(history).get(stem)
+    if last == "running":
+        raise Refusal(f"{stem} is running", "wait for its terminal, then retry")
+    if kill:
+        if last in SETTLED:
+            raise Refusal(f"{stem} is settled", "leave settled work in place")
+        changed = await reject_ticket(stem, checkout)
+        print(f"rejected {stem}" if changed else f"already rejected {stem}")
+        return EXIT_MERGED
+    if path.is_file() and _ticket_state(path) == "draft":
+        checkout.fs.write(path, stamp(path.read_text(), "state", "confirmed").encode())
+        await checkout.git.add(checkout.repo, [rel])
+        await checkout.git.commit(checkout.repo, f"chupa({stem}): confirmed", only=[rel])
+        sha = await checkout.git.rev_parse(checkout.repo, "HEAD")
+        checkout.journal.append(EventType.SIGNAL, {"signal": "draft_confirmed", "commit": sha}, ticket=stem)
+        print(f"confirmed draft {stem}")
+        return EXIT_MERGED
+    ticket_sha = await checkout.git.rev_parse(checkout.repo, f"HEAD:{rel}") if path.is_file() else None
+    prior_keep = next(
+        (
+            e
+            for e in reversed(history)
+            if e.type == EventType.SIGNAL and e.ticket == stem and e.body.get("signal") == "reject_verdict" and e.body.get("verdict") == "keep" and e.body.get("actor") == "operator"
+        ),
+        None,
+    )
+    if prior_keep is not None and prior_keep.body.get("ticket_sha") == ticket_sha:
+        raise Refusal(f"{stem} was already kept at this ticket content", "edit the ticket before re-enqueueing")
+    if stem not in reject_queue(history):
+        raise Refusal(f"{stem} is neither a draft nor in the Reject queue", "run `status` to list the Reject queue")
+    checkout.journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "operator", "ticket_sha": ticket_sha}, ticket=stem)
+    print(f"kept {stem}")
+    return EXIT_MERGED
 
 
 async def reject_ticket(stem: str, checkout: Checkout) -> bool:

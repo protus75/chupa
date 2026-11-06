@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal
 
+from chupa.effects import Effects
 from chupa.journal import Event, EventType, Journal
 from chupa.seams import FileSystem
 from chupa.tickets import stem_findings
@@ -20,7 +21,7 @@ _SHAPE = (
     "match request_id to the filename; pause/kill/stop require null hold_id; "
     "for resume read the current hold and submit its exact nonempty identity"
 )
-_ADMISSION_SHAPE = "publish a fresh committed draft confirm request with exactly {request_id, lifecycle_id, verb, stem, hold_id, actor}; actor is operator | machine and hold_id is null"
+_ADMISSION_SHAPE = "publish a fresh verdict request with exactly {request_id, lifecycle_id, verb, stem, hold_id, actor}; actor is operator | machine and hold_id is null"
 
 
 @dataclass(frozen=True)
@@ -55,8 +56,6 @@ def validate_request(value: object, filename: str) -> ControlRequest | Admission
             or stem_findings(value["stem"])
             or value.get("actor") not in ("operator", "machine")
             or (value.get("hold_id") is not None and (not isinstance(value["hold_id"], str) or not value["hold_id"]))
-            or value["verb"] == "reject"
-            and value["hold_id"] is None
         ):
             raise ValueError(road)
         return AdmissionRequest(**value)
@@ -172,7 +171,7 @@ class ControlInbox:
         self.journal, self.lifecycle_id = journal, lifecycle_id
         self.holds, self.apply, self.files, self.read = holds, apply, files, read
         self._applied: ControlProjection | None = None
-        self.draft: Callable[[str], bool] = lambda _: False
+        self.known: Callable[[str], bool] = lambda _: False
 
     def _fold(self) -> tuple[set[str], ControlProjection, bool]:
         decided = set()
@@ -234,10 +233,11 @@ class ControlInbox:
                 if request.lifecycle_id != self.lifecycle_id:
                     body.update(decision="stale", reason="read the current lifecycle and submit a new request")
                 elif isinstance(request, AdmissionRequest):
-                    matched = request.verb == "confirm" and request.hold_id is None and self.draft(request.stem)
+                    matched = request.hold_id is None and self.known(request.stem)
                     body.update(
                         decision="accepted" if matched else "stale",
-                        reason="matching admission" if matched else "read the current admission and publish a fresh matching request",
+                        reason=("matching admission" if matched else "name a journaled stem or an existing ticket.md"
+                                if request.hold_id is None else "read the current admission and publish a fresh matching request"),
                     )
                 elif request.verb == "resume" and request.hold_id not in live_holds:
                     body.update(decision="stale", reason="read the current hold and submit a new request")
@@ -248,18 +248,16 @@ class ControlInbox:
             if body["decision"] == "accepted":
                 projection = self.recover()
 
-    async def settle_admissions(self, draft_confirm) -> None:
-        """Accepted decisions survive both crash boundaries; projection never grants authority."""
+    async def settle_admissions(self, verdict) -> None:
+        """Apply accepted requests under a durable, request-specific effect."""
         for event in decisions(self.journal.read()):
             body = event.body
-            if body["decision"] != "accepted" or body["verb"] not in ("confirm", "reject"):
+            if body["decision"] != "accepted" or body["verb"] not in ("confirm", "reject") or body["hold_id"] is not None:
                 continue
-            if body["hold_id"] is not None:
-                continue
-            key = f"ticket-plane/{body['stem']}/confirmed/{body['request_id']}"
-            completed = [e.body["result"] for e in self.journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key == key]
-            if not completed or not any(e.ticket == body["stem"] and e.body.get("signal") == "draft_confirmed" and e.body.get("commit") == completed[0]["commit"] for e in self.journal.read()):
-                await draft_confirm(body["stem"], body["request_id"])
+            key = f"ticket-plane/{body['stem']}/{body['verb']}/{body['request_id']}"
+            async def action():
+                return await verdict(body["stem"], body["verb"], key)
+            await Effects(self.journal).run(action, key=key, ticket=body["stem"])
 
 
 _DISCOVERY_ROAD = "retry after the running engine publishes its current control identity; read that identity and submit a new request"

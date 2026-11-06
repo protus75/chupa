@@ -52,8 +52,8 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `retro` | yes | Forces a retro report (section 9.5). |
 | `triage` | yes | One sequential pass over pending Suggestion Box messages (section 9.2). |
 | `pause` / `resume` / `kill` / `stop` | try | With a running engine, publish a control request to it (section 7.3). With none: `kill` and `stop` refuse (exit 2); `pause`/`resume` print "nothing running". |
-| `confirm <stem>` | yes | A person at a terminal answers `y` to keep: promotes a draft to confirmed, keeps a Reject-queue item (section 6.6). |
-| `reject <stem>` | yes | A person at a terminal answers `y` to kill: stamps the ticket `rejected` (section 6.6). Refuses settled stems. |
+| `confirm <stem>` | try | A person at a terminal answers `y` to keep: promotes a draft to confirmed, keeps a Reject-queue item (section 6.6). With serve running, publishes the verdict to serve. |
+| `reject <stem>` | try | A person at a terminal answers `y` to kill: stamps the ticket `rejected` (section 6.6). Refuses settled stems. With serve running, publishes the verdict to serve. |
 
 ### 2.2 `./dev.py`
 
@@ -363,6 +363,8 @@ journals `supersedes` and retires the original: its dependents wait on the succe
 
 ### 6.6 The Reject queue, keep and kill
 
+Keep and kill work while serve runs.
+
 The Reject queue holds stems whose latest terminal was routed there, plus stems the drain finds
 with a spent cap at quiescence. `status` lists them.
 Settled stems (`merged` and `already_satisfied`) never await a verdict, even when a historical
@@ -469,6 +471,8 @@ For each candidate, in pick order:
 - Before the admission receipt, `dirty_checkout` refuses tracked main-checkout edits overlapping the branch; commit or revert them and retry.
 
 ### 7.3 Control
+
+`confirm` and `reject` publish verdict requests to the running serve; drain decides them stale.
 
 `pause`, `resume`, `kill`, and `stop` write a request file to `state_dir/control/inbox/`, bound to the
 running engine's lifecycle id. The engine journals a `control_decision` (accepted, stale, or

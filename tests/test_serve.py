@@ -2000,3 +2000,23 @@ async def test_stop_finishes_merge_without_admitting_next_or_spawning(root, monk
         release.set()
         if not run.done():
             await finish(rig, run)
+
+@pytest.mark.asyncio
+async def test_live_keep_dispatches_again_without_restart(root, monkeypatch):
+    from chupa.control import AdmissionRequest
+
+    calls, _, _ = script(monkeypatch, terminal="gate_failed")
+    rig = await graph(root, monkeypatch)
+    write(root, "work", text())
+    run = asyncio.create_task(rig.owner.run())
+    try:
+        await until(rig, lambda: any(e.ticket == "work" and e.body.get("routed") == "reject_queue" for e in rig.journal.read()))
+        next_calls, _, _ = script(monkeypatch, terminal="already_satisfied")
+        publish_request(rig.checkout.config.state_dir, AdmissionRequest("keep-live", rig.owner.control.projection.lifecycle_id, "confirm", "work", None, "operator"), rig.fs)
+        await until(rig, lambda: any(e.ticket == "work" and e.body.get("to") == "already_satisfied" for e in rig.journal.read()))
+        assert [(stem, stage) for stem, stage, _ in calls] == [("work", "implement"), ("work", "check")]
+        assert [(stem, stage) for stem, stage, _ in next_calls] == [("work", "implement"), ("work", "check")]
+        assert len([e for e in rig.journal.read() if e.ticket == "work" and e.body.get("signal") == "reject_verdict" and e.body.get("verdict") == "keep"]) == 1
+        assert not run.done()
+    finally:
+        await finish(rig, run)
