@@ -1,0 +1,52 @@
+# toViewModels lanes on the live snapshot, 2026-11-06 (top 17 rows; color B=blocked, Q=queued, rN=LANE_COLORS rotation)
+drain-upgrade-own-source       P=  
+   in :  
+   out: 
+vscode-marketplace-publish     P= observe-verbs-host-extension,pypi-package 
+   in :  
+   out: observe-verbs-host-extension/B | pypi-package/B
+pypi-package                   P= specs-in-package 
+   in : observe-verbs-host-extension/B | pypi-package/B 
+   out: observe-verbs-host-extension/B | specs-in-package/B
+specs-in-package               P=  
+   in : observe-verbs-host-extension/B | specs-in-package/B 
+   out: observe-verbs-host-extension/B
+specs-module-into-package      P= spec-path-matchers,specs-move 
+   in : observe-verbs-host-extension/B 
+   out: observe-verbs-host-extension/B | spec-path-matchers/Q | specs-move/r1
+spec-path-matchers             P= extension-engine-picker,specs-move 
+   in : observe-verbs-host-extension/B | spec-path-matchers/Q | specs-move/r1 
+   out: observe-verbs-host-extension/B | extension-engine-picker/Q | specs-move/r1 | specs-move/r2
+extension-engine-picker        P= observe-verbs-host-extension 
+   in : observe-verbs-host-extension/B | extension-engine-picker/Q | specs-move/r1 | specs-move/r2 
+   out: observe-verbs-host-extension/B | observe-verbs-host-extension/Q | specs-move/r1 | specs-move/r2
+observe-verbs-host-extension   P= rework-split-ticket-rules 
+   in : observe-verbs-host-extension/B | observe-verbs-host-extension/Q | specs-move/r1 | specs-move/r2 
+   out: rework-split-ticket-rules/Q | _/. | specs-move/r1 | specs-move/r2
+rework-split-ticket-rules      P= vscode-stats-view 
+   in : rework-split-ticket-rules/Q | _/. | specs-move/r1 | specs-move/r2 
+   out: vscode-stats-view/Q | specs-move/r1 | specs-move/r2
+vscode-stats-view              P= stats-command 
+   in : vscode-stats-view/Q | specs-move/r1 | specs-move/r2 
+   out: stats-command/Q | specs-move/r1 | specs-move/r2
+stats-command                  P= chupa-test-gates 
+   in : stats-command/Q | specs-move/r1 | specs-move/r2 
+   out: chupa-test-gates/Q | specs-move/r1 | specs-move/r2
+chupa-test-gates               P= tests-split 
+   in : chupa-test-gates/Q | specs-move/r1 | specs-move/r2 
+   out: tests-split/Q | specs-move/r1 | specs-move/r2
+tests-split                    P= specs-move 
+   in : tests-split/Q | specs-move/r1 | specs-move/r2 
+   out: specs-move/Q | specs-move/r1 | specs-move/r2
+specs-move                     P= no-retry-unchanged-over-budget 
+   in : specs-move/Q | specs-move/r1 | specs-move/r2 
+   out: no-retry-unchanged-over-budget/Q
+no-retry-unchanged-over-budget P= ask-prompt-verb 
+   in : no-retry-unchanged-over-budget/Q 
+   out: ask-prompt-verb/M
+ask-prompt-verb                P= order-verb 
+   in : ask-prompt-verb/M 
+   out: order-verb/M
+order-verb                     P=  
+   in : order-verb/M 
+   out: 
