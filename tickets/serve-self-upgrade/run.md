@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Policy-held merge candidates do not block handoff and remain recoverable after restart.
+The full suite exposed the previously reported heartbeat regression; removing an extra asynchronous round trip when watching is disabled resolved it.
 
 ## Dead ends
 
-Overlapping test runs caused timing failures; both required commands passed when run without overlapping suites.
+An initial full-suite run overlapped another test command and failed at a reliability-battery timing boundary; the sequential rerun passed that test.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+The ticket budget was 90 minutes expected; elapsed time was not measured.
 
