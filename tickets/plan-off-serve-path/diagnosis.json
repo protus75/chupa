@@ -1,15 +1,20 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "77d1c66b6c9e83a9f48c53499a19c0da6a2c9c98",
+  "produced_at_sha": "3b58f317f7d2d82afba8474aa436f8041c1a2791",
   "stem": "plan-off-serve-path",
-  "attempt": 1,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "premise_bounce cap spent",
+  "attempt": 2,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "In chupa/tickets.py, leave the `source: seed` cite check as it was: `_seed_cites(stem, plan_ids, plan or \"\", path)`, with no `plan is not None` guard. Only the `## Plan contract` resolution and the 'plan is absent' finding may depend on `plan` being None.",
+    "The ticket's Definition of rejected forbids any change to validate_ticket or lint behavior. read_plan(repo) can return None, so a None-plan path must keep every check except Plan contract resolution.",
+    "Add a test in tests/test_tickets.py: a `source: seed` ticket with no plan and missing cites still gets its seed-cite finding. This guards against the review finding coming back.",
+    "Keep the rest of attempt 2 (runtime plan removal, finished-ticket skips, docs, tests). The review found it correct, and the full suite passed (3038 passed)."
+  ],
+  "mechanical": null,
   "spec_version": "1.2",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
