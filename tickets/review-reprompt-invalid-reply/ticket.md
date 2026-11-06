@@ -45,7 +45,7 @@ After this change, `review_ticket` re-asks on an invalid reply, passing the pars
     - when the first review makes no call (headroom snag), the second review is keyed at `call_seq` 2, as today.
   - `tests/test_author.py` `test_author_reviews_keep_unique_keys_when_one_reasks`: with two Author calls whose first requisition review re-asks once, the journal's `requisition_review` effect keys are all distinct.
   - Extend `tests/test_author.py` `test_author_reprompts_for_reused_stem_and_invalid_ticket`: with Author calls 1 and 2 failing the gate, the review key still ends in `/3`, as today.
-- Out: making the parser accept prose around the JSON, the driver, the spec text, the reply schema, and key values when no review re-asks.
+- Out: making the parser accept prose around the JSON, the driver, the spec text, the reply schema, and key values when no review re-asks. Also out: the existing collision between the dispatch review in `chupa/runner.py` and Rework's proposal reviews in the same attempt, which share a key prefix today. That is filed separately.
 
 ## Scope fence
 - chupa/requisition.py
@@ -69,7 +69,7 @@ uv run pytest -q
 Reject the branch if any of the following holds:
 - an invalid reply is still turned into a snag without a re-ask;
 - the parser is loosened to accept prose around the JSON;
-- any two model calls share an effect key;
+- two calls within one `review_ticket` call, or two reviews in one `rework.py` or `author.py` sequence, share an effect key;
 - the re-ask count exceeds `driver.retry_cap`;
 - a key value changes when no review re-asks.
 
