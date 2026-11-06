@@ -34,7 +34,7 @@ After this change, `review_ticket` re-asks on an invalid reply, passing the pars
 - In: `RequisitionVerdict` gets `calls: int`, the number of model calls the review made: 0 on the no-call snag paths, and 1 plus the re-asks otherwise.
 - In: callers that make several reviews under one key prefix advance by `calls`, so no two calls share a key.
   - `chupa/rework.py`: `review_seq` moves forward by `verdict.calls` instead of by 1, and each review starts at the next unused `call_seq`.
-  - `chupa/author.py`: the requisition review stops passing the Author call's `call_seq`. It keeps its own review counter for the pass, starting at 1 and advanced by `verdict.calls`.
+  - `chupa/author.py`: the requisition review starts at `max(call_seq, next_unused)`, where `call_seq` is the Author call's and `next_unused` starts at 1 for the pass. It then sets `next_unused = start + verdict.calls`. With no re-ask, `next_unused` never exceeds the current Author `call_seq`, so every key equals today's.
   - When no review re-asks, every key value equals today's, so existing key-pinning tests are unchanged.
   - Unchanged: `chupa/runner.py` (one review per dispatch attempt) and the `review` verb in `chupa/__main__.py` (its own `run_seq` per invocation).
 - In: tests.
@@ -42,6 +42,7 @@ After this change, `review_ticket` re-asks on an invalid reply, passing the pars
   - Update `tests/test_requisition.py` `test_snag_and_invalid_reply`: when every reply is invalid, the result is the `invalid reply` mechanical snag, with `calls == 1 + retry_cap` and that many requests.
   - `tests/test_rework.py` `test_split_reviews_keep_unique_keys_when_one_reasks`: with two proposals whose first review re-asks once, the journal's `requisition_review` effect keys are all distinct.
   - `tests/test_author.py` `test_author_reviews_keep_unique_keys_when_one_reasks`: with two Author calls whose first requisition review re-asks once, the journal's `requisition_review` effect keys are all distinct.
+  - Extend `tests/test_author.py` `test_author_reprompts_for_reused_stem_and_invalid_ticket`: with Author calls 1 and 2 failing the gate, the review key still ends in `/3`, as today.
 - Out: making the parser accept prose around the JSON, the driver, the spec text, the reply schema, and key values when no review re-asks.
 
 ## Scope fence
