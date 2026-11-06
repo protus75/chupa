@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "2dcee30975c5c0450010ec5a233c4276dda49be0",
+  "stem": "serve-live-verdicts",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Ticket contradicts itself: a keep removes the stem from reject_queue (runner.py verdict), so the inbox scope and criterion 5 make a second keep stale, but criterion 4 requires the 'already kept at this ticket content' refusal. Rewrite the eligibility rule or criterion 4.",
+    "Suggested fix: the inbox accepts every null-hold_id confirm/reject request, and the shared lock-free verdict function decides refusal. Narrow criterion 5 to the cases that function refuses, so there is still one copy of the rules.",
+    "The goal says every lock-free confirm/reject must work under serve, but the lock-free reject path accepts non-settled stems that are neither drafts nor in reject_queue. Widen the inbox eligibility to match that path, or narrow the goal.",
+    "Before re-confirming, read the keep/reject branches of runner.py verdict (the already-kept check, the reject_queue check, the settled check). Make the inbox and stale criteria match them exactly, then run chupa review on the stem."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
