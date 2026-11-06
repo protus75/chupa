@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The previous attempt cited tests/test_seed_successor.py, which no longer exists; the parser conflict remains. A confirmed human ticket based on the current tests/test_tickets.py fixture parses with the plan and fails with plan=None.
+Seed citation checks that depend on plan contents are skipped when no plan is supplied; validation with a supplied plan remains unchanged.
 
 ## Dead ends
 
-Checked whether the existing parser could preserve Plan contract behavior without the plan; it explicitly rejects every cited contract when plan is None.
+none
 
 ## Second problems filed
 
@@ -18,9 +18,9 @@ none
 
 - provider: codex
 - model: gpt-6.1-terra
-- spec: implement 2.1
+- spec: implement 2.2
 
 ## Predicted vs actual
 
-Expected 45 minutes; the conflicting premise was identified during initial inspection.
+Expected 45 minutes; completed within the budget.
 
