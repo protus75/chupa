@@ -37,7 +37,16 @@ After this change, one "Engine…" button in the Tickets view title opens a Quic
     - kill: hard-stop the running drain or serve;
     - status: print the journal projection.
 - In: picking an item runs `<chupa.command> <verb>` through the same interactive-action path that `observe-verbs-host-extension` uses for engine actions. Escape does nothing.
-- Out: `pause` and `resume`, the right-click ticket menu, and every engine verb.
+- In: one start/stop icon in the Tickets `view/title` `navigation` group that follows the engine's state.
+  - On every snapshot, `extension.js` sets the context key `chupa.engineRunning` with `setContext`, from the snapshot's engine flag.
+  - New setting `chupa.playAction`: enum `drain` | `serve`, default `drain`, with one `enumDescriptions` line per value.
+  - Two commands with icon `$(play)`, so the hover text names the real action:
+    - `chupa.playDrain`, titled "Start drain", shown when `!chupa.engineRunning && config.chupa.playAction == 'drain'`;
+    - `chupa.playServe`, titled "Start serve", shown when `!chupa.engineRunning && config.chupa.playAction == 'serve'`.
+  - `chupa.stopRunning`, icon `$(debug-stop)`, titled "Stop after the running ticket", shown when `chupa.engineRunning`.
+  - These three run `drain`, `serve`, and `stop` through the same path as the picker.
+  - All four new commands are hidden from the command palette.
+- Out: `pause` and `resume`, a Kill icon (Kill stays in the picker only), the right-click ticket menu, and every engine verb.
 
 ## Scope fence
 - vscode-chupa/package.json
@@ -45,14 +54,14 @@ After this change, one "Engine…" button in the Tickets view title opens a Quic
 
 ## Acceptance criteria
 1. `node --check vscode-chupa/extension.js` exits 0.
-2. `vscode-chupa/package.json` parses as JSON, declares `chupa.engine` in the `chupa.tickets` `view/title` menu, and no longer declares `chupa.drain`, `chupa.stop`, `chupa.kill`, or `chupa.status`.
+2. `vscode-chupa/package.json` parses as JSON. It declares `chupa.engine`, `chupa.playDrain`, `chupa.playServe`, and `chupa.stopRunning` in the `view/title` menu, and the `chupa.playAction` setting. It no longer declares `chupa.drain`, `chupa.stop`, `chupa.kill`, or `chupa.status`.
 3. `grep -c "serve" vscode-chupa/extension.js` prints at least 1.
 4. `uv run pytest -q` exits 0.
 
 ## Verification
 ```
 node --check vscode-chupa/extension.js
-uv run python -c "import json; c=json.load(open('vscode-chupa/package.json'))['contributes']; ids={x['command'] for x in c['commands']}; assert 'chupa.engine' in ids and not ids & {'chupa.drain','chupa.stop','chupa.kill','chupa.status'}; assert any(m['command']=='chupa.engine' for m in c['menus']['view/title'])"
+uv run python -c "import json; c=json.load(open('vscode-chupa/package.json'))['contributes']; ids={x['command'] for x in c['commands']}; new={'chupa.engine','chupa.playDrain','chupa.playServe','chupa.stopRunning'}; assert new <= ids and not ids & {'chupa.drain','chupa.stop','chupa.kill','chupa.status'}; assert new <= {m['command'] for m in c['menus']['view/title']}; assert 'chupa.playAction' in c['configuration']['properties']"
 uv run pytest -q
 ```
 
