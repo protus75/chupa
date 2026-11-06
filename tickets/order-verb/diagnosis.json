@@ -1,16 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "bd615422ee951995b19a7be1b9b0c4157e499557",
+  "produced_at_sha": "0a10bedd27a57ccbd29c44628c024e2677b9be43",
   "stem": "order-verb",
-  "attempt": 0,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "reject",
+  "attempt": 2,
+  "terminal": "gate_failed",
+  "stage": "merge",
+  "verdict": "abandon-human",
   "lessons": [
-    "Add docs/host-running.md to the Scope fence and Context. Its verb table must gain an `order` row, because tests/test_host_running.py::test_verb_table_matches_parser fails for any parser verb missing from that table, and criterion 4 (`uv run pytest -q`) cannot pass otherwise.",
-    "In Scope in / docs, require an `order` row in the docs/host-running.md verb table, placed beside `new`. Fill its 'Works while serve runs?' column with Yes, since the ticket says `order` takes no lock, as with `new`.",
-    "On the next attempt, run the full `uv run pytest -q` early. The prior run had tests/test_cli.py and `node --check` passing, and the only blocker was the out-of-fence verb table found by the full suite."
+    "The implementation passed all checks and review approved it. Merge failed only on dirty_checkout: the main checkout has uncommitted human edits to docs/how-chupa-works.md, vscode-chupa/extension.js and vscode-chupa/package.json. A human must commit or revert them.",
+    "The agent must not touch the main checkout. Engine conduct forbids tree-wide destructive git and commits outside the ticket branch, so the operator must resolve those three files before re-running.",
+    "On the re-run, keep the same approach and diff shape (9 files, +203/-1). No finding shows a defect in the order verb, tests, extension or docs.",
+    "If the operator commits their own edits to those three files first, rebase the ticket's changes onto them and keep both. Do not overwrite the operator's new extension.js, package.json or how-chupa-works.md content."
   ],
   "mechanical": null,
   "spec_version": "1.2",
