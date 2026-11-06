@@ -124,6 +124,7 @@ Config:
     notify: unset
     report_inbox: unset
     context_files: []
+    ask_notes: unset
 Provider:
   required: [name, kind, models_by_tier, limits]
   defaults: {auth: unset, package: unset}
@@ -209,6 +210,8 @@ Regenerate requires argv; union accepts no argv and only resolves append-only
 conflicts. A conflict path must match exactly one strategy, and regenerated
 paths must be outside the ticket fence; otherwise resolve through Rework with a
 new approval.
+
+Set `ask_notes` to add host guidance to `prompt` operator prompts; it is appended as a quoted `host_notes` data block.
 
 Relative `state_dir`, explicit `worktree_root` and `report_inbox` resolve against
 the selected config file's parent; absolute paths remain absolute. Absent

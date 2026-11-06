@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from chupa import control, drain, hostfiles, requisition, runner, serve, triage
+from chupa import ask, control, drain, hostfiles, requisition, runner, serve, triage
 from chupa.config import ConfigError, ConfigSnapshot, load_config, migrate_config
 from chupa.daemon import DaemonCore, PauseConsumer, StartupBoundary, daemon_core
 from chupa.git import Git, GitError
@@ -221,6 +221,9 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("retro", help="force a retro report under the writer lock")
     sub.add_parser("doctor", help="inspect setup without changing state")
     sub.add_parser("core", help="refresh managed conduct in every routed agent's root file")
+    prompt = sub.add_parser("prompt", help="render an operator prompt for a ticket")
+    prompt.add_argument("kind", choices=ask.KINDS)
+    prompt.add_argument("stem")
     sub.add_parser("migrate-config", help="validate and migrate schema_version: 0 to the current config schema")
     for verb in ("pause", "resume"):
         sub.add_parser(verb, help=f"submit {verb} to the running engine, or do nothing under the idle lock")
@@ -299,6 +302,13 @@ def main(
         config = load_config(args.config, cwd=repo)
         if args.verb == "core":
             hostfiles.refresh(routed_conduct_paths(config, repo), LocalFileSystem())
+            return 0
+        if args.verb == "prompt":
+            if findings := stem_findings(args.stem):
+                raise runner.Refusal(findings[0].message, findings[0].paved_road)
+            if not (repo / ticket_path(args.stem)).is_file():
+                raise runner.Refusal(f"{ticket_path(args.stem)} does not exist", f"author it with chupa new {args.stem}")
+            print(ask.render(args.kind, args.stem, config, repo), end="")
             return 0
         exec_ = SubprocessExec()
         checkout = runner.Checkout(

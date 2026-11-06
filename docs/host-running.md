@@ -16,6 +16,7 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | `lint` | Yes | Validate tickets without writing. |
 | `retro` | No | Force a retro report. |
 | `doctor` | No | Inspect setup; its lock probe reports a held lock as a failure. |
+| `prompt` | Yes | Render an operator prompt for a ticket without writing state. |
 | `core` | Yes | Refresh managed conduct files. |
 | `migrate-config` | Yes | Validate and migrate an older config. |
 | `pause` | Yes | Ask the running engine to pause admission. |

@@ -90,6 +90,7 @@ def test_valid_config_loads_from_cwd_with_shipped_defaults(tmp_path):
     assert cfg.notify is None
     assert cfg.report_inbox is None
     assert cfg.context_files == []
+    assert cfg.ask_notes is None
 
 
 def test_config_flag_path_overrides_cwd(tmp_path):
@@ -118,6 +119,7 @@ def test_explicit_values_override_defaults_and_partial_blocks_keep_the_rest(tmp_
         notify: [notify-send, chupa]
         report_inbox: inbox
         context_files: [docs/arch.md]
+        ask_notes: Host guidance
         """
     )
     cfg = load_config(write(tmp_path, text), cwd=tmp_path)
@@ -128,6 +130,7 @@ def test_explicit_values_override_defaults_and_partial_blocks_keep_the_rest(tmp_
     assert cfg.notify == ["notify-send", "chupa"]
     assert cfg.report_inbox == tmp_path / "inbox"
     assert cfg.context_files == [Path("docs/arch.md")]
+    assert cfg.ask_notes == "Host guidance"
 
 
 @pytest.mark.parametrize(

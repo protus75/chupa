@@ -42,6 +42,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `lint [stem ...]` | no | Validates ticket grammar, intake claims, and committable bug evidence without running tickets or writing files, journal events, or git state. With no stems, checks every ticket except those settled or rejected in the journal; with no journal, checks all tickets. Prints each finding and its fix, then `lint: <valid>/<total> tickets valid`. Exits 0 when valid, 1 for findings, or 2 for a missing named ticket or unreadable tickets directory. |
 | `covgate [--gate PATH] [--report PATH] -- <argv>` | no | Runs the unit-test command, then checks its fresh coverage report against `test-gate.toml` (default report `coverage.json`; paths relative to the invocation directory). Returns the command’s nonzero exit code, or 0 on coverage pass, 1 on threshold failures, or 2 for a refusal. |
 | `doctor` | no | Checks venv, git, config load, lock probe, journal readability. Exit 2 on any failure. |
+| `prompt <diagnose\|running\|review> <stem>` | no | Prints an operator prompt for an existing ticket without writing state. |
 | `core` | no | Rewrites the managed `chupa:core` block in each routed agent's conduct file (section 12). |
 | `migrate-config` | no | Migrates a `schema_version: 0` config to the current schema. |
 | `new <stem> --kind feature\|bug\|chore` | no | Writes `tickets/<stem>/ticket.md` with section placeholders for the selected kind (default `feature`) and lints it. Bugs include `## Regression` and a missing-evidence finding; no evidence files are created. Refuses a bad, reserved, or existing stem, or unknown kind (exit 2); successful authorship exits 0. |
@@ -531,6 +532,8 @@ falls back to the `(tier, review)` row. The model is the candidate's `model` or 
 
 ### 8.4 Prompt specs and the driver
 
+`specs/ask/` holds operator prompt templates rendered by `prompt`, not driver specs.
+
 Every model call goes through one driver (`chupa/driver.py`) using a prompt spec from `specs/`:
 
 | Spec | Used for | Replies |
@@ -659,6 +662,7 @@ with the fix. The full field inventory is in `docs/host-contract.md`.
 | `retro` | `enabled`, `every_merges`, `every_days`, `spike_count` control automatic reports (section 9.5) |
 | `scheduler`, `drain` | `max_unmerged`; `max_runtime_hours`, `max_ticket_minutes` |
 | `engine_plane_safety_inventory`, `box_policy` | Author starting state (section 9.3) |
+| `ask_notes` | Optional host guidance appended to operator prompts as a `host_notes` data block. |
 | `notify`, `report_inbox`, `context_files` | notification command; host bug report folder; extra Implement context |
 
 ## 12. Host projects

@@ -203,6 +203,7 @@ class Config(_Strict):
     notify: Argv | None = None
     report_inbox: PathField | None = None
     context_files: list[PathField] = []
+    ask_notes: str | None = None
 
     @field_validator("notify")
     @classmethod
