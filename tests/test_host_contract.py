@@ -51,8 +51,6 @@ def inventory(model, row):
         assert actual == (None if expected == "unset" else expected), (model, key)
 
 
-
-
 def test_host_contract_example_loads(tmp_path):
     cfg = load(tmp_path)
     assert cfg.schema_version == 1
@@ -328,7 +326,10 @@ def test_host_contract_report_custody_and_cutover(tmp_path):
         "live-host acceptance",
         "Foreign process-state adoption is excluded",
     )
-    clock = lambda: datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    def clock():
+        return datetime(2026, 1, 1, tzinfo=timezone.utc)
+
     one = Lockfile(tmp_path, instance_id="one", clock=clock)
     two = Lockfile(tmp_path, instance_id="two", clock=clock)
     one.acquire()

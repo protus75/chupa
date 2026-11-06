@@ -16,6 +16,7 @@ from chupa.gates import (
     merge_severity,
     run_gates,
 )
+from tests.test_stages import repo
 
 
 class Slip(Artifact):
@@ -310,10 +311,6 @@ async def test_core_activation_committed_conduct():
     gate = next(g for g in stages.CHECK_GATES if g.code == "core_drift")
     report = gate.check(evidence(**gathered), root)
     assert report.verdict == "pass", report.findings
-
-
-# The severity exercise uses the same disposable constructor as the production stage tests.
-from tests.test_stages import repo
 
 
 @pytest.mark.asyncio

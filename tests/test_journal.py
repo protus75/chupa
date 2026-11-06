@@ -28,7 +28,7 @@ def line(type_: str, n: int, ts: str = "2026-08-04T12:00:00+00:00") -> str:
 def seed(state_dir, name: str, *lines: str) -> None:
     d = state_dir / "journal"
     d.mkdir(parents=True, exist_ok=True)
-    (d / name).write_text("".join(l + "\n" for l in lines))
+    (d / name).write_text("".join(line + "\n" for line in lines))
 
 
 def test_append_round_trips_envelope(tmp_path):
@@ -139,7 +139,7 @@ def test_writer_truncates_torn_tail_before_appending(tmp_path):
     j = Journal(tmp_path, FakeClock(T0))
     j.append("signal", {"signal": "drain_handoff", "n": 2})
     assert [e.body["n"] for e in j.read()] == [1, 2]
-    assert all(json.loads(l) for l in seg.read_text().splitlines())
+    assert all(json.loads(line) for line in seg.read_text().splitlines())
 
 
 def test_torn_tail_in_a_rolled_segment_is_corruption(tmp_path):

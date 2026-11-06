@@ -108,7 +108,6 @@ def test_inline_merge_reruns_triggered_hard_entries(ctx, monkeypatch):
     asyncio.run(run())
 
 
-
 @pytest.mark.parametrize("stale", [False, True])
 def test_inline_merge_skips_unchanged_code(ctx, monkeypatch, stale):
     async def run():
@@ -125,6 +124,7 @@ def test_inline_merge_skips_unchanged_code(ctx, monkeypatch, stale):
         assert not list((ctx.config.state_dir / f"spools/{ticket.stem}/0/merge").glob("*"))
 
     asyncio.run(run())
+
 
 def test_autofix_config_loading(ctx, tmp_path):
     import yaml

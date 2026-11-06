@@ -157,7 +157,7 @@ def test_the_carried_parked_set_rides_every_handoff_in_the_chain(tmp_path, order
     code, child = drain(root, script, order)
 
     assert code == 0
-    assert [s["argv"][8 :] for s in child.spawns] == [["--parked", "red"], ["--parked", "red"]]
+    assert [s["argv"][8:] for s in child.spawns] == [["--parked", "red"], ["--parked", "red"]]
     assert script.calls == [("parent", "red"), ("parent", "red"), ("parent", "one"), ("child1", "two")]
     # One awaiting parent per self-upgrading admission; each exits with its child's code.
     assert order.count("spawn") == 2 and order[-2:] == ["exit 0", "exit 0"]

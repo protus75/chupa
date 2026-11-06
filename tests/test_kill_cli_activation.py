@@ -814,7 +814,7 @@ def test_kill_activation_keeps_worker_boundaries_dormant(root, tmp_path, monkeyp
         write(root, stem, confirmed().replace("uv run pytest", "true"))
 
         def wired(checkout):
-            writer = runner.bind(checkout, FakeLLM([]))
+            runner.bind(checkout, FakeLLM([]))
 
             async def dispatch(work):
                 await getattr(cls, boundary)(None)
@@ -836,7 +836,7 @@ def test_kill_activation_keeps_worker_boundaries_dormant(root, tmp_path, monkeyp
         directory.mkdir()
 
         async def prepare(local):
-            writer = runner.bind(local, FakeLLM([]))
+            runner.bind(local, FakeLLM([]))
 
             async def dispatch(work):
                 return "merged"

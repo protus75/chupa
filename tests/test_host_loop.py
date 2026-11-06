@@ -29,8 +29,6 @@ def loop_report():
     )
 
 
-
-
 def test_host_loop_closed_schema():
     valid = loop_report().model_dump()
     HostLoopReport.model_validate(valid)

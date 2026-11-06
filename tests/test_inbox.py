@@ -16,7 +16,6 @@ from chupa.seams import LocalFileSystem
 from tests.test_drain import Clock
 
 
-
 def raw_report(origin="player", **updates):
     data = dict(schema_version=1, origin=origin, summary="Observed scoring defect", app_commit="host-supplied-evidence", app_version="1.2.3")
     if origin == "self_diagnosed":
@@ -32,8 +31,6 @@ def arrival(root, **updates):
     path = root / "inbox/a.json"
     path.write_text(json.dumps(raw_report(evidence={"replay": "replay.json", "log": "log.txt"}, **updates)))
     return path
-
-
 
 
 def test_report_schema_is_closed():

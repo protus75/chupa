@@ -1282,8 +1282,10 @@ def test_runs_before_failed_ticket_does_not_block_named_ticket(tmp_path):
     commit_ticket(root, "old", confirmed(priority="P1"))
     commit_ticket(root, "new", confirmed(priority="P2") + "\n## Runs before\n- old\n")
     snapshots = []
+
     def capture(checkout):
         snapshots.append(json.loads((checkout.config.state_dir / "queue.json").read_text()))
+
     script = Script({"new": ["gate_failed"]}, hooks={"new": capture})
     assert drain(root, script) == 0
     assert script.calls == ["new", "old"]

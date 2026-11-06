@@ -12,8 +12,6 @@ from eval import harness
 from tests.test_eval_harness import corpus_results, report_fixture
 
 
-
-
 def test_record_go_requires_complete_floors_identity_and_operator_judgment(tmp_path):
     report, cfg, journal = report_fixture(tmp_path)
     out = tmp_path / "operator-report.json"

@@ -65,8 +65,6 @@ def implement(host, name):
     return scaffold.scripted_reply(host, name, "implement", "fixture edit", True)
 
 
-
-
 def test_fixture_profile_loads(host):
     cfg = load_config(None, cwd=host)
     assert cfg.schema_version == 1

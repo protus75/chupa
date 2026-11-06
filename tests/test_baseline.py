@@ -16,8 +16,6 @@ from tests.test_drain import Clock
 from tests.test_policy import ROOT, config, signal
 
 
-
-
 def test_baseline_states_and_latest_signal(tmp_path):
     cfg = config(tmp_path)
     identity = baseline_identity(cfg)

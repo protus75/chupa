@@ -264,8 +264,6 @@ class MigrationFS:
         self.local.write(path, data)
 
 
-
-
 @pytest.mark.parametrize(
     "declaration, migrated",
     [

@@ -62,6 +62,7 @@ def test_confirm_held_without_writer_lock(tmp_path, monkeypatch, capsys, dirless
             finally:
                 lock.release()
             return
+
     asyncio.run(exercise())
 
 

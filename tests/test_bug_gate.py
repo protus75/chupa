@@ -78,8 +78,6 @@ async def checked(ctx, ticket):
     return await stages.check(ctx, ticket, slip, attempt=0)
 
 
-
-
 def test_regression_overlay_proves_defect(ctx):
     async def scenario():
         ticket = await bug_ready(ctx)
