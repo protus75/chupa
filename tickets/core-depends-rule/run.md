@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The existing test also asserts seven template bullets.
+none
 
 ## Dead ends
 
-none
+An initial commit command had a syntax error; the corrected command succeeded.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 20 minutes; stopped after identifying the conflicting requirement.
+Expected 20 minutes; completed in approximately 2 minutes.
 
