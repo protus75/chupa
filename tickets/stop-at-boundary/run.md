@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-A drain self-upgrade passes the accepted stop’s lifecycle identity to its child so the child can honor the journaled request.
+The drain handoff carries the accepted request’s lifecycle to the child so it can recover the same stop decision.
 
 ## Dead ends
 
-An initial checkpoint wrapper changed pause timing; it was replaced with one that preserves the existing checkpoint behavior.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60 minutes; completed within the budget.
+Expected 60 minutes; completed within the ticket budget.
 
