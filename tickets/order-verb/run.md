@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-none
+Preserved the existing lifecycle command while resolving a manifest conflict with the prior reviewed implementation.
 
 ## Dead ends
 
-Overlapping test runs observed an edit in progress and caused an unrelated timeout; the full suite passed when run alone against the final files.
+none
 
 ## Second problems filed
 
