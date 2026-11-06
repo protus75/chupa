@@ -45,6 +45,7 @@ SIGNAL_NAMES: frozenset[str] = frozenset(
         "draft_confirmed",
         "drain_halted",
         "drain_handoff",
+        "serve_handoff",
         "flake_detected",
         "flake_released",
         "hardening_round",  # Retained for 47 historical rounds.

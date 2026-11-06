@@ -1159,7 +1159,7 @@ def _exercise_retro_drain(tmp_path, monkeypatch, scenario):
             contender = Lockfile(root / ".chupa/state", instance_id="child", clock=clock)
             contender.acquire()
             contender.release()
-            code = await asyncio.to_thread(main, argv[5:], cwd=root, env=ENV, clock=clock, pipeline=runner.pipeline, reexec=self)
+            code = await asyncio.to_thread(main, argv[7:], cwd=root, env=ENV, clock=clock, pipeline=runner.pipeline, reexec=self)
             return code, "", ""
 
     child = Child()

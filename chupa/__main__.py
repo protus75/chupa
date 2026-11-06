@@ -140,7 +140,7 @@ def build_daemon_core(
     return core
 
 
-def build_serve(checkout: runner.Checkout, *, config_path=None, plan=None, read=None, stems=None, prepare=runner.prepare_pipeline, signals=None, failure=None) -> serve.Serve:
+def build_serve(checkout: runner.Checkout, *, config_path=None, plan=None, read=None, stems=None, prepare=runner.prepare_pipeline, signals=None, failure=None, argv=("serve",), reexec=None) -> serve.Serve:
     """Compose filesystem delivery at the same root as every other real seam."""
 
     def read_ticket(stem):
@@ -156,6 +156,8 @@ def build_serve(checkout: runner.Checkout, *, config_path=None, plan=None, read=
         prepare=prepare,
         signals=signals,
         failure=failure,
+        argv=argv,
+        reexec=reexec,
     )
 
 
@@ -240,7 +242,8 @@ def main(
     reexec: ProcessExec | None = None,
     terminal: tuple[Callable[[], bool], Callable[[str], str]] | None = None,
 ) -> int:
-    args = _parser().parse_args(argv)
+    invocation = list(argv) if argv is not None else sys.argv[1:]
+    args = _parser().parse_args(invocation)
     repo = Path(cwd) if cwd is not None else Path.cwd()
     env = dict(os.environ) if env is None else env
     try:
@@ -324,7 +327,7 @@ def main(
             print("\n".join(line for _, line in lines) if lines else "no pending suggestions")
             return 0
         if args.verb == "serve":
-            return asyncio.run(serve.serve(checkout, config_path=args.config, plan=read_plan(repo), signals=_serve_signals))
+            return asyncio.run(serve.serve(checkout, config_path=args.config, plan=read_plan(repo), signals=_serve_signals, argv=invocation, reexec=reexec or SubprocessExec()))
         checkout = replace(checkout, control=build_control(checkout))
         checkout.control.load_config = lambda: load_config(args.config, cwd=repo)
         dispatch = pipeline(checkout)
@@ -342,8 +345,8 @@ def main(
                 def __getattr__(self, name):
                     return getattr(dispatch, name)
 
-            # The handoff's own seam instance, never shared with active work.
-            report = asyncio.run(drain.drain(checkout, DrainDispatch(), reexec=reexec or SubprocessExec(), parked=args.parked))
+            # The handoff uses its own process seam.
+            report = asyncio.run(drain.drain(checkout, DrainDispatch(), reexec=reexec or SubprocessExec(), parked=args.parked, argv=(["--config", str(args.config)] if args.config else []) + ["drain"]))
             if report.handoff is None:
                 print(report.render(), end="")
             return report.exit_code

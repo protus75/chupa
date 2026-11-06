@@ -1815,3 +1815,145 @@ async def test_invalid_new_ticket_reaches_watcher(root, monkeypatch):
         assert not run.done()
     finally:
         await finish(rig, run)
+
+
+class UpgradeChild:
+    def __init__(self, rig):
+        self.rig = rig
+        self.calls = []
+
+    async def run(self, argv, *, cwd, env, timeout, stdin_path=None):
+        lock = Lockfile(self.rig.checkout.config.state_dir, instance_id="probe", clock=self.rig.time)
+        lock.acquire()
+        lock.release()
+        self.calls.append((list(argv), cwd, env, timeout))
+        return 7, "", ""
+
+
+async def enable_upgrade(rig, engine):
+    (engine / "specs").mkdir(exist_ok=True)
+    (engine / "specs/base.md").write_text("base")
+    await rig.checkout.git.add(engine, ["specs/base.md"])
+    await rig.checkout.git.commit(engine, "engine trees")
+    rig.owner.engine = engine
+    rig.owner.reexec = UpgradeChild(rig)
+    rig.owner.argv = ("--config", "config.yaml", "serve")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["chupa/thing.py", "docs/guide.md"])
+async def test_upgrade_after_real_merge(root, monkeypatch, path):
+    rig = await admission_graph(root, monkeypatch, {"work": {path: "ok\n"}})
+    await enable_upgrade(rig, root)
+    admission_ticket(root, "work", paths=(path,))
+    checked_after_merge = asyncio.Event()
+    check_upgrade = rig.owner.check_upgrade
+
+    async def checked():
+        await check_upgrade()
+        if terminals(rig, "work"):
+            checked_after_merge.set()
+
+    monkeypatch.setattr(rig.owner, "check_upgrade", checked)
+    run = asyncio.create_task(rig.owner.run())
+    try:
+        await until(rig, lambda: bool(terminals(rig, "work")))
+        if path.startswith("chupa/"):
+            await until(rig, run.done)
+            assert await run == 7
+            assert len(rig.owner.reexec.calls) == 1
+            argv, cwd, env, timeout = rig.owner.reexec.calls[0]
+            assert argv == ["uv", "run", "--project", str(rig.owner.engine), "python", "-m", "chupa", "--config", "config.yaml", "serve"]
+            assert cwd == root and env == rig.checkout.env and timeout is None
+            [handoff] = [e for e in rig.journal.read() if e.body.get("signal") == "serve_handoff"]
+            assert handoff.body == {"signal": "serve_handoff", "chupa": await rig.checkout.git.rev_parse(root, "HEAD:chupa"), "specs": await rig.checkout.git.rev_parse(root, "HEAD:specs")}
+            assert rig.journal.read().index(terminals(rig, "work")[0]) < rig.journal.read().index(handoff)
+        else:
+            await until(rig, checked_after_merge.is_set)
+            assert not rig.owner.reexec.calls and not run.done()
+    finally:
+        if not run.done():
+            await finish(rig, run)
+
+
+@pytest.mark.asyncio
+async def test_external_engine_change_at_admission(root, tmp_path, monkeypatch):
+    rig = await graph(root, monkeypatch)
+    engine = tmp_path / "engine"
+    (engine / "chupa").mkdir(parents=True)
+    (engine / "chupa/a.py").write_text("old")
+    await rig.checkout.git.init(engine, branch="main")
+    await rig.checkout.git.add(engine, ["chupa"])
+    await rig.checkout.git.commit(engine, "base")
+    await enable_upgrade(rig, engine)
+    run = asyncio.create_task(rig.owner.run())
+    await until(rig, rig.owner.ready.is_set)
+    (engine / "chupa/a.py").write_text("new")
+    await rig.checkout.git.add(engine, ["chupa/a.py"])
+    await rig.checkout.git.commit(engine, "upgrade")
+    await until(rig, run.done)
+    assert await run == 7 and len(rig.owner.reexec.calls) == 1
+    assert any(e.body.get("signal") == "serve_handoff" for e in rig.journal.read())
+
+
+@pytest.mark.asyncio
+async def test_upgrade_waits_for_continuation(root, monkeypatch):
+    calls, _, _ = script(monkeypatch)
+    rig = await graph(root, monkeypatch)
+    await enable_upgrade(rig, root)
+    hold = trip(rig, stage="check")
+    write(root, "work", text(priority="P0"))
+    run = asyncio.create_task(rig.owner.run())
+    await until(rig, lambda: "work" in rig.owner.writers and "work" in rig.owner.writers["work"].continuations)
+    await until(rig, lambda: rig.owner.core.scheduler.active is None and rig.owner.core.admission.active is None)
+    async with rig.owner.core.admission._slot:
+        (root / "chupa/thing.py").write_text("changed")
+        await rig.checkout.git.add(root, ["chupa/thing.py"])
+        await rig.checkout.git.commit(root, "upgrade")
+    await until(rig, lambda: rig.owner.upgrade is not None)
+    write(root, "other", text())
+    assert not run.done() and not rig.owner.reexec.calls
+    assert not any(stem == "other" for stem, _, _ in calls)
+    request(rig, "resume", "release-upgrade", hold=hold)
+    await until(rig, run.done)
+    assert await run == 7 and len(rig.owner.reexec.calls) == 1
+    assert terminals(rig, "work") and not terminals(rig, "other")
+
+
+@pytest.mark.asyncio
+async def test_non_git_engine_disables_upgrade(root, tmp_path, monkeypatch):
+    rig = await graph(root, monkeypatch)
+    rig.owner.engine = tmp_path / "not-a-repo"
+    rig.owner.engine.mkdir()
+    rig.owner.reexec = UpgradeChild(rig)
+    run = asyncio.create_task(rig.owner.run())
+    try:
+        await until(rig, rig.owner.ready.is_set)
+        assert rig.owner.trees is None and not rig.owner.reexec.calls
+        events = [json.loads(line) for line in rig.owner.log.path.read_text().splitlines()]
+        assert sum(e["event"] == "self_upgrade_off" for e in events) == 1
+    finally:
+        await finish(rig, run)
+
+
+@pytest.mark.asyncio
+async def test_kill_accepted_during_upgrade_cleanup_prevents_spawn(root, monkeypatch):
+    rig = await graph(root, monkeypatch)
+    await enable_upgrade(rig, root)
+    cleanup = rig.owner.cleanup
+
+    async def killing_cleanup():
+        request(rig, "kill", "kill-before-spawn")
+        rig.owner.control.poll()
+        await cleanup()
+
+    monkeypatch.setattr(rig.owner, "cleanup", killing_cleanup)
+    run = asyncio.create_task(rig.owner.run())
+    await until(rig, rig.owner.ready.is_set)
+    async with rig.owner.core.admission._slot:
+        (root / "chupa/thing.py").write_text("changed")
+        await rig.checkout.git.add(root, ["chupa/thing.py"])
+        await rig.checkout.git.commit(root, "upgrade")
+    await until(rig, run.done)
+    assert await run == 0 and not rig.owner.reexec.calls
+    assert any(e.body.get("request_id") == "kill-before-spawn" and e.body.get("decision") == "accepted" for e in rig.journal.read())

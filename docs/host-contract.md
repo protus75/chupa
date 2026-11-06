@@ -284,7 +284,8 @@ executors are separate; abort targets the executor that spawned active work.
 ONE instance writes a host repo line. Stable is a tagged release installed in
 its own venv; dev uses its own disposable checkout, worktree root and state dir,
 with checkpoint push disabled. Instances share only remotes. Upgrade by tag,
-install and restart; rollback reinstalls the previous tag.
+install and restart; rollback reinstalls the previous tag. A git-checkout engine running `serve`
+restarts itself when its `chupa/` or `specs/` tree changes.
 `<state_dir>/chupa.lock` uses advisory flock before writes and records instance_id,
 pid, host, state_dir and started_at for diagnostics only. Kernel release on
 process death governs correctness, never stale-pid adoption. On LockHeld wait

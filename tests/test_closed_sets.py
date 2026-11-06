@@ -142,7 +142,7 @@ def test_control_closed_sets_and_constants():
 
 def test_drain_closed_sets_and_constants():
     assert dict(drain.PRIORITY) == {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
-    assert drain.REEXEC == ("uv", "run", "python", "-m", "chupa", "drain")
+    assert drain.reexec_argv(["drain"])[-1] == "drain"
     assert drain.RETIRED == frozenset({"rejected"})
     assert drain.SETTLED == frozenset({"already_satisfied", "merged"})
     assert drain.UPGRADE_PREFIXES == ("chupa/", "specs/")
@@ -191,6 +191,7 @@ def test_journal_closed_sets_and_constants():
             "draft_confirmed",
             "drain_halted",
             "drain_handoff",
+            "serve_handoff",
             "flake_detected",
             "flake_released",
             "hardening_round",

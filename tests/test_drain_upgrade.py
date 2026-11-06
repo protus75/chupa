@@ -14,7 +14,7 @@ import pytest
 from chupa import journal as journal_mod
 from chupa import lockfile as lockfile_mod
 from chupa.__main__ import main
-from chupa.drain import HANDOFF_SIGNAL, PREMISE, REEXEC
+from chupa.drain import HANDOFF_SIGNAL, PREMISE, reexec_argv
 from chupa.journal import EventType, Journal
 from chupa.lockfile import Lockfile, LockHeld
 from chupa.seams import SubprocessExec
@@ -69,10 +69,10 @@ class Child:
             free = True
         last = journal(self.root).read()[-1]
         self.spawns.append({"argv": list(argv), "cwd": cwd, "env": env, "timeout": timeout, "stdin_path": stdin_path, "lock_free": free, "last_event": last})
-        assert list(argv[: len(REEXEC)]) == list(REEXEC)
+        assert list(argv[:8]) == reexec_argv(["drain"])
         self.script.process = f"child{len(self.spawns)}"
         # `uv run python -m chupa <args>` -> the module entry's own argv; a thread, as asyncio.run cannot nest.
-        rc = await asyncio.to_thread(main, list(argv[5:]), cwd=self.root, env=ENV, clock=self.clock, pipeline=self.script, reexec=self)
+        rc = await asyncio.to_thread(main, list(argv[7:]), cwd=self.root, env=ENV, clock=self.clock, pipeline=self.script, reexec=self)
         self.order.append(f"exit {rc}")
         return rc, "", ""
 
@@ -130,7 +130,7 @@ def test_a_self_upgrading_admission_hands_off_before_the_next_dispatch(tmp_path,
     # The parent spends the retry before the upgrade; `after` runs in the child.
     assert script.calls == [("parent", "red"), ("parent", "red"), ("parent", "upgrade"), ("child1", "after")]
     (spawn,) = child.spawns
-    assert spawn["argv"] == ["uv", "run", "python", "-m", "chupa", "drain", "--parked", "red"]
+    assert spawn["argv"] == reexec_argv(["drain", "--parked", "red"])
     assert spawn["timeout"] is None and spawn["stdin_path"] is None
     assert spawn["cwd"] == root and spawn["env"] == ENV
     assert spawn["lock_free"]
@@ -157,7 +157,7 @@ def test_the_carried_parked_set_rides_every_handoff_in_the_chain(tmp_path, order
     code, child = drain(root, script, order)
 
     assert code == 0
-    assert [s["argv"][len(REEXEC) :] for s in child.spawns] == [["--parked", "red"], ["--parked", "red"]]
+    assert [s["argv"][8 :] for s in child.spawns] == [["--parked", "red"], ["--parked", "red"]]
     assert script.calls == [("parent", "red"), ("parent", "red"), ("parent", "one"), ("child1", "two")]
     # One awaiting parent per self-upgrading admission; each exits with its child's code.
     assert order.count("spawn") == 2 and order[-2:] == ["exit 0", "exit 0"]

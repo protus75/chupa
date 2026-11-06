@@ -1,6 +1,7 @@
 """Continuous foreground lifetime (CHUPA_PLAN.md 19.P3.serve-activation)."""
 
 import asyncio
+import re
 from collections.abc import Awaitable, Callable, Iterable
 from contextlib import asynccontextmanager
 from dataclasses import replace
@@ -19,7 +20,8 @@ from chupa.merge import AdmissionBoundary
 from chupa.mergequeue import ConflictHandoff, regate_receipts
 from chupa.providers import ProviderLLM, ProviderSetupError
 from chupa.redact import Redactor
-from chupa.seams import ExecutableNotFound
+from chupa.seams import ExecutableNotFound, SubprocessExec
+from chupa.drain import reexec_argv
 from chupa.stages import ticket_blob
 from chupa.storm import StormLedger
 from chupa.tickets import Ticket, TicketInvalid, intake, parse_ticket, ticket_path
@@ -82,9 +84,14 @@ class Serve:
         prepare=runner.prepare_pipeline,
         signals: Callable | None = None,
         failure: Callable[[BaseException], None] | None = None,
+        argv=("serve",),
+        reexec=None,
     ) -> None:
         from chupa.__main__ import build_daemon_core, build_notifications
 
+        self.argv, self.reexec = tuple(argv), reexec or SubprocessExec()
+        self.engine = Path(__file__).resolve().parent.parent
+        self.trees = self.upgrade = None
         self.read, self.stems, self.signals = read, stems, signals
         self.prepare = prepare
         self.config_path = config_path
@@ -236,6 +243,7 @@ class Serve:
                 return False
         return (
             not self.stopping
+            and (self.upgrade is None or ticket.stem in self.writers)
             and projection.pause_id is None
             and (self.control.admission is None or self.control.admission in projection.released_hold_ids)
             and not any(target["emitting_origin"] == ticket.stem and target["emitting_stage"] == stage for target in self.storm.held_stages().values())
@@ -275,15 +283,42 @@ class Serve:
             while True:
                 current = await response.wait(self.scan())
                 # Hold admission through parsing/publication, including debounce unwind.
-                async with self.core.admission._slot:
+                await response.wait(self.core.admission._slot.acquire())
+                try:
                     for stem in sorted(previous.keys() | current.keys()):
                         if stem not in previous or previous.get(stem) != current.get(stem):
                             yield stem
                     await response.wait(asyncio.gather(*self.core.watcher._waits.values()))
+                finally:
+                    self.core.admission._slot.release()
                 previous = current
                 await response.wait(self.checkout.sleep(SERVE_POLL_S))
 
         await self.core.watcher.run(changes())
+
+    async def engine_trees(self):
+        output = await self.checkout.git._run(self.engine, "rev-parse", "HEAD:chupa", "HEAD:specs")
+        trees = output.splitlines()
+        if len(trees) != 2 or any(re.fullmatch(r"[0-9a-f]{40,64}", tree) is None for tree in trees):
+            raise ValueError("engine tree ids unavailable")
+        return tuple(trees)
+
+    async def check_upgrade(self):
+        if self.trees is not None and self.upgrade is None:
+            try:
+                trees = await self.engine_trees()
+            except (GitError, ValueError, OSError):
+                self.trees = None
+                self.log.event("self_upgrade_off", reason="engine checkout tree ids unavailable")
+                return
+            if trees != self.trees:
+                self.upgrade = trees
+
+    def upgrade_idle(self):
+        return (self.mutating is None and self.core.scheduler.active is None and self.core.admission.active is None
+                and self.core.admission.task is None
+                and not any(w.active or w.continuations for w in self.writers.values())
+                and (self.queue is None or not self.queue.pending and self.queue.active is None))
 
     async def dispatch(self) -> None:
         response = self.responses[0]
@@ -291,7 +326,8 @@ class Serve:
             self.control.poll()
             if self.control.projection.kill_requested:
                 self.stop()
-            if not self.stopping and self.control.projection.pause_id is None:
+            if not self.stopping and self.control.projection.pause_id is None and not self.core.admission._slot.locked():
+                await response.wait(self.check_upgrade())
                 await response.wait(self.core.scheduler.dispatch_next())
             await response.wait(self.checkout.sleep(SERVE_POLL_S))
 
@@ -324,6 +360,7 @@ class Serve:
                     await owner.consume_result(ticket, result, attempt=attempt)
                     if ticket.stem not in self.queue.pending:
                         self.queue.contexts.pop(ticket.stem, None)
+                await self.check_upgrade()
                 for stem, writer in tuple(self.writers.items()):
                     if not writer.active and not writer.continuations and stem not in self.queue.pending:
                         del self.writers[stem]
@@ -418,8 +455,13 @@ class Serve:
         lock.acquire()
         restore = lambda: None
         code = 0
+        upgrade_stop = False
         try:
             try:
+                try:
+                    self.trees = await self.engine_trees()
+                except Exception:
+                    self.log.event("self_upgrade_off", reason="engine checkout tree ids unavailable")
                 await self.core.startup()
                 self.notifications.poll(startup=True)
             except Exception as exc:
@@ -468,6 +510,14 @@ class Serve:
                 await self.ready.wait()
                 while not self.stopping:
                     await self.maintenance()
+                    if self.upgrade is not None and self.upgrade_idle() and not self.stopping:
+                        self.control.poll()
+                        if self.control.projection.kill_requested:
+                            self.stop()
+                        else:
+                            upgrade_stop = True
+                            self.stop()
+                            break
                     for response in self.responses:
                         response.ask()
                     done = [task for task in self.workers if task.done()]
@@ -491,6 +541,10 @@ class Serve:
                 self.log.event("serve_failed", error=str(exc))
                 code = 2 if isinstance(exc, (ConfigError, runner.Refusal, ProviderSetupError, JournalCorruption, ExecutableNotFound)) else 1
                 self.stop()
+            self.control.poll()
+            handoff = upgrade_stop and self.upgrade is not None and self.upgrade_idle() and not self.control.projection.kill_requested and code == 0
+            if handoff:
+                c.journal.append(EventType.SIGNAL, {"signal": "serve_handoff", "chupa": self.upgrade[0], "specs": self.upgrade[1]})
             cleanup = asyncio.create_task(self.control.apply_kill(self.cleanup) if self.control.projection.kill_requested else self.cleanup())
             try:
                 await _protected_cleanup(cleanup)
@@ -501,7 +555,10 @@ class Serve:
                 self.log.event("serve_cleanup_failed", error=str(exc))
                 if code != 2:
                     code = 1
-            return code
+            self.control.poll()
+            handoff = handoff and not self.control.projection.kill_requested and code == 0
+            if handoff:
+                c.journal.close()
         finally:
             try:
                 await _protected_cleanup(asyncio.create_task(self.notifications.close()))
@@ -512,6 +569,9 @@ class Serve:
                 finally:
                     restore()
                     lock.release()
+        if handoff:
+            code, _, _ = await self.reexec.run(reexec_argv(self.argv, engine=self.engine), cwd=c.repo, env=c.env, timeout=None)
+        return code
 
 
 async def serve(
@@ -524,8 +584,10 @@ async def serve(
     prepare=runner.prepare_pipeline,
     signals: Callable | None = None,
     failure: Callable[[BaseException], None] | None = None,
+    argv=("serve",),
+    reexec=None,
 ) -> int:
     from chupa.__main__ import build_serve
 
-    owner = build_serve(checkout, config_path=config_path, plan=plan, read=read, stems=stems, prepare=prepare, signals=signals, failure=failure)
+    owner = build_serve(checkout, config_path=config_path, plan=plan, read=read, stems=stems, prepare=prepare, signals=signals, failure=failure, argv=argv, reexec=reexec)
     return await owner.run()

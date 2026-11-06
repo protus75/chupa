@@ -17,6 +17,7 @@ import json
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
+from pathlib import Path
 
 from chupa import caps
 from chupa.journal import TERMINAL_STATES, Event, EventType, render_ts
@@ -49,12 +50,8 @@ PREMISE = "premise_failed"
 HANDOFF_SIGNAL = "drain_handoff"
 # The engine plane the running process has loaded: admitting a change under either re-execs the drain.
 UPGRADE_PREFIXES = ("chupa/", "specs/")
-# The named runtime `uv` exception: one form, dependency changes included.
-REEXEC = ("uv", "run", "python", "-m", "chupa", "drain")
-
-
-def reexec_argv(parked: Iterable[str]) -> list[str]:
-    return [*REEXEC, *(a for stem in parked for a in ("--parked", stem))]
+def reexec_argv(args: Iterable[str], *, engine: Path = Path(__file__).resolve().parent.parent) -> list[str]:
+    return ["uv", "run", "--project", str(engine), "python", "-m", "chupa", *args]
 
 
 def premise_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:
@@ -173,6 +170,7 @@ async def drain(
     *,
     reexec: ProcessExec,
     parked: Iterable[str] = (),
+    argv: Iterable[str] = ("drain",),
     before_dispatch: Callable[[], Awaitable[None]] | None = None,
 ) -> Report:
     """`reexec` is the handoff's own process seam: never the instance active work spawns through."""
@@ -226,7 +224,7 @@ async def drain(
             lock.release()
     # The fixed HANDOFF order: journaled, journal closed, lock free -- the child is the only writer,
     # and the parent does nothing after the spawn but exit with its code.
-    report.handoff, _, _ = await reexec.run(reexec_argv(carried), cwd=checkout.repo, env=checkout.env, timeout=None)
+    report.handoff, _, _ = await reexec.run(reexec_argv([*argv, *(a for stem in carried for a in ("--parked", stem))]), cwd=checkout.repo, env=checkout.env, timeout=None)
     return report
 
 

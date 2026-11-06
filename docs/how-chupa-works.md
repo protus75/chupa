@@ -409,6 +409,7 @@ Bounds: `drain.max_runtime_hours` (default 12) halts it (exit 1).
 
 **Self-upgrade:** when a merge changes `chupa/` or `specs/`, the drain journals a handoff,
 releases the lock, and re-executes itself so the new engine code runs the rest of the queue.
+Both verbs use `uv run --project <engine checkout> python -m chupa` followed by their invocation arguments.
 
 ### 7.2 `serve`
 
@@ -428,6 +429,11 @@ publishes `state_dir/control/active.json`, and runs four loops (every 0.1s):
 Maintenance on each loop: control requests, timers, orphan sweeps, heartbeat
 (`state_dir/heartbeat` mtime), notification replay, and checkpoint pushes. If any loop dies,
 `serve` stops.
+
+A git-checkout engine records its `chupa` and `specs` trees at startup and checks them before
+admission and after merge passes. A change stops new admissions; after running tickets and
+pending or active merges finish, serve journals `serve_handoff`, cleans up, closes the journal,
+releases the lock, and spawns the new serve. A pending kill wins. Non-git engines do not watch.
 
 #### 7.2.1 Merge queue (serve only)
 
