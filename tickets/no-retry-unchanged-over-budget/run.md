@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Both verification commands passed; the full suite reported 3029 passed.
+The scheduler avoids looking up ticket SHAs for unrelated gate failures.
 
 ## Dead ends
 
-An initial scheduler implementation looked up ticket SHAs for ordinary gate failures; the lookup was restricted to relevant failures.
+The first full-suite run exposed an unnecessary scheduler SHA lookup; restricting it fixed the failure.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 45 minutes; completed within that budget.
+Expected 45 minutes; completed in under 45 minutes.
 
