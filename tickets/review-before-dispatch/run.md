@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-Drain automatically re-offers a Reject-queued ticket with remaining cap budget; requisition snags consume no cap, so they require an explicit operator hold.
+The drain premise park can be reused, but the serve scheduler receives only parsed tickets and journal state; neither contains the current committed ticket blob SHA.
 
 ## Dead ends
 
-Considered reusing the ticket_changed hold marker, but that would falsely report a ticket change instead of the review findings.
+Deriving the repository from the journal directory would fail for configured state directories and would bypass the git seam.
 
 ## Second problems filed
 
@@ -18,9 +18,9 @@ none
 
 - provider: codex
 - model: gpt-6.1-terra
-- spec: implement 2.1
+- spec: implement 2.2
 
 ## Predicted vs actual
 
-The ticket budget was 75 minutes expected and 90 minutes stuck; work stopped after identifying the scope conflict.
+The ticket allowed 75 minutes expected and 90 minutes stuck; investigation stopped after identifying the scope conflict.
 
