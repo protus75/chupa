@@ -8,6 +8,9 @@ kind: chore
 ## Depends on
 - none
 
+## Runs before
+- remove-merge-hold
+
 ## Context
 - chupa/merge.py
 - chupa/git.py
