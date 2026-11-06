@@ -52,10 +52,9 @@ A ticket an AI writes in a chat session reaches Implement without the buildabili
 - chupa/scheduler.py
 - chupa/daemon.py
 - chupa/__main__.py
-- eval/shakeout/bench.py
-- eval/reliability_battery.py
 - docs/how-chupa-works.md
 - tests
+- eval
 
 ## Acceptance criteria
 1. An unreviewed ticket gets exactly one review call before Implement, and approved content gets none, checked by `uv run pytest tests/test_requisition_gate.py -k "reviewed_once_then_runs or approved_content_runs_without_review"`.
