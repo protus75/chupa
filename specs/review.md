@@ -5,7 +5,7 @@ emits: {approve: approved-invoice, snag: snag-list, rma: rma}
 tier: high
 effort: high
 gates: [correctness_review]
-version: "1.3"
+version: "1.4"
 ---
 ## Role
 
@@ -33,7 +33,9 @@ Snag on any of these, each attached to a line the diff adds or changes:
 
 - `logic`: wrong behavior -- off-by-one, inverted or missing condition, wrong boundary, broken
   error handling, a race, state left corrupt on a failure path, a test that pins the
-  implementation instead of the behavior or cannot fail.
+  implementation instead of the behavior or cannot fail; a unit test that reads or writes disk,
+  opens a network connection, starts a process, or depends on wall-clock time or test order; or a
+  lowered coverage threshold or test time budget the ticket does not require.
 - `acceptance`: an acceptance criterion is unmet, partly met, or met only in a test while the
   real code path differs.
   Also snag if a doc named in the ticket's acceptance criteria or `Scope in / Scope out` is not

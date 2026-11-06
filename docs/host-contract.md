@@ -48,6 +48,59 @@ engine_plane_safety_inventory: [config.yaml, specs/, chupa/gates.py]
 # context_files: [docs/architecture.md]
 ```
 
+## Python host test setup
+
+Merge this block into the example configuration, replacing the package placeholder in the
+unit command with your Python package name.
+
+```yaml python-host
+review:
+  autofix:
+    - {code: ruff-fix, argv: [uv, run, ruff, check, --fix, --exit-zero], files: ["*.py"]}
+    - {code: ruff-format, argv: [uv, run, ruff, format], files: ["*.py"]}
+  mechanical:
+    - code: unit
+      argv: [uv, run, python, -m, chupa, covgate, --, python, -m, pytest, tests/unit, -p, chupa.testguard, -p, chupa.testreport, --chupa-results, .chupa/results/unit.json, --cov=<package>, --cov-branch, --cov-context=test, --cov-report=json:coverage.json, -n, auto]
+      trigger: always
+      severity: hard
+      results: .chupa/results/unit.json
+      coverage: coverage.json
+    - code: integration
+      argv: [uv, run, python, -m, pytest, tests/integration, -p, chupa.testreport, --chupa-results, .chupa/results/integration.json, -n, auto]
+      trigger: always
+      severity: hard
+      results: .chupa/results/integration.json
+    - {code: lint, argv: [uv, run, ruff, check, .], trigger: always, severity: hard}
+    - {code: format, argv: [uv, run, ruff, format, --check, .], trigger: always, severity: hard}
+merge:
+  safety_checks: [unit]
+engine_plane_safety_inventory: [config.yaml, test-gate.toml]
+```
+
+Create `test-gate.toml` at the host root:
+
+```toml test-gate
+[coverage]
+default = 90
+# [coverage.packages]
+# "src/example" = 95
+# [coverage.files]
+# "src/example/core.py" = 100
+
+[unit]
+budget_seconds = 60
+```
+
+Add dev dependencies `chupa`, `pytest`, `pytest-cov`, `pytest-xdist`, and `ruff`.
+In `pyproject.toml`, set `[tool.coverage.run]` `core = "ctrace"` and
+`[tool.coverage.json]` `show_contexts = true`: Python 3.14's default `sysmon` core drops
+per-test contexts. Gitignore `coverage.json` and `.chupa/`.
+
+Covgate runs unit tests and then gates their coverage; its base rerun measures the base's own
+coverage. Whole-repo `lint` and `format` also fail at the merge base when main drifts, and
+Check files that as `base_red` for a fix ticket. Listing `test-gate.toml` in the safety
+inventory sends a ticket that would lower a threshold to a human.
+
 ## Complete field inventory
 
 Each row names a model and every accepted field. `required` means no shipped

@@ -4,6 +4,7 @@ import asyncio
 import copy
 import inspect
 import re
+import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,7 +14,7 @@ import pytest
 import yaml
 from pydantic import BaseModel
 
-from chupa import config, gates, hostfiles, providers, seams, tickets
+from chupa import config, covgate, gates, hostfiles, providers, seams, tickets
 from chupa.lockfile import Lockfile, LockHeld
 from chupa.mergequeue import MergeQueue
 
@@ -69,6 +70,38 @@ def test_host_contract_example_loads(tmp_path):
     assert not hasattr(cfg.merge.strategies[1], "argv")
     for name in ("mechanical", "surfaces", "trigger_map", "gate_severity", "safety_checks", "strategies"):
         assert re.search(rf"^  {name}:.*#", block("host-example"), re.M)
+
+
+def test_python_host_setup_loads(tmp_path):
+    def merge(base, overlay):
+        for key, value in overlay.items():
+            if isinstance(value, dict) and isinstance(base.get(key), dict):
+                merge(base[key], value)
+            else:
+                base[key] = value
+        return base
+
+    raw = merge(yaml.safe_load(block("host-example")), yaml.safe_load(block("python-host")))
+    cfg = load(tmp_path, raw)
+    assert "test-gate.toml" in cfg.engine_plane_safety_inventory
+    checks = {entry.code: entry for entry in cfg.review.mechanical}
+    assert set(checks) == {"unit", "integration", "lint", "format"}
+    assert all(entry.trigger == "always" and entry.severity == "hard" for entry in checks.values())
+    unit, integration = checks["unit"], checks["integration"]
+    assert unit.argv[:7] == ["uv", "run", "python", "-m", "chupa", "covgate", "--"]
+    assert [unit.argv[i + 1] for i, arg in enumerate(unit.argv[:-1]) if arg == "-p"] == ["chupa.testguard", "chupa.testreport"]
+    assert "--cov-context=test" in unit.argv
+    assert unit.argv[unit.argv.index("--chupa-results") + 1] == str(unit.results)
+    assert [arg for arg in unit.argv if arg.startswith("--cov-report=json:")] == [f"--cov-report=json:{unit.coverage}"]
+    assert integration.argv == ["uv", "run", "python", "-m", "pytest", "tests/integration", "-p", "chupa.testreport", "--chupa-results", ".chupa/results/integration.json", "-n", "auto"]
+    assert integration.argv[integration.argv.index("--chupa-results") + 1] == str(integration.results)
+    assert "chupa.testguard" not in integration.argv
+    assert {entry.code: entry.files for entry in cfg.review.autofix} == {"ruff-fix": ["*.py"], "ruff-format": ["*.py"]}
+    matches = re.findall(r"^```toml test-gate\n(.*?)^```$", DOC, re.M | re.S)
+    assert len(matches) == 1
+    gate = covgate.parse_gate(matches[0])
+    assert gate.default == 90 and gate.budget_seconds == 60
+    assert tomllib.loads(matches[0])["unit"]["budget_seconds"] == 60
 
 
 def test_host_contract_schema_coverage(tmp_path):

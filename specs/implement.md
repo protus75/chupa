@@ -5,7 +5,7 @@ emits: packing-slip
 tier: medium
 effort: medium
 gates: []
-version: "2.1"
+version: "2.2"
 ---
 ## Role
 
@@ -33,6 +33,16 @@ Read the ticket and the context files below before writing anything. Then:
 4. Commit all of your work on the current branch (`git add` the changed paths, then
    `git commit`). Do not push, rebase, merge, switch branches, or create other branches. Only
    committed changes count: uncommitted edits are discarded with the worktree.
+
+Put each test in the suite its kind belongs to, as the host lays them out (for a Python host,
+`tests/unit/` and `tests/integration/`). A unit test checks one unit with fakes for the clock,
+filesystem, processes and network. It never reads or writes disk, opens a network connection or
+starts a process, and it runs in milliseconds. An integration test checks a seam: an API, a
+command-line interface, a process boundary or real files. It uses fixtures or simulators so it
+finishes in bounded time and can run in parallel with other tests. A test that can both pass and
+fail on the same code is broken. Remove the nondeterminism (fake time, fixed ordering, isolated
+state); never add retries. Never lower a coverage threshold or a test time budget unless an
+acceptance criterion requires it. When a gate cannot be met, reply `premise_failed` naming it.
 
 For each assertion, name the likely wrong implementation it rules out; the fixture must give a
 different value under that wrong version (for example, the right copy versus the wrong copy,

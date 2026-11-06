@@ -154,6 +154,12 @@ log tails) when this is a retry. The model works in the worktree with write acce
   with green Verification on an empty diff.
 - `premise_failed`: the ticket cannot be done as written; findings say why.
 
+The Implement prompt separates unit and integration suites. Unit tests use fakes for clock,
+filesystem, processes and network, avoid disk, network and processes, and run in milliseconds.
+Integration tests exercise seams using bounded, parallel-safe fixtures or simulators. Flaky tests
+must have nondeterminism removed, without retries. Coverage thresholds and test time budgets must
+not be lowered unless an acceptance criterion requires it; an unmet gate requires `premise_failed`.
+
 The Implement prompt asks for each assertion to name the likely wrong implementation it rules out
 and use a fixture that gives a different value under that version. It forbids asserting values a
 default, zero, or shared fixture would produce anyway, and asks retries to check every assertion
@@ -651,7 +657,7 @@ The block carries only process rules that hold for every host; codebase rules be
 - The `chupa.testguard` unit-run pytest plugin blocks process and network IO during test phases
   and enforces the `test-gate.toml` unit time budget (60 seconds by default).
 - A host provides `config.yaml`, its conduct files, and its tickets. `docs/host-contract.md` is
-  the full host-facing contract.
+  the full host-facing contract; Python hosts can use its `## Python host test setup`.
 
 ## 13. Bootstrap-era machinery still in the code
 
