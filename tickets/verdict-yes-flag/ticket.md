@@ -26,11 +26,11 @@ After this change, a `--yes` flag on `confirm` and `reject` skips the terminal c
   - with it, `main` skips the `isatty` refusal and `_verdict` skips `read_input`, proceeding as if `y` were answered;
   - without it, nothing changes.
 - In: `dev.py`: `confirm` and `reject` accept `--yes` and pass it to every per-stem `chupa` call.
-- In: `vscode-chupa/extension.js`: the Confirm and Reject menu commands run `./dev.py confirm|reject <stem> --yes`.
+- In: `vscode-chupa/extension.js`: the Confirm and Reject menu commands run `./dev.py confirm|reject <stem> --yes`. `devCommand` drops any argument that fails its stem check, so `--yes` is appended after that check rather than passed through it.
 - In: tests in `tests/test_control_cli.py`:
-  - `--yes` keeps a Reject-queue ticket with `terminal=(lambda: False, <reader that raises>)`;
+  - `--yes` keeps a Reject-queue ticket with `terminal=(lambda: False, <reader that raises>)`. The journaled `reject_verdict` body equals the body that the same keep journals with `terminal=(lambda: True, lambda _: "y")`;
   - without `--yes`, the same non-terminal call is refused with "verdict requires an interactive terminal";
-  - `reject --yes` stamps the ticket rejected.
+  - `reject --yes` stamps the ticket rejected, and its journaled `reject_verdict` body equals that of a typed-`y` reject.
 - In: docs.
   - `docs/how-chupa-works.md` section 2.1 `confirm` and `reject` rows: name `--yes`.
   - Section 2.2: the `confirm` and `reject` rows take `--yes`.
