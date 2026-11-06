@@ -8,6 +8,9 @@ kind: chore
 ## Depends on
 - none
 
+## Runs before
+- serve-self-upgrade
+
 ## Context
 - eval/reliability_battery.py
 - eval/daemon_soak.py
