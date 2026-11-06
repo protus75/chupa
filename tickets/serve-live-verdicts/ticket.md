@@ -10,6 +10,7 @@ kind: feature
 
 ## Context
 - chupa/__main__.py
+- chupa/mergequeue.py
 - chupa/control.py
 - chupa/runner.py
 - chupa/serve.py
@@ -41,6 +42,7 @@ kind: feature
 
 ## Scope fence
 - chupa/__main__.py
+- chupa/mergequeue.py
 - chupa/control.py
 - chupa/runner.py
 - chupa/serve.py
