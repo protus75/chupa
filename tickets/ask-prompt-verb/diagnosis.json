@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "677ca960e9b69ff7fb85c0f7ac41815e4e3c5f82",
+  "stem": "ask-prompt-verb",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Add docs/host-running.md to the Scope fence and Context. tests/test_host_running.py::test_verb_table_matches_parser asserts that the verb table in that guide equals the parser's subcommands, so adding a `prompt` verb breaks acceptance criterion 4 until the guide changes.",
+    "Require a `| `prompt` | ... |` row in the docs/host-running.md verb table (format as at line 19, e.g. the `core` row) and list it under Scope in and acceptance criterion 3, so the full `uv run pytest -q` suite passes.",
+    "Add tests/test_host_running.py to Context so the next attempt reads the verb-table invariant before it adds the parser verb.",
+    "After the ticket is amended, rerun `chupa review ask-prompt-verb` and fence every file that the new verb forces, including every doc or test that lists the parser's subcommands."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
