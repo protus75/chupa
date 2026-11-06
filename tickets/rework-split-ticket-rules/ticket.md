@@ -30,14 +30,17 @@ After this change `specs/rework.md` states those rules, so a split's successors 
   - each acceptance criterion names its check in backticks;
   - each successor's diff, counting renamed files, fits the diff budget named in the findings.
 - In: the `version` minor number goes up by one.
+- In: `tests/test_rework.py` `test_rework_spec_render_and_driver`: its pinned rework spec version moves to `"1.1"` and its golden render sha256 is recomputed from the new spec.
 - Out: `chupa/tickets.py` and `chupa/rework.py` behavior; other specs.
 
 ## Scope fence
 - specs/rework.md
+- tests/test_rework.py
 
 ## Acceptance criteria
 1. `specs/rework.md` names the `## On-demand` fence rule and the exists-on-main rule, and still lints clean under `uv run pytest -q` (`tests/test_specs.py`).
-2. `uv run pytest -q` exits 0.
+2. `test_rework_spec_render_and_driver` in `tests/test_rework.py` passes with version `"1.1"` and the recomputed render hash.
+3. `uv run pytest -q` exits 0.
 
 ## Verification
 ```
@@ -48,7 +51,7 @@ uv run pytest -q
 ## Definition of rejected
 Reject the branch if any of the following holds:
 - the spec exceeds its line limit or fails spec lint;
-- any file other than `specs/rework.md` changes.
+- any file other than `specs/rework.md` and `tests/test_rework.py` changes.
 
 ## Time budget
 - expected: 20m
