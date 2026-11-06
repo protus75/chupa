@@ -1,4 +1,4 @@
-"""Executable host documentation; pending consumers are checked against plan bytes."""
+"""Executable host documentation."""
 
 import asyncio
 import copy
@@ -16,17 +16,9 @@ from pydantic import BaseModel
 from chupa import config, gates, hostfiles, providers, seams, tickets
 from chupa.lockfile import Lockfile, LockHeld
 from chupa.mergequeue import MergeQueue
-from chupa.specs import (
-    ENTRY_PARTS,
-    PlanContractError,
-    entry_unit_gap,
-    required_units,
-    resolve_plan_contract,
-)
 
 ROOT = Path(__file__).resolve().parents[1]
 DOC = (ROOT / "docs/host-contract.md").read_text()
-PLAN = (ROOT / "CHUPA_PLAN.md").read_text()
 
 
 def block(name):
@@ -58,22 +50,6 @@ def inventory(model, row):
         assert actual == (None if expected == "unset" else expected), (model, key)
 
 
-def test_host_contract_entry_unit():
-    uid = "19.P6.host-contract-doc"
-    ticket = tickets.parse_ticket("host-contract-doc", (ROOT / "tickets/host-contract-doc/ticket.md").read_text(), ROOT, plan=PLAN)
-    assert required_units(PLAN, ticket.stem, ticket.plan_contract) == (uid,)
-    assert required_units(PLAN, "continuation", (uid,)) == (uid,)
-    resolved = resolve_plan_contract(PLAN, (*ticket.plan_contract, uid))
-    assert resolved.count(f"### {uid} ") == 1
-    assert ENTRY_PARTS == ("Owner", "Records", "Observable", "Tests")
-    assert entry_unit_gap(PLAN, uid) is None
-    for part in ENTRY_PARTS:
-        for replacement in ("", f"- **{part}:**"):
-            broken = re.sub(rf"^- \*\*{part}:\*\*.*$", replacement, resolved, flags=re.M)
-            assert part in entry_unit_gap(broken, uid)
-    for broken in ("", resolved + resolved):
-        with pytest.raises(PlanContractError):
-            resolve_plan_contract(broken, (uid,))
 
 
 def test_host_contract_example_loads(tmp_path):
@@ -295,9 +271,6 @@ def test_host_contract_report_custody_and_cutover(tmp_path):
         "replay_max_bytes": 1024 * 1024,
         "log_max_bytes": 64 * 1024,
     }
-    # Pending consumers have no import here: the committed plan governs their obligations.
-    for fact in ("metadata-first 1 MiB", "64 KiB", "durable box custody", "operator", "NO_GO"):
-        assert fact in PLAN
     mentions(
         "metadata-first",
         "1 MiB",

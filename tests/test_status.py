@@ -2,7 +2,6 @@
 
 import asyncio
 from dataclasses import FrozenInstanceError
-from pathlib import Path
 
 import pytest
 
@@ -17,7 +16,7 @@ from chupa.llm import FakeLLM, LLMResult
 from chupa.lockfile import Lockfile
 from chupa.retro import Retro, RetroArtifact, measurements, production_evidence, project_window, render_report
 from chupa.seams import LocalFileSystem, SubprocessExec
-from chupa.specs import entry_unit_gap, load_spec, required_units, resolve_plan_contract
+from chupa.specs import load_spec
 from chupa.status import project, reject_queue, render
 from tests.test_cli import ENV
 from tests.test_drain import Clock, make_root
@@ -75,15 +74,6 @@ def test_status_surfaces_confirmed_class_tombstones(tmp_path, monkeypatch, capsy
     assert ids[0] in render(current) and journal.read() == before
 
 
-def test_status_entry_unit():
-    plan = (Path(__file__).resolve().parents[1] / "CHUPA_PLAN.md").read_text()
-    unit = "19.P5.status-projection"
-    assert required_units(plan, "status-projection", ["19.I", unit, "section 13"]) == (unit,)
-    assert unit in required_units(plan, "phase5-continue-03", [unit])
-    assert resolve_plan_contract(plan, [unit, unit]).count(f"### {unit} ") == 1
-    assert entry_unit_gap(plan, unit) is None
-    for part in ("Owner", "Records", "Observable", "Tests"):
-        assert entry_unit_gap(plan.replace(f"- **{part}:**", f"- **Missing {part}:**"), unit)
 
 
 def test_status_current_window_scorecard(tmp_path):

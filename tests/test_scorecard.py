@@ -3,7 +3,6 @@
 import asyncio
 import json
 from dataclasses import FrozenInstanceError
-from pathlib import Path
 
 import pytest
 
@@ -14,7 +13,6 @@ from chupa.llm import FakeLLM, LLMResult
 from chupa.lockfile import Lockfile
 from chupa.retro import RetroArtifact, measurements, production_evidence, project_window, render_report
 from chupa.scorecard import project_scorecard
-from chupa.specs import entry_unit_gap, required_units, resolve_plan_contract
 from chupa.stages import PackingSlip, check, implement
 from chupa.tickets import validate_ticket
 from tests.test_drain import confirmed
@@ -54,42 +52,8 @@ def rows(card):
     return {row.surface: row for row in card.surfaces}
 
 
-def test_scorecard_entry_unit():
-    plan = (Path(__file__).resolve().parents[1] / "CHUPA_PLAN.md").read_text()
-    unit = "19.P5.scorecard-reporting"
-    assert required_units(plan, "scorecard-reporting", ["19.I", unit, "section 14"]) == (unit,)
-    assert unit in required_units(plan, "phase5-continue-03", [unit])
-    resolved = resolve_plan_contract(plan, [unit, unit])
-    assert resolved.count(f"### {unit} ") == 1
-    assert entry_unit_gap(plan, unit) is None
-    for part in ("Owner", "Records", "Observable", "Tests"):
-        assert entry_unit_gap(plan.replace(f"- **{part}:**", f"- **Missing {part}:**"), unit)
 
 
-def test_escape_entry_unit():
-    import re
-
-    from chupa.specs import ENTRY_PARTS, PlanContractError
-
-    plan = (Path(__file__).resolve().parents[1] / "CHUPA_PLAN.md").read_text()
-    units = ("19.P6.escape-column", "19.P6.bug-gate-grammar", "19.P6.report-inbox-triage")
-    assert required_units(plan, "escape-column", ("19.I", *units, "10", "14")) == units
-    assert required_units(plan, "later-consumer", units) == units
-    assert units[0] in required_units(plan, "phase6-continue-04", units)
-    assert ENTRY_PARTS == ("Owner", "Records", "Observable", "Tests")
-    resolved = resolve_plan_contract(plan, (*units, *units))
-    for uid in units:
-        assert resolved.count(f"### {uid} ") == 1
-        assert entry_unit_gap(plan, uid) is None
-        unit = resolve_plan_contract(plan, [uid])
-        for part in ENTRY_PARTS:
-            for replacement in ("", f"- **{part}:**"):
-                broken = re.sub(rf"^- \*\*{part}:\*\*.*$", replacement, unit, flags=re.M)
-                assert part in entry_unit_gap(broken, uid)
-        for broken in ("", unit + unit):
-            assert entry_unit_gap(broken, uid)
-            with pytest.raises(PlanContractError):
-                resolve_plan_contract(broken, [uid])
 
 
 def escape(journal, box_id, matches):

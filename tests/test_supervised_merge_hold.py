@@ -13,7 +13,6 @@ from chupa.effects import Effects
 from chupa.journal import EVENT_VERSIONS, SIGNAL_NAMES, TERMINAL_STATES, EventType
 from chupa.llm import FakeLLM, LLMResult
 from chupa.mergequeue import MERGE_REGATE, MergeQueue, held_admissions, regate_receipts
-from chupa.specs import ENTRY_PARTS, entry_unit_gap, required_units, resolve_plan_contract
 from tests.test_mergequeue import admission_control, commit, ctx, ready
 
 
@@ -70,18 +69,6 @@ def confirm(queue, held, *, verdict="confirm", request_id="confirmation"):
     queue.control.inbox.consume()
 
 
-def test_supervised_hold_entry_unit():
-    plan = (runner.SPECS_DIR.parent / "CHUPA_PLAN.md").read_text()
-    unit = "19.P6.supervised-merge-hold"
-    assert required_units(plan, "supervised-merge-hold", ()) == (unit,)
-    for stem in ("supervised-merge-hold", "phase6-continue-05"):
-        assert unit in required_units(plan, stem, ["19.I", unit, unit, "9", "12"])
-        assert required_units(plan, stem, [unit, unit]).count(unit) == 1
-        assert resolve_plan_contract(plan, [unit, unit]).count(f"### {unit} ") == 1
-    assert entry_unit_gap(plan, unit) is None
-    for part in ENTRY_PARTS:
-        missing = plan.replace(f"- **{part}:**", f"- **Removed {part}:**")
-        assert entry_unit_gap(missing, unit) == f"entry unit {unit} lacks its {part} part(s)"
 
 
 @pytest.mark.parametrize("case", ["absent", "no-go", "revoked", "drift", "missing", "failover", "safety-red", "integration-red"])

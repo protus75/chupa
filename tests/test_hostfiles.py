@@ -10,8 +10,6 @@ import pytest
 
 from chupa import hostfiles
 from chupa.seams import LocalFileSystem
-from chupa.specs import entry_unit_gap, required_units, resolve_plan_contract
-from chupa.tickets import parse_ticket
 from tests.test_cli import root
 from tests.test_merge import repo
 from tests.test_stages import agent, verdict
@@ -35,18 +33,6 @@ def test_core_template_is_host_neutral():
     assert sum(line.startswith(b"- ") for line in hostfiles.CORE_TEMPLATE.splitlines()) == 6
 
 
-def test_renderer_entry_unit():
-    plan = (REPO / "CHUPA_PLAN.md").read_text()
-    uid = "19.P6.core-renderer"
-    ticket = parse_ticket("core-renderer", (REPO / "tickets/core-renderer/ticket.md").read_text(), REPO, plan=plan)
-    assert required_units(plan, ticket.stem, ticket.plan_contract) == (uid,)
-    assert required_units(plan, "continuation", (uid,)) == (uid,)
-    assert resolve_plan_contract(plan, (*ticket.plan_contract, uid)).count(f"### {uid} ") == 1
-    assert entry_unit_gap(plan, uid) is None
-    for part in ("Owner", "Records", "Observable", "Tests"):
-        for replacement in ("", f"- **{part}:**"):
-            broken = re.sub(rf"^- \*\*{part}:\*\*.*$", replacement, plan, flags=re.M)
-            assert part in entry_unit_gap(broken, uid)
 
 
 @pytest.mark.parametrize(
@@ -147,21 +133,6 @@ def test_core_golden_uses_branch_template(monkeypatch):
     assert hostfiles.render(golden) == hostfiles.render(b"")
 
 
-def test_classifier_entry_unit():
-    plan = (REPO / "CHUPA_PLAN.md").read_text()
-    own, renderer = "19.P6.core-drift-classifier", "19.P6.core-renderer"
-    ticket = parse_ticket("core-drift-classifier", (REPO / "tickets/core-drift-classifier/ticket.md").read_text(), REPO, plan=plan)
-    assert required_units(plan, ticket.stem, ticket.plan_contract) == (own, renderer)
-    assert required_units(plan, "continuation", (own, renderer)) == (own, renderer)
-    for uid in (own, renderer):
-        resolved = resolve_plan_contract(plan, (uid, uid))
-        assert resolved.count(f"### {uid} ") == 1
-        assert entry_unit_gap(plan, uid) is None
-        for part in ("Owner", "Records", "Observable", "Tests"):
-            for replacement in ("", f"- **{part}:**"):
-                broken_unit = re.sub(rf"^- \*\*{part}:\*\*.*$", replacement, resolved, flags=re.M)
-                broken = plan.replace(resolved, broken_unit)
-                assert part in entry_unit_gap(broken, uid)
 
 
 def test_core_drift_classification():

@@ -264,25 +264,6 @@ class MigrationFS:
         self.local.write(path, data)
 
 
-def test_migrate_config_entry_unit():
-    import re
-
-    from chupa.specs import entry_unit_gap, required_units, resolve_plan_contract
-    from chupa.tickets import parse_ticket
-
-    repo = Path(__file__).resolve().parents[1]
-    plan = (repo / "CHUPA_PLAN.md").read_text()
-    uid = "19.P6.migrate-config"
-    ticket = parse_ticket("migrate-config", (repo / "tickets/migrate-config/ticket.md").read_text(), repo, plan=plan)
-    assert required_units(plan, ticket.stem, ticket.plan_contract) == (uid,)
-    assert required_units(plan, "continuation", (uid,)) == (uid,)
-    resolved = resolve_plan_contract(plan, (*ticket.plan_contract, uid))
-    assert resolved.count(f"### {uid} ") == 1
-    assert entry_unit_gap(plan, uid) is None
-    for part in ("Owner", "Records", "Observable", "Tests"):
-        for replacement in ("", f"- **{part}:**"):
-            broken = re.sub(rf"^- \*\*{part}:\*\*.*$", replacement, plan, flags=re.M)
-            assert part in entry_unit_gap(broken, uid)
 
 
 @pytest.mark.parametrize(

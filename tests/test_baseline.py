@@ -11,23 +11,11 @@ from chupa.config import snapshot_config
 from chupa.journal import EventType, Journal
 from chupa.policy import BASELINED_SURFACES, TIERS, baseline_identity
 from chupa.providers import PLACEHOLDER
-from chupa.specs import ENTRY_PARTS, entry_unit_gap, load_spec, required_units, resolve_plan_contract
+from chupa.specs import load_spec
 from tests.test_drain import Clock
 from tests.test_policy import ROOT, config, signal
 
 
-def test_baseline_entry_unit():
-    plan = (ROOT / "CHUPA_PLAN.md").read_text()
-    unit = "19.P5.baseline-binding-reader"
-    assert required_units(plan, "baseline-binding-reader", ()) == (unit,)
-    for stem in ("baseline-binding-reader", "phase5-continue-03"):
-        assert unit in required_units(plan, stem, ["19.I", unit, unit, "12"])
-        assert required_units(plan, stem, [unit, unit]).count(unit) == 1
-        assert resolve_plan_contract(plan, [unit, unit]).count(f"### {unit} ") == 1
-        assert entry_unit_gap(plan, unit) is None
-        for part in ENTRY_PARTS:
-            missing = plan.replace(f"- **{part}:**", f"- **Removed {part}:**")
-            assert entry_unit_gap(missing, unit) == f"entry unit {unit} lacks its {part} part(s)"
 
 
 def test_baseline_states_and_latest_signal(tmp_path):

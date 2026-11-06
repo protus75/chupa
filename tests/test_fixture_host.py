@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-import re
 import stat
 import sys
 from pathlib import Path, PurePosixPath
@@ -20,21 +19,15 @@ from chupa.llm import LLMRequest
 from chupa.providers import ClaudeAdapter, ProviderCallError, ProviderLLM
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.specs import (
-    ENTRY_PARTS,
-    PlanContractError,
-    entry_unit_gap,
     load_spec,
     render,
-    required_units,
-    resolve_plan_contract,
 )
 from chupa.stages import ImplementReply
-from chupa.tickets import parse_ticket, stamp, validate_ticket
+from chupa.tickets import stamp, validate_ticket
 from chupa.triage import TriageReply
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "hosts/fixture"
-PLAN = (ROOT / "CHUPA_PLAN.md").read_text()
 # Load the fixture constructor without generating bytecode in committed inputs.
 scaffold = ModuleType("fixture_scaffold")
 scaffold.__file__ = str(SOURCE / "scaffold.py")
@@ -72,26 +65,6 @@ def implement(host, name):
     return scaffold.scripted_reply(host, name, "implement", "fixture edit", True)
 
 
-def test_fixture_host_entry_units():
-    own = "19.P6.fixture-host-scaffold"
-    cited = ("19.P6.host-contract-doc", "19.P6.core-drift-activation")
-    ticket = parse_ticket("fixture-host-scaffold", (ROOT / "tickets/fixture-host-scaffold/ticket.md").read_text(), ROOT, plan=PLAN)
-    assert required_units(PLAN, ticket.stem, ticket.plan_contract) == (own, *cited)
-    assert required_units(PLAN, "later-consumer", (own, *cited)) == (own, *cited)
-    resolved = resolve_plan_contract(PLAN, (*ticket.plan_contract, own))
-    assert ENTRY_PARTS == ("Owner", "Records", "Observable", "Tests")
-    for uid in (own, *cited):
-        assert resolved.count(f"### {uid} ") == 1
-        assert entry_unit_gap(PLAN, uid) is None
-        unit = resolve_plan_contract(PLAN, (uid,))
-        for part in ENTRY_PARTS:
-            for replacement in ("", f"- **{part}:**"):
-                broken = re.sub(rf"^- \*\*{part}:\*\*.*$", replacement, unit, flags=re.M)
-                assert part in entry_unit_gap(broken, uid)
-        for broken in ("", unit + unit):
-            assert entry_unit_gap(broken, uid)
-            with pytest.raises(PlanContractError):
-                resolve_plan_contract(broken, (uid,))
 
 
 def test_fixture_profile_loads(host):

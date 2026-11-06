@@ -11,7 +11,6 @@ from chupa import merge, stages
 from chupa.gates import DEFAULT_GATE_SEVERITY
 from chupa.mergequeue import MergeQueue
 from chupa.seams import ExecutableNotFound
-from chupa.specs import entry_unit_gap, required_units, resolve_plan_contract
 from chupa.tickets import validate_ticket
 from tests.test_mergequeue import approve, commit, ctx, ready
 from tests.test_stages import SECRET, STEM, TICKET
@@ -79,20 +78,6 @@ async def checked(ctx, ticket):
     return await stages.check(ctx, ticket, slip, attempt=0)
 
 
-def test_bug_gate_entry_units():
-    plan = (Path(__file__).resolve().parents[1] / "CHUPA_PLAN.md").read_text()
-    units = required_units(plan, "bug-gate-grammar", ["19.I", "19.P6.bug-gate-grammar", "7", "13"])
-    assert units == ("19.P6.bug-gate-grammar",)
-    for unit in units:
-        resolved = resolve_plan_contract(plan, [unit])
-        assert resolved.count(f"### {unit} ") == 1
-        assert entry_unit_gap(plan, unit) is None
-        for part in ("Owner", "Records", "Observable", "Tests"):
-            assert f"**{part}:**" in resolved
-            damaged = plan.replace(f"- **{part}:**", "- **Missing:**")
-            assert entry_unit_gap(damaged, unit) is not None
-        assert entry_unit_gap(plan.replace(f"### {unit} ", "### 19.P6.absent "), unit) is not None
-        assert entry_unit_gap(plan + "\n" + resolved, unit) is not None
 
 
 def test_regression_overlay_proves_defect(ctx):

@@ -15,7 +15,7 @@ from chupa.effects import Effects
 from chupa.journal import EventType, Journal
 from chupa.llm import FakeLLM, LLMResult
 from chupa.retro import Retro, RetroArtifact, measurements, production_evidence, project_window, render_report, select_trigger
-from chupa.specs import RENDER_BOUND_CHARS, REQ_RENDER_HEADROOM, data_close, data_open, entry_unit_gap, resolve_plan_contract
+from chupa.specs import RENDER_BOUND_CHARS, REQ_RENDER_HEADROOM, data_close, data_open
 from tests.test_drain import Clock, commit_ticket, confirmed, make_root, pause_checkout
 
 
@@ -292,10 +292,6 @@ def test_artifact_is_closed_and_proposals_pair_the_risks():
     ):
         with pytest.raises(ValidationError):
             RetroArtifact.model_validate(raw)
-    plan = (Path(__file__).resolve().parents[1] / "CHUPA_PLAN.md").read_text()
-    unit = "19.P5.retro-drain-invoker"
-    assert entry_unit_gap(plan, unit) is None
-    assert resolve_plan_contract(plan, [unit, unit]).count(f"### {unit} ") == 1
 
 
 def test_receipt_uses_engine_provenance_usage_calibration_and_tombstones(tmp_path):

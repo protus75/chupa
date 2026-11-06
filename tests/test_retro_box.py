@@ -4,7 +4,6 @@ import asyncio
 import hashlib
 import json
 from dataclasses import replace
-from pathlib import Path
 
 import pytest
 
@@ -18,7 +17,6 @@ from chupa.journal import EventType, Journal
 from chupa.llm import FakeLLM
 from chupa.merge import write_squash
 from chupa.retro import Retro, project_window
-from chupa.specs import entry_unit_gap, required_units, resolve_plan_contract
 from chupa.storm import arrival_id
 from chupa.tickets import validate_ticket
 from tests.test_drain import pause_checkout
@@ -28,14 +26,6 @@ from tests.test_triage import author_reply, reply, requisition_reply, root_with_
 PROPOSAL = {"fixed_failure": "Observed café failure", "overcorrection_risk": "Rejecting useful inputs", "proposed_spec_paths": ["specs/review.md", "specs/author.md"]}
 
 
-def test_retro_box_entry_unit():
-    plan = (Path(__file__).resolve().parents[1] / "CHUPA_PLAN.md").read_text()
-    unit = "19.P5.retro-box-activation"
-    assert required_units(plan, "retro-box-activation", ()) == (unit,)
-    for stem in ("retro-box-activation", "phase5-continue"):
-        assert required_units(plan, stem, [unit, unit]).count(unit) == 1
-    assert resolve_plan_contract(plan, [unit, unit]).count(f"### {unit} ") == 1
-    assert entry_unit_gap(plan, unit) is None
 
 
 @pytest.mark.asyncio

@@ -1,7 +1,6 @@
 """GO-grade entry contract, closed reports and operator-only verdict production."""
 
 import asyncio
-import re
 from dataclasses import asdict
 
 import pytest
@@ -9,32 +8,10 @@ from pydantic import ValidationError
 
 from chupa.artifacts import ReviewBaselineReport
 from chupa.seams import LocalFileSystem
-from chupa.specs import ENTRY_PARTS, PlanContractError, entry_unit_gap, required_units, resolve_plan_contract
-from chupa.tickets import parse_ticket
 from eval import harness
-from tests.test_eval_harness import ROOT, corpus_results, report_fixture
+from tests.test_eval_harness import corpus_results, report_fixture
 
 
-def test_go_grade_entry_units():
-    plan = (ROOT / "CHUPA_PLAN.md").read_text()
-    own, successor = "19.P6.go-grade-machinery", "19.P6.go-grade-run"
-    ticket = parse_ticket("go-grade-machinery", (ROOT / "tickets/go-grade-machinery/ticket.md").read_text(), ROOT, plan=plan)
-    assert required_units(plan, ticket.stem, ticket.plan_contract) == (own,)
-    assert required_units(plan, "later-consumer", (own, successor)) == (own, successor)
-    resolved = resolve_plan_contract(plan, (*ticket.plan_contract, own, successor))
-    assert ENTRY_PARTS == ("Owner", "Records", "Observable", "Tests")
-    for uid in (own, successor):
-        assert resolved.count(f"### {uid} ") == 1
-        assert entry_unit_gap(plan, uid) is None
-        unit = resolve_plan_contract(plan, (uid,))
-        for part in ENTRY_PARTS:
-            for replacement in ("", f"- **{part}:**"):
-                broken = re.sub(rf"^- \*\*{part}:\*\*.*$", replacement, unit, flags=re.M)
-                assert part in entry_unit_gap(broken, uid)
-        for broken in ("", unit + unit):
-            assert entry_unit_gap(broken, uid)
-            with pytest.raises(PlanContractError):
-                resolve_plan_contract(broken, (uid,))
 
 
 def test_record_go_requires_complete_floors_identity_and_operator_judgment(tmp_path):

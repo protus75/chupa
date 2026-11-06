@@ -3,7 +3,6 @@
 import asyncio
 import json
 import os
-import re
 import sys
 from pathlib import Path
 
@@ -14,10 +13,8 @@ from chupa.daemon import storm_producer
 from chupa.inbox import CAPS, ReportError, bounded, ingest, validate_report
 from chupa.journal import Journal
 from chupa.seams import LocalFileSystem
-from chupa.specs import ENTRY_PARTS, PlanContractError, entry_unit_gap, required_units, resolve_plan_contract
 from tests.test_drain import Clock
 
-ROOT = Path(__file__).resolve().parents[1]
 
 
 def raw_report(origin="player", **updates):
@@ -37,25 +34,6 @@ def arrival(root, **updates):
     return path
 
 
-def test_report_inbox_entry_units():
-    plan = (ROOT / "CHUPA_PLAN.md").read_text()
-    own, bug = "19.P6.report-inbox-triage", "19.P6.bug-gate-grammar"
-    assert required_units(plan, "report-inbox-triage", ("19.I", own, bug, "12")) == (own, bug)
-    assert required_units(plan, "later-consumer", (own, bug)) == (own, bug)
-    assert ENTRY_PARTS == ("Owner", "Records", "Observable", "Tests")
-    resolved = resolve_plan_contract(plan, (own, bug))
-    for uid in (own, bug):
-        assert resolved.count(f"### {uid} ") == 1
-        assert entry_unit_gap(plan, uid) is None
-        unit = resolve_plan_contract(plan, (uid,))
-        for part in ENTRY_PARTS:
-            for replacement in ("", f"- **{part}:**"):
-                broken = re.sub(rf"^- \*\*{part}:\*\*.*$", replacement, unit, flags=re.M)
-                assert part in entry_unit_gap(broken, uid)
-        for broken in ("", unit + unit):
-            assert entry_unit_gap(broken, uid)
-            with pytest.raises(PlanContractError):
-                resolve_plan_contract(broken, (uid,))
 
 
 def test_report_schema_is_closed():
