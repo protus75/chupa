@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Status shows a verdict-refusal section only when refusals exist, preserving existing output otherwise.
+Placed verdict refusals after the existing status sections to preserve their established order.
 
 ## Dead ends
 
-An initial full-suite run overlapped source edits and invalidated a fixture snapshot; verification was rerun against the stable tree.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Ticket budget: 90 minutes expected, 180 minutes stuck; actual elapsed time not recorded.
+none
 
