@@ -1,13 +1,9 @@
 :root {
-	--chupa-merged: #c3a6f5;
-	--chupa-queued: #8cc8ff;
-	--chupa-blocked: #ffb870;
-}
-
-body.vscode-light {
-	--chupa-merged: #8f63d6;
-	--chupa-queued: #2f86d1;
-	--chupa-blocked: #d9771c;
+	/* chupa.* theme colors (package.json `colors`) default to the SCM graph's ref colors; the fallbacks cover a
+	   VS Code that does not resolve them. Override per theme in workbench.colorCustomizations. */
+	--chupa-merged: var(--vscode-chupa-merged, var(--vscode-scmGraph-historyItemRemoteRefColor, #B180D7));
+	--chupa-queued: var(--vscode-chupa-queued, var(--vscode-scmGraph-historyItemRefColor, #3794FF));
+	--chupa-blocked: var(--vscode-chupa-blocked, var(--vscode-scmGraph-historyItemBaseRefColor, #EA5C00));
 }
 
 html, body {

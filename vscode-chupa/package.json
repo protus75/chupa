@@ -2,7 +2,7 @@
 	"name": "vscode-chupa",
 	"displayName": "chupa tickets",
 	"description": "chupa's tickets as an SCM-style dependency graph: blocked, queued, running, merged.",
-	"version": "0.0.8",
+	"version": "0.0.9",
 	"publisher": "chupa",
 	"license": "MIT",
 	"engines": {
@@ -225,6 +225,38 @@
 					"when": "false"
 				}
 			]
-		}
+		},
+		"colors": [
+			{
+				"id": "chupa.merged",
+				"description": "chupa tickets view: merged tickets. Defaults to the SCM graph's historyItemRemoteRefColor color.",
+				"defaults": {
+					"dark": "scmGraph.historyItemRemoteRefColor",
+					"light": "scmGraph.historyItemRemoteRefColor",
+					"highContrast": "scmGraph.historyItemRemoteRefColor",
+					"highContrastLight": "scmGraph.historyItemRemoteRefColor"
+				}
+			},
+			{
+				"id": "chupa.queued",
+				"description": "chupa tickets view: queued and running tickets. Defaults to the SCM graph's historyItemRefColor color.",
+				"defaults": {
+					"dark": "scmGraph.historyItemRefColor",
+					"light": "scmGraph.historyItemRefColor",
+					"highContrast": "scmGraph.historyItemRefColor",
+					"highContrastLight": "scmGraph.historyItemRefColor"
+				}
+			},
+			{
+				"id": "chupa.blocked",
+				"description": "chupa tickets view: blocked tickets. Defaults to the SCM graph's historyItemBaseRefColor color.",
+				"defaults": {
+					"dark": "scmGraph.historyItemBaseRefColor",
+					"light": "scmGraph.historyItemBaseRefColor",
+					"highContrast": "scmGraph.historyItemBaseRefColor",
+					"highContrastLight": "scmGraph.historyItemBaseRefColor"
+				}
+			}
+		]
 	}
 }
