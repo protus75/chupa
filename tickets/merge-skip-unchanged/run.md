@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The focused verification command and the Check-to-Review invariant test pass, but tests/test_daemon_composition.py::test_composed_merge_queue_admits_reviewed_candidate fails under the required behavior. The implementation remains uncommitted.
+The focused verification passed, and the Check-to-Review invariant passed. Direct verification of the out-of-scope tests produced nine failures. The implementation remains uncommitted.
 
 ## Dead ends
 
-The full suite exposed a rerun-dependent test outside the permitted files; changing the shared fixture globally would alter unrelated test scenarios.
+The full suite exposed rerun-dependent assertions in files outside the scope fence; changing those scenarios requires edits the ticket does not permit.
 
 ## Second problems filed
 
