@@ -1,5 +1,5 @@
 ---
-priority: P1
+priority: P0
 kind: chore
 source: human
 state: confirmed
