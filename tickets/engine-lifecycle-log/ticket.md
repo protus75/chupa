@@ -19,7 +19,6 @@ none
 - tests/test_drain.py
 - tests/test_serve.py
 - tests/test_watch.py
-- docs/how-chupa-works.md
 
 ## Goal / Why
 Nothing records when a drain or serve starts or stops. The engine log holds only stage and model-call events, and the journal records only a self-upgrade handoff. `./dev.py watch`'s "Recent steps" and the `vscode-chupa` Recent Steps view therefore cannot show when the engine ran. A drain killed by a VS Code window reload (2026-11-06) left no trace of its end at all.
