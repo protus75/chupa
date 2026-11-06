@@ -19,7 +19,7 @@ from chupa.flake import Flake
 from chupa.git import Git
 from chupa.heartbeat import Heartbeat
 from chupa.journal import EventType, Journal
-from chupa.merge import AdmissionBoundary, Held
+from chupa.merge import AdmissionBoundary
 from chupa.mergequeue import ConflictHandoff, MergeQueue
 from chupa.restart import Restart
 from chupa.rework import ReworkOrder, record_supersedes, rework
@@ -455,17 +455,13 @@ class TicketWriter:
             self.active = False
             boundary.run, boundary.ticket, boundary.next_stage = None, None, None
 
-    async def consume_result(self, ticket: Ticket, result: StageResult | ConflictHandoff | Held, *, attempt: int) -> None:
+    async def consume_result(self, ticket: Ticket, result: StageResult | ConflictHandoff, *, attempt: int) -> None:
         """Deliver the producing run's result; predecessor offers retain their existing custody."""
         if self.admission.deliver(ticket, attempt, result):
             return
-        if isinstance(result, Held):
-            return
         if isinstance(result, ConflictHandoff):
-            self.queue.held.pop(ticket.stem, None)
             await self.consume_handoff(ticket, result, attempt=attempt)
         elif result.outcome != "ok":
-            self.queue.held.pop(ticket.stem, None)
             await runner.harvest_failure(self.ctx, ticket, attempt=attempt, stage="merge", outcome=result.outcome, findings=result.findings, results=(result,))
             await runner.failure_terminal(self.ctx, ticket, attempt=attempt, stage="merge", outcome=result.outcome, findings=result.findings)
 

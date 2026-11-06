@@ -13,10 +13,9 @@ from chupa.artifacts import HOST_LOOP_EXPECTED, HOST_LOOP_MEMBERS, ExitReceipt, 
 from chupa.audit import audit_journal
 from chupa.box import Box
 from chupa.config import load_config
-from chupa.control import AdmissionRequest, ControlRequest, decisions, publish_request, read_active, releases
+from chupa.control import AdmissionRequest, ControlRequest, decisions, publish_request, read_active
 from chupa.git import Git, GitError
 from chupa.journal import TERMINAL_STATES, EventType, Journal
-from chupa.mergequeue import held_admissions
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.stages import Invoice, read_review
 from hosts.fixture import scaffold
@@ -115,9 +114,7 @@ class FixtureLoop:
     def confirm(self):
         state = self.root / ".chupa/state"
         lifecycle, _ = read_active(state, Path.read_bytes)
-        events = self.journal.read()
-        held = held_admissions(events)
-        candidates = [(stem, hold) for stem, (hold, _) in held.items()]
+        candidates = []
         for path in (self.root / "tickets").glob("*/ticket.md"):
             if "state: draft" in path.read_text():
                 candidates.append((path.parent.name, None))
@@ -240,10 +237,9 @@ class FixtureLoop:
         self.need(not edits, "engine-plane edits: " + ", ".join(edits))
         accepted = [e.body for e in decisions(events) if e.body["decision"] == "accepted" and e.body.get("stem") == stem and e.body.get("verb") == "confirm"]
         self.need(
-            any(b["hold_id"] is None and b["actor"] == "machine" for b in accepted) and any(b["hold_id"] is not None and b["actor"] == "machine" for b in accepted),
-            "machine draft and held confirmations missing",
+            any(b["hold_id"] is None and b["actor"] == "machine" for b in accepted),
+            "machine draft confirmation missing",
         )
-        self.need(any(r["stem"] == stem and r["actor"] == "machine" for r in releases(events).values()), "identity-bound release completion missing")
         self.need(not any(e.body.get("signal") in ("review_baseline", "reject_verdict") for e in events), "fixture recorded GO or re-armed caps")
         member = HOST_LOOP_MEMBERS[0]
         if stem == "regression":

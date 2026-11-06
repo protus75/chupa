@@ -20,7 +20,7 @@ from chupa.driver import LlmStage
 from chupa.journal import EventType, run_seq
 from chupa.llm import HANG, FakeLLM
 from chupa.lockfile import Lockfile, LockHeld
-from chupa.merge import Admission, Held
+from chupa.merge import Admission
 from chupa.mergequeue import CONFLICT_FACTS, RED_STREAK, TREE_MISMATCH, MergeQueue, TreeMismatch
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.stages import Invoice, PackingSlip
@@ -36,14 +36,6 @@ async def until(rig, predicate):
     deadline = time.monotonic() + 60
     n = 0
     while time.monotonic() < deadline:
-        if getattr(rig, "fixture_confirm", False):
-            from chupa.control import AdmissionRequest
-            from chupa.mergequeue import held_admissions
-
-            for stem, (hold, receipt) in held_admissions(rig.journal.read()).items():
-                request = AdmissionRequest(f"fixture-{stem}-{receipt['attempt']}", rig.owner.control.inbox.lifecycle_id, "confirm", stem, hold, "operator")
-                if not (rig.checkout.config.state_dir / f"control/inbox/{request.request_id}.json").exists():
-                    publish_request(rig.checkout.config.state_dir, request, rig.fs)
         if predicate():
             return
         if n % 20 == 0:
@@ -979,7 +971,7 @@ async def admission_graph(root, monkeypatch, changes, *, endings=None, settled=N
     async def consumed(writer, ticket, result, *, attempt):
         live = (ticket.stem, attempt) in writer.admission.results
         await consume(writer, ticket, result, attempt=attempt)
-        if not live and not isinstance(result, Held):
+        if not live:
             terminal = terminals(rig, ticket.stem)[-1].body["to"]
             returns.append((ticket.stem, terminal))
 
@@ -1008,50 +1000,6 @@ async def start_admission(rig, monkeypatch):
     run = asyncio.create_task(serve.serve(rig.checkout, plan=PLAN, prepare=rig.prepare))
     await until(rig, lambda: rig.owner.ready.is_set())
     return run
-
-
-@pytest.mark.asyncio
-async def test_supervised_hold_allows_other_work(root, monkeypatch):
-    from chupa.control import AdmissionRequest
-    from chupa.mergequeue import held_admissions
-
-    changes = {stem: {f"chupa/{stem}.py": "ok\n"} for stem in ("a-held", "b-other", "c-next")}
-    rig = await admission_graph(root, monkeypatch, changes)
-    rig.fixture_confirm = False
-    for stem in changes:
-        admission_ticket(root, stem, paths=(f"chupa/{stem}.py",))
-    run = await start_admission(rig, monkeypatch)
-    try:
-        await until(rig, lambda: len(rig.held_returns) == 2 and rig.owner.core.admission.active is None)
-        assert rig.held_returns == [("a-held", "running"), ("b-other", "running")]
-        assert rig.owner.core.admission.active is None and not rig.owner.queue.pending
-        assert rig.owner.core.scheduler.completed_unmerged() == 2
-        assert not any(r.ticket == "c-next" for m in rig.models for r in m.requests)
-        heartbeats = []
-        written = rig.fs.write
-
-        def observe_heartbeat(path, data):
-            written(path, data)
-            if path == rig.checkout.config.state_dir / "heartbeat":
-                heartbeats.append(rig.time())
-
-        monkeypatch.setattr(rig.fs, "write", observe_heartbeat)
-        rig.owner.box.enqueue(message_class="suggestion", origin="operator", stage=None, outcome=None, summary="bounded fixture decision", occurrence_id="held-triage")
-        await until(rig, lambda: not rig.owner.box.pending() and bool(heartbeats))
-        request(rig, "pause", "held-pause")
-        await until(rig, lambda: rig.owner.control.projection.pause_id == "held-pause")
-        request(rig, "resume", "held-resume", hold="held-pause")
-        await until(rig, lambda: rig.owner.control.projection.pause_id is None)
-        identity = held_admissions(rig.journal.read())["b-other"][0]
-        publish_request(rig.checkout.config.state_dir, AdmissionRequest("confirm-other", rig.owner.control.inbox.lifecycle_id, "confirm", "b-other", identity, "operator"), rig.fs)
-        await until(rig, lambda: ("b-other", "merged") in rig.returns and len(rig.held_returns) == 3)
-        assert not terminals(rig, "a-held") and not terminals(rig, "c-next")
-        assert (root / "chupa/b-other.py").read_text() == "ok\n" and not (root / "chupa/a-held.py").exists()
-        assert rig.owner.core.scheduler.completed_unmerged() == 2
-        assert [r.surface for m in rig.models for r in m.requests if r.ticket == "a-held"] == ["implement", "review"]
-        assert (root / "tickets/a-held/checks.json").is_file() and rig.owner.responses[2].responsive()
-    finally:
-        await finish(rig, run)
 
 
 @pytest.mark.asyncio
@@ -1094,7 +1042,6 @@ async def test_serve_routes_settled_run_to_composed_queue_once(root, monkeypatch
         [terminal] = terminals(rig, "work")
         if ending == "ok":
             assert rig.returns == [("work", "merged")] and isinstance(results[-1].artifact, Admission)
-            assert rig.held_returns == [("work", "running")]
             assert terminal.body["commit"] == results[-1].artifact.commit
             assert await rig.checkout.git.rev_parse(root, "main") == results[-1].artifact.commit
         else:
@@ -1155,7 +1102,7 @@ async def test_serve_admission_rebases_regates_and_retires(root, monkeypatch):
         await until(rig, lambda: ("dependent", "merged") in rig.returns)
         assert rig.returns == [("work", "gate_failed"), ("work", "merged"), ("dependent", "merged")]
         assert trace == ["gather_safety_evidence", "gather_evidence", "gather_safety_evidence"]
-        assert trees[:3] == [("HEAD^{tree}", trees[0][1]), ("HEAD^{tree}", trees[0][1]), ("main^{tree}", trees[0][1])]
+        assert trees[:2] == [("HEAD^{tree}", trees[0][1]), ("main^{tree}", trees[0][1])]
         [merged] = [e for e in terminals(rig, "work") if e.body.get("to") == "merged"]
         assert merged.body == {"to": "merged", "commit": merged.body["commit"], "reviewed_sha": rig.pinned}
         assert merged.key is None
@@ -1559,7 +1506,7 @@ async def test_serve_conflict_handoff_runs_after_admission_unwinds(root, monkeyp
         }
         [terminal] = terminals(rig, "work")
         if resolution == "mechanical":
-            assert rig.returns == [("work", "merged")] and chronology == ["unwind", "unwind"]
+            assert rig.returns == [("work", "merged")] and chronology == ["unwind"]
             assert (root / "chupa/generated.txt").read_text() == "base\nmain\nbranch\n"
             assert gates == [
                 "scope_fence",

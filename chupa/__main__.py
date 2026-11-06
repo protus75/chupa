@@ -542,17 +542,12 @@ async def _control(checkout: runner.Checkout, verb: str) -> int:
 
 
 async def _verdict(checkout, stem, verb, read_input):
-    from chupa.mergequeue import held_admissions
-
     if findings := stem_findings(stem):
         raise runner.Refusal(findings[0].message, findings[0].paved_road)
     history = checkout.journal.read()
-    held = held_admissions(history).get(stem)
     queued = reject_queue(history).get(stem)
     path = checkout.repo / ticket_path(stem)
-    if held is not None:
-        preview = "held admission"
-    elif queued is not None:
+    if queued is not None:
         preview = f"Reject queue: {queued.get('to', 'unknown')} -- {queued.get('reason', 'reason unavailable')}"
     elif path.is_file():
         split = split_frontmatter(path.read_text())
@@ -570,20 +565,19 @@ async def _verdict(checkout, stem, verb, read_input):
     if answer.strip().lower() not in {"y", "yes"}:
         print("verdict aborted")
         return 1
-    if held is None:
-        try:
-            return await runner.verdict(stem, checkout, kill=verb == "reject")
-        except LockHeld:
-            if verb != "confirm" or not runner.committed_draft(checkout, stem):
-                raise
-            text = await checkout.git._run(checkout.repo, "show", f"main:{ticket_path(stem)}")
-            if validate_ticket(stem, text, checkout.repo).frontmatter.state != "draft":
-                raise runner.Refusal("no committed draft", "restore the committed draft before confirming")
+    try:
+        return await runner.verdict(stem, checkout, kill=verb == "reject")
+    except LockHeld:
+        if verb != "confirm" or not runner.committed_draft(checkout, stem):
+            raise
+        text = await checkout.git._run(checkout.repo, "show", f"main:{ticket_path(stem)}")
+        if validate_ticket(stem, text, checkout.repo).frontmatter.state != "draft":
+            raise runner.Refusal("no committed draft", "restore the committed draft before confirming")
     try:
         lifecycle, _ = control.read_active(checkout.config.state_dir, Path.read_bytes)
     except ValueError as exc:
         raise runner.Refusal("current control identity unavailable", str(exc)) from exc
-    request = control.AdmissionRequest(uuid4().hex, lifecycle, verb, stem, held[0] if held else None, "operator")
+    request = control.AdmissionRequest(uuid4().hex, lifecycle, verb, stem, None, "operator")
     control.publish_request(checkout.config.state_dir, request, checkout.fs)
     print(f"{verb} submitted: {request.request_id}")
     return 0

@@ -78,7 +78,7 @@ async def test_daemon_soak_runs_production_serve(tmp_path, monkeypatch):
     assert all(e.green for e in report.entries)
     assert len(built) == 4  # One interrupted worker lifetime, its restart, and two fault members.
     assert [(stem, attempt) for _, stem, attempt in offers] == [("worker", 1), ("mechanical", 0), ("unresolved", 0), ("unresolved", 1), ("semantic", 0)]
-    assert consumed == [("worker", 1), ("worker", 1), ("mechanical", 0), ("mechanical", 0), ("unresolved", 0), ("unresolved", 1), ("unresolved", 1), ("semantic", 0)]
+    assert consumed == [("worker", 1), ("mechanical", 0), ("unresolved", 0), ("unresolved", 1), ("semantic", 0)]
     assert all(len(o.workers) == 4 and all(t.done() for t in o.workers) for o in built)
 
 
@@ -153,7 +153,6 @@ def test_daemon_soak_semantic_red_preserves_main(evidence):
 
 @pytest.mark.asyncio(loop_scope="module")
 async def test_soak_uses_candidate_base_regate_receipt(evidence):
-    from chupa.control import releases
     from chupa.mergequeue import regate_receipts
 
     report, members = evidence
@@ -161,9 +160,8 @@ async def test_soak_uses_candidate_base_regate_receipt(evidence):
     for member in members:
         receipts = regate_receipts(member.journal.read())
         for key, receipt in receipts.items():
-            assert receipt["admission"] == "HELD" and receipt["reason"] == "go_absent"
             assert (receipt["review_provider"], receipt["review_model"]) == ("claude", "script")
-            assert releases(member.journal.read())[key]["actor"] == "operator"
+            assert receipt["admission"] == "READY" and receipt["reason"] == "bootstrap"
             assert not any(e.type == EventType.CAP_CONSUMED and e.ticket == receipt["stem"] and e.body.get("cap") == "retry" for e in member.journal.read())
         assert audit_journal(member.journal) == []
     member = members[1]

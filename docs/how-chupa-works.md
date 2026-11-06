@@ -52,7 +52,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `retro` | yes | Forces a retro report (section 9.5). |
 | `triage` | yes | One sequential pass over pending Suggestion Box messages (section 9.2). |
 | `pause` / `resume` / `kill` | try | With a running engine, publish a control request to it (section 7.3). With none: `kill` refuses (exit 2); `pause`/`resume` print "nothing running". |
-| `confirm <stem>` | yes | A person at a terminal answers `y` to keep: promotes a draft to confirmed, keeps a Reject-queue item, or releases a held merge (section 6.6). |
+| `confirm <stem>` | yes | A person at a terminal answers `y` to keep: promotes a draft to confirmed, keeps a Reject-queue item (section 6.6). |
 | `reject <stem>` | yes | A person at a terminal answers `y` to kill: stamps the ticket `rejected` (section 6.6). Refuses settled stems. |
 
 ### 2.2 `./dev.py`
@@ -412,14 +412,14 @@ releases the lock, and re-executes itself so the new engine code runs the rest o
 
 ### 7.2 `serve`
 
-The continuous daemon. On start it takes the lock, reconciles, rebuilds held merges and timers,
+The continuous daemon. On start it takes the lock, reconciles and rebuilds timers,
 publishes `state_dir/control/active.json`, and runs four loops (every 0.1s):
 
 - **Watcher:** runs intake and re-reads tickets, debounced; a ticket that fails to parse keeps
   its last good version.
 - **Dispatch:** the scheduler runs one ticket at a time. It waits while
   `scheduler.max_unmerged` (default 2) finished tickets are waiting to merge, while paused, or
-  while a stem is held (Reject queue, storm, drought, held merge). Among eligible tickets,
+  while a stem is held (Reject queue, storm, drought). Among eligible tickets,
   `## Runs before` orders named stems after the ticket naming them; priority, authored age,
   and stem break ties. Edges to ineligible stems never block dispatch.
 - **Merge queue:** serial admission (section 7.2.1).
@@ -444,10 +444,7 @@ For each candidate, in pick order:
 3. **Integration tier:** all Check and Merge gates, plus host `always` + `hard` checks through the shared runner also used by Check and inline merge.
 4. **Red streak:** three different stems failing integration in a row pause the queue; `resume`
    with the advertised hold releases it.
-5. **Supervision:** unless the configured review model is covered by a recorded GO baseline
-   (section 9.6), a green candidate is HELD for the operator's `confirm <stem>` instead of
-   merging.
-6. Squash-merge as in section 4.5, and verify `main`'s tree equals the checked tree.
+5. Squash-merge as in section 4.5, and verify `main`'s tree equals the checked tree.
 
 ### 7.3 Control
 
@@ -572,7 +569,7 @@ scorecard, proposals) and files each proposal as a `retro_finding`.
   a surface with 25+ evaluations and no catch as a prune candidate.
 - The **review baseline** is a GO / NO_GO verdict recorded by the eval harness
   (`eval/harness.py`). GO counts only while the recorded review and author models and spec
-  versions still match the config. It gates Author starting state and `serve` merge supervision.
+  versions still match the config. It gates Author starting state only.
 
 ## 10. State on disk
 

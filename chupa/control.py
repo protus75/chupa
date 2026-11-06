@@ -7,13 +7,11 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal
 
-from chupa.effects import Effects
 from chupa.journal import Event, EventType, Journal
 from chupa.seams import FileSystem
 from chupa.tickets import stem_findings
 
 CONTROL_DECISION = "control_decision"
-MERGE_RELEASE = "merge-release"
 Verb = Literal["pause", "resume", "kill"]
 _ID = re.compile(r"[A-Za-z0-9_-]+", re.ASCII)
 _SHAPE = (
@@ -23,9 +21,9 @@ _SHAPE = (
     "for resume read the current hold and submit its exact nonempty identity"
 )
 _ADMISSION_SHAPE = (
-    "read the current admission and publish a fresh matching confirm | reject request "
+    "publish a fresh committed draft confirm request "
     "with exactly {request_id, lifecycle_id, verb, stem, hold_id, actor}; "
-    "actor is operator | machine and only a committed draft confirm has null hold_id"
+    "actor is operator | machine and hold_id is null"
 )
 
 
@@ -177,7 +175,6 @@ class ControlInbox:
         self.journal, self.lifecycle_id = journal, lifecycle_id
         self.holds, self.apply, self.files, self.read = holds, apply, files, read
         self._applied: ControlProjection | None = None
-        self.admissions: Callable[[], dict[str, str]] = lambda: {}
         self.draft: Callable[[str], bool] = lambda _: False
 
     def _fold(self) -> tuple[set[str], ControlProjection, bool]:
@@ -237,12 +234,10 @@ class ControlInbox:
                 if request.lifecycle_id != self.lifecycle_id:
                     body.update(decision="stale", reason="read the current lifecycle and submit a new request")
                 elif isinstance(request, AdmissionRequest):
-                    prior = [e.body for e in decisions(self.journal.read()) if e.body["decision"] == "accepted" and e.body.get("verb") in ("confirm", "reject")]
-                    matched = self.admissions().get(request.stem) == request.hold_id if request.hold_id is not None else self.draft(request.stem)
-                    duplicate = request.hold_id is not None and any(b["hold_id"] == request.hold_id and b["stem"] == request.stem for b in prior)
+                    matched = request.verb == "confirm" and request.hold_id is None and self.draft(request.stem)
                     body.update(
-                        decision="accepted" if matched and not duplicate else "stale",
-                        reason="matching admission" if matched and not duplicate else "read the current admission and publish a fresh matching request",
+                        decision="accepted" if matched else "stale",
+                        reason="matching admission" if matched else "read the current admission and publish a fresh matching request",
                     )
                 elif request.verb == "resume" and request.hold_id not in live_holds:
                     body.update(decision="stale", reason="read the current hold and submit a new request")
@@ -259,58 +254,12 @@ class ControlInbox:
             body = event.body
             if body["decision"] != "accepted" or body["verb"] not in ("confirm", "reject"):
                 continue
-            if body["hold_id"] is None:
-                key = f"ticket-plane/{body['stem']}/confirmed/{body['request_id']}"
-                completed = [e.body["result"] for e in self.journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key == key]
-                if not completed or not any(e.ticket == body["stem"] and e.body.get("signal") == "draft_confirmed" and e.body.get("commit") == completed[0]["commit"] for e in self.journal.read()):
-                    await draft_confirm(body["stem"], body["request_id"])
+            if body["hold_id"] is not None:
                 continue
-            hold = body["hold_id"]
-            result = {k: body[k] for k in ("stem", "hold_id", "request_id", "lifecycle_id", "actor")}
-            result.update(attempt=int(hold.split("/")[2]), verdict=body["verb"])
-
-            async def complete(result=result):
-                return result
-
-            await Effects(self.journal).run(complete, key=f"{MERGE_RELEASE}/{hold}/{body['request_id']}", ticket=body["stem"])
-
-
-def releases(events: Iterable[Event]) -> dict[str, dict]:
-    from chupa.mergequeue import regate_receipts
-
-    events = tuple(events)
-    receipts = regate_receipts(events)
-    accepted = {e.body["request_id"]: e.body for e in decisions(events) if e.body["decision"] == "accepted" and e.body["verb"] in ("confirm", "reject")}
-    result = {}
-    road = "restore matching control decision and release evidence before retrying admission"
-    for event in events:
-        if event.type != EventType.EFFECT_COMPLETION or not (event.key or "").startswith(MERGE_RELEASE + "/"):
-            continue
-        value = event.body.get("result")
-        if not isinstance(value, dict) or set(value) != {"stem", "attempt", "hold_id", "request_id", "lifecycle_id", "verdict", "actor"}:
-            raise ValueError(road)
-        decision = accepted.get(value["request_id"])
-        hold = value["hold_id"]
-        if (
-            decision is None
-            or hold is None
-            or not isinstance(hold, str)
-            or hold not in receipts
-            or receipts[hold]["admission"] != "HELD"
-            or event.ticket != value["stem"]
-            or event.key != f"{MERGE_RELEASE}/{hold}/{value['request_id']}"
-            or any(value[k] != decision[k] for k in ("stem", "hold_id", "request_id", "lifecycle_id", "actor"))
-            or value["verdict"] != decision["verb"]
-            or type(value["attempt"]) is not int
-            or not re.fullmatch(r"merge-regate/[^/]+/[0-9]+/[0-9a-f]{40}/[0-9a-f]{40}", hold)
-            or value["attempt"] != int(hold.split("/")[2])
-            or value["stem"] != hold.split("/")[1]
-            or hold in result
-            and result[hold] != value
-        ):
-            raise ValueError(road)
-        result[hold] = value
-    return result
+            key = f"ticket-plane/{body['stem']}/confirmed/{body['request_id']}"
+            completed = [e.body["result"] for e in self.journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key == key]
+            if not completed or not any(e.ticket == body["stem"] and e.body.get("signal") == "draft_confirmed" and e.body.get("commit") == completed[0]["commit"] for e in self.journal.read()):
+                await draft_confirm(body["stem"], body["request_id"])
 
 
 _DISCOVERY_ROAD = "retry after the running engine publishes its current control identity; read that identity and submit a new request"

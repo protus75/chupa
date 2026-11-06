@@ -112,7 +112,7 @@ def test_host_loop_drives_supervised_fixture_serve(production, tmp_path):
         assert json.loads((member.root / ".chupa/state/control/active.json").read_bytes()) is None
         costs = [e.body["cost"]["usd"] for e in member.journal.read() if e.type == "effect_completion" and (e.key or "").startswith("llm/")]
         assert costs and all(c == 0 for c in costs)
-        assert len(member.requests) >= 2
+        assert any(hold is None for _, hold in member.requests)
 
     async def failure(timeout):
         loop = host_loop.FixtureLoop(tmp_path / str(timeout), "merge-add", exec_=exec_, fs=LocalFileSystem(), clock=lambda: datetime.now(UTC), sleep=asyncio.sleep, notifications=None, timeout=timeout)

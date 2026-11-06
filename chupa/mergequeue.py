@@ -13,8 +13,6 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 from chupa import merge, stages
 from chupa.artifacts import Cost, Finding, StageResult
-from chupa.baseline import review_coverage
-from chupa.control import releases
 from chupa.drain import authored_at, sort_key
 from chupa.effects import Effects
 from chupa.gates import GateReport, run_gates
@@ -59,28 +57,6 @@ def regate_receipts(events) -> dict[str, dict]:
     return receipts
 
 
-def held_admissions(events) -> dict[str, tuple[str, dict]]:
-    """A completed HELD owns its run until terminal, including a later READY regate."""
-    events = tuple(events)
-    receipts = regate_receipts(events)
-    live, reviewed = {}, {}
-    for position, event in enumerate(events):
-        stem = event.ticket
-        if event.type == EventType.STATE_TRANSITION and event.body.get("to") in TERMINAL_STATES:
-            live.pop(stem, None)
-        if event.type == EventType.EFFECT_COMPLETION and event.key in receipts:
-            value = receipts[event.key]
-            if value["admission"] == "HELD" or stem in live:
-                identity = stem, value["attempt"]
-                if value["attempt"] != run_seq(events[:position], stem) or identity in reviewed and reviewed[identity] != value["reviewed_sha"]:
-                    raise ValueError("contradictory held run; restore its producing attempt and approval evidence")
-                reviewed[identity] = value["reviewed_sha"]
-                # Keep the original authorization identity after a READY regate.
-                hold = event.key if stem not in live else live[stem][0]
-                live[stem] = hold, value
-    return live
-
-
 class ConflictHandoff(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
 
@@ -113,8 +89,6 @@ class MergeQueue:
         self.paused = self.hold_id is not None
         self.red_stems: list[str] = []
         self._slot = asyncio.Lock()
-        self.supervised = False
-        self.held: dict[str, tuple[Ticket, int, str, dict]] = {}
         self.deliveries: list[tuple[Ticket, int, object]] = []
         self.contexts: dict[str, StageContext] = {}
 
@@ -136,18 +110,10 @@ class MergeQueue:
             self.control.hold(hold_id)
         self.escalate(event)
 
-    async def process(self) -> list[StageResult | ConflictHandoff | merge.Held]:
+    async def process(self) -> list[StageResult | ConflictHandoff]:
         results = []
         self.deliveries = []
         async with self._slot:
-            if self.supervised and self.control is not None:
-                await self.control.inbox.settle_admissions(self.confirm_draft)
-            for stem, (ticket, attempt, hold, receipt) in tuple(self.held.items()):
-                release = releases(self.ctx.driver.journal.read()).get(hold)
-                covered, _, _ = await self._policy(ticket, attempt, receipt["reviewed_sha"])
-                squashed = any(e.type == EventType.EFFECT_COMPLETION and e.key == f"merge/{stem}/{attempt}" for e in self.ctx.driver.journal.read())
-                if release or covered or squashed:
-                    self.pending[stem] = ticket, attempt
             while True:
                 self._release()
                 if not self.pending or self.paused:
@@ -169,15 +135,6 @@ class MergeQueue:
         from chupa import runner
 
         await runner.confirm_draft(stem, request_id, self.ctx)
-
-    async def _policy(self, ticket, attempt, reviewed):
-        served = await stages.served_review(self.ctx, ticket.stem, attempt, reviewed)
-        config = self.control.load_config() if self.control is not None and hasattr(self.control, "load_config") else self.ctx.config
-        from chupa.caps import capability
-
-        tier, _ = capability(ticket, self.ctx.driver.journal.read())
-        covered, reason = review_coverage(config, self.ctx.driver.journal.read(), specs_dir=self.ctx.specs_dir, tier=tier, served=served)
-        return covered, reason, served
 
     async def retained_ticket(self, stem, receipt):
         ctx = self.ctx
@@ -208,34 +165,6 @@ class MergeQueue:
         except Exception as exc:
             raise ValueError(f"retained admission {stem} is unavailable: {exc}; {road}") from exc
 
-    async def reconstruct(self):
-        events = self.ctx.driver.journal.read()
-        releases(events)
-        live = held_admissions(events)
-        for stem, (hold, receipt) in live.items():
-            ticket = await self.retained_ticket(stem, receipt)
-            self.held[stem] = ticket, receipt["attempt"], hold, receipt
-        receipts = regate_receipts(events)
-        retained_runs = {(r["stem"], r["attempt"]) for r in receipts.values() if r["admission"] == "HELD"}
-        latest = {(r["stem"], r["attempt"]): r for r in receipts.values()}
-        for identity in retained_runs:
-            receipt = latest[identity]
-            stem, attempt = receipt["stem"], receipt["attempt"]
-            if stem in live or not self.ctx.worktree(stem).exists() or run_seq(events, stem) != attempt + 1:
-                continue
-            terminal = next(e.body for e in reversed(events) if e.ticket == stem and e.type == EventType.STATE_TRANSITION)
-            if terminal["to"] == "merged":
-                admitted = terminal["commit"] or receipt["candidate_base_sha"]
-                if await self.ctx.git.rev_parse(self.ctx.repo, admitted + "^{tree}") != receipt["checked_tree"]:
-                    raise ValueError("restore the squash's exact checked tree before retiring held custody")
-            if terminal["to"] in ("merged", "rejected"):
-                if terminal["to"] == "rejected":
-                    from chupa import runner
-
-                    ctx = self.ctx
-                    await runner._dead_dependents(stem, runner.Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git, ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep))
-                await merge.retire(self.ctx, stem)
-
     async def _finish(self, ticket, attempt, reviewed, checked_tree, started, findings=()):
         completed = any(e.type == EventType.EFFECT_COMPLETION and e.key == f"merge/{ticket.stem}/{attempt}" for e in self.ctx.driver.journal.read())
         admission = await merge.write_squash(self.ctx, ticket, reviewed, attempt=attempt)
@@ -246,7 +175,6 @@ class MergeQueue:
             self._hold(ticket.stem, {"kind": TREE_MISMATCH, "checked_tree": checked_tree, "main_tree": main_tree})
             raise TreeMismatch(f"{ticket.stem}: checked tree {checked_tree} differs from main tree {main_tree}")
         await merge.retire(self.ctx, ticket.stem)
-        self.held.pop(ticket.stem, None)
         return StageResult(outcome="ok", artifact=admission, findings=list(findings), cost=Cost(seconds=(self.ctx.driver.clock() - started).total_seconds()))
 
     def _signal(self, stem: str, body: dict, *, escalate: bool = False) -> None:
@@ -345,42 +273,12 @@ class MergeQueue:
                 return [self._finding(f"cannot resolve {path}: {exc}", "resolve the conflict through Rework and obtain a new approval", path=path)]
         return []
 
-    async def _admit(self, ticket: Ticket, attempt: int) -> StageResult | ConflictHandoff | merge.Held:
+    async def _admit(self, ticket: Ticket, attempt: int) -> StageResult | ConflictHandoff:
         ctx, stem = self.ctx, ticket.stem
         worktree = ctx.worktree(stem)
         started = ctx.driver.clock()
         conflicts, hits = set(), set()
         rebasing = False
-        retained = self.held.get(stem)
-        release = None
-        if retained is not None:
-            _, attempt, hold, receipt = retained
-            await self.retained_ticket(stem, receipt)
-            release = releases(ctx.driver.journal.read()).get(hold)
-            if release and release["verdict"] == "reject":
-                from chupa import runner
-
-                ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "rejected"}, ticket=stem)
-                checkout = runner.Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git, ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
-                await runner._dead_dependents(stem, checkout)
-                await merge.retire(ctx, stem)
-                self.held.pop(stem, None)
-                return StageResult(outcome="ok", artifact=None, findings=[], cost=Cost())
-            reviewed = receipt["reviewed_sha"]
-            covered, _, _ = await self._policy(ticket, attempt, reviewed)
-            completed = [e for e in ctx.driver.journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key == f"merge/{stem}/{attempt}"]
-            if completed:
-                return await self._finish(ticket, attempt, reviewed, receipt["checked_tree"], started)
-            if findings := await stages.ticket_change_findings(ctx, stem):
-                self.held.pop(stem, None)
-                return merge._refused(findings, Cost())
-            if not release and not covered:
-                return merge.Held(stem, attempt, hold)
-            if await ctx.git.rev_parse(ctx.repo, "main") == receipt["candidate_base_sha"] and await ctx.git.rev_parse(worktree, "HEAD") == receipt["candidate_sha"]:
-                if await ctx.git.rev_parse(worktree, "HEAD^{tree}") != receipt["checked_tree"]:
-                    raise ValueError("restore the retained checked candidate before admission")
-                return await self._finish(ticket, attempt, reviewed, receipt["checked_tree"], started)
-
         def refused(findings: list[Finding]) -> StageResult:
             return merge._refused(findings, Cost(seconds=(ctx.driver.clock() - started).total_seconds()))
 
@@ -388,7 +286,8 @@ class MergeQueue:
             return refused(findings)
 
         try:
-            reviewed = receipt["reviewed_sha"] if retained else await ctx.git.rev_parse(ctx.repo, stem)
+            receipts = [r for r in regate_receipts(ctx.driver.journal.read()).values() if r["stem"] == stem and r["attempt"] == attempt and r["admission"] == "HELD"]
+            reviewed = receipts[-1]["reviewed_sha"] if receipts else await ctx.git.rev_parse(ctx.repo, stem)
             unchanged = await merge.main_code_unchanged(ctx, reviewed)
             candidate_base = await ctx.git.rev_parse(ctx.repo, "main")
             await ctx.git.restore(worktree, [TICKETS_DIR], source=stem)
@@ -415,7 +314,7 @@ class MergeQueue:
                     step = ctx.git.rebase_continue(worktree)
 
             evidence = await stages.gather_safety_evidence(ctx, ticket, "ok")
-            skip = unchanged and bool(evidence.changed_files)
+            skip = unchanged and bool(evidence.changed_files) and not receipts
             candidate = merge.read_candidate(ctx, ticket, reviewed, evidence.changed_files)
             severity = stages.check_severity(ctx, ticket)
             scoped, strategy_findings = self._scoped(evidence, ticket)
@@ -451,12 +350,9 @@ class MergeQueue:
                 self._facts(stem, conflicts, hits)
             checked_tree = await ctx.git.rev_parse(worktree, "HEAD^{tree}")
             candidate_sha = await ctx.git.rev_parse(worktree, "HEAD")
-            covered, reason, served = await self._policy(ticket, attempt, reviewed)
-            if not self.supervised:
-                covered, reason = True, "bootstrap"
-            elif release:
-                covered, reason = True, "confirmed"
             key = f"{MERGE_REGATE}/{stem}/{attempt}/{candidate_base}/{candidate_sha}"
+
+            served = await stages.served_review(ctx, stem, attempt, reviewed)
 
             async def receipt_action():
                 return dict(
@@ -468,14 +364,11 @@ class MergeQueue:
                     checked_tree=checked_tree,
                     review_provider=served[0],
                     review_model=served[1],
-                    admission="READY" if covered else "HELD",
-                    reason=reason,
+                    admission="READY",
+                    reason="bootstrap",
                 )
 
-            receipt = await Effects(ctx.driver.journal).run(receipt_action, key=key, ticket=stem)
-            if self.supervised and not covered:
-                self.held[stem] = ticket, attempt, key, receipt
-                return merge.Held(stem, attempt, key)
+            await Effects(ctx.driver.journal).run(receipt_action, key=key, ticket=stem)
             return await self._finish(ticket, attempt, reviewed, checked_tree, started, [f for g in safety + integration for f in g.findings])
         finally:
             if rebasing:

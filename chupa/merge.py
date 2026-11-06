@@ -17,7 +17,6 @@ import asyncio
 import re
 from collections.abc import Callable
 from contextlib import nullcontext
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -50,13 +49,6 @@ from chupa.tickets import TICKETS_DIR, Ticket, TicketInvalid, ticket_path, valid
 
 # Versions the merge contract in the provenance slot, like the mechanical Check.
 MERGE_SPEC_VERSION = 1
-
-
-@dataclass(frozen=True)
-class Held:
-    stem: str
-    attempt: int
-    hold_id: str
 
 
 def compose_pipeline(ctx: StageContext, *, escalate: Callable[[Event], None], control: "PauseConsumer | None") -> "MergeQueue":
@@ -159,7 +151,7 @@ class AdmissionBoundary:
         self.ctx, self.mode, self.queue, self.waiting = ctx, mode, queue, waiting
         self.results: dict[tuple[str, int], asyncio.Future] = {}
 
-    async def __call__(self, ticket: Ticket, *, attempt: int) -> "StageResult | ConflictHandoff | Held":
+    async def __call__(self, ticket: Ticket, *, attempt: int) -> "StageResult | ConflictHandoff":
         ctx = self.ctx
         if findings := await ticket_change_findings(ctx, ticket.stem):
             return _refused(findings, Cost())
@@ -187,7 +179,7 @@ class AdmissionBoundary:
         finally:
             self.results.pop(key, None)
 
-    def deliver(self, ticket: Ticket, attempt: int, result: "StageResult | ConflictHandoff | Held") -> bool:
+    def deliver(self, ticket: Ticket, attempt: int, result: "StageResult | ConflictHandoff") -> bool:
         future = self.results.get((ticket.stem, attempt))
         if future is None:
             return False

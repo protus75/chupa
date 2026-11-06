@@ -94,63 +94,23 @@ async def admission(ctx, ticket, *, queue=None, attempt=0):
     return result
 
 
-@pytest.mark.parametrize("case", ["unchanged", "ticket-plane", "code", "two", "red", "conflict"])
-def test_supervised_confirm_regates_moved_main(ctx, monkeypatch, case):
+def test_green_candidate_merges_without_baseline_or_confirm(ctx):
     from chupa.mergequeue import regate_receipts
-    from tests.test_supervised_merge_hold import confirm, hold, served
 
     async def exercise():
-        ticket, queue, held = await hold(ctx)
-        original = regate_receipts(ctx.driver.journal.read())[held.hold_id]
-        second = None
-        if case == "two":
-            second = await ready(ctx, "second", changes={"chupa/second.py": "ok\n"}, fence=("chupa/second.py",))
-            await served(ctx, second)
-            ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket=second.stem)
-            queue.offer(second, attempt=0)
-            [other] = await queue.process()
-            assert isinstance(other, merge.Held)
-        elif case != "unchanged":
-            path = "tickets/unrelated.txt" if case == "ticket-plane" else "chupa/thing.py" if case == "conflict" else "chupa/other.py"
-            ctx.fs.write(ctx.repo / path, b"conflict\n" if case == "conflict" else b"moved\n")
-            await commit(ctx, ctx.repo, [path], "intervening main")
-        if case in {"two", "ticket-plane"}:
-            ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved for regate\n")
-            await commit(ctx, ctx.repo, ["chupa/other.py"])
-        if case == "red":
-            ctx.config.review.mechanical = [host("semantic", argv=["false"])]
-        calls = []
-        for name in ("gather_evidence", "gather_safety_evidence"):
-            real = getattr(stages, name)
-
-            async def called(*args, _real=real, _name=name, **kwargs):
-                calls.append(_name)
-                return await _real(*args, **kwargs)
-
-            monkeypatch.setattr(stages, name, called)
+        ticket = await ready(ctx)
+        ctx.fs.write(ctx.repo / "chupa/other.py", b"main changed\n")
+        await commit(ctx, ctx.repo, ["chupa/other.py"])
         before = await ctx.git.rev_parse(ctx.repo, "main")
-        confirm(queue, held)
+        queue = MergeQueue(ctx, escalate=lambda _: pytest.fail("unexpected escalation"), control=admission_control(ctx))
+        queue.offer(ticket, attempt=0)
         [result] = await queue.process()
-        if case in ("red", "conflict"):
-            assert await ctx.git.rev_parse(ctx.repo, "main") == before
-            assert not await ctx.git.conflicted_paths(ctx.worktree(ticket.stem))
-            assert result.approval_invalidated if case == "conflict" else result.outcome == "gate_failed"
-            assert len(regate_receipts(ctx.driver.journal.read())) == 1
-        else:
-            assert result.outcome == "ok" and result.artifact.reviewed_sha == original["reviewed_sha"]
-            receipts = regate_receipts(ctx.driver.journal.read())
-            assert receipts[held.hold_id] == original
-            assert calls == ([] if case == "unchanged" else ["gather_safety_evidence", "gather_evidence", "gather_safety_evidence"])
-            latest = list(receipts.values())[-1]
-            assert latest["checked_tree"] == await ctx.git.rev_parse(ctx.repo, "main^{tree}")
-            if case != "unchanged":
-                assert latest["admission"] == "READY" and latest["reason"] == "confirmed" and latest["candidate_base_sha"] == before
-            if second:
-                calls.clear()
-                confirm(queue, other, request_id="second-confirmation")
-                [result] = await queue.process()
-                assert result.outcome == "ok" and calls == ["gather_safety_evidence", "gather_evidence", "gather_safety_evidence"]
-                assert list(regate_receipts(ctx.driver.journal.read()).values())[-1]["checked_tree"] == await ctx.git.rev_parse(ctx.repo, "main^{tree}")
+        assert result.outcome == "ok" and result.artifact.commit != before
+        assert (ctx.repo / "chupa/thing.py").read_text() == f"ok {ticket.stem}\n"
+        [receipt] = regate_receipts(ctx.driver.journal.read()).values()
+        assert (receipt["admission"], receipt["reason"]) == ("READY", "bootstrap")
+        assert receipt["candidate_base_sha"] == before
+        assert not any(e.body.get("signal") == "review_baseline" or e.body.get("verb") == "confirm" for e in ctx.driver.journal.read())
 
     run(exercise())
 
@@ -1201,72 +1161,6 @@ def test_admission_durability_probes(ctx, monkeypatch, ordering):
         monkeypatch.setattr(control.ControlInbox, "consume", early)
         with pytest.raises(AssertionError):
             test_admission_resume_decision_precedes_release(ctx, monkeypatch)
-
-
-@pytest.mark.parametrize("restart", [False, True])
-@pytest.mark.parametrize("ending", ["confirm", "reject", "completed"])
-def test_edited_held_ticket_settles_release(ctx, monkeypatch, restart, ending):
-    from tests.test_effects import Crash
-    from tests.test_supervised_merge_hold import confirm, hold
-
-    async def exercise():
-        ticket, queue, held = await hold(ctx)
-        rel = f"tickets/{ticket.stem}/ticket.md"
-        sha = await ctx.git.rev_parse(ctx.repo, f"main:{rel}")
-        ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": sha}, ticket=ticket.stem)
-        if ending == "completed":
-            confirm(queue, held)
-            append = ctx.driver.journal.append
-
-            def crash(kind, body, **kwargs):
-                event = append(kind, body, **kwargs)
-                if kind == EventType.EFFECT_COMPLETION and kwargs.get("key") == f"merge/{ticket.stem}/0":
-                    raise Crash()
-                return event
-
-            with monkeypatch.context() as patch:
-                patch.setattr(ctx.driver.journal, "append", crash)
-                with pytest.raises(Crash):
-                    await queue.process()
-            from chupa.effects import Effects
-
-            ctx.driver.effects = Effects(ctx.driver.journal)
-        path = ctx.repo / rel
-        ctx.fs.write(path, path.read_bytes().replace(b"holds the word ok", b"holds revised ok"))
-        assert path.read_bytes() != (await ctx.git._run(ctx.repo, "show", f"main:{rel}")).encode()
-        await commit(ctx, ctx.repo, [rel], "operator changes ticket")
-        if ending != "completed":
-            confirm(queue, held, verdict="reject" if ending == "reject" else "confirm")
-        if restart:
-            recovered = MergeQueue(ctx, escalate=lambda _: None, control=queue.control)
-            recovered.supervised = True
-            await recovered.reconstruct()
-            queue = recovered
-        deaths = []
-        from chupa import runner
-
-        original = runner._dead_dependents
-
-        async def dependents(stem, checkout):
-            deaths.append(stem)
-            await original(stem, checkout)
-
-        monkeypatch.setattr(runner, "_dead_dependents", dependents)
-        results = await queue.process()
-        (result,) = results
-        if ending == "confirm":
-            assert result.outcome == "gate_failed"
-            assert [f.code for f in result.findings] == ["ticket_changed"]
-            assert ctx.worktree(ticket.stem).exists()
-            assert not any(e.body.get("to") == "merged" for e in ctx.driver.journal.read())
-        else:
-            assert result.outcome == "ok"
-            assert not ctx.worktree(ticket.stem).exists()
-            assert deaths == ([ticket.stem] if ending == "reject" else [])
-            assert [e.body["to"] for e in ctx.driver.journal.read() if e.type == EventType.STATE_TRANSITION][-1] == ("rejected" if ending == "reject" else "merged")
-            assert not any(e.body.get("reason") == "ticket_changed" for e in ctx.driver.journal.read())
-
-    run(exercise())
 
 
 @pytest.mark.parametrize("daemon", [False, True])

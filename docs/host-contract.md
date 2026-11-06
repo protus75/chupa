@@ -337,7 +337,7 @@ is a later consumer's judgment, not proof of an introducing commit.
 ## Pending cutover contract
 
 1. Unattended bootstrap self-build continues through Phase 6 under drain's safety
-   envelope; it never waits for supervised host merge confirms.
+   envelope; serve and drain both merge green candidates without operator confirm.
 2. Supervised fixture wiring uses a committed fixture host in a disposable copy,
    scripted CLI and machine-actor confirms against its own subprocess. It proves
    the pre-cutover loop; it does not constitute live-host acceptance.
@@ -348,9 +348,8 @@ is a later consumer's judgment, not proof of an introducing commit.
    Author-graph judgment is required even above those mechanical floors.
 4. Operator-recorded GO follows that committed baseline and judgment; the report
    embeds its verdict signal's journal identity. GO binds to current resolved
-   review/author routing and spec-major identity. Absent, revoked or drifted GO
-   means supervised authoring and merge holds; operator confirm releases a held
-   candidate, with rechecks if main moved.
+   review/author routing and spec-major identity. GO governs only Author starting
+   state. Serve merges green candidates without an operator confirm.
 5. NO_GO or no declared host waits at cutover. A declared live host is onboarded
    only after GO and operator judgment; start serve on host work and perform
    live-host acceptance separately. A fixture report cannot substitute for it.

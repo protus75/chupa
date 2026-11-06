@@ -16,12 +16,11 @@ from chupa import runner, serve
 from chupa.artifacts import DAEMON_SOAK_MEMBERS, DAEMON_SOAK_SPEC_VERSION, DaemonSoakEntry, DaemonSoakReport, Harvest
 from chupa.audit import audit_journal
 from chupa.config import load_config
-from chupa.control import AdmissionRequest, publish_request, releases
 from chupa.git import Git
 from chupa.hostfiles import render
 from chupa.journal import TERMINAL_STATES, EventType, Journal
 from chupa.llm import HANG, FakeLLM
-from chupa.mergequeue import CONFLICT_FACTS, MERGE_REGATE, ConflictHandoff, held_admissions
+from chupa.mergequeue import CONFLICT_FACTS, MERGE_REGATE, ConflictHandoff
 from chupa.providers import routed_conduct_paths
 from chupa.reconcile import RECOVERY_ALERT
 from chupa.seams import FileSystem, LocalFileSystem, SubprocessExec
@@ -371,13 +370,6 @@ class _Member:
 
     async def settled(self, stem, count=1):
         def settled():
-            held = held_admissions(self.journal.read()).get(stem)
-            if held:
-                hold, receipt = held
-                request = AdmissionRequest(f"soak-{stem}-{receipt['attempt']}-{receipt['candidate_sha']}", self.owner.control.inbox.lifecycle_id, "confirm", stem, hold, "operator")
-                path = self.checkout.config.state_dir / f"control/inbox/{request.request_id}.json"
-                if not path.exists():
-                    publish_request(self.checkout.config.state_dir, request, self.fs)
             return len(self.terminals(stem)) >= count and self.owner.core.admission.active is None and self.owner.mutating is None
 
         await self.until(settled)
@@ -523,9 +515,8 @@ async def _observe(member: _Member) -> DaemonSoakEntry:
             receipt["reviewed_sha"] == review.reviewed_sha
             and (receipt["review_provider"], receipt["review_model"]) == ("claude", "script")
             and receipt["candidate_base_sha"] == m.admission_heads[stem]
-            and receipts[0].key in releases(events)
-            and releases(events)[receipts[0].key]["actor"] == "operator",
-            f"{stem}/{sequence} served identity or operator admission evidence missing",
+            and receipt["admission"] == "READY" and receipt["reason"] == "bootstrap",
+            f"{stem}/{sequence} served identity or admission evidence missing",
         )
         need(any(s == stem and result[0] == 0 for s, result in m.main_checks), f"{stem} main Verification after merge missing")
         return terminal

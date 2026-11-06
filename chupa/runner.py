@@ -27,7 +27,7 @@ from chupa.journal import TERMINAL_STATES, Event, EventType, Journal, dispatch_o
 from chupa.journal import Dispatch as JournalDispatch
 from chupa.llm import LLM
 from chupa.lockfile import Lockfile
-from chupa.merge import Held, compose_pipeline, merge
+from chupa.merge import compose_pipeline, merge
 from chupa.providers import ProviderLLM
 from chupa.reconcile import reconcile
 from chupa.seams import Clock, FileSystem, GroupExec, Sleep
@@ -156,8 +156,6 @@ async def drive(ctx: StageContext, ticket: Ticket, *, admission=None, consume_ha
         from chupa.mergequeue import ConflictHandoff
 
         stage, result = "merge", await (admission(ticket, attempt=run.attempt) if admission is not None else merge(ctx, ticket, attempt=run.attempt))
-        if isinstance(result, Held):
-            return "running"
         if isinstance(result, ConflictHandoff):
             assert consume_handoff is not None
             return await consume_handoff(ticket, result, attempt=run.attempt)

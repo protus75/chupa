@@ -13,10 +13,10 @@ from chupa.effects import Effects
 from chupa.enginelog import EngineLog
 from chupa.git import GitError
 from chupa.heartbeat import Heartbeat
-from chupa.journal import EventType, JournalCorruption
+from chupa.journal import EventType, JournalCorruption, run_seq
 from chupa.lockfile import Lockfile
 from chupa.merge import AdmissionBoundary
-from chupa.mergequeue import ConflictHandoff, held_admissions, regate_receipts
+from chupa.mergequeue import ConflictHandoff, regate_receipts
 from chupa.providers import ProviderLLM, ProviderSetupError
 from chupa.redact import Redactor
 from chupa.seams import ExecutableNotFound
@@ -112,7 +112,6 @@ class Serve:
             callback.ctx.boundary.select = self.select
             if self.queue is None:
                 self.queue = callback.queue
-                self.queue.supervised = True
             callback.queue = self.queue
             callback.admission = AdmissionBoundary(callback.ctx, mode="daemon", queue=self.queue, waiting=self.core.admission.waiting_for_merge)
 
@@ -143,7 +142,7 @@ class Serve:
                     if "provider_drought" in latest:
                         self.core.scheduler.update(ticket)
                     if not callback.continuations and not any(
-                        context is callback.ctx and stem in callback.queue.pending.keys() | callback.queue.held.keys() for stem, context in callback.queue.contexts.items()
+                        context is callback.ctx and stem in callback.queue.pending.keys() for stem, context in callback.queue.contexts.items()
                     ):
                         self.writers.pop(ticket.stem, None)
 
@@ -157,7 +156,7 @@ class Serve:
             debounce=SERVE_POLL_S,
             quarantined=lambda: set(),
             drought_parked=lambda: set(),
-            completed_unmerged=lambda: len(set(self.queue.pending) | set(self.queue.held)) if self.queue is not None else 0,
+            completed_unmerged=lambda: len(self.queue.pending) if self.queue is not None else 0,
             prepare=prepared,
         )
         publication: dict[str, str] = {}
@@ -176,7 +175,6 @@ class Serve:
         self.checkout = replace(checkout, control=self.core.control)
         self.control = self.core.control
         assert self.control is not None and self.core.restart is not None
-        self.control.inbox.admissions = lambda: {stem: hold for stem, (hold, _) in held_admissions(checkout.journal.read()).items()}
         self.control.inbox.draft = lambda stem: runner.committed_draft(self.checkout, stem)
         self.core.restart.admissions = self.reconstruct_admissions
         self.box = self.control._recover.__self__
@@ -201,14 +199,18 @@ class Serve:
 
     async def reconstruct_admissions(self):
         events = self.checkout.journal.read()
-        if not held_admissions(events) and not any(r["admission"] == "HELD" and (self.checkout.config.worktree_root / r["stem"]).exists() for r in regate_receipts(events).values()):
+        receipts = regate_receipts(events)
+        retained = {(r["stem"], r["attempt"]): r for r in receipts.values() if r["admission"] == "HELD"}
+        live = [r for (stem, attempt), r in retained.items() if run_seq(events, stem) == attempt]
+        if not live:
             return
         writer = runner.bind(self.checkout, None)
         self.queue = writer.queue
-        self.queue.supervised = True
-        await self.queue.reconstruct()
         writer.admission = AdmissionBoundary(writer.ctx, mode="daemon", queue=self.queue)
-        for stem in self.queue.held:
+        for receipt in live:
+            stem = receipt["stem"]
+            ticket = await self.queue.retained_ticket(stem, receipt)
+            self.queue.offer(ticket, attempt=receipt["attempt"])
             self.writers[stem] = writer
 
     def healthy(self, component: int) -> bool:
@@ -235,7 +237,6 @@ class Serve:
         return (
             not self.stopping
             and projection.pause_id is None
-            and ticket.stem not in held_admissions(self.checkout.journal.read())
             and (self.control.admission is None or self.control.admission in projection.released_hold_ids)
             and not any(target["emitting_origin"] == ticket.stem and target["emitting_stage"] == stage for target in self.storm.held_stages().values())
         )
@@ -309,6 +310,7 @@ class Serve:
 
                     await self.control.inbox.settle_admissions(confirm_draft)
                     return
+                await self.control.inbox.settle_admissions(self.queue.confirm_draft)
                 self.queue.deliveries = []
                 await self.queue.process()
                 for ticket, attempt, result in self.queue.deliveries:
@@ -320,10 +322,10 @@ class Serve:
                         owner.admission = AdmissionBoundary(owner.ctx, mode="daemon", queue=self.queue)
                     self.writers[ticket.stem] = owner
                     await owner.consume_result(ticket, result, attempt=attempt)
-                    if ticket.stem not in self.queue.held and ticket.stem not in self.queue.pending:
+                    if ticket.stem not in self.queue.pending:
                         self.queue.contexts.pop(ticket.stem, None)
                 for stem, writer in tuple(self.writers.items()):
-                    if not writer.active and not writer.continuations and stem not in self.queue.pending and stem not in self.queue.held:
+                    if not writer.active and not writer.continuations and stem not in self.queue.pending:
                         del self.writers[stem]
 
         while True:

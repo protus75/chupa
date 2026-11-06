@@ -16,10 +16,10 @@ RECOVERY_ALERT = "recovery_alert"
 
 def orphans(events: Iterable[Event]) -> list[str]:
     """Stems whose run is still open: a `running`, or an intent with no completion, since their last terminal."""
-    from chupa.mergequeue import held_admissions
+    from chupa.mergequeue import regate_receipts
 
     events = tuple(events)
-    held = held_admissions(events)
+    retained = {r["stem"] for r in regate_receipts(events).values() if r["admission"] == "HELD" and run_seq(events, r["stem"]) == r["attempt"]}
     running: set[str] = set()
     intents: dict[str, set[str]] = {}
     for e in events:
@@ -35,7 +35,7 @@ def orphans(events: Iterable[Event]) -> list[str]:
             intents.setdefault(e.ticket, set()).add(e.key)
         elif e.type == EventType.EFFECT_COMPLETION:
             intents.get(e.ticket, set()).discard(e.key)
-    return sorted((running | {stem for stem, keys in intents.items() if keys}) - held.keys())
+    return sorted((running | {stem for stem, keys in intents.items() if keys}) - retained)
 
 
 async def reconcile(journal: Journal, git: Git, repo: Path, worktree_root: Path, harvest: OrphanHarvest) -> list[str]:
