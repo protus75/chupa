@@ -1698,12 +1698,12 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
 # --- Review -------------------------------------------------------------------------------------
 
 
-def review_stage(ctx: StageContext, ticket_text: str, diff: str) -> tuple[LlmStage, Spec]:
+def review_stage(ctx: StageContext, ticket_text: str, diff: str, prior_review: str) -> tuple[LlmStage, Spec]:
     """specs/review.md wired UNCHANGED: the same spec and inputs the review baseline measured."""
     spec = _spec(ctx, "review")
 
     def render_diff(_: object, findings: list[Finding]) -> str:
-        inputs = {"ticket": ticket_text, "diff": diff, "retry_findings": findings_text(findings)}
+        inputs = {"ticket": ticket_text, "diff": diff, "prior_review": prior_review, "retry_findings": findings_text(findings)}
         return render(spec, inputs)
 
     return LlmStage(surface="review", emits=ReviewVerdict, gates=[], render=render_diff), spec
@@ -1718,7 +1718,13 @@ async def review(ctx: StageContext, ticket: Ticket, invoice: Invoice, *, attempt
     stem = ticket.stem
     reviewed = await ctx.git.rev_parse(ctx.repo, stem)
     diff = await ctx.git.diff(ctx.repo, MAIN, stem)
-    stage, spec = review_stage(ctx, (ctx.repo / ticket_path(stem)).read_text(), diff)
+    prior_path = ctx.repo / TICKETS_DIR / stem / "review.md"
+    try:
+        prior = read_review(prior_path.read_text()) if prior_path.is_file() else None
+    except ValueError:
+        prior = None
+    prior_review = findings_text(prior.findings) if isinstance(prior, SnagList) else "none"
+    stage, spec = review_stage(ctx, (ctx.repo / ticket_path(stem)).read_text(), diff, prior_review)
     try:
         # The effective ticket capability applies to every call in this attempt.
         result = await ctx.driver.run(

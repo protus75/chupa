@@ -5,7 +5,7 @@ emits: {approve: approved-invoice, snag: snag-list, rma: rma}
 tier: high
 effort: high
 gates: [correctness_review]
-version: "1.2"
+version: "1.3"
 ---
 ## Role
 
@@ -18,6 +18,10 @@ them. You judge whether the diff is correct and does what the ticket asks, and o
 ## Task
 
 Read the ticket, then the diff. Decide one verdict:
+
+Report every defect in this one reply; never stop at the first. When the same flaw appears in
+several places, list each place as its own finding. A finding that restates a prior review finding
+starts its `message` with "Still open: ".
 
 - `approve` -- the diff satisfies every acceptance criterion, introduces no defect, and stays
   inside the ticket's scope.
@@ -65,6 +69,12 @@ The diff under review (`git diff main...<stem>`):
 <<chupa-data:begin diff>>
 {{diff}}
 <<chupa-data:end diff>>
+
+Findings from this ticket's previous review (`none` when there is none):
+
+<<chupa-data:begin prior_review>>
+{{prior_review}}
+<<chupa-data:end prior_review>>
 
 Findings against your previous reply in this session (`none` on the first call):
 

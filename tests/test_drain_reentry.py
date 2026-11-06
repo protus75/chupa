@@ -63,6 +63,10 @@ def test_a_reoffer_after_a_review_reject_renders_its_findings_in_criteria_positi
     assert code == 0
     assert [t["to"] for t in transitions(repo)] == ["running", "gate_failed", "running", "merged"]
     first, second = implements(llm)
+    reviews = [r.rendered for r in llm.requests if r.surface == "review"]
+    first_review, second_review = [r.split(data_open("prior_review"), 1)[1].split(data_close("prior_review"), 1)[0].strip() for r in reviews]
+    assert first_review == "none"
+    assert SNAG["message"] in second_review
     assert PRIOR_ATTEMPTS not in first
     block = ticket_block(second)
     criteria = between_criteria_and_next_section(block)

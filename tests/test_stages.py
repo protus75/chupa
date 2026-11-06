@@ -354,7 +354,7 @@ def test_implement_check_review_all_ok_with_artifacts_and_provenance(repo):
     assert isinstance(slip, PackingSlip) and slip.produced_at_sha == head and slip.produced_by_spec_version == 2
     assert isinstance(invoice, Invoice) and invoice.passed and invoice.changed_files == ["chupa/thing.py"]
     assert invoice.produced_at_sha == head
-    assert isinstance(review, ApprovedInvoice) and review.reviewed_sha == head and review.spec_version == "1.2"
+    assert isinstance(review, ApprovedInvoice) and review.reviewed_sha == head and review.spec_version == "1.3"
     assert (review.provider, review.model) == ("fake", "fake")
 
     # One ticket-plane commit per stage terminal, on main, never on the branch.
