@@ -1,9 +1,9 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "2bd93fdb13c6065ce0f9711a49ef5a8fded23c75",
+  "produced_at_sha": "d6427b258f21ca7664fbff63e1861d3289993919",
   "stem": "merge-skip-unchanged",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "premise_failed",
   "stage": "implement",
   "verdict": "abandon-human",
