@@ -57,6 +57,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 
 The repo's one dev command; standard library only, every task through `uv`.
 `./dev.py test` runs the suite in parallel on the available cores by default.
+Each test has a 120-second hard limit.
 
 | Subcommand | Runs |
 |---|---|
