@@ -9,7 +9,6 @@ kind: chore
 - tests-split
 - autofix-file-globs
 - chupa-ruff-config
-- source-graph-ast
 - covgate-runs-tests
 - testguard
 - testreport
