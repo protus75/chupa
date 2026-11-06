@@ -24,7 +24,10 @@ After this change, `drain` also runs intake between tickets: at the top of each 
 - In: `chupa/drain.py`: `_Drain.run` calls `intake(self.c.repo, self.c.git, self.c.journal, self.c.fs)` at the top of each loop iteration, after the stop check and before `_scan`. The startup intake stays.
 - In: a per-ticket intake finding behaves as it does at startup: the file stays uncommitted and the drain continues. An `IntakeRefused` (staged changes outside pending ticket files) ends the drain exactly as the startup intake's refusal does.
 - In: tests in `tests/test_drain.py`.
-  - `test_drain_intakes_ticket_written_mid_drain`: a fake dispatch writes a new confirmed ticket file while running the first ticket. The same drain commits it (`chupa(<stem>): ticket`) and runs it.
+  - `test_drain_intakes_ticket_written_mid_drain`: a fake dispatch writes a new confirmed ticket file while running the first ticket. The same drain commits it (`chupa(<stem>): ticket`) and runs it. Two assertions check that intake waits for the run to end:
+    - inside the hook, after writing, porcelain still shows the file as `??`;
+    - after the drain, the new stem's `ticket_intake` journal event comes after the first ticket's terminal `state_transition`.
+  - `test_drain_mid_drain_intake_refusal_exits_2`: while the first of two tickets runs, a hook stages a non-ticket file (`git add` of a new `chupa/stray.py`). `drain` returns 2, `script.calls` holds only the first stem, and the lock is free afterwards.
   - `test_drain_honors_priority_edit_mid_drain`: with three queued tickets, a fake dispatch raises the third's priority while running the first. The next pick is the third.
   - Rewrite `test_an_uncommitted_ticket_file_is_not_eligible`. Today it asserts that a valid ticket written mid-drain never runs, the old behavior. Its hook instead writes a mid-drain ticket that fails lint. Assert that the file stays uncommitted, the ticket never runs (`script.calls == ["seeder"]`), and the drain still exits normally.
 - In: `docs/how-chupa-works.md` section 7.1: step 1 keeps "runs intake once" as the startup intake, and step 2 adds "runs intake" to the loop.
