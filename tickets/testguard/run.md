@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-The gate parser requires coverage.default even when configuring only the unit budget.
+Budget fixtures include coverage.default because parse_gate requires it.
 
 ## Dead ends
 
-An initial test fixture rewrite reused cached bytecode; changing the rewritten source length resolved it.
+Adjusted inner-run assertions and fake-clock fixtures after initial test failures.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 45 minutes; actual time was under 45 minutes.
+Expected 45 minutes; actual time not recorded.
 
