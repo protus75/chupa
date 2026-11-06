@@ -8,6 +8,7 @@ from chupa.providers import ProviderSetupError, resolve
 from chupa.tickets import Ticket
 
 CAPS = ("diagnosis", "retry", "infra", "premise_bounce")
+# Audit must recognize 47 historical hardening draws; no new draws are made.
 DECLARED_CAPS = CAPS + ("hardening",)
 LEVELS = ("low", "medium", "high", "max")
 

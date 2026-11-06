@@ -18,12 +18,11 @@ import yaml
 
 from chupa.artifacts import Finding, Harvest, StageResult
 from chupa.box import BOX_DIR
-from chupa.caps import capability, consume, lineage, next_rung, remaining, spent, spent_reason
+from chupa.caps import capability, consume, next_rung, spent, spent_reason
 from chupa.config import Config, ConfigSnapshot, snapshot_config
 from chupa.driver import Driver
 from chupa.effects import Effects
-from chupa.git import Git, GitError
-from chupa.hardening import ROUND_SIGNAL, hardener_round, open_round, rounds
+from chupa.git import Git
 from chupa.journal import TERMINAL_STATES, Event, EventType, Journal, dispatch_of
 from chupa.journal import Dispatch as JournalDispatch
 from chupa.llm import LLM
@@ -32,11 +31,10 @@ from chupa.merge import Held, compose_pipeline, merge
 from chupa.providers import ProviderLLM
 from chupa.reconcile import reconcile
 from chupa.seams import Clock, FileSystem, GroupExec, Sleep
-from chupa.specs import registry_rows, unit_sha
 from chupa.stages import DiagnosisMaterial, StageContext, diagnose, lift_outbox, run_stages, ticket_change_findings, write_diagnosis
 from chupa.status import SETTLED, last_states, reject_queue
 from chupa.storm import arrival_id
-from chupa.tickets import INTAKE_SIGNAL, PLAN_FILE, Ticket, TicketInvalid, intake, parse_ticket, read_plan, split_frontmatter, stamp, stem_findings, ticket_path, validate_ticket
+from chupa.tickets import INTAKE_SIGNAL, Ticket, TicketInvalid, intake, parse_ticket, read_plan, split_frontmatter, stamp, stem_findings, ticket_path, validate_ticket
 
 EXIT_MERGED = 0
 EXIT_TICKET = 1
@@ -46,7 +44,6 @@ EXIT_REFUSED = 2
 SPECS_DIR = Path(__file__).resolve().parent.parent / "specs"
 HARVEST_TAIL_CHARS = 4_000
 IDENTICAL_K = 3
-SPEC_GAP_HOLD: JournalDispatch = "spec_gap_hold"
 
 # The stage seam: drives the validated ticket through the stages and merge, journals the run's single
 # terminal transition (section 11), and returns that terminal state.
@@ -183,16 +180,6 @@ async def drive(ctx: StageContext, ticket: Ticket, *, admission=None, consume_ha
     if result.outcome in {"infra_error", "timeout"}:
         ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
         consume(ctx.driver.journal, ticket.stem, "infra", ticket_sha)
-    gaps: dict[str, list[str]] = {}
-    if (stage == "check" and result.outcome == "gate_failed") or (stage == "implement" and result.outcome == "premise_failed"):
-        for finding in result.findings:
-            if finding.kind == "spec_gap" and finding.unit is not None:
-                gaps.setdefault(finding.unit, []).append(finding.message)
-    if gaps and read_plan(ctx.repo) is not None and hardener_round(ctx.driver.journal.read(), ticket.stem) is None:
-        await hold_on_hardening(ctx, ticket, gaps, attempt=run.attempt, to=result.outcome, stage=stage)
-        if ctx.worktree(ticket.stem).exists():
-            await ctx.git.worktree_remove(ctx.repo, ctx.worktree(ticket.stem))
-        return result.outcome
     over_bound = result.outcome == "premise_failed" and any(f.code == "render_over_bound" for f in result.findings)
     if result.outcome == "premise_failed" and not over_bound:
         ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
@@ -384,97 +371,6 @@ async def failure_terminal(
     return "rejected" if split else outcome
 
 
-async def hold_on_hardening(ctx: StageContext, ticket: Ticket, gaps: dict[str, list[str]], *, attempt: int, to: str = "gate_failed", stage: str | None = "check") -> None:
-    """Join the engine's open round or file one covering this terminal's gapped units."""
-    history = ctx.driver.journal.read()
-    plan = read_plan(ctx.repo) or ""
-    plan_units = {uid: unit_sha(plan, uid) for uid in sorted(gaps)}
-    # Round-less Reject terminals must not erase the last round's unchanged coverage.
-    prior = next(
-        (
-            e.body
-            for e in reversed(lineage(history, ticket.stem))
-            if e.type == EventType.STATE_TRANSITION and e.ticket == ticket.stem and e.body.get("to") in TERMINAL_STATES and "round" in e.body and "plan_units" in e.body
-        ),
-        None,
-    )
-    covered = next((r.units for r in rounds(history) if prior is not None and r.number == prior["round"]), {})
-    unchanged = {uid for uid, sha in (prior["plan_units"] if prior else {}).items() if uid in covered and unit_sha(plan, uid) == sha}
-    reject_dispatch: JournalDispatch = "reject_queue"
-    if set(gaps) <= unchanged:
-        ctx.driver.journal.append(
-            EventType.STATE_TRANSITION, {"to": to, "stage": stage, "reason": "spec_gap_unresolved", "dispatch": reject_dispatch, "routed": "reject_queue", "plan_units": plan_units}, ticket=ticket.stem
-        )
-        return
-    if remaining(ctx.config.caps, history, ticket.stem, "hardening") <= 0:
-        ctx.driver.journal.append(
-            EventType.STATE_TRANSITION, {"to": to, "stage": stage, "reason": "hardening cap spent", "dispatch": reject_dispatch, "routed": "reject_queue", "plan_units": plan_units}, ticket=ticket.stem
-        )
-        return
-    ticket_sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
-    consume(ctx.driver.journal, ticket.stem, "hardening", ticket_sha)
-    record = open_round(history)
-    number = record.number if record is not None else len(rounds(history)) + 1
-    if record is None:
-        await file_hardening(ctx, ticket, {uid: facts for uid, facts in gaps.items() if uid not in unchanged}, number, plan=plan)
-    ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": to, "stage": stage, "reason": "spec_gap", "dispatch": SPEC_GAP_HOLD, "round": number, "plan_units": plan_units}, ticket=ticket.stem)
-
-
-def hardening_text(ticket: Ticket, gaps: dict[str, list[str]], *, plan: str) -> str:
-    rows = registry_rows(plan)
-    tier = "high" if any(rows[uid.rsplit(".", 1)[1]][1].get("deep") for uid in gaps) else "medium"
-    contract = ["19.L"]
-    units = []
-    criteria = []
-    for uid, facts in sorted(gaps.items()):
-        phase, row_spec = rows[uid.rsplit(".", 1)[1]]
-        units.append(uid)
-        contract.append(f"19.P{phase}")
-        if unit_sha(plan, uid) != "absent":
-            contract.append(uid)
-        contract.extend(f"section {c}" if not str(c).startswith("19.") else str(c) for c in row_spec.get("cite", []) or [])
-        for fact in facts:
-            criteria.append(f"{len(criteria) + 2}. `{PLAN_FILE}` unit `{uid}` states the needed fact, consistent with merged code. Gap fact (untrusted data):\n> {' '.join(fact.split())}")
-    return (
-        f"---\nstate: confirmed\nsource: seed\npriority: {ticket.frontmatter.priority}\nkind: chore\n"
-        f"agent_tier: {tier}\nagent_effort: {tier}\n---\n\n"
-        "## Depends on\nnone\n\n## Context\n- tests/test_plan_lint.py\n\n"
-        "## Plan contract\n" + "".join(f"- {c}\n" for c in dict.fromkeys(contract)) + "\n"
-        f"## Goal / Why\n`{PLAN_FILE}` states every fact `{ticket.stem}` needs from its gapped units.\n\n"
-        "## Scope in / Scope out\n- In: the fenced entry units, with their Owner, Records, Observable,"
-        " and Tests parts; insert a missing unit after its phase's last unit.\n"
-        "- Out: every other plan byte, code, and tickets.\n\n"
-        "## Scope fence\n" + "".join(f"- {PLAN_FILE}#{uid}\n" for uid in units) + "\n"
-        "## Acceptance criteria\n1. `uv run pytest tests/test_plan_lint.py` exits 0.\n" + "\n".join(criteria) + "\n\n"
-        "## Verification\n```\nuv run pytest tests/test_plan_lint.py\n```\n\n"
-        "## Definition of rejected\nStating a fact needs plan text outside the fenced units,"
-        " or contradicts merged code.\n\n## Time budget\n- expected: 30m\n- stuck: 90m\n"
-    )
-
-
-async def file_hardening(ctx: StageContext, ticket: Ticket, gaps: dict[str, list[str]], n: int, *, plan: str) -> str:
-    """Commit once per round, then publish its identity from the durable Effect result."""
-
-    async def commit() -> dict:
-        stem = f"plan-gap-{n}"
-        rel = ticket_path(stem)
-        units = {uid: unit_sha(plan, uid) for uid in sorted(gaps)}
-        facts = [{"unit": uid, "message": fact} for uid, messages in sorted(gaps.items()) for fact in messages]
-        ctx.fs.write(ctx.repo / rel, hardening_text(ticket, gaps, plan=plan).encode())
-        await ctx.git.add(ctx.repo, [rel])
-        await ctx.git.commit(ctx.repo, f"chupa({ticket.stem}): hardening round {n}", only=[rel])
-        return {"commit": await ctx.git.rev_parse(ctx.repo, "HEAD"), "ticket": stem, "round": n, "units": units, "filed_by": ticket.stem, "gaps": facts}
-
-    committed = await ctx.driver.effects.run(commit, key=f"ticket-plane/hardening/{n}", ticket=ticket.stem)
-    stem = committed["ticket"]
-    history = ctx.driver.journal.read()
-    if not any(e.type == EventType.SIGNAL and e.ticket == stem and e.body.get("signal") == INTAKE_SIGNAL and e.body.get("commit") == committed["commit"] for e in history):
-        ctx.driver.journal.append(EventType.SIGNAL, {"signal": INTAKE_SIGNAL, "source": "seed", "state": "confirmed", "new": True, "commit": committed["commit"]}, ticket=stem)
-    if not any(r.number == committed["round"] for r in rounds(history)):
-        ctx.driver.journal.append(EventType.SIGNAL, {"signal": ROUND_SIGNAL, **{k: committed[k] for k in ("round", "units", "filed_by", "gaps")}}, ticket=stem)
-    return stem
-
-
 async def harvest(
     ctx: StageContext,
     stem: str,
@@ -605,16 +501,7 @@ async def verdict(stem: str, checkout: Checkout, *, kill: bool) -> int:
             None,
         )
         if prior_keep is not None and prior_keep.body.get("ticket_sha") == ticket_sha:
-            terminal = next((e.body for e in reversed(history) if e.type == EventType.STATE_TRANSITION and e.ticket == stem and e.body.get("to") in TERMINAL_STATES), {})
-            changed = False
-            if "plan_units" in terminal:
-                try:
-                    plan = await checkout.git._run(checkout.repo, "show", f"HEAD:{PLAN_FILE}")
-                except GitError:
-                    plan = ""
-                changed = any(unit_sha(plan, uid) != sha for uid, sha in terminal["plan_units"].items())
-            if not changed:
-                raise Refusal(f"{stem} was already kept at this ticket content", "edit the ticket (or fix the plan and regenerate it) before re-enqueueing")
+            raise Refusal(f"{stem} was already kept at this ticket content", "edit the ticket before re-enqueueing")
         if stem not in reject_queue(history):
             raise Refusal(f"{stem} is neither a draft nor in the Reject queue", "run `status` to list the Reject queue")
         checkout.journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "operator", "ticket_sha": ticket_sha}, ticket=stem)

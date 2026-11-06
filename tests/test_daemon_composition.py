@@ -1536,9 +1536,8 @@ async def test_live_drain_pause_blocks_all_offer_accounting(root, monkeypatch, k
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("change", ["caps", "retire", "priority", "retry", "premise", "spec-gap"])
+@pytest.mark.parametrize("change", ["caps", "retire", "priority", "retry", "premise"])
 async def test_live_drain_resume_rechecks_selection_and_caps(root, monkeypatch, change):
-    from chupa.runner import SPEC_GAP_HOLD
     from tests.test_drain import confirmed, offer_events
 
     live = LiveDrain(root, monkeypatch, pause=False)
@@ -1547,15 +1546,9 @@ async def test_live_drain_resume_rechecks_selection_and_caps(root, monkeypatch, 
     await c.git.add(root, ["tickets/work/ticket.md"])
     await c.git.commit(root, "ticket")
     blob = await c.git.rev_parse(root, "HEAD:tickets/work/ticket.md")
-    if change in {"retry", "caps", "premise", "spec-gap"}:
+    if change in {"retry", "caps", "premise"}:
         c.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": "old"}, ticket="work")
-        if change == "spec-gap":
-            from tests.test_drain import round_record
-
-            round_record(c.journal, "hardening")
-            c.journal.append(EventType.STATE_TRANSITION, {"to": "premise_failed", "dispatch": SPEC_GAP_HOLD, "round": 1, "plan_units": {"19.P3.held": "absent"}}, ticket="work")
-        else:
-            c.journal.append(EventType.STATE_TRANSITION, {"to": "premise_failed" if change == "premise" else "gate_failed", "rung": {"tier": "high", "effort": "max"}}, ticket="work")
+        c.journal.append(EventType.STATE_TRANSITION, {"to": "premise_failed" if change == "premise" else "gate_failed", "rung": {"tier": "high", "effort": "max"}}, ticket="work")
     checkpoints = 0
 
     async def pause_after_preparation():
@@ -1577,8 +1570,6 @@ async def test_live_drain_resume_rechecks_selection_and_caps(root, monkeypatch, 
         write(root, "urgent", confirmed(priority="P0"))
         await c.git.add(root, ["tickets/urgent/ticket.md"])
         await c.git.commit(root, "new urgent")
-    elif change == "spec-gap":
-        c.journal.append(EventType.STATE_TRANSITION, {"to": "already_satisfied"}, ticket="hardening")
     before = offer_events(root)
     await live.resume()
     report = await task

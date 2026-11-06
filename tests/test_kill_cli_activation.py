@@ -304,7 +304,7 @@ def test_live_drain_kill_reaches_production_driver(root, monkeypatch, capsys, bi
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("kind", ["fresh", "retry", "machine-keep", "premise", "spec-gap", "preparation", "stage-preparation", "verification", "between-calls", "upgrade"])
+@pytest.mark.parametrize("kind", ["fresh", "retry", "machine-keep", "premise", "preparation", "stage-preparation", "verification", "between-calls", "upgrade"])
 async def test_kill_stops_before_all_offer_accounting(root, monkeypatch, kind):
     if kind in {"stage-preparation", "verification", "between-calls", "upgrade"}:
         await kill_between_calls(root, monkeypatch, kind)
@@ -315,12 +315,9 @@ async def test_kill_stops_before_all_offer_accounting(root, monkeypatch, kind):
     write(root, "work", confirmed())
     await c.git.add(root, ["tickets/work/ticket.md"])
     await c.git.commit(root, "ticket")
-    if kind in {"retry", "machine-keep", "premise", "spec-gap"}:
+    if kind in {"retry", "machine-keep", "premise"}:
         c.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": "older"}, ticket="work")
-        body = {"to": "premise_failed" if kind in {"premise", "spec-gap"} else "gate_failed"}
-        if kind == "spec-gap":
-            c.journal.append(EventType.SIGNAL, {"signal": "drain_handoff", "awaits": []}, ticket="work")
-            body["dispatch"] = runner.SPEC_GAP_HOLD
+        body = {"to": "premise_failed" if kind in {"premise"} else "gate_failed"}
         c.journal.append(EventType.STATE_TRANSITION, body, ticket="work")
     if kind == "machine-keep":
         c.journal.append(EventType.SIGNAL, {"signal": "reject_arrival"}, ticket="work")

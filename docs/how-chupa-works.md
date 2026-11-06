@@ -283,7 +283,7 @@ After any other non-ok terminal, `runner.drive` does, in order:
    the worktree, and stops (section 6.7), skipping the cap, Diagnosis, and Rework steps.
 3. A provider **drought** or quota result parks the stem with no diagnosis (section 8.3).
 4. A failure reaching `caps.attempts` goes straight to the terminal, routed to the Reject queue
-   with reason `attempts cap spent`, skipping the cap draw, spec-gap hold, Diagnosis, and Rework.
+   with reason `attempts cap spent`, skipping the cap draw, Diagnosis, and Rework.
 5. `infra_error` / `timeout` draw the `infra` cap; `premise_failed` draws `premise_bounce`.
 6. **Diagnosis** (section 6.3), unless the outcome is `budget_exceeded` or an over-bound render.
 7. **Rework** if diagnosis said `split`, or the render was over bound (section 6.5).
@@ -324,7 +324,6 @@ which counts failed terminal `state_transition` events directly and journals no 
 | `retry` | 3 (never above `diagnosis`) | each drain re-offer |
 | `infra` | 3 | each `infra_error` or `timeout` (not droughts) |
 | `premise_bounce` | 1 | each `premise_failed` (not over-bound renders) |
-| `hardening` | 1 | each spec-gap hold (bootstrap-era, section 13) |
 | `quarantine` | 5 | flake quarantine size |
 | `poison` | 2 | read by nothing |
 
@@ -657,10 +656,6 @@ remains and does not apply to ordinary tickets:
   `requisition_review` merge gate; `seeding.max_seeds_per_admission` (read by nothing).
 - **Plan pointers:** `## Plan contract` and `## Exit-read window` ticket sections and
   `CHUPA_PLAN.md#...` fence anchors, resolved against `CHUPA_PLAN.md`. The plan structure lint.
-- **Spec-gap hardening:** a `spec_gap` finding holds the stem and files a `plan-gap-<n>` ticket
-  that edits `CHUPA_PLAN.md` (`chupa/hardening.py`, `runner.hold_on_hardening`); the `hardening`
-  cap; `plan_units` on terminals. Spec-gap hardening is reached only through the seed review's
-  mechanical entry-unit check.
 - **Plan reads:** runtime reads of `CHUPA_PLAN.md` go through one function; an absent plan is
   tolerated for hosts that do not have the file. Prompts carry no plan text.
 - **Phase exits:** a forced retro before any `phase<N>-exit` stem; eval report artifacts

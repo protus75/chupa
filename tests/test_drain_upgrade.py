@@ -231,19 +231,6 @@ def test_a_premise_park_holds_across_invocations_until_a_ticket_edit_lands(root,
     assert tos(root, "false-premise")[-1] == "merged"
 
 
-def test_a_seed_stems_premise_road_names_the_plan_first(root, order, capsys):
-    plan = root / "CHUPA_PLAN.md"
-    plan.write_text(plan.read_text() + "\n## 19. Phases\n\n### 19.L Law\n\nLaw.\n\n### 19.P1 Phase 1\n\nP1.\n")
-    git_out(root, "commit", "-m", "plan", "--", "CHUPA_PLAN.md")
-    seed = confirmed().replace("source: human", "source: seed", 1).replace("## Context", "## Plan contract\n- 19.L\n- 19.P1\n\n## Context", 1)
-    commit_ticket(root, "seeded", seed)
-    drain(root, Script({"seeded": [PREMISE]}), order)
-
-    out = capsys.readouterr().out
-    assert "seeded: premise_failed" in out
-    assert "fix it in the plan and commit that first" in out
-
-
 # --- the handoff's seam surfaces -----------------------------------------------------------------
 
 

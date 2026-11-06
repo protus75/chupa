@@ -9,8 +9,7 @@ is visible to the very next pick. This is the eligibility sort's owner (section 
 
 An admission touching `chupa/**` or `specs/**` is a SELF-UPGRADE: before the next dispatch the drain hands off to
 a re-exec'd child running the upgraded checkout (section 18's HANDOFF), carrying the invocation's parked set in
-argv. An ordinary `premise_failed` stem stays parked until its committed `ticket.md` changes; spec gaps
-release through their hardening round or bound plan units instead.
+argv. A `premise_failed` stem stays parked until its committed `ticket.md` changes.
 """
 
 import asyncio
@@ -18,21 +17,16 @@ import re
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import assert_never
 
 from chupa import caps
-from chupa.git import GitError
-from chupa.hardening import ROUND_STATES, round_state, rounds
-from chupa.journal import TERMINAL_STATES, Event, EventType, dispatch_of
+from chupa.journal import TERMINAL_STATES, Event, EventType
 from chupa.lockfile import Lockfile
 from chupa.reconcile import reconcile
 from chupa.runner import EXIT_MERGED, EXIT_TICKET, Checkout, Dispatch, Refusal, harvest_orphan
 from chupa.seams import ProcessExec
-from chupa.specs import unit_sha
 from chupa.status import SETTLED, last_states, reject_queue
 from chupa.tickets import (
     INTAKE_SIGNAL,
-    PLAN_FILE,
     TICKET_FILE,
     TICKETS_DIR,
     Ticket,
@@ -63,24 +57,6 @@ def reexec_argv(parked: Iterable[str]) -> list[str]:
     return [*REEXEC, *(a for stem in parked for a in ("--parked", stem))]
 
 
-def awaited_hardening(events: Iterable[Event], stem: str) -> tuple[str, ...]:
-    """The hardening stems a spec-gap hold still waits on (section 11.4); () when the stem is not held."""
-    history = list(events)
-    terminal = next((e.body for e in reversed(history) if e.type == EventType.STATE_TRANSITION and e.ticket == stem and e.body.get("to") in TERMINAL_STATES), None)
-    if terminal is None:
-        return ()
-    match dispatch := dispatch_of(terminal):
-        case "spec_gap_hold":
-            if "round" not in terminal:
-                return ()
-        case "retry" | "escalate" | "reject_queue" | None:
-            return ()
-        case _:
-            assert_never(dispatch)
-    record = next(r for r in rounds(history) if r.number == terminal["round"])
-    return (record.hardener,) if round_state(history, record.number) == "open" else ()
-
-
 def premise_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:
     """The premise park (section 18): the stem's last run ended `premise_failed` against this same `ticket.md`."""
     last: str | None = None
@@ -92,14 +68,7 @@ def premise_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:
             last = body.get("to")
             if last == "running":
                 ran_sha = e.body.get("ticket_sha")
-    # A spec-gap premise waits on its hardening tickets instead (section 11.4), never on a ticket edit.
-    match dispatch := dispatch_of(body):
-        case "spec_gap_hold":
-            return False
-        case "retry" | "escalate" | "reject_queue" | None:
-            return last == PREMISE and ran_sha == ticket_sha and "round" not in body and "plan_units" not in body
-        case _:
-            assert_never(dispatch)
+    return last == PREMISE and ran_sha == ticket_sha
 
 
 def authored_at(events: Iterable[Event]) -> dict[str, str]:
@@ -191,7 +160,6 @@ class _Scan:
     tickets: dict[str, Ticket]
     invalid: dict[str, str]
     drafts: tuple[str, ...]
-    plan_changed: frozenset[str]
 
 
 async def drain(
@@ -301,7 +269,7 @@ class _Drain:
             if material != self._offer_material() or events != prepared_events:
                 continue
             last = last_states(events)
-            held = {s for s in scan.tickets if (last.get(s) == PREMISE and premise_parked(events, s, shas[s])) or awaited_hardening(events, s)}
+            held = {s for s in scan.tickets if last.get(s) == PREMISE and premise_parked(events, s, shas[s])}
             pick, reoffer = self._select(scan, events, last, held)
             if pick is None:
                 if self.provider_deadlines:
@@ -342,8 +310,6 @@ class _Drain:
     def _offer_material(self) -> dict[str, bytes]:
         repo = self.c.repo
         paths = list((repo / TICKETS_DIR).glob(f"*/{TICKET_FILE}"))
-        if (repo / PLAN_FILE).is_file():
-            paths.append(repo / PLAN_FILE)
         return {p.relative_to(repo).as_posix(): p.read_bytes() for p in paths}
 
     async def _scan(self) -> _Scan:
@@ -369,16 +335,7 @@ class _Drain:
             if ticket.frontmatter.state == "draft":
                 drafts.append(stem)
             tickets[stem] = ticket
-        bound = {s: body["plan_units"] for s, body in reject_queue(self.c.journal.read()).items() if "plan_units" in body}
-        changed: set[str] = set()
-        if bound:
-            # Release answers committed bytes only. Hosts without a committed plan have absent units.
-            try:
-                committed_plan = await self.c.git._run(repo, "show", f"HEAD:{PLAN_FILE}")
-            except GitError:
-                committed_plan = ""
-            changed = {s for s, units in bound.items() if any(unit_sha(committed_plan, uid) != sha for uid, sha in units.items())}
-        return _Scan(tickets, invalid, tuple(drafts), frozenset(changed))
+        return _Scan(tickets, invalid, tuple(drafts))
 
     async def _sha(self, stem: str) -> str:
         """The committed `ticket.md` blob: the content identity a premise park and a retry draw are keyed to."""
@@ -392,8 +349,7 @@ class _Drain:
         held: set[str],
     ) -> tuple[Ticket | None, bool]:
         """The next eligible dispatch in soft-edge and sort-key order, fresh or re-offered."""
-        retired_hardeners = {r.hardener for r in rounds(events) if round_state(events, r.number) == "closed"}
-        open_ = {s: t for s, t in scan.tickets.items() if t.frontmatter.state == "confirmed" and last.get(s) not in SETTLED | RETIRED and s not in retired_hardeners}
+        open_ = {s: t for s, t in scan.tickets.items() if t.frontmatter.state == "confirmed" and last.get(s) not in SETTLED | RETIRED}
         edges = {s: list(t.depends) for s, t in open_.items()}
         for stem in sorted(open_):
             if cycle := depends_cycle(stem, edges):
@@ -414,10 +370,7 @@ class _Drain:
         for t in ready:
             if t.stem in awaiting and "ticket_changed" in awaiting[t.stem].get("reason", "").split(","):
                 continue
-            bound = t.stem in awaiting and "plan_units" in awaiting[t.stem]
-            if bound and (t.stem not in scan.plan_changed or caps.remaining(self.c.config.caps, events, t.stem, "retry") <= 0):
-                continue
-            budget = bound or caps.spent(self.c.config.caps, events, t.stem) is None
+            budget = caps.spent(self.c.config.caps, events, t.stem) is None
             if t.stem in storm_held:
                 if t.stem not in self.over_budget and t.stuck_minutes <= self.c.config.drain.max_ticket_minutes and (last.get(t.stem) is None or (t.stem not in held and budget)):
                     self.storm_waiting = True
@@ -462,18 +415,10 @@ class _Drain:
         if reoffer:
             history = self.c.journal.read()
             queued = reject_queue(history)
-            bound = stem in queued and "plan_units" in queued[stem]
             if stem in queued:
                 self.c.journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}, ticket=stem)
             body = next(e.body for e in reversed(history) if e.type == EventType.STATE_TRANSITION and e.ticket == stem and e.body.get("to") in TERMINAL_STATES)
-            # A hold releases free until it arrives in Reject; a plan-bound machine keep always draws retry.
-            match dispatch := dispatch_of(body):
-                case "spec_gap_hold":
-                    draw_retry = bound
-                case "retry" | "escalate" | "reject_queue" | None:
-                    draw_retry = (bound or body.get("to") != PREMISE) and "provider_drought" not in body
-                case _:
-                    assert_never(dispatch)
+            draw_retry = body.get("to") != PREMISE and "provider_drought" not in body
             if draw_retry:
                 caps.consume(self.c.journal, stem, "retry", sha, rung=body.get("rung"))
         # The `ticket.md` the run answers: a `premise_failed` verdict parks the stem until this changes.
@@ -589,68 +534,32 @@ class _Drain:
                 spent_cap = caps.spent(self.c.config.caps, events, stem)
                 drawn = caps.failed_attempts(events, stem) if spent_cap == "attempts" else caps.draws(events, stem, spent_cap or "retry")
                 cap_limit = getattr(self.c.config.caps, spent_cap or "retry")
-                if awaits := awaited_hardening(events, stem):
-                    why, road = (f"{to}{where}; spec gap held on round {body['round']} ({', '.join(awaits)})", "the drain runs the hardening tickets first, then re-runs this stem free")
-                elif stem in held and spent_cap is None:
+                if stem in held and spent_cap is None:
                     why, road = f"{to}{where}; parked until its committed ticket.md changes", self._premise_road(t)
                 elif spent_cap is None:  # only a halt leaves budget unspent: the continuing drain re-offers it
                     why, road = (f"{to}{where}; {cap_limit - drawn} of {cap_limit} retry units left", "`uv run python -m chupa drain` re-offers it")
                 else:
                     why, road = (
                         f"{to}{where}; {caps.spent_reason(spent_cap)} ({drawn}/{cap_limit})",
-                        "read the findings below and the engine log; fix the cause in the plan (or the"
-                        " ticket if provably not the plan's) and author a successor stem -- a"
+                        "read the findings below and the engine log; fix the ticket and author a successor stem -- a"
                         " `ticket.md` edit never re-arms the cap",
                     )
                 if stem in awaiting:
                     if "ticket_changed" in awaiting[stem].get("reason", "").split(","):
                         why = f"{to}{where}; ticket_changed; held for an operator"
                         road = f"review the change to {ticket_path(stem)}, then keep (./dev.py confirm {stem}) or kill (./dev.py reject {stem})"
-                    elif "plan_units" in awaiting[stem]:
-                        units = awaiting[stem]["plan_units"]
-                        coverage = []
-                        for uid in units:
-                            for record in rounds(events):
-                                if uid not in record.units:
-                                    continue
-                                terminal = next(
-                                    (
-                                        e.body["to"]
-                                        for e in events[record.position + 1 :]
-                                        if e.type == EventType.STATE_TRANSITION
-                                        and e.ticket == record.hardener
-                                        and e.body.get("to") in TERMINAL_STATES
-                                        and (ROUND_STATES[e.body["to"]] == "closed" or e.body.get("routed") == "reject_queue")
-                                    ),
-                                    "pending",
-                                )
-                                coverage.append(f"{uid}: round {record.number} ({record.hardener}: {terminal})")
-                        why = f"{to}{where}; {body.get('reason', to)}; units: {', '.join(units)}" + (f"; {'; '.join(coverage)}" if coverage else "")
-                        if caps.remaining(self.c.config.caps, events, stem, "retry") <= 0:
-                            why += f"; retry cap spent ({caps.draws(events, stem, 'retry')}/{self.c.config.caps.retry})"
-                        road = (
-                            f"fix {', '.join(units)} in CHUPA_PLAN.md, commit it, then "
-                            "uv run python -m chupa drain; in the daemon era, "
-                            f"uv run python -m chupa confirm {stem}; or retire it with "
-                            f"uv run python -m chupa reject {stem}"
-                        )
                     else:
-                        road = f"edit {ticket_path(stem)} (or fix the plan and regenerate it), then uv run python -m chupa confirm {stem}; or retire it with uv run python -m chupa reject {stem}"
+                        road = f"edit {ticket_path(stem)}, then uv run python -m chupa confirm {stem}; or retire it with uv run python -m chupa reject {stem}"
                 self.report.parked.append(Parked(stem, why, road, self._findings(stem)))
         self.report.invalid = sorted(scan.invalid.items())
         self.report.drafts = list(scan.drafts)
 
     def _premise_road(self, t: Ticket) -> str:
-        """`source`-keyed (section 18): the release is the same commit, only where the fix originates differs."""
+        """Name the ticket edit that releases a premise park."""
         body = next(e.body for e in reversed(self.c.journal.read()) if e.type == EventType.STATE_TRANSITION and e.ticket == t.stem)
         if "render_over_bound" in body.get("reason", "").split(","):
             return "shrink or split the committed ticket text and rerun drain"
         rel = ticket_path(t.stem)
-        if t.frontmatter.source == "seed":
-            return (
-                f"the verdict below names a false assumption in CHUPA_PLAN.md: fix it in the plan and commit that"
-                f" first, then commit the plan-congruent correction of {rel} -- that ticket.md change releases it"
-            )
         return f"answer the premise findings below by editing {rel} and committing it -- the content change releases it"
 
     def _findings(self, stem: str) -> tuple[str, ...]:

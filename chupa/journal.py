@@ -31,6 +31,7 @@ class EventType(StrEnum):
     CHECKPOINT = "checkpoint"
 
 
+# dispatch_of must recognize 411 historical spec_gap_hold terminals.
 Dispatch = Literal["retry", "escalate", "reject_queue", "spec_gap_hold"]
 
 SIGNAL_NAMES: frozenset[str] = frozenset(
@@ -46,7 +47,7 @@ SIGNAL_NAMES: frozenset[str] = frozenset(
         "drain_handoff",
         "flake_detected",
         "flake_released",
-        "hardening_round",
+        "hardening_round",  # Retained for 47 historical rounds.
         "harvest_failed",
         "kill_applied",
         "merge_conflict_facts",

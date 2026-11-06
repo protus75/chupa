@@ -24,7 +24,6 @@ from chupa import (
     drain,
     enginelog,
     gates,
-    hardening,
     inbox,
     journal,
     llm,
@@ -170,23 +169,6 @@ def test_gates_closed_sets_and_constants():
     assert gates.ENGINE_GATE_CODES == frozenset(
         {"bug_evidence", "core_drift", "correctness_review", "diff_budget", "post_rebase_regate", "requisition_review", "run_record", "scope_fence", "ticket_schema", "verification"}
     )
-
-
-def test_hardening_closed_sets_and_constants():
-    assert dict(hardening.ROUND_STATES) == {
-        "abandoned": "open",
-        "already_satisfied": "closed",
-        "budget_exceeded": "open",
-        "gate_failed": "open",
-        "infra_error": "open",
-        "invalid_artifact": "open",
-        "merged": "closed",
-        "premise_failed": "closed",
-        "rejected": "closed",
-        "running": "open",
-        "timeout": "open",
-    }
-    assert set(get_args_deep(hardening.RoundState)) == {"closed", "open"}
 
 
 def test_inbox_closed_sets_and_constants():

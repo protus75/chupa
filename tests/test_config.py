@@ -68,7 +68,6 @@ def test_valid_config_loads_from_cwd_with_shipped_defaults(tmp_path):
         "diagnosis": 3,
         "retry": 3,
         "premise_bounce": 1,
-        "hardening": 1,
         "infra": 3,
         "attempts": 5,
         "quarantine": 5,
