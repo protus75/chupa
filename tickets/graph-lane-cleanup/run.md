@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-none
+The ticket’s regression carries entry names graph.js, an implementation file; the prior attempt reported that the check gate rejects such entries, and the ticket cannot be edited within this scope.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 30 minutes; completed in under 5 minutes.
+Expected 30 minutes; completed in approximately 3 minutes.
 
