@@ -3,7 +3,7 @@
 import asyncio
 from collections.abc import Awaitable, Callable, Iterable, Set
 
-from chupa.drain import SETTLED, authored_at, sort_key
+from chupa.drain import SETTLED, authored_at, order_tickets
 from chupa.journal import Journal
 from chupa.status import last_states, reject_queue
 from chupa.tickets import Ticket
@@ -67,7 +67,7 @@ class Scheduler:
             ]
             if not ready:
                 return None
-            ticket = min(ready, key=lambda t: sort_key(t, authored))
+            ticket = order_tickets(ready, authored)[0]
             self.remove(ticket.stem)
             self.active = ticket
             try:

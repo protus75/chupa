@@ -1502,3 +1502,13 @@ def test_engine_artifacts_do_not_trigger(rework_repo):
 
 def test_ticket_edit_during_failed_implement_skips_diagnosis(rework_repo, monkeypatch):
     _mid_run_hold(rework_repo, monkeypatch, committed=True, failed=True)
+
+
+def test_runs_before_failed_ticket_does_not_block_named_ticket(tmp_path):
+    root = make_root(tmp_path, "caps: {attempts: 1}\n")
+    intake_at(root, "old", START)
+    commit_ticket(root, "old", confirmed(priority="P1"))
+    commit_ticket(root, "new", confirmed(priority="P2") + "\n## Runs before\n- old\n")
+    script = Script({"new": ["gate_failed"]})
+    assert drain(root, script) == 0
+    assert script.calls == ["new", "old"]

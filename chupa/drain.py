@@ -117,6 +117,19 @@ def sort_key(ticket: Ticket, authored: Mapping[str, str]) -> tuple:
     return (PRIORITY[ticket.frontmatter.priority], ts is None, ts or "", ticket.stem)
 
 
+def order_tickets(tickets: Iterable[Ticket], authored: Mapping[str, str]) -> list[Ticket]:
+    """Apply soft edges only within the eligible set, breaking ties by sort_key."""
+    remaining = sorted(tickets, key=lambda t: sort_key(t, authored))
+    ordered = []
+    while remaining:
+        named = {stem for ticket in remaining for stem in ticket.runs_before}
+        # Malformed committed cycles must not stall dispatch.
+        ticket = next((t for t in remaining if t.stem not in named), remaining[0])
+        remaining.remove(ticket)
+        ordered.append(ticket)
+    return ordered
+
+
 @dataclass(frozen=True)
 class Parked:
     stem: str
@@ -378,7 +391,7 @@ class _Drain:
         last: Mapping[str, str],
         held: set[str],
     ) -> tuple[Ticket | None, bool]:
-        """The next eligible dispatch in (priority, authored age, stem) order, fresh or re-offered."""
+        """The next eligible dispatch in soft-edge and sort-key order, fresh or re-offered."""
         retired_hardeners = {r.hardener for r in rounds(events) if round_state(events, r.number) == "closed"}
         open_ = {s: t for s, t in scan.tickets.items() if t.frontmatter.state == "confirmed" and last.get(s) not in SETTLED | RETIRED and s not in retired_hardeners}
         edges = {s: list(t.depends) for s, t in open_.items()}
@@ -436,7 +449,8 @@ class _Drain:
             elif t.stem not in held and budget:
                 candidates.append((t, True))
         if candidates:
-            return candidates[0]
+            ordered = order_tickets((t for t, _ in candidates), authored)
+            return next(pair for pair in candidates if pair[0] == ordered[0])
         return None, False
 
     async def _run_one(self, ticket: Ticket, reoffer: bool, sha: str) -> None:

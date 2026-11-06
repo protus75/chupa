@@ -640,3 +640,18 @@ def test_new_prints_bug_evidence_finding(repo, monkeypatch, capsys):
     monkeypatch.setattr(cli, "template", lambda kind: complete(bug_text()))
     assert cli._new(root, "t-bug", "bug") == 0
     assert "add the observed failure" in capsys.readouterr().out
+
+
+def test_runs_before_parsing_and_refusals(repo):
+    root, _, _ = repo
+    write(root, "t-other", VALID)
+    def hinted(target):
+        return complete(VALID + f"\n## Runs before\n- {target}\n")
+    assert validate_ticket("t-one", hinted("t-other"), root).runs_before == ("t-other",)
+    for target in ("t-one", "missing", "none"):
+        findings = refusal(root, hinted(target))
+        assert all("Runs before" in f.message and f.paved_road for f in findings)
+    write(root, "t-other", hinted("t-one"))
+    findings = refusal(root, hinted("t-other"))
+    assert "Runs before" in findings[0].message and "cycle" in findings[0].message
+    assert findings[0].paved_road == "drop the edge that inverts the intended order"

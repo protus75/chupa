@@ -83,7 +83,7 @@ Frontmatter fields that drive behavior:
   (bootstrap-era, section 13).
 - `kind`: `feature`, `chore`, or `bug` (a bug must carry `## Regression` and evidence,
   section 5.2).
-- `priority` (P0-P3) and `## Depends on` order the queue. `agent_tier` / `agent_effort` pick the
+- `priority` (P0-P3), `## Depends on`, and the optional `## Runs before` section order the queue. `agent_tier` / `agent_effort` pick the
   starting model capability (section 6.4). `gate_bypass` softens named engine gates for this
   ticket (section 5.3).
 
@@ -383,8 +383,9 @@ Keep and kill require a person at an interactive terminal to type the exact stem
 2. Loops: reload config, honor pause/kill, maybe run a retro, scan committed tickets, pick the
    next ticket, run it, merge it inline.
 3. **Pick order:** confirmed, unsettled, not rejected, every dependency settled (through split
-   successors); then priority P0-P3, then authored age, then stem, across fresh tickets and
-   re-offers. Skipped: storm-held, drought-parked, Reject-queue stems without budget, and tickets
+   successors); among eligible fresh tickets and re-offers, `## Runs before` orders named stems
+   after the ticket naming them, with priority P0-P3, authored age, then stem breaking ties.
+   Edges to ineligible stems never block a pick. Skipped: storm-held, drought-parked, Reject-queue stems without budget, and tickets
    whose `stuck` exceeds `drain.max_ticket_minutes` (default 90).
 4. **Quiescence:** when nothing is eligible, it re-offers parked stems with budget (drawing
    `retry`), forces a retro, and stops when nothing changes.
@@ -405,7 +406,9 @@ publishes `state_dir/control/active.json`, and runs four loops (every 0.1s):
   its last good version.
 - **Dispatch:** the scheduler runs one ticket at a time. It waits while
   `scheduler.max_unmerged` (default 2) finished tickets are waiting to merge, while paused, or
-  while a stem is held (Reject queue, storm, drought, held merge).
+  while a stem is held (Reject queue, storm, drought, held merge). Among eligible tickets,
+  `## Runs before` orders named stems after the ticket naming them; priority, authored age,
+  and stem break ties. Edges to ineligible stems never block dispatch.
 - **Merge queue:** serial admission (section 7.2.1).
 - **Triage:** works the Suggestion Box.
 

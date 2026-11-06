@@ -441,3 +441,32 @@ async def test_superseded_dependencies_require_all_successor_leaves(tmp_path):
     rig.transition("leaf-b", "already_satisfied")
     assert await rig.core.scheduler.dispatch_next() is child
     assert calls == ["dependent"] and "original" in rig.core.scheduler.pending
+
+
+@pytest.mark.asyncio
+async def test_runs_before_orders_eligible_tickets(rig):
+    rig.add("old", priority="P1")
+    rig.intake("old")
+    rig.time.advance(10)
+    hint = rig.add("new", priority="P2")
+    from dataclasses import replace
+    rig.scheduler.update(replace(hint, runs_before=("old",)))
+    rig.intake("new")
+    await rig.drain()
+    assert rig.calls == ["new", "old"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("inactive", ["merged", "held"])
+async def test_runs_before_ignores_ineligible_targets(rig, inactive):
+    from dataclasses import replace
+    rig.add("target")
+    if inactive == "merged":
+        rig.transition("target", "merged")
+    else:
+        rig.quarantine.add("target")
+    rig.add("old", priority="P1")
+    hint = rig.add("new", priority="P2")
+    rig.scheduler.update(replace(hint, runs_before=("target",)))
+    await rig.drain()
+    assert rig.calls == ["old", "new"]

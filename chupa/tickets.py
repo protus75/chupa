@@ -79,7 +79,7 @@ REQUIRED_SECTIONS = (
     "Definition of rejected",
     "Time budget",
 )
-OPTIONAL_SECTIONS = ("On-demand", "Plan contract", "Regression", "Exit-read window")
+OPTIONAL_SECTIONS = ("Runs before", "On-demand", "Plan contract", "Regression", "Exit-read window")
 SECTIONS = REQUIRED_SECTIONS + OPTIONAL_SECTIONS
 SEED_REFUSED_SECTIONS = frozenset({"0", "19", "21", "22"})
 BANNED_ADJECTIVES = re.compile(r"\b(improved|better|cleaner)\b", re.IGNORECASE)
@@ -104,6 +104,7 @@ class Ticket:
     verification: tuple[tuple[str, ...], ...]
     expected_minutes: int
     stuck_minutes: int
+    runs_before: tuple[str, ...] = ()
     regression: tuple[str, ...] = ()
     carries: tuple[str, ...] = ()
 
@@ -265,7 +266,7 @@ def _criteria(text: str) -> list[str]:
 def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings: Collection[str] = ()) -> Ticket:
     """Validate one ticket against the full section 13 grammar; raise TicketInvalid with every finding.
 
-    `repo` resolves `Context` / `On-demand` existence and `Depends on` stems (existing ticket dirs).
+    `repo` resolves `Context` / `On-demand` existence and ordering stems.
     `plan` is the plan text `Plan contract` ids resolve against (None: the plan file is absent).
     """
     path = ticket_path(stem)
@@ -309,6 +310,20 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings
                     findings.append(_f(f"`## Depends on` stem {dep!r} does not resolve to an existing ticket", f"name an existing `{TICKETS_DIR}/<stem>/` dir, or `none`", path))
                 else:
                     depends.append(dep)
+
+    runs_before: list[str] = []
+    if "Runs before" in sections:
+        items, errs = _bullets(sections["Runs before"], "Runs before", path)
+        findings += errs
+        if not items:
+            findings.append(_f("`## Runs before` has no stems", "list existing ticket stems as bullets, or remove the section", path))
+        for target in items:
+            if target == stem:
+                findings.append(_f(f"`## Runs before` names the ticket itself ({target!r})", "drop the self-edge", path))
+            elif target == "none" or not STEM.fullmatch(target) or not (tickets_root / target).is_dir():
+                findings.append(_f(f"`## Runs before` stem {target!r} does not resolve to an existing ticket dir", "name an existing `tickets/<stem>/` dir, or remove the section", path))
+            else:
+                runs_before.append(target)
 
     context: list[str] = []
     if text_ := sections.get("Context"):
@@ -449,6 +464,7 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None, siblings
         verification=tuple(commands),
         expected_minutes=expected,
         stuck_minutes=stuck,
+        runs_before=tuple(runs_before),
         regression=regression,
         carries=carries,
     )
@@ -488,8 +504,8 @@ def depends_cycle(stem: str, edges: Mapping[str, Sequence[str]]) -> list[str] | 
     return None
 
 
-def _graph(repo: Path) -> dict[str, list[str]]:
-    """Every on-disk ticket's `Depends on` stems, read leniently: a malformed ticket contributes no edges."""
+def _graph(repo: Path, section: str = "Depends on") -> dict[str, list[str]]:
+    """Read each on-disk ticket's named section leniently; a malformed ticket contributes no edges."""
     edges: dict[str, list[str]] = {}
     root = repo / TICKETS_DIR
     for ticket in sorted(root.glob(f"*/{TICKET_FILE}")):
@@ -497,7 +513,7 @@ def _graph(repo: Path) -> dict[str, list[str]]:
         if split is None:
             continue
         sections, _ = _sections(split[1], "")
-        items, _ = _bullets(sections.get("Depends on", ""), "Depends on", "")
+        items, _ = _bullets(sections.get(section, ""), section, "")
         edges[ticket.parent.name] = [i for i in items if i != "none"]
     return edges
 
@@ -512,6 +528,10 @@ def validate_ticket(stem: str, text: str, repo: Path, siblings: Collection[str] 
     edges[stem] = list(ticket.depends)
     if cycle := depends_cycle(stem, edges):
         raise TicketInvalid([_f(f"`## Depends on` closes a cycle: {' -> '.join(cycle)}", "drop the edge that inverts the intended order", ticket_path(stem))])
+    edges = _graph(repo, "Runs before")
+    edges[stem] = list(ticket.runs_before)
+    if cycle := depends_cycle(stem, edges):
+        raise TicketInvalid([_f(f"`## Runs before` closes a cycle: {' -> '.join(cycle)}", "drop the edge that inverts the intended order", ticket_path(stem))])
     return ticket
 
 
