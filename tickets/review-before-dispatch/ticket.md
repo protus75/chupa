@@ -43,7 +43,7 @@ A ticket an AI writes in a chat session reaches Implement without the buildabili
   - `test_render_feasibility_snag_proceeds_to_implement`: a snag with only `render_feasibility` findings still reaches Implement.
   - `test_edit_releases_and_reviews_the_new_content`: after a snag, committing an edited `ticket.md` re-offers it with no `confirm`, and the new sha is reviewed once.
   - `test_serve_holds_a_parked_ticket`: serve's scheduler does not pick a `premise_failed` stem parked at its committed sha, and picks it after the ticket changes.
-- In: `chupa/scheduler.py`: serve's held set also holds a stem whose last state is `premise_failed` and that `drain.premise_parked` reports parked at its committed `ticket.md` sha. Today serve holds only Reject-queue stems, so without this it would re-dispatch a parked ticket unchanged. Reuse `premise_parked`; never add a second park check. `chupa/daemon.py` builds the `Scheduler` (its only construction site); pass it a committed-ticket sha lookup wired through the existing git seam (`git rev-parse HEAD:tickets/<stem>/ticket.md`).
+- In: `chupa/scheduler.py`: serve's held set also holds a stem whose last state is `premise_failed` and that `drain.premise_parked` reports parked at its committed `ticket.md` sha. Today serve holds only Reject-queue stems, so without this it would re-dispatch a parked ticket unchanged. Reuse `premise_parked`; never add a second park check. `chupa/daemon.py` builds the `Scheduler` (its only construction site); pass it a committed-ticket sha lookup wired through the existing git seam (`git rev-parse HEAD:tickets/<stem>/ticket.md`). The full chain: `chupa/__main__.py` `build_daemon_core` (which already holds the `checkout` and its git seam) passes the lookup into `daemon.daemon_core`, which passes it to `Scheduler`. `serve.py` needs no change.
 - In: `docs/how-chupa-works.md`: the stage order and the drain/serve dispatch description say a ticket without an approve for its committed content is reviewed before Implement; section 6.7's premise-park bullet names the `requisition` stage terminal and its release (edit the ticket; no confirm).
 - Out: `chupa/requisition.py` and the review prompt, the Author and Rework stages, intake, `CORE_TEMPLATE`, `hosts/fixture/bin/claude` (it already answers the review role).
 
@@ -51,6 +51,7 @@ A ticket an AI writes in a chat session reaches Implement without the buildabili
 - chupa/runner.py
 - chupa/scheduler.py
 - chupa/daemon.py
+- chupa/__main__.py
 - eval/shakeout/bench.py
 - eval/reliability_battery.py
 - docs/how-chupa-works.md
