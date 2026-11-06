@@ -14,6 +14,7 @@ state: confirmed
 
 ## Context
 - chupa/watchdog.py
+- chupa/__main__.py
 - docs/host-authoring.md
 - docs/how-chupa-works.md
 
@@ -45,10 +46,12 @@ The ticket format still knows the bootstrap plan: a `## Plan contract` section w
 - This ticket overrides the `CLAUDE.md`/`AGENTS.md` rules that treat `CHUPA_PLAN.md` as a spec: do not edit `CHUPA_PLAN.md`.
 - In: `tests/test_closed_sets.py` `test_specs_closed_sets_and_constants`: also drop the `specs.CITABLE_SECTIONS`, `specs.ENTRY_PARTS`, `specs.MAX_ADMISSION_PAYLOADS`, `specs.PLAN_UNITS`, `specs.REFUSED_SECTIONS` and `tickets.SEED_REFUSED_SECTIONS` assertions.
 - In: `vscode-chupa/snapshot.py`: drop the `read_plan` import and call, call `parse_ticket(stem, path.read_text(), ROOT)` without `plan=`, and update the docstring that blames the plan-cite check for the parse cost.
+- In: `chupa/__main__.py` `watchdog_observation`: snapshot each fence prefix whole; drop the `prefix.partition("#")[0]` anchor stripping.
 - Out: `CHUPA_PLAN.md` itself, committed ticket files, `source: seed` validity, `Finding`, the journal.
 
 ## Scope fence
 - chupa/tickets.py
+- chupa/__main__.py
 - vscode-chupa/snapshot.py
 - chupa/specs.py
 - chupa/stages.py
