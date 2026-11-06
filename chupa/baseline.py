@@ -1,4 +1,4 @@
-"""The sole fail-closed baseline binding reader (plan 19.P5.baseline-binding-reader)."""
+"""The sole fail-closed baseline binding reader."""
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field

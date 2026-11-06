@@ -1,4 +1,4 @@
-"""Identity-bound control requests (CHUPA_PLAN.md 19.P3.control-inbox)."""
+"""Identity-bound control requests."""
 
 import json
 import re

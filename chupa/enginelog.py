@@ -1,4 +1,4 @@
-"""Engine log (CHUPA_PLAN.md section 6): line-oriented diagnostics, size-rotated, never authoritative.
+"""Engine log: line-oriented diagnostics, size-rotated, never authoritative.
 
 Not the journal: nothing reads this for a gate or dispatch decision.
 """

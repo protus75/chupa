@@ -1,4 +1,4 @@
-"""The Suggestion Box Author stage (CHUPA_PLAN.md sections 12 and 13)."""
+"""The Suggestion Box Author stage."""
 
 import json
 import shutil

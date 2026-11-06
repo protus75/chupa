@@ -1,4 +1,4 @@
-"""Artifact base model and stage result types (CHUPA_PLAN.md sections 4, 5)."""
+"""Artifact base model and stage result types."""
 
 import re
 from dataclasses import dataclass
@@ -35,7 +35,7 @@ class Finding(_Strict):
     line: Annotated[int, Field(ge=1)] | None = None
     message: NonBlank
     paved_road: NonBlank  # required: a finding that cannot say what to do instead fails gate-lint
-    # Section 7: a requisition_review finding names whether the spec or the authoring is at fault.
+    # A requisition_review finding names whether the spec or the authoring is at fault.
     kind: Literal["spec_gap", "authoring_error"] | None = None
     unit: str | None = None
 
@@ -78,7 +78,7 @@ class Harvest(_Strict):
 
 
 class Artifact(_Strict):
-    """Base of every stage-emitted artifact except the ticket (section 5 versioning policy)."""
+    """Base of every stage-emitted artifact except the ticket."""
 
     artifact_schema_version: Annotated[int, Field(ge=0)] = ARTIFACT_SCHEMA_VERSION
     produced_by_spec_version: int
@@ -143,7 +143,7 @@ _DAEMON_SOAK_EXPECTED = {
 
 
 class DaemonSoakEntry(_Strict):
-    """One closed member's observation (CHUPA_PLAN.md 19.P3.daemon-soak)."""
+    """One closed member's observation."""
 
     member: Literal["worker_killed_mid_run", "conflict_resolution_rungs", "semantic_conflict_integration_red"]
     planted_fault: NonBlank

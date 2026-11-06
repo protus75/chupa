@@ -1,9 +1,9 @@
-"""Effect primitive (CHUPA_PLAN.md section 6): once-per-key against the surviving journal.
+"""Effect primitive: once-per-key against the surviving journal.
 
 Once is COMPLETION-keyed: a key with a journaled completion replays its recorded
 result. An intent with no completion (crash mid-effect) re-executes here on
-purpose -- that window belongs to reconcile-on-entry (section 11), not this
-primitive. A completion may carry a `cost` body field: the ledger folds it (D3).
+purpose -- that window belongs to reconcile-on-entry, not this
+primitive. A completion may carry a `cost` body field: the ledger folds it.
 """
 
 import functools
@@ -17,7 +17,7 @@ from chupa.journal import EventType, Journal
 class Effects:
     def __init__(self, journal: Journal) -> None:
         self._journal = journal
-        # Startup scan; appended to as effects complete (D3: no index builder).
+        # Startup scan; appended to as effects complete: no index builder.
         self._completed = {e.key for e in journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key is not None}
 
     async def run(

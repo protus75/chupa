@@ -1,4 +1,4 @@
-"""Lineage-scoped failure-spine cap accounting (CHUPA_PLAN.md section 11.2)."""
+"""Lineage-scoped failure-spine cap accounting."""
 
 from collections.abc import Iterable, Mapping
 

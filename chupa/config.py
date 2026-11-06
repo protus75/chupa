@@ -1,4 +1,4 @@
-"""Host config loader (CHUPA_PLAN.md section 15): one config.yaml, validated fail-closed.
+"""Host config loader: one config.yaml, validated fail-closed.
 
 Defaulting is fail-closed: a shipped default applies only when a key is ABSENT; an
 explicit null anywhere is refused before validation, so `X | None` fields below mean
@@ -36,7 +36,7 @@ PathField = Annotated[Path, Field(strict=False)]
 Argv = Annotated[list[str], Field(min_length=1)]
 Count = Annotated[int, Field(ge=1)]
 
-# Section 12 policy table.
+# Policy table.
 BOX_POLICY_DEFAULTS: dict[str, StartState] = {
     "failure_report": "confirmed",
     "retro_finding": "confirmed",
@@ -85,13 +85,13 @@ class Provider(_Strict):
     @model_validator(mode="after")
     def _cli_declares_its_package(self) -> "Provider":
         if self.kind == "cli" and not self.package:
-            raise ValueError(f"cli provider {self.name!r} declares no `package`; name its pnpm package (section 6 provider preflight)")
+            raise ValueError(f"cli provider {self.name!r} declares no `package`; name its pnpm package (provider preflight)")
         return self
 
 
 class Candidate(_Strict):
     provider: str
-    model: str | None = None  # absent: the provider's models_by_tier[tier] serves (section 6)
+    model: str | None = None  # absent: the provider's models_by_tier[tier] serves
 
 
 class Route(_Strict):
@@ -190,7 +190,7 @@ class Config(_Strict):
     caps: Caps = Caps()
     circuit_breaker: CircuitBreaker = CircuitBreaker()
     drain: Drain = Drain()
-    engine_plane_safety_inventory: list[str]  # no shipped default: absence fails closed (section 12)
+    engine_plane_safety_inventory: list[str]  # no shipped default: absence fails closed
     box_policy: dict[BoxRow, StartState] = Field(default_factory=lambda: dict(BOX_POLICY_DEFAULTS))
     notify: Argv | None = None
     report_inbox: PathField | None = None
@@ -220,7 +220,7 @@ class Config(_Strict):
 
 @dataclass(frozen=True, slots=True)
 class ConfigSnapshot:
-    """Detached field-attribute view of a validated config record (19.P3.dispatch-config-snapshot)."""
+    """Detached field-attribute view of a validated config record."""
 
     _fields: Mapping[str, Any]
 
@@ -411,7 +411,7 @@ def _check_references(path: Path, cfg: Config) -> None:
             raise ConfigError(
                 path,
                 f"providers.{i}.kind",
-                "kind: api is refused until the api client ships (section 6); use kind: cli",
+                "kind: api is refused until the api client ships; use kind: cli",
             )
     declared = {p.name for p in cfg.providers}
     for i, route in enumerate(cfg.routing):

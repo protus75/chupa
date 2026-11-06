@@ -1,4 +1,4 @@
-"""Explicit lock-held checkpoint pushes (CHUPA_PLAN.md 19.P3.checkpoint-push)."""
+"""Explicit lock-held checkpoint pushes."""
 
 import re
 from datetime import datetime, timedelta

@@ -1,4 +1,4 @@
-"""Durable Suggestion Box and decision registry formats (plan section 12)."""
+"""Durable Suggestion Box and decision registry formats."""
 
 import hashlib
 import json

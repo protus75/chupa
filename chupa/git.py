@@ -1,4 +1,4 @@
-"""All git access (CHUPA_PLAN.md section 10, D1): argv lists, dir-pinned, through the process-exec seam."""
+"""All git access: argv lists, dir-pinned, through the process-exec seam."""
 
 import re
 from collections.abc import Mapping, Sequence
@@ -137,7 +137,7 @@ class Git:
         await self._run(dir, "push", _ref(remote), _ref(branch))
 
     async def describe(self, dir: Path) -> str:
-        """Diagnostics only: derives the lockfile instance_id for an untagged dev instance (section 6)."""
+        """Diagnostics only: derives the lockfile instance_id for an untagged dev instance."""
         return (await self._run(dir, "describe", "--tags", "--always", "--dirty")).strip()
 
     async def first_parent_squashes(self, dir: Path, app_commit: str) -> list[dict]:

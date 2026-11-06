@@ -1,4 +1,4 @@
-"""Production daemon core and dispatch ownership (CHUPA_PLAN.md 19.P3.scheduler-activation)."""
+"""Production daemon core and dispatch ownership."""
 
 import asyncio
 from collections.abc import Awaitable, Callable, Iterable, Set
@@ -53,7 +53,7 @@ def flake_detection(*, journal: Journal, box: Box, config: Config, escalate: Cal
 
 
 class HeartbeatCycle:
-    """Explicit main-loop boundary; task owners supply responsiveness (19.P3.heartbeat)."""
+    """Explicit main-loop boundary; task owners supply responsiveness."""
 
     def __init__(self, *, heartbeat: Heartbeat, workers: Callable[[], bool], merge_queue: Callable[[], bool], box_consumer: Callable[[], bool], watcher: Callable[[], bool]) -> None:
         self.heartbeat = heartbeat
@@ -102,7 +102,7 @@ def _stop_workers(tasks: tuple[asyncio.Task, ...]) -> asyncio.Future:
 
 
 class WorkerStop:
-    """Stop owner for one supplied task set (19.P3.kill-worker-stop).
+    """Stop owner for one supplied task set.
 
     Construct a fresh boundary for a later task set. The lock holder supplies the
     inbox's recovered projection and the predecessor executor-abort operation.
@@ -127,7 +127,7 @@ class WorkerStop:
 
 
 class WorkerFailureObserver:
-    """Notification boundary for WorkerStop's supplied workers (19.P3.kill-failure-suppression).
+    """Notification boundary for WorkerStop's supplied workers.
 
     The lock holder supplies its current, durably folded projection. Observation
     never stops workers or replaces their owner's exception propagation.
@@ -319,7 +319,7 @@ class StartupBoundary:
 
 
 class DaemonTasks:
-    """Explicit lifetime owner for background consumers (19.P3.background-consumers)."""
+    """Explicit lifetime owner for background consumers."""
 
     def __init__(self, *, watcher: Callable[[], Awaitable[object]], merge_queue: Callable[[], Awaitable[object]], box_consumer: Callable[[], Awaitable[object]]) -> None:
         self._consumers = (watcher, merge_queue, box_consumer)

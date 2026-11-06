@@ -1,4 +1,4 @@
-"""Journal invariants for the test-harness ladder (CHUPA_PLAN.md section 15)."""
+"""Journal invariants for the test-harness ladder."""
 
 import re
 from collections.abc import Collection, Iterable

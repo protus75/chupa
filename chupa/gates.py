@@ -1,6 +1,6 @@
-"""Gate protocol, runner, and gate-lint (CHUPA_PLAN.md sections 5, 7).
+"""Gate protocol, runner, and gate-lint.
 
-Severity never lives in a gate: the runner applies it from config (section 5 invariant 3).
+Severity never lives in a gate: the runner applies it from config.
 """
 
 from collections.abc import Collection, Iterable, Mapping
@@ -28,7 +28,7 @@ ENGINE_GATE_CODES: frozenset[str] = frozenset(
     }
 )
 
-# Shipped MERGE-context default (section 15): every engine-shipped code is hard at merge.
+# Shipped MERGE-context default: every engine-shipped code is hard at merge.
 DEFAULT_GATE_SEVERITY: Mapping[str, Severity] = {code: "hard" for code in ENGINE_GATE_CODES}
 
 

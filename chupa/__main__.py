@@ -1,4 +1,4 @@
-"""The CLI module entry (CHUPA_PLAN.md section 18): `uv run python -m chupa <verb>`.
+"""The CLI module entry: `uv run python -m chupa <verb>`.
 
 The composition root: the only place real seams are constructed. Exit 2 is an engine-plane refusal.
 """
@@ -322,7 +322,7 @@ def main(
                 def __getattr__(self, name):
                     return getattr(dispatch, name)
 
-            # The handoff's own seam instance, never shared with active work (section 15).
+            # The handoff's own seam instance, never shared with active work.
             report = asyncio.run(drain.drain(checkout, DrainDispatch(), reexec=reexec or SubprocessExec(), parked=args.parked))
             if report.handoff is None:
                 print(report.render(), end="")

@@ -1,4 +1,4 @@
-"""The one LLM-stage driver (CHUPA_PLAN.md section 5 invariant 2, section 6).
+"""The one LLM-stage driver.
 
 render -> spool prompt -> LLM effect (raced against the stuck budget) -> spool output -> unwrap one
 fence -> validate -> gates -> on hard failure re-prompt the SAME workspace with the findings,
@@ -252,7 +252,7 @@ class Driver:
         scope_fence: Sequence[str],
         budget_usd: float | None,
     ) -> StageResult:
-        """Run one stage attempt; `attempt` is the run sequence (section 6), stuck_budget in seconds."""
+        """Run one stage attempt; `attempt` is the run sequence, stuck_budget in seconds."""
         stem = ticket or stage.surface  # ticketless surfaces spool and key under their surface name
         if run_seq is not None and ticket is not None:
             raise ValueError("run_seq requires ticket=None")

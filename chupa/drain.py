@@ -1,14 +1,14 @@
-"""The `drain` scaffold verb (CHUPA_PLAN.md sections 9, 11.2, 18, 19.P1): run the ready queue to quiescence.
+"""The `drain` scaffold verb: run the ready queue to quiescence.
 
 One ticket at a time, in the one process holding the single-writer lock, through the same dispatch seam as
 `run <stem>`. A non-ok terminal parks its stem and the drain moves on; at quiescence each parked stem with
 `retry` budget left is re-offered, one journaled `cap_consumed` unit per re-offer, findings-fed: the Implement
-render folds the prior terminal's durable findings into criteria-position (section 11.2). Every selection re-scans
+render folds the prior terminal's durable findings into criteria-position. Every selection re-scans
 the committed tickets dir and re-folds the journal, so a merge or a ticket-plane commit landed mid-invocation
-is visible to the very next pick. This is the eligibility sort's owner (section 9).
+is visible to the very next pick. This is the eligibility sort's owner.
 
 An admission touching `chupa/**` or `specs/**` is a SELF-UPGRADE: before the next dispatch the drain hands off to
-a re-exec'd child running the upgraded checkout (section 18's HANDOFF), carrying the invocation's parked set in
+a re-exec'd child running the upgraded checkout, carrying the invocation's parked set in
 argv. A `premise_failed` stem stays parked until its committed `ticket.md` changes.
 """
 
@@ -41,7 +41,7 @@ from chupa.tickets import (
 
 HALT_SIGNAL = "drain_halted"
 CEILING = "drain.max_runtime_hours"
-# A `rejected` stem is retired (section 11.2): never dispatched again.
+# A `rejected` stem is retired: never dispatched again.
 RETIRED = frozenset({"rejected"})
 PRIORITY = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
 
@@ -49,7 +49,7 @@ PREMISE = "premise_failed"
 HANDOFF_SIGNAL = "drain_handoff"
 # The engine plane the running process has loaded: admitting a change under either re-execs the drain.
 UPGRADE_PREFIXES = ("chupa/", "specs/")
-# D1's one named runtime `uv` exception (section 18): one form, dependency changes included.
+# The named runtime `uv` exception: one form, dependency changes included.
 REEXEC = ("uv", "run", "python", "-m", "chupa", "drain")
 
 
@@ -58,7 +58,7 @@ def reexec_argv(parked: Iterable[str]) -> list[str]:
 
 
 def premise_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:
-    """The premise park (section 18): the stem's last run ended `premise_failed` against this same `ticket.md`."""
+    """The premise park: the stem's last run ended `premise_failed` against this same `ticket.md`."""
     last: str | None = None
     ran_sha: str | None = None
     body: Mapping = {}
@@ -72,7 +72,7 @@ def premise_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:
 
 
 def authored_at(events: Iterable[Event]) -> dict[str, str]:
-    """Each stem's age anchor (section 9): the `ts` of its FIRST ticket-plane authoring-commit event."""
+    """Each stem's age anchor: the `ts` of its FIRST ticket-plane authoring-commit event."""
     first: dict[str, str] = {}
     for e in events:
         if e.type == EventType.SIGNAL and e.body.get("signal") == INTAKE_SIGNAL and e.ticket is not None:
@@ -128,7 +128,7 @@ class Report:
     def exit_code(self) -> int:
         if self.handoff is not None:
             return self.handoff
-        # Section 18: quiescence is 0 whatever it parked; a ceiling halt is a non-quiescent stop.
+        # Quiescence is 0 whatever it parked; a ceiling halt is a non-quiescent stop.
         return EXIT_TICKET if self.halted or self.killed else EXIT_MERGED
 
     def render(self) -> str:
@@ -175,7 +175,7 @@ async def drain(
     parked: Iterable[str] = (),
     before_dispatch: Callable[[], Awaitable[None]] | None = None,
 ) -> Report:
-    """`reexec` is the handoff's own process seam (section 15): never the instance active work spawns through."""
+    """`reexec` is the handoff's own process seam: never the instance active work spawns through."""
     consumer = checkout.control
     if consumer is None:
         raise Refusal("admission control consumer absent", "construct it with `build_control` at the composition root and supply it as `Checkout.control`")
@@ -224,7 +224,7 @@ async def drain(
                 consumer.retire()
         finally:
             lock.release()
-    # The fixed HANDOFF order (section 18): journaled, journal closed, lock free -- the child is the only writer,
+    # The fixed HANDOFF order: journaled, journal closed, lock free -- the child is the only writer,
     # and the parent does nothing after the spawn but exit with its code.
     report.handoff, _, _ = await reexec.run(reexec_argv(carried), cwd=checkout.repo, env=checkout.env, timeout=None)
     return report
@@ -450,7 +450,7 @@ class _Drain:
             raise ValueError(f"stage seam returned {terminal!r} for {stem} but journaled {body['to']!r}; the seam must journal the run's single terminal transition")
         if terminal == "merged":
             self.report.merged.append(stem)
-            # A `merged` with no commit is the no-diff settlement (section 7): nothing was admitted.
+            # A `merged` with no commit is the no-diff settlement: nothing was admitted.
             if (commit := body.get("commit")) is not None:
                 changed = await self.c.git.diff_names(self.c.repo, f"{commit}^", commit)
                 if any(p.startswith(UPGRADE_PREFIXES) for p in changed):
@@ -576,7 +576,7 @@ class _Drain:
         return f"answer the premise findings below by editing {rel} and committing it -- the content change releases it"
 
     def _findings(self, stem: str) -> tuple[str, ...]:
-        """Where the parked stem's detail lives: its durable ticket-plane artifacts (section 10)."""
+        """Where the parked stem's detail lives: its durable ticket-plane artifacts."""
         root = self.c.repo / TICKETS_DIR / stem
         return tuple(p.relative_to(self.c.repo).as_posix() for p in sorted(root.rglob("*")) if p.is_file() and p.name != TICKET_FILE)
 
