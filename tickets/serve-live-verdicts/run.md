@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-A successful keep removes the stem from the Reject queue, and the existing lock-free reject path also accepts non-settled stems outside that queue.
+Status shows a verdict-refusal section only when refusals exist, preserving existing output otherwise.
 
 ## Dead ends
 
-A second keep can be refused by the shared verdict function only if the inbox accepts it; the ticket requires that same request to be stale once the first keep has removed the stem from the queue.
+An initial full-suite run overlapped source edits and invalidated a fixture snapshot; verification was rerun against the stable tree.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Ticket budget: 90 minutes expected, 180 minutes stuck; actual elapsed time not recorded.
 
