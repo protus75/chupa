@@ -1,20 +1,15 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "30c45ffa9695a94760ea06a813654ee200374705",
+  "produced_at_sha": "17753895c1fa6ff80acf08fe873cb94fc1b175c1",
   "stem": "serve-self-upgrade",
-  "attempt": 5,
+  "attempt": 6,
   "terminal": "gate_failed",
-  "stage": "review",
-  "verdict": "retry",
-  "lessons": [
-    "In chupa/serve.py upgrade_idle(), also require that no TicketWriter is active or holds continuations, so a ticket paused at a stage boundary blocks the handoff. Review finding at line 318; the ticket rejects a handoff that spawns mid-ticket.",
-    "While an upgrade is pending, keep calling scheduler.dispatch_next() in dispatch() and let select() refuse only new stems. select() already exempts stems in self.writers, so continuing tickets resume and reach their terminal. Review finding at line 331.",
-    "Add a tests/test_serve.py case: a writer holds a continuation when the chupa tree change is seen. Assert serve admits no new stem, resumes the continuation, and spawns only after that ticket's terminal and an empty merge queue (acceptance criterion 3).",
-    "Keep everything else from the passing attempt: the shared argv builder, lock release before the spawn, kill-wins and non-git cases. Only the idle/dispatch gating failed review. Run the ticket's two verification commands before you commit."
-  ],
-  "mechanical": null,
+  "stage": "check",
+  "verdict": "abandon-human",
+  "lessons": [],
+  "mechanical": "retry cap spent",
   "spec_version": "1.2",
-  "provider": "claude",
-  "model": "claude-opus-5-5"
+  "provider": null,
+  "model": null
 }
