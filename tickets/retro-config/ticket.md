@@ -14,6 +14,7 @@ none
 - tests/test_retro.py
 - tests/test_config.py
 - tests/test_host_contract.py
+- tests/test_drain.py
 - docs/how-chupa-works.md
 - docs/host-contract.md
 
@@ -37,6 +38,7 @@ It cannot be turned off. An operator who wants retros less often, more often, or
 - In: tests.
   - `tests/test_retro.py`: `select_trigger` honors custom `every_merges`, `every_days`, and `spike_count`, and returns `None` when `enabled` is false unless forced. With the defaults it returns exactly what it returns today.
   - `tests/test_config.py`: `retro` defaults and parses from YAML.
+  - `tests/test_drain.py` `test_due_retro_waits_for_retry_and_precedes_next_ticket`: its direct `select_trigger` call passes `checkout.config.retro`.
 - In: docs.
   - `docs/host-contract.md`: add `Retro` and its fields to the `config-fields` inventory, which `tests/test_host_contract.py::test_host_contract_schema_coverage` checks.
   - `docs/how-chupa-works.md` section 9.5: the triggers come from `retro:`, `enabled: false` leaves only `retro`.
@@ -47,6 +49,7 @@ It cannot be turned off. An operator who wants retros less often, more often, or
 - chupa/config.py
 - chupa/retro.py
 - tests/test_retro.py
+- tests/test_drain.py
 - tests/test_config.py
 - docs/how-chupa-works.md
 - docs/host-contract.md
