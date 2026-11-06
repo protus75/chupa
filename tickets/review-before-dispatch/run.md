@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The drain premise park can be reused, but the serve scheduler receives only parsed tickets and journal state; neither contains the current committed ticket blob SHA.
+daemon_core receives the repository path but no Git or process-execution seam; its production caller owns checkout.git.
 
 ## Dead ends
 
-Deriving the repository from the journal directory would fail for configured state directories and would bypass the git seam.
+Considered constructing a new Git instance in daemon.py, but that would bypass the existing injected seam required by the ticket.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-The ticket allowed 75 minutes expected and 90 minutes stuck; investigation stopped after identifying the scope conflict.
+none
 
