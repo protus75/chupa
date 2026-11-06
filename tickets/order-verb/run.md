@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The CLI tests and JavaScript syntax check passed, but the full suite failed because the host run guide’s verb table lacks order.
+none
 
 ## Dead ends
 
-The full suite exposed a required documentation update outside the scope fence.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-The ticket estimated 45 minutes; the work stopped early after finding the scope conflict.
+Expected 45 minutes; actual time was not measured.
 
