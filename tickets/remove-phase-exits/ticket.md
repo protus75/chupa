@@ -6,7 +6,10 @@ state: confirmed
 ---
 
 ## Depends on
-- remove-plan-text-tests
+- none
+
+## Runs before
+- plan-off-serve-path
 
 ## Context
 - chupa/driver.py
