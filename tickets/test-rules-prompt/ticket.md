@@ -6,10 +6,8 @@ kind: chore
 ---
 
 ## Depends on
-- implement-test-rules
 - autofix-file-globs
 - covgate-runs-tests
-- review-all-findings
 - covgate
 - testguard
 - testreport
