@@ -169,7 +169,7 @@ def test_render_bound_and_headroom_are_the_plan_constants():
 
 def test_engine_source_never_spells_the_raw_delimiter():
     # Section 13: a file carrying the raw delimiter can never be injected as Context.
-    for p in ("chupa/specs.py", "tests/test_specs.py"):
+    for p in ("chupa/specs/__init__.py", "tests/test_specs.py"):
         assert DATA_DELIM not in (Path(__file__).parent.parent / p).read_text()
 
 
