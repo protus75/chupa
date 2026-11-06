@@ -1,0 +1,91 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "942276070f0b142df1e9d42e1b6534595d91280b",
+  "stem": "remove-phase-exits",
+  "passed": true,
+  "changed_files": [
+    "chupa/drain.py",
+    "chupa/driver.py",
+    "chupa/stages.py",
+    "chupa/tickets.py",
+    "docs/how-chupa-works.md",
+    "tests/test_closed_sets.py",
+    "tests/test_drain.py",
+    "tests/test_driver.py",
+    "tests/test_phase2_exit.py",
+    "tests/test_phase3_exit.py",
+    "tests/test_phase4_exit.py",
+    "tests/test_phase5_exit.py",
+    "tests/test_phase6_exit.py",
+    "tests/test_stages.py",
+    "tests/test_tickets.py"
+  ],
+  "inserted_lines": 39,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "tests/test_drain.py",
+        "-k",
+        "phase_exit_stem_gets_no_forced_retro or retro_runs_only_when_due or selected_retro_remains_killable"
+      ],
+      "rc": 0,
+      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/remove-phase-exits\nconfigfile: pyproject.toml\nplugins: xdist-3.8.0, timeout-2.5.0, asyncio-1.4.0\ntimeout: 120.0s\ntimeout method: thread\ntimeout func_only: False\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncreated: 20/20 workers\n20 workers [6 items]\n\n......                                                                   [100%]\n============================== 6 passed in 1.39s ===============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": ".................................................. [ 68%]\n........................................................................ [ 70%]\n........................................................................ [ 72%]\n........................................................................ [ 75%]\n........................................................................ [ 77%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 84%]\n........................................................................ [ 86%]\n........................................................................ [ 89%]\n........................................................................ [ 91%]\n........................................................................ [ 93%]\n........................................................................ [ 96%]\n........................................................................ [ 98%]\n........................................                                 [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/remove-phase-exits/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3064 passed, 1 warning in 60.54s (0:01:00)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
