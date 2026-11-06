@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The focused verification passed. The full suite failed on tests/test_seed_successor.py::test_merged_parent_registers_and_runs_successor_in_same_drain because its live parent ticket has a Plan contract and parse_ticket receives no plan. A second test failed because a scoped file was edited while the suite was running.
+The previous attempt cited tests/test_seed_successor.py, which no longer exists; the parser conflict remains. A confirmed human ticket based on the current tests/test_tickets.py fixture parses with the plan and fails with plan=None.
 
 ## Dead ends
 
-The scoped implementation was left uncommitted because the ticket prohibits changing the Plan contract grammar and excludes the failing test from the scope fence.
+Checked whether the existing parser could preserve Plan contract behavior without the plan; it explicitly rejects every cited contract when plan is None.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-The ticket budget was 45 minutes expected and 90 minutes stuck; work stopped once the contradiction was identified.
+Expected 45 minutes; the conflicting premise was identified during initial inspection.
 
