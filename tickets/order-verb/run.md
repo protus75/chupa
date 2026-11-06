@@ -8,7 +8,7 @@ none
 
 ## Dead ends
 
-none
+Overlapping test runs observed an edit in progress and caused an unrelated timeout; the full suite passed when run alone against the final files.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 45 minutes; actual time was not measured.
+Expected 45 minutes; completed within the budget.
 
