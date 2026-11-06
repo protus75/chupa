@@ -409,7 +409,7 @@ Keep and kill normally require a person at an interactive terminal to answer `y`
 ### 7.1 `drain`
 
 1. Takes the lock, reconciles, fires due timers, runs the provider preflight, runs intake once.
-2. Loops: reload config, honor pause/kill/stop, maybe run a retro, scan committed tickets (skipping stems settled or rejected in the journal), pick the
+2. Loops: reload config, honor pause/kill/stop, run intake between tickets, maybe run a retro, scan committed tickets (skipping stems settled or rejected in the journal), pick the
    next ticket, review its committed content if it lacks an approval, run it, merge it inline. Serve applies the same review before Implement and holds a premise-parked ticket until its committed content changes.
 3. **Pick order:** confirmed, unsettled, not rejected, every dependency settled (through split
    successors); among eligible fresh tickets and re-offers, `## Runs before` orders named stems

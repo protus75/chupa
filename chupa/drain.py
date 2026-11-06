@@ -293,6 +293,7 @@ class _Drain:
                 await self.before_dispatch()
             if self._stopping() or self.c.control.projection.stop_requested:
                 return self.report
+            await intake(self.c.repo, self.c.git, self.c.journal, self.c.fs)
             # Keep a ticket's retry cycle together before checking retro triggers.
             if self.retro is not None and await self._between_tickets():
                 if hasattr(self.dispatch, "prepare"):

@@ -346,11 +346,59 @@ def test_an_uncommitted_ticket_file_is_not_eligible(root):
     write(root, "seeder", ticket())
 
     def author_only(checkout):
-        write(checkout.repo, "loose", confirmed())  # authored, never committed to the ticket plane
+        write(checkout.repo, "loose", "invalid ticket")  # lint refuses this file
 
     script = Script(hooks={"seeder": author_only})
     assert drain(root, script) == 0
     assert script.calls == ["seeder"]
+    assert "?? tickets/loose/" in git_out(root, "status", "--porcelain")
+
+
+def test_drain_intakes_ticket_written_mid_drain(root):
+    write(root, "seeder", ticket())
+
+    def author(checkout):
+        write(checkout.repo, "new-ticket", confirmed())
+        assert "?? tickets/new-ticket/" in git_out(root, "status", "--porcelain")  # intake must not run inside dispatch
+
+    script = Script(hooks={"seeder": author})
+    assert drain(root, script) == 0
+    assert script.calls == ["seeder", "new-ticket"]  # a startup-only intake misses the new ticket
+    assert "chupa(new-ticket): ticket" in git_out(root, "log", "--format=%s")
+    events = journal(root).read()
+    terminal = next(i for i, e in enumerate(events) if e.ticket == "seeder" and e.body.get("to") == "merged")
+    intake_event = next(i for i, e in enumerate(events) if e.ticket == "new-ticket" and e.body.get("signal") == "ticket_intake")
+    assert terminal < intake_event  # intake during dispatch would precede the terminal
+
+
+def test_drain_mid_drain_intake_refusal_exits_2(root):
+    write(root, "aaa-first", ticket())
+    write(root, "bbb-second", ticket())
+
+    def stage_stray(checkout):
+        (checkout.repo / "chupa/stray.py").write_text("stray\n")
+        git_out(checkout.repo, "add", "chupa/stray.py")
+
+    script = Script(hooks={"aaa-first": stage_stray})
+    assert drain(root, script) == 2  # ignoring intake refusal would continue
+    assert script.calls == ["aaa-first"]  # the second ticket must not run
+    lock = Lockfile(root / ".chupa/state", instance_id="probe", clock=Clock())
+    lock.acquire()  # refusal must release the lock
+    lock.release()
+
+
+def test_drain_honors_priority_edit_mid_drain(root):
+    commit_ticket(root, "aaa-first", confirmed(priority="P0"))
+    commit_ticket(root, "bbb-second", confirmed(priority="P1"))
+    commit_ticket(root, "ccc-third", confirmed(priority="P2"))
+
+    def promote(checkout):
+        path = checkout.repo / "tickets/ccc-third/ticket.md"
+        path.write_text(path.read_text().replace("priority: P2", "priority: P0"))
+
+    script = Script(hooks={"aaa-first": promote})
+    assert drain(root, script) == 0
+    assert script.calls == ["aaa-first", "ccc-third", "bbb-second"]  # stale priority selects second first
 
 
 # --- the safety envelope ----------------------------------------------------------------------------
