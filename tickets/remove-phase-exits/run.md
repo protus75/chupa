@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The focused retro verification passed; the full suite also found an in-scope test assertion that needs to expect 'unknown body section'. A failed due retro remains due and is retried on the next drain loop.
+A failed due retro is retried after a subsequent merge; the test verifies both attempts and that the drain settles.
 
 ## Dead ends
 
-The full suite failed because the successor test outside the scope fence expects the removed quiescence retro.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 45 minutes; stopped early after identifying the scope conflict.
+Expected 45 minutes; completed in less than 45 minutes.
 
