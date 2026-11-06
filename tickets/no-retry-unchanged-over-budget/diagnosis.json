@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "93374c1f439c8c90f22894183b32160b82ef901b",
+  "stem": "no-retry-unchanged-over-budget",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "In chupa/drain.py `_settle`, add `spent_cap is None` to the new diff_budget road condition, the same guard the premise-park branch beside it uses. A cap-spent stem must get the cap-spent road, because a `ticket.md` edit never re-arms the cap.",
+    "Add the same `spent_cap is None` guard to the diff_budget exclusion on the Reject-queue (awaiting) road condition. A capped diff_budget stem then falls through to the cap-spent and Reject-queue roads, as the review's paved road asks.",
+    "Keep the rest as it was: the hold in both drain and scheduler, `_between_tickets`, the docs and the three tests were judged correct, and 3029 tests passed. Change only the `_settle` road guards, and leave `premise_parked` unchanged.",
+    "Consider extending `test_diff_budget_failure_holds_until_ticket_changes`, or adding an assertion, to check that a cap-spent diff_budget stem reports the cap-spent road and not the diff-budget road. Keep any new test inside tests/test_drain.py, which is in the fence."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
