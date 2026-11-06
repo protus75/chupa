@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The focused verification passed, and the Check-to-Review invariant passed. Direct verification of the out-of-scope tests produced nine failures. The implementation remains uncommitted.
+Skipped integration tiers leave the existing red streak unchanged.
 
 ## Dead ends
 
-The full suite exposed rerun-dependent assertions in files outside the scope fence; changing those scenarios requires edits the ticket does not permit.
+An initial full-suite run overlapped a source edit and produced a fixture-copy mismatch; the stable rerun passed.
 
 ## Second problems filed
 
