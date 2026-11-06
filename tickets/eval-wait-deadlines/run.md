@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-The regression test holds recovery dispatch until more than 100,000 turns have elapsed, making the old-bound failure deterministic.
+The regression holds recovery for more than 100,000 turns; it passes with the deadline and fails with the old bound. Both verification commands passed.
 
 ## Dead ends
 
-An initial test barrier targeted the drought dispatch and stalled; moving it to the recovery dispatch reproduced the intended failure.
+none
 
 ## Second problems filed
 
