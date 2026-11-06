@@ -1,6 +1,6 @@
 # Review: approve
 
-The diff adds the `chupa order` verb, the pure `order` text helper, the dev.py passthrough, the extension's two context-menu commands and the doc rows. It refuses bad stems, missing options, running, settled and rejected tickets, and invalid results with a paved road, never takes the lock, and changes only the priority line and the Runs before section.
+The diff adds the `order` verb, the pure `tickets.order` edit helper, the dev.py passthrough, the extension menu items and the required docs, and the six tests cover each acceptance criterion within the scope fence.
 
 ## Findings
 
@@ -12,10 +12,10 @@ none
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "c31314870668924522f640f031402f3b42e7337b",
+  "produced_at_sha": "37134664b8e0d651f19c2ad4c65204176a5bd6c8",
   "stem": "order-verb",
-  "reviewed_sha": "c31314870668924522f640f031402f3b42e7337b",
-  "summary": "The diff adds the `chupa order` verb, the pure `order` text helper, the dev.py passthrough, the extension's two context-menu commands and the doc rows. It refuses bad stems, missing options, running, settled and rejected tickets, and invalid results with a paved road, never takes the lock, and changes only the priority line and the Runs before section.",
+  "reviewed_sha": "37134664b8e0d651f19c2ad4c65204176a5bd6c8",
+  "summary": "The diff adds the `order` verb, the pure `tickets.order` edit helper, the dev.py passthrough, the extension menu items and the required docs, and the six tests cover each acceptance criterion within the scope fence.",
   "findings": [],
   "spec_version": "1.4",
   "provider": "claude",
