@@ -39,7 +39,7 @@ After this change, `drain` also runs intake between tickets: at the top of each 
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
-1. `uv run pytest -q tests/test_drain.py` exits 0, including both tests above.
+1. `uv run pytest -q tests/test_drain.py` exits 0, including every test change above.
 2. `docs/how-chupa-works.md` section 7.1 says drain runs intake between tickets.
 3. `uv run pytest -q` exits 0.
 
