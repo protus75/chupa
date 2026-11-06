@@ -1,9 +1,9 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "6b7ead75cb1f9bec1f75a652e9fb3965b6f42f02",
+  "produced_at_sha": "7dc659c151c0f624ed32237ce2e91b9864dc385c",
   "stem": "serve-self-upgrade",
-  "passed": false,
+  "passed": true,
   "changed_files": [
     "chupa/__main__.py",
     "chupa/drain.py",
@@ -16,7 +16,7 @@
     "tests/test_drain_upgrade.py",
     "tests/test_serve.py"
   ],
-  "inserted_lines": 220,
+  "inserted_lines": 239,
   "bypassed": [],
   "reports": [
     {
@@ -27,18 +27,8 @@
     },
     {
       "code": "verification",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "verification",
-          "path": null,
-          "line": null,
-          "message": "`uv run pytest -q` exited 1: , confirm=False):\n        deadline = self.clock() + timedelta(seconds=self.timeout)\n        while not predicate():\n            if self.task is not None and self.task.done():\n                try:\n                    result = self.task.result()\n                except Exception as exc:\n                    raise LoopRefused(self.name, f\"serve failed: {exc}\") from exc\n                raise LoopRefused(self.name, f\"serve exited before member evidence: {result}\")\n            if self.clock() >= deadline:\n>               raise LoopRefused(self.name, \"bounded wait timed out before required production evidence\")\nE               eval.host_loop.LoopRefused: machine_ticket_merge (merge-floor): bounded wait timed out before required production evidence; repair the producing machinery and rerun the harness through Check\n\neval/host_loop.py:141: LoopRefused\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/serve-self-upgrade/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nERROR tests/test_host_loop.py::test_host_loop_drives_supervised_fixture_serve\nERROR tests/test_host_loop.py::test_host_loop_report_regression_and_escape - ...\nERROR tests/test_host_loop.py::test_host_loop_requires_member_auditor_green\n3227 passed, 1 warning, 3 errors in 75.63s (0:01:15)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead",
-          "paved_road": "make `uv run pytest -q` exit 0 on the branch and commit the fix",
-          "kind": null,
-          "unit": null
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false
     },
     {
@@ -79,7 +69,7 @@
         "tests/test_vocabularies.py"
       ],
       "rc": 0,
-      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/serve-self-upgrade\nconfigfile: pyproject.toml\nplugins: xdist-3.8.0, timeout-2.5.0, asyncio-1.4.0\ntimeout: 120.0s\ntimeout method: thread\ntimeout func_only: False\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncreated: 20/20 workers\n20 workers [165 items]\n\n........................................................................ [ 43%]\n........................................................................ [ 87%]\n.....................                                                    [100%]\n============================= 165 passed in 6.42s ==============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/serve-self-upgrade\nconfigfile: pyproject.toml\nplugins: xdist-3.8.0, timeout-2.5.0, asyncio-1.4.0\ntimeout: 120.0s\ntimeout method: thread\ntimeout func_only: False\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncreated: 20/20 workers\n20 workers [162 items]\n\n........................................................................ [ 44%]\n........................................................................ [ 88%]\n..................                                                       [100%]\n============================= 162 passed in 6.97s ==============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -89,8 +79,8 @@
         "pytest",
         "-q"
       ],
-      "rc": 1,
-      "tail": ", confirm=False):\n        deadline = self.clock() + timedelta(seconds=self.timeout)\n        while not predicate():\n            if self.task is not None and self.task.done():\n                try:\n                    result = self.task.result()\n                except Exception as exc:\n                    raise LoopRefused(self.name, f\"serve failed: {exc}\") from exc\n                raise LoopRefused(self.name, f\"serve exited before member evidence: {result}\")\n            if self.clock() >= deadline:\n>               raise LoopRefused(self.name, \"bounded wait timed out before required production evidence\")\nE               eval.host_loop.LoopRefused: machine_ticket_merge (merge-floor): bounded wait timed out before required production evidence; repair the producing machinery and rerun the harness through Check\n\neval/host_loop.py:141: LoopRefused\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/serve-self-upgrade/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nERROR tests/test_host_loop.py::test_host_loop_drives_supervised_fixture_serve\nERROR tests/test_host_loop.py::test_host_loop_report_regression_and_escape - ...\nERROR tests/test_host_loop.py::test_host_loop_requires_member_auditor_green\n3227 passed, 1 warning, 3 errors in 75.63s (0:01:15)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "rc": 0,
+      "tail": "[100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/serve-self-upgrade/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/test_testguard.py::test_guarded_calls_and_asyncio\ntests/test_testguard.py::test_setup_and_teardown\ntests/test_testguard.py::test_guards_are_phase_scoped\ntests/test_testguard.py::test_budget_and_slowest\ntests/test_testguard.py::test_budget_and_slowest\ntests/test_testguard.py::test_xdist_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\n  /home/djp/source/chupa/.chupa/state/worktrees/serve-self-upgrade/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3027 passed, 10 warnings in 63.71s (0:01:03)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
