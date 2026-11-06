@@ -119,6 +119,7 @@ Config:
     caps: {diagnosis: 3, retry: 3, premise_bounce: 1, infra: 3, attempts: 5, quarantine: 5, poison: 2}
     circuit_breaker: {k: 3, cooldown_minutes: 10}
     drain: {max_runtime_hours: 12, max_ticket_minutes: 90}
+    retro: {enabled: true, every_merges: 25, every_days: 7, spike_count: 5}
     box_policy: {failure_report: confirmed, retro_finding: confirmed, override_report: draft, suggestion: draft, bug_report_self_diagnosed: confirmed, bug_report_player_repro: confirmed, bug_report_player_no_repro: draft}
     notify: unset
     report_inbox: unset
@@ -171,6 +172,9 @@ CircuitBreaker:
 Drain:
   required: []
   defaults: {max_runtime_hours: 12, max_ticket_minutes: 90}
+Retro:
+  required: []
+  defaults: {enabled: true, every_merges: 25, every_days: 7, spike_count: 5}
 ```
 
 ```yaml config-values

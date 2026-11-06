@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from chupa import runner
 from chupa.box import Box, DecisionRecord, render_record
+from chupa.config import Retro as RetroSettings
 from chupa.effects import Effects
 from chupa.journal import EventType, Journal
 from chupa.llm import FakeLLM, LLMResult
@@ -43,7 +44,7 @@ def test_window_uses_completed_report_boundary(tmp_path):
     c, writer, hook, llm = rig(tmp_path)
     j = c.journal
     assert project_window([]).events == () and project_window([]).started_at is None
-    assert select_trigger(project_window([]), measurements(project_window([])), c.clock(), forced=False) is None
+    assert select_trigger(project_window([]), measurements(project_window([])), c.clock(), c.config.retro, forced=False) is None
     first = merged(j, "first", "real-merge-sha")
     j.append(EventType.EFFECT_COMPLETION, {"result": {}, "cost": {"usd": 1.25, "input_tokens": 10, "output_tokens": None}}, key="llm/first/0/implement/0/1")
     j.append(EventType.EFFECT_COMPLETION, {"result": {}, "cost": {"usd": 0.5, "input_tokens": None, "output_tokens": 4}}, key="llm/first/0/review/0/1")
@@ -152,7 +153,7 @@ def test_retro_trigger_boundaries(tmp_path, kind):
     def due():
         window = project_window(j.read())
         facts = asyncio.run(production_evidence(window, c))
-        return select_trigger(window, facts, c.clock(), forced=False)
+        return select_trigger(window, facts, c.clock(), c.config.retro, forced=False)
 
     if kind == "elapsed":
         merged(j)
@@ -183,7 +184,7 @@ def test_mixed_spikes_do_not_sum_and_new_invocations_do_count(tmp_path):
     window = project_window(j.read())
     facts = measurements(window)
     assert facts["spikes"] == {"override": 0, "rework": 4, "gate-failure": 4, "integration-red": 4}
-    assert select_trigger(window, facts, c.clock(), forced=False) is None
+    assert select_trigger(window, facts, c.clock(), c.config.retro, forced=False) is None
 
 
 def test_report_commit_replays_without_advancing_unfinished_window(tmp_path, monkeypatch):
@@ -399,3 +400,22 @@ def test_escape_report_projection(tmp_path, monkeypatch):
         assert "| review | 1 | 0 | 1 |" in receipt
 
     asyncio.run(scenario())
+
+
+def test_custom_trigger_settings_and_disabled_forcing():
+    from datetime import datetime, timezone
+
+    now = datetime(2026, 1, 10, tzinfo=timezone.utc)
+    window = project_window([])
+    facts = {"merged_count": 3, "spikes": {"rework": 4}}
+    settings = RetroSettings(every_merges=3, every_days=2, spike_count=4)
+    assert select_trigger(window, facts, now, settings, forced=False) == "merges"  # Hard-coded 25 misses three merges.
+    facts["merged_count"] = 2
+    assert select_trigger(window, facts, now, settings, forced=False) == "rework"  # Hard-coded 5 misses four spikes.
+    dated = replace(window, started_at=(now - timedelta(days=2)).isoformat())
+    assert select_trigger(dated, facts, now, settings, forced=False) == "elapsed"  # Hard-coded 7 misses two days.
+    disabled = RetroSettings(enabled=False, every_merges=3, every_days=2, spike_count=4)
+    assert select_trigger(dated, facts, now, disabled, forced=False) is None  # Ignoring enabled selects elapsed.
+    assert select_trigger(dated, facts, now, disabled, forced=True) == "forced"  # Disabling must not block force.
+    facts["merged_count"] = 0
+    assert select_trigger(dated, facts, now, disabled, forced=True) is None  # Force still requires a merge.

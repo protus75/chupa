@@ -1063,7 +1063,7 @@ def test_due_retro_waits_for_retry_and_precedes_next_ticket(root):
     class Retro:
         async def __call__(self, *, forced=False):
             window = project_window(checkout.journal.read())
-            if trigger := select_trigger(window, measurements(window), checkout.clock(), forced=forced):
+            if trigger := select_trigger(window, measurements(window), checkout.clock(), checkout.config.retro, forced=forced):
                 trace.append(f"retro:{trigger}")
                 checkout.journal.append(EventType.EFFECT_COMPLETION, {"result": {}}, key="retro/1")
 

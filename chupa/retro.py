@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from chupa.artifacts import NonBlank
 from chupa.box import BOX_DIR, Box, RereportJournal, read_registry
+from chupa.config import Retro as RetroSettings
 from chupa.driver import LlmStage
 from chupa.git import GitError
 from chupa.journal import Event, EventType
@@ -117,14 +118,16 @@ def measurements(window: Window) -> dict:
     }
 
 
-def select_trigger(window: Window, evidence: dict, now: datetime, *, forced: bool) -> str | None:
+def select_trigger(window: Window, evidence: dict, now: datetime, settings: RetroSettings, *, forced: bool) -> str | None:
     if forced:
         return "forced" if evidence["merged_count"] else None
-    if evidence["merged_count"] >= 25:
+    if not settings.enabled:
+        return None
+    if evidence["merged_count"] >= settings.every_merges:
         return "merges"
-    if window.started_at is not None and now - datetime.fromisoformat(window.started_at) >= timedelta(days=7):
+    if window.started_at is not None and now - datetime.fromisoformat(window.started_at) >= timedelta(days=settings.every_days):
         return "elapsed"
-    return next((kind for kind, count in evidence["spikes"].items() if count >= 5), None)
+    return next((kind for kind, count in evidence["spikes"].items() if count >= settings.spike_count), None)
 
 
 async def production_evidence(window, checkout):
@@ -306,7 +309,7 @@ class Retro:
         window = project_window(c.journal.read())
         # No selection means no failure capture or writer construction.
         evidence = await production_evidence(window, c)
-        trigger = select_trigger(window, evidence, c.clock(), forced=forced)
+        trigger = select_trigger(window, evidence, c.clock(), c.config.retro, forced=forced)
         if trigger is None:
             return None
         failure = suppressing_failure(window)

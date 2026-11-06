@@ -587,7 +587,7 @@ in custody for the authored bug ticket.
 ### 9.5 Retro
 
 The retro reads the journal since the last report. During a drain it runs between tickets, never
-between attempts of one ticket, when due after 25 merges, 7 days, or a spike of failures. Run it on demand with `retro`. It commits `tickets/retro/NNNNNN.md` (measurements,
+between attempts of one ticket, when due at the `retro:` thresholds: by default 25 merges, 7 days, or 5 events of one spike kind. Set `retro.enabled: false` to disable automatic retros; run one on demand with `retro`. It commits `tickets/retro/NNNNNN.md` (measurements,
 scorecard, proposals) and files each proposal as a `retro_finding`.
 
 ### 9.6 Scorecard and baseline
@@ -652,6 +652,7 @@ with the fix. The full field inventory is in `docs/host-contract.md`.
 | `review` | `gate_severity`, host `autofix` commands and `mechanical` checks; declared `surfaces` entries are refused at config load; `trigger_map` is accepted, unused |
 | `merge` | `safety_checks`, conflict `strategies` (serve only) |
 | `caps`, `circuit_breaker` | failure bounds (section 6.4, 8.3) |
+| `retro` | `enabled`, `every_merges`, `every_days`, `spike_count` control automatic reports (section 9.5) |
 | `scheduler`, `drain` | `max_unmerged`; `max_runtime_hours`, `max_ticket_minutes` |
 | `engine_plane_safety_inventory`, `box_policy` | Author starting state (section 9.3) |
 | `notify`, `report_inbox`, `context_files` | notification command; host bug report folder; extra Implement context |

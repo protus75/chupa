@@ -177,6 +177,13 @@ class Drain(_Strict):
     max_ticket_minutes: Count = 90
 
 
+class Retro(_Strict):
+    enabled: bool = True
+    every_merges: Count = 25
+    every_days: Count = 7
+    spike_count: Count = 5
+
+
 class Config(_Strict):
     schema_version: int
     state_dir: PathField
@@ -190,6 +197,7 @@ class Config(_Strict):
     caps: Caps = Caps()
     circuit_breaker: CircuitBreaker = CircuitBreaker()
     drain: Drain = Drain()
+    retro: Retro = Retro()
     engine_plane_safety_inventory: list[str]  # no shipped default: absence fails closed
     box_policy: dict[BoxRow, StartState] = Field(default_factory=lambda: dict(BOX_POLICY_DEFAULTS))
     notify: Argv | None = None

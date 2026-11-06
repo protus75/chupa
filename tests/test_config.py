@@ -77,6 +77,7 @@ def test_valid_config_loads_from_cwd_with_shipped_defaults(tmp_path):
     assert cfg.circuit_breaker.cooldown_minutes == 10
     assert cfg.drain.max_runtime_hours == 12
     assert cfg.drain.max_ticket_minutes == 90
+    assert cfg.retro.model_dump() == {"enabled": True, "every_merges": 25, "every_days": 7, "spike_count": 5}
     assert cfg.box_policy == {
         "failure_report": "confirmed",
         "retro_finding": "confirmed",
@@ -387,3 +388,8 @@ def test_migrate_config_refuses_unsupported_inputs(tmp_path, text, cause, road, 
     assert road in str(exc.value)
     assert fs.writes == []
     assert {p: p.read_bytes() for p in tmp_path.iterdir()} == before
+
+
+def test_retro_yaml_values(tmp_path):
+    cfg = load_config(write(tmp_path, VALID + "retro: {enabled: false, every_merges: 3, every_days: 2, spike_count: 4}\n"), cwd=tmp_path)
+    assert cfg.retro.model_dump() == {"enabled": False, "every_merges": 3, "every_days": 2, "spike_count": 4}  # Defaults or ignored keys give different values.
