@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "05273fecd49ca779d15b0e3e93aba53c2b70f704",
+  "stem": "drain-upgrade-own-source",
+  "attempt": 1,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "The scope fence leaves out tests/test_daemon_composition.py. Its handoff parameter near line 1613 expects a child after a merge in a temp host repo, which the required source-root guard blocks, so criterion 5 (`uv run pytest -q` exits 0) cannot pass inside the fence.",
+    "Fix the ticket: add tests/test_daemon_composition.py to the Scope fence and the Scope in. That handoff scenario should monkeypatch `drain.ENGINE` to its test repo, the same pattern the ticket already prescribes for tests/test_drain.py and tests/test_drain_upgrade.py.",
+    "Before re-running, search tests/ for every other test that expects a `drain_handoff` or a spawned child after a merge touching chupa/ or specs/. Fence each one so the full suite can go green.",
+    "The rest of attempt 1 was sound: `ENGINE` constant, call-time default in `reexec_argv`, `self.c.repo.resolve() == ENGINE` guard, scoped tests (80 passed). Reuse that approach unchanged once the fence covers the forced test file."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
