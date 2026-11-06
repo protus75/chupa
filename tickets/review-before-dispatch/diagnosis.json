@@ -1,18 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "56b01e8cf99b8da4b26f439f1149242f92a7cb07",
+  "produced_at_sha": "8482d4ea29687aaf01fec4579496b38b6fd64f47",
   "stem": "review-before-dispatch",
-  "attempt": 4,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "reject",
+  "attempt": 5,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
   "lessons": [
-    "The Scope fence leaves out eval/shakeout/drain.py, but the change forces an edit there. Its premise-park member edits and commits ticket.md, then scripts only an Implement reply, and the new gate takes that reply as the review. Add the file to the fence before any retry.",
-    "In eval/shakeout/drain.py, after the member commits the edited ticket.md, either record a fresh approval for the new blob with the tests/approval.py approve helper or script a requisition review reply before the Implement reply. Don't auto-approve inside Bench.add_ticket for edited tickets.",
-    "Before re-confirming, check every eval/shakeout member, not only drain.py, for edit-then-redispatch or exact reply scripting that the gate breaks. Fence any that do. The ticket fences only bench.py and reliability_battery.py under eval/.",
-    "Attempt 4's full run also showed failures in tests/test_serve.py and tests/test_storm_producer.py. Both are inside the fenced tests directory, so fix them in that same change with approve calls or scripted review replies, as the Scope in section requires.",
-    "After you edit the fence, run chupa review review-before-dispatch and fix every finding until it approves, as the engine-conduct rule requires."
+    "Keep the passing code and tests unchanged. The review snag concerns only docs/how-chupa-works.md, which is inside the scope fence.",
+    "In docs/how-chupa-works.md failure-dispatch step 5, say `premise_failed` draws `premise_bounce` except for a `requisition`-stage snag, which ends before dispatch and draws no cap (see section 6.7).",
+    "In docs/how-chupa-works.md, change the caps-table `premise_bounce` row to: each `premise_failed` (not over-bound renders or `requisition` snags).",
+    "Before finishing, search docs/how-chupa-works.md for every `premise_failed`, `premise_bounce` and cap-draw statement. Make each one match the ticket: a `requisition` snag draws no cap, makes no Diagnose call and is not routed to the Reject queue."
   ],
   "mechanical": null,
   "spec_version": "1.2",
