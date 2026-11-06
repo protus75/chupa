@@ -398,6 +398,7 @@ Keep and kill require a person at an interactive terminal to type the exact stem
    after the ticket naming them, with priority P0-P3, authored age, then stem breaking ties.
    Edges to ineligible stems never block a pick. Skipped: storm-held, drought-parked, Reject-queue stems without budget, and tickets
    whose `stuck` exceeds `drain.max_ticket_minutes` (default 90).
+   Each pick records this order and its hints in `queue.json`; `watch` displays it.
 4. **Quiescence:** when nothing is eligible, it re-offers parked stems with budget (drawing
    `retry`), and stops when nothing changes.
 5. **Report:** merged, parked (with reasons and the command to continue), blocked on depends,
@@ -582,6 +583,7 @@ Everything lives under `state_dir` (this repo: `.chupa/state`).
 |---|---|
 | `journal/NNNNNN-YYYYMMDD.jsonl` | The journal (section 10.2). |
 | `engine.log` | Diagnostics, redacted, rotated; never authoritative. |
+| `queue.json` | Derived pick order, timestamp, and `Runs before` hints for watch. |
 | `spools/` | Per-attempt prompts, outputs, and command output; `spools/providers/` holds raw CLI captures. |
 | `chupa.lock` | The single-writer lock. Its JSON identity is informational; the kernel frees the lock when the holder dies. |
 | `worktrees/` | Ticket worktrees. |

@@ -13,12 +13,13 @@ argv. A `premise_failed` stem stays parked until its committed `ticket.md` chang
 """
 
 import asyncio
+import json
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
 
 from chupa import caps
-from chupa.journal import TERMINAL_STATES, Event, EventType
+from chupa.journal import TERMINAL_STATES, Event, EventType, render_ts
 from chupa.lockfile import Lockfile
 from chupa.reconcile import reconcile
 from chupa.runner import EXIT_MERGED, EXIT_TICKET, Checkout, Dispatch, Refusal, harvest_orphan
@@ -96,6 +97,11 @@ def order_tickets(tickets: Iterable[Ticket], authored: Mapping[str, str]) -> lis
         remaining.remove(ticket)
         ordered.append(ticket)
     return ordered
+
+
+def write_queue(state_dir, fs, clock, ordered: list[Ticket]) -> None:
+    value = {"at": render_ts(clock()), "order": [t.stem for t in ordered], "runs_before": {t.stem: list(t.runs_before) for t in ordered if t.runs_before}}
+    fs.write(state_dir / "queue.json", (json.dumps(value) + "\n").encode())
 
 
 @dataclass(frozen=True)
@@ -408,6 +414,7 @@ class _Drain:
                 candidates.append((t, True))
         if candidates:
             ordered = order_tickets((t for t, _ in candidates), authored)
+            write_queue(self.c.config.state_dir, self.c.fs, self.c.clock, ordered)
             return next(pair for pair in candidates if pair[0] == ordered[0])
         return None, False
 

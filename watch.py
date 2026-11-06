@@ -192,7 +192,21 @@ def queue(events: list[dict], last_state: dict[str, dict]) -> list[tuple[str, st
         else:
             why = f"retry pending (last: {last})"
         rows.append((meta.get("priority", "P2"), stem, why))
-    return sorted(rows)
+    rows.sort()
+    try:
+        view = json.loads((state_dir() / "queue.json").read_text())
+    except FileNotFoundError:
+        return rows
+    by_stem = {row[1]: row for row in rows}
+    ordered = []
+    for stem in view["order"]:
+        if stem in by_stem and not (by_stem[stem][2].startswith("waits on ") or stem in waiting_on_person):
+            priority, _, why = by_stem.pop(stem)
+            hints = view["runs_before"].get(stem, [])
+            if hints:
+                why += "; runs before: " + ", ".join(hints)
+            ordered.append((priority, stem, why))
+    return ordered + [row for row in rows if row[1] in by_stem]
 
 
 def snapshot() -> str:

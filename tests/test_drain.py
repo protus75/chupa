@@ -5,6 +5,7 @@ re-scan, the journal cap fold, the ceilings -- is the production path.
 """
 
 import asyncio
+import json
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -1280,9 +1281,13 @@ def test_runs_before_failed_ticket_does_not_block_named_ticket(tmp_path):
     intake_at(root, "old", START)
     commit_ticket(root, "old", confirmed(priority="P1"))
     commit_ticket(root, "new", confirmed(priority="P2") + "\n## Runs before\n- old\n")
-    script = Script({"new": ["gate_failed"]})
+    snapshots = []
+    def capture(checkout):
+        snapshots.append(json.loads((checkout.config.state_dir / "queue.json").read_text()))
+    script = Script({"new": ["gate_failed"]}, hooks={"new": capture})
     assert drain(root, script) == 0
     assert script.calls == ["new", "old"]
+    assert snapshots == [{"at": START.isoformat(), "order": ["new", "old"], "runs_before": {"new": ["old"]}}]
 
 
 def test_historical_spec_gap_hold_terminal_reads_without_release(root):

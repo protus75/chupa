@@ -2,6 +2,7 @@
 
 import ast
 import asyncio
+import json
 import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -452,6 +453,10 @@ async def test_runs_before_orders_eligible_tickets(rig):
     from dataclasses import replace
     rig.scheduler.update(replace(hint, runs_before=("old",)))
     rig.intake("new")
+    await rig.scheduler.dispatch_next()
+    assert json.loads((rig.root / "state/queue.json").read_text()) == {
+        "at": rig.time.now.isoformat(), "order": ["new", "old"], "runs_before": {"new": ["old"]}
+    }
     await rig.drain()
     assert rig.calls == ["new", "old"]
 
