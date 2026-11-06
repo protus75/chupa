@@ -1,7 +1,7 @@
 ---
 state: confirmed
 source: human
-priority: P3
+priority: P0
 kind: bug
 ---
 
@@ -32,7 +32,7 @@ After this change `chupa/graph.py` computes the whole layout, `snapshot.py` ship
 - In: `snapshot.py` sets `row["graph"]` from `layout(rows)` after its final `depends` filter.
 - In: `view.js` and `graph.js` keep only drawing: `renderGraph` draws from `row.graph`, mapping a lane's `section` to the existing `COLOR` CSS variables. Delete `toViewModels`, `LANE_COLORS`, and the edge code in `render`.
 - In: `tests/test_graph.py` covers each fix and the ported behavior. Copy `evidence/regress_graph_lanes.py` to `tests/regress_graph_lanes.py` unchanged; it reports `defect` on the base commit and `pass` at head.
-- In: the `Pure Python` rule's extension exception in `CLAUDE.md` and `AGENTS.md` gains: "The extension is a thin drawing wrapper: all logic, layout included, lives in Python." `docs/how-chupa-works.md` says the layout comes from `chupa/graph.py`.
+- In: `docs/how-chupa-works.md` says the layout comes from `chupa/graph.py`.
 - Out: `extension.js`, `detail.js`, `view.css`, `package.json`, the status text, row order, dot colors, and any other logic still in the extension.
 - Touch no file outside `## Scope fence`.
 
@@ -43,8 +43,6 @@ After this change `chupa/graph.py` computes the whole layout, `snapshot.py` ship
 - vscode-chupa/media/graph.js
 - tests/test_graph.py
 - tests/regress_graph_lanes.py
-- CLAUDE.md
-- AGENTS.md
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
