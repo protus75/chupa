@@ -7,6 +7,10 @@ state: confirmed
 
 ## Depends on
 - plan-off-serve-path
+- remove-plan-text-tests
+
+## Runs before
+- remove-bootstrap-ingest
 
 ## Context
 - chupa/watchdog.py
