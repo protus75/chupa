@@ -22,6 +22,7 @@ Engine rules govern how work runs; project rules govern what to build. Project c
 - File second problems in the Suggestion Box, never fold them into this diff. Verify pre-existing failures on the base commit before filing. Why: folded fixes hide cause and expand scope.
 - Read before write: read the owning artifact before writing a command, claim, or test. Why: guessed facts create costly bugs.
 - Ticket frontmatter contains only fields read by scheduling, gates, or authoring/triage policy. Put ordering in depends and priority. Why: unused metadata and prose ordering drift.
+- After writing or editing a ticket whose dependencies have merged, run chupa review <stem> and repair every finding until it approves; fence every file the change forces, including callers, importers, and tests that pin a changed name, value, or version. Why: a forced file outside the fence makes the ticket impossible.
 """
 
 
