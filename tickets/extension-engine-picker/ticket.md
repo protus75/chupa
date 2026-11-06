@@ -17,12 +17,13 @@ kind: feature
 ## Goal / Why
 The Tickets view's `…` menu in `vscode-chupa` has Drain, "Stop after the running ticket", "Kill the drain", and Status. It cannot start `serve`. "Kill the drain" is mislabeled: `chupa kill` stops whichever engine is running, drain or serve. VS Code shows no hover text on `…` menu items, so nothing explains what each one does (2026-11-06).
 
-After this change, one "Engine…" button in the Tickets view title opens a QuickPick with five actions. Each has a one-line description shown under its name:
+After this change, one "Engine…" button in the Tickets view title opens a QuickPick with six actions. Each has a one-line description shown under its name:
 - Drain
 - Serve
 - Stop after the running ticket
 - Kill (drain or serve)
 - Status
+- Retro (run now)
 
 ## Scope in / Scope out
 - In: `vscode-chupa/package.json`.
