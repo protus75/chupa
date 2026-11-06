@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-The full suite exposed the previously reported heartbeat regression; removing an extra asynchronous round trip when watching is disabled resolved it.
+The full suite passed on retry after a reliability-battery recovery-offer failure; that failure was not reproduced on the base commit and is not classified as pre-existing.
 
 ## Dead ends
 
-An initial full-suite run overlapped another test command and failed at a reliability-battery timing boundary; the sequential rerun passed that test.
+An initial heartbeat fix exposed a watcher-lock race; the final change keeps the watcher responsive while waiting for admission.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-The ticket budget was 90 minutes expected; elapsed time was not measured.
+Expected 90 minutes; actual elapsed time was not measured.
 
