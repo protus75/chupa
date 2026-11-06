@@ -16,22 +16,22 @@ if TYPE_CHECKING:
 
 import yaml
 
-from chupa.artifacts import Finding, Harvest, StageResult
+from chupa.artifacts import Cost, Finding, Harvest, StageResult
 from chupa.box import BOX_DIR
 from chupa.caps import capability, consume, next_rung, spent, spent_reason
 from chupa.config import Config, ConfigSnapshot, snapshot_config
 from chupa.driver import Driver
 from chupa.effects import Effects
 from chupa.git import Git
-from chupa.journal import TERMINAL_STATES, Event, EventType, Journal, dispatch_of
+from chupa.journal import TERMINAL_STATES, Event, EventType, Journal, dispatch_of, run_seq
 from chupa.journal import Dispatch as JournalDispatch
 from chupa.llm import LLM
 from chupa.lockfile import Lockfile
 from chupa.merge import compose_pipeline, merge
-from chupa.providers import ProviderLLM
+from chupa.providers import ProviderCallError, ProviderDrought, ProviderLLM
 from chupa.reconcile import reconcile
 from chupa.seams import Clock, FileSystem, GroupExec, Sleep
-from chupa.stages import DiagnosisMaterial, StageContext, diagnose, lift_outbox, run_stages, ticket_change_findings, write_diagnosis
+from chupa.stages import DiagnosisMaterial, StageContext, StagesRun, diagnose, lift_outbox, run_stages, ticket_change_findings, write_diagnosis
 from chupa.status import SETTLED, last_states, reject_queue
 from chupa.storm import arrival_id
 from chupa.tickets import INTAKE_SIGNAL, Ticket, TicketInvalid, intake, parse_ticket, split_frontmatter, stamp, stem_findings, ticket_path, validate_ticket
@@ -143,10 +143,36 @@ def bind(checkout: Checkout, llm: LLM) -> Dispatch:
 
 async def drive(ctx: StageContext, ticket: Ticket, *, admission=None, consume_handoff=None) -> str:
     """Implement -> Check -> Review -> Merge; harvest, dispatch, journal, then wipe a non-ok run."""
+    run = None
     if ctx.boundary.run is None:
         tier, effort = capability(ticket, ctx.driver.journal.read())
         ticket = replace(ticket, frontmatter=ticket.frontmatter.model_copy(update={"agent_tier": tier, "agent_effort": effort}))
-    run = await run_stages(ctx, ticket)
+        sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
+        history = ctx.driver.journal.read()
+        approved = any(e.type == EventType.SIGNAL and e.ticket == ticket.stem and e.body.get("signal") == "requisition_verdict" and e.body.get("verdict") == "approve" and e.body.get("ticket_sha") == sha for e in history)
+        if not approved:
+            from chupa.requisition import review_ticket
+            from chupa.driver import ProviderDroughtResult
+
+            attempt = run_seq(history, ticket.stem)
+            text = await ctx.git._run(ctx.repo, "show", f"HEAD:{ticket_path(ticket.stem)}")
+            try:
+                review = await review_ticket(ctx.driver, repo=ctx.repo, stem=ticket.stem, text=text, specs_dir=ctx.specs_dir, tier=tier, stem_slot=ticket.stem, run_seq=attempt, attempt=attempt, call_seq=1, expected_budget=ticket.expected_minutes * 60)
+            except ProviderDrought as exc:
+                result = ProviderDroughtResult(outcome="infra_error", artifact=None, findings=[], cost=Cost(), provider_drought=exc.record)
+                run = StagesRun(attempt=attempt, results={"implement": result}, ticket_sha=sha)
+            except ProviderCallError as exc:
+                findings = await ctx.driver.provider_failure(exc, owner=ticket.stem, ticket=ticket.stem, sequence=attempt, surface="requisition_review", workspace=ctx.repo)
+                result = StageResult(outcome="infra_error", artifact=None, findings=findings, cost=Cost(attempts=1))
+                run = StagesRun(attempt=attempt, results={"implement": result}, ticket_sha=sha)
+            else:
+                ctx.driver.journal.append(EventType.SIGNAL, {"signal": "requisition_verdict", "verdict": review.verdict, "ticket_sha": sha, "provider": review.provider, "model": review.model, "spec_version": review.spec_version}, ticket=ticket.stem)
+                if review.verdict != "approve" and not (review.verdict == "snag" and all(f.code == "render_feasibility" for f in review.findings)):
+                    reason = "; ".join(f"[{f.code}] {f.message} ({f.paved_road})" for f in review.findings)
+                    ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "premise_failed", "stage": "requisition", "reason": reason}, ticket=ticket.stem)
+                    return "premise_failed"
+    if run is None:
+        run = await run_stages(ctx, ticket)
     if ctx.boundary.next_stage is not None:
         return "running"
     stage, result = run.last

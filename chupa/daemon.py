@@ -490,6 +490,7 @@ def daemon_core(
     clock: Clock,
     sleep: Sleep,
     debounce: float,
+    ticket_sha: Callable[[str], Awaitable[str]],
     quarantined: Callable[[], Set[str]],
     drought_parked: Callable[[], Set[str]],
     completed_unmerged: Callable[[], int],
@@ -501,6 +502,7 @@ def daemon_core(
     scheduler = Scheduler(
         journal,
         admission.dispatch,
+        ticket_sha=ticket_sha,
         quarantined=quarantined,
         drought_parked=drought_parked,
         completed_unmerged=completed_unmerged,

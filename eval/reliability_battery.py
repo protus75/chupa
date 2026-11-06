@@ -189,6 +189,8 @@ class _Member:
         )
         self.fs.write(self.root / f"tickets/{stem}/ticket.md", raw.encode())
         await intake(self.root, self.git, self.journal, self.fs)
+        from tests.approval import approve
+        approve(self.root, stem, self.time)
         ticket = validate_ticket(stem, raw, self.root)
         self.core.scheduler.update(ticket)
         return ticket

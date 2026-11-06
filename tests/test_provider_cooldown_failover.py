@@ -90,6 +90,8 @@ def fail_process(rig, monkeypatch, message):
 async def test_quota_failure_arms_cooldown_without_infra_draw(root, monkeypatch):
     rig = await repository(root, monkeypatch)
     ticket = await rig.add("quota")
+    from tests.approval import approve
+    approve(root, "quota", rig.time)
     await intake(root, rig.checkout.git, rig.journal, rig.fs)
     writer = await prepared(rig)
     fail_process(rig, monkeypatch, "usage limit reached")
@@ -209,6 +211,8 @@ async def test_all_candidates_cooling_recovers_on_timer_fired(tmp_path, monkeypa
 async def test_mid_run_drought_is_harvested_without_spine_draws(root, monkeypatch, nested):
     rig = await repository(root, monkeypatch)
     ticket = await rig.add("midrun")
+    from tests.approval import approve
+    approve(root, "midrun", rig.time)
     await intake(root, rig.checkout.git, rig.journal, rig.fs)
     writer = await prepared(rig)
     session = writer.ctx.driver.llm.session
@@ -654,6 +658,8 @@ async def test_provider_wait_excluded_from_ticket_and_watchdog_budgets_ticketles
 async def test_executed_failures_preserve_classification_and_infra_accounting(root, monkeypatch, message, kind):
     rig = await repository(root, monkeypatch)
     ticket = await rig.add("failure")
+    from tests.approval import approve
+    approve(root, "failure", rig.time)
     await intake(root, rig.checkout.git, rig.journal, rig.fs)
     writer = await prepared(rig)
     fail_process(rig, monkeypatch, message)
@@ -691,6 +697,8 @@ async def test_escalated_drought_uses_effective_route(root, monkeypatch, entry, 
         control = rig.core.control
     checkout = replace(rig.checkout, control=control)
     ticket = await rig.add("escalated")
+    from tests.approval import approve
+    approve(root, "escalated", rig.time)
     assert ticket.frontmatter.agent_tier == "medium"
     caps.consume(rig.journal, ticket.stem, "retry", "fixture", rung={"tier": "high", "effort": "high"})
     await runner.prepare_pipeline(checkout)

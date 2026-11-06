@@ -117,6 +117,7 @@ def build_daemon_core(
         load=lambda: load_config(config_path, cwd=checkout.repo),
         bind=bind,
         read=read,
+        ticket_sha=lambda stem: checkout.git.rev_parse(checkout.repo, f"HEAD:tickets/{stem}/ticket.md"),
         clock=checkout.clock,
         sleep=checkout.sleep,
         debounce=debounce,

@@ -61,6 +61,7 @@ class Rig:
         self.scheduler = Scheduler(
             self.journal,
             self.dispatch,
+            ticket_sha=self.ticket_sha,
             quarantined=lambda: self.quarantine,
             drought_parked=lambda: self.drought,
             completed_unmerged=lambda: self.unmerged,
@@ -77,6 +78,9 @@ class Rig:
             sleep=self.time.sleep,
             debounce=5,
         )
+
+    async def ticket_sha(self, stem):
+        return self.files.get(stem, "")
 
     async def dispatch(self, ticket):
         self.calls.append(ticket.stem)

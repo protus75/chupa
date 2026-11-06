@@ -24,7 +24,7 @@ from chupa.merge import Admission
 from chupa.mergequeue import CONFLICT_FACTS, RED_STREAK, TREE_MISMATCH, MergeQueue, TreeMismatch
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.stages import Invoice, PackingSlip
-from tests.test_cli import ENV, root, write
+from tests.test_cli import ENV, root, write as write_ticket
 from tests.test_daemon_composition import sources
 from tests.test_restart_timers import orphan, repository
 from tests.test_scheduler import import_closure, text, turn
@@ -57,6 +57,13 @@ async def graph(root, monkeypatch, **kwargs):
     )
     rig.owner = owner
     return rig
+
+
+def write(root, stem, text):
+    from tests.approval import approve
+    from tests.test_drain import Clock
+    write_ticket(root, stem, text)
+    approve(root, stem, Clock())
 
 
 def script(monkeypatch, *, worktree=False, before=None, terminal="already_satisfied"):

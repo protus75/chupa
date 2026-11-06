@@ -159,6 +159,8 @@ def author(repo: Path, bypass: str = "", plan_contract: str = "") -> None:
     path.write_text(TICKET.format(bypass=bypass).replace("## Goal / Why", plan_contract + "## Goal / Why"))
     git(repo, "add", "tickets")
     git(repo, "commit", "-m", f"chupa({STEM}): ticket")
+    from tests.approval import approve
+    approve(repo, STEM, lambda: datetime(2026, 10, 5, tzinfo=UTC))
 
 
 def implement_reply(outcome: str = "ok", findings: list | None = None) -> str:

@@ -43,6 +43,8 @@ def test_two_premise_terminals_draw_and_route_after_cap(repo, capsys):
             path.write_text(path.read_text().replace("`thing.py` holds the word ok.", "`thing.py` holds the word ok, after correction."))
             git_out(repo, "add", f"tickets/{STEM}/ticket.md")
             git_out(repo, "commit", "-m", "edit ticket")
+            from tests.approval import approve
+            approve(repo, STEM, clock)
     events = _events(repo, STEM)
     terminals = [(i, e) for i, e in enumerate(events) if e.type == EventType.STATE_TRANSITION and e.body.get("to") == "premise_failed"]
     assert len(terminals) == 2

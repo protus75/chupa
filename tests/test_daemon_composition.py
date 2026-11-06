@@ -1040,7 +1040,7 @@ async def test_composed_merge_queue_admits_reviewed_candidate(admission_context,
     assert regate.key.startswith(f"merge-regate/{ticket.stem}/7/")
     assert regate.body["result"]["admission"] == "READY" and regate.body["result"]["reason"] == "bootstrap"
     assert completion.key == f"merge/{ticket.stem}/7"
-    [facts] = [e for e in events if e.type == EventType.SIGNAL]
+    [facts] = [e for e in events if e.type == EventType.SIGNAL and e.body.get("kind") == CONFLICT_FACTS]
     assert facts.ticket == ticket.stem and facts.key is None
     assert facts.body == {"kind": CONFLICT_FACTS, "conflicted_paths": [], "resolving_rung": "none", "strategy_paths": [], "integration_red_paths": []}
     assert (ctx.config.state_dir / "spools" / ticket.stem / "7/merge-integration/verify-01.txt").is_file()
@@ -2035,6 +2035,8 @@ def test_bootstrap_inline_admission_never_holds(admission_context, monkeypatch, 
 
     source = admission_context
     source.fs.write(source.repo / f"tickets/{STEM}/ticket.md", TICKET.format(bypass="").encode())
+    from tests.approval import approve
+    approve(source.repo, STEM, source.driver.clock)
     llm = FakeLLM([agent({"chupa/thing.py": "ok\n"}), verdict()])
     captured = capture_pipeline_queue(monkeypatch)
 

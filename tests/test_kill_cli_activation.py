@@ -18,7 +18,7 @@ from chupa.lockfile import Lockfile
 from chupa.reconcile import orphans
 from chupa.seams import LocalFileSystem
 from chupa.status import last_states
-from tests.test_cli import ENV, Clock, Stages, root, write
+from tests.test_cli import ENV, Clock, Stages, root, write as write_ticket
 from tests.test_control_cli import acquire, discovery, invoke, requests
 from tests.test_daemon_composition import CoreRig, LiveDrain, assert_core_wiring
 from tests.test_drain import confirmed, offer_events
@@ -26,6 +26,12 @@ from tests.test_drain_reentry import NoChild
 from tests.test_kill_executor_abort import Timer, Writer, turn
 from tests.test_kill_signal_journal import decision
 from tests.test_stages import agent, implement_reply, verdict
+
+
+def write(root, stem, text):
+    from tests.approval import approve
+    write_ticket(root, stem, text)
+    approve(root, stem, Clock())
 
 
 def applications(journal):

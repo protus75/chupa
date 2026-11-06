@@ -3,7 +3,7 @@
 import asyncio
 from collections.abc import Awaitable, Callable, Iterable, Set
 
-from chupa.drain import SETTLED, authored_at, order_tickets, write_queue
+from chupa.drain import SETTLED, authored_at, order_tickets, premise_parked, write_queue
 from chupa.journal import Journal
 from chupa.status import last_states, reject_queue
 from chupa.tickets import Ticket
@@ -15,6 +15,7 @@ class Scheduler:
         journal: Journal,
         dispatch: Callable[[Ticket], Awaitable[object]],
         *,
+        ticket_sha: Callable[[str], Awaitable[str]],
         quarantined: Callable[[], Set[str]],
         drought_parked: Callable[[], Set[str]],
         completed_unmerged: Callable[[], int],
@@ -22,6 +23,7 @@ class Scheduler:
     ) -> None:
         self.journal = journal
         self.dispatch = dispatch
+        self.ticket_sha = ticket_sha
         self.quarantined = quarantined
         self.drought_parked = drought_parked
         self.completed_unmerged = completed_unmerged
@@ -54,6 +56,9 @@ class Scheduler:
             authored = authored_at(events)
             retained = {t.stem: t for t in self.continuations()}
             candidates = {**self.pending, **retained}
+            for stem in candidates:
+                if last.get(stem) == "premise_failed" and premise_parked(events, stem, await self.ticket_sha(stem)):
+                    held.add(stem)
             ready = [
                 t
                 for t in candidates.values()

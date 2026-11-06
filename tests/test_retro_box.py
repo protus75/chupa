@@ -97,7 +97,7 @@ async def test_completed_retro_proposals_reach_prompt_spec_merge(tmp_path, monke
     with pytest.raises(BoxError, match="restore the Author-produced bridge"):
         record_retro_ticket(c.journal, messages[1], ticket.stem)
     await runner.verdict(ticket.stem, c, kill=False)
-    implementation = FakeLLM([implement_reply(), verdict()])
+    implementation = FakeLLM([requisition_reply("approve"), implement_reply(), verdict()])
     call = implementation.call
 
     async def scripted(request):

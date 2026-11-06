@@ -449,6 +449,8 @@ def test_outbox_only_admission_records_null_commit_and_retires(root, monkeypatch
 
     # The synchronous CLI owns asyncio.run, just as it does in production.
     ctx, ticket = asyncio.run(report_context(root))
+    from tests.approval import approve
+    approve(root, STEM, ctx.driver.clock)
 
     def pipeline(checkout):
         dispatch = runner.bind(checkout, ctx.driver.llm)

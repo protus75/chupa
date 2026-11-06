@@ -75,6 +75,8 @@ async def ready(ctx, stem=STEM, *, changes=None, fence=("chupa/thing.py",), veri
     record = "".join(f"## {name}\n\n{'ok' if name == 'Outcome' else 'none'}\n\n" for name in stages.RUN_RECORD_SECTIONS)
     ctx.fs.write(root / "run.md", record.encode())
     await commit(ctx, ctx.repo, [f"tickets/{stem}"], "ticket and run record")
+    from tests.approval import approve as approve_ticket
+    approve_ticket(ctx.repo, stem, ctx.driver.clock)
     ticket = dataclasses.replace(validate_ticket(stem, text, ctx.repo), verification=verification)
     await ctx.git.worktree_add(ctx.repo, ctx.worktree(stem), stem, "main")
     for batch in commits or [changes or {"chupa/thing.py": f"ok {stem}\n"}]:

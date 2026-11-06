@@ -140,7 +140,7 @@ squash merge itself.
 
 ## 4. A ticket's run
 
-`runner.drive` takes one ticket through Implement, Check, Review, then Merge.
+`runner.drive` reviews committed ticket content before Implement unless the journal already records an approval for that blob. It then takes the ticket through Implement, Check, Review, then Merge.
 
 ### 4.1 Worktree
 
@@ -296,7 +296,7 @@ After any other non-ok terminal, `runner.drive` does, in order:
 3. A provider **drought** or quota result parks the stem with no diagnosis (section 8.3).
 4. A failure reaching `caps.attempts` goes straight to the terminal, routed to the Reject queue
    with reason `attempts cap spent`, skipping the cap draw, Diagnosis, and Rework.
-5. `infra_error` / `timeout` draw the `infra` cap; `premise_failed` draws `premise_bounce`.
+5. `infra_error` / `timeout` draw the `infra` cap; `premise_failed` draws `premise_bounce`, except a requisition-stage snag ends before dispatch and draws no cap (section 6.7).
 6. **Diagnosis** (section 6.3), unless the outcome is `budget_exceeded` or an over-bound render.
 7. **Rework** if diagnosis said `split`, or the render was over bound (section 6.5).
 8. Decide the dispatch (retry, escalate, or the Reject queue) and journal the terminal.
@@ -335,7 +335,7 @@ which counts failed terminal `state_transition` events directly and journals no 
 | `diagnosis` | 3 | each diagnosis call |
 | `retry` | 3 (never above `diagnosis`) | each drain re-offer |
 | `infra` | 3 | each `infra_error` or `timeout` (not droughts) |
-| `premise_bounce` | 1 | each `premise_failed` (not over-bound renders) |
+| `premise_bounce` | 1 | each `premise_failed` (not over-bound renders or `requisition` snags) |
 | `quarantine` | 5 | flake quarantine size |
 | `poison` | 2 | read by nothing |
 
@@ -387,7 +387,7 @@ Keep and kill require a person at an interactive terminal to type the exact stem
   not release this hold. Stage boundaries, admission, and queued or confirmed merge admissions
   all check the dispatch identity. Rework updates between attempts are fresh ticket inputs.
 
-- **Premise park:** with the default `premise_bounce: 1`, the first `premise_failed` spends
+- **Premise park:** a requisition-stage `premise_failed` draws no cap, makes no Diagnose call, and is not routed to the Reject queue. Edit the committed ticket to release it; no `confirm` is needed. Other premise failures: with the default `premise_bounce: 1`, the first `premise_failed` spends
   the cap and routes to the Reject queue via `premise_bounce cap spent`; only an operator
   `confirm` releases it. When a host sets `premise_bounce` above 1 and caps still have budget,
   the stem parks until its committed `ticket.md` changes. That re-offer draws no retry.
@@ -405,7 +405,7 @@ Keep and kill require a person at an interactive terminal to type the exact stem
 
 1. Takes the lock, reconciles, fires due timers, runs the provider preflight, runs intake once.
 2. Loops: reload config, honor pause/kill/stop, maybe run a retro, scan committed tickets (skipping stems settled or rejected in the journal), pick the
-   next ticket, run it, merge it inline.
+   next ticket, review its committed content if it lacks an approval, run it, merge it inline. Serve applies the same review before Implement and holds a premise-parked ticket until its committed content changes.
 3. **Pick order:** confirmed, unsettled, not rejected, every dependency settled (through split
    successors); among eligible fresh tickets and re-offers, `## Runs before` orders named stems
    after the ticket naming them, with priority P0-P3, authored age, then stem breaking ties.
@@ -432,7 +432,7 @@ publishes `state_dir/control/active.json`, and runs four loops (every 0.1s):
   its last good version.
 - **Dispatch:** the scheduler runs one ticket at a time. It waits while
   `scheduler.max_unmerged` (default 2) finished tickets are waiting to merge, while paused, or
-  while a stem is held (Reject queue, storm, drought). Among eligible tickets,
+  while a stem is held (Reject queue, storm, drought, or premise park at unchanged ticket content). Each fresh dispatch reviews committed content without an existing approval before Implement. Among eligible tickets,
   `## Runs before` orders named stems after the ticket naming them; priority, authored age,
   and stem break ties. Edges to ineligible stems never block dispatch.
 - **Merge queue:** serial admission (section 7.2.1).

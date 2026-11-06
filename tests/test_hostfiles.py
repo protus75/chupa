@@ -330,6 +330,8 @@ def test_core_drift_reachable_from_production_gates(root, monkeypatch, mode):
     monkeypatch.setattr(queue_module.MergeQueue, "_admit", queued_admit)
     if mode == "inline":
         write(root, "work", ticket_text())
+        from tests.approval import approve
+        approve(root, "work", Clock())
         llm = FakeLLM([agent({"chupa/thing.py": "ok\n"}), verdict()])
         assert main(["run", "work"], cwd=root, env=ENV, clock=Clock(), pipeline=lambda checkout: runner.bind(checkout, llm)) == 0
     else:

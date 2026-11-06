@@ -660,6 +660,8 @@ def test_render_over_bound_dispatches_rework_without_diagnosis(rework_repo, monk
     if action == "exhausted":
         path = repo / f"tickets/{STEM}/ticket.md"
         path.write_text(path.read_text().replace("kind: feature", "kind: feature\nagent_tier: max\nagent_effort: max"))
+        from tests.approval import approve
+        approve(repo, STEM, clock)
     mechanical_first(monkeypatch, STEM, workspace=action != "missing")
     calls = []
     apply = daemon.apply_rework
@@ -1261,6 +1263,8 @@ def _mid_run_hold(repo, monkeypatch, *, committed, failed=False):
     assert len(llm.requests) == 1
     monkeypatch.setattr(stages, "implement", original)
     assert main(["confirm", STEM], cwd=repo, env=ENV, clock=clock, terminal=(lambda: True, lambda _: "y")) == 0
+    from tests.approval import approve
+    approve(repo, STEM, clock)
     fresh = FakeLLM([agent({"chupa/thing.py": "ok\n"}), verdict()])
     from tests.test_drain_reentry import NoChild
 
