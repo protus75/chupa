@@ -6,7 +6,7 @@ state: confirmed
 ---
 
 ## Depends on
-- remove-phase-exits
+- remove-plan-gap-hardening
 
 ## Context
 - chupa/watcher.py
