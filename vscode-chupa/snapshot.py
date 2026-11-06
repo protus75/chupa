@@ -8,6 +8,7 @@ draws as graph parents.
 """
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -60,6 +61,21 @@ def simulate(candidates: dict, done: set[str], authored: dict, *, strict: bool) 
     return order
 
 
+def engine_alive(state: Path) -> bool:
+    """Whether the lock holder (a drain, serve, or run) is still alive; a killed drain leaves its lockfile behind."""
+    try:
+        pid = json.loads((state / "chupa.lock").read_text())["pid"]
+    except OSError, ValueError, KeyError:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
 def commits() -> dict[str, dict]:
     out = subprocess.run(["git", "log", "--format=%H%x1f%h%x1f%an%x1f%aI%x1f%s", "main"], cwd=ROOT, capture_output=True, text=True).stdout
     rows = {}
@@ -85,7 +101,9 @@ def snapshot() -> dict:
         return last.get(stem, {}).get("to")
 
     merged = sorted((s for s in last if to(s) in SETTLED), key=lambda s: last[s]["ts"], reverse=True)
-    running = [s for s in last if to(s) == "running"]
+    # The journal's last `running` outlives a killed engine; only a live lock holder makes it true.
+    alive = engine_alive(state)
+    running = [s for s in last if to(s) == "running"] if alive else []
     open_ = {s: t for s, t in tickets.items() if to(s) not in SETTLED | RETIRED and s not in running and t.frontmatter.state not in ("rejected", "merged")}
     runnable = {s: t for s, t in open_.items() if t.frontmatter.state == "confirmed" and s not in held}
     queued = simulate(runnable, set(merged) | set(running), authored, strict=True)
@@ -103,6 +121,8 @@ def snapshot() -> dict:
         return "waits on " + ", ".join(waits) if waits else "not eligible"
 
     def why_queued(t) -> str:
+        if to(t.stem) == "running":
+            return "interrupted: the engine stopped mid-run; reruns when it restarts"
         if to(t.stem) is not None:
             return f"retry pending (last: {to(t.stem)})"
         waits = [d for d in t.depends if to(d) not in SETTLED]
@@ -123,7 +143,7 @@ def snapshot() -> dict:
         }
 
     rows = [base(t.stem, "blocked", why_blocked(t)) for t in reversed(blocked)]
-    rows += [{**base(stem, "blocked", "invalid: " + why), "goal": ""} for stem, why in sorted(invalid.items()) if to(stem) not in SETTLED | RETIRED | {"running"}]
+    rows += [{**base(stem, "blocked", "invalid: " + why), "goal": ""} for stem, why in sorted(invalid.items()) if to(stem) not in SETTLED | RETIRED and stem not in running]
     rows += [base(t.stem, "queued", why_queued(t)) for t in reversed(queued)]
     for stem in running:
         step, began, _ = watch.current_step(log, stem)
@@ -149,7 +169,7 @@ def snapshot() -> dict:
     ]
     return {
         "at": watch.datetime.now().astimezone().isoformat(),
-        "drain": bool(watch.drain_processes(watch.processes())),
+        "engine": alive,
         "rows": rows,
         "steps": steps,
         "blockedCount": len(blocked_stems) + len(invalid),

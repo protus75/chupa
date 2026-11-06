@@ -46,7 +46,7 @@ function render(snap) {
 	for (const r of snap.rows) {
 		counts[r.section] = (counts[r.section] ?? 0) + 1;
 	}
-	header.textContent = `drain ${snap.drain ? 'running' : 'stopped'} · ${counts.blocked ?? 0} blocked · ${counts.queued ?? 0} queued · ${counts.running ?? 0} running · ${counts.merged ?? 0} merged`;
+	header.textContent = `engine ${snap.engine ? 'running' : 'stopped'} · ${counts.blocked ?? 0} blocked · ${counts.queued ?? 0} queued · ${counts.running ?? 0} running · ${counts.merged ?? 0} merged`;
 	// Merged, running and queued rows form one line in run order, like main after squash merges. Branches are
 	// Depends on edges between unmerged tickets only, transitively reduced; Details still lists every edge.
 	const unmerged = new Set(snap.rows.filter(r => r.section !== 'merged').map(r => r.stem));
