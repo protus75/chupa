@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "e8119daa9d3098ac00243da4d7d0096b23a94dde",
+  "stem": "graph-lane-cleanup",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "reject",
+  "lessons": [
+    "The ticket's `## Regression` section says `carries: vscode-chupa/media/graph.js`, which is an implementation file. The check gate only accepts carried test or fixture files, so every attempt fails at check, however good the code is.",
+    "Fixing this needs a ticket edit: add a test or fixture file holding the reproducer to `## Scope fence`, and make `carries` name only that file. The ticket allows no file beyond view.js and graph.js, so the implementer cannot add one.",
+    "The carried reproducer must check its own prerequisites and report the result in the gate's regression protocol: pass at head, defect at the overlaid base. Neither the ticket nor merged code states that protocol's output format, so read it before writing the reproducer.",
+    "Keep the implementation. The diff (graph.js +18, view.js +9/-4) passed node --check, the lane-count check and 3029 pytest tests. A later attempt should reuse that approach and only add the carried test file."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
