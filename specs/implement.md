@@ -5,7 +5,7 @@ emits: packing-slip
 tier: medium
 effort: medium
 gates: []
-version: "2.0"
+version: "2.1"
 ---
 ## Role
 
@@ -33,6 +33,12 @@ Read the ticket and the context files below before writing anything. Then:
 4. Commit all of your work on the current branch (`git add` the changed paths, then
    `git commit`). Do not push, rebase, merge, switch branches, or create other branches. Only
    committed changes count: uncommitted edits are discarded with the worktree.
+
+For each assertion, name the likely wrong implementation it rules out; the fixture must give a
+different value under that wrong version (for example, the right copy versus the wrong copy,
+innings 1-5 versus all 9, or one row versus duplicates). Never assert a value that a default,
+a zero, or a shared fixture would produce anyway. On a retry, check every assertion this way,
+not only the one a finding names.
 
 Two first-class outcomes replace grinding out a bad implementation:
 

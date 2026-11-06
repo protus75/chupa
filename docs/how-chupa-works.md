@@ -153,6 +153,11 @@ log tails) when this is a retry. The model works in the worktree with write acce
   with green Verification on an empty diff.
 - `premise_failed`: the ticket cannot be done as written; findings say why.
 
+The Implement prompt asks for each assertion to name the likely wrong implementation it rules out
+and use a fixture that gives a different value under that version. It forbids asserting values a
+default, zero, or shared fixture would produce anyway, and asks retries to check every assertion
+this way, not only the one named by a finding.
+
 The engine writes `run.md` from the reply and lifts it. Each `second_problems` entry is filed to
 the Suggestion Box as a `suggestion`.
 

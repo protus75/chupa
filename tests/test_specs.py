@@ -53,7 +53,7 @@ seeds:
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parent.parent / "specs"
-    for name, version in (("implement", "2.0"), ("requisition_review", "3.0"), ("diagnose", "1.2")):
+    for name, version in (("implement", "2.1"), ("requisition_review", "3.0"), ("diagnose", "1.2")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
@@ -64,7 +64,7 @@ def test_implement_spec_consumer_read():
     assert lint_spec(text) == []
     assert len(text.splitlines()) <= SPEC_MAX_LINES
     spec = load_spec(text)
-    assert spec.meta.version == "2.0"
+    assert spec.meta.version == "2.1"
     assert spec.meta.model_dump(exclude={"version"}) == {
         "llm_surface": "implement",
         "consumes": "ticket",
@@ -85,6 +85,12 @@ def test_implement_spec_consumer_read():
         "the plausible reading that keeps the consumer working and record the choice in the run record's "
         "`surprises`, or reply `premise_failed` when no such reading exists."
     ) in task
+    for rule in (
+        "For each assertion, name the likely wrong implementation it rules out; the fixture must give a different value under that wrong version",
+        "Never assert a value that a default, a zero, or a shared fixture would produce anyway.",
+        "On a retry, check every assertion this way, not only the one a finding names.",
+    ):
+        assert rule in task
     assert validate_data_blocks(rendered) == []
 
 
