@@ -44,6 +44,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `core` | no | Rewrites the managed `chupa:core` block in each routed agent's conduct file (section 12). |
 | `migrate-config` | no | Migrates a `schema_version: 0` config to the current schema. |
 | `new <stem> --kind feature\|bug\|chore` | no | Writes `tickets/<stem>/ticket.md` with section placeholders for the selected kind (default `feature`) and lints it. Bugs include `## Regression` and a missing-evidence finding; no evidence files are created. Refuses a bad, reserved, or existing stem, or unknown kind (exit 2); successful authorship exits 0. |
+| `review <stem>` | yes | Runs intake, then reviews the committed ticket against merged code and journals its verdict and ticket blob SHA. Refuses missing, intake-failed, settled, rejected, or dependency-blocked tickets without a model call. Prints findings and exits 0 on approve, 1 on snag or rma. |
 | `run <stem>` | yes | Reconciles orphans, runs intake, then drives the one named ticket through every stage. Refuses a stem that failed intake, is missing, invalid, merged, not `confirmed`, or has unmerged dependencies. |
 | `drain` | yes | Runs every eligible ticket to quiescence (section 7.1). |
 | `serve` | yes | Runs the continuous daemon until `kill` or a signal (section 7.2). |
@@ -65,6 +66,7 @@ Each test has a 120-second hard limit.
 | `test [args]` | pytest with those args |
 | `new STEM [--kind K]` | `chupa new <stem> --kind feature\|bug\|chore` (default `feature`) |
 | `lint [STEM...]` | `chupa lint [stem ...]` (read-only; no writer lock) |
+| `review STEM...` | `chupa review` once per stem, stopping on the first non-zero exit |
 | `run STEM` | `chupa run <stem>`: one ticket through every stage, under the lock |
 | `status`, `drain`, `kill` | the matching chupa verb |
 | `confirm STEM...`, `reject STEM...` | `chupa confirm` or `chupa reject` once per stem; a person at a terminal answers `y` for each stem |

@@ -14,12 +14,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from chupa import control, drain, hostfiles, runner, serve, triage
+from chupa import control, drain, hostfiles, requisition, runner, serve, triage
 from chupa.config import ConfigError, ConfigSnapshot, load_config, migrate_config
 from chupa.daemon import DaemonCore, PauseConsumer, daemon_core
 from chupa.daemon import StartupBoundary
 from chupa.git import Git, GitError
-from chupa.journal import Journal, JournalCorruption
+from chupa.journal import EventType, Journal, JournalCorruption
 from chupa.lockfile import LockHeld, Lockfile
 from chupa.notify import NOTIFY_TIMEOUT_S, NotificationReconciler
 from chupa.providers import ProviderLLM, ProviderSession, ProviderSetupError, routed_conduct_paths, child_env
@@ -210,6 +210,7 @@ def _parser() -> argparse.ArgumentParser:
     for verb in ("pause", "resume"):
         sub.add_parser(verb, help=f"submit {verb} to the running engine, or do nothing under the idle lock")
     sub.add_parser("kill", help="submit kill to the running engine; refuse when nothing is running")
+    sub.add_parser("review", help="review a committed ticket under the lock").add_argument("stem")
     sub.add_parser("triage", help="make one sequential pass over pending suggestions under the lock")
     new = sub.add_parser("new", help="template tickets/<stem>/ticket.md and lint it")
     new.add_argument("stem")
@@ -277,6 +278,8 @@ def main(
             return asyncio.run(_control(checkout, args.verb))
         if args.verb in {"confirm", "reject"}:
             return asyncio.run(_verdict(checkout, args.stem, args.verb, read_input))
+        if args.verb == "review":
+            return asyncio.run(_review(checkout, args.stem))
         if args.verb == "triage":
 
             async def one_pass() -> list[tuple[str, str]]:
@@ -329,6 +332,58 @@ def main(
         road = " -- repair the selected config and retry retro" if args.verb == "retro" and isinstance(e, ConfigError) else ""
         print(f"chupa {args.verb}: {e}{road}", file=sys.stderr)
         return runner.EXIT_REFUSED
+
+
+async def _review(checkout: runner.Checkout, stem: str) -> int:
+    from chupa.driver import Driver
+    from chupa.effects import Effects
+    from chupa.tickets import intake
+
+    if findings := stem_findings(stem):
+        raise runner.Refusal(findings[0].message, findings[0].paved_road)
+    lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
+    lock.acquire()
+    try:
+        result = await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
+        if refused := result.refused.get(stem):
+            raise runner.Refusal(f"{ticket_path(stem)} failed intake: " + "; ".join(f.message for f in refused), f"fix the ticket and retry `review {stem}`")
+        path = checkout.repo / ticket_path(stem)
+        if not path.is_file():
+            raise runner.Refusal(f"{ticket_path(stem)} does not exist", f"author the ticket before `review {stem}`")
+        history = checkout.journal.read()
+        states = last_states(history)
+        if states.get(stem) in SETTLED | {"rejected"}:
+            raise runner.Refusal(f"{stem} is settled or rejected", "author follow-up work as a new ticket")
+        text = await checkout.git._run(checkout.repo, "show", f"main:{ticket_path(stem)}")
+        try:
+            ticket = validate_ticket(stem, text, checkout.repo)
+        except TicketInvalid as exc:
+            raise runner.Refusal(f"{ticket_path(stem)} is invalid: " + "; ".join(f.message for f in exc.findings), f"fix the ticket and retry `review {stem}`") from None
+        if unmerged := [dep for dep in ticket.depends if states.get(dep) != "merged"]:
+            raise runner.Refusal(f"{stem} depends on unmerged {', '.join(unmerged)}", f"review {stem} after {', '.join(unmerged)} merge")
+        session = build_control(checkout).providers
+        try:
+            llm = ProviderLLM(checkout.config, exec_=checkout.exec_, fs=checkout.fs, env=checkout.env, cwd=checkout.repo, timeout=runner.call_timeout(checkout.config), session=session)
+            session.timers.reconstruct()
+            session.timers.fire_due()
+            problems = await llm.preflight() if session.active else []
+            if problems:
+                raise ProviderSetupError("; ".join(problems))
+            driver = Driver.from_config(checkout.config, llm=llm, env=checkout.env, clock=checkout.clock, sleep=checkout.sleep, fs=checkout.fs)
+            driver.journal = checkout.journal
+            driver.effects = Effects(checkout.journal)
+            verdict = await requisition.review_ticket(driver, repo=checkout.repo, stem=stem, text=text, specs_dir=runner.SPECS_DIR,
+                tier=checkout.config.routing_default_tier, stem_slot=f"review-{stem}", run_seq=len(history), attempt=0, call_seq=1, expected_budget="surface")
+        finally:
+            await session.close()
+        checkout.journal.append(EventType.SIGNAL, {"signal": "requisition_verdict", "verdict": verdict.verdict, "ticket_sha": verdict.ticket_sha, "provider": verdict.provider, "model": verdict.model, "spec_version": verdict.spec_version}, ticket=stem)
+        print(f"review {stem}: {verdict.verdict} -- {verdict.summary}")
+        for finding in verdict.findings:
+            location = f" {finding.path}:{finding.line}" if finding.path and finding.line is not None else f" {finding.path}" if finding.path else ""
+            print(f"- [{finding.code}]{location} {finding.message} ({finding.paved_road})")
+        return 0 if verdict.verdict == "approve" else 1
+    finally:
+        lock.release()
 
 
 async def _retro(checkout, dispatch):

@@ -18,7 +18,9 @@ what content its tickets carry, never the format.
    findings with fixes and a valid/total summary. Exit 0 means all valid, 1 means findings, and
    2 means a named ticket is missing or the tickets directory is unreadable.
 3. For a bug, add the evidence file (see Bug tickets) beside the ticket.
-4. Run `chupa drain`: intake commits the ticket and its evidence together before running it.
+4. Run `chupa review <stem>` (in this repo, `./dev.py review STEM`), repair every finding,
+   and repeat until it prints `approve`. Review tickets with unmerged dependencies after they merge.
+5. Run `chupa drain`: intake commits the ticket and its evidence together before running it.
 
 ## What each section is for
 

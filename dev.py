@@ -4,6 +4,7 @@
     ./dev.py                  the full suite
     ./dev.py test [args]      the suite, or the named tests (args go to pytest)
     ./dev.py new STEM [--kind K]  author and lint a feature, bug, or chore ticket
+    ./dev.py review STEM...   review each ticket against merged code
     ./dev.py lint [STEM...]   validate tickets without running or writing anything
     ./dev.py status           the engine's projected state
     ./dev.py run STEM         run one ticket through every stage
@@ -47,7 +48,7 @@ def main() -> None:
     sub.add_parser("drain", help="run every eligible ticket to quiescence")
     sub.add_parser("kill", help="hard-stop the running drain or serve")
     sub.add_parser("watch", help="live view of the drain and the queue").add_argument("--once", action="store_true")
-    for verb in ("confirm", "reject"):
+    for verb in ("confirm", "reject", "review"):
         sub.add_parser(verb, help=f"{verb} each named ticket").add_argument("stems", nargs="+")
     args = parser.parse_args()
     if args.task is None:
@@ -66,7 +67,7 @@ def main() -> None:
             subprocess.run([sys.executable, str(ROOT / "watch.py"), *(["--once"] if args.once else [])], cwd=ROOT)
         except KeyboardInterrupt:
             pass
-    elif args.task in {"confirm", "reject"}:
+    elif args.task in {"confirm", "reject", "review"}:
         for stem in args.stems:
             chupa(args.task, stem)
     else:

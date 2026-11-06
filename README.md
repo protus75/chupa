@@ -19,6 +19,7 @@ In this repo, use `./dev.py`:
 
     ./dev.py new STEM [--kind feature|bug|chore]   # write a ticket skeleton
     ./dev.py lint [STEM...]                         # check tickets
+    ./dev.py review STEM...                       # review tickets against merged code
     ./dev.py drain                                  # run every eligible ticket to quiescence
     ./dev.py status                                 # what ran, what is held, total spend
     ./dev.py confirm STEM / ./dev.py reject STEM    # keep or kill a held ticket
