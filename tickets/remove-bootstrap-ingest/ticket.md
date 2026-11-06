@@ -6,7 +6,10 @@ state: confirmed
 ---
 
 ## Depends on
-- remove-plan-grammar
+- none
+
+## Runs before
+- drop-plan-citations-1
 
 ## Context
 - docs/how-chupa-works.md
