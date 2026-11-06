@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -217,7 +218,9 @@ class _Member:
                 await asyncio.gather(wait, return_exceptions=True)
             dispatch = asyncio.create_task(self.core.scheduler.dispatch_next())
             try:
-                for _ in range(100000):
+                # A turn count is not a time bound under load.
+                deadline = time.monotonic() + 60
+                while time.monotonic() < deadline:
                     if self.owner.queue.pending:
                         break
                     if dispatch.done():
@@ -237,7 +240,8 @@ class _Member:
 
         merger = asyncio.create_task(self.owner.merge())
         try:
-            for _ in range(100000):
+            deadline = time.monotonic() + 60
+            while time.monotonic() < deadline:
                 held = held_admissions(self.journal.read()).get("cooling-recovery")
                 if held:
                     hold, receipt = held

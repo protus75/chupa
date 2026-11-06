@@ -142,6 +142,41 @@ async def test_all_candidates_cooling_recovery(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_cooling_recovery_after_many_turns(tmp_path, monkeypatch):
+    m = battery._Member(tmp_path / MEMBERS[1], MEMBERS[1])
+    await m.initialize()
+    dispatch = m.core.scheduler.dispatch_next
+    turn = battery._turn
+    release = asyncio.Event()
+    calls = turns = 0
+
+    async def delayed_dispatch():
+        nonlocal calls
+        calls += 1
+        if calls == 5:
+            await release.wait()
+        return await dispatch()
+
+    async def slowed_turn():
+        nonlocal turns
+        if calls == 5 and not release.is_set():
+            turns += 1
+            if turns > 100000:
+                release.set()
+        await turn()
+        await asyncio.sleep(0)
+
+    monkeypatch.setattr(m.core.scheduler, "dispatch_next", delayed_dispatch)
+    monkeypatch.setattr(battery, "_turn", slowed_turn)
+    try:
+        await m.exercise()
+    finally:
+        await m.stop()
+    assert turns > 100000
+    assert battery._observe(m).observed == EXPECTED[1]
+
+
+@pytest.mark.asyncio
 async def test_unclassified_failure_preservation(tmp_path):
     m = await member(tmp_path, 2)
     assert battery._observe(m).observed == EXPECTED[2]

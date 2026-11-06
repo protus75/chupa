@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -305,7 +306,9 @@ class _Member:
         return runner.bind(local, model)
 
     async def until(self, predicate):
-        for n in range(100000):
+        deadline = time.monotonic() + 60
+        n = 0
+        while time.monotonic() < deadline:
             if predicate():
                 return
             if self.task is not None and self.task.done():
@@ -313,6 +316,7 @@ class _Member:
             if n % 20 == 0:
                 self.time.advance(serve.SERVE_POLL_S)
             await _turn()
+            n += 1
         raise SoakRefused(self.name, "production graph did not reach its scripted boundary")
 
     async def start(self):
