@@ -70,22 +70,7 @@ body {
 }
 
 #detail {
-	flex: none;
-	height: min(160px, 30vh);
-	overflow: auto;
 	padding: 6px 10px;
-	box-sizing: border-box;
-}
-
-#split {
-	flex: none;
-	height: 4px;
-	cursor: row-resize;
-	border-top: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
-}
-
-#split:hover, #split.dragging {
-	background: var(--vscode-sash-hoverBorder);
 }
 
 #list {

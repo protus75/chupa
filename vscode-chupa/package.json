@@ -2,21 +2,45 @@
 	"name": "vscode-chupa",
 	"displayName": "chupa tickets",
 	"description": "chupa's tickets as an SCM-style dependency graph: blocked, queued, running, merged.",
-	"version": "0.0.6",
+	"version": "0.0.8",
 	"publisher": "chupa",
 	"license": "MIT",
-	"engines": { "vscode": "^1.90.0" },
+	"engines": {
+		"vscode": "^1.90.0"
+	},
 	"main": "./extension.js",
-	"activationEvents": ["workspaceContains:watch.py"],
+	"activationEvents": [
+		"workspaceContains:watch.py"
+	],
 	"contributes": {
 		"viewsContainers": {
 			"activitybar": [
-				{ "id": "chupa", "title": "chupa", "icon": "media/icon.svg" }
+				{
+					"id": "chupa",
+					"title": "chupa",
+					"icon": "media/icon.svg"
+				}
 			]
 		},
 		"views": {
 			"chupa": [
-				{ "type": "webview", "id": "chupa.tickets", "name": "chupa tickets" }
+				{
+					"type": "webview",
+					"id": "chupa.details",
+					"name": "Details",
+					"initialSize": 2
+				},
+				{
+					"id": "chupa.steps",
+					"name": "Recent Steps",
+					"initialSize": 2
+				},
+				{
+					"type": "webview",
+					"id": "chupa.tickets",
+					"name": "Tickets",
+					"initialSize": 6
+				}
 			]
 		},
 		"configuration": {
@@ -26,16 +50,180 @@
 					"type": "number",
 					"default": 15,
 					"minimum": 0,
-					"description": "Seconds between timed refreshes of the chupa tickets view. Journal, queue, engine log and ticket file changes always refresh it; 0 turns the timer off."
+					"description": "Seconds between timed refreshes of the chupa views. Journal, queue, engine log and ticket file changes always refresh it; 0 turns the timer off."
 				}
 			}
 		},
 		"commands": [
-			{ "command": "chupa.refresh", "title": "Refresh", "icon": "$(refresh)" }
+			{
+				"command": "chupa.refresh",
+				"title": "Refresh",
+				"icon": "$(refresh)"
+			},
+			{
+				"command": "chupa.ticket.open",
+				"title": "Open ticket.md",
+				"category": "chupa"
+			},
+			{
+				"command": "chupa.ticket.review",
+				"title": "Review",
+				"category": "chupa"
+			},
+			{
+				"command": "chupa.ticket.lint",
+				"title": "Lint",
+				"category": "chupa"
+			},
+			{
+				"command": "chupa.ticket.run",
+				"title": "Run now",
+				"category": "chupa"
+			},
+			{
+				"command": "chupa.ticket.confirm",
+				"title": "Confirm (keep)",
+				"category": "chupa"
+			},
+			{
+				"command": "chupa.ticket.reject",
+				"title": "Reject (kill)",
+				"category": "chupa"
+			},
+			{
+				"command": "chupa.ticket.askDiagnose",
+				"title": "Ask Claude: diagnose",
+				"category": "chupa"
+			},
+			{
+				"command": "chupa.ticket.askReview",
+				"title": "Ask Claude: review",
+				"category": "chupa"
+			},
+			{
+				"command": "chupa.drain",
+				"title": "Drain",
+				"category": "chupa"
+			},
+			{
+				"command": "chupa.stop",
+				"title": "Stop after the running ticket",
+				"category": "chupa"
+			},
+			{
+				"command": "chupa.kill",
+				"title": "Kill the drain",
+				"category": "chupa"
+			},
+			{
+				"command": "chupa.status",
+				"title": "Status",
+				"category": "chupa"
+			}
 		],
 		"menus": {
 			"view/title": [
-				{ "command": "chupa.refresh", "when": "view == chupa.tickets", "group": "navigation" }
+				{
+					"command": "chupa.refresh",
+					"when": "view == chupa.tickets",
+					"group": "navigation"
+				},
+				{
+					"command": "chupa.drain",
+					"when": "view == chupa.tickets",
+					"group": "chupa@0"
+				},
+				{
+					"command": "chupa.stop",
+					"when": "view == chupa.tickets",
+					"group": "chupa@1"
+				},
+				{
+					"command": "chupa.kill",
+					"when": "view == chupa.tickets",
+					"group": "chupa@2"
+				},
+				{
+					"command": "chupa.status",
+					"when": "view == chupa.tickets",
+					"group": "chupa@3"
+				}
+			],
+			"webview/context": [
+				{
+					"command": "chupa.ticket.open",
+					"when": "webviewId == 'chupa.tickets' && chupaStem",
+					"group": "1_open"
+				},
+				{
+					"command": "chupa.ticket.review",
+					"when": "webviewId == 'chupa.tickets' && chupaSection =~ /^(queued|blocked)$/",
+					"group": "2_engine@1"
+				},
+				{
+					"command": "chupa.ticket.lint",
+					"when": "webviewId == 'chupa.tickets' && chupaSection =~ /^(queued|blocked)$/",
+					"group": "2_engine@2"
+				},
+				{
+					"command": "chupa.ticket.run",
+					"when": "webviewId == 'chupa.tickets' && chupaSection =~ /^(queued|blocked)$/",
+					"group": "2_engine@3"
+				},
+				{
+					"command": "chupa.ticket.confirm",
+					"when": "webviewId == 'chupa.tickets' && chupaHeld",
+					"group": "3_verdict@1"
+				},
+				{
+					"command": "chupa.ticket.reject",
+					"when": "webviewId == 'chupa.tickets' && chupaHeld",
+					"group": "3_verdict@2"
+				},
+				{
+					"command": "chupa.ticket.askDiagnose",
+					"when": "webviewId == 'chupa.tickets' && chupaSection != 'merged' && chupaStem",
+					"group": "4_claude@1"
+				},
+				{
+					"command": "chupa.ticket.askReview",
+					"when": "webviewId == 'chupa.tickets' && chupaSection =~ /^(queued|blocked)$/",
+					"group": "4_claude@2"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "chupa.ticket.open",
+					"when": "false"
+				},
+				{
+					"command": "chupa.ticket.review",
+					"when": "false"
+				},
+				{
+					"command": "chupa.ticket.lint",
+					"when": "false"
+				},
+				{
+					"command": "chupa.ticket.run",
+					"when": "false"
+				},
+				{
+					"command": "chupa.ticket.confirm",
+					"when": "false"
+				},
+				{
+					"command": "chupa.ticket.reject",
+					"when": "false"
+				},
+				{
+					"command": "chupa.ticket.askDiagnose",
+					"when": "false"
+				},
+				{
+					"command": "chupa.ticket.askReview",
+					"when": "false"
+				}
 			]
 		}
 	}

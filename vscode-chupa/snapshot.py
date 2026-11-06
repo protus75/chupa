@@ -21,6 +21,8 @@ from chupa.drain import RETIRED, authored_at, order_tickets  # noqa: E402
 from chupa.tickets import TicketInvalid, parse_ticket, read_plan  # noqa: E402
 
 SETTLED = watch.SETTLED
+# Recent Steps keeps more history than watch's 8 because its view scrolls.
+STEPS = 40
 
 
 def load_tickets(skip: set[str]) -> tuple[dict, dict]:
@@ -117,6 +119,7 @@ def snapshot() -> dict:
             "goal": t.sections.get("Goal / Why", "") if t else "",
             "runsBefore": list(t.runs_before) if t else [],
             "path": f"tickets/{stem}/ticket.md",
+            "held": stem in held,
         }
 
     rows = [base(t.stem, "blocked", why_blocked(t)) for t in reversed(blocked)]
@@ -135,7 +138,22 @@ def snapshot() -> dict:
     shown = {r["stem"] for r in rows}
     for r in rows:
         r["depends"] = [d for d in r["depends"] if d in shown]
-    return {"at": watch.datetime.now().astimezone().isoformat(), "drain": bool(watch.drain_processes(watch.processes())), "rows": rows, "blockedCount": len(blocked_stems) + len(invalid)}
+    steps = [
+        {
+            "ts": e["ts"],
+            "stem": e.get("stem"),
+            "step": watch.STEP_NAMES.get(e.get("surface"), e.get("surface")),
+            "verb": "start" if e["event"] == "stage_start" else f"end ({e.get('outcome', '?')})",
+        }
+        for e in reversed([e for e in log if e.get("event") in ("stage_start", "stage_end")][-STEPS:])
+    ]
+    return {
+        "at": watch.datetime.now().astimezone().isoformat(),
+        "drain": bool(watch.drain_processes(watch.processes())),
+        "rows": rows,
+        "steps": steps,
+        "blockedCount": len(blocked_stems) + len(invalid),
+    }
 
 
 if __name__ == "__main__":
