@@ -36,24 +36,19 @@ Commit `e99990cb` bulk-applied ruff lint fixes and formatting from the command l
 
   - Findings that merges after `e99990cb` added: I001 and three E501 in `chupa/stages.py`, and `ruff format` changes in `chupa/stages.py` and `tests/test_testreport.py`.
 
+  - Findings that later merges add anywhere under `chupa/`, `eval/` and `tests/`, or in `dev.py` and `watch.py`: fix them by hand in this ticket. Run both ruff commands and fence nothing narrower than the whole Python tree.
+
   Line numbers are as of `e99990cb`; find them with `uv run ruff check .`.
 - Out: any other lint rule or behavior change; `CHUPA_PLAN.md` and every `.md` file; chupa's `config.yaml` checks (a later ticket); the text-matching tests (ticket `source-graph-ast`).
 
 ## Scope fence
 - pyproject.toml
 - uv.lock
-- chupa/serve.py
-- eval/daemon_soak.py
-- eval/host_loop.py
-- eval/shakeout/runner.py
-- eval/shakeout/stages.py
-- tests/test_host_contract.py
-- tests/test_serve.py
-- tests/test_journal.py
-- tests/test_kill_cli_activation.py
-- tests/test_gates.py
-- chupa/stages.py
-- tests/test_testreport.py
+- chupa
+- eval
+- tests
+- dev.py
+- watch.py
 
 ## Acceptance criteria
 1. `uv run ruff check .` exits 0 with the committed configuration. It fails if a finding remains or a needed ignore is missing.
