@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-The status refusal section appears only when refusals exist, preserving the existing empty-state format.
+Status shows the refusal section only when refusals exist, preserving the existing output when there are none.
 
 ## Dead ends
 
-The first full-suite run exposed status-format failures; the renderer was adjusted and the suite passed on rerun.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 90 minutes; actual time was not measured.
+The ticket budget was 90 minutes expected; elapsed time was not measured.
 
