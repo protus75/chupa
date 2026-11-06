@@ -69,7 +69,8 @@ Each test has a 120-second hard limit.
 | `lint [STEM...]` | `chupa lint [stem ...]` (read-only; no writer lock) |
 | `review STEM...` | `chupa review` once per stem, stopping on the first non-zero exit |
 | `run STEM` | `chupa run <stem>`: one ticket through every stage, under the lock |
-| `status`, `serve`, `drain`, `kill`, `stop` | the matching chupa verb |
+| `status`, `serve`, `kill`, `stop` | the matching chupa verb |
+| `drain` | runs `chupa drain` detached and appends output to `<state_dir>/drain.out` |
 | `confirm STEM...`, `reject STEM...` | `chupa confirm` or `chupa reject` once per stem; a person at a terminal answers `y` for each stem |
 | `watch [--once]` | `watch.py` through `uv`: a read-only live view of this checkout's engine and the queue, using the engine's dependency rule |
 | `vscode` | bumps the patch version in `vscode-chupa/package.json` (VS Code keeps an extension's old icon until its version changes), packages it with `npx @vscode/vsce`, and installs it with `code --install-extension --force`; reload the window to load it |

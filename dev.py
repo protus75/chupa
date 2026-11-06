@@ -22,6 +22,7 @@ Standard library only, so any python3 starts it; every task runs through uv in t
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -69,6 +70,14 @@ def main() -> None:
         chupa("run", args.stem)
     elif args.task == "lint":
         chupa("lint", *args.stems)
+    elif args.task == "drain":
+        match = re.search(r"^state_dir:\s*(\S+)", (ROOT / "config.yaml").read_text(), re.M)
+        state = ROOT / (match.group(1) if match else ".chupa/state")
+        state.mkdir(parents=True, exist_ok=True)
+        output = state / "drain.out"
+        with output.open("a") as stream:
+            child = subprocess.Popen(["uv", "run", "python", "-m", "chupa", "drain"], cwd=ROOT, start_new_session=True, stdin=subprocess.DEVNULL, stdout=stream, stderr=stream)
+        print(f"dev: drain pid {child.pid}, output {output}")
     elif args.task == "watch":
         # watch.py is read-only and imports the engine's rules, so it runs in the uv environment; Ctrl-C is a normal exit.
         try:
