@@ -52,8 +52,8 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `retro` | yes | Forces a retro report (section 9.5). |
 | `triage` | yes | One sequential pass over pending Suggestion Box messages (section 9.2). |
 | `pause` / `resume` / `kill` / `stop` | try | With a running engine, publish a control request to it (section 7.3). With none: `kill` and `stop` refuse (exit 2); `pause`/`resume` print "nothing running". |
-| `confirm <stem>` | try | A person at a terminal answers `y` to keep: promotes a draft to confirmed, keeps a Reject-queue item (section 6.6). With serve running, publishes the verdict to serve. |
-| `reject <stem>` | try | A person at a terminal answers `y` to kill: stamps the ticket `rejected` (section 6.6). Refuses settled stems. With serve running, publishes the verdict to serve. |
+| `confirm <stem> [--yes]` | try | A person at a terminal answers `y` to keep (or uses `--yes` to skip the prompt): promotes a draft to confirmed, keeps a Reject-queue item (section 6.6). With serve running, publishes the verdict to serve. |
+| `reject <stem> [--yes]` | try | A person at a terminal answers `y` to kill (or uses `--yes` to skip the prompt): stamps the ticket `rejected` (section 6.6). Refuses settled stems. With serve running, publishes the verdict to serve. |
 
 ### 2.2 `./dev.py`
 
@@ -71,7 +71,7 @@ Each test has a 120-second hard limit.
 | `run STEM` | `chupa run <stem>`: one ticket through every stage, under the lock |
 | `status`, `serve`, `kill`, `stop` | the matching chupa verb |
 | `drain` | runs `chupa drain` detached and appends output to `<state_dir>/drain.out` |
-| `confirm STEM...`, `reject STEM...` | `chupa confirm` or `chupa reject` once per stem; a person at a terminal answers `y` for each stem |
+| `confirm STEM... [--yes]`, `reject STEM... [--yes]` | `chupa confirm` or `chupa reject` once per stem; a person at a terminal answers `y` for each stem unless `--yes` is passed |
 | `watch [--once]` | `watch.py` through `uv`: a read-only live view of this checkout's engine and the queue, using the engine's dependency rule |
 | `vscode` | bumps the patch version in `vscode-chupa/package.json` (VS Code keeps an extension's old icon until its version changes), packages it with `npx @vscode/vsce`, and installs it with `code --install-extension --force`; reload the window to load it |
 
@@ -381,7 +381,7 @@ terminal carries a Reject routing marker. `reject` refuses settled stems.
   journaling `keep actor: machine` and drawing `retry`. A machine keep never resets caps.
 - `confirm` on a `draft` ticket promotes it to `confirmed` instead.
 
-Keep and kill require a person at an interactive terminal to type the exact stem before the verdict proceeds.
+Keep and kill normally require a person at an interactive terminal to answer `y` at the prompt before the verdict proceeds. `--yes` skips the terminal check and prompt.
 
 ### 6.7 Other holds
 

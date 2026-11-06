@@ -58,7 +58,10 @@ def main() -> None:
     sub.add_parser("watch", help="live view of the drain and the queue").add_argument("--once", action="store_true")
     sub.add_parser("vscode", help="package and install the vscode-chupa extension")
     for verb in ("confirm", "reject", "review"):
-        sub.add_parser(verb, help=f"{verb} each named ticket").add_argument("stems", nargs="+")
+        verdict = sub.add_parser(verb, help=f"{verb} each named ticket")
+        verdict.add_argument("stems", nargs="+")
+        if verb != "review":
+            verdict.add_argument("--yes", action="store_true")
     args = parser.parse_args()
     if args.task is None:
         run(["uv", "run", "pytest", "-q"])
@@ -102,7 +105,7 @@ def main() -> None:
         print("dev: run Developer: Reload Window to load it")
     elif args.task in {"confirm", "reject", "review"}:
         for stem in args.stems:
-            chupa(args.task, stem)
+            chupa(args.task, stem, *(["--yes"] if getattr(args, "yes", False) else []))
     else:
         chupa(args.task)
 

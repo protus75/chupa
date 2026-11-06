@@ -237,7 +237,9 @@ def _parser() -> argparse.ArgumentParser:
     run = sub.add_parser("run", help="drive one ticket through intake and the stage pipeline under the lock")
     run.add_argument("stem")
     for verb in ("confirm", "reject"):
-        sub.add_parser(verb, help=f"{verb} a draft or Reject item; publish the verdict to a running serve holding the lock").add_argument("stem")
+        verdict = sub.add_parser(verb, help=f"{verb} a draft or Reject item; publish the verdict to a running serve holding the lock")
+        verdict.add_argument("stem")
+        verdict.add_argument("--yes", action="store_true")
     dr = sub.add_parser("drain", help="run every eligible ticket to quiescence under the lock")
     dr.add_argument("--parked", action="append", default=[], metavar="STEM", help="a stem the handing-off parent drain parked (set by the self-upgrade re-exec)")
     dr.add_argument("--stop-lifecycle", help=argparse.SUPPRESS)
@@ -262,7 +264,7 @@ def main(
     try:
         if args.verb in {"confirm", "reject"}:
             isatty, read_input = terminal if terminal is not None else (sys.stdin.isatty, input)
-            if not isatty():
+            if not args.yes and not isatty():
                 raise runner.Refusal("verdict requires an interactive terminal", "a human runs this in a terminal: ./dev.py confirm|reject <stem>")
         if args.verb == "migrate-config":
             migrate_config(args.config, cwd=repo, fs=LocalFileSystem())
@@ -312,7 +314,7 @@ def main(
         if args.verb in {"pause", "resume", "kill", "stop"}:
             return asyncio.run(_control(checkout, args.verb))
         if args.verb in {"confirm", "reject"}:
-            return asyncio.run(_verdict(checkout, args.stem, args.verb, read_input))
+            return asyncio.run(_verdict(checkout, args.stem, args.verb, read_input, args.yes))
         if args.verb == "review":
             return asyncio.run(_review(checkout, args.stem))
         if args.verb == "triage":
@@ -580,7 +582,7 @@ async def _control(checkout: runner.Checkout, verb: str) -> int:
     return 0
 
 
-async def _verdict(checkout, stem, verb, read_input):
+async def _verdict(checkout, stem, verb, read_input, yes):
     if findings := stem_findings(stem):
         raise runner.Refusal(findings[0].message, findings[0].paved_road)
     history = checkout.journal.read()
@@ -598,7 +600,7 @@ async def _verdict(checkout, stem, verb, read_input):
         preview = "no ticket file"
     print(f"{stem}: {preview}")
     try:
-        answer = read_input(f"{verb} {stem}? [y/N] ")
+        answer = "y" if yes else read_input(f"{verb} {stem}? [y/N] ")
     except EOFError:
         answer = ""
     if answer.strip().lower() not in {"y", "yes"}:

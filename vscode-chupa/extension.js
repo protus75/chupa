@@ -29,7 +29,7 @@ function devCommand(...args) {
 	}
 	const terminal = vscode.window.terminals.find(t => t.name === 'chupa') ?? vscode.window.createTerminal({ name: 'chupa', cwd: root });
 	terminal.show(true);
-	terminal.sendText(`./dev.py ${args.join(' ')}`);
+	terminal.sendText(`./dev.py ${args.join(' ')}${['confirm', 'reject'].includes(args[0]) ? ' --yes' : ''}`);
 }
 
 // A new Claude Code chat with the ticket in its prompt, through the /open URI its extension handles (read from its

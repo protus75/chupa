@@ -432,3 +432,33 @@ def test_live_confirm_old_draft_and_unknown_stem(tmp_path):
         assert sum(e.ticket == stem and e.body.get("signal") == "reject_verdict" and e.body.get("verdict") == "keep" for e in events) == 1
 
     asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("verb,verdict", [("confirm", "keep"), ("reject", "kill")])
+def test_yes_matches_typed_verdict(tmp_path, capsys, verb, verdict):
+    import asyncio
+
+    from chupa.journal import EventType
+    from tests.test_mergequeue import ready
+    from tests.test_mergequeue import ctx as context_fixture
+
+    ctx = context_fixture.__wrapped__(tmp_path)
+
+    def forbidden(_):
+        pytest.fail("--yes must not read input")
+
+    async def exercise():
+        for stem in ("typed-ticket", "yes-ticket"):
+            await ready(ctx, stem=stem)
+            ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "routed": "reject_queue"}, ticket=stem)
+        assert await asyncio.to_thread(entry.main, [verb, "yes-ticket"], cwd=ctx.repo, env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: False, forbidden)) == 2
+        assert "verdict requires an interactive terminal" in capsys.readouterr().err
+        assert await asyncio.to_thread(entry.main, [verb, "typed-ticket"], cwd=ctx.repo, env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: True, lambda _: "y")) == 0
+        assert await asyncio.to_thread(entry.main, [verb, "yes-ticket", "--yes"], cwd=ctx.repo, env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: False, forbidden)) == 0
+        bodies = {e.ticket: e.body for e in ctx.driver.journal.read() if e.body.get("signal") == "reject_verdict"}
+        assert bodies["yes-ticket"] == bodies["typed-ticket"]
+        assert bodies["yes-ticket"]["verdict"] == verdict
+        if verb == "reject":
+            assert "state: rejected" in (ctx.repo / "tickets/yes-ticket/ticket.md").read_text()
+
+    asyncio.run(exercise())
