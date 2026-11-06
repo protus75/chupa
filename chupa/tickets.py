@@ -26,6 +26,7 @@ STEM = re.compile(r"^[a-z0-9][a-z0-9-]{1,63}$")
 RESERVED_STEMS = frozenset({"decisions", "retro"})  # sibling dirs that match the stem regex
 INTAKE_SIGNAL = "ticket_intake"
 CODE = "ticket_schema"
+TEST_FIXTURE_DIRS = frozenset({"tests", "test", "fixtures", "fixture"})
 
 Level = Literal["low", "medium", "high", "max"]
 Source = Annotated[str, StringConstraints(pattern=r"^(human|seed|box:[a-z][a-z0-9_]*)$")]
@@ -397,6 +398,8 @@ def _regression(text: str, path: str) -> tuple[tuple[str, ...], tuple[str, ...],
     prefixes = tuple(line.strip().removeprefix("- carries: ") for line in carries)
     for prefix in prefixes:
         findings += _repo_path(prefix, "Regression carries", path)
+        if not TEST_FIXTURE_DIRS.intersection(Path(prefix).parts):
+            findings.append(_f(f"`## Regression` carries prefix {prefix!r} is not a test/fixture path", "carry a reproducer under `tests/`", path))
     return (commands[0] if len(commands) == 1 else ()), prefixes, findings
 
 

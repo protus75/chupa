@@ -227,6 +227,22 @@ def test_bug_ticket_with_regression_validates(repo):
     assert ticket.carries == ("tests/",)
 
 
+@pytest.mark.parametrize("prefix", ["tests/", "tests/regress_x.py", "fixture/data.json", "nested/test/data.json"])
+def test_bug_carries_test_prefix_validates(repo, prefix):
+    root, _, _ = repo
+    text = complete(bug_text().replace("- carries: tests/", f"- carries: {prefix}"))
+    assert validate_ticket("t-bug", text, root).carries == (prefix,)
+
+
+def test_bug_carries_implementation_prefix_is_refused(repo):
+    root, _, _ = repo
+    prefix = "vscode-chupa/media/graph.js"
+    text = bug_text().replace("- carries: tests/", f"- carries: {prefix}")
+    [finding] = refusal(root, text, stem="t-bug")
+    assert prefix in finding.message
+    assert "tests/" in finding.paved_road
+
+
 @pytest.mark.parametrize(
     "regression",
     [

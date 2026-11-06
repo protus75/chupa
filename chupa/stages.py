@@ -57,7 +57,7 @@ from chupa.providers import child_env
 from chupa.seams import ExecutableNotFound, FileSystem, ProcessExec
 from chupa.specs import RenderOverBound, Spec, load_spec, render
 from chupa.storm import arrival_id
-from chupa.tickets import _HEADING, TICKET_FILE, TICKETS_DIR, Ticket, ticket_path
+from chupa.tickets import _HEADING, TEST_FIXTURE_DIRS, TICKET_FILE, TICKETS_DIR, Ticket, ticket_path
 from chupa.tickets import validate_ticket as validate_ticket
 
 MAIN = "main"
@@ -778,7 +778,7 @@ async def _gather_bug(ctx: StageContext, ticket: Ticket, evidence: Evidence, *, 
         if not matched:
             findings.append(_bug_finding(f"carries prefix {prefix!r} matches no branch-changed file"))
         for rel in matched:
-            if not {"tests", "test", "fixtures", "fixture"}.intersection(Path(rel).parts[:-1]):
+            if not TEST_FIXTURE_DIRS.intersection(Path(rel).parts[:-1]):
                 findings.append(_bug_finding(f"carries path {rel!r} is not a test/fixture file; implementation paths cannot be carried"))
                 continue
             tree = await ctx.git._run(ctx.repo, "ls-tree", evidence.head_sha, "--", rel)
