@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT))
 
 import watch  # noqa: E402
 from chupa.drain import RETIRED, authored_at, order_tickets  # noqa: E402
+from chupa.rework import settled_dependencies  # noqa: E402
 from chupa.tickets import TicketInvalid, parse_ticket, read_plan  # noqa: E402
 
 SETTLED = watch.SETTLED
@@ -78,7 +79,10 @@ def snapshot() -> dict:
         if e.get("type") == "state_transition" and e.get("ticket"):
             last[e["ticket"]] = {**e["body"], "ts": e["ts"]}
     tickets, invalid = load_tickets({s for s, b in last.items() if b.get("to") in SETTLED | RETIRED})
-    authored = authored_at(SimpleNamespace(type=e.get("type"), body=e.get("body", {}), ticket=e.get("ticket"), ts=e.get("ts")) for e in events)
+    history = [SimpleNamespace(type=e.get("type"), body=e.get("body", {}), ticket=e.get("ticket"), ts=e.get("ts")) for e in events]
+    authored = authored_at(history)
+    # The drain's own test: a dependency is met when it, or every leaf of the split that superseded it, settled.
+    settled = set(settled_dependencies(history))
     held = watch.held(events)
 
     def to(stem: str) -> str | None:
@@ -89,9 +93,9 @@ def snapshot() -> dict:
     running = watch.running_stems(state, last)
     open_ = {s: t for s, t in tickets.items() if to(s) not in SETTLED | RETIRED and s not in running and t.frontmatter.state not in ("rejected", "merged")}
     runnable = {s: t for s, t in open_.items() if t.frontmatter.state == "confirmed" and s not in held}
-    queued = simulate(runnable, set(merged) | set(running), authored, strict=True)
+    queued = simulate(runnable, settled | set(running), authored, strict=True)
     queued_stems = {t.stem for t in queued}
-    blocked = simulate({s: t for s, t in open_.items() if s not in queued_stems}, set(merged) | set(running) | queued_stems, authored, strict=False)
+    blocked = simulate({s: t for s, t in open_.items() if s not in queued_stems}, settled | set(running) | queued_stems, authored, strict=False)
     blocked_stems = {t.stem for t in blocked}
 
     def why_blocked(t) -> str:
@@ -100,7 +104,7 @@ def snapshot() -> dict:
         if t.stem in held:
             spent = next((e["body"].get("mechanical") for e in reversed(events) if e.get("ticket") == t.stem and e.get("body", {}).get("signal") == "diagnosis"), None)
             return f"held: {spent}" if spent else f"held (last: {to(t.stem)})"
-        waits = [d for d in t.depends if to(d) not in SETTLED]
+        waits = [d for d in t.depends if d not in settled]
         return "waits on " + ", ".join(waits) if waits else "not eligible"
 
     def why_queued(t) -> str:
@@ -108,7 +112,7 @@ def snapshot() -> dict:
             return "interrupted: the engine stopped mid-run; reruns when it restarts"
         if to(t.stem) is not None:
             return f"retry pending (last: {to(t.stem)})"
-        waits = [d for d in t.depends if to(d) not in SETTLED]
+        waits = [d for d in t.depends if d not in settled]
         return "after " + ", ".join(waits) if waits else "ready"
 
     def base(stem: str, section: str, status: str) -> dict:
