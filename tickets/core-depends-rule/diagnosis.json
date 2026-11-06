@@ -1,0 +1,19 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "56e4c211e6108e7fd0c7f93b9cb0f8350ad28db0",
+  "stem": "core-depends-rule",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "The ticket says 'The bullet count stays six', but chupa/hostfiles.py CORE_TEMPLATE has seven bullets (lines 19-25). core-authoring-rule added the seventh, a chupa review bullet, and tests/test_hostfiles.py asserts seven. Change the ticket to 'The bullet count stays seven'.",
+    "The target sentence 'Put ordering in depends and priority. Why: unused metadata and prose ordering drift.' still exists at hostfiles.py:24, in the sixth bullet, not the last one. Change the Scope-in wording from 'the last bullet' to 'the frontmatter bullet (sixth)'.",
+    "Once the ticket is fixed, replace only that sentence in bullet six. Leave bullet seven (chupa review) byte-identical, then re-render CLAUDE.md, AGENTS.md and hosts/fixture/CLAUDE.md with hostfiles.render."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
