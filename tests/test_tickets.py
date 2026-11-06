@@ -255,7 +255,7 @@ def test_time_budget_stuck_must_exceed_expected(repo, stuck):
         ("2. `chupa/thing.py` exposes `thing()`.", "2. The thing works.", "names no check"),
         ("kind: feature", "kind: bug", "no `## Regression`"),
         ("## Time budget", "## Regression\n```\npytest\n```\n- carries: tests/\n\n## Time budget", "non-bug"),
-        ("## Time budget", "## Exit-read window\n- nonsense\n\n## Time budget", "Exit-read window"),
+        ("## Time budget", "## Exit-read window\n- nonsense\n\n## Time budget", "unknown body section"),
         ("kind: feature", "kind: feature\ngate_bypass: [{code: vibes, reason: x}]", "gate_bypass"),
     ],
 )

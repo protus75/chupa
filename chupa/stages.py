@@ -52,12 +52,12 @@ from chupa.driver import Driver, LlmStage
 from chupa.gates import BugEvidence, GateReport, RegressionRun, run_gates
 from chupa.git import Git, GitError
 from chupa.hostfiles import CORE_TEMPLATE, CoreDriftGate, committed_core
-from chupa.journal import EVENT_VERSIONS, EventType, run_seq
+from chupa.journal import EventType, run_seq
 from chupa.providers import child_env
 from chupa.seams import ExecutableNotFound, FileSystem, ProcessExec
 from chupa.specs import RenderOverBound, Spec, load_spec, render, without_unit
 from chupa.storm import arrival_id
-from chupa.tickets import _HEADING, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, _bullets, read_plan, ticket_path, validate_ticket
+from chupa.tickets import _HEADING, PLAN_FILE, TICKET_FILE, TICKETS_DIR, Ticket, read_plan, ticket_path, validate_ticket
 
 MAIN = "main"
 KNOWN_ARTIFACTS: Mapping[str, type[BaseModel]] = {
@@ -334,27 +334,6 @@ class Stages:
         return self._ctx.driver
 
 
-def resolve_exit_window(ticket: Ticket, events) -> dict:
-    from chupa.retro import project_window
-
-    declarations = ticket.sections.get("Exit-read window")
-    if declarations is None:
-        return {}
-    road = "choose an EVENT_VERSIONS event type and write `- <event type>: current retro window`"
-    bullets, errors = _bullets(declarations, "Exit-read window", ticket_path(ticket.stem))
-    if errors:
-        raise ValueError(road)
-    window = project_window(events)
-    resolved = {}
-    for bullet in bullets:
-        event_type, separator, bound = bullet.partition(":")
-        event_type, bound = event_type.strip(), bound.strip()
-        if not separator or event_type not in EVENT_VERSIONS or bound != "current retro window":
-            raise ValueError(f"unsupported exit-read declaration {bullet!r}; {road}")
-        resolved[f"{event_type}: current retro window"] = tuple(e for e in window.events if e.type == event_type)
-    return resolved
-
-
 def _registered_files(outbox: Path) -> list[Path]:
     return [p for p in outbox.rglob("*") if p.is_file() and p.name in KNOWN_ARTIFACTS]
 
@@ -627,8 +606,6 @@ def _in_criteria_position(ticket_text: str, block: str) -> str:
 def implement_stage(ctx: StageContext, ticket: Ticket, worktree: Path) -> tuple[LlmStage, Spec]:
     spec = _spec(ctx, "implement")
     ticket_text = (ctx.repo / ticket_path(ticket.stem)).read_text()
-    if "Exit-read window" in ticket.sections:
-        ticket_text += "\nConsumed exit evidence: read `.chupa/exit-read-window.json` in this worktree. Its keys are canonical declarations; values are exact journal event envelopes.\n"
     if (prior := prior_attempts(ctx, ticket.stem)) is not None:
         ticket_text = _in_criteria_position(ticket_text, prior)
     inputs = implement_inputs(worktree, ticket_text, ticket, ctx.config.context_files)
@@ -654,9 +631,7 @@ def run_record(reply: ImplementReply | None, cost: Cost, spec: Spec, second_prob
 async def implement(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResult:
     """Teardown-and-create the worktree, run the implement spec in it, and write + lift the run record."""
     stem = ticket.stem
-    windows = resolve_exit_window(ticket, ctx.driver.journal.read()) if "Exit-read window" in ticket.sections else {}
     worktree = await prepare_worktree(ctx, stem)
-    ctx.driver.materialize_exit_window(windows, worktree)
     stage, spec = implement_stage(ctx, ticket, worktree)
     try:
         result = await ctx.driver.run(

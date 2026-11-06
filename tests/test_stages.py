@@ -51,44 +51,6 @@ def test_retro_driver_access_is_public_and_read_only(repo):
         Retro(checkout, SimpleNamespace()).driver()
 
 
-def test_exit_window_is_materialized_before_the_real_implement_call(repo, monkeypatch):
-    from dataclasses import asdict
-
-    from chupa import stages
-    from chupa.journal import EventType
-    from tests.test_merge import context
-
-    author(repo)
-    path = repo / f"tickets/{STEM}/ticket.md"
-    text = path.read_text() + "\n## Exit-read window\n-  signal:  current retro window  \n- state_transition: current retro window\n"
-    path.write_text(text)
-    git(repo, "add", f"tickets/{STEM}/ticket.md")
-    git(repo, "commit", "-m", "exit declaration")
-    seen = []
-
-    def act(req):
-        data = json.loads((req.worktree / ".chupa/exit-read-window.json").read_text())
-        assert data == {"signal: current retro window": [asdict(first)], "state_transition: current retro window": []}
-        assert ".chupa/exit-read-window.json" in req.rendered
-        seen.append(data)
-        return implement_reply(outcome="already_satisfied")
-
-    ctx = context(repo, [act])
-    first = ctx.driver.journal.append(EventType.SIGNAL, {"kind": "drain_handoff"}, ticket=None)
-    prepare = stages.prepare_worktree
-
-    async def append_during_prepare(*args):
-        result = await prepare(*args)
-        ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="later")
-        ctx.driver.journal.append(EventType.SIGNAL, {"kind": "drain_handoff"}, ticket="later")
-        return result
-
-    monkeypatch.setattr(stages, "prepare_worktree", append_during_prepare)
-    ticket = validate_ticket(STEM, text, repo)
-    assert asyncio.run(stages.implement(ctx, ticket, attempt=0)).outcome == "ok"
-    assert len(seen) == 1
-
-
 SPECS = Path(__file__).resolve().parent.parent / "specs"
 SECRET = "sk-test-not-for-children"
 ENV = {

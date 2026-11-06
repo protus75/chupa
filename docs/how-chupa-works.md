@@ -399,7 +399,7 @@ Keep and kill require a person at an interactive terminal to type the exact stem
    Edges to ineligible stems never block a pick. Skipped: storm-held, drought-parked, Reject-queue stems without budget, and tickets
    whose `stuck` exceeds `drain.max_ticket_minutes` (default 90).
 4. **Quiescence:** when nothing is eligible, it re-offers parked stems with budget (drawing
-   `retry`), forces a retro, and stops when nothing changes.
+   `retry`), and stops when nothing changes.
 5. **Report:** merged, parked (with reasons and the command to continue), blocked on depends,
    invalid tickets excluding those settled or rejected in the journal, drafts awaiting confirm.
 
@@ -560,8 +560,8 @@ in custody for the authored bug ticket.
 
 ### 9.5 Retro
 
-The retro reads the journal since the last report. It runs after 25 merges, 7 days, or a spike
-of failures, and at drain quiescence. It commits `tickets/retro/NNNNNN.md` (measurements,
+The retro reads the journal since the last report. During a drain it runs when due after 25 merges,
+7 days, or a spike of failures, and never at quiescence. Run it on demand with `retro`. It commits `tickets/retro/NNNNNN.md` (measurements,
 scorecard, proposals) and files each proposal as a `retro_finding`.
 
 ### 9.6 Scorecard and baseline
@@ -650,9 +650,8 @@ The block carries only process rules that hold for every host; codebase rules be
 chupa built itself from `CHUPA_PLAN.md` through self-seeding phases, now finished. This code
 remains and does not apply to ordinary tickets:
 
-- **Plan pointers:** `## Plan contract` and `## Exit-read window` ticket sections and
+- **Plan pointers:** the `## Plan contract` ticket section and
   `CHUPA_PLAN.md#...` fence anchors, resolved against `CHUPA_PLAN.md`. The plan structure lint.
 - **Plan reads:** runtime reads of `CHUPA_PLAN.md` go through one function; an absent plan is
   tolerated for hosts that do not have the file. Prompts carry no plan text.
-- **Phase exits:** a forced retro before any `phase<N>-exit` stem; eval report artifacts
-  (shakeout, soak, reliability battery, host loop, exit receipt).
+- **Eval report artifacts:** shakeout, soak, reliability battery, host loop, exit receipt.

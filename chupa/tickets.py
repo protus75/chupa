@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, Validation
 from chupa.artifacts import Finding, NonBlank
 from chupa.gates import ENGINE_GATE_CODES
 from chupa.git import Git
-from chupa.journal import EVENT_VERSIONS, EventType, Journal
+from chupa.journal import EventType, Journal
 from chupa.seams import FileSystem
 from chupa.specs import PlanContractError, plan_id, registry_rows, resolve_plan_contract
 
@@ -79,7 +79,7 @@ REQUIRED_SECTIONS = (
     "Definition of rejected",
     "Time budget",
 )
-OPTIONAL_SECTIONS = ("Runs before", "On-demand", "Plan contract", "Regression", "Exit-read window")
+OPTIONAL_SECTIONS = ("Runs before", "On-demand", "Plan contract", "Regression")
 SECTIONS = REQUIRED_SECTIONS + OPTIONAL_SECTIONS
 SEED_REFUSED_SECTIONS = frozenset({"0", "19", "21", "22"})
 BANNED_ADJECTIVES = re.compile(r"\b(improved|better|cleaner)\b", re.IGNORECASE)
@@ -87,8 +87,6 @@ _FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
 _HEADING = re.compile(r"^## (.+?)\s*$")
 _ITEM = re.compile(r"^(?:-|\d+\.)\s+(.*)$")
 _BUDGET = re.compile(r"^(expected|stuck):\s*(\d+)m$")
-_WINDOW = re.compile(r"^([a-z_]+):\s*(\S.*)$")
-_EXIT_WINDOW_EVENTS = frozenset(EVENT_VERSIONS)
 
 
 @dataclass(frozen=True)
@@ -439,16 +437,6 @@ def parse_ticket(stem: str, text: str, repo: Path, *, plan: str | None) -> Ticke
             expected, stuck = budget["expected"], budget["stuck"]
             if stuck <= expected:
                 findings.append(_f(f"`## Time budget` stuck: {stuck}m must exceed expected: {expected}m", "set stuck greater than expected (the stage deadline is the stuck budget)", path))
-
-    if text_ := sections.get("Exit-read window"):
-        items, errs = _bullets(text_, "Exit-read window", path)
-        findings += errs
-        for item in items:
-            m = _WINDOW.match(item)
-            if m is None or m.group(1) not in _EXIT_WINDOW_EVENTS:
-                findings.append(
-                    _f(f"`## Exit-read window` declaration {item!r} does not parse", f"write `- <event type>: <bounding criterion>`, event type one of {sorted(_EXIT_WINDOW_EVENTS)}", path)
-                )
 
     if findings or fm is None:
         raise TicketInvalid(findings)

@@ -991,6 +991,8 @@ async def test_selected_retro_remains_killable_through_existing_control(root):
         else:
             await asyncio.Event().wait()
 
+    for n in range(25):
+        journal(root).append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=f"prior-{n}")
     checkout = replace(pause_checkout(root), sleep=sleep, control=None)
     checkout = replace(checkout, control=build_control(checkout))
     llm = FakeLLM([HANG])
@@ -1016,8 +1018,16 @@ async def test_selected_retro_remains_killable_through_existing_control(root):
     assert not any(e.body.get("kind") == "retro_failed" for e in checkout.journal.read())
 
 
-@pytest.mark.parametrize("scenario", ["quiescence", "pre-exit", "no-merge", "selected-failure", "due", "self-upgrade"])
-def test_drain_retro_due_quiescence_and_pre_exit(tmp_path, monkeypatch, scenario):
+@pytest.mark.parametrize("scenario", ["not-due", "selected-failure", "due", "self-upgrade"])
+def test_drain_retro_runs_only_when_due(tmp_path, monkeypatch, scenario):
+    _exercise_retro_drain(tmp_path, monkeypatch, scenario)
+
+
+def test_phase_exit_stem_gets_no_forced_retro(tmp_path, monkeypatch):
+    _exercise_retro_drain(tmp_path, monkeypatch, "phase")
+
+
+def _exercise_retro_drain(tmp_path, monkeypatch, scenario):
     from chupa import __main__ as cli
     from chupa import runner
     from chupa.retro import Retro
@@ -1030,11 +1040,10 @@ def test_drain_retro_due_quiescence_and_pre_exit(tmp_path, monkeypatch, scenario
     git_out(root, "add", "config.yaml")
     git_out(root, "commit", "-m", "retro route")
     commit_ticket(root, "feature", confirmed(priority="P0"))
-    if scenario in {"pre-exit", "selected-failure"}:
+    if scenario == "phase":
         commit_ticket(root, "phase5-exit", confirmed(depends="- feature"))
-        commit_ticket(root, "later", confirmed(depends="- phase5-exit", priority="P3"))
     clock = Clock()
-    if scenario == "due":
+    if scenario in {"due", "selected-failure", "self-upgrade"}:
         for n in range(25):
             journal(root).append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=f"prior-{n}")
     invocations, dispatches, contexts, prompts = [], [], [], []
@@ -1078,22 +1087,12 @@ def test_drain_retro_due_quiescence_and_pre_exit(tmp_path, monkeypatch, scenario
     async def drive(ctx, ticket, **kwargs):
         dispatches.append(ticket.stem)
         contexts.append(ctx)
-        if ticket.stem == "phase5-exit":
-            history = ctx.driver.journal.read()
-            reports = [e for e in history if e.type == EventType.EFFECT_COMPLETION and (e.key or "").startswith("retro/")]
-            assert bool(reports) == (scenario != "selected-failure")
-            if reports:
-                assert reports[-1].body["result"]["commit"] == await ctx.git.rev_parse(root, "HEAD")
-        if scenario == "no-merge":
-            terminal = "already_satisfied"
-            body = {"to": terminal}
-        else:
-            path = "chupa/thing.py" if scenario == "self-upgrade" else f"work/{ticket.stem}.py"
-            ctx.fs.write(root / path, b"ok\n")
-            await ctx.git.add(root, [path])
-            await ctx.git.commit(root, "admitted " + ticket.stem, only=[path])
-            terminal = "merged"
-            body = {"to": terminal, "commit": await ctx.git.rev_parse(root, "HEAD")}
+        path = "chupa/thing.py" if scenario == "self-upgrade" else f"work/{ticket.stem}.py"
+        ctx.fs.write(root / path, b"ok\n")
+        await ctx.git.add(root, [path])
+        await ctx.git.commit(root, "admitted " + ticket.stem, only=[path])
+        terminal = "merged"
+        body = {"to": terminal, "commit": await ctx.git.rev_parse(root, "HEAD")}
         ctx.driver.journal.append(EventType.STATE_TRANSITION, body, ticket=ticket.stem)
         return terminal
 
@@ -1136,25 +1135,18 @@ def test_drain_retro_due_quiescence_and_pre_exit(tmp_path, monkeypatch, scenario
     assert main(["drain"], cwd=root, env=ENV, clock=clock, pipeline=runner.pipeline, reexec=child if scenario == "self-upgrade" else NoChild()) == 0
     assert child.spawns == (1 if scenario == "self-upgrade" else 0)
     assert invocations[0] == (False, [])
-    if scenario == "no-merge":
+    if scenario in {"not-due", "phase"}:
+        assert dispatches == (["feature", "phase5-exit"] if scenario == "phase" else ["feature"])
         assert seen == prompts == []
+        assert not list((root / "tickets/retro").glob("*.md"))
     elif scenario == "selected-failure":
-        assert dispatches == ["feature", "phase5-exit", "later"] and len(seen) == 2
-        assert [order for order, _ in prompts] == [["feature"], ["feature", "phase5-exit", "later"]]
+        assert dispatches == ["feature"] and len(seen) == 2
+        assert [order for order, _ in prompts] == [[], ["feature"]]
         failures = [e for e in journal(root).read() if e.body.get("kind") == "retro_failed"]
-        assert len(failures) == len(seen)
-        history = journal(root).read()
-        indices = [i for i, e in enumerate(history) if e.body.get("kind") == "retro_failed"]
-        for earlier, later in zip(indices, indices[1:]):
-            assert any(e.type == EventType.STATE_TRANSITION and e.body.get("to") == "merged" for e in history[earlier + 1 : later])
+        assert len(failures) == 2
     else:
-        assert seen and len(seen) == len(prompts)
-        if scenario == "pre-exit":
-            assert prompts[0][0] == ["feature"] and prompts[-1][0] == ["feature", "phase5-exit", "later"]
-        elif scenario == "due":
-            assert prompts[0][0] == [] and prompts[-1][0] == ["feature"]
-        else:
-            assert prompts[0][0] == ["feature"]
+        assert dispatches == ["feature"] and len(seen) == len(prompts) == 1
+        assert prompts[0][0] == []
         assert list((root / "tickets/retro").glob("*.md"))
 
 
