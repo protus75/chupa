@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-When a historical HELD receipt has the same candidate identity after re-gating, the existing immutable receipt is replayed; a moved candidate receives a new READY/bootstrap receipt.
+Historical HELD receipts remain unchanged when a re-gated candidate has the same receipt identity; the candidate is still re-gated and merged.
 
 ## Dead ends
 
