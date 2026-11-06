@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "2dcee30975c5c0450010ec5a233c4276dda49be0",
+  "produced_at_sha": "3fe8726215547d325a2bb3a446e894ef792b8fb9",
   "stem": "serve-live-verdicts",
-  "attempt": 0,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "reject",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
   "lessons": [
-    "Ticket contradicts itself: a keep removes the stem from reject_queue (runner.py verdict), so the inbox scope and criterion 5 make a second keep stale, but criterion 4 requires the 'already kept at this ticket content' refusal. Rewrite the eligibility rule or criterion 4.",
-    "Suggested fix: the inbox accepts every null-hold_id confirm/reject request, and the shared lock-free verdict function decides refusal. Narrow criterion 5 to the cases that function refuses, so there is still one copy of the rules.",
-    "The goal says every lock-free confirm/reject must work under serve, but the lock-free reject path accepts non-settled stems that are neither drafts nor in reject_queue. Widen the inbox eligibility to match that path, or narrow the goal.",
-    "Before re-confirming, read the keep/reject branches of runner.py verdict (the already-kept check, the reject_queue check, the settled check). Make the inbox and stale criteria match them exactly, then run chupa review on the stem."
+    "Criterion 2 lacks tests. In tests/test_control.py, hold the lock and publish a null-hold_id `reject` request for a Reject-queue stem. Run settle_admissions twice, one run crashing mid-effect. Assert committed `state: rejected`, one `rejected` transition and one `reject_verdict kill`.",
+    "Repeat the held-lock reject test for a committed draft that has a confirmed dependent. Assert that the dead-dependent box messages match what the lock-free `reject` path files for the same setup, as the ticket's criterion 2 requires.",
+    "In tests/test_control_cli.py, run `reject <stem>` through entry.main while the lock is held. Assert it prints `reject submitted: <request_id> -- ./dev.py status shows the outcome` and does not exit 2 \"lock held\".",
+    "Review also found that the settle key changed from `ticket-plane/<stem>/confirmed/<request_id>` to `<verb>`, so serve could re-apply draft confirms accepted before the upgrade. Make sure settle_admissions never re-applies a request that already completed under the old key. Add a test for it.",
+    "Keep the existing verdict split, inbox widening, status refusal section and docs edits. Only the reject-path tests and the replay of already-settled confirms need work. Rerun both Verification commands on a stable tree."
   ],
   "mechanical": null,
   "spec_version": "1.2",
