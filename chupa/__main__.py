@@ -7,6 +7,7 @@ import argparse
 import asyncio
 import os
 import signal
+import subprocess
 import sys
 from collections.abc import Awaitable, Callable, Mapping, Sequence, Set
 from dataclasses import replace
@@ -215,6 +216,7 @@ def _parser() -> argparse.ArgumentParser:
     covgate = sub.add_parser("covgate", help="check a coverage JSON report against thresholds")
     covgate.add_argument("--gate", type=Path, default=Path("test-gate.toml"))
     covgate.add_argument("--report", type=Path, default=Path("coverage.json"))
+    covgate.add_argument("command", nargs=argparse.REMAINDER)
     new = sub.add_parser("new", help="template tickets/<stem>/ticket.md and lint it")
     new.add_argument("stem")
     new.add_argument("--kind", choices=("feature", "bug", "chore"), default="feature")
@@ -250,7 +252,20 @@ def main(
             migrate_config(args.config, cwd=repo, fs=LocalFileSystem())
             return 0
         if args.verb == "covgate":
-            return _covgate(repo, args.gate, args.report)
+            from chupa.covgate import run_gate
+
+            if len(args.command) < 2 or args.command[0] != "--":
+                print("chupa covgate: name the unit-test command after --", file=sys.stderr)
+                return 2
+            command = args.command[1:]
+            # ProcessExec starts a new session, orphaning the test run when Check kills
+            # covgate's group on timeout; inheriting the group carries the kill to it.
+            try:
+                return run_gate(command, gate_path=repo / args.gate, report_path=repo / args.report,
+                                run=lambda argv: subprocess.run(argv, cwd=repo, env=env).returncode)
+            except FileNotFoundError:
+                print(f"chupa covgate: {command[0]} not found -- install it or correct the command after --", file=sys.stderr)
+                return 2
         if args.verb == "new":
             return _new(repo, args.stem, args.kind)
         if args.verb == "doctor":
@@ -340,24 +355,6 @@ def main(
 
 
 
-def _covgate(repo: Path, gate_path: Path, report_path: Path) -> int:
-    import json
-    from chupa.covgate import GateInvalid, evaluate, parse_gate
-
-    try:
-        gate = parse_gate((repo / gate_path).read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, GateInvalid) as exc:
-        print(f"chupa covgate: invalid gate {gate_path}: {exc} -- fix the gate file and retry", file=sys.stderr)
-        return 2
-    try:
-        report = json.loads((repo / report_path).read_text(encoding="utf-8"))
-        failures = evaluate(gate, report)
-    except (OSError, UnicodeError, ValueError) as exc:
-        print(f"chupa covgate: invalid report {report_path}: {exc} -- generate a coverage.py JSON format 3 report and retry", file=sys.stderr)
-        return 2
-    for failure in failures:
-        print(failure)
-    return 1 if failures else 0
 
 async def _review(checkout: runner.Checkout, stem: str) -> int:
     from chupa.driver import Driver

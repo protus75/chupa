@@ -1,9 +1,11 @@
 import json
+import os
+import sys
 
 import pytest
 
 from chupa.__main__ import main
-from chupa.covgate import GateInvalid, evaluate, parse_gate
+from chupa.covgate import GateInvalid, evaluate, parse_gate, run_gate
 
 
 def report(**files):
@@ -78,23 +80,66 @@ def test_budget_default_and_explicit():
     assert parse_gate('[coverage]\ndefault=90\n[unit]\nbudget_seconds=17').budget_seconds == 17
 
 
-def test_cli_without_config(tmp_path, capsys):
-    gate = tmp_path / 'thresholds.toml'
-    output = tmp_path / 'result.json'
-    gate.write_text('[coverage]\ndefault=101')
-    args = ['covgate', '--gate', gate.name, '--report', output.name]
-    assert main(args, cwd=tmp_path) == 2
-    assert 'coverage.default' in capsys.readouterr().err
-    gate.write_text('[coverage]\ndefault=80\nrepository=0')
-    assert main(args, cwd=tmp_path) == 2
-    assert 'result.json' in capsys.readouterr().err
-    output.write_text(json.dumps(report(**{'a.py': file(6, 10, missing=[2, 7])})))
-    assert main(args, cwd=tmp_path) == 1
-    out = capsys.readouterr().out
-    assert 'a.py' in out and '[2, 7]' in out
+def test_run_gate_evaluates_fresh_report(tmp_path):
+    gate = tmp_path / 'gate.toml'
+    output = tmp_path / 'coverage.json'
+    gate.write_text('[coverage]\ndefault=80')
+    argv = ['unit', '--example']
+
+    def run_with(covered, rc):
+        def run(actual):
+            assert actual == argv  # Passing a different command loses the requested runner arguments.
+            output.write_text(json.dumps(report(**{'a.py': file(covered, 10)})))
+            return rc
+        return run
+
+    # An ignored report or an evaluation before the run cannot distinguish these values.
+    assert run_gate(argv, gate_path=gate, report_path=output, run=run_with(9, 0)) == 0
+    assert run_gate(argv, gate_path=gate, report_path=output, run=run_with(6, 0)) == 1
+    # A passing report must not mask either nonzero runner exit.
+    assert run_gate(argv, gate_path=gate, report_path=output, run=run_with(9, 1)) == 1
+    assert run_gate(argv, gate_path=gate, report_path=output, run=run_with(9, 2)) == 2
+
+
+def test_run_gate_rejects_stale_report(tmp_path, capsys):
+    gate = tmp_path / 'test-gate.toml'
+    output = tmp_path / 'coverage.json'
+    gate.write_text('[coverage]\ndefault=80')
     output.write_text(json.dumps(report(**{'a.py': file(9, 10)})))
-    assert main(args, cwd=tmp_path) == 0
-    assert capsys.readouterr().out == ''
-    output.write_text('{bad')
-    assert main(args, cwd=tmp_path) == 2
+    # Keeping the old passing report would incorrectly return 0.
+    assert run_gate(['unit'], gate_path=gate, report_path=output, run=lambda argv: 0) == 2
+    assert '--cov-report=json:' in capsys.readouterr().err
+
+
+def test_cli_requires_command(tmp_path, capsys):
+    (tmp_path / 'test-gate.toml').write_text('[coverage]\ndefault=80')
+    (tmp_path / 'coverage.json').write_text(json.dumps(report(**{'a.py': file(9, 10)})))
+    # Report-only mode would accept this passing report.
+    assert main(['covgate'], cwd=tmp_path) == 2
+    assert 'name the unit-test command after --' in capsys.readouterr().err
+
+
+def test_cli_runs_in_cwd_and_process_group(tmp_path, capsys):
+    (tmp_path / 'test-gate.toml').write_text('[coverage]\ndefault=80')
+    passing = json.dumps(report(**{'a.py': file(9, 10)}))
+    script = ("import os; from pathlib import Path; "
+              "Path('pgid').write_text(str(os.getpgrp())); "
+              f"Path('coverage.json').write_text({passing!r})")
+    # The relative report and pgid are written in cwd; a new session has a different pgid.
+    assert main(['covgate', '--', sys.executable, '-c', script], cwd=tmp_path) == 0
+    assert int((tmp_path / 'pgid').read_text()) == os.getpgrp()
+    assert main(['covgate', '--', 'no-such-binary-xyz'], cwd=tmp_path) == 2
+    assert 'no-such-binary-xyz not found -- install it or correct the command after --' in capsys.readouterr().err
+
+
+def test_cli_invalid_inputs(tmp_path, capsys):
+    gate = tmp_path / 'thresholds.toml'
+    args = ['covgate', '--gate', gate.name, '--report', 'result.json', '--', sys.executable, '-c']
+    gate.write_text('[coverage]\ndefault=101')
+    assert main(args + ["from pathlib import Path; Path('result.json').write_text('{}')"], cwd=tmp_path) == 2
+    assert 'coverage.default' in capsys.readouterr().err
+    gate.write_text('[coverage]\ndefault=80')
+    assert main(args + ['pass'], cwd=tmp_path) == 2
+    assert '--cov-report=json:' in capsys.readouterr().err
+    assert main(args + ["from pathlib import Path; Path('result.json').write_text('{bad')"], cwd=tmp_path) == 2
     assert 'generate a coverage.py' in capsys.readouterr().err
