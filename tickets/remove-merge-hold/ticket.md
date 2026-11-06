@@ -6,7 +6,7 @@ kind: chore
 ---
 
 ## Depends on
-- merge-skip-unchanged
+- none
 
 ## Context
 - chupa/mergequeue.py
