@@ -31,4 +31,6 @@ review: {}
 merge: {}
 drain:
   max_ticket_minutes: 180  # raised from the shipped 90 to admit the Phase 2 seeds' largest stuck budget (section 18)
+caps:
+  premise_bounce: 2  # a fixed ticket.md re-offers a premise park without an operator keep; the second bounce still needs one
 engine_plane_safety_inventory: [specs/, chupa/gates.py, chupa/config.py, chupa/providers.py, config.yaml]
