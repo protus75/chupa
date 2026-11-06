@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-The ticket’s regression carries entry names graph.js, an implementation file; the prior attempt reported that the check gate rejects such entries, and the ticket cannot be edited within this scope.
+none
 
 ## Dead ends
 
-none
+Corrected a test fixture that initially used a merged dependency, which the graph intentionally filters out.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 30 minutes; completed in approximately 3 minutes.
+Expected 60 minutes; completed in less time.
 
