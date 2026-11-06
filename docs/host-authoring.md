@@ -3,7 +3,7 @@
 What to put in a chupa ticket, and the rules the code cannot explain on its own. The ticket
 FORMAT (frontmatter keys, section names, list and block syntax) is owned by `chupa/tickets.py`
 alone: start from the skeleton chupa writes and fix what its lint reports. A host's own docs say
-what content its tickets carry, never the format.
+what content its tickets carry, never the format. See the [host run guide](host-running.md) for invocation and operation.
 
 ## Workflow
 
@@ -20,7 +20,8 @@ what content its tickets carry, never the format.
 3. For a bug, add the evidence file (see Bug tickets) beside the ticket.
 4. Run `chupa review <stem>` (in this repo, `./dev.py review STEM`), repair every finding,
    and repeat until it prints `approve`. Review tickets with unmerged dependencies after they merge.
-5. Run `chupa drain`: intake commits the ticket and its evidence together before running it.
+5. A running `serve` picks up the new ticket; alternatively run `chupa drain`. Intake commits
+   the ticket and its evidence together before running it.
 
 ## What each section is for
 

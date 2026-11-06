@@ -8,6 +8,7 @@
     ./dev.py lint [STEM...]   validate tickets without running or writing anything
     ./dev.py status           the engine's projected state
     ./dev.py run STEM         run one ticket through every stage
+    ./dev.py serve            run the continuous daemon
     ./dev.py drain            run every eligible ticket to quiescence
     ./dev.py watch [--once]   live view: running ticket, step, model, and the queue
     ./dev.py vscode           package and install the vscode-chupa extension (then reload the window)
@@ -49,6 +50,7 @@ def main() -> None:
     new.add_argument("stem")
     new.add_argument("--kind", choices=("feature", "bug", "chore"), default="feature")
     sub.add_parser("run", help="run one ticket through every stage").add_argument("stem")
+    sub.add_parser("serve", help="run the continuous daemon")
     sub.add_parser("drain", help="run every eligible ticket to quiescence")
     sub.add_parser("kill", help="hard-stop the running drain or serve")
     sub.add_parser("stop", help="finish the running ticket and exit")

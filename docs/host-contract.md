@@ -1,7 +1,8 @@
 # Host contract
 
 The installed engine owns process; the host owns project content, tickets and
-configuration. This document describes the merged configuration and interfaces.
+configuration. See the [host run guide](host-running.md) for invocation and operation.
+This document describes the merged configuration and interfaces.
 Report intake and cutover below are pending Phase 6 consumer contracts, not an
 activation instruction. Foreign process-state adoption is excluded.
 

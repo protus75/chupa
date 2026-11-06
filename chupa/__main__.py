@@ -212,7 +212,7 @@ def watchdog_notifications(config, env, effects, log, *, redactor, cwd, **contex
 
 
 def _parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(prog="python -m chupa")
+    ap = argparse.ArgumentParser(prog="python -m chupa", description="Host run guide: docs/host-running.md")
     ap.add_argument("--config", type=Path, help="config path (default: config.yaml at the checkout root)")
     sub = ap.add_subparsers(dest="verb", required=True)
     sub.add_parser("status", help="project current state from the journal (read-only)")
@@ -237,7 +237,7 @@ def _parser() -> argparse.ArgumentParser:
     run = sub.add_parser("run", help="drive one ticket through intake and the stage pipeline under the lock")
     run.add_argument("stem")
     for verb in ("confirm", "reject"):
-        sub.add_parser(verb, help=f"{verb} a draft or Reject item under the lock").add_argument("stem")
+        sub.add_parser(verb, help=f"{verb} a draft or Reject item; publish the verdict to a running serve holding the lock").add_argument("stem")
     dr = sub.add_parser("drain", help="run every eligible ticket to quiescence under the lock")
     dr.add_argument("--parked", action="append", default=[], metavar="STEM", help="a stem the handing-off parent drain parked (set by the self-upgrade re-exec)")
     dr.add_argument("--stop-lifecycle", help=argparse.SUPPRESS)
