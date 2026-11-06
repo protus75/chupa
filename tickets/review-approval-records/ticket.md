@@ -1,7 +1,7 @@
 ---
 state: confirmed
 source: human
-priority: P1
+priority: P0
 kind: chore
 ---
 
