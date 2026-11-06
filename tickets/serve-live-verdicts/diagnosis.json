@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "f346bfc92197bdd7ecac72a9af839ef17a58f720",
+  "produced_at_sha": "237a91cee131f9a081466d06535dc7964b8fc357",
   "stem": "serve-live-verdicts",
-  "attempt": 2,
+  "attempt": 3,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "Delete the legacy-key branch in chupa/control.py settle_admissions (the `old_key`/`old` lookup under `ticket-plane/<stem>/confirmed/<request_id>` and its `draft_confirmed` re-append). The ticket names one key only: `ticket-plane/<stem>/<verb>/<request_id>`.",
-    "Remove `runner.confirm_draft` and `runner.committed_draft` from chupa/runner.py. Scope-in requires one lock-free function to hold every draft-promotion rule, and after the change neither has a caller. Grep tests for references and update any that remain.",
-    "Do not edit chupa/mergequeue.py, which is outside the fence. File `MergeQueue.confirm_draft`, now unreferenced, in the Suggestion Box for removal, and list it under second problems in the run record.",
-    "Keep the rest of attempt 2. The reviewer judged the live keep, reject and refusal flows correct, and the full suite passed (3033 tests). Rerun both verification commands after the deletions."
+    "Bind serve's recovering-confirm shortcut (chupa/serve.py ~358) to this request: accept only a confirm commit made after the effect intent, else call runner.verdict_locked. Test a stem confirmed long ago, now in the Reject queue, crashing mid-keep.",
+    "Criterion 1: test a held-lock keep on a Reject-queue stem via settle_admissions with runner.verdict_locked. Run a repeat pass and a restart after the intent; assert exactly one reject_verdict keep actor: operator.",
+    "Criterion 2: test held-lock reject on a Reject-queue stem and a committed draft via the real verdict path. Assert the state: rejected stamp and commit, one rejected transition, and the dead-dependent box messages.",
+    "Criterion 3: add a tests/test_serve.py test where a held-lock confirm is published to a running serve and the same serve instance dispatches the kept stem on its next pass, with no restart.",
+    "Criterion 4: replace the stubbed refuse in tests/test_control.py ~443 with a real second keep at unchanged content through runner.verdict_locked. Assert the 'already kept' refusal shows in status and only one keep is journaled."
   ],
   "mechanical": null,
   "spec_version": "1.2",
