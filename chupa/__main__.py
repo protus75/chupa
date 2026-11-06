@@ -213,6 +213,7 @@ def _parser() -> argparse.ArgumentParser:
     for verb in ("pause", "resume"):
         sub.add_parser(verb, help=f"submit {verb} to the running engine, or do nothing under the idle lock")
     sub.add_parser("kill", help="submit kill to the running engine; refuse when nothing is running")
+    sub.add_parser("stop", help="finish the running ticket, admit nothing new, then exit")
     sub.add_parser("review", help="review a committed ticket under the lock").add_argument("stem")
     sub.add_parser("triage", help="make one sequential pass over pending suggestions under the lock")
     covgate = sub.add_parser("covgate", help="check a coverage JSON report against thresholds")
@@ -228,7 +229,8 @@ def _parser() -> argparse.ArgumentParser:
         sub.add_parser(verb, help=f"{verb} a draft or Reject item under the lock").add_argument("stem")
     dr = sub.add_parser("drain", help="run every eligible ticket to quiescence under the lock")
     dr.add_argument("--parked", action="append", default=[], metavar="STEM", help="a stem the handing-off parent drain parked (set by the self-upgrade re-exec)")
-    sub.add_parser("serve", help="run the foreground daemon until kill or a signal stops it")
+    dr.add_argument("--stop-lifecycle", help=argparse.SUPPRESS)
+    sub.add_parser("serve", help="run the foreground daemon until kill, stop, or a signal stops it")
     return ap
 
 
@@ -297,7 +299,7 @@ def main(
         if args.verb == "status":
             print(render(asyncio.run(_status(checkout))), end="")
             return 0
-        if args.verb in {"pause", "resume", "kill"}:
+        if args.verb in {"pause", "resume", "kill", "stop"}:
             return asyncio.run(_control(checkout, args.verb))
         if args.verb in {"confirm", "reject"}:
             return asyncio.run(_verdict(checkout, args.stem, args.verb, read_input))
@@ -346,7 +348,7 @@ def main(
                     return getattr(dispatch, name)
 
             # The handoff uses its own process seam.
-            report = asyncio.run(drain.drain(checkout, DrainDispatch(), reexec=reexec or SubprocessExec(), parked=args.parked, argv=(["--config", str(args.config)] if args.config else []) + ["drain"]))
+            report = asyncio.run(drain.drain(checkout, DrainDispatch(), reexec=reexec or SubprocessExec(), parked=args.parked, stop_lifecycle=args.stop_lifecycle, argv=(["--config", str(args.config)] if args.config else []) + ["drain"]))
             if report.handoff is None:
                 print(report.render(), end="")
             return report.exit_code
@@ -538,6 +540,8 @@ async def _control(checkout: runner.Checkout, verb: str) -> int:
         try:
             if verb == "kill":
                 raise runner.Refusal("nothing running to kill", "start a drain before submitting kill")
+            if verb == "stop":
+                raise runner.Refusal("nothing running to stop", "start a drain or serve before submitting stop")
             print(f"nothing running to {verb}")
         finally:
             lock.release()

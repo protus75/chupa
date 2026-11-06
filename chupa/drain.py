@@ -120,6 +120,7 @@ class Report:
     halted: str | None = None
     handoff: int | None = None  # the re-exec'd child's exit code: the child reports, the parent stays silent
     killed: bool = False
+    stopped: bool = False
 
     @property
     def exit_code(self) -> int:
@@ -134,6 +135,8 @@ class Report:
 
         if self.killed:
             head = "drain stopped by kill -- NOT quiescent. Continue with `uv run python -m chupa drain`."
+        elif self.stopped:
+            head = "drain stopped on request; no new ticket was admitted."
         elif self.halted:
             head = f"drain HALTED by the {CEILING} ceiling ({self.halted}) -- NOT quiescent; no new ticket was admitted. Continue with `uv run python -m chupa drain`."
         elif not (self.merged or self.parked or self.blocked):
@@ -172,6 +175,7 @@ async def drain(
     parked: Iterable[str] = (),
     argv: Iterable[str] = ("drain",),
     before_dispatch: Callable[[], Awaitable[None]] | None = None,
+    stop_lifecycle: str | None = None,
 ) -> Report:
     """`reexec` is the handoff's own process seam: never the instance active work spawns through."""
     consumer = checkout.control
@@ -180,16 +184,43 @@ async def drain(
     lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
     lock.acquire()
     try:
+        if stop_lifecycle is not None:
+            consumer.inbox.lifecycle_id = stop_lifecycle
+            consumer.inbox.recover()
         consumer.publish()
 
+        async def control_checkpoint() -> None:
+            if consumer.projection.stop_requested:
+                return
+            stopped = asyncio.Event()
+            apply = consumer.inbox.apply
+
+            def observe(projection) -> None:
+                apply(projection)
+                if projection.stop_requested:
+                    stopped.set()
+
+            consumer.inbox.apply = observe
+            pending = asyncio.create_task(consumer.checkpoint())
+            watcher = asyncio.create_task(stopped.wait())
+            try:
+                await asyncio.wait((pending, watcher), return_when=asyncio.FIRST_COMPLETED)
+                if pending.done():
+                    pending.result()
+            finally:
+                consumer.inbox.apply = apply
+                for task in (pending, watcher):
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(pending, watcher, return_exceptions=True)
+
         async def checkpoint() -> None:
-            await consumer.checkpoint()
-            if consumer.projection.lifecycle_id == consumer.inbox.lifecycle_id and consumer.projection.kill_requested:
+            await control_checkpoint()
+            if consumer.projection.kill_requested or consumer.projection.stop_requested:
                 return
             if before_dispatch is not None:
                 await before_dispatch()
-            # An injected preparation wait can allow a new request to arrive.
-            await consumer.checkpoint()
+            await control_checkpoint()
 
         assert checkout.config.worktree_root is not None  # resolved at config load
         await reconcile(checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root, lambda stem, attempt: harvest_orphan(checkout, stem, attempt))
@@ -203,12 +234,13 @@ async def drain(
         report = await run.run()
         # A pending self-upgrade is still an offer boundary, never permission to
         # launch a child after a kill accepted during the final preparation.
-        await consumer.checkpoint()
+        await control_checkpoint()
         if run._stopping():
             await consumer.apply_kill(dispatch.abort_current)
             report.killed = True
             return report
         if run.upgrade is None:
+            report.stopped = consumer.projection.stop_requested
             return report
         stem, commit = run.upgrade
         carried = run.parked_stems()
@@ -224,7 +256,7 @@ async def drain(
             lock.release()
     # The fixed HANDOFF order: journaled, journal closed, lock free -- the child is the only writer,
     # and the parent does nothing after the spawn but exit with its code.
-    report.handoff, _, _ = await reexec.run(reexec_argv([*argv, *(a for stem in carried for a in ("--parked", stem))]), cwd=checkout.repo, env=checkout.env, timeout=None)
+    report.handoff, _, _ = await reexec.run(reexec_argv([*argv, *(a for stem in carried for a in ("--parked", stem)), *(["--stop-lifecycle", consumer.inbox.lifecycle_id] if consumer.projection.stop_requested else [])]), cwd=checkout.repo, env=checkout.env, timeout=None)
     return report
 
 
@@ -253,7 +285,7 @@ class _Drain:
                 self.c = replace(self.c, config=snapshot_config(self.c.control.load_config()))
             if self.before_dispatch is not None:
                 await self.before_dispatch()
-            if self._stopping():
+            if self._stopping() or self.c.control.projection.stop_requested:
                 return self.report
             # Keep a ticket's retry cycle together before checking retro triggers.
             if self.retro is not None and await self._between_tickets():
@@ -268,7 +300,7 @@ class _Drain:
             # before using its SHAs; changed content must return through the git seam.
             if self.before_dispatch is not None:
                 await self.before_dispatch()
-            if self._stopping():
+            if self._stopping() or self.c.control.projection.stop_requested:
                 return self.report
             events = self.c.journal.read()
             if material != self._offer_material() or events != prepared_events:
@@ -358,6 +390,8 @@ class _Drain:
         held: set[str],
     ) -> tuple[Ticket | None, bool]:
         """The next eligible dispatch in soft-edge and sort-key order, fresh or re-offered."""
+        if self.c.control.projection.stop_requested:
+            return None, False
         open_ = {s: t for s, t in scan.tickets.items() if t.frontmatter.state == "confirmed" and last.get(s) not in SETTLED | RETIRED}
         edges = {s: list(t.depends) for s, t in open_.items()}
         for stem in sorted(open_):

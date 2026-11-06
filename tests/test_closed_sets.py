@@ -137,7 +137,7 @@ def test_config_closed_sets_and_constants():
 
 
 def test_control_closed_sets_and_constants():
-    assert set(get_args_deep(control.Verb)) == {"kill", "pause", "resume"}
+    assert set(get_args_deep(control.Verb)) == {"kill", "pause", "resume", "stop"}
 
 
 def test_drain_closed_sets_and_constants():

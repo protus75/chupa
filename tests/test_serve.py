@@ -1957,3 +1957,37 @@ async def test_kill_accepted_during_upgrade_cleanup_prevents_spawn(root, monkeyp
     await until(rig, run.done)
     assert await run == 0 and not rig.owner.reexec.calls
     assert any(e.body.get("request_id") == "kill-before-spawn" and e.body.get("decision") == "accepted" for e in rig.journal.read())
+
+
+@pytest.mark.asyncio
+async def test_stop_finishes_merge_without_admitting_next_or_spawning(root, monkeypatch):
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def settled(rig, ctx, ticket, attempt):
+        if ticket.stem == "aa":
+            entered.set()
+            await release.wait()
+
+    rig = await admission_graph(root, monkeypatch, {"aa": {"docs/a.txt": "a\n"}, "bb": {"docs/b.txt": "b\n"}}, settled=settled)
+    await enable_upgrade(rig, root)
+    admission_ticket(root, "aa", paths=("docs/a.txt",), priority="P0")
+    admission_ticket(root, "bb", paths=("docs/b.txt",), priority="P1")
+    run = asyncio.create_task(rig.owner.run())
+    try:
+        await until(rig, entered.is_set)
+        request(rig, "stop", "finish-current")
+        await until(rig, lambda: rig.owner.control.projection.stop_requested)
+        assert not run.done()
+        release.set()
+        await until(rig, run.done)
+        assert await run == 0
+        assert [e.body["to"] for e in terminals(rig, "aa")] == ["merged"]
+        assert not any(e.ticket == "bb" and e.body.get("to") == "running" for e in rig.journal.read())
+        assert not rig.owner.reexec.calls
+        lock = Lockfile(rig.checkout.config.state_dir, instance_id="probe", clock=rig.time)
+        lock.acquire()
+        lock.release()
+    finally:
+        release.set()
+        if not run.done():
+            await finish(rig, run)

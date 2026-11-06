@@ -11,6 +11,7 @@
     ./dev.py drain            run every eligible ticket to quiescence
     ./dev.py watch [--once]   live view: running ticket, step, model, and the queue
     ./dev.py kill             hard-stop the running drain or serve
+    ./dev.py stop             finish the running ticket and exit
     ./dev.py confirm STEM...  keep each named ticket
     ./dev.py reject STEM...   kill each named Reject-queue ticket
 
@@ -47,6 +48,7 @@ def main() -> None:
     sub.add_parser("run", help="run one ticket through every stage").add_argument("stem")
     sub.add_parser("drain", help="run every eligible ticket to quiescence")
     sub.add_parser("kill", help="hard-stop the running drain or serve")
+    sub.add_parser("stop", help="finish the running ticket and exit")
     sub.add_parser("watch", help="live view of the drain and the queue").add_argument("--once", action="store_true")
     for verb in ("confirm", "reject", "review"):
         sub.add_parser(verb, help=f"{verb} each named ticket").add_argument("stems", nargs="+")

@@ -68,8 +68,8 @@ def invalid_requests():
     for key in ("request_id", "lifecycle_id"):
         cases.append({**good, key: ""})
     cases += [{**good, "request_id": value} for value in ("../escape", "a/b", "a\\b", "é", "a.b", "a b", "a\n", "other")]
-    cases += [{**good, "verb": value} for value in ("", "PAUSE", "stop")]
-    cases += [{**good, "hold_id": "hold"}, {**good, "verb": "kill", "hold_id": "hold"}]
+    cases += [{**good, "verb": value} for value in ("", "PAUSE", "unknown")]
+    cases += [{**good, "hold_id": "hold"}, {**good, "verb": "kill", "hold_id": "hold"}, {**good, "verb": "stop", "hold_id": "hold"}]
     cases += [{**good, "verb": "resume", "hold_id": value} for value in (None, "", False, 4, [], {})]
     return cases
 
@@ -411,3 +411,13 @@ def test_control_inbox_is_active(root, tmp_path, monkeypatch):
             assert stages.calls == [stem] and stages.lock_held == [True]
     assert (root / ".chupa/state/control/active.json").read_bytes() == b"null\n"
     assert not any(e.body.get("kind") == control.CONTROL_DECISION for e in journal(root).read())
+
+
+def test_stop_decision_recovers_without_killing(tmp_path):
+    rig = Rig(tmp_path)
+    rig.publish("stop-request", "stop")
+    rig.inbox.consume()
+    rig.reconstruct().recover()
+    assert rig.projection.stop_requested and not rig.projection.kill_requested
+    assert rig.decisions()[0]["decision"] == "accepted"
+    assert len(rig.changes) == 1

@@ -310,3 +310,16 @@ def test_resume_publishes_selected_hold_identity(root, monkeypatch, capsys):
         assert len(requests(root)) == 2
     finally:
         lock.release()
+
+
+def test_stop_refuses_when_idle_and_publishes_when_live(root, capsys):
+    assert invoke(root, "stop") == 2
+    assert "nothing running to stop" in capsys.readouterr().err
+    lock = acquire(root)
+    try:
+        discovery(root, "stop-life")
+        assert invoke(root, "stop") == 0
+        [request] = requests(root)
+        assert request["verb"] == "stop" and request["lifecycle_id"] == "stop-life" and request["hold_id"] is None
+    finally:
+        lock.release()

@@ -1303,3 +1303,98 @@ def test_historical_spec_gap_hold_terminal_reads_without_release(root):
     assert drain(root, script) == 0
     assert script.calls == []  # The unchanged ticket must not be dispatched.
     assert not premise_parked(events, "work", "different-ticket-blob")  # A ticket edit releases the park.
+
+
+@pytest.mark.asyncio
+async def test_stop_finishes_current_ticket_and_releases_lock(root):
+    from chupa.control import ControlRequest, publish_request
+    from chupa.drain import drain as run_drain
+    from tests.test_drain_reentry import NoChild
+
+    commit_ticket(root, "aa", confirmed(priority="P0"))
+    commit_ticket(root, "bb", confirmed(priority="P1"))
+    checkout = pause_checkout(root)
+    entered, release = asyncio.Event(), asyncio.Event()
+    calls = []
+
+    class Dispatch:
+        async def __call__(self, ticket):
+            calls.append(ticket.stem)
+            entered.set()
+            await release.wait()
+            checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=ticket.stem)
+            return "merged"
+
+        async def abort_current(self):
+            pytest.fail("stop aborted the running ticket")
+
+    task = asyncio.create_task(run_drain(checkout, Dispatch(), reexec=NoChild()))
+    await asyncio.wait_for(entered.wait(), 5)
+    publish_request(checkout.config.state_dir, ControlRequest("stop", checkout.control.inbox.lifecycle_id, "stop", None), checkout.fs)
+    while not checkout.control.projection.stop_requested:
+        await asyncio.sleep(0)
+    assert not task.done()
+    release.set()
+    report = await task
+    assert calls == ["aa"] and report.merged == ["aa"]
+    assert report.stopped and report.exit_code == 0 and "stopped on request" in report.render()
+    lock = Lockfile(checkout.config.state_dir, instance_id="probe", clock=checkout.clock)
+    lock.acquire()
+    lock.release()
+
+
+@pytest.mark.asyncio
+async def test_stop_survives_self_upgrade_handoff(root):
+    from chupa.control import ControlRequest, publish_request
+    from chupa.drain import drain as run_drain
+    from tests.test_drain_reentry import NoChild
+
+    commit_ticket(root, "aa", confirmed(priority="P0"))
+    commit_ticket(root, "bb", confirmed(priority="P1"))
+    checkout = pause_checkout(root)
+    calls = []
+
+    class Dispatch:
+        async def __call__(self, ticket):
+            calls.append(ticket.stem)
+            publish_request(checkout.config.state_dir, ControlRequest("stop-upgrade", checkout.control.inbox.lifecycle_id, "stop", None), checkout.fs)
+            (root / "chupa/thing.py").write_text("upgraded\n")
+            await checkout.git.add(root, ["chupa/thing.py"])
+            await checkout.git.commit(root, "upgrade")
+            commit = await checkout.git.rev_parse(root, "HEAD")
+            checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged", "commit": commit}, ticket=ticket.stem)
+            return "merged"
+
+        async def abort_current(self):
+            pytest.fail("stop aborted the running ticket")
+
+    class Child:
+        async def run(self, argv, **kwargs):
+            assert argv[-2:] == ["--stop-lifecycle", checkout.control.inbox.lifecycle_id]
+            child = pause_checkout(root)
+            report = await run_drain(child, Dispatch(), reexec=NoChild(), stop_lifecycle=argv[-1])
+            assert report.stopped and report.exit_code == 0 and report.merged == []
+            return report.exit_code, "", ""
+
+    report = await run_drain(checkout, Dispatch(), reexec=Child())
+    assert report.handoff == 0 and calls == ["aa"]
+    assert any(e.body.get("signal") == "drain_handoff" for e in checkout.journal.read())
+
+
+@pytest.mark.asyncio
+async def test_stop_at_paused_checkpoint_admits_nothing(root):
+    from chupa.control import ControlRequest, publish_request
+    from chupa.drain import drain as run_drain
+    from tests.test_drain_reentry import NoChild
+
+    commit_ticket(root, "work", confirmed())
+    checkout = pause_checkout(root)
+    script = Script()
+
+    async def request_both():
+        for identity, verb in (("10-pause", "pause"), ("20-stop", "stop")):
+            publish_request(checkout.config.state_dir, ControlRequest(identity, checkout.control.inbox.lifecycle_id, verb, None), checkout.fs)
+
+    report = await run_drain(checkout, script(checkout), reexec=NoChild(), before_dispatch=request_both)
+    assert report.stopped and report.exit_code == 0 and script.calls == []
+    assert checkout.control.projection.pause_id == "10-pause"

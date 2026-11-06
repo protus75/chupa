@@ -243,7 +243,7 @@ class Serve:
                 return False
         return (
             not self.stopping
-            and (self.upgrade is None or ticket.stem in self.writers)
+            and (self.upgrade is None and not projection.stop_requested or ticket.stem in self.writers)
             and projection.pause_id is None
             and (self.control.admission is None or self.control.admission in projection.released_hold_ids)
             and not any(target["emitting_origin"] == ticket.stem and target["emitting_stage"] == stage for target in self.storm.held_stages().values())
@@ -510,12 +510,12 @@ class Serve:
                 await self.ready.wait()
                 while not self.stopping:
                     await self.maintenance()
-                    if self.upgrade is not None and self.upgrade_idle() and not self.stopping:
+                    if (self.upgrade is not None or self.control.projection.stop_requested) and self.upgrade_idle() and not self.stopping:
                         self.control.poll()
                         if self.control.projection.kill_requested:
                             self.stop()
                         else:
-                            upgrade_stop = True
+                            upgrade_stop = not self.control.projection.stop_requested
                             self.stop()
                             break
                     for response in self.responses:
@@ -556,7 +556,7 @@ class Serve:
                 if code != 2:
                     code = 1
             self.control.poll()
-            handoff = handoff and not self.control.projection.kill_requested and code == 0
+            handoff = handoff and not self.control.projection.kill_requested and not self.control.projection.stop_requested and code == 0
             if handoff:
                 c.journal.close()
         finally:

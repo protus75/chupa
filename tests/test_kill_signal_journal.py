@@ -18,8 +18,8 @@ ACCEPTED = "matching lifecycle and hold identities"
 STALE = "read the current lifecycle and submit a new request"
 SHAPE = (
     "submit a new request with exactly {request_id: nonempty ASCII letters/digits/_/-, "
-    "lifecycle_id: nonempty string, verb: pause | resume | kill, hold_id: string | null}; "
-    "match request_id to the filename; pause/kill require null hold_id; "
+    "lifecycle_id: nonempty string, verb: pause | resume | kill | stop, hold_id: string | null}; "
+    "match request_id to the filename; pause/kill/stop require null hold_id; "
     "for resume read the current hold and submit its exact nonempty identity"
 )
 
@@ -112,7 +112,7 @@ def malformed_kills():
         values += [{**good, key: value} for value in (None, True, 1, [], {}) if key != "hold_id" or value is not None]
     values += [{**good, "request_id": value} for value in ("", "other", "../escape", "a/b", "a\\b", "é", "a.b", "a b", "a\n")]
     values += [{**good, "lifecycle_id": ""}, {**good, "hold_id": "hold"}]
-    values += [{**good, "verb": value} for value in ("", "KILL", "stop")]
+    values += [{**good, "verb": value} for value in ("", "KILL", "unknown")]
     return [json.dumps(value).encode() for value in values] + [b"{", b"\xff", b'{"request_id":"request","request_id":"request","lifecycle_id":"life-1","verb":"kill","hold_id":null}']
 
 

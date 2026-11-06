@@ -48,10 +48,10 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `review <stem>` | yes | Runs intake, then reviews the committed ticket against merged code and journals its verdict and ticket blob SHA. Refuses missing, intake-failed, settled, rejected, or dependency-blocked tickets without a model call. Prints findings and exits 0 on approve, 1 on snag or rma. |
 | `run <stem>` | yes | Reconciles orphans, runs intake, then drives the one named ticket through every stage. Refuses a stem that failed intake, is missing, invalid, merged, not `confirmed`, or has unmerged dependencies. |
 | `drain` | yes | Runs every eligible ticket to quiescence (section 7.1). |
-| `serve` | yes | Runs the continuous daemon until `kill` or a signal (section 7.2). |
+| `serve` | yes | Runs the continuous daemon until `kill`, `stop`, or a signal (section 7.2). |
 | `retro` | yes | Forces a retro report (section 9.5). |
 | `triage` | yes | One sequential pass over pending Suggestion Box messages (section 9.2). |
-| `pause` / `resume` / `kill` | try | With a running engine, publish a control request to it (section 7.3). With none: `kill` refuses (exit 2); `pause`/`resume` print "nothing running". |
+| `pause` / `resume` / `kill` / `stop` | try | With a running engine, publish a control request to it (section 7.3). With none: `kill` and `stop` refuse (exit 2); `pause`/`resume` print "nothing running". |
 | `confirm <stem>` | yes | A person at a terminal answers `y` to keep: promotes a draft to confirmed, keeps a Reject-queue item (section 6.6). |
 | `reject <stem>` | yes | A person at a terminal answers `y` to kill: stamps the ticket `rejected` (section 6.6). Refuses settled stems. |
 
@@ -69,7 +69,7 @@ Each test has a 120-second hard limit.
 | `lint [STEM...]` | `chupa lint [stem ...]` (read-only; no writer lock) |
 | `review STEM...` | `chupa review` once per stem, stopping on the first non-zero exit |
 | `run STEM` | `chupa run <stem>`: one ticket through every stage, under the lock |
-| `status`, `drain`, `kill` | the matching chupa verb |
+| `status`, `drain`, `kill`, `stop` | the matching chupa verb |
 | `confirm STEM...`, `reject STEM...` | `chupa confirm` or `chupa reject` once per stem; a person at a terminal answers `y` for each stem |
 
 ## 3. Tickets
@@ -398,7 +398,7 @@ Keep and kill require a person at an interactive terminal to type the exact stem
 ### 7.1 `drain`
 
 1. Takes the lock, reconciles, fires due timers, runs the provider preflight, runs intake once.
-2. Loops: reload config, honor pause/kill, maybe run a retro, scan committed tickets, pick the
+2. Loops: reload config, honor pause/kill/stop, maybe run a retro, scan committed tickets, pick the
    next ticket, run it, merge it inline.
 3. **Pick order:** confirmed, unsettled, not rejected, every dependency settled (through split
    successors); among eligible fresh tickets and re-offers, `## Runs before` orders named stems
@@ -439,7 +439,7 @@ Maintenance on each loop: control requests, timers, orphan sweeps, heartbeat
 A git-checkout engine records its `chupa` and `specs` trees at startup and checks them before
 admission and after merge passes. A change stops new admissions; after running tickets and
 pending or active merges finish, serve journals `serve_handoff`, cleans up, closes the journal,
-releases the lock, and spawns the new serve. A pending kill wins. Non-git engines do not watch.
+releases the lock, and spawns the new serve. A pending kill wins. An accepted stop waits for the same idle condition and exits without spawning. Non-git engines do not watch.
 
 #### 7.2.1 Merge queue (serve only)
 
@@ -460,10 +460,10 @@ For each candidate, in pick order:
 
 ### 7.3 Control
 
-`pause`, `resume`, and `kill` write a request file to `state_dir/control/inbox/`, bound to the
+`pause`, `resume`, `kill`, and `stop` write a request file to `state_dir/control/inbox/`, bound to the
 running engine's lifecycle id. The engine journals a `control_decision` (accepted, stale, or
 rejected) for each request. Pause stops new dispatch; resume must name the advertised hold;
-kill stops the engine at the next safe point. `run` does not read control requests.
+kill stops the engine at the next safe point. Stop admits no new ticket, lets work in progress finish and merge, then exits and releases the lock; unlike pause, it ends the process. `run` does not read control requests.
 
 ### 7.4 Storms, watchdog, notifications, pushes
 
