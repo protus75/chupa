@@ -27,8 +27,15 @@ On 2026-11-06 at 16:55Z a drain crashed with an uncaught `GitError` in `merge.wr
 - In: `chupa/merge.py` `merge` (inline `run`/`drain` admission): just before `write_squash`, if `dirty_overlap` returns findings, return `_refused(findings, cost)`.
 - In: `chupa/mergequeue.py` (`serve` admission): just before the admission-receipt effect (`Effects(...).run(receipt_action, ...)`), if `merge.dirty_overlap` returns findings, return the queue's existing `refused(findings)`.
 - In: tests.
-  - `tests/test_merge.py` `test_merge_refuses_dirty_overlap_instead_of_raising`: with a tracked edit to a file the branch changes, `merge` returns `gate_failed` with a `dirty_checkout` finding. Main is unchanged, and no `merge/` effect intent is journaled.
-  - `tests/test_mergequeue.py` `test_queue_refuses_dirty_overlap_instead_of_raising`: the same case through the queue. The result is `gate_failed` with a `dirty_checkout` finding, no admission receipt, and main unchanged.
+  - `tests/test_merge.py` `test_merge_refuses_dirty_overlap_instead_of_raising`, parametrized over two cases:
+    - a tracked edit to a file the branch changes: `merge` returns `gate_failed` with a `dirty_checkout` finding. Main is unchanged, and no `merge/` effect intent is journaled.
+    - a tracked edit to a file outside the branch diff: `merge` returns `ok`.
+
+    In both cases, the edited file's bytes still equal the operator's edit, and `git status --porcelain` still lists it as modified.
+  - `tests/test_mergequeue.py` `test_queue_refuses_dirty_overlap_instead_of_raising`: the same two cases through the queue.
+    - The overlapping case gives `gate_failed` with a `dirty_checkout` finding, no admission receipt, and main unchanged.
+    - The unrelated case is admitted.
+    - The same byte and porcelain checks on the edited file apply.
 - In: `docs/how-chupa-works.md`: one bullet in section 4.5 (Merge) and one in section 7.2.1 (Merge queue) for the `dirty_checkout` refusal.
 - Out: everything else.
 
