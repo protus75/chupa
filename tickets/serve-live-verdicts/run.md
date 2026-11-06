@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Placed verdict refusals after the existing status sections to preserve their established order.
+The status refusal section appears only when refusals exist, preserving the existing empty-state format.
 
 ## Dead ends
 
-none
+The first full-suite run exposed status-format failures; the renderer was adjusted and the suite passed on rerun.
 
 ## Second problems filed
 
@@ -18,9 +18,9 @@ none
 
 - provider: codex
 - model: gpt-6.1-terra
-- spec: implement 2.1
+- spec: implement 2.3
 
 ## Predicted vs actual
 
-none
+Expected 90 minutes; actual time was not measured.
 
