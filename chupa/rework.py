@@ -162,6 +162,12 @@ async def rework(
                 )
                 if verdict.verdict == "rma":
                     return GateReport(code="requisition_review", verdict="fail", findings=[f.model_copy(update={"code": "requisition_rma"}) for f in verdict.findings])
+                if verdict.verdict == "approve":
+                    ctx.driver.journal.append(
+                        EventType.SIGNAL,
+                        {"signal": "requisition_verdict", "verdict": "approve", "ticket_sha": verdict.ticket_sha, "provider": verdict.provider, "model": verdict.model, "spec_version": verdict.spec_version},
+                        ticket=proposal.stem,
+                    )
                 errors.extend(verdict.findings)
             return GateReport(code="requisition_review", verdict="fail" if errors else "pass", findings=errors)
         finally:

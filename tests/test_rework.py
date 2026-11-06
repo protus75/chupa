@@ -70,6 +70,30 @@ def successors(text, *, second_dep="piece-one"):
     return [("piece-one", first), ("piece-two", second)]
 
 
+def test_approved_proposals_journal_requisition_approval(ctx):
+    async def scenario():
+        ticket, text = await original(ctx)
+        proposals = successors(text)
+        ctx.driver.retry_cap = 0
+        result, _ = await invoke(ctx, ticket, text, [order("split", proposals), requisition("snag"), requisition("snag")])
+        assert result.outcome == "gate_failed"
+        assert signals(ctx, "requisition_verdict") == []
+
+        proposals = [(stem.replace("piece", "approved"), proposal.replace("piece-one", "approved-one").strip()) for stem, proposal in proposals]
+        result, _ = await invoke(ctx, ticket, text, [order("split", proposals), requisition(), requisition()], attempt=1)
+        assert result.outcome == "ok"
+        assert [(p.stem, p.ticket) for p in result.artifact.tickets] == proposals
+        records = signals(ctx, "requisition_verdict")
+        assert len(records) == 2
+        for stem, proposal in proposals:
+            [record] = [event for event in records if event.ticket == stem]
+            data = proposal.encode()
+            sha = hashlib.sha1(f"blob {len(data)}\0".encode() + data).hexdigest()
+            assert record.body == {"signal": "requisition_verdict", "verdict": "approve", "ticket_sha": sha, "provider": "fake", "model": record.body["model"], "spec_version": record.body["spec_version"]}
+
+    run(scenario())
+
+
 @pytest.mark.parametrize("source", ["human", "seed", "box:suggestion"])
 def test_update_order_is_reviewed_without_ticket_mutation(ctx, monkeypatch, source):
     async def scenario():
