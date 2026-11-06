@@ -1,15 +1,21 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "8cef9a1d9cdfca211cc715f0f5b0bc39da8fa617",
+  "produced_at_sha": "ad93ebbfc7f7d0354168928423da4d878696c6bd",
   "stem": "chupa-ruff-config",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "premise_bounce cap spent",
+  "verdict": "reject",
+  "lessons": [
+    "The premise is stale. With the ticket's config applied, ruff check reports findings in chupa/__main__.py:404, chupa/covgate.py:79, chupa/rework.py, tests/test_baseline.py, tests/test_go_grade.py, tests/test_inbox.py and tests/test_rework.py. All of these are outside the fence.",
+    "ruff format --check reports 32 files to reformat, many outside the fence (e.g. tests/test_tickets.py:648). The format diff on e99990cb no longer matches current main. Re-run both checks on current main and re-list every affected file.",
+    "Re-author the fence and the 'remaining findings' list from a fresh `uv run ruff check .` and `uv run ruff format --check .` on the current base. Do not reuse the line numbers from e99990cb.",
+    "If the re-run list is large, split the ticket: one ticket for the pyproject/uv.lock config, the per-file ignores and the hand-fixed findings, and one for the bulk format pass. Each fence must name every file its check touches.",
+    "chupa/__main__.py has an I001 ignore, but the failure at line 404 is a different finding. Read the actual code before choosing between fixing it and adding an ignore. A new ignore beyond the five listed counts as rejected under the ticket."
+  ],
+  "mechanical": null,
   "spec_version": "1.2",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
