@@ -8,6 +8,10 @@ state: confirmed
 ## Depends on
 - prompts-drop-plan
 
+## Runs before
+- test-rules-prompt
+- review-all-findings
+
 ## Context
 - docs/how-chupa-works.md
 
