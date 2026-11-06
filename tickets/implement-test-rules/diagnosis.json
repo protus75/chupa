@@ -1,15 +1,20 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "05e1763094b3a58578d58e7ca5234a7d2dacd769",
+  "produced_at_sha": "d3905ce8815debb57ed4dc96589ac0394c85b8ab",
   "stem": "implement-test-rules",
-  "attempt": 0,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "premise_bounce cap spent",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "retry",
+  "lessons": [
+    "The only failure was tests/test_reliability_battery.py::test_all_candidates_cooling_recovery. Your diff touches only spec text, docs, and version pins, and your own `uv run pytest -q` passed 3216 tests. Keep the diff as is and rerun `uv run pytest -q` to confirm the failure is intermittent.",
+    "Do not edit tests/test_reliability_battery.py or eval/reliability_battery.py. Neither is in the ticket's Scope fence, and Scope out excludes every file not listed.",
+    "If test_all_candidates_cooling_recovery fails again, run it on the base commit without your diff. If it fails there too, file it as a second problem in the Suggestion Box and record that in the run record. Do not fold a fix into this diff.",
+    "The run record says `spec: implement 2.0`. Make sure specs/implement.md now has version 2.1 and that the test_stages.py pin matches it, so acceptance criterion 1 holds on the rerun."
+  ],
+  "mechanical": null,
   "spec_version": "1.2",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
