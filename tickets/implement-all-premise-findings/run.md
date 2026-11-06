@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Both verification commands passed: 47 spec tests and 3,049 full-suite tests.
+Both verification commands passed: 22 spec tests and 2,983 full-suite tests.
 
 ## Dead ends
 
-none
+An initial commit command had a Python syntax error; the corrected command succeeded.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 20 minutes; completed within that budget.
+Completed within the 20-minute expected budget.
 
