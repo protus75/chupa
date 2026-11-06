@@ -35,7 +35,10 @@ After this change, one "Engine…" button in the Tickets view title opens a Quic
     - serve: run the continuous daemon until kill, stop, or a signal;
     - stop: finish the running ticket, admit nothing new, then exit;
     - kill: hard-stop the running drain or serve;
-    - status: print the journal projection.
+    - status: print the journal projection;
+    - retro: run a retro report now (`chupa retro`), whatever the automatic triggers say.
+- In: a sixth picker item, "Retro (run now)", runs `retro`.
+- In: an "Open config.yaml" icon (`$(file-code)`, command `chupa.openConfig`) beside Settings in the Tickets `view/title` `navigation` group. It opens the repo's `config.yaml` in an editor. Retry caps, model mappings, and the `retro:` triggers live there; the extension keeps no copy of them.
 - In: picking an item runs `<chupa.command> <verb>` through the same interactive-action path that `observe-verbs-host-extension` uses for engine actions. Escape does nothing.
 - In: one start/stop icon in the Tickets `view/title` `navigation` group that follows the engine's state.
   - On every snapshot, `extension.js` sets the context key `chupa.engineRunning` with `setContext`, from the snapshot's engine flag.
@@ -45,7 +48,7 @@ After this change, one "Engine…" button in the Tickets view title opens a Quic
     - `chupa.playServe`, titled "Start serve", shown when `!chupa.engineRunning && config.chupa.playAction == 'serve'`.
   - `chupa.stopRunning`, icon `$(debug-stop)`, titled "Stop after the running ticket", shown when `chupa.engineRunning`.
   - These three run `drain`, `serve`, and `stop` through the same path as the picker.
-  - All four new commands are hidden from the command palette.
+  - All five new commands are hidden from the command palette.
 - Out: `pause` and `resume`, a Kill icon (Kill stays in the picker only), the right-click ticket menu, and every engine verb.
 
 ## Scope fence
@@ -54,14 +57,14 @@ After this change, one "Engine…" button in the Tickets view title opens a Quic
 
 ## Acceptance criteria
 1. `node --check vscode-chupa/extension.js` exits 0.
-2. `vscode-chupa/package.json` parses as JSON. It declares `chupa.engine`, `chupa.playDrain`, `chupa.playServe`, and `chupa.stopRunning` in the `view/title` menu, and the `chupa.playAction` setting. It no longer declares `chupa.drain`, `chupa.stop`, `chupa.kill`, or `chupa.status`.
+2. `vscode-chupa/package.json` parses as JSON. It declares `chupa.engine`, `chupa.playDrain`, `chupa.playServe`, `chupa.stopRunning`, and `chupa.openConfig` in the `view/title` menu, and the `chupa.playAction` setting. It no longer declares `chupa.drain`, `chupa.stop`, `chupa.kill`, or `chupa.status`.
 3. `grep -c "serve" vscode-chupa/extension.js` prints at least 1.
 4. `uv run pytest -q` exits 0.
 
 ## Verification
 ```
 node --check vscode-chupa/extension.js
-uv run python -c "import json; c=json.load(open('vscode-chupa/package.json'))['contributes']; ids={x['command'] for x in c['commands']}; new={'chupa.engine','chupa.playDrain','chupa.playServe','chupa.stopRunning'}; assert new <= ids and not ids & {'chupa.drain','chupa.stop','chupa.kill','chupa.status'}; assert new <= {m['command'] for m in c['menus']['view/title']}; assert 'chupa.playAction' in c['configuration']['properties']"
+uv run python -c "import json; c=json.load(open('vscode-chupa/package.json'))['contributes']; ids={x['command'] for x in c['commands']}; new={'chupa.engine','chupa.playDrain','chupa.playServe','chupa.stopRunning','chupa.openConfig'}; assert new <= ids and not ids & {'chupa.drain','chupa.stop','chupa.kill','chupa.status'}; assert new <= {m['command'] for m in c['menus']['view/title']}; assert 'chupa.playAction' in c['configuration']['properties']"
 uv run pytest -q
 ```
 
