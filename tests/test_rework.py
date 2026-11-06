@@ -176,6 +176,34 @@ def test_split_order_requires_fresh_buildable_successors(ctx, monkeypatch, sourc
     run(scenario())
 
 
+def test_split_reviews_after_pre_run_review_use_new_keys(ctx):
+    async def scenario():
+        from chupa.requisition import review_ticket
+
+        ticket, text = await original(ctx)
+        attempt = 3
+        ctx.driver.retry_cap = 0
+        ctx.driver.llm = FakeLLM([requisition()])
+        prior = await review_ticket(
+            ctx.driver, repo=ctx.repo, stem=ticket.stem, text=text, specs_dir=ctx.specs_dir,
+            tier="max", stem_slot=ticket.stem, run_seq=attempt, attempt=attempt, call_seq=1,
+            expected_budget=ticket.expected_minutes * 60.0,
+        )
+        assert prior.verdict == "approve"
+        ctx.driver.journal.append(EventType.EFFECT_INTENT, {}, key="llm/original/3/requisition_review/3/10")
+        ctx.driver.journal.append(EventType.EFFECT_INTENT, {}, key="llm/original/4/requisition_review/4/99")
+        proposals = successors(text)
+        result, requests = await invoke(ctx, ticket, text, [order("split", proposals), requisition("snag"), requisition()], attempt=attempt)
+        keys = [e.key for e in ctx.driver.journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key and "/requisition_review/" in e.key]
+        assert keys == [f"llm/original/3/requisition_review/3/{n}" for n in (1, 11, 12)]
+        assert len(keys) == len(set(keys))
+        assert [r.surface for r in requests] == ["rework", "requisition_review", "requisition_review"]
+        assert result.outcome == "gate_failed" and result.findings == [SNAG]
+        assert [e.ticket for e in signals(ctx, "requisition_verdict")] == ["piece-two"]
+
+    run(scenario())
+
+
 @pytest.mark.parametrize("headroom", [False, True])
 def test_split_reviews_keep_unique_keys_when_one_reasks(ctx, monkeypatch, headroom):
     async def scenario():

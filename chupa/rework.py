@@ -86,8 +86,10 @@ async def rework(
     head = await ctx.git.rev_parse(workspace, "HEAD")
     repository_head = await ctx.git.rev_parse(ctx.repo, "HEAD")
     # Review effects name successor identities too; those of THIS invocation are not prior use.
-    identities = {e.ticket for e in ctx.driver.journal.read() if e.ticket is not None}
-    review_seq = 0
+    history = ctx.driver.journal.read()
+    identities = {e.ticket for e in history if e.ticket is not None}
+    prefix = f"llm/{ticket.stem}/{attempt}/requisition_review/{attempt}/"
+    review_seq = max((int(e.key.rsplit("/", 1)[-1]) for e in history if e.key is not None and e.key.startswith(prefix)), default=0)
 
     retry_findings: list[Finding] = []
 
