@@ -1,0 +1,140 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "a984555f6a21bd605e01351891613c7bc3de343d",
+  "stem": "specs-in-package",
+  "passed": false,
+  "changed_files": [
+    "chupa/artifacts.py",
+    "chupa/author.py",
+    "chupa/drain.py",
+    "chupa/merge.py",
+    "chupa/policy.py",
+    "chupa/runner.py",
+    "chupa/serve.py",
+    "chupa/specs/ask/diagnose.md",
+    "chupa/specs/ask/review.md",
+    "chupa/specs/ask/running.md",
+    "chupa/specs/author.md",
+    "chupa/specs/diagnose.md",
+    "chupa/specs/implement.md",
+    "chupa/specs/requisition_review.md",
+    "chupa/specs/retro.md",
+    "chupa/specs/review.md",
+    "chupa/specs/rework.md",
+    "chupa/specs/triage.md",
+    "chupa/stages.py",
+    "chupa/tickets.py",
+    "chupa/triage.py",
+    "config.yaml",
+    "docs/host-contract.md",
+    "docs/how-chupa-works.md",
+    "eval/diagnose.py",
+    "eval/harness.py",
+    "tests/test_author.py",
+    "tests/test_baseline.py",
+    "tests/test_closed_sets.py",
+    "tests/test_diagnose_eval.py",
+    "tests/test_drain_upgrade.py",
+    "tests/test_eval_harness.py",
+    "tests/test_fixture_host.py",
+    "tests/test_merge.py",
+    "tests/test_policy.py",
+    "tests/test_requisition.py",
+    "tests/test_retro_box.py",
+    "tests/test_serve.py",
+    "tests/test_specs.py",
+    "tests/test_stages.py",
+    "tests/test_tickets.py",
+    "tests/test_watchdog_activation.py",
+    "watch.py"
+  ],
+  "inserted_lines": 90,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "fail",
+      "findings": [
+        {
+          "code": "diff_budget",
+          "path": null,
+          "line": null,
+          "message": "diff is 43 files / 90 inserted lines, over the budget of 30 files / 1500 lines",
+          "paved_road": "split the ticket into smaller stems, each under the diff budget",
+          "kind": null,
+          "unit": null
+        }
+      ],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "-c",
+        "from pathlib import Path; from chupa import runner, policy; assert not Path('specs').exists() and Path('chupa/specs/review.md').is_file(); assert runner.SPECS_DIR == policy.SPECS == Path('chupa/specs').resolve()"
+      ],
+      "rc": 0,
+      "tail": "warning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "-c",
+        "from chupa.config import load_config; from pathlib import Path; assert 'chupa/specs/' in load_config(None, cwd=Path('.')).engine_plane_safety_inventory"
+      ],
+      "rc": 0,
+      "tail": "warning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "    [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/specs-in-package/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/test_testguard.py::test_guards_are_phase_scoped\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_budget_and_slowest\ntests/test_testguard.py::test_budget_and_slowest\ntests/test_testguard.py::test_guarded_calls_and_asyncio\ntests/test_testguard.py::test_setup_and_teardown\ntests/test_testguard.py::test_xdist_budget\n  /home/djp/source/chupa/.chupa/state/worktrees/specs-in-package/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3025 passed, 10 warnings in 77.52s (0:01:17)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
