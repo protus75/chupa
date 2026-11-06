@@ -55,6 +55,24 @@ def started(pid: int) -> datetime:
     return datetime.strptime(text, "%a %b %d %H:%M:%S %Y").astimezone()
 
 
+def engine_alive(state: Path) -> bool:
+    """Whether the lock holder (a drain, serve, or run) is still alive; a killed drain leaves its lockfile behind."""
+    # Separate except clauses: ruff's 3.14 target rewrites a tuple into syntax the 3.12 system python3 rejects.
+    try:
+        lock = json.loads((state / "chupa.lock").read_text())
+    except OSError:
+        return False
+    except ValueError:
+        return False
+    try:
+        os.kill(lock.get("pid", 0), 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return bool(lock.get("pid"))
+
+
 def this_repo(pid: int, config: str | None) -> bool:
     """Whether a drain runs against this checkout: its --config is ours, or it has none and runs here."""
     try:
@@ -188,20 +206,22 @@ def held(events: list[dict]) -> set[str]:
     return {s for s in waiting if terminals[s].get("to") not in SETTLED}
 
 
-def queue(events: list[dict], last_state: dict[str, dict]) -> list[tuple[str, str, str]]:
-    """Every confirmed ticket not yet settled or rejected: (priority, stem, why it is waiting)."""
+def queue(events: list[dict], last_state: dict[str, dict], running: set[str]) -> list[tuple[str, str, str]]:
+    """Every confirmed ticket not yet settled, rejected, or running: (priority, stem, why it is waiting)."""
     done = SETTLED | {"rejected"}
     waiting_on_person = held(events)
     rows = []
     for path in sorted((ROOT / "tickets").glob("*/ticket.md")):
         stem, meta = path.parent.name, frontmatter(path)
         last = last_state.get(stem, {}).get("to")
-        if meta.get("state") != "confirmed" or last in done or last == "running":
+        if meta.get("state") != "confirmed" or last in done or stem in running:
             continue
         open_deps = [d for d in depends(path) if last_state.get(d, {}).get("to") not in SETTLED]
         if stem in waiting_on_person:
             spent = next((e["body"].get("mechanical") for e in reversed(events) if e.get("ticket") == stem and e.get("body", {}).get("signal") == "diagnosis"), None)
             why = f"NEEDS YOUR KEEP OR KILL ({spent})" if spent and "cap spent" in spent else "held; the drain retries it when new work runs out"
+        elif last == "running":
+            why = "interrupted: the engine stopped mid-run; reruns when it restarts"
         elif open_deps:
             why = "waits on " + ", ".join(open_deps)
         elif last is None:
@@ -244,7 +264,8 @@ def snapshot() -> str:
     for e in events:
         if e.get("type") == "state_transition" and e.get("ticket"):
             last_state[e["ticket"]] = {**e["body"], "ts": e["ts"]}
-    running = [s for s, b in last_state.items() if b.get("to") == "running"]
+    # The journal's last `running` outlives a killed engine; only a live lock holder makes it true.
+    running = [s for s, b in last_state.items() if b.get("to") == "running"] if engine_alive(state) else []
     lines.append("")
     if running:
         for stem in running:
@@ -271,7 +292,7 @@ def snapshot() -> str:
             lines.append(f"  {clock(body['ts'])}  {stem}  {outcome}")
         if not done:
             lines.append("  (nothing finished yet)")
-    pending = queue(events, last_state)
+    pending = queue(events, last_state, set(running))
     lines += ["", f"Queue ({len(pending)} to do):"]
     lines += [f"  {priority}  {stem}  {why}" for priority, stem, why in pending] or ["  (empty)"]
     recent = [e for e in log if e.get("event") in ("stage_start", "stage_end")][-8:]

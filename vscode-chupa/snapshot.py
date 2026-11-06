@@ -8,7 +8,6 @@ draws as graph parents.
 """
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -61,21 +60,6 @@ def simulate(candidates: dict, done: set[str], authored: dict, *, strict: bool) 
     return order
 
 
-def engine_alive(state: Path) -> bool:
-    """Whether the lock holder (a drain, serve, or run) is still alive; a killed drain leaves its lockfile behind."""
-    try:
-        pid = json.loads((state / "chupa.lock").read_text())["pid"]
-    except OSError, ValueError, KeyError:
-        return False
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
-
-
 def commits() -> dict[str, dict]:
     out = subprocess.run(["git", "log", "--format=%H%x1f%h%x1f%an%x1f%aI%x1f%s", "main"], cwd=ROOT, capture_output=True, text=True).stdout
     rows = {}
@@ -102,7 +86,7 @@ def snapshot() -> dict:
 
     merged = sorted((s for s in last if to(s) in SETTLED), key=lambda s: last[s]["ts"], reverse=True)
     # The journal's last `running` outlives a killed engine; only a live lock holder makes it true.
-    alive = engine_alive(state)
+    alive = watch.engine_alive(state)
     running = [s for s in last if to(s) == "running"] if alive else []
     open_ = {s: t for s, t in tickets.items() if to(s) not in SETTLED | RETIRED and s not in running and t.frontmatter.state not in ("rejected", "merged")}
     runnable = {s: t for s, t in open_.items() if t.frontmatter.state == "confirmed" and s not in held}
