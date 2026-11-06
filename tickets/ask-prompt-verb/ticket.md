@@ -18,6 +18,8 @@ none
 - docs/how-chupa-works.md
 - docs/host-contract.md
 - tests/test_cli.py
+- docs/host-running.md
+- tests/test_host_running.py
 
 ## Goal / Why
 The `vscode-chupa` extension's "Ask Claude: diagnose" and "Ask Claude: review" menu items open a Claude Code chat with a prompt. Today that prompt is hard-coded as JavaScript template strings in `askClaude` in `vscode-chupa/extension.js`. This has three problems:
@@ -68,6 +70,7 @@ After this change:
   - Section 8.4: one sentence saying that `specs/ask/` holds operator prompt templates rendered by `prompt`, not driver specs.
   - Section 11: `ask_notes`.
   - `docs/host-contract.md`: `ask_notes` as the host's way to add guidance to these prompts.
+  - `docs/host-running.md`: a `prompt` row in the verb table, in the format of the `core` row, marked as working while serve runs.
 - Out: the driver, `load_spec`, the eight driver specs, the extension's menu, and `dev.py`.
 
 ## Scope fence
@@ -80,11 +83,12 @@ After this change:
 - tests/test_config.py
 - docs/how-chupa-works.md
 - docs/host-contract.md
+- docs/host-running.md
 
 ## Acceptance criteria
 1. `uv run pytest -q tests/test_ask.py tests/test_config.py` exits 0, including the tests above.
 2. `node --check vscode-chupa/extension.js` exits 0, and `grep -c "Diagnose chupa ticket" vscode-chupa/extension.js` prints 0.
-3. `docs/how-chupa-works.md` sections 2.1, 8.4 and 11, and `docs/host-contract.md`, describe `prompt` and `ask_notes`.
+3. `docs/how-chupa-works.md` sections 2.1, 8.4 and 11, `docs/host-contract.md`, and the `docs/host-running.md` verb table describe `prompt` and `ask_notes`.
 4. `uv run pytest -q` exits 0.
 
 ## Verification
