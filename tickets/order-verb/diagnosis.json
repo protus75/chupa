@@ -1,0 +1,19 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "bd615422ee951995b19a7be1b9b0c4157e499557",
+  "stem": "order-verb",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Add docs/host-running.md to the Scope fence and Context. Its verb table must gain an `order` row, because tests/test_host_running.py::test_verb_table_matches_parser fails for any parser verb missing from that table, and criterion 4 (`uv run pytest -q`) cannot pass otherwise.",
+    "In Scope in / docs, require an `order` row in the docs/host-running.md verb table, placed beside `new`. Fill its 'Works while serve runs?' column with Yes, since the ticket says `order` takes no lock, as with `new`.",
+    "On the next attempt, run the full `uv run pytest -q` early. The prior run had tests/test_cli.py and `node --check` passing, and the only blocker was the out-of-fence verb table found by the full suite."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
