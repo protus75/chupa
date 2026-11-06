@@ -6,7 +6,7 @@ state: confirmed
 ---
 
 ## Depends on
-- prompts-drop-plan
+- none
 
 ## Context
 - chupa/hardening.py
