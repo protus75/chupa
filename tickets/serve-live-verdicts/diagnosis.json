@@ -1,18 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "3fe8726215547d325a2bb3a446e894ef792b8fb9",
+  "produced_at_sha": "f346bfc92197bdd7ecac72a9af839ef17a58f720",
   "stem": "serve-live-verdicts",
-  "attempt": 1,
+  "attempt": 2,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "Criterion 2 lacks tests. In tests/test_control.py, hold the lock and publish a null-hold_id `reject` request for a Reject-queue stem. Run settle_admissions twice, one run crashing mid-effect. Assert committed `state: rejected`, one `rejected` transition and one `reject_verdict kill`.",
-    "Repeat the held-lock reject test for a committed draft that has a confirmed dependent. Assert that the dead-dependent box messages match what the lock-free `reject` path files for the same setup, as the ticket's criterion 2 requires.",
-    "In tests/test_control_cli.py, run `reject <stem>` through entry.main while the lock is held. Assert it prints `reject submitted: <request_id> -- ./dev.py status shows the outcome` and does not exit 2 \"lock held\".",
-    "Review also found that the settle key changed from `ticket-plane/<stem>/confirmed/<request_id>` to `<verb>`, so serve could re-apply draft confirms accepted before the upgrade. Make sure settle_admissions never re-applies a request that already completed under the old key. Add a test for it.",
-    "Keep the existing verdict split, inbox widening, status refusal section and docs edits. Only the reject-path tests and the replay of already-settled confirms need work. Rerun both Verification commands on a stable tree."
+    "Delete the legacy-key branch in chupa/control.py settle_admissions (the `old_key`/`old` lookup under `ticket-plane/<stem>/confirmed/<request_id>` and its `draft_confirmed` re-append). The ticket names one key only: `ticket-plane/<stem>/<verb>/<request_id>`.",
+    "Remove `runner.confirm_draft` and `runner.committed_draft` from chupa/runner.py. Scope-in requires one lock-free function to hold every draft-promotion rule, and after the change neither has a caller. Grep tests for references and update any that remain.",
+    "Do not edit chupa/mergequeue.py, which is outside the fence. File `MergeQueue.confirm_draft`, now unreferenced, in the Suggestion Box for removal, and list it under second problems in the run record.",
+    "Keep the rest of attempt 2. The reviewer judged the live keep, reject and refusal flows correct, and the full suite passed (3033 tests). Rerun both verification commands after the deletions."
   ],
   "mechanical": null,
   "spec_version": "1.2",
