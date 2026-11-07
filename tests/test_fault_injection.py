@@ -21,6 +21,7 @@ from chupa.journal import EventType, Journal, JournalCorruption, _parse_segment
 
 T0 = datetime(2026, 10, 5, tzinfo=UTC)
 KEYS = ("a", "b")
+SHARDS = 8
 
 
 class Crash(BaseException):
@@ -116,6 +117,17 @@ def crash_points(points: list[tuple[str, int]]):
             yield i, landed
 
 
+def shard_cases(cases, shard):
+    return [(n, case) for n, case in enumerate(cases) if n % SHARDS == shard]
+
+
+def test_shards_partition_every_crash_case():
+    cases = [(i, i + 1) for i in range(SHARDS * 2 + 1)]
+    shards = [shard_cases(cases, shard) for shard in range(SHARDS)]
+    assert all(shards)
+    assert sorted(case for shard in shards for case in shard) == list(enumerate(cases))
+
+
 @pytest.fixture(params=["fresh", "rolled-history"])
 def start(request, tmp_path) -> Path:
     state = tmp_path / "start"
@@ -133,12 +145,15 @@ def test_scenario_has_the_expected_write_points(start, tmp_path, monkeypatch):
     assert verbs in (per_events, ["fsync"] + per_events)
 
 
-def test_crash_at_every_write_point_tolerates_torn_tail_and_keeps_once_semantics(start, tmp_path, monkeypatch):
+@pytest.mark.parametrize("shard", range(SHARDS))
+def test_crash_at_every_write_point_tolerates_torn_tail_and_keeps_once_semantics(start, tmp_path, monkeypatch, shard):
     points = write_points(start, tmp_path, monkeypatch)
     cases = list(crash_points(points))
     assert len(cases) > 4 * 100  # byte-exhaustive over every journal record
 
-    for n, (i, landed) in enumerate(cases):
+    selected = shard_cases(cases, shard)
+    assert selected
+    for n, (i, landed) in selected:
         state = tmp_path / f"case-{n}"
         shutil.copytree(start, state)
         world = World()
