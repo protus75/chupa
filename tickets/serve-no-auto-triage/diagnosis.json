@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "282e7e0fa2651a01156a1a3ac2a09ddc09fd7876",
+  "stem": "serve-no-auto-triage",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Acceptance criterion 5 (`./dev.py test` exits 0) cannot pass inside the scope fence: eval/daemon_soak.py:379 waits for serve to empty the pending box and requires a triage_pass signal. Add eval/daemon_soak.py to the fence and change its box-consumer evidence to expect pending messages.",
+    "tests/test_daemon_soak_runner.py:135 requires the soak's fault reports to be resolved, which contradicts the ticket's rule that pending messages stay pending. Add it to the fence and assert that those reports stay pending.",
+    "eval/host_loop.py:166 starts serve and waits for suggestions and reports to be triaged into tickets. Add it to the fence and have the fixture run operator triage itself (the `triage` CLI path) before serve continues. Serve must not regain any triage path.",
+    "Before re-queueing, grep tests/ and eval/ for every file that depends on serve triaging: Serve.triage, author_driver, triage_pass, and waits on box.pending() emptying. Fence all of them. The last attempt passed the 70 focused serve tests but the full suite had 4 failures and 70 errors.",
+    "Reuse the scoped serve.py, triage.py, daemon.py and test changes from the last attempt. They passed tests/test_serve.py; only the files outside the fence blocked the commit."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
