@@ -13,6 +13,7 @@ none
 - chupa/triage.py
 - chupa/daemon.py
 - tests/test_serve.py
+- tests/test_provider_cooldown_failover.py
 - docs/how-chupa-works.md
 
 ## Goal / Why
@@ -33,6 +34,8 @@ After this change `serve`'s box consumer still ingests host bug reports from `re
   - The five-merge test that enqueues `a policy decision`: its wait condition no longer requires a triage call, and it asserts the message is still pending and the `triage` surface was never called.
   - `test_serve_author_uses_shared_journal` is deleted: serve no longer triages or authors.
   - The consumer-ending test's `rig.owner.triage` becomes `rig.owner.box_intake`.
+  - `test_serve_failed_notify_backoff_and_restart`: drop the `wait_until(lambda: not rig.owner.box.pending())` line and its comment, since serve no longer settles the storm reports; assert instead that the storm `failure_report` messages are still pending.
+- In: `tests/test_provider_cooldown_failover.py`, the test that starts `cli.build_serve` after a drain: remove its serve-triage block (the `triage_pass` stub, the `box.pending` monkeypatches, the `refreshed` wait, and the `c-live` config assertions). Keep its drain and serve provider-session and timer assertions.
 - In: `docs/how-chupa-works.md`:
   - section 7.2: the fourth loop is **Box intake**, which ingests host bug reports into the Suggestion Box and never triages;
   - section 9.2: only the `triage` command triages; drop "(or `serve`'s triage loop)".
@@ -47,6 +50,7 @@ After this change `serve`'s box consumer still ingests host bug reports from `re
 - chupa/triage.py
 - chupa/daemon.py
 - tests/test_serve.py
+- tests/test_provider_cooldown_failover.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
