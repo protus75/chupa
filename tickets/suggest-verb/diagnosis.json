@@ -1,0 +1,19 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "2df8c9da2b871d355ada34ba25fdb1eadad9fce9",
+  "stem": "suggest-verb",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "In tests/test_cli.py, rewrite test_suggest_publishes_while_writer_lock_is_held without subprocess.Popen or hand-copied flock code. Hold the lock in-process the way tests/test_cli.py:383 and :597 do: Lockfile(root / \".chupa/state\", instance_id=\"other\", clock=Clock()).acquire().",
+    "Inside try/finally, run cli(root, \"suggest\", ...), assert exit 0 and exactly one {\"summary\": ...} *.json under <state_dir>/box/suggestions/, then release the holder in finally. flock is per open file, so suggest still fails or blocks if it takes the lock.",
+    "Review found nothing else wrong. Keep the verb, triage intake, dev.py subcommand, docs, and other tests as they are; change only that one test, then rerun both commands in the ticket's ## Verification section."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
