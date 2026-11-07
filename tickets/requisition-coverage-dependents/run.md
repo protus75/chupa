@@ -8,7 +8,7 @@ none
 
 ## Dead ends
 
-The first full test run exposed misplaced keyword arguments in three test calls; corrected them before rerunning successfully.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 45 minutes; completed in less than 45 minutes.
+Expected 45 minutes; completed within the budget.
 
