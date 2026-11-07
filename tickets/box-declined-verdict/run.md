@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The ticket fences tickets/decisions and requires renaming all 46 decision records there, but the task instructions prohibit editing anything under tickets/.
+The existing registry records also store the old value in their id and kind frontmatter; the operator’s post-merge record migration must update those fields as well as the filenames.
 
 ## Dead ends
 
-none
+Implemented the fenced changes and ran verification; the targeted suite passed, but the full suite requires a host guide edit outside the fence.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Ticket budget: 60 minutes expected; work stopped before completion.
 
