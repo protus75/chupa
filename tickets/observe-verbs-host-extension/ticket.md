@@ -49,13 +49,16 @@ After this change:
   - recent steps;
   - the text renderer.
 
-  The state dir comes from the loaded config. Process listing and git go through chupa's seams (`SubprocessExec`, `Git`), with no raw `subprocess` in `chupa/`.
+  The state dir comes from the loaded config. Process listing and git go through chupa's seams (`SubprocessExec`, `Git`), with no raw `subprocess` in `chupa/observe.py`.
 - In: `chupa/__main__.py`. These verbs take no lock and write nothing:
   - `chupa watch [--once]` prints the text view (refreshing every 3 seconds without `--once`);
   - `chupa snapshot` prints the extension's JSON, plus a `stateDir` field (absolute path).
 - In: delete `watch.py` and `vscode-chupa/snapshot.py`.
 - In: `dev.py`: `watch` runs `chupa watch` through `uv`.
-- In: `tests/test_watch.py` imports from `chupa.observe`. Every existing test keeps its assertion, plus `test_snapshot_verb_reads_config_state_dir`, which uses a `--config` whose `state_dir` is not `.chupa/state`.
+- In: `tests/test_watch.py` imports from `chupa.observe`. Every existing test keeps its assertion, plus `test_snapshot_verb_reads_config_state_dir`, which uses a `--config` whose `state_dir` is not `.chupa/state`, and `test_observe_verbs_take_no_lock_and_write_nothing`:
+  - the test process holds a `Lockfile` on the config's `state_dir`;
+  - `main(['--config', <path>, 'snapshot'])` and `main(['--config', <path>, 'watch', '--once'])` both exit 0;
+  - the state dir's file listing and every file's bytes are unchanged afterwards.
 - In: `vscode-chupa`.
   - New setting `chupa.command`: an array of strings, `resource` scope, default `["uv", "run", "python", "-m", "chupa"]`. A host sets, for example, `["scripts/chupa"]`.
   - Activation is `workspaceContains:tickets/*/ticket.md`. The root is the first workspace folder with a `tickets/` dir.
@@ -84,17 +87,18 @@ After this change:
 - docs/host-contract.md
 
 ## Acceptance criteria
-1. `uv run pytest -q tests/test_watch.py` exits 0, including `test_snapshot_verb_reads_config_state_dir`.
-2. `watch.py` and `vscode-chupa/snapshot.py` no longer exist. `grep -rn "dev.py\|\.chupa/state" vscode-chupa/` prints nothing.
-3. `node --check vscode-chupa/extension.js` exits 0.
-4. `docs/how-chupa-works.md` sections 2.1 and 2.2, and `docs/host-contract.md`, describe `watch`, `snapshot`, and `chupa.command`.
-5. `uv run pytest -q` exits 0.
+1. `./dev.py test tests/test_watch.py` exits 0, including `test_snapshot_verb_reads_config_state_dir`.
+2. `test_observe_verbs_take_no_lock_and_write_nothing` passes: with the lock held elsewhere, both verbs exit 0 instead of refusing on the held lock, and the state dir is byte-identical, not changed by a written `queue.json` or journal segment.
+3. `watch.py` and `vscode-chupa/snapshot.py` no longer exist. `grep -rn "dev.py\|\.chupa/state" vscode-chupa/` prints nothing.
+4. `node --check vscode-chupa/extension.js` exits 0.
+5. `docs/how-chupa-works.md` sections 2.1 and 2.2, and `docs/host-contract.md`, describe `watch`, `snapshot`, and `chupa.command`.
+6. `./dev.py test` exits 0.
 
 ## Verification
 ```
-uv run pytest -q tests/test_watch.py
+./dev.py test tests/test_watch.py
 node --check vscode-chupa/extension.js
-uv run pytest -q
+./dev.py test
 ```
 
 ## Definition of rejected
