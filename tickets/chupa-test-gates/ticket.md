@@ -1,11 +1,14 @@
 ---
 state: confirmed
 source: human
-priority: P2
+priority: P1
 kind: chore
 ---
 
 ## Depends on
+- chupa-ruff-reclean
+- chupa-ruff-reclean-tests-a-l
+- chupa-ruff-reclean-tests-m-z
 - tests-split
 - autofix-file-globs
 - chupa-ruff-tests-l-z
