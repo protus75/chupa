@@ -1,0 +1,21 @@
+# Full-suite run 2026-11-07 (./dev.py test tests, -n auto, drain running): setup error of tests/test_host_loop.py, all 3 tests
+E           eval.host_loop.LoopRefused: report_to_regression_bug_loop (regression): triage exited 1:  Traceback (most recent call last):
+E             File "/home/djp/source/chupa/chupa/author.py", line 301, in author
+E               sha = await driver.effects.run(commit, key=f"ticket-plane/{reply.stem}/author", ticket=None)
+E                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E             File "/home/djp/source/chupa/chupa/effects.py", line 37, in run
+E               result = await action()
+E                        ^^^^^^^^^^^^^^
+E             File "/home/djp/source/chupa/chupa/author.py", line 295, in commit
+E               await checkout.git.add(checkout.repo, paths)
+E             File "/home/djp/source/chupa/chupa/git.py", line 77, in add
+E               await self._run(dir, "add", "--", *paths)
+E             File "/home/djp/source/chupa/chupa/git.py", line 44, in _run
+E               raise GitError(argv, rc, out, err)
+E           chupa.git.GitError: ['git', '-C', '/tmp/pytest-of-djp/pytest-12108/popen-gw13/host-loop0/regression', 'add', '--', 'tickets/regression/ticket.md', 'tickets/regression/evidence/replay.json', 'tickets/regression/evidence/log.txt', 'tickets/regression/evidence/report.json'] exited 128: fatal: Unable to create '/tmp/pytest-of-djp/pytest-12108/popen-gw13/host-loop0/regression/.git/index.lock': File exists.
+E           
+E           Another git process seems to be running in this repository, e.g.
+E           an editor opened by 'git commit'. Please make sure all processes
+E           are terminated then try again. If it still fails, a git process
+E           may have crashed in this repository earlier:
+E           remove the file manually to continue.

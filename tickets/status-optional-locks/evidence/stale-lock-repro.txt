@@ -1,0 +1,4 @@
+$ python3 stale_lock.py
+git (no flags) status: lock seen while running in 5/5, stale index.lock after SIGKILL in 5/5
+git --no-optional-locks status: lock seen while running in 0/5, stale index.lock after SIGKILL in 0/5
+git version 2.43.0
