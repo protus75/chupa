@@ -2,6 +2,7 @@ from pathlib import Path
 from unittest.mock import Mock, mock_open
 
 import dev
+import pytest
 
 
 def test_drain_detaches_and_appends_to_configured_state(monkeypatch, capsys):
@@ -73,3 +74,20 @@ def test_suggest_forwards_summary(monkeypatch):
     monkeypatch.setattr(dev, "run", run)
     dev.main()
     run.assert_called_once_with(["uv", "run", "python", "-m", "chupa", "suggest", "an idea"])
+
+
+def test_test_passes_leading_options_to_pytest(monkeypatch):
+    monkeypatch.setattr(dev.sys, "argv", ["dev.py", "test", "--durations=25", "-k", "foo"])
+    run = Mock(return_value=Mock(returncode=0))
+    monkeypatch.setattr(dev.subprocess, "run", run)
+    dev.main()
+    run.assert_called_once_with(
+        ["uv", "run", "pytest", "-q", "--durations=25", "-k", "foo"],
+        cwd=dev.ROOT,
+        check=False,
+    )  # Leading options must reach pytest in their original order.
+
+    monkeypatch.setattr(dev.sys, "argv", ["dev.py", "lint", "--bogus"])
+    with pytest.raises(SystemExit) as error:
+        dev.main()
+    assert error.value.code == 2  # Other commands must still reject unknown options.

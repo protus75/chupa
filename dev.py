@@ -48,9 +48,13 @@ def chupa(*args: str) -> None:
 
 
 def main() -> None:
+    if sys.argv[1:2] == ["test"]:
+        run(["uv", "run", "pytest", "-q", *sys.argv[2:]])
+        return
+
     parser = argparse.ArgumentParser(prog="./dev.py", description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="task")
-    sub.add_parser("test", help="the suite, or the named tests").add_argument("args", nargs=argparse.REMAINDER)
+    sub.add_parser("test", help="the suite, or the named tests")
     sub.add_parser("covmap", help="build the coverage map")
     sub.add_parser("suggest", help="queue an idea for triage").add_argument("summary")
     sub.add_parser("status", help="the engine's projected state")
@@ -81,8 +85,6 @@ def main() -> None:
     args = parser.parse_args()
     if args.task is None:
         run(["uv", "run", "pytest", "-q"])
-    elif args.task == "test":
-        run(["uv", "run", "pytest", "-q", *args.args])
     elif args.task == "new":
         chupa("new", args.stem, "--kind", args.kind)
     elif args.task == "order":
