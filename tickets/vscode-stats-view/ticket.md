@@ -48,7 +48,7 @@ After this change the chupa sidebar ends with a collapsed **Stats** view. Expand
   - A row with children is a collapsed node; a row without children is a leaf. Label and description are drawn as given.
   - A failed run shows one leaf with the last stderr line, as `Snapshot` reports errors.
 - In: `docs/how-chupa-works.md` section 2.2, the `vscode-chupa/` paragraph: the collapsed Stats view and `chupa.statsWindow`.
-- In: `docs/how-chupa-works.md` sections 2.1 and 2.2: the `stats` rows list `--tree`.
+- In: `docs/how-chupa-works.md` section 2.1: the `stats` verb row lists `--tree`. `./dev.py stats` does not gain `--tree`; only the extension uses it.
 - Out: `project_stats` and `render_stats` behavior, `vscode-chupa/snapshot.py`, the other views, the extension version (`./dev.py vscode` bumps it), and new extension commands.
 
 ## Scope fence
@@ -62,7 +62,7 @@ After this change the chupa sidebar ends with a collapsed **Stats** view. Expand
 ## Acceptance criteria
 1. `node --check vscode-chupa/extension.js` exits 0.
 2. `vscode-chupa/package.json` parses as JSON. Its last `chupa` view is `chupa.stats` with `"visibility": "collapsed"`, and it declares `chupa.statsWindow` with default `7d`.
-3. `docs/how-chupa-works.md` section 2.2 describes the Stats view, and the `stats` rows in sections 2.1 and 2.2 list `--tree`.
+3. `docs/how-chupa-works.md` section 2.2 describes the Stats view, and the section 2.1 `stats` row lists `--tree`.
 4. `./dev.py test tests/test_stats.py` exits 0, including the new `stats_tree` and `--tree` tests.
 5. `./dev.py test` exits 0.
 
