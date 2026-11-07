@@ -114,7 +114,7 @@ After this change:
     - the `vscode-chupa/` paragraph: the Suggestion Box view.
   - `docs/host-running.md`: a `dismiss` row in the verb table (works while serve runs: No), which `tests/test_host_running.py::test_verb_table_matches_parser` requires; the `triage` and `prompt` rows mention ids.
 - Out:
-  - `serve`'s background triage loop (a separate ticket removes it);
+  - `serve`'s background triage loop (removed by `serve-no-auto-triage`, merged);
   - automatic triage of any kind;
   - bulk dismissal from the CLI with no ids;
   - deleting box files;
