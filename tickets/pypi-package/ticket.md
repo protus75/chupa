@@ -50,6 +50,7 @@ After this change:
 - uv.lock
 - dev.py
 - tests/test_cli.py
+- tests/test_dev.py
 - README.md
 - docs/how-chupa-works.md
 - docs/host-contract.md
@@ -58,8 +59,9 @@ After this change:
 1. The wheel built by `uv build --wheel` contains `chupa/specs/review.md` and an entry point `chupa = chupa.__main__:main`, and contains no `tests/` or `eval/` file. The first Verification command checks this.
 2. `uv run chupa --help` exits 0, so the console script is installed.
 3. With `UV_PUBLISH_TOKEN` unset, `./dev.py publish` exits non-zero and its output names `UV_PUBLISH_TOKEN`, without running `uv build`. The third Verification command checks this.
-4. `docs/how-chupa-works.md` sections 2 and 2.2, `docs/host-contract.md` `## Instance custody`, and `README.md` describe `chupa <verb>`, `uv tool install chupa`, and `./dev.py publish`.
-5. `uv run pytest -q` exits 0.
+4. `tests/test_dev.py::test_publish_uploads_built_files` sets `UV_PUBLISH_TOKEN` and fakes `dev.subprocess.run`, the fake writing a wheel and an sdist into the `-o` directory on the build call. `./dev.py publish` then makes exactly two calls: `["uv", "build", "-o", <tmp>]`, then `["uv", "publish", <each built file>]` as argv lists. It runs no git and leaves `pyproject.toml` unchanged.
+5. `docs/how-chupa-works.md` sections 2 and 2.2, `docs/host-contract.md` `## Instance custody`, and `README.md` describe `chupa <verb>`, `uv tool install chupa`, and `./dev.py publish`.
+6. `uv run pytest -q` exits 0.
 
 ## Verification
 ```
