@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 45 minutes; completed in under 10 minutes.
+Expected 45 minutes; work completed within the budget.
 
