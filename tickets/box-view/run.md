@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The existing serve loop performs box intake without automatic triage, clearing the prior attempt’s reported contradiction.
+none
 
 ## Dead ends
 
-None.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Not measured.
+none
 
