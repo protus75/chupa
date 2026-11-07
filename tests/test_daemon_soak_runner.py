@@ -132,7 +132,7 @@ def test_daemon_soak_conflict_rungs(evidence):
     assert {(m.origin, m.outcome) for m in reports} == {("mechanical", "ok"), ("unresolved", "gate_failed")}
     ids = {e.body["occurrence_id"] for e in member.journal.read() if e.body.get("kind") == "storm_occurrence"}
     assert {"mechanical/0/mechanical-conflict", "unresolved/0/unresolved-conflict"} <= ids
-    assert all(m.status == "resolved" for m in reports)
+    assert all(m.status == "pending" for m in reports)
     assert all(result[0] == 0 for _, result in member.main_checks)
 
 

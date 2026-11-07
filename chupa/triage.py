@@ -107,21 +107,15 @@ async def triage_pass(checkout: Checkout, llm: LLM) -> list[tuple[str, str]]:
     driver = Driver.from_config(checkout.config, llm=llm, env=checkout.env, clock=checkout.clock, sleep=checkout.sleep, fs=checkout.fs)
     driver.journal = checkout.journal
     driver.effects = Effects(checkout.journal)
-    if checkout.control is not None:
-        checkout.control.author_driver = driver
-    try:
-        lines = await _settle_pass(checkout, driver, box, spec, history, pass_no)
-        for message in box.messages():
-            if message.message_class == "bug_report" and message.resolution is not None and message.resolution.kind == "ticket":
-                try:
-                    await attribute_escape(checkout, driver, message)
-                except (GitError, OSError, ExecutableNotFound, ValueError, KeyError, yaml.YAMLError) as exc:
-                    driver.log.event("escape_attribution_incomplete", box_id=message.id, error=str(exc), paved_road="repair repository/evidence access and retry triage")
-                    lines.append((message.id, f"{message.id}: attribution incomplete; repair repository/evidence access and retry triage"))
-        return lines
-    finally:
-        if checkout.control is not None:
-            checkout.control.author_driver = None
+    lines = await _settle_pass(checkout, driver, box, spec, history, pass_no)
+    for message in box.messages():
+        if message.message_class == "bug_report" and message.resolution is not None and message.resolution.kind == "ticket":
+            try:
+                await attribute_escape(checkout, driver, message)
+            except (GitError, OSError, ExecutableNotFound, ValueError, KeyError, yaml.YAMLError) as exc:
+                driver.log.event("escape_attribution_incomplete", box_id=message.id, error=str(exc), paved_road="repair repository/evidence access and retry triage")
+                lines.append((message.id, f"{message.id}: attribution incomplete; repair repository/evidence access and retry triage"))
+    return lines
 
 
 async def _passed_surfaces(checkout, candidate, history):

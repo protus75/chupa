@@ -376,7 +376,7 @@ class _Member:
     async def file_fault(self, stem, sequence, suffix, outcome, summary):
         async with self.owner.mutations():
             self.owner.box.enqueue(message_class="failure_report", origin=stem, stage="merge", outcome=outcome, summary=summary, occurrence_id=f"{stem}/{sequence}/{suffix}")
-        await self.until(lambda: not self.owner.box.pending() and self.owner.mutating is None)
+        await self.until(lambda: any(m.origin == stem and m.stage == "merge" and m.status == "pending" for m in self.owner.box.messages()) and self.owner.mutating is None)
 
     def facts(self, stem):
         return [e for e in self.journal.read() if e.ticket == stem and e.body.get("kind") == CONFLICT_FACTS]
@@ -491,7 +491,7 @@ async def _observe(member: _Member) -> DaemonSoakEntry:
     need(any(e.type == EventType.TIMER_FIRED for e in events), "timer firing missing")
     need(any(e.type == EventType.EFFECT_COMPLETION and e.key == "checkpoint-push/0" for e in events) and any(argv[3:4] == ["push"] for argv, _, _ in m.exec.calls), "checkpoint polling missing")
     need(
-        any(e.body.get("signal") == "triage_pass" for e in events) if m.name != DAEMON_SOAK_MEMBERS[0] else any(e.body.get("kind") == RECOVERY_ALERT for e in events),
+        (any(message.message_class == "failure_report" and message.stage == "merge" for message in m.owner.box.messages()) and all(message.status == "pending" for message in m.owner.box.messages() if message.message_class == "failure_report" and message.stage == "merge") and not any(e.body.get("signal") == "triage_pass" for e in events)) if m.name != DAEMON_SOAK_MEMBERS[0] else any(e.body.get("kind") == RECOVERY_ALERT for e in events),
         "Box/alert consumer evidence missing",
     )
     need((await m.verify(m.root))[0] == 0, "main Verification is red")

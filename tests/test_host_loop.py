@@ -62,7 +62,7 @@ class RecordingExec(SubprocessExec):
 
     async def run(self, argv, **kwargs):
         self.calls.append((list(argv), kwargs))
-        if argv[1:3] == ["-m", "chupa"]:
+        if argv[1:3] == ["-m", "chupa"] and kwargs.get("on_spawn"):
             callback = kwargs["on_spawn"]
 
             def spawn(pid):
@@ -103,7 +103,8 @@ def test_host_loop_drives_supervised_fixture_serve(production, tmp_path):
     assert [e.producing_run for e in report.entries[:3]] == [f"{n}/0" for n in ("merge-add", "merge-bonus", "merge-floor")]
     assert all(e.green and not e.engine_plane_edits for e in report.entries)
     serve_calls = [argv for argv, _ in exec_.calls if argv[1:3] == ["-m", "chupa"]]
-    assert len(serve_calls) == 5 and all(argv[-1] == "serve" for argv in serve_calls)
+    assert [argv[-1] for argv in serve_calls].count("serve") == 11
+    assert [argv[-1] for argv in serve_calls].count("triage") == 6
     assert exec_.spawned == exec_.killed
     for member in members:
         assert member.task.done()

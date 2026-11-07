@@ -4,14 +4,13 @@ import asyncio
 import json
 import signal
 import time
-from dataclasses import replace
 from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
 
 from chupa import __main__ as cli
-from chupa import daemon, runner, serve, stages, triage
+from chupa import daemon, runner, serve, stages
 from chupa.artifacts import Cost, StageResult
 from chupa.audit import audit_journal
 from chupa.control import ControlRequest, publish_request
@@ -29,7 +28,6 @@ from tests.test_daemon_composition import sources
 from tests.test_restart_timers import orphan, repository
 from tests.test_scheduler import import_closure, text, turn
 from tests.test_triage import reply
-from tests.waiting import wait_until
 
 
 async def until(rig, predicate):
@@ -172,11 +170,11 @@ async def test_empty_box_report_intake(root, monkeypatch):
     try:
         await until(rig, rig.owner.ready.is_set)
         arrival(root)
-        await until(rig, lambda: rig.owner.box.messages() and rig.owner.box.messages()[0].status == "resolved")
+        await until(rig, lambda: rig.owner.box.messages() and rig.owner.box.messages()[0].status == "pending")
         (message,) = rig.owner.box.messages()
         assert message.report and message.has_repro
-        assert message.resolution.kind == "decision"
-        assert len([e for e in rig.journal.read() if e.body.get("signal") == "triage_pass"]) == 1
+        assert message.resolution is None
+        assert len([e for e in rig.journal.read() if e.body.get("signal") == "triage_pass"]) == 0
     finally:
         await finish(rig, run)
 
@@ -191,40 +189,27 @@ async def test_report_consumer_is_sequential(root, monkeypatch):
     config.write_text(config.read_text() + "report_inbox: inbox\n")
     arrival(root)
     (root / "inbox/b.json").write_text(json.dumps(raw_report(summary="Another material defect")))
-    entered, release = asyncio.Event(), asyncio.Event()
-    active = maximum = calls = 0
+    calls = []
     driving = Driver.run
 
     async def observed(self, stage, consumed, **kwargs):
-        nonlocal active, maximum, calls
-        if stage.surface != "triage":
-            return await driving(self, stage, consumed, **kwargs)
-        assert rig.owner.core.admission._slot.locked()
-        active += 1
-        maximum = max(maximum, active)
-        calls += 1
-        entered.set()
-        try:
-            await release.wait()
-            return await driving(self, stage, consumed, **kwargs)
-        finally:
-            active -= 1
+        if stage.surface == "triage":
+            calls.append(stage.surface)
+        return await driving(self, stage, consumed, **kwargs)
 
     monkeypatch.setattr(Driver, "run", observed)
     run = asyncio.create_task(rig.owner.run())
     try:
-        await until(rig, entered.is_set)
+        await until(rig, lambda: len(rig.owner.box.pending()) == 2)
         heartbeat = rig.checkout.config.state_dir / "heartbeat"
         await until(rig, heartbeat.exists)
         stamp = heartbeat.stat().st_mtime_ns
         await until(rig, lambda: heartbeat.stat().st_mtime_ns != stamp)
-        assert maximum == calls == 1 and len(rig.owner.workers) == 4
-        assert rig.owner.tasks._consumers and len(rig.owner.tasks._consumers) == 3
-        release.set()
-        await until(rig, lambda: len(rig.owner.box.messages()) == 2 and rig.owner.box.pending() == [])
-        assert calls == 2 and maximum == 1
+        assert len(rig.owner.workers) == 4
+        assert len(rig.owner.tasks._consumers) == 3
+        assert {m.summary for m in rig.owner.box.pending()} == {"Observed scoring defect", "Another material defect"}
+        assert calls == []
     finally:
-        release.set()
         await finish(rig, run)
 
 
@@ -377,7 +362,7 @@ async def test_serve_worker_failure_and_kill_suppression(root, monkeypatch, endi
         if ending == "cancel":
             raise cancellation
 
-    rig.owner.tasks._consumers = (bad, rig.owner.merge, rig.owner.triage)
+    rig.owner.tasks._consumers = (bad, rig.owner.merge, rig.owner.box_intake)
     run = asyncio.create_task(rig.owner.run())
     await until(rig, entered.is_set)
     if ending == "kill":
@@ -741,9 +726,6 @@ async def test_serve_consumers_use_existing_writers(root, monkeypatch):
 
     async def driver_run(self, stage, consumed, **kwargs):
         if stage.surface == "triage":
-            assert self.journal is self.effects._journal is rig.journal
-            assert rig.owner.control.author_driver is self
-            assert rig.owner.core.admission.active is None
             triaged.append(self)
         return await driving(self, stage, consumed, **kwargs)
 
@@ -761,55 +743,15 @@ async def test_serve_consumers_use_existing_writers(root, monkeypatch):
     write(root, "source", text())
     run = asyncio.create_task(rig.owner.run())
     try:
-        await until(rig, lambda: len([e for e in terminals(rig) if e.body.get("to") == "merged"]) == 5 and pushes and triaged)
+        await until(rig, lambda: len([e for e in terminals(rig) if e.body.get("to") == "merged"]) == 5 and pushes)
         merged = [e for e in terminals(rig) if e.body.get("to") == "merged"]
         assert all(e.body["commit"] and e.body["reviewed_sha"] for e in merged)
-        assert rig.owner.box.pending() == []
-        assert len(triaged) == 1
+        assert [m.summary for m in rig.owner.box.pending()] == ["a policy decision"]
+        assert triaged == []
         write(root, "dependent", text(depends="- candidate-4"))
         await until(rig, lambda: terminals(rig, "dependent"))
         assert [stem for stem, stage, _ in calls if stage == "implement"] == ["source", "dependent"]
         assert any(e.type == EventType.EFFECT_COMPLETION and e.body == {"result": {"merged": 5}} for e in rig.journal.read())
-    finally:
-        await finish(rig, run)
-
-
-@pytest.mark.asyncio
-async def test_serve_author_uses_shared_journal(root, monkeypatch):
-    from chupa.driver import Driver
-    from tests.test_triage import author_reply, requisition_reply
-
-    llm = FakeLLM([reply("author"), author_reply("drafted"), requisition_reply("approve")])
-    observed = []
-    run_driver = Driver.run
-    rig = await graph(root, monkeypatch)
-    from chupa.config import load_config
-
-    config = root / "config.yaml"
-    config.write_text(
-        config.read_text().replace("routing:\n", "routing:\n  - {tier: high, surface: review, candidates: [{provider: claude}]}\n  - {tier: max, surface: review, candidates: [{provider: claude}]}\n")
-    )
-    rig.checkout = replace(rig.checkout, config=load_config(None, cwd=root))
-    old = rig.owner
-    rig.owner = serve.Serve(rig.checkout, read=old.read, stems=old.stems)
-
-    async def driving(self, stage, consumed, **kwargs):
-        assert self.journal is self.effects._journal is rig.journal
-        assert rig.owner.control.author_driver is self
-        self.llm = llm
-        observed.append((self, stage.surface))
-        return await run_driver(self, stage, consumed, **kwargs)
-
-    monkeypatch.setattr(Driver, "run", driving)
-    rig.owner.box.enqueue(message_class="suggestion", origin="operator", stage=None, outcome=None, summary="an authored repair", occurrence_id="author-fixture")
-    run = asyncio.create_task(rig.owner.run())
-    try:
-        await until(rig, lambda: rig.owner.box.pending() == [])
-        assert [surface for _, surface in observed] == ["triage", "author"]
-        assert observed[0][0] is observed[1][0]
-        assert [r.surface for r in llm.requests] == ["triage", "author", "requisition_review"]
-        assert (root / "tickets/drafted/ticket.md").is_file()
-        assert any(e.type == EventType.EFFECT_COMPLETION and e.key == "ticket-plane/drafted/author" for e in rig.journal.read())
     finally:
         await finish(rig, run)
 
@@ -1698,8 +1640,7 @@ async def test_serve_failed_notify_backoff_and_restart(root, monkeypatch):
         assert rig.owner.notifications.task is None
         assert len(intents()) == len(deliveries(root)) == 1
         assert len(pending_escalations(rig.journal.read())) == 1 and terminals(rig) == []
-        # Restart notification delivery after the fixture's storm reports have committed.
-        await wait_until(lambda: not rig.owner.box.pending())
+        assert [m for m in rig.owner.box.pending() if m.message_class == "failure_report"]
         rig.time.advance(NOTIFY_RETRY_S)
         await until(rig, lambda: len(deliveries(root)) == 2 and rig.owner.notifications.task.done())
         assert len(intents()) == 2 and not notify_completions(rig)

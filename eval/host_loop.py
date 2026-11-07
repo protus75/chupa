@@ -108,7 +108,7 @@ class FixtureLoop:
         self.task = asyncio.create_task(
             self.exec.run([sys.executable, "-m", "chupa", "serve"], cwd=self.root, env=self.env, timeout=self.timeout + 10, on_spawn=lambda pgid: setattr(self, "pgid", pgid))
         )
-        await self.until(lambda: (self.root / ".chupa/state/control/active.json").exists())
+        await self.until(lambda: (self.root / ".chupa/state/control/active.json").exists() and json.loads((self.root / ".chupa/state/control/active.json").read_bytes()) is not None)
 
     def confirm(self):
         state = self.root / ".chupa/state"
@@ -163,22 +163,34 @@ class FixtureLoop:
         rc, out, _ = await self.exec.run([sys.executable, "replay.py", path], cwd=self.root, env=self.env, timeout=10)
         return rc, json.loads(out)
 
+    async def triage_pending(self):
+        await self.until(lambda: bool(Box(self.root / ".chupa/state/box", self.fs).pending()))
+        await self.stop()
+        code, out, err = await self.exec.run([sys.executable, "-m", "chupa", "triage"], cwd=self.root, env=self.env, timeout=self.timeout + 10)
+        if code != 0:
+            raise LoopRefused(self.name, f"triage exited {code}: {out} {err}")
+        self.journal = Journal(self.root / ".chupa/state", self.clock)
+        await self.start()
+
     async def exercise(self):
         await self.start()
         if self.name == "regression":
             await self.report("regression")
+            await self.triage_pending()
             await self.until(lambda: (self.root / "tickets/regression/evidence/replay.json").exists())
             self.before_replay = await self.replay("tickets/regression/evidence/replay.json")
             await self.merged("regression")
             self.after_replay = await self.replay("tickets/regression/evidence/replay.json")
         else:
             self.suggestion()
+            await self.triage_pending()
             terminal = await self.merged(self.name)
             if self.name == "escape":
                 self.escape_replay = await self.replay("evidence/escape.json")
                 # The report resolves to a fresh real bug; its attribution reads escape's squash.
                 self.fs.write(self.root / ".fixture-runtime/selection", b"regression")
                 await self.report("escape", app_commit=terminal.body["commit"])
+                await self.triage_pending()
                 await self.until(
                     lambda: any((e.key or "").startswith("escape-attribution/") and e.type == EventType.EFFECT_COMPLETION and e.body.get("result", {}).get("matches") for e in self.journal.read())
                 )
@@ -191,7 +203,7 @@ class FixtureLoop:
                 state = self.root / ".chupa/state"
                 try:
                     lifecycle, _ = read_active(state, Path.read_bytes)
-                    publish_request(state, ControlRequest("fixture-stop", lifecycle, "kill", None), self.fs)
+                    publish_request(state, ControlRequest(f"fixture-stop-{lifecycle}", lifecycle, "kill", None), self.fs)
                     await asyncio.wait_for(asyncio.shield(self.task), 5)
                 except ValueError, TimeoutError:
                     self.task.cancel()

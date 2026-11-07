@@ -21,7 +21,7 @@ from chupa.journal import EventType, JournalCorruption, run_seq
 from chupa.lockfile import Lockfile
 from chupa.merge import AdmissionBoundary
 from chupa.mergequeue import ConflictHandoff, regate_receipts
-from chupa.providers import ProviderLLM, ProviderSetupError
+from chupa.providers import ProviderSetupError
 from chupa.redact import Redactor
 from chupa.seams import ExecutableNotFound, SubprocessExec
 from chupa.stages import ticket_blob
@@ -189,7 +189,7 @@ class Serve:
         self.core.scheduler.select = self.select
         self.core.admission.resume = self.resume
         self.core.restart.owned = lambda: self.core.admission.active is not None or self.core.admission.task is not None or any(w.continuations for w in self.writers.values())
-        self.tasks = DaemonTasks(watcher=self.watch, merge_queue=self.merge, box_consumer=self.triage)
+        self.tasks = DaemonTasks(watcher=self.watch, merge_queue=self.merge, box_consumer=self.box_intake)
         self.heartbeat = HeartbeatCycle(
             heartbeat=Heartbeat(state_dir=checkout.config.state_dir, fs=checkout.fs),
             workers=lambda: self.healthy(0),
@@ -416,7 +416,7 @@ class Serve:
             await response.wait(poll())
             await response.wait(self.checkout.sleep(SERVE_POLL_S))
 
-    async def triage(self) -> None:
+    async def box_intake(self) -> None:
         response = self.responses[2]
 
         async def poll():
@@ -425,13 +425,6 @@ class Serve:
                     return
                 c = replace(self.checkout, config=snapshot_config(self.control.load_config()))
                 triage.report_intake(c)
-                if not self.box.pending():
-                    return
-                llm = ProviderLLM(c.config, exec_=c.exec_, fs=c.fs, env=c.env, cwd=c.repo, timeout=runner.call_timeout(c.config), session=self.control.providers)
-                problems = await llm.preflight() if self.control.providers.active else []
-                if problems:
-                    raise ProviderSetupError("; ".join(problems))
-                await triage.triage_pass(c, llm)
 
         while True:
             await response.wait(poll())
@@ -440,8 +433,6 @@ class Serve:
     async def abort(self) -> None:
         operations = {task for task in (self.core.admission.task, self.mutating) if task is not None}
         aborts = [writer.abort_current for writer in tuple(self.writers.values())]
-        if self.control.author_driver is not None:
-            aborts.append(self.control.author_driver.abort_current)
         errors = []
         for abort in aborts:
             try:

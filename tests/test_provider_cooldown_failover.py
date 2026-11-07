@@ -367,20 +367,6 @@ async def test_one_provider_payload_and_timers_per_session(root, monkeypatch):
         await until(rig, lambda: bool(terminals(rig, "continuous")))
         assert seen[-1] is rig.owner.control.providers and seen[-1] is not seen[0]
         assert seen[-1].timers is rig.owner.core.restart.timers
-        refreshed = []
-
-        async def triage_pass(checkout, llm):
-            assert llm.session is seen[-1] and checkout.config is llm._config
-            assert llm._timeout == runner.call_timeout(checkout.config)
-            refreshed.append(checkout.config)
-            monkeypatch.setattr(rig.owner.box, "pending", lambda: [])
-
-        monkeypatch.setattr(cli.triage, "triage_pass", triage_pass)
-        rig.fs.write(root / "config.yaml", (root / "config.yaml").read_text().replace("c-max", "c-live").encode())
-        monkeypatch.setattr(rig.owner.box, "pending", lambda: [object()])
-        await until(rig, lambda: bool(refreshed))
-        assert refreshed[0].providers[0].models_by_tier.max == "c-live"
-        assert rig.owner.checkout.config.providers[0].models_by_tier.max == "c-max"
         wait = asyncio.create_task(seen[-1].wait_until(rig.time() + timedelta(hours=1)))
         await turn()
     finally:

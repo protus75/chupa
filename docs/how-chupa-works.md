@@ -452,7 +452,7 @@ publishes `state_dir/control/active.json`, and runs four loops (every 0.1s):
   `## Runs before` orders named stems after the ticket naming them; priority, authored age,
   and stem break ties. Edges to ineligible stems never block dispatch.
 - **Merge queue:** serial admission (section 7.2.1).
-- **Triage:** works the Suggestion Box.
+- **Box intake:** ingests host bug reports into the Suggestion Box and never triages.
 
 Maintenance on each loop: control requests, timers, orphan sweeps, heartbeat
 (`state_dir/heartbeat` mtime), notification replay, and checkpoint pushes. If any loop dies,
@@ -576,7 +576,7 @@ Problems found while working are filed, not fixed in the current diff. Classes: 
 
 ### 9.2 Triage
 
-`triage` (or `serve`'s triage loop) settles pending messages one at a time:
+Only the `triage` command settles pending messages, one at a time:
 
 - `author`: run the Author stage to write a ticket.
 - `tombstone`: the message is already covered by a merged or committed ticket. A third
@@ -593,7 +593,7 @@ decides per message class.
 
 ### 9.4 Host bug reports
 
-When `report_inbox` is set, triage ingests host bug reports (`*.json`, closed schema, bounded
+When `report_inbox` is set, serve and triage ingest host bug reports (`*.json`, closed schema, bounded
 replay and log evidence) into the Suggestion Box as `bug_report` messages, keeping the evidence
 in custody for the authored bug ticket.
 
