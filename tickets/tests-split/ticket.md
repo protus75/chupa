@@ -54,15 +54,17 @@ Every open ticket naming a `tests/` path is a dependency, because moving the fil
   - Repo-root anchors computed from `__file__` (`Path(__file__).resolve().parents[1]`, `.parent.parent`) gain one level (`parents[2]`).
   - Sibling-file reads point at the file's new location. Examples: `tests/test_merge.py` reading `test_stages.py` next to itself, and `tests/test_specs.py` reading `tests/test_specs.py` and `tests/test_plan_lint.py`.
   - Find them with `grep -n __file__` and by reading for `tests/test_` path strings.
+- In: `pyproject.toml`: the ruff per-file ignore key `"tests/test_hostfiles.py"` becomes `"tests/**/test_hostfiles.py"`, so it still matches after the move.
 - In: `docs/how-chupa-works.md` section 2.2: tests live in `tests/unit/` (no disk, network or process; run under `chupa.testguard`) and `tests/integration/`. Run one suite with `./dev.py test tests/unit` or `./dev.py test tests/integration`.
 - Out:
   - rewriting any test, beyond its import paths, to make it unit-clean (converting integration tests to fakes is later work);
-  - `pyproject.toml` (`testpaths = ["tests"]` still collects both suites);
+  - every other `pyproject.toml` setting (`testpaths = ["tests"]` still collects both suites);
   - chupa's `config.yaml` checks (ticket `chupa-test-gates`);
   - moving `tests/waiting.py` and `tests/regress_*.py` (their imports are updated like any other module's).
 
 ## Scope fence
 - tests
+- pyproject.toml
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
@@ -71,8 +73,9 @@ Every open ticket naming a `tests/` path is a dependency, because moving the fil
 3. No unit module touches disk through pytest's temp fixtures. `uv run python -c "import pathlib,re,sys; sys.exit(any(re.search(r'\b(tmp_path|tmp_path_factory|tmpdir)\b', p.read_text()) for p in pathlib.Path('tests/unit').glob('*.py')))"` exits 0.
 4. Nothing is lost. The multiset of test function names under `tests/` equals that at the merge base with `main`, checked by the Verification command starting `uv run python -c "import ast,subprocess`. It fails if a test function was dropped, renamed or duplicated.
 5. No import of the old flat module paths remains, including in `tests/regress_*.py` and `tests/waiting.py`. Checked by the Verification command starting `uv run python -c "import ast,pathlib,sys; sys.exit(any(isinstance(n,ast.ImportFrom)`.
-6. `uv run pytest -q` exits 0.
+6. `./dev.py test` exits 0.
 7. `docs/how-chupa-works.md` section 2.2 names `tests/unit/` and `tests/integration/`.
+8. `pyproject.toml`'s ruff per-file ignores name `tests/**/test_hostfiles.py` and no longer name `tests/test_hostfiles.py`.
 
 ## Verification
 ```
@@ -81,7 +84,8 @@ uv run pytest tests/unit -p chupa.testguard -q
 uv run python -c "import pathlib,re,sys; sys.exit(any(re.search(r'\b(tmp_path|tmp_path_factory|tmpdir)\b', p.read_text()) for p in pathlib.Path('tests/unit').glob('*.py')))"
 uv run python -c "import ast,subprocess,pathlib,collections as c;b=subprocess.run(['git','merge-base','HEAD','main'],capture_output=True,text=True,check=True).stdout.strip();names=lambda src:[n.name for n in ast.walk(ast.parse(src)) if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef)) and n.name.startswith('test')];old=c.Counter(x for f in subprocess.run(['git','ls-tree','-r','--name-only',b,'tests/'],capture_output=True,text=True,check=True).stdout.split() if pathlib.PurePath(f).name.startswith('test_') and f.endswith('.py') for x in names(subprocess.run(['git','show',b+':'+f],capture_output=True,text=True,check=True).stdout));new=c.Counter(x for p in pathlib.Path('tests').rglob('test_*.py') for x in names(p.read_text()));assert old==new,(old-new,new-old)"
 uv run python -c "import ast,pathlib,sys; sys.exit(any(isinstance(n,ast.ImportFrom) and (n.module or '').startswith('tests.test_') for p in pathlib.Path('tests').rglob('*.py') for n in ast.walk(ast.parse(p.read_text()))))"
-uv run pytest -q
+./dev.py test
+uv run python -c "import tomllib; i = tomllib.load(open('pyproject.toml', 'rb'))['tool']['ruff']['lint']['per-file-ignores']; assert 'tests/**/test_hostfiles.py' in i and 'tests/test_hostfiles.py' not in i"
 ```
 
 ## Definition of rejected
