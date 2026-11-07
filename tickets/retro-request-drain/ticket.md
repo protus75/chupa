@@ -79,8 +79,9 @@ After this change, `chupa retro` run while an engine holds the lock sends a `ret
 4. The existing `retro` CLI tests in `tests/integration/test_cli.py` (`test_retro_no_merge`, `test_retro_success`) pass unchanged: with the lock free, `chupa retro` still runs the report directly. `test_retro_refusals[lock]` expects the `current control identity unavailable` refusal (exit 2, `retry after the running engine publishes` in stderr) when no identity is published.
 5. `tests/integration/test_drain.py::test_requested_retro_runs_between_tickets_once` passes. In a drain over two queued tickets, a retro request accepted while the first ticket runs leads to exactly one forced retro call. That call comes after the first ticket's terminal and before the second ticket dispatches. No second forced call follows for the same request id. It rules out running mid-ticket, running twice per request, and ignoring the request.
 6. `tests/integration/test_drain.py::test_requested_retro_runs_before_quiescent_exit` passes. A retro request accepted while the last queued ticket runs gets one forced retro call before `drain` returns quiescent.
-7. `node --check vscode-chupa/extension.js` exits 0, and the picker's `retro` item has label `Retro`.
-8. `./dev.py test` exits 0.
+7. `tests/integration/test_drain.py::test_requested_retro_skipped_on_stop` passes. A retro request and then a stop request are accepted while the only queued ticket runs. The drain report is stopped and the retro hook receives no forced call. It rules out the before-quiescent path running a retro after a stop.
+8. `node --check vscode-chupa/extension.js` exits 0, and the picker's `retro` item has label `Retro`.
+9. `./dev.py test` exits 0.
 
 ## Verification
 ```
