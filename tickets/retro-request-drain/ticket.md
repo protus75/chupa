@@ -38,10 +38,12 @@ After this change, `chupa retro` run while an engine holds the lock sends a `ret
   - A stop or kill returns without running it.
   - A forced retro with no merge since the last report commits nothing (`select_trigger`). So a drain handoff that reuses the lifecycle and runs the same request again is harmless; no durable served marker is needed.
   - `retro.enabled: false` does not suppress a requested retro, just as it does not suppress `chupa retro`.
+- In: `tests/integration/test_cli.py`: `test_retro_refusals[lock]` holds the lock with no `control/active.json`; it now expects exit 2 with `retro: current control identity unavailable` and the discovery road (`retry after the running engine publishes`) in stderr.
+- In: `docs/host-running.md`: the `retro` row says it runs a retro now, or queues one on the running engine; `retro` leaves the line-44 list of verbs that refuse while the lock is held.
 - In: `tests/integration/test_kill_signal_journal.py`: its pinned `SHAPE` constant is updated to the new `_SHAPE` text.
 - In: `vscode-chupa/extension.js`: the picker item becomes label `Retro`, detail `Run a retro report now, or after the running ticket when an engine is running.`, still verb `retro`.
 - In: `docs/how-chupa-works.md`:
-  - the `retro` row in section 2.1 notes that it queues on a running engine;
+  - the `retro` row in section 2.1 notes that it queues on a running engine, and its Lock column changes from `yes` to `try`;
   - section 7.3 lists `retro` among the control requests;
   - section 9.5 says that a requested retro runs at the drain's next between-tickets point;
   - the section 2.2 extension paragraph keeps "retro" in the picker list.
@@ -63,7 +65,9 @@ After this change, `chupa retro` run while an engine holds the lock sends a `ret
 - tests/integration/test_control_cli.py
 - tests/integration/test_drain.py
 - tests/integration/test_kill_signal_journal.py
+- tests/integration/test_cli.py
 - docs/how-chupa-works.md
+- docs/host-running.md
 
 ## Acceptance criteria
 1. `tests/integration/test_closed_sets.py` asserts `control.Verb` is `{"kill", "pause", "resume", "retro", "stop"}`.
@@ -72,7 +76,7 @@ After this change, `chupa retro` run while an engine holds the lock sends a `ret
    - a current-lifecycle retro is accepted and sets `projection.retro_id` to its request id;
    - a retro naming another lifecycle is stale and leaves `retro_id` `None`.
 3. `tests/integration/test_control_cli.py::test_retro_publishes_when_live` passes. With the lock held and discovery publishing lifecycle `retro-life`, `invoke(root, "retro")` returns 0 and writes exactly one inbox request with verb `retro`, lifecycle `retro-life`, and null `hold_id`. Stdout contains `retro submitted:`. It rules out the old `LockHeld` refusal (exit 2).
-4. The existing `retro` CLI tests in `tests/integration/test_cli.py` (`test_retro_no_merge`, `test_retro_success`) pass unchanged: with the lock free, `chupa retro` still runs the report directly.
+4. The existing `retro` CLI tests in `tests/integration/test_cli.py` (`test_retro_no_merge`, `test_retro_success`) pass unchanged: with the lock free, `chupa retro` still runs the report directly. `test_retro_refusals[lock]` expects the `current control identity unavailable` refusal (exit 2, `retry after the running engine publishes` in stderr) when no identity is published.
 5. `tests/integration/test_drain.py::test_requested_retro_runs_between_tickets_once` passes. In a drain over two queued tickets, a retro request accepted while the first ticket runs leads to exactly one forced retro call. That call comes after the first ticket's terminal and before the second ticket dispatches. No second forced call follows for the same request id. It rules out running mid-ticket, running twice per request, and ignoring the request.
 6. `tests/integration/test_drain.py::test_requested_retro_runs_before_quiescent_exit` passes. A retro request accepted while the last queued ticket runs gets one forced retro call before `drain` returns quiescent.
 7. `node --check vscode-chupa/extension.js` exits 0, and the picker's `retro` item has label `Retro`.
