@@ -71,6 +71,7 @@ The registry keeps its name: `tickets/decisions/` holds both declined and tombst
   - the `triage.md` row in the spec table lists `author / tombstone / declined`;
   - the section 2.1 verb table adds `migrate-box`;
   - the section 2.2 `./dev.py` table adds `migrate-box`.
+- In: `docs/host-running.md`: the verb table adds `migrate-box` (works while serve runs: No, it takes the writer lock), so `tests/unit/test_host_running.py::test_verb_table_matches_parser` passes.
 - Out:
   - every file under `tickets/`: the committed `tickets/decisions/decision-*.md` records are renamed to `declined-*.md` by the operator right after merge, outside this branch;
   - the control-plane `decision` field (`control_decision`, kill/stop/pause/storm journal bodies) and every unrelated prose use of the word;
@@ -90,6 +91,7 @@ The registry keeps its name: `tickets/decisions/` holds both declined and tombst
 - vscode-chupa/media/box.js
 - dev.py
 - docs/how-chupa-works.md
+- docs/host-running.md
 - eval/daemon_soak.py
 - tests/integration/test_box.py
 - tests/integration/test_triage.py
