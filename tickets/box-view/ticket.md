@@ -119,7 +119,7 @@ After this change:
   - bulk dismissal from the CLI with no ids;
   - deleting box files;
   - a new resolution kind;
-  - the Tickets view's rows, graph, and existing menus;
+  - the Tickets view's rows, graph, and existing menu entries;
   - the extension version (`./dev.py vscode` bumps it).
 
 ## Scope fence
@@ -172,7 +172,7 @@ Reject the branch if any of the following holds:
 - an unknown id settles any message;
 - `status` or the snapshot writes anything;
 - the extension's JavaScript sorts or filters rows, derives a state, label, or color choice beyond the lookup table, or copies a chupa constant;
-- the Tickets view's existing rows or menus change.
+- the Tickets view's existing rows, or its existing right-click or title-menu entries, change (adding Bulk Triage to the title overflow menu is required).
 
 ## Time budget
 - expected: 90m
