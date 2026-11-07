@@ -8,6 +8,10 @@ kind: feature
 ## Depends on
 - stats-command
 
+## Runs before
+- status-optional-locks
+- soak-report-head-race
+
 ## Context
 - vscode-chupa/package.json
 - vscode-chupa/extension.js
