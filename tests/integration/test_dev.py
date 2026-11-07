@@ -119,3 +119,51 @@ def test_migrate_box_forwards(monkeypatch):
     monkeypatch.setattr(dev, "chupa", call)
     dev.main()
     call.assert_called_once_with("migrate-box")
+
+
+@pytest.fixture
+def vscode_package(tmp_path, monkeypatch):
+    extension = tmp_path / "vscode-chupa"
+    extension.mkdir()
+    (extension / "package.json").write_text('{"version": "1.2.3"}')
+    monkeypatch.setattr(dev, "ROOT", tmp_path)
+    monkeypatch.setattr(dev.sys, "argv", ["dev.py", "vscode-package"])
+    return tmp_path / "dist" / "vscode-chupa-1.2.3.vsix"
+
+
+def test_vscode_package_prints_windows_path_under_wsl(vscode_package, monkeypatch, capsys):
+    monkeypatch.setenv("WSL_DISTRO_NAME", "DifferentDistro")
+    windows_path = r"\\wsl.localhost\Distro\repo\dist\vscode-chupa-1.2.3.vsix"
+    run = Mock(side_effect=[Mock(returncode=0), Mock(returncode=0, stdout=f" {windows_path}\n")])
+    monkeypatch.setattr(dev.subprocess, "run", run)
+
+    dev.main()
+
+    assert run.call_args_list[1] == ((["wslpath", "-w", str(vscode_package)],), {"capture_output": True, "text": True, "check": False})  # Translate the packaged VSIX, not another path.
+    output = capsys.readouterr().out.splitlines()
+    assert f"dev: upload {vscode_package} at https://marketplace.visualstudio.com/manage/publishers/chunkydragon" in output  # Keep the existing upload instruction.
+    assert f"dev: Windows path {windows_path}" in output  # Print stripped wslpath output, not a path built from the distro.
+
+
+def test_vscode_package_skips_wslpath_outside_wsl(vscode_package, monkeypatch, capsys):
+    monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
+    run = Mock(return_value=Mock(returncode=0))
+    monkeypatch.setattr(dev.subprocess, "run", run)
+
+    dev.main()
+
+    run.assert_called_once_with(["npx", "--yes", "@vscode/vsce", "package", "--no-dependencies", "-o", str(vscode_package)], cwd=dev.ROOT / "vscode-chupa", check=False)  # No translation subprocess outside WSL.
+    assert "Windows path" not in capsys.readouterr().out  # Do not print a fabricated path outside WSL.
+
+
+def test_vscode_package_stops_when_wslpath_fails(vscode_package, monkeypatch, capsys):
+    monkeypatch.setenv("WSL_DISTRO_NAME", "Distro")
+    run = Mock(side_effect=[Mock(returncode=0), Mock(returncode=1, stdout="failed output")])
+    monkeypatch.setattr(dev.subprocess, "run", run)
+
+    with pytest.raises(SystemExit) as error:
+        dev.main()
+
+    assert "wslpath" in str(error.value.code)  # Identify the failing translation command.
+    assert "Windows path" not in capsys.readouterr().out  # Never print failed output as a path.
+    assert run.call_args.args[0] == ["wslpath", "-w", str(vscode_package)]  # The failure must come from translating the packaged VSIX.

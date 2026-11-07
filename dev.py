@@ -136,6 +136,11 @@ def main() -> None:
         if subprocess.run(pack, cwd=ROOT / "vscode-chupa", check=False).returncode != 0:
             sys.exit("dev: packaging vscode-chupa failed")
         print(f"dev: upload {output} at https://marketplace.visualstudio.com/manage/publishers/chunkydragon")
+        if os.environ.get("WSL_DISTRO_NAME"):
+            windows_path = subprocess.run(["wslpath", "-w", str(output)], capture_output=True, text=True, check=False)
+            if windows_path.returncode != 0:
+                sys.exit("dev: wslpath failed")
+            print(f"dev: Windows path {windows_path.stdout.strip()}")
     elif args.task == "vscode":
         # VS Code keeps an extension's old icon and views until its version changes, so every install bumps the patch.
         manifest = ROOT / "vscode-chupa" / "package.json"
