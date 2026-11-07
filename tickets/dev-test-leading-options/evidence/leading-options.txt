@@ -1,0 +1,23 @@
+$ ./dev.py test --durations=25
+usage: ./dev.py [-h]
+                {test,covmap,status,stats,lint,new,order,run,serve,drain,kill,stop,watch,publish,vscode,confirm,reject,review}
+                ...
+./dev.py: error: unrecognized arguments: --durations=25
+exit 2
+$ ./dev.py test -k foo
+usage: ./dev.py [-h]
+                {test,covmap,status,stats,lint,new,order,run,serve,drain,kill,stop,watch,publish,vscode,confirm,reject,review}
+                ...
+./dev.py: error: unrecognized arguments: -k
+exit 2
+$ ./dev.py test -q
+usage: ./dev.py [-h]
+                {test,covmap,status,stats,lint,new,order,run,serve,drain,kill,stop,watch,publish,vscode,confirm,reject,review}
+                ...
+./dev.py: error: unrecognized arguments: -q
+exit 2
+$ ./dev.py test tests/test_dev.py --co -q   (a positional first: accepted)
+$ uv run pytest -q tests/test_dev.py --co -q
+tests/test_dev.py: 2
+
+exit 0
