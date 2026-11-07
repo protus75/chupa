@@ -37,6 +37,7 @@ After this change, `drain` self-upgrades only when the repo it drains is the eng
   - `test_an_admission_outside_the_engine_plane_does_not_re_exec` also monkeypatches `drain.ENGINE` to its test repo and keeps its assertions, so it still checks the prefix match alone;
   - new `test_a_host_repo_merge_touching_chupa_does_not_re_exec`: with `drain.ENGINE` pointing at a different directory, a merge touching `chupa/a.py` spawns no child and journals no `drain_handoff`.
 - In: `tests/test_drain.py`: `test_drain_retro_runs_only_when_due[self-upgrade]` and `test_stop_survives_self_upgrade_handoff` monkeypatch `drain.ENGINE` to their test root, and keep their assertions.
+- In: `tests/test_daemon_composition.py`: the `handoff` case of `test_control_lifecycle_cleanup_on_exit_and_handoff` monkeypatches `drain.ENGINE` to its test root, and keeps its assertions.
 - In: `docs/how-chupa-works.md` section 7.1, the **Self-upgrade** paragraph: it applies only when the drained repo is the engine's own source tree. A host repo, or a pip-installed engine, never self-upgrades; upgrade those by reinstalling.
 - Out:
   - `serve`, which already watches only the engine checkout;
@@ -47,6 +48,7 @@ After this change, `drain` self-upgrades only when the repo it drains is the eng
 - chupa/drain.py
 - tests/test_drain_upgrade.py
 - tests/test_drain.py
+- tests/test_daemon_composition.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
