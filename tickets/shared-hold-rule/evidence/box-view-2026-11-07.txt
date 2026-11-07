@@ -1,0 +1,13 @@
+# chupa snapshot row for box-view (extension shows it queued, not held)
+{"stem": "box-view", "section": "queued", "status": "retry pending (last: premise_failed)", "held": false}
+
+# committed ticket.md blob
+fc06a76882aefe247699a70510de49397db46b37
+
+# journal: last run and terminal for box-view (same ticket_sha => drain.premise_parked is true)
+{"v":1,"type":"state_transition","ts":"2026-11-07T04:48:41.166040+00:00","ticket":"box-view","key":null,"body":{"to":"running","ticket_sha":"fc06a76882aefe247699a70510de49397db46b37"}}
+{"v":1,"type":"state_transition","ts":"2026-11-07T04:49:26.735121+00:00","ticket":"box-view","key":null,"body":{"to":"premise_failed","stage":"requisition","reason":"[contradiction] Scope in requires adding **Bulk Triage** to the Tickets view's title overflow 
+
+# ./dev.py status: the drain's view
+blocked:
+- box-view: premise_failed
