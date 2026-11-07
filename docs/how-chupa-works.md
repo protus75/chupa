@@ -92,7 +92,13 @@ Tests live in `tests/unit/` (no disk, network or process; run under `chupa.testg
 | `confirm STEM... [--yes]`, `reject STEM... [--yes]` | `chupa confirm` or `chupa reject` once per stem; a person at a terminal answers `y` for each stem unless `--yes` is passed |
 | `watch [--once]` | `chupa watch` through `uv`: a read-only live view of the engine and queue |
 | `publish` | builds and uploads the current release with `UV_PUBLISH_TOKEN` set (`./dev.py publish`) |
+| `vscode-package` | packages the current manifest version into `dist/vscode-chupa-<version>.vsix` and prints the Marketplace upload page |
 | `vscode` | bumps the patch version in `vscode-chupa/package.json` (VS Code keeps an extension's old icon until its version changes), packages it with `npx @vscode/vsce`, and installs it with `code --install-extension --force`; reload the window to load it |
+
+To release the extension, bump `version` in `vscode-chupa/package.json`, run
+`./dev.py vscode-package`, and upload the printed VSIX on the [chunkydragon management page](https://marketplace.visualstudio.com/manage/publishers/chunkydragon).
+Choose New extension for the first release and the extension's Update action for subsequent releases.
+The Marketplace refuses a version it already holds.
 
 `vscode-chupa/` is an operator-only VS Code extension: an Activity Bar view of every ticket as an
 SCM-style graph (blocked, queued, running, merged) with a detail pane. Its Activity Bar badge shows the queued and running ticket count while the engine is alive and the count is nonzero. The Tickets view's `?`

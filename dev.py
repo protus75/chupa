@@ -19,6 +19,7 @@
     ./dev.py watch [--once]   live view: running ticket, step, model, and the queue
     ./dev.py publish          build and upload the current release
     ./dev.py vscode           package and install the vscode-chupa extension (then reload the window)
+    ./dev.py vscode-package   build a VSIX for Marketplace upload
     ./dev.py kill             hard-stop the running drain or serve
     ./dev.py stop             finish the running ticket and exit
     ./dev.py confirm STEM...  keep each named ticket
@@ -81,6 +82,7 @@ def main() -> None:
     sub.add_parser("watch", help="live view of the drain and the queue").add_argument("--once", action="store_true")
     sub.add_parser("publish", help="build and upload the current release")
     sub.add_parser("vscode", help="package and install the vscode-chupa extension")
+    sub.add_parser("vscode-package", help="build a VSIX for Marketplace upload")
     for verb in ("confirm", "reject", "review"):
         verdict = sub.add_parser(verb, help=f"{verb} each named ticket")
         verdict.add_argument("stems", nargs="+")
@@ -122,6 +124,15 @@ def main() -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run(["uv", "build", "-o", tmp])
             run(["uv", "publish", *(str(path) for path in sorted(Path(tmp).iterdir()))])
+    elif args.task == "vscode-package":
+        package = json.loads((ROOT / "vscode-chupa" / "package.json").read_text())
+        output = ROOT / "dist" / f"vscode-chupa-{package['version']}.vsix"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        pack = ["npx", "--yes", "@vscode/vsce", "package", "--no-dependencies", "-o", str(output)]
+        print("$", " ".join(pack), flush=True)
+        if subprocess.run(pack, cwd=ROOT / "vscode-chupa", check=False).returncode != 0:
+            sys.exit("dev: packaging vscode-chupa failed")
+        print(f"dev: upload {output} at https://marketplace.visualstudio.com/manage/publishers/chunkydragon")
     elif args.task == "vscode":
         # VS Code keeps an extension's old icon and views until its version changes, so every install bumps the patch.
         manifest = ROOT / "vscode-chupa" / "package.json"

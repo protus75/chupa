@@ -339,7 +339,7 @@ function activate(context) {
 		vscode.commands.registerCommand('chupa.refresh', () => { snapshot.refresh(); stats.refresh(); }),
 		vscode.commands.registerCommand('chupa.openTicket', openTicket),
 		vscode.commands.registerCommand('chupa.lifecycle', () => showLifecycle(context.extensionUri)),
-		vscode.commands.registerCommand('chupa.openSettings', () => vscode.commands.executeCommand('workbench.action.openSettings', '@ext:chupa.vscode-chupa')),
+		vscode.commands.registerCommand('chupa.openSettings', () => vscode.commands.executeCommand('workbench.action.openSettings', '@ext:chunkydragon.vscode-chupa')),
 		vscode.commands.registerCommand('chupa.ticket.open', ctx => openTicket(`tickets/${ctx.chupaStem}/ticket.md`)),
 		vscode.commands.registerCommand('chupa.ticket.review', ctx => devCommand('review', ctx.chupaStem)),
 		vscode.commands.registerCommand('chupa.ticket.lint', ctx => devCommand('lint', ctx.chupaStem)),

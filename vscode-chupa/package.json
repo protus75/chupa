@@ -3,7 +3,10 @@
 	"displayName": "chupa tickets",
 	"description": "chupa's tickets as an SCM-style dependency graph: blocked, queued, running, merged.",
 	"version": "0.0.20",
-	"publisher": "chupa",
+	"publisher": "chunkydragon",
+	"extensionKind": ["workspace"],
+	"repository": {"type": "git", "url": "https://github.com/protus75/chupa.git"},
+	"files": ["extension.js", "media/**", "README.md", "LICENSE"],
 	"license": "SEE LICENSE IN LICENSE",
 	"engines": {
 		"vscode": "^1.90.0"
@@ -62,13 +65,7 @@
 						"type": "string"
 					},
 					"scope": "resource",
-					"default": [
-						"uv",
-						"run",
-						"python",
-						"-m",
-						"chupa"
-					],
+					"default": ["chupa"],
 					"description": "Command and arguments used to run chupa in this workspace."
 				},
 				"chupa.statsWindow": {
