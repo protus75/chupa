@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import os
+from pathlib import Path
 from datetime import timedelta
 
 import pytest
@@ -10,10 +12,12 @@ import pytest_asyncio
 from chupa import __main__ as cli
 from chupa.artifacts import DAEMON_SOAK_MEMBERS
 from chupa.audit import audit_journal
+from chupa.git import Git
 from chupa.journal import EventType
 from chupa.lockfile import Lockfile
 from chupa.mergequeue import CONFLICT_FACTS, MergeQueue
 from chupa.reconcile import RECOVERY_ALERT
+from chupa.seams import SubprocessExec
 from chupa.stages import read_review
 from eval import daemon_soak as soak
 
@@ -320,8 +324,15 @@ async def test_daemon_soak_cleans_up_owned_lifetimes(tmp_path, monkeypatch, case
 
 @pytest.mark.asyncio
 async def test_daemon_soak_is_rederivable(tmp_path):
+    git = Git(SubprocessExec(), env=os.environ, timeout=30)
+    before = await git.rev_parse(Path.cwd(), "HEAD")
     first = await soak.produce(tmp_path / "first")
     second = await soak.produce(tmp_path / "second")
-    assert first.model_dump_json(indent=2) == second.model_dump_json(indent=2)
+    after = await git.rev_parse(Path.cwd(), "HEAD")
+    for sha in (first.produced_at_sha, second.produced_at_sha):
+        assert await git.merge_base(Path.cwd(), before, sha) == before
+        assert await git.merge_base(Path.cwd(), sha, after) == sha
+    assert await git.merge_base(Path.cwd(), first.produced_at_sha, second.produced_at_sha) == first.produced_at_sha
+    assert first.model_dump_json(indent=2, exclude={"produced_at_sha"}) == second.model_dump_json(indent=2, exclude={"produced_at_sha"})
     assert tuple(e.member for e in first.entries) == DAEMON_SOAK_MEMBERS
     assert not list(tmp_path.rglob("daemon-soak-report.json"))

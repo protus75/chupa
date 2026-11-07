@@ -356,11 +356,15 @@ async def test_reliability_battery_uses_registered_checks_lift(tmp_path, case):
 @pytest.mark.asyncio
 async def test_reliability_battery_command_writes_only_on_green(tmp_path, monkeypatch, capsys):
     target = tmp_path / "report.json"
+    git = Git(SubprocessExec(), env=os.environ, timeout=30)
+    before = await git.rev_parse(Path.cwd(), "HEAD")
     rc, out, err = await SubprocessExec().run(["uv", "run", "python", "-m", "eval.reliability_battery", "--out", str(target)], cwd=Path.cwd(), env=os.environ, timeout=60)
     assert rc == 0, err
     produced = artifacts.ReliabilityBatteryReport.model_validate_json(target.read_bytes())
-    sha = await Git(SubprocessExec(), env=os.environ, timeout=30).rev_parse(Path.cwd(), "HEAD")
-    assert produced.produced_at_sha == sha and produced.produced_by_spec_version == 1
+    after = await git.rev_parse(Path.cwd(), "HEAD")
+    assert await git.merge_base(Path.cwd(), before, produced.produced_at_sha) == before
+    assert await git.merge_base(Path.cwd(), produced.produced_at_sha, after) == produced.produced_at_sha
+    assert produced.produced_by_spec_version == 1
     assert all(e.green for e in produced.entries)
     target.unlink()
 

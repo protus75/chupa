@@ -381,11 +381,11 @@ def test_daemon_soak_command_writes_report_only_on_green(tmp_path, monkeypatch, 
         writer(path, report, fs)
 
     monkeypatch.setattr(daemon_soak, "write_report", written)
+    git = Git(SubprocessExec(), env=os.environ, timeout=30)
+    before = asyncio.run(git.rev_parse(Path.cwd(), "HEAD"))
     assert daemon_soak.main(["--out", str(destination)]) == 0
     [(path, produced)] = calls
     assert path == destination and all(e.green for e in produced.entries)
-    git = Git(SubprocessExec(), env=os.environ, timeout=30)
-    assert produced.produced_at_sha == asyncio.run(git.rev_parse(Path.cwd(), "HEAD"))
     assert destination.read_bytes() == (produced.model_dump_json(indent=2) + "\n").encode()
     original_bytes = destination.read_bytes()
     observe = daemon_soak._observe
@@ -409,4 +409,13 @@ def test_daemon_soak_command_writes_report_only_on_green(tmp_path, monkeypatch, 
     command_out = tmp_path / "command" / DAEMON_SOAK_REPORT
     rc, out, err = asyncio.run(SubprocessExec().run(["uv", "run", "python", "-m", "eval.daemon_soak", "--out", str(command_out)], cwd=Path.cwd(), env=os.environ, timeout=120))
     assert rc == 0, out + err
-    assert command_out.read_bytes() == original_bytes
+    after = asyncio.run(git.rev_parse(Path.cwd(), "HEAD"))
+    command_bytes = command_out.read_bytes()
+    command_report = DaemonSoakReport.model_validate_json(command_bytes)
+    for sha in (produced.produced_at_sha, command_report.produced_at_sha):
+        assert asyncio.run(git.merge_base(Path.cwd(), before, sha)) == before
+        assert asyncio.run(git.merge_base(Path.cwd(), sha, after)) == sha
+    assert asyncio.run(git.merge_base(Path.cwd(), produced.produced_at_sha, command_report.produced_at_sha)) == produced.produced_at_sha
+    command_sha_field = f'"produced_at_sha": "{command_report.produced_at_sha}"'.encode()
+    produced_sha_field = f'"produced_at_sha": "{produced.produced_at_sha}"'.encode()
+    assert command_bytes.replace(command_sha_field, produced_sha_field, 1) == original_bytes
