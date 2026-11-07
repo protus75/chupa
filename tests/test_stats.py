@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from chupa.__main__ import main
 from chupa.journal import EventType, Journal
-from chupa.stats import project_stats
+from chupa.stats import project_stats, stats_tree
 from tests.test_cli import ENV
 from tests.test_drain import Clock, make_root
 
@@ -62,3 +62,34 @@ def test_cli_json_refusal_and_no_write(tmp_path, capsys):
     assert {p: p.read_bytes() for p in journal.dir.glob("*")} == before
     assert main(["stats", "--window", "0d"], cwd=root, env=ENV, clock=clock) == 2
     assert capsys.readouterr().err == "chupa stats: bad window 0d -- use <N>h, <N>d, or <N>t\n"
+
+
+def test_stats_tree_generic_rows():
+    stats = {
+        "window": {"spec": "3h", "start": "yesterday", "end": "today"},
+        "ranking": [["first", 8], ["second", 5]],
+        "novel": {"summary": {"n": 4, "median": None}, "nested": {"value": 9, "inner": {"x": 2}}, "pairs": [["alpha", 7], ["beta", 3]], "single": 12},
+    }
+    rows = stats_tree(stats)
+    # A fixed list of known keys would omit novel; window must show both fields.
+    assert [r["label"] for r in rows] == ["window 3h · yesterday", "ranking", "novel"]
+    assert rows[0]["children"][2] == {"label": "end", "description": "today", "children": []}  # Window entries remain visible.
+    assert rows[1]["children"][0] == {"label": "first", "description": "8", "children": []}  # Top-level pairs are direct children.
+    children = rows[2]["children"]
+    assert children[0] == {"label": "summary", "description": "n 4 · median –", "children": []}  # Scalars combine and null is distinct.
+    assert children[1] == {"label": "nested", "description": "", "children": [{"label": "value", "description": "9", "children": []}, {"label": "inner", "description": "x 2", "children": []}]}  # Mixed objects recurse.
+    assert children[2] == {"label": "pairs", "description": "", "children": [{"label": "alpha", "description": "7", "children": []}, {"label": "beta", "description": "3", "children": []}]}  # Pairs become separate leaves.
+    assert children[3] == {"label": "single", "description": "12", "children": []}  # Scalars retain their value.
+
+
+def test_cli_tree_json(tmp_path, capsys):
+    root = make_root(tmp_path)
+    clock = Clock()
+    journal = Journal(root / ".chupa/state", clock)
+    journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="done")
+    assert main(["stats", "--tree", "--window", "3h"], cwd=root, env=ENV, clock=clock) == 0
+    rows = json.loads(capsys.readouterr().out)
+    # Tree output must use the requested window and preserve projected throughput.
+    assert rows[0]["label"] == f"window 3h · {(clock() - timedelta(hours=3)).isoformat()}"
+    throughput = next(row for row in rows if row["label"] == "throughput")
+    assert next(row for row in throughput["children"] if row["label"] == "settled")["description"] == "merged 1 · already_satisfied 0 · rejected 0"

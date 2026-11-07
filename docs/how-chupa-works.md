@@ -42,7 +42,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `watch [--once]` | no | Prints a live text view of the configured host state, refreshing every three seconds unless `--once` is supplied. |
 | `snapshot` | no | Prints the extension snapshot as JSON, including the absolute state directory. |
 | `status` | no | Prints the journal projection (section 10.3). Read-only. |
-| `stats [--window W] [--json]` | no | Prints a read-only health and efficiency projection over a time or ticket window (default `7d`); it is not an authority. |
+| `stats [--window W] [--json] [--tree]` | no | Prints a read-only health and efficiency projection over a time or ticket window (default `7d`); it is not an authority. |
 | `lint [stem ...]` | no | Validates ticket grammar, intake claims, and committable bug evidence without running tickets or writing files, journal events, or git state. With no stems, checks every ticket except those settled or rejected in the journal; with no journal, checks all tickets. Prints each finding and its fix, then `lint: <valid>/<total> tickets valid`. Exits 0 when valid, 1 for findings, or 2 for a missing named ticket or unreadable tickets directory. |
 | `covmap` | no | Runs `review.coverage_map.argv` and writes `<state_dir>/coverage-map.json`; exits 0 on success or 2 on refusal. |
 | `covgate [--gate PATH] [--report PATH] -- <argv>` | no | Runs the unit-test command, then checks its fresh coverage report against `test-gate.toml` (default report `coverage.json`; paths relative to the invocation directory). Returns the command’s nonzero exit code, or 0 on coverage pass, 1 on threshold failures, or 2 for a refusal. |
@@ -94,7 +94,7 @@ Each test has a 120-second hard limit.
 `vscode-chupa/` is an operator-only VS Code extension: an Activity Bar view of every ticket as an
 SCM-style graph (blocked, queued, running, merged) with a detail pane. Its Activity Bar badge shows the queued and running ticket count while the engine is alive and the count is nonzero. The Tickets view's `?`
 button opens `vscode-chupa/media/ticket-lifecycle.svg`, a hand-drawn diagram of ticket states.
-Recent Steps opens each step’s file. The Suggestion Box view lists messages, supports multi-selection and manual triage or dismissal, and shows message details alongside tickets. `chupa snapshot` builds its data read-only from the configured host state and `order_tickets`, holding tickets awaiting an operator and those held by the drain's `parked_blob` rule; `chupa/graph.py` computes the graph layout for the extension to draw. The engine never runs the extension.
+Recent Steps opens each step’s file. The collapsed Stats view shows health figures for the window configured by `chupa.statsWindow` (default `7d`). The Suggestion Box view lists messages, supports multi-selection and manual triage or dismissal, and shows message details alongside tickets. `chupa snapshot` builds its data read-only from the configured host state and `order_tickets`, holding tickets awaiting an operator and those held by the drain's `parked_blob` rule; `chupa/graph.py` computes the graph layout for the extension to draw. The engine never runs the extension.
 
 ## 3. Tickets
 

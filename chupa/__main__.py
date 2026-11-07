@@ -226,6 +226,7 @@ def _parser() -> argparse.ArgumentParser:
     stats = sub.add_parser("stats", help="project journal health over a window (read-only)")
     stats.add_argument("--window", default="7d")
     stats.add_argument("--json", action="store_true")
+    stats.add_argument("--tree", action="store_true")
     sub.add_parser("lint", help="validate tickets without running or writing anything").add_argument("stems", nargs="*")
     sub.add_parser("retro", help="force a retro report under the writer lock")
     sub.add_parser("doctor", help="inspect setup without changing state")
@@ -373,7 +374,7 @@ def main(
                     pass
             return 0
         if args.verb == "stats":
-            from chupa.stats import render_stats, window_start
+            from chupa.stats import render_stats, stats_tree, window_start
 
             events = checkout.journal.read()
             now = checkout.clock()
@@ -383,7 +384,7 @@ def main(
                 print(f"chupa stats: {exc}", file=sys.stderr)
                 return 2
             result = asyncio.run(_stats(checkout, events, now, args.window))
-            print(json.dumps(result) if args.json else render_stats(result), end="\n" if args.json else "")
+            print(json.dumps(stats_tree(result) if args.tree else result) if args.tree or args.json else render_stats(result), end="\n" if args.tree or args.json else "")
             return 0
         if args.verb == "lint":
             return asyncio.run(_lint(checkout, args.stems))

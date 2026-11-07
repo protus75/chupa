@@ -139,3 +139,32 @@ def project_stats(events, kinds, checks, *, now, window):
 
 def render_stats(stats):
     return "\n\n".join(f"{key}:\n{json.dumps(value, indent=2)}" for key, value in stats.items()) + "\n"
+
+
+def stats_tree(stats):
+    """Turn a stats projection into generic display rows."""
+    def display(value):
+        return "–" if value is None else str(value)
+
+    def row(key, value):
+        if isinstance(value, dict):
+            if all(not isinstance(v, (dict, list)) for v in value.values()):
+                return {"label": key, "description": " · ".join(f"{k} {display(v)}" for k, v in value.items()), "children": []}
+            children = [row(k, v) for k, v in value.items()]
+        elif isinstance(value, list):
+            children = [{"label": display(label), "description": display(count), "children": []} for label, count in value]
+        else:
+            return {"label": key, "description": display(value), "children": []}
+        return {"label": key, "description": "", "children": children}
+
+    rows = []
+    for key, value in stats.items():
+        label = f"{key} {value['spec']} · {value['start']}" if key == "window" else key
+        if isinstance(value, dict):
+            children = [row(k, v) for k, v in value.items()]
+        elif isinstance(value, list):
+            children = row(key, value)["children"]
+        else:
+            children = [row(key, value)]
+        rows.append({"label": label, "description": "", "children": children})
+    return rows

@@ -45,6 +45,11 @@
 					"type": "webview",
 					"id": "chupa.box",
 					"name": "Suggestion Box"
+				},
+				{
+					"id": "chupa.stats",
+					"name": "Stats",
+					"visibility": "collapsed"
 				}
 			]
 		},
@@ -65,6 +70,12 @@
 						"chupa"
 					],
 					"description": "Command and arguments used to run chupa in this workspace."
+				},
+				"chupa.statsWindow": {
+					"type": "string",
+					"default": "7d",
+					"pattern": "^[1-9][0-9]*[hdt]$",
+					"description": "Stats window: hours (h), days (d), or last N settled tickets (t), as for chupa stats --window."
 				},
 				"chupa.refreshSeconds": {
 					"type": "number",
@@ -360,6 +371,11 @@
 				}
 			],
 			"view/title": [
+				{
+					"command": "chupa.refresh",
+					"when": "view == chupa.stats",
+					"group": "navigation"
+				},
 				{
 					"command": "chupa.refresh",
 					"when": "view == chupa.tickets",

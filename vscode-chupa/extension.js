@@ -259,6 +259,50 @@ class StepsTree {
 	}
 }
 
+class StatsTree {
+	constructor(snapshot) {
+		this.rows = [];
+		this.running = false;
+		this.again = false;
+		this.changed = new vscode.EventEmitter();
+		this.onDidChangeTreeData = this.changed.event;
+		snapshot.listeners.push(() => this.refresh());
+	}
+
+	refresh() {
+		if (!this.view?.visible) return;
+		if (this.running) {
+			this.again = true;
+			return;
+		}
+		const root = chupaRoot();
+		if (!root) {
+			this.rows = [{ label: 'no workspace folder holds tickets/', description: '', children: [] }];
+			this.changed.fire();
+			return;
+		}
+		this.running = true;
+		const window = vscode.workspace.getConfiguration('chupa', vscode.Uri.file(root)).get('statsWindow');
+		runData(root, ['stats', '--tree', '--window', window], { timeout: 30000 }, (err, stdout, stderr) => {
+			this.running = false;
+			this.rows = err ? [{ label: (stderr || err.message).trim().split('\n').pop(), description: '', children: [] }] : JSON.parse(stdout);
+			this.changed.fire();
+			if (this.again) {
+				this.again = false;
+				this.refresh();
+			}
+		});
+	}
+
+	getChildren(row) { return row ? row.children : this.rows; }
+
+	getTreeItem(row) {
+		const item = new vscode.TreeItem(row.label, row.children.length ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None);
+		item.description = row.description;
+		return item;
+	}
+}
+
 function activate(context) {
 	const snapshot = new Snapshot();
 	const details = new DetailsView(context.extensionUri, snapshot);
@@ -266,10 +310,15 @@ function activate(context) {
 	const box = new BoxView(context.extensionUri, snapshot, details);
 	const steps = new StepsTree(snapshot);
 	const stepsView = vscode.window.createTreeView('chupa.steps', { treeDataProvider: steps });
+	const stats = new StatsTree(snapshot);
+	const statsView = vscode.window.createTreeView('chupa.stats', { treeDataProvider: stats });
+	stats.view = statsView;
+	statsView.onDidChangeVisibility(e => e.visible && stats.refresh());
 	snapshot.listeners.push(() => { stepsView.badge = snapshot.snap?.badge ?? undefined; });
 	stepsView.onDidChangeVisibility(e => e.visible && snapshot.refresh());
 	context.subscriptions.push(
 		stepsView,
+		statsView,
 		vscode.window.registerWebviewViewProvider('chupa.details', details),
 		vscode.window.registerWebviewViewProvider('chupa.tickets', tickets),
 		vscode.window.registerWebviewViewProvider('chupa.box', box),
@@ -286,7 +335,7 @@ function activate(context) {
 			});
 		}),
 		vscode.commands.registerCommand('chupa.bulkTriage', () => devCommand('triage')),
-		vscode.commands.registerCommand('chupa.refresh', () => snapshot.refresh()),
+		vscode.commands.registerCommand('chupa.refresh', () => { snapshot.refresh(); stats.refresh(); }),
 		vscode.commands.registerCommand('chupa.openTicket', openTicket),
 		vscode.commands.registerCommand('chupa.lifecycle', () => showLifecycle(context.extensionUri)),
 		vscode.commands.registerCommand('chupa.openSettings', () => vscode.commands.executeCommand('workbench.action.openSettings', '@ext:chupa.vscode-chupa')),
@@ -339,7 +388,10 @@ function activate(context) {
 	};
 	schedule();
 	snapshot.refresh();
-	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => e.affectsConfiguration('chupa.refreshSeconds') && schedule()));
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
+		if (e.affectsConfiguration('chupa.refreshSeconds')) schedule();
+		if (e.affectsConfiguration('chupa.statsWindow')) stats.refresh();
+	}));
 	context.subscriptions.push({ dispose: () => clearInterval(tick) });
 }
 
