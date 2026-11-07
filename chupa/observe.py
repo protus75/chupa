@@ -290,7 +290,7 @@ def recent_steps(state: Path, log: list[dict], limit: int) -> list[dict]:
         if event in ("stage_start", "stage_end"):
             verb = "start" if event == "stage_start" else f"end ({e.get('outcome', '?')})"
             surface = e.get("surface")
-            prefix = surface if surface in ("check", "merge") else "stage"
+            prefix = surface if surface in ("implement", "check", "review", "diagnose", "merge") else "stage"
             suffix = "start" if event == "stage_start" else "ok" if e.get("outcome") == "ok" else "failed"
             rows.append({"ts": e["ts"], "stem": e.get("stem"), "surface": surface, "text": f"{STEP_NAMES.get(surface, surface)} {verb}", "kind": f"{prefix}_{suffix}"})
         elif event == "engine_start":

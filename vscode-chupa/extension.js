@@ -226,7 +226,7 @@ class StepsTree {
 		const item = new vscode.TreeItem(`${step.timeDisplay}  ${step.stem ?? ''}`);
 		item.description = step.text;
 		item.tooltip = `${step.dateDisplay}\n${step.stem ? step.stem + ': ' : ''}${step.text}`;
-		const icons = { stage_start: ['debug-start'], stage_ok: ['pass'], stage_failed: ['circle-slash'], engine_start: ['debug-start'], engine_stop: ['debug-stop'], engine_lost: ['warning'], check_start: ['checklist'], check_ok: ['checklist', 'testing.iconPassed'], check_failed: ['checklist', 'testing.iconFailed'], merge_start: ['git-merge'], merge_ok: ['git-merge', 'testing.iconPassed'], merge_failed: ['git-merge', 'testing.iconFailed'] };
+		const icons = { stage_start: ['debug-start'], stage_ok: ['pass'], stage_failed: ['circle-slash'], engine_start: ['debug-start'], engine_stop: ['debug-stop'], engine_lost: ['warning'], implement_start: ['code'], implement_ok: ['code', 'testing.iconPassed'], implement_failed: ['code', 'testing.iconFailed'], review_start: ['eye'], review_ok: ['eye', 'testing.iconPassed'], review_failed: ['eye', 'testing.iconFailed'], diagnose_start: ['debug'], diagnose_ok: ['debug', 'testing.iconPassed'], diagnose_failed: ['debug', 'testing.iconFailed'], check_start: ['checklist'], check_ok: ['checklist', 'testing.iconPassed'], check_failed: ['checklist', 'testing.iconFailed'], merge_start: ['git-merge'], merge_ok: ['git-merge', 'testing.iconPassed'], merge_failed: ['git-merge', 'testing.iconFailed'] };
 		const [icon, color] = icons[step.kind];
 		item.iconPath = new vscode.ThemeIcon(icon, color ? new vscode.ThemeColor(color) : undefined);
 		if (step.path) {

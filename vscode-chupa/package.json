@@ -2,7 +2,7 @@
 	"name": "vscode-chupa",
 	"displayName": "chupa tickets",
 	"description": "chupa's tickets as an SCM-style dependency graph: blocked, queued, running, merged.",
-	"version": "0.0.15",
+	"version": "0.0.19",
 	"publisher": "chupa",
 	"license": "SEE LICENSE IN LICENSE",
 	"engines": {
@@ -48,9 +48,17 @@
 			"properties": {
 				"chupa.command": {
 					"type": "array",
-					"items": { "type": "string" },
+					"items": {
+						"type": "string"
+					},
 					"scope": "resource",
-					"default": ["uv", "run", "python", "-m", "chupa"],
+					"default": [
+						"uv",
+						"run",
+						"python",
+						"-m",
+						"chupa"
+					],
 					"description": "Command and arguments used to run chupa in this workspace."
 				},
 				"chupa.refreshSeconds": {

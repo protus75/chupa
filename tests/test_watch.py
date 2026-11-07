@@ -101,7 +101,7 @@ def test_recent_steps_merges_engine_and_stage_events(tmp_path, monkeypatch):
         ("alpha", "Implement start"),
         (None, "drain started (pid 41)"),
     ]
-    assert [r["kind"] for r in rows] == ["engine_start", "engine_lost", "stage_failed", "engine_stop", "stage_ok", "stage_start", "engine_start"]  # Each event has its own icon kind.
+    assert [r["kind"] for r in rows] == ["engine_start", "engine_lost", "review_failed", "engine_stop", "implement_ok", "implement_start", "engine_start"]  # Each event has its own icon kind.
     assert [r["ts"] for r in rows] == sorted((r["ts"] for r in rows), reverse=True)
     lines = watch.text_snapshot(ctx).split("Recent steps:\n", 1)[1].splitlines()
     assert lines == [f"  {watch.clock(r['ts'])}  " + (f"{r['stem']}  " if r["stem"] else "") + r["text"] for r in rows]
