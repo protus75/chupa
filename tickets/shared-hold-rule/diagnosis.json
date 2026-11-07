@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "bab8caa133be1cb3282f42b54a8b7af4f6eef4db",
+  "produced_at_sha": "437f9cdc6ca27397986dc87446d7274715461d04",
   "stem": "shared-hold-rule",
-  "attempt": 0,
-  "terminal": "gate_failed",
-  "stage": "check",
+  "attempt": 1,
+  "terminal": "premise_failed",
+  "stage": "implement",
   "verdict": "reject",
   "lessons": [
-    "The code passed: 3062 tests, exit 0. The ticket failed because its `## Regression` command, `./dev.py test ... -k test_snapshot_holds_a_parked_ticket`, prints pytest output. BugEvidenceGate in chupa/stages.py needs stdout to be exactly one JSON object {\"regression_result\": ...}.",
-    "Rewrite `## Regression` to run a carried reproducer, as tests/regress_graph_lanes.py and tests/regress_already_satisfied.py do. It must print {\"regression_result\":\"pass\"} with exit 0 at head and {\"regression_result\":\"defect\"} with a positive exit at the overlaid base.",
-    "Add the new tests/regress_<stem>.py to `carries` and to `## Scope fence`. Have it check its prerequisites and test the snapshot/queue hold for a premise-parked ticket. At base the snapshot lists that ticket as queued or ready, which should yield defect, not error.",
-    "Keep the existing implementation approach (parked_blob in drain.py, used by the drain, scheduler.dispatch_next and observe.held). It met every scope item and test. Only the regression evidence path needs to change."
+    "Rewrite the ticket's ## Regression: './dev.py test ...' prints '$ uv run pytest ...' and uv output before pytest output, but the harvest finding says BugEvidenceGate needs stdout to be exactly one regression-result JSON object.",
+    "Point Regression at a carried reproducer that prints exactly one pass/defect JSON object and nothing else, as the finding's paved road says. List that reproducer under 'carries' and in ## Scope fence.",
+    "Missing fact: the ticket and harvest give no exact JSON fields for the pass/defect result. Read BugEvidenceGate's owning code before writing the reproducer, then run 'chupa review shared-hold-rule' until it approves.",
+    "Leave the hold-rule scope unchanged: parked_blob in chupa/drain.py, the scheduler and observe.py callers, and test_snapshot_holds_a_parked_ticket. The attempt found no fault in them; only the Regression protocol blocked Check."
   ],
   "mechanical": null,
   "spec_version": "1.2",
