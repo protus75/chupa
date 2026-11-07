@@ -108,6 +108,7 @@ class Snapshot {
 	publish(snap, error) {
 		this.snap = snap;
 		this.error = error;
+		if (snap) vscode.commands.executeCommand('setContext', 'chupa.engineRunning', snap.engine);
 		this.listeners.forEach(f => f());
 	}
 }
@@ -349,7 +350,23 @@ function activate(context) {
 		vscode.commands.registerCommand('chupa.ticket.reject', ctx => devCommand(...snapshot.snap.verdictCommands.reject, ctx.chupaStem)),
 		vscode.commands.registerCommand('chupa.ticket.askDiagnose', ctx => askClaude(ctx, 'diagnose')),
 		vscode.commands.registerCommand('chupa.ticket.askReview', ctx => askClaude(ctx, 'review')),
-		...['drain', 'stop', 'kill', 'status'].map(verb => vscode.commands.registerCommand(`chupa.${verb}`, () => devCommand(verb))),
+		vscode.commands.registerCommand('chupa.engine', async () => {
+			const choice = await vscode.window.showQuickPick([
+				{ label: 'Drain', detail: 'Run every eligible ticket to quiescence, then exit.', verb: 'drain' },
+				{ label: 'Serve', detail: 'Run the continuous daemon until kill, stop, or a signal.', verb: 'serve' },
+				{ label: 'Stop after the running ticket', detail: 'Finish the running ticket, admit nothing new, then exit.', verb: 'stop' },
+				{ label: 'Kill (drain or serve)', detail: 'Hard-stop the running drain or serve.', verb: 'kill' },
+				{ label: 'Status', detail: 'Print the journal projection.', verb: 'status' },
+				{ label: 'Retro (run now)', detail: 'Run a retro report now, regardless of automatic triggers.', verb: 'retro' },
+			]);
+			if (choice) devCommand(choice.verb);
+		}),
+		vscode.commands.registerCommand('chupa.playDrain', () => devCommand('drain')),
+		vscode.commands.registerCommand('chupa.playServe', () => devCommand('serve')),
+		vscode.commands.registerCommand('chupa.stopRunning', () => devCommand('stop')),
+		vscode.commands.registerCommand('chupa.openConfig', () => {
+			if (snapshot.snap) vscode.window.showTextDocument(vscode.Uri.file(snapshot.snap.configPath), { preview: true });
+		}),
 	);
 
 	let timer;

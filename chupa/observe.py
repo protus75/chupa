@@ -628,6 +628,7 @@ def snapshot(ctx) -> dict:
         "runningStem": running[0] if running else None,
         "verdictCommands": {verb: [verb, "--yes"] for verb in ("confirm", "reject")},
         "stateDir": str(state.resolve()),
+        "configPath": str(ctx.config.resolve()),
         "at": now.isoformat(),
         "engine": alive,
         "lock": lock,

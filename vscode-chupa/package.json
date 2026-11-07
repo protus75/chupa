@@ -95,6 +95,19 @@
 						"Show only the ticket actions that can run right now."
 					],
 					"description": "How the Tickets right-click menu shows actions that cannot run right now."
+				},
+				"chupa.playAction": {
+					"type": "string",
+					"enum": [
+						"drain",
+						"serve"
+					],
+					"default": "drain",
+					"enumDescriptions": [
+						"Run eligible tickets to quiescence, then exit.",
+						"Run the continuous daemon until stopped."
+					],
+					"description": "Action started by the Tickets view play button."
 				}
 			}
 		},
@@ -149,26 +162,6 @@
 				"category": "chupa"
 			},
 			{
-				"command": "chupa.drain",
-				"title": "Drain",
-				"category": "chupa"
-			},
-			{
-				"command": "chupa.stop",
-				"title": "Stop after the running ticket",
-				"category": "chupa"
-			},
-			{
-				"command": "chupa.kill",
-				"title": "Kill the drain",
-				"category": "chupa"
-			},
-			{
-				"command": "chupa.status",
-				"title": "Status",
-				"category": "chupa"
-			},
-			{
 				"command": "chupa.openSettings",
 				"title": "chupa Settings",
 				"icon": "$(gear)"
@@ -220,6 +213,31 @@
 				"command": "chupa.bulkTriage",
 				"title": "Bulk Triage",
 				"category": "chupa"
+			},
+			{
+				"command": "chupa.engine",
+				"title": "Engine…",
+				"icon": "$(server-process)"
+			},
+			{
+				"command": "chupa.playDrain",
+				"title": "Start drain",
+				"icon": "$(play)"
+			},
+			{
+				"command": "chupa.playServe",
+				"title": "Start serve",
+				"icon": "$(play)"
+			},
+			{
+				"command": "chupa.stopRunning",
+				"title": "Stop after the running ticket",
+				"icon": "$(debug-stop)"
+			},
+			{
+				"command": "chupa.openConfig",
+				"title": "Open config.yaml",
+				"icon": "$(file-code)"
 			}
 		],
 		"menus": {
@@ -368,6 +386,26 @@
 				{
 					"command": "chupa.bulkTriage",
 					"when": "false"
+				},
+				{
+					"command": "chupa.engine",
+					"when": "false"
+				},
+				{
+					"command": "chupa.playDrain",
+					"when": "false"
+				},
+				{
+					"command": "chupa.playServe",
+					"when": "false"
+				},
+				{
+					"command": "chupa.stopRunning",
+					"when": "false"
+				},
+				{
+					"command": "chupa.openConfig",
+					"when": "false"
 				}
 			],
 			"view/title": [
@@ -392,29 +430,34 @@
 					"group": "navigation"
 				},
 				{
-					"command": "chupa.drain",
-					"when": "view == chupa.tickets",
-					"group": "chupa@0"
-				},
-				{
-					"command": "chupa.stop",
-					"when": "view == chupa.tickets",
-					"group": "chupa@1"
-				},
-				{
-					"command": "chupa.kill",
-					"when": "view == chupa.tickets",
-					"group": "chupa@2"
-				},
-				{
-					"command": "chupa.status",
-					"when": "view == chupa.tickets",
-					"group": "chupa@3"
-				},
-				{
 					"command": "chupa.bulkTriage",
 					"when": "view == chupa.tickets",
 					"group": "chupa@4"
+				},
+				{
+					"command": "chupa.engine",
+					"when": "view == chupa.tickets",
+					"group": "navigation"
+				},
+				{
+					"command": "chupa.playDrain",
+					"when": "view == chupa.tickets && !chupa.engineRunning && config.chupa.playAction == 'drain'",
+					"group": "navigation"
+				},
+				{
+					"command": "chupa.playServe",
+					"when": "view == chupa.tickets && !chupa.engineRunning && config.chupa.playAction == 'serve'",
+					"group": "navigation"
+				},
+				{
+					"command": "chupa.stopRunning",
+					"when": "view == chupa.tickets && chupa.engineRunning",
+					"group": "navigation"
+				},
+				{
+					"command": "chupa.openConfig",
+					"when": "view == chupa.tickets",
+					"group": "navigation"
 				}
 			]
 		},

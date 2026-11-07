@@ -151,6 +151,7 @@ def test_snapshot_verb_reads_config_state_dir(tmp_path, capsys):
     (state / "engine.log").write_text(json.dumps({"event": "engine_start", "verb": "serve", "pid": 719, "ts": "2026-01-01T00:00:00+00:00"}) + "\n")
     assert main(["--config", str(config), "snapshot"]) == 0
     result = json.loads(capsys.readouterr().out)
+    assert result["configPath"] == str(config.resolve())  # The default config path is a different file.
     assert result["stateDir"] == str(state)
     assert any(row["text"] == "serve started (pid 719)" for row in result["steps"])
 
