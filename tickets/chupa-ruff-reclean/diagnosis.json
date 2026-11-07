@@ -1,0 +1,19 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "eb9cc0a4de38500d7ff48e3fdaaf4510679450a6",
+  "stem": "chupa-ruff-reclean",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Commit cc6166bd deleted watch.py, as the implement finding reports. Remove watch.py from the Goal, the Scope in E501 command, the Scope fence, acceptance criteria 1 and 2, and both ruff lines in Verification, then rerun the ticket.",
+    "Do not create a placeholder watch.py to make the ruff commands pass. It would be an unrelated file, which the ticket's Definition of rejected and its no-behavior-change scope rule out.",
+    "The test suite already passes (3,116 tests), so criterion 4 is not the blocker. On the rerun, run `uv run ruff check chupa eval dev.py` to find all findings added after chupa-ruff-src, and fix each one by hand, without noqa."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
