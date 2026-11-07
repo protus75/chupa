@@ -57,6 +57,7 @@ After this change, one "Engine…" button in the Tickets view title opens a Quic
   - `chupa.stopRunning`, icon `$(debug-stop)`, titled "Stop after the running ticket", shown when `chupa.engineRunning`.
   - These three run `drain`, `serve`, and `stop` through the same path as the picker.
   - All five new commands are hidden from the command palette.
+- In: `docs/how-chupa-works.md`: the section 2.2 extension paragraph describes the Engine… picker (drain, serve, stop, kill, status, retro), the start/stop icon driven by `chupa.playAction`, and the Open config.yaml icon that opens the snapshot's `configPath`; the section 2.1 `snapshot` row notes `configPath`.
 - Out: `pause` and `resume`, a Kill icon (Kill stays in the picker only), the right-click ticket menu, and every engine verb. No other snapshot field changes.
 
 ## Scope fence
@@ -64,6 +65,7 @@ After this change, one "Engine…" button in the Tickets view title opens a Quic
 - vscode-chupa/extension.js
 - chupa/observe.py
 - tests/test_watch.py
+- docs/how-chupa-works.md
 
 ## Acceptance criteria
 1. `node --check vscode-chupa/extension.js` exits 0.
