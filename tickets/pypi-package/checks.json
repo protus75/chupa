@@ -1,0 +1,106 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "6eb0061d46125460dba784149dbf7083ca3599fd",
+  "stem": "pypi-package",
+  "passed": true,
+  "changed_files": [
+    "README.md",
+    "dev.py",
+    "docs/host-contract.md",
+    "docs/how-chupa-works.md",
+    "pyproject.toml",
+    "tests/test_cli.py",
+    "tests/test_dev.py",
+    "uv.lock"
+  ],
+  "inserted_lines": 65,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "-c",
+        "import subprocess, tempfile, zipfile, pathlib; d = tempfile.mkdtemp(); subprocess.run(['uv', 'build', '--wheel', '-o', d], check=True); w = zipfile.ZipFile(next(pathlib.Path(d).glob('*.whl'))); n = w.namelist(); assert 'chupa/specs/review.md' in n, n; assert not any(p.startswith(('tests/', 'eval/')) for p in n), n; assert w.filename.split('/')[-1].startswith('chupa-0.1.1-'), w.filename; e = next(p for p in n if p.endswith('entry_points.txt')); assert 'chupa = chupa.__main__:main' in w.read(e).decode()"
+      ],
+      "rc": 0,
+      "tail": "warning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\nBuilding wheel (uv build backend)...\nSuccessfully built /tmp/tmpir79dhbd/chupa-0.1.1-py3-none-any.whl\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "chupa",
+        "--help"
+      ],
+      "rc": 0,
+      "tail": "ery routed agent's root\n                        file\n    prompt              render an operator prompt for a ticket\n    migrate-config      validate and migrate schema_version: 0 to the current\n                        config schema\n    pause               submit pause to the running engine, or do nothing\n                        under the idle lock\n    resume              submit resume to the running engine, or do nothing\n                        under the idle lock\n    kill                submit kill to the running engine; refuse when nothing\n                        is running\n    stop                finish the running ticket, admit nothing new, then\n                        exit\n    review              review a committed ticket under the lock\n    triage              make one sequential pass over pending suggestions\n                        under the lock\n    covgate             check a coverage JSON report against thresholds\n    new                 template tickets/<stem>/ticket.md and lint it\n    order               edit a ticket's priority or ordering\n    run                 drive one ticket through intake and the stage pipeline\n                        under the lock\n    confirm             confirm a draft or Reject item; publish the verdict to\n                        a running serve holding the lock\n    reject              reject a draft or Reject item; publish the verdict to\n                        a running serve holding the lock\n    drain               run every eligible ticket to quiescence under the lock\n    serve               run the foreground daemon until kill, stop, or a\n                        signal stops it\n\noptions:\n  -h, --help            show this help message and exit\n  --config CONFIG       config path (default: config.yaml at the checkout\n                        root)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "-c",
+        "import os, subprocess; env = {k: v for k, v in os.environ.items() if k != 'UV_PUBLISH_TOKEN'}; r = subprocess.run(['./dev.py', 'publish'], env=env, capture_output=True, text=True); assert r.returncode != 0 and 'UV_PUBLISH_TOKEN' in r.stdout + r.stderr and 'uv build' not in r.stdout, r"
+      ],
+      "rc": 0,
+      "tail": "warning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "            [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/pypi-package/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_guarded_calls_and_asyncio\ntests/test_testguard.py::test_guards_are_phase_scoped\ntests/test_testguard.py::test_setup_and_teardown\ntests/test_testguard.py::test_budget_and_slowest\ntests/test_testguard.py::test_budget_and_slowest\ntests/test_testguard.py::test_xdist_budget\n  /home/djp/source/chupa/.chupa/state/worktrees/pypi-package/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3040 passed, 10 warnings in 81.70s (0:01:21)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    }
+  ]
+}
