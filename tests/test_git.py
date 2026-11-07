@@ -55,10 +55,16 @@ def test_every_call_is_dir_pinned_and_passes_env_and_timeout():
     g, exec_ = git()
     run(g.status_porcelain(REPO))
     argv, cwd, env, timeout = exec_.calls[0]
-    assert argv == ["git", "-C", "/repo", "status", "--porcelain"]
+    assert argv == ["git", "-C", "/repo", "--no-optional-locks", "status", "--porcelain"]
     assert cwd == REPO
     assert env == ENV
     assert timeout == 30.0
+
+
+def test_status_porcelain_takes_no_optional_locks():
+    g, exec_ = git()
+    run(g.status_porcelain(REPO, "-z"))
+    assert exec_.argvs == [["git", "-C", "/repo", "--no-optional-locks", "status", "--porcelain", "-z"]]
 
 
 @pytest.mark.parametrize(

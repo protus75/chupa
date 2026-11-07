@@ -364,7 +364,7 @@ def _validate_reports(paths: Sequence[Path]) -> None:
 
 async def dirty_code(ctx: StageContext, stem: str) -> list[str]:
     # NUL records preserve filenames and include both sides of a staged rename.
-    records = iter((await ctx.git._run(ctx.worktree(stem), "status", "--porcelain", "--untracked-files=all", "-z")).rstrip("\0").split("\0"))
+    records = iter((await ctx.git.status_porcelain(ctx.worktree(stem), "--untracked-files=all", "-z")).rstrip("\0").split("\0"))
     paths = []
     for record in records:
         if not record:

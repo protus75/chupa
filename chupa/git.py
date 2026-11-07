@@ -47,8 +47,8 @@ class Git:
     async def init(self, dir: Path, *, branch: str) -> None:
         await self._run(dir, "init", "-b", _ref(branch))
 
-    async def status_porcelain(self, dir: Path) -> str:
-        return await self._run(dir, "status", "--porcelain")
+    async def status_porcelain(self, dir: Path, *args: str) -> str:
+        return await self._run(dir, "--no-optional-locks", "status", "--porcelain", *args)
 
     async def ls_files(self, dir: Path) -> list[str]:
         return (await self._run(dir, "ls-files")).splitlines()

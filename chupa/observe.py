@@ -399,7 +399,7 @@ def simulate(candidates: dict, done: set[str], authored: dict, *, strict: bool) 
 
 def uncommitted_tickets(ctx) -> tuple[set[str], set[str]]:
     """(stems whose ticket.md differs from HEAD or is untracked, stems never committed): not yet on the ticket plane."""
-    out = git_output(ctx, "status", "--porcelain", "--", "tickets")
+    out = asyncio.run(ctx.git.status_porcelain(ctx.root, "--", "tickets"))
     dirty, new = set(), set()
     for line in out.splitlines():
         code, path = line[:2], line[3:]
