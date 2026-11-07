@@ -228,7 +228,7 @@ def _parser() -> argparse.ArgumentParser:
     stats.add_argument("--json", action="store_true")
     stats.add_argument("--tree", action="store_true")
     sub.add_parser("lint", help="validate tickets without running or writing anything").add_argument("stems", nargs="*")
-    sub.add_parser("retro", help="force a retro report under the writer lock")
+    sub.add_parser("retro", help="run a retro now, or queue one on the running engine")
     sub.add_parser("doctor", help="inspect setup without changing state")
     sub.add_parser("core", help="refresh managed conduct in every routed agent's root file")
     prompt = sub.add_parser("prompt", help="render an operator prompt for a ticket")
@@ -462,11 +462,11 @@ def main(
             return 0
         if args.verb == "serve":
             return asyncio.run(serve.serve(checkout, config_path=args.config, signals=_serve_signals, argv=invocation, reexec=reexec or SubprocessExec()))
+        if args.verb == "retro":
+            return asyncio.run(_retro(checkout, pipeline, config_path=args.config))
         checkout = replace(checkout, control=build_control(checkout))
         checkout.control.load_config = lambda: load_config(args.config, cwd=repo)
         dispatch = pipeline(checkout)
-        if args.verb == "retro":
-            return asyncio.run(_retro(checkout, dispatch))
         if args.verb == "drain":
             from chupa.retro import Retro
 
@@ -571,12 +571,25 @@ async def _review(checkout: runner.Checkout, stem: str) -> int:
         lock.release()
 
 
-async def _retro(checkout, dispatch):
+async def _retro(checkout, pipeline, *, config_path=None):
     from chupa.retro import Retro, RetroConstructionError, measurements, project_window, suppressing_failure
 
     lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
-    lock.acquire()
     try:
+        lock.acquire()
+    except LockHeld:
+        try:
+            lifecycle, _ = control.read_active(checkout.config.state_dir, Path.read_bytes)
+        except ValueError as exc:
+            raise runner.Refusal("current control identity unavailable", str(exc)) from exc
+        request = control.ControlRequest(uuid4().hex, lifecycle, "retro", None)
+        control.publish_request(checkout.config.state_dir, request, checkout.fs)
+        print(f"retro submitted: {request.request_id}; the running engine runs it between tickets")
+        return 0
+    try:
+        checkout = replace(checkout, control=build_control(checkout))
+        checkout.control.load_config = lambda: load_config(config_path, cwd=checkout.repo)
+        dispatch = pipeline(checkout)
         try:
             window = project_window(checkout.journal.read())
         except JournalCorruption as exc:
@@ -599,7 +612,8 @@ async def _retro(checkout, dispatch):
         return 1
     finally:
         try:
-            await checkout.control.providers.close()
+            if checkout.control is not None:
+                await checkout.control.providers.close()
         finally:
             lock.release()
 

@@ -617,7 +617,9 @@ def test_retro_refusals(root, capsys, failure):
         assert cli(root, "retro", stages=factory) == 2
         err = capsys.readouterr().err
         assert "Traceback" not in err
-        assert {"lock": "wait", "config": "repair", "journal": "never hand-edited", "driver": "construct the pipeline", "prepare": "repair provider"}[failure] in err
+        if failure == "lock":
+            assert "retry after the running engine publishes" in err
+        assert {"lock": "current control identity unavailable", "config": "repair", "journal": "never hand-edited", "driver": "construct the pipeline", "prepare": "repair provider"}[failure] in err
     finally:
         if holder.held:
             holder.release()

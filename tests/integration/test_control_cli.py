@@ -465,3 +465,15 @@ def test_yes_matches_typed_verdict(tmp_path, capsys, verb, verdict):
             assert "state: rejected" in (ctx.repo / "tickets/yes-ticket/ticket.md").read_text()
 
     asyncio.run(exercise())
+
+
+def test_retro_publishes_when_live(root, capsys):
+    lock = acquire(root)
+    try:
+        discovery(root, "retro-life", "some-hold")
+        assert invoke(root, "retro") == 0
+        [request] = requests(root)
+        assert request["verb"] == "retro" and request["lifecycle_id"] == "retro-life" and request["hold_id"] is None
+        assert f"retro submitted: {request['request_id']}" in capsys.readouterr().out
+    finally:
+        lock.release()

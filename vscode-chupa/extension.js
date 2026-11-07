@@ -357,7 +357,7 @@ function activate(context) {
 				{ label: 'Stop after the running ticket', detail: 'Finish the running ticket, admit nothing new, then exit.', verb: 'stop' },
 				{ label: 'Kill (drain or serve)', detail: 'Hard-stop the running drain or serve.', verb: 'kill' },
 				{ label: 'Status', detail: 'Print the journal projection.', verb: 'status' },
-				{ label: 'Retro (run now)', detail: 'Run a retro report now, regardless of automatic triggers.', verb: 'retro' },
+				{ label: 'Retro', detail: 'Run a retro report now, or after the running ticket when an engine is running.', verb: 'retro' },
 			]);
 			if (choice) devCommand(choice.verb);
 		}),

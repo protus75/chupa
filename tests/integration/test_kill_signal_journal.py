@@ -18,8 +18,8 @@ ACCEPTED = "matching lifecycle and hold identities"
 STALE = "read the current lifecycle and submit a new request"
 SHAPE = (
     "submit a new request with exactly {request_id: nonempty ASCII letters/digits/_/-, "
-    "lifecycle_id: nonempty string, verb: pause | resume | kill | stop, hold_id: string | null}; "
-    "match request_id to the filename; pause/kill/stop require null hold_id; "
+    "lifecycle_id: nonempty string, verb: pause | resume | kill | retro | stop, hold_id: string | null}; "
+    "match request_id to the filename; pause/kill/retro/stop require null hold_id; "
     "for resume read the current hold and submit its exact nonempty identity"
 )
 

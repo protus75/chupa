@@ -13,12 +13,12 @@ from chupa.seams import FileSystem
 from chupa.tickets import stem_findings
 
 CONTROL_DECISION = "control_decision"
-Verb = Literal["pause", "resume", "kill", "stop"]
+Verb = Literal["pause", "resume", "kill", "retro", "stop"]
 _ID = re.compile(r"[A-Za-z0-9_-]+", re.ASCII)
 _SHAPE = (
     "submit a new request with exactly {request_id: nonempty ASCII letters/digits/_/-, "
-    "lifecycle_id: nonempty string, verb: pause | resume | kill | stop, hold_id: string | null}; "
-    "match request_id to the filename; pause/kill/stop require null hold_id; "
+    "lifecycle_id: nonempty string, verb: pause | resume | kill | retro | stop, hold_id: string | null}; "
+    "match request_id to the filename; pause/kill/retro/stop require null hold_id; "
     "for resume read the current hold and submit its exact nonempty identity"
 )
 _ADMISSION_SHAPE = "publish a fresh verdict request with exactly {request_id, lifecycle_id, verb, stem, hold_id, actor}; actor is operator | machine and hold_id is null"
@@ -69,7 +69,7 @@ def validate_request(value: object, filename: str) -> ControlRequest | Admission
         or not isinstance(lifecycle_id, str)
         or not lifecycle_id
         or not isinstance(verb, str)
-        or verb not in {"pause", "resume", "kill", "stop"}
+        or verb not in {"pause", "resume", "kill", "retro", "stop"}
         or (verb == "resume" and (not isinstance(hold_id, str) or not hold_id))
         or (verb != "resume" and hold_id is not None)
     ):
@@ -107,6 +107,7 @@ class ControlProjection:
     released_hold_ids: frozenset[str] = frozenset()
     kill_requested: bool = False
     stop_requested: bool = False
+    retro_id: str | None = None
 
 
 def decisions(events: Iterable[Event]) -> Iterable[Event]:
@@ -179,6 +180,7 @@ class ControlInbox:
         released = set()
         killed = False
         stopped = False
+        retro = None
         accepted = False
         for event in decisions(self.journal.read()):
             body = event.body
@@ -199,7 +201,9 @@ class ControlInbox:
                 killed = True
             elif body["verb"] == "stop":
                 stopped = True
-        return decided, ControlProjection(self.lifecycle_id, pause, frozenset(released), killed, stopped), accepted
+            elif body["verb"] == "retro":
+                retro = request_id
+        return decided, ControlProjection(self.lifecycle_id, pause, frozenset(released), killed, stopped, retro), accepted
 
     def recover(self) -> ControlProjection:
         _, projection, accepted = self._fold()

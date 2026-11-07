@@ -69,7 +69,7 @@ def invalid_requests():
         cases.append({**good, key: ""})
     cases += [{**good, "request_id": value} for value in ("../escape", "a/b", "a\\b", "é", "a.b", "a b", "a\n", "other")]
     cases += [{**good, "verb": value} for value in ("", "PAUSE", "unknown")]
-    cases += [{**good, "hold_id": "hold"}, {**good, "verb": "kill", "hold_id": "hold"}, {**good, "verb": "stop", "hold_id": "hold"}]
+    cases += [{**good, "hold_id": "hold"}, {**good, "verb": "kill", "hold_id": "hold"}, {**good, "verb": "stop", "hold_id": "hold"}, {**good, "verb": "retro", "hold_id": "hold"}]
     cases += [{**good, "verb": "resume", "hold_id": value} for value in (None, "", False, 4, [], {})]
     return cases
 
@@ -421,3 +421,15 @@ def test_stop_decision_recovers_without_killing(tmp_path):
     assert rig.projection.stop_requested and not rig.projection.kill_requested
     assert rig.decisions()[0]["decision"] == "accepted"
     assert len(rig.changes) == 1
+
+
+def test_retro_projection_tracks_latest_current_lifecycle(tmp_path):
+    rig = Rig(tmp_path)
+    rig.publish("01-stale", "retro", lifecycle="old-life")
+    rig.inbox.consume()
+    assert rig.decisions()[0]["decision"] == "stale" and rig.projection.retro_id is None
+    rig.publish("02-first", "retro")
+    rig.publish("03-latest", "retro")
+    rig.inbox.consume()
+    assert [d["decision"] for d in rig.decisions()] == ["stale", "accepted", "accepted"]
+    assert rig.inbox.recover().retro_id == "03-latest"

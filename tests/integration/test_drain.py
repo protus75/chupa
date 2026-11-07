@@ -1602,3 +1602,66 @@ def test_reoffer_rules_and_recording():
     drought = [event(EventType.STATE_TRANSITION, {"to": "infra_error", "provider_drought": {"tier": "high"}})]
     record_reoffer(journal_fake, drought, "work", "new-sha")
     assert journal_fake.entries == []  # A drought neither draws retry nor invents a machine keep.
+
+
+async def requested_retro_scenario(root, *, second=False, stop=False):
+    from chupa.control import ControlRequest, publish_request
+    from chupa.drain import drain as run_drain
+    from tests.integration.test_drain_reentry import NoChild
+
+    commit_ticket(root, "aa", confirmed(priority="P0"))
+    if second:
+        commit_ticket(root, "bb", confirmed(priority="P1"))
+    # Requested retros must work with automatic retros disabled.
+    config = root / "config.yaml"
+    config.write_text(config.read_text() + "\nretro: {enabled: false}\n")
+    checkout = pause_checkout(root)
+    trace = []
+
+    class Retro:
+        async def __call__(self, *, forced=False):
+            if forced:
+                assert tos(root, "aa") == ["running", "merged"]  # A mid-ticket call sees no terminal.
+                trace.append("forced")
+
+        async def abort_current(self):
+            pytest.fail("retro aborted")
+
+    class Dispatch:
+        _retro = Retro()
+
+        async def __call__(self, ticket):
+            trace.append(ticket.stem)
+            if ticket.stem == "aa":
+                for identity, verb in [("10-retro", "retro")] + ([("20-stop", "stop")] if stop else []):
+                    publish_request(checkout.config.state_dir, ControlRequest(identity, checkout.control.inbox.lifecycle_id, verb, None), checkout.fs)
+                checkout.control.inbox.consume()
+            checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=ticket.stem)
+            return "merged"
+
+        async def abort_current(self):
+            pytest.fail("ticket aborted")
+
+    report = await run_drain(checkout, Dispatch(), reexec=NoChild())
+    return report, trace
+
+
+@pytest.mark.asyncio
+async def test_requested_retro_runs_between_tickets_once(root):
+    report, trace = await requested_retro_scenario(root, second=True)
+    assert report.merged == ["aa", "bb"]
+    assert trace == ["aa", "forced", "bb"]  # Missing, repeated, or late forced calls change the trace.
+
+
+@pytest.mark.asyncio
+async def test_requested_retro_runs_before_quiescent_exit(root):
+    report, trace = await requested_retro_scenario(root)
+    assert report.merged == ["aa"] and not report.stopped
+    assert trace == ["aa", "forced"]  # A quiescent return that drops the request omits forced.
+
+
+@pytest.mark.asyncio
+async def test_requested_retro_skipped_on_stop(root):
+    report, trace = await requested_retro_scenario(root, stop=True)
+    assert report.stopped and report.merged == ["aa"]
+    assert trace == ["aa"]  # Stop takes precedence over the pending retro.

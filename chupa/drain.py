@@ -317,6 +317,7 @@ class _Drain:
         self.provider_deadlines = []
         self.report = Report()
         self.retro = None
+        self.served_retro_id: str | None = None
         self.last_dispatched: str | None = None
 
     async def run(self) -> Report:
@@ -336,7 +337,12 @@ class _Drain:
             if self.retro is not None and await self._between_tickets():
                 if hasattr(self.dispatch, "prepare"):
                     await self.dispatch.prepare()
-                await self._run_retro(forced=False)
+                request_id = self.c.control.projection.retro_id
+                if request_id is not None and request_id != self.served_retro_id:
+                    await self._run_retro(forced=True)
+                    self.served_retro_id = request_id
+                else:
+                    await self._run_retro(forced=False)
             material = self._offer_material()
             scan = await self._scan()
             shas = {s: await self._sha(s) for s in scan.tickets}
@@ -354,6 +360,8 @@ class _Drain:
             held = {s for s in scan.tickets if (blob := parked_blob(events, s)) is not None and blob == shas[s]}
             pick, reoffer = self._select(scan, events, last, held)
             if pick is None:
+                if self.retro is not None and self.c.control.projection.retro_id is not None and self.c.control.projection.retro_id != self.served_retro_id and await self._between_tickets():
+                    continue
                 if self.provider_deadlines:
                     now = self.c.clock()
                     if now >= self.deadline:

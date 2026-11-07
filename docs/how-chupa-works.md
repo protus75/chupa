@@ -56,7 +56,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `run <stem>` | yes | Reconciles orphans, runs intake, then drives the one named ticket through every stage. Refuses a stem that failed intake, is missing, invalid, merged, not `confirmed`, or has unmerged dependencies. |
 | `drain` | yes | Runs every eligible ticket to quiescence (section 7.1). |
 | `serve` | yes | Runs the continuous daemon until `kill`, `stop`, or a signal (section 7.2). |
-| `retro` | yes | Forces a retro report (section 9.5). |
+| `retro` | try | Runs a retro report now or queues one on the running engine (section 9.5). |
 | `suggest <summary>` | no | Queues an idea for Suggestion Box intake. |
 | `triage [id ...]` | yes | One sequential pass over named pending messages, or all pending messages (section 9.2). |
 | `migrate-box` | yes | Migrate old Suggestion Box resolutions under the writer lock. |
@@ -504,7 +504,7 @@ For each candidate, in pick order:
 
 `confirm` and `reject` publish verdict requests to the running serve; drain decides them stale.
 
-`pause`, `resume`, `kill`, and `stop` write a request file to `state_dir/control/inbox/`, bound to the
+`pause`, `resume`, `kill`, `retro`, and `stop` write a request file to `state_dir/control/inbox/`, bound to the
 running engine's lifecycle id. The engine journals a `control_decision` (accepted, stale, or
 rejected) for each request. Pause stops new dispatch; resume must name the advertised hold;
 kill stops the engine at the next safe point. Stop admits no new ticket, lets work in progress finish and merge, then exits and releases the lock; unlike pause, it ends the process. `run` does not read control requests.
@@ -620,7 +620,7 @@ in custody for the authored bug ticket.
 ### 9.5 Retro
 
 The retro reads the journal since the last report. During a drain it runs between tickets, never
-between attempts of one ticket, when due at the `retro:` thresholds: by default 25 merges, 7 days, or 5 events of one spike kind. Set `retro.enabled: false` to disable automatic retros; run one on demand with `retro`. It commits `tickets/retro/NNNNNN.md` (measurements,
+between attempts of one ticket, when due at the `retro:` thresholds: by default 25 merges, 7 days, or 5 events of one spike kind. A requested retro runs at the drain’s next between-tickets point; serve accepts requests but does not yet run them. Set `retro.enabled: false` to disable automatic retros; run one on demand with `retro`. It commits `tickets/retro/NNNNNN.md` (measurements,
 scorecard, proposals) and files each proposal as a `retro_finding`.
 
 ### 9.6 Scorecard and baseline

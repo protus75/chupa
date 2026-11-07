@@ -17,7 +17,7 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | `status` | Yes | Show the journal projection. |
 | `stats` | Yes | Show the read-only health and efficiency projection. |
 | `lint` | Yes | Validate tickets without writing. |
-| `retro` | No | Force a retro report. |
+| `retro` | Yes | Run a retro report now, or queue one on the running engine (serve accepts it but does not yet run it). |
 | `doctor` | No | Inspect setup; its lock probe reports a held lock as a failure. |
 | `prompt` | Yes | Render an operator prompt for a ticket or named box IDs without writing state. |
 | `core` | Yes | Refresh managed conduct files. |
@@ -41,4 +41,4 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | `drain` | No | Run eligible tickets to quiescence. |
 | `serve` | No | Run the continuous daemon. |
 
-Stop serve before `retro`, `review`, `triage`, `dismiss`, `migrate-box`, `run`, `drain`, or another `serve`: each takes the writer lock outright and refuses while it is held. `doctor` also needs the lock available to pass its probe. There is one writer per host; the kernel releases its lock when the holder exits. Never delete `chupa.lock`—wait for or stop the holder instead.
+Stop serve before `review`, `triage`, `dismiss`, `migrate-box`, `run`, `drain`, or another `serve`: each takes the writer lock outright and refuses while it is held. `doctor` also needs the lock available to pass its probe. There is one writer per host; the kernel releases its lock when the holder exits. Never delete `chupa.lock`—wait for or stop the holder instead.
