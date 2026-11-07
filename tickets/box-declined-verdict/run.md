@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The existing registry records also store the old value in their id and kind frontmatter; the operator’s post-merge record migration must update those fields as well as the filenames.
+The operator’s post-merge registry migration must update record IDs and kind frontmatter as well as filenames. Migration changes links on declined resolutions while preserving tombstone and pending files.
 
 ## Dead ends
 
-Implemented the fenced changes and ran verification; the targeted suite passed, but the full suite requires a host guide edit outside the fence.
+The first full-suite run caught an accidental control-plane test-field rename; it was restored before the successful rerun.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Ticket budget: 60 minutes expected; work stopped before completion.
+The ticket budget was 60 minutes; the work completed within that budget.
 
