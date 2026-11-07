@@ -1,0 +1,19 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "a954a50063ed73e7b9915afe92747136e9382f41",
+  "stem": "requisition-coverage-dependents",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "merge",
+  "verdict": "abandon-human",
+  "lessons": [
+    "The work itself passed: the full suite reported 3064 passed and the review approved. The merge stopped only because the main checkout has uncommitted edits to chupa/specs/requisition_review.md and tests/test_specs.py, and the squash would overwrite them.",
+    "A human must commit or revert those local edits in the main checkout before re-running. Both files are in this ticket's fence, so check whether they hold a separate hand edit (for example the spec 3.0->3.1 bump) that conflicts with the branch.",
+    "Once the checkout is clean, re-run the same branch through the normal retry path. Do not change the implementation: it met every Scope in item and the Definition of rejected checks."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
