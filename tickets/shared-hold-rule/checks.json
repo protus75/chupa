@@ -1,0 +1,131 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "bab8caa133be1cb3282f42b54a8b7af4f6eef4db",
+  "stem": "shared-hold-rule",
+  "passed": false,
+  "changed_files": [
+    "chupa/drain.py",
+    "chupa/observe.py",
+    "chupa/scheduler.py",
+    "docs/how-chupa-works.md",
+    "tests/test_drain.py",
+    "tests/test_requisition_gate.py",
+    "tests/test_scheduler.py",
+    "tests/test_watch.py"
+  ],
+  "inserted_lines": 113,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "fail",
+      "findings": [
+        {
+          "code": "bug_evidence",
+          "path": null,
+          "line": null,
+          "message": "regression head did not complete with exit 0 and pass",
+          "paved_road": "supply durable ticket evidence and carries matching only changed test/fixture files; provide a carried reproducer checking prerequisites and emitting the regression result protocol: pass at head, defect at the overlaid base",
+          "kind": null,
+          "unit": null
+        },
+        {
+          "code": "bug_evidence",
+          "path": null,
+          "line": null,
+          "message": "overlaid base did not complete with a positive exit and defect",
+          "paved_road": "supply durable ticket evidence and carries matching only changed test/fixture files; provide a carried reproducer checking prerequisites and emitting the regression result protocol: pass at head, defect at the overlaid base",
+          "kind": null,
+          "unit": null
+        }
+      ],
+      "autofix_applied": false,
+      "bug_evidence": {
+        "argv": [
+          "./dev.py",
+          "test",
+          "tests/test_watch.py",
+          "-k",
+          "test_snapshot_holds_a_parked_ticket"
+        ],
+        "head_sha": "bab8caa133be1cb3282f42b54a8b7af4f6eef4db",
+        "base_sha": "56ec0eb31f1b707c7c1defcbf873f9030ad4b882",
+        "overlay_paths": [
+          "tests/test_watch.py"
+        ],
+        "evidence_paths": [
+          "tickets/shared-hold-rule/evidence/box-view-2026-11-07.txt"
+        ],
+        "head": {
+          "rc": 0,
+          "regression_result": null,
+          "tail": "$ uv run pytest -q tests/test_watch.py -k test_snapshot_holds_a_parked_ticket\nbringing up nodes...\nbringing up nodes...\n\n.                                                                        [100%]\n1 passed in 3.66s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n"
+        },
+        "base": {
+          "rc": 1,
+          "regression_result": null,
+          "tail": "attr(watch, \"committed_ticket_shas\", lambda ctx: blobs)\n        events = []\n        monkeypatch.setattr(watch, \"journal\", lambda *args, **kwargs: events)\n        for terminal in ({\"to\": \"premise_failed\"}, {\"to\": \"gate_failed\", \"reason\": \"verification,diff_budget\"}):\n            events[:] = [\n                {\"type\": \"state_transition\", \"ticket\": \"work\", \"body\": {\"to\": \"running\", \"ticket_sha\": \"run-blob\"}, \"ts\": \"2026-01-01T00:00:00+00:00\"},\n                {\"type\": \"state_transition\", \"ticket\": \"work\", \"body\": terminal, \"ts\": \"2026-01-01T00:00:01+00:00\"},\n            ]\n            blobs[\"work\"] = \"run-blob\"\n            row = watch.snapshot(ctx)[\"rows\"][0]\n>           assert (row[\"section\"], row[\"held\"], row[\"status\"]) == (\"blocked\", True, f\"held until the ticket changes (last: {terminal['to']})\")  # The matching run is held with its terminal.\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE           AssertionError: assert ('queued', Fa...mise_failed)') == ('blocked', T...mise_failed)')\nE             \nE             At index 0 diff: 'queued' != 'blocked'\nE             Use -v to get more diff\n\ntests/test_watch.py:262: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_watch.py::test_snapshot_holds_a_parked_ticket - AssertionEr...\n1 failed in 1.05s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\nUsing CPython 3.14.6\nCreating virtual environment at: .venv\n   Building chupa @ file:///home/djp/source/chupa/.chupa/state/worktrees/.regression-base/shared-hold-rule\n      Built chupa @ file:///home/djp/source/chupa/.chupa/state/worktrees/.regression-base/shared-hold-rule\nInstalled 19 packages in 6ms\ndev: `uv run pytest -q tests/test_watch.py -k test_snapshot_holds_a_parked_ticket` failed\n"
+        }
+      }
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "./dev.py",
+        "test",
+        "tests/test_scheduler.py",
+        "tests/test_watch.py",
+        "tests/test_drain.py",
+        "tests/test_requisition_gate.py",
+        "tests/test_daemon_composition.py"
+      ],
+      "rc": 0,
+      "tail": "$ uv run pytest -q tests/test_scheduler.py tests/test_watch.py tests/test_drain.py tests/test_requisition_gate.py tests/test_daemon_composition.py\nbringing up nodes...\nbringing up nodes...\n\n........................................................................ [ 36%]\n........................................................................ [ 72%]\n.......................................................                  [100%]\n199 passed in 4.74s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 4.944815
+    },
+    {
+      "argv": [
+        "./dev.py",
+        "test"
+      ],
+      "rc": 0,
+      "tail": "    [100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/shared-hold-rule/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/test_testguard.py::test_guarded_calls_and_asyncio\ntests/test_testguard.py::test_setup_and_teardown\ntests/test_testguard.py::test_guards_are_phase_scoped\ntests/test_testguard.py::test_budget_and_slowest\ntests/test_testguard.py::test_budget_and_slowest\ntests/test_testguard.py::test_xdist_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\n  /home/djp/source/chupa/.chupa/state/worktrees/shared-hold-rule/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3062 passed, 10 warnings in 75.25s (0:01:15)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 79.993013
+    }
+  ]
+}
