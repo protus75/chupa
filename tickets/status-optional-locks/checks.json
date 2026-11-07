@@ -1,0 +1,107 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "f2a5097cd330e1f2f73e4021d107031add8e1194",
+  "stem": "status-optional-locks",
+  "passed": true,
+  "changed_files": [
+    "chupa/git.py",
+    "chupa/merge.py",
+    "chupa/observe.py",
+    "chupa/stages.py",
+    "tests/regress_status_optional_locks.py",
+    "tests/test_git.py"
+  ],
+  "inserted_lines": 49,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false,
+      "bug_evidence": {
+        "argv": [
+          "uv",
+          "run",
+          "python",
+          "tests/regress_status_optional_locks.py"
+        ],
+        "head_sha": "f2a5097cd330e1f2f73e4021d107031add8e1194",
+        "base_sha": "61020bcd22cdddaba2a4a68ddfe5cc31a540c5cd",
+        "overlay_paths": [
+          "tests/regress_status_optional_locks.py"
+        ],
+        "evidence_paths": [
+          "tickets/status-optional-locks/evidence/host-loop-index-lock.txt",
+          "tickets/status-optional-locks/evidence/stale-lock-repro.txt",
+          "tickets/status-optional-locks/evidence/stale_lock.py"
+        ],
+        "head": {
+          "rc": 0,
+          "regression_result": "pass",
+          "tail": "{\"regression_result\": \"pass\"}\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n"
+        },
+        "base": {
+          "rc": 1,
+          "regression_result": "defect",
+          "tail": "{\"regression_result\": \"defect\"}\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\nUsing CPython 3.14.6\nCreating virtual environment at: .venv\n   Building chupa @ file:///home/djp/source/chupa/.chupa/state/worktrees/.regression-base/status-optional-locks\n      Built chupa @ file:///home/djp/source/chupa/.chupa/state/worktrees/.regression-base/status-optional-locks\nInstalled 19 packages in 26ms\n"
+        }
+      }
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "./dev.py",
+        "test",
+        "tests/test_git.py"
+      ],
+      "rc": 0,
+      "tail": "$ uv run pytest -q tests/test_git.py\nbringing up nodes...\nbringing up nodes...\n\n.................................................                        [100%]\n49 passed in 1.08s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 1.411148
+    },
+    {
+      "argv": [
+        "./dev.py",
+        "test"
+      ],
+      "rc": 0,
+      "tail": "\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/status-optional-locks/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/test_testguard.py::test_guarded_calls_and_asyncio\ntests/test_testguard.py::test_setup_and_teardown\ntests/test_testguard.py::test_guards_are_phase_scoped\ntests/test_testguard.py::test_budget_and_slowest\ntests/test_testguard.py::test_budget_and_slowest\ntests/test_testguard.py::test_xdist_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\n  /home/djp/source/chupa/.chupa/state/worktrees/status-optional-locks/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3064 passed, 10 warnings in 70.14s (0:01:10)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 73.640492
+    }
+  ]
+}
