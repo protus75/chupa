@@ -1,20 +1,15 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "6bed49f7dd65c176ec03ee65b93359133bcb8b43",
+  "produced_at_sha": "045a694194f670aeb065197ad041542bf38502ad",
   "stem": "box-view",
-  "attempt": 0,
+  "attempt": 2,
   "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "reject",
-  "lessons": [
-    "Scope out excludes serve's background triage loop, but Definition of rejected forbids any triage without an operator command; chupa/serve.py:419 still auto-triages pending messages, so as written the ticket contradicts merged code.",
-    "Fix the ticket: add a depends on the separate ticket that its Scope out says removes serve's background triage loop. Then this ticket's work starts only after merged code stops auto-triaging.",
-    "Or reword the rejection clause to cover only triage paths this diff adds, so the existing serve loop stays out of scope and cannot fail the branch.",
-    "Do not remove the serve loop inside this ticket: tests/test_serve.py:164 and tests/test_provider_cooldown_failover.py:372 require automatic triage, and neither file is in the scope fence."
-  ],
-  "mechanical": null,
+  "verdict": "abandon-human",
+  "lessons": [],
+  "mechanical": "premise_bounce cap spent",
   "spec_version": "1.2",
-  "provider": "claude",
-  "model": "claude-opus-5-5"
+  "provider": null,
+  "model": null
 }
