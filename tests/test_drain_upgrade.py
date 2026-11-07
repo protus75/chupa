@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from chupa import drain as drain_mod
 from chupa import journal as journal_mod
 from chupa import lockfile as lockfile_mod
 from chupa.__main__ import main
@@ -117,8 +118,9 @@ def drain(root: Path, script: Script, order: list[str], clock: Clock | None = No
 # --- the self-upgrade handoff --------------------------------------------------------------------
 
 
-def test_a_self_upgrading_admission_hands_off_before_the_next_dispatch(tmp_path, order, capsys):
+def test_a_self_upgrading_admission_hands_off_before_the_next_dispatch(tmp_path, order, capsys, monkeypatch):
     root = make_root(tmp_path, caps="caps: {retry: 1}\n")
+    monkeypatch.setattr(drain_mod, "ENGINE", root.resolve())
     commit_ticket(root, "red", confirmed(priority="P0"))
     commit_ticket(root, "upgrade", confirmed(priority="P1"))
     commit_ticket(root, "after", confirmed(priority="P2"))
@@ -130,7 +132,7 @@ def test_a_self_upgrading_admission_hands_off_before_the_next_dispatch(tmp_path,
     # The parent spends the retry before the upgrade; `after` runs in the child.
     assert script.calls == [("parent", "red"), ("parent", "red"), ("parent", "upgrade"), ("child1", "after")]
     (spawn,) = child.spawns
-    assert spawn["argv"] == reexec_argv(["drain", "--parked", "red"])
+    assert spawn["argv"] == ["uv", "run", "--project", str(root.resolve()), "python", "-m", "chupa", "drain", "--parked", "red"]
     assert spawn["timeout"] is None and spawn["stdin_path"] is None
     assert spawn["cwd"] == root and spawn["env"] == ENV
     assert spawn["lock_free"]
@@ -147,8 +149,9 @@ def test_a_self_upgrading_admission_hands_off_before_the_next_dispatch(tmp_path,
     assert "red: gate_failed at implement" in out
 
 
-def test_the_carried_parked_set_rides_every_handoff_in_the_chain(tmp_path, order):
+def test_the_carried_parked_set_rides_every_handoff_in_the_chain(tmp_path, order, monkeypatch):
     root = make_root(tmp_path, caps="caps: {retry: 1}\n")
+    monkeypatch.setattr(drain_mod, "ENGINE", root.resolve())
     commit_ticket(root, "red", confirmed(priority="P0"))
     commit_ticket(root, "one", confirmed(priority="P1"))
     commit_ticket(root, "two", confirmed(priority="P2"))
@@ -163,7 +166,8 @@ def test_the_carried_parked_set_rides_every_handoff_in_the_chain(tmp_path, order
     assert order.count("spawn") == 2 and order[-2:] == ["exit 0", "exit 0"]
 
 
-def test_an_admission_outside_the_engine_plane_does_not_re_exec(root, order):
+def test_an_admission_outside_the_engine_plane_does_not_re_exec(root, order, monkeypatch):
+    monkeypatch.setattr(drain_mod, "ENGINE", root.resolve())
     commit_ticket(root, "docs", confirmed(priority="P0"))
     commit_ticket(root, "lookalike", confirmed(priority="P1"))
     script = Script({"docs": ["merged:docs/guide.md"], "lookalike": ["merged:chupa-notes/x.md"]})
@@ -175,8 +179,22 @@ def test_an_admission_outside_the_engine_plane_does_not_re_exec(root, order):
     assert script.calls == [("parent", "docs"), ("parent", "lookalike")]
 
 
-def test_retry_budget_spent_before_the_re_exec_stays_spent_in_the_child(tmp_path, order, capsys):
+def test_a_host_repo_merge_touching_chupa_does_not_re_exec(root, order, monkeypatch, tmp_path):
+    monkeypatch.setattr(drain_mod, "ENGINE", tmp_path / "other-engine")
+    commit_ticket(root, "upgrade", confirmed())
+    script = Script({"upgrade": ["merged:chupa/a.py"]})
+
+    code, child = drain(root, script, order)
+
+    assert code == 0
+    assert script.calls == [("parent", "upgrade")]
+    assert child.spawns == []
+    assert not any(e.body.get("signal") == HANDOFF_SIGNAL for e in journal(root).read())
+
+
+def test_retry_budget_spent_before_the_re_exec_stays_spent_in_the_child(tmp_path, order, capsys, monkeypatch):
     root = make_root(tmp_path, caps="caps: {retry: 1}\n")
+    monkeypatch.setattr(drain_mod, "ENGINE", root.resolve())
     commit_ticket(root, "red", confirmed(priority="P0"))
     commit_ticket(root, "gate", confirmed(priority="P1"))
     commit_ticket(root, "upgrade", confirmed(depends="- gate", priority="P2"))

@@ -431,8 +431,9 @@ Keep and kill normally require a person at an interactive terminal to answer `y`
 
 Bounds: `drain.max_runtime_hours` (default 12) halts it (exit 1).
 
-**Self-upgrade:** when a merge changes `chupa/` or `specs/`, the drain journals a handoff,
+**Self-upgrade:** when draining the engine’s own source tree, a merge changing `chupa/` or `specs/` causes the drain to journal a handoff,
 releases the lock, and re-executes itself so the new engine code runs the rest of the queue.
+A host repo or pip-installed engine never self-upgrades through drain; upgrade those by reinstalling.
 Both verbs use `uv run --project <engine checkout> python -m chupa` followed by their invocation arguments.
 
 ### 7.2 `serve`

@@ -7,7 +7,7 @@ render folds the prior terminal's durable findings into criteria-position. Every
 the committed tickets dir and re-folds the journal, so a merge or a ticket-plane commit landed mid-invocation
 is visible to the very next pick. This is the eligibility sort's owner.
 
-An admission touching `chupa/**` or `specs/**` is a SELF-UPGRADE: before the next dispatch the drain hands off to
+In the engine's own source tree, an admission touching `chupa/**` or `specs/**` is a SELF-UPGRADE: before the next dispatch the drain hands off to
 a re-exec'd child running the upgraded checkout, carrying the invocation's parked set in
 argv. A `premise_failed` stem stays parked until its committed `ticket.md` changes.
 """
@@ -43,6 +43,8 @@ from chupa.tickets import (
     ticket_path,
 )
 
+ENGINE = Path(__file__).resolve().parent.parent
+
 HALT_SIGNAL = "drain_halted"
 CEILING = "drain.max_runtime_hours"
 # A `rejected` stem is retired: never dispatched again.
@@ -55,7 +57,8 @@ HANDOFF_SIGNAL = "drain_handoff"
 UPGRADE_PREFIXES = ("chupa/", "specs/")
 
 
-def reexec_argv(args: Iterable[str], *, engine: Path = Path(__file__).resolve().parent.parent) -> list[str]:
+def reexec_argv(args: Iterable[str], *, engine: Path | None = None) -> list[str]:
+    engine = ENGINE if engine is None else engine
     return ["uv", "run", "--project", str(engine), "python", "-m", "chupa", *args]
 
 
@@ -520,7 +523,7 @@ class _Drain:
             # A `merged` with no commit is the no-diff settlement: nothing was admitted.
             if (commit := body.get("commit")) is not None:
                 changed = await self.c.git.diff_names(self.c.repo, f"{commit}^", commit)
-                if any(p.startswith(UPGRADE_PREFIXES) for p in changed):
+                if self.c.repo.resolve() == ENGINE and any(p.startswith(UPGRADE_PREFIXES) for p in changed):
                     self.upgrade = (stem, commit)
 
     async def _run_retro(self, *, forced):

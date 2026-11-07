@@ -1139,6 +1139,10 @@ def _exercise_retro_drain(tmp_path, monkeypatch, scenario):
     from tests.test_providers import claude_ok
 
     root = make_root(tmp_path)
+    if scenario == "self-upgrade":
+        from chupa import drain as drain_mod
+
+        monkeypatch.setattr(drain_mod, "ENGINE", root.resolve())
     config = (root / "config.yaml").read_text().replace("review: {}", "  - {tier: medium, surface: retro, candidates: [{provider: claude}]}\nreview: {}")
     (root / "config.yaml").write_text(config)
     git_out(root, "add", "config.yaml")
@@ -1479,11 +1483,14 @@ async def test_stop_finishes_current_ticket_and_releases_lock(root):
 
 
 @pytest.mark.asyncio
-async def test_stop_survives_self_upgrade_handoff(root):
+async def test_stop_survives_self_upgrade_handoff(root, monkeypatch):
+    from chupa import drain as drain_mod
+
     from chupa.control import ControlRequest, publish_request
     from chupa.drain import drain as run_drain
     from tests.test_drain_reentry import NoChild
 
+    monkeypatch.setattr(drain_mod, "ENGINE", root.resolve())
     commit_ticket(root, "aa", confirmed(priority="P0"))
     commit_ticket(root, "bb", confirmed(priority="P1"))
     checkout = pause_checkout(root)

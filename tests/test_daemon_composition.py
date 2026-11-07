@@ -1614,6 +1614,10 @@ async def test_control_lifecycle_cleanup_on_exit_and_handoff(root, monkeypatch, 
     from chupa.lockfile import Lockfile
     from tests.test_drain import confirmed
 
+    if exit == "handoff":
+        from chupa import drain as drain_mod
+
+        monkeypatch.setattr(drain_mod, "ENGINE", root.resolve())
     live = LiveDrain(root, monkeypatch)
     c = live.checkout
     write(root, "work", confirmed())
