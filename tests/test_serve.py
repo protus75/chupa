@@ -1642,7 +1642,7 @@ async def test_serve_failed_notify_backoff_and_restart(root, monkeypatch):
         assert len(pending_escalations(rig.journal.read())) == 1 and terminals(rig) == []
         assert [m for m in rig.owner.box.pending() if m.message_class == "failure_report"]
         rig.time.advance(NOTIFY_RETRY_S)
-        await until(rig, lambda: len(deliveries(root)) == 2 and rig.owner.notifications.task.done())
+        await until(rig, lambda: len(deliveries(root)) == 2 and rig.owner.notifications.retry_at != retry_at)
         assert len(intents()) == 2 and not notify_completions(rig)
     finally:
         await finish(rig, run)
