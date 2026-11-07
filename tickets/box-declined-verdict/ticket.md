@@ -8,6 +8,9 @@ kind: feature
 ## Depends on
 - box-view
 
+## Runs before
+- tests-split
+
 ## Context
 - chupa/box.py
 - chupa/triage.py
@@ -51,7 +54,6 @@ The registry keeps its name: `tickets/decisions/` holds both declined and tombst
 - In: `chupa/status.py`: the resolved label is `declined`.
 - In: `chupa/observe.py`: `boxCounts` key `decision` becomes `declined`.
 - In: `vscode-chupa/media/box.js`: the header reads `c.declined` and prints `<n> declined`.
-- In: every committed record `tickets/decisions/decision-*.md` at the base commit is renamed to `declined-*.md`; its frontmatter `id` and `kind` change to match, and any body reference to a renamed record id is updated. Tombstone records are untouched.
 - In: a new `chupa migrate-box` verb that takes the writer lock (refusing exit 2 when held, as `dismiss` does) and rewrites `<state_dir>/box/*.json`:
   - It reads each file as raw JSON, because the old value no longer validates as `Message`.
   - A file whose `resolution.kind` is `decision` gets `declined`. A `resolution.link` that starts `decision-` gets `declined-` in its place.
@@ -70,6 +72,7 @@ The registry keeps its name: `tickets/decisions/` holds both declined and tombst
   - the section 2.1 verb table adds `migrate-box`;
   - the section 2.2 `./dev.py` table adds `migrate-box`.
 - Out:
+  - every file under `tickets/`: the committed `tickets/decisions/decision-*.md` records are renamed to `declined-*.md` by the operator right after merge, outside this branch;
   - the control-plane `decision` field (`control_decision`, kill/stop/pause/storm journal bodies) and every unrelated prose use of the word;
   - the registry directory, `DecisionRecord` class name, commit prefix, and effect keys;
   - `chupa/specs/triage.md` frontmatter `version`;
@@ -86,7 +89,6 @@ The registry keeps its name: `tickets/decisions/` holds both declined and tombst
 - chupa/specs/triage.md
 - vscode-chupa/media/box.js
 - dev.py
-- tickets/decisions
 - docs/how-chupa-works.md
 - eval/daemon_soak.py
 - tests/test_box.py
@@ -105,7 +107,7 @@ The registry keeps its name: `tickets/decisions/` holds both declined and tombst
 ## Acceptance criteria
 1. `./dev.py test tests/test_box.py tests/test_triage.py tests/test_author.py tests/test_watch.py tests/test_status.py tests/test_cli.py tests/test_dev.py tests/test_flake.py tests/test_serve.py tests/test_retro_box.py` exits 0, including every new test in Scope in.
 2. `git grep -n -e '"decision"' -e 'decision-{' -e 'c.decision' -- chupa/box.py chupa/triage.py chupa/author.py chupa/status.py chupa/observe.py vscode-chupa/media/box.js eval/daemon_soak.py` prints nothing: no box verdict literal, count key, or record-id prefix survives. (The control plane's `body["decision"]` lives in other files and is out of scope.)
-3. `git ls-files 'tickets/decisions/decision-*'` prints nothing, `git ls-files 'tickets/decisions/declined-*'` lists one file per `decision-*` record at the base commit, and `git diff --stat <base> -- 'tickets/decisions/tombstone-*'` prints nothing.
+3. The branch changes no file under `tickets/`.
 4. `node --check vscode-chupa/media/box.js` exits 0.
 5. `./dev.py test` exits 0.
 
