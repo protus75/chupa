@@ -10,7 +10,6 @@ gate_bypass:
 
 ## Depends on
 - testguard
-- chupa-ruff-config
 - source-graph-ast
 - covgate
 - covgate-runs-tests
