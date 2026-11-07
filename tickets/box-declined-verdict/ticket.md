@@ -18,24 +18,24 @@ kind: feature
 - chupa/status.py
 - vscode-chupa/media/box.js
 - dev.py
-- tests/test_box.py
-- tests/test_dev.py
-- tests/test_status.py
+- tests/integration/test_box.py
+- tests/integration/test_dev.py
+- tests/integration/test_status.py
 
 ## On-demand
 - chupa/specs/triage.md
 - chupa/observe.py
 - chupa/__main__.py
 - docs/how-chupa-works.md
-- tests/test_triage.py
-- tests/test_author.py
-- tests/test_watch.py
-- tests/test_cli.py
-- tests/test_flake.py
-- tests/test_serve.py
-- tests/test_retro_box.py
-- tests/test_storm_producer.py
-- tests/test_storm_notification_activation.py
+- tests/integration/test_triage.py
+- tests/integration/test_author.py
+- tests/integration/test_watch.py
+- tests/integration/test_cli.py
+- tests/integration/test_flake.py
+- tests/integration/test_serve.py
+- tests/integration/test_retro_box.py
+- tests/integration/test_storm_producer.py
+- tests/integration/test_storm_notification_activation.py
 - eval/daemon_soak.py
 
 ## Goal / Why
@@ -61,11 +61,11 @@ The registry keeps its name: `tickets/decisions/` holds both declined and tombst
   - A second run changes no file and prints `migrate-box: 0 migrated`.
 - In: `dev.py` gains `migrate-box`, which runs `chupa migrate-box`.
 - In: tests:
-  - every existing assertion or fixture using the box `decision` value or `decision-` record id flips to `declined`, including the `Verdict`/`Resolution` fixtures in `tests/test_storm_producer.py` and `tests/test_storm_notification_activation.py`;
-  - `tests/test_box.py`: migrating a box with one `decision` resolution, one `tombstone`, and one pending message rewrites only the first, so `Box.messages()` loads all three. A migration that leaves `decision`, rewrites the tombstone, or drops the link prefix fails;
-  - `tests/test_box.py`: `Resolution(kind="decision", ...)` raises `ValidationError`, not accepted;
-  - `tests/test_cli.py`: `migrate-box` exits 2 and changes no file while the lock is held; a second run reports `0 migrated`;
-  - `tests/test_dev.py`: `migrate-box` forwards to `chupa migrate-box`.
+  - every existing assertion or fixture using the box `decision` value or `decision-` record id flips to `declined`, including the `Verdict`/`Resolution` fixtures in `tests/integration/test_storm_producer.py` and `tests/integration/test_storm_notification_activation.py`;
+  - `tests/integration/test_box.py`: migrating a box with one `decision` resolution, one `tombstone`, and one pending message rewrites only the first, so `Box.messages()` loads all three. A migration that leaves `decision`, rewrites the tombstone, or drops the link prefix fails;
+  - `tests/integration/test_box.py`: `Resolution(kind="decision", ...)` raises `ValidationError`, not accepted;
+  - `tests/integration/test_cli.py`: `migrate-box` exits 2 and changes no file while the lock is held; a second run reports `0 migrated`;
+  - `tests/integration/test_dev.py`: `migrate-box` forwards to `chupa migrate-box`.
 - In: `docs/how-chupa-works.md`:
   - section 9.2 describes `declined`;
   - the `triage.md` row in the spec table lists `author / tombstone / declined`;
@@ -91,21 +91,21 @@ The registry keeps its name: `tickets/decisions/` holds both declined and tombst
 - dev.py
 - docs/how-chupa-works.md
 - eval/daemon_soak.py
-- tests/test_box.py
-- tests/test_triage.py
-- tests/test_author.py
-- tests/test_watch.py
-- tests/test_status.py
-- tests/test_cli.py
-- tests/test_dev.py
-- tests/test_flake.py
-- tests/test_serve.py
-- tests/test_retro_box.py
-- tests/test_storm_producer.py
-- tests/test_storm_notification_activation.py
+- tests/integration/test_box.py
+- tests/integration/test_triage.py
+- tests/integration/test_author.py
+- tests/integration/test_watch.py
+- tests/integration/test_status.py
+- tests/integration/test_cli.py
+- tests/integration/test_dev.py
+- tests/integration/test_flake.py
+- tests/integration/test_serve.py
+- tests/integration/test_retro_box.py
+- tests/integration/test_storm_producer.py
+- tests/integration/test_storm_notification_activation.py
 
 ## Acceptance criteria
-1. `./dev.py test tests/test_box.py tests/test_triage.py tests/test_author.py tests/test_watch.py tests/test_status.py tests/test_cli.py tests/test_dev.py tests/test_flake.py tests/test_serve.py tests/test_retro_box.py` exits 0, including every new test in Scope in.
+1. `./dev.py test tests/integration/test_box.py tests/integration/test_triage.py tests/integration/test_author.py tests/integration/test_watch.py tests/integration/test_status.py tests/integration/test_cli.py tests/integration/test_dev.py tests/integration/test_flake.py tests/integration/test_serve.py tests/integration/test_retro_box.py` exits 0, including every new test in Scope in.
 2. `git grep -n -e '"decision"' -e 'decision-{' -e 'c.decision' -- chupa/box.py chupa/triage.py chupa/author.py chupa/status.py chupa/observe.py vscode-chupa/media/box.js eval/daemon_soak.py` prints nothing: no box verdict literal, count key, or record-id prefix survives. (The control plane's `body["decision"]` lives in other files and is out of scope.)
 3. The branch changes no file under `tickets/`.
 4. `node --check vscode-chupa/media/box.js` exits 0.
@@ -113,7 +113,7 @@ The registry keeps its name: `tickets/decisions/` holds both declined and tombst
 
 ## Verification
 ```
-./dev.py test tests/test_box.py tests/test_triage.py tests/test_author.py tests/test_watch.py tests/test_status.py tests/test_cli.py tests/test_dev.py tests/test_flake.py tests/test_serve.py tests/test_retro_box.py
+./dev.py test tests/integration/test_box.py tests/integration/test_triage.py tests/integration/test_author.py tests/integration/test_watch.py tests/integration/test_status.py tests/integration/test_cli.py tests/integration/test_dev.py tests/integration/test_flake.py tests/integration/test_serve.py tests/integration/test_retro_box.py
 node --check vscode-chupa/media/box.js
 ./dev.py test
 ```
