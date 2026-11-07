@@ -1,0 +1,172 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "e4979a7ae35a1abcec587db589c427eadddc05da",
+  "stem": "chupa-test-gates",
+  "passed": true,
+  "changed_files": [
+    ".gitignore",
+    "config.yaml",
+    "docs/how-chupa-works.md",
+    "test-gate.toml"
+  ],
+  "inserted_lines": 88,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "-c",
+        "from pathlib import Path; from chupa.config import load_config; c = load_config(None, cwd=Path('.')); assert [m.code for m in c.review.mechanical] == ['unit', 'integration', 'lint', 'format']; assert [a.code for a in c.review.autofix] == ['ruff-fix', 'ruff-format']; assert 'test-gate.toml' in c.engine_plane_safety_inventory; assert c.review.coverage_map is not None"
+      ],
+      "rc": 0,
+      "tail": "warning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 0.220266
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "chupa",
+        "covgate",
+        "--",
+        "python",
+        "-m",
+        "pytest",
+        "tests/unit",
+        "-p",
+        "chupa.testguard",
+        "-p",
+        "chupa.testreport",
+        "--chupa-results",
+        ".chupa/results/unit.json",
+        "--cov=chupa",
+        "--cov-branch",
+        "--cov-context=test",
+        "--cov-report=json:coverage.json",
+        "-n",
+        "auto"
+      ],
+      "rc": 0,
+      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/chupa-test-gates\nconfigfile: pyproject.toml\nplugins: xdist-3.8.0, timeout-2.5.0, asyncio-1.4.0, cov-7.1.0\ntimeout: 120.0s\ntimeout method: thread\ntimeout func_only: False\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncreated: 20/20 workers\n20 workers [31 items]\n\n...............................                                          [100%]\n================================ tests coverage ================================\n_______________ coverage: platform linux, python 3.14.6-final-0 ________________\n\nCoverage JSON written to file coverage.json\n============================== 31 passed in 5.65s ==============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 6.069534
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "-c",
+        "import json,math,tomllib; g=tomllib.load(open('test-gate.toml','rb'))['coverage']; r=json.load(open('coverage.json')); pct=lambda s: 100.0 if s['num_statements']+s.get('num_branches',0)==0 else 100*(s['covered_lines']+s.get('covered_branches',0))/(s['num_statements']+s.get('num_branches',0)); files={k:pct(v['summary']) for k,v in r['files'].items()}; e=g.get('files',{}); assert all(e.get(k)==math.floor(v) for k,v in files.items() if v<90), 'missing or wrong baseline'; assert all(files.get(k,100)<90 for k in e), 'entry at or above 90'; tot=pct(r['totals']); assert ('repository' not in g) if tot>=90 else g.get('repository')==math.floor(tot), 'repository baseline'"
+      ],
+      "rc": 0,
+      "tail": "warning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 0.093867
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/integration",
+        "-p",
+        "chupa.testreport",
+        "--chupa-results",
+        ".chupa/results/integration.json",
+        "-n",
+        "auto"
+      ],
+      "rc": 0,
+      "tail": "alidates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/chupa-test-gates/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/integration/test_testguard.py::test_xdist_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_guarded_calls_and_asyncio\ntests/integration/test_testguard.py::test_setup_and_teardown\ntests/integration/test_testguard.py::test_guards_are_phase_scoped\ntests/integration/test_testguard.py::test_budget_and_slowest\ntests/integration/test_testguard.py::test_budget_and_slowest\n  /home/djp/source/chupa/.chupa/state/worktrees/chupa-test-gates/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n================= 3089 passed, 10 warnings in 67.36s (0:01:07) =================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 76.972739
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "ruff",
+        "check",
+        "."
+      ],
+      "rc": 0,
+      "tail": "All checks passed!\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 0.230928
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "ruff",
+        "format",
+        "--check",
+        "."
+      ],
+      "rc": 0,
+      "tail": "193 files already formatted\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 0.058528
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/chupa-test-gates/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/integration/test_testguard.py::test_guarded_calls_and_asyncio\ntests/integration/test_testguard.py::test_setup_and_teardown\ntests/integration/test_testguard.py::test_guards_are_phase_scoped\ntests/integration/test_testguard.py::test_budget_and_slowest\ntests/integration/test_testguard.py::test_budget_and_slowest\ntests/integration/test_testguard.py::test_xdist_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\n  /home/djp/source/chupa/.chupa/state/worktrees/chupa-test-gates/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3120 passed, 10 warnings in 55.27s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 58.576476
+    }
+  ]
+}
