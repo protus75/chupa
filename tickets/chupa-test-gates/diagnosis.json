@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "bd9d9b287838d22c09327be608745debe7e0794a",
+  "stem": "chupa-test-gates",
+  "attempt": 2,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Criterion 3 requires `ruff check .` and `ruff format --check .` to pass on the whole repo. The merge base fails both across chupa/, eval/, tests/ and tickets/*/evidence, and all of these are outside the fence. Engine-code and test changes are also forbidden, so no attempt can pass as written.",
+    "Before re-running, the repo must be lint- and format-clean (box-000338-98ba883a), done by a separate ticket that this one depends on. Re-measure the coverage baseline only after that cleanup merges.",
+    "Ticket evidence files (tickets/graph-lane-cleanup/evidence/regress_graph_lanes.py, tickets/status-optional-locks/evidence/stale_lock.py) fail ruff. A human must decide whether the cleanup ticket fixes them or ruff excludes tickets/. The ticket does not say which is allowed.",
+    "The covgate.py coverage changed from 19 to 23 between unit runs, so the measured floor is not stable. The baseline check needs a deterministic per-file measurement, or the ticket must say how to pick the floor when runs disagree."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
