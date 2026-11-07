@@ -610,11 +610,15 @@ def snapshot(ctx) -> dict:
                          "status": f"{cls} · {label}", "summary": summary, "fields": fields,
                          "path": str(path.relative_to(ctx.root.resolve())) if path.is_relative_to(ctx.root.resolve()) else None, "link": link})
     box_counts = {kind: sum(m.status == "pending" if kind == "pending" else m.resolution is not None and m.resolution.kind == ("ticket" if kind == "author" else kind) for m in messages) for kind in ("pending", "author", "tombstone", "decision")}
+    counts = {section: sum(r["section"] == section for r in rows) for section in ("blocked", "queued", "running", "merged")}
+    total = counts["queued"] + counts["running"]
+    badge = {"value": total, "tooltip": f'{counts["running"]} running, {counts["queued"]} queued'} if alive and total else None
     return {
+        "badge": badge,
         "box": box_rows,
         "boxCounts": box_counts,
         "priorities": list(get_args(Frontmatter.model_fields["priority"].annotation)),
-        "counts": {section: sum(r["section"] == section for r in rows) for section in ("blocked", "queued", "running", "merged")},
+        "counts": counts,
         "runningStem": running[0] if running else None,
         "verdictCommands": {verb: [verb, "--yes"] for verb in ("confirm", "reject")},
         "stateDir": str(state.resolve()),

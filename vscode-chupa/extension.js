@@ -70,21 +70,17 @@ function askClaude(ctx, task) {
 	});
 }
 
-// One snapshot run feeds every view; it runs only while at least one view is visible.
+// One snapshot run feeds every view and the Activity Bar badge.
 class Snapshot {
 	constructor() {
 		this.snap = undefined;
 		this.error = undefined;
 		this.listeners = [];
-		this.views = [];
 		this.running = false;
 		this.again = false;
 	}
 
 	refresh() {
-		if (!this.views.some(v => v.visible)) {
-			return;
-		}
 		if (this.running) {
 			this.again = true;
 			return;
@@ -151,7 +147,6 @@ class TicketsView {
 
 	resolveWebviewView(view) {
 		this.view = view;
-		this.snapshot.views.push(view);
 		webviewHtml(this.extensionUri, view.webview, '<div id="header">loading…</div><div id="list"></div>', ['graph.js', 'view.js']);
 		view.webview.onDidReceiveMessage(msg => {
 			if (msg.type === 'ready') {
@@ -184,7 +179,6 @@ class BoxView {
 	}
 	resolveWebviewView(view) {
 		this.view = view;
-		this.snapshot.views.push(view);
 		webviewHtml(this.extensionUri, view.webview, '<div id="header">loading…</div><div id="list"></div>', ['box.js']);
 		view.webview.onDidReceiveMessage(msg => {
 			if (msg.type === 'ready') this.snapshot.snap ? this.post() : this.snapshot.refresh();
@@ -211,7 +205,6 @@ class DetailsView {
 
 	resolveWebviewView(view) {
 		this.view = view;
-		this.snapshot.views.push(view);
 		webviewHtml(this.extensionUri, view.webview, '<div id="detail"></div>', ['detail.js']);
 		view.webview.onDidReceiveMessage(msg => {
 			if (msg.type === 'ready') {
@@ -273,7 +266,7 @@ function activate(context) {
 	const box = new BoxView(context.extensionUri, snapshot, details);
 	const steps = new StepsTree(snapshot);
 	const stepsView = vscode.window.createTreeView('chupa.steps', { treeDataProvider: steps });
-	snapshot.views.push(stepsView);
+	snapshot.listeners.push(() => { stepsView.badge = snapshot.snap?.badge ?? undefined; });
 	stepsView.onDidChangeVisibility(e => e.visible && snapshot.refresh());
 	context.subscriptions.push(
 		stepsView,
@@ -345,6 +338,7 @@ function activate(context) {
 		tick = seconds > 0 ? setInterval(() => snapshot.refresh(), seconds * 1000) : undefined;
 	};
 	schedule();
+	snapshot.refresh();
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => e.affectsConfiguration('chupa.refreshSeconds') && schedule()));
 	context.subscriptions.push({ dispose: () => clearInterval(tick) });
 }

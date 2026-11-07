@@ -219,6 +219,38 @@ def test_snapshot_display_fields(tmp_path, monkeypatch):
     assert watch.snapshot(ctx)["runningStem"] is None  # A previous running stem must not persist.
 
 
+
+def test_snapshot_badge(tmp_path, monkeypatch):
+    from datetime import datetime
+    from types import SimpleNamespace
+
+    ctx = watch.Context(tmp_path, tmp_path, tmp_path / "config.yaml", None, None, None)
+    def ticket(stem, state="confirmed"):
+        return SimpleNamespace(stem=stem, frontmatter=SimpleNamespace(priority="P1", state=state), depends=(), runs_before=(), sections={})
+
+    tickets = {t.stem: t for t in (ticket("live"), ticket("waiting"), ticket("blocked", "draft"))}
+    events = [
+        {"type": "state_transition", "ticket": "live", "body": {"to": "running"}, "ts": "2026-01-01T00:00:00+00:00"},
+        {"type": "state_transition", "ticket": "done", "body": {"to": "merged"}, "ts": "2026-01-01T00:00:00+00:00"},
+    ]
+    monkeypatch.setattr(watch, "load_tickets", lambda ctx, skip: (tickets, {}))
+    monkeypatch.setattr(watch, "journal", lambda *args, **kwargs: events)
+    monkeypatch.setattr(watch, "running_stems", lambda *args: ["live"])
+    monkeypatch.setattr(watch, "lock_holder", lambda state: datetime.fromisoformat("2025-12-31T00:00:00+00:00"))
+    monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: (set(), set()))
+    monkeypatch.setattr(watch, "committed_ticket_shas", lambda ctx: {})
+    monkeypatch.setattr(watch, "commits", lambda ctx: {})
+    snap = watch.snapshot(ctx)
+    assert snap["counts"] == {"blocked": 1, "queued": 1, "running": 1, "merged": 1}  # All four categories must be represented.
+    assert snap["badge"] == {"value": 2, "tooltip": "1 running, 1 queued"}  # Merged and blocked rows must not count.
+    monkeypatch.setattr(watch, "lock_holder", lambda state: None)
+    assert watch.snapshot(ctx)["badge"] is None  # A dead engine must not show queued work.
+    monkeypatch.setattr(watch, "lock_holder", lambda state: datetime.fromisoformat("2025-12-31T00:00:00+00:00"))
+    monkeypatch.setattr(watch, "running_stems", lambda *args: [])
+    tickets.clear()
+    assert watch.snapshot(ctx)["badge"] is None  # An alive engine with no work must not show zero.
+
+
 def test_diagnose_prompt_uses_live_running_state(tmp_path, monkeypatch, capsys):
     from chupa.__main__ import main
     from tests.test_config import VALID
