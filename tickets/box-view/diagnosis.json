@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "f8ff7afdb6b9ea2d31abf5e707a4c2f02b1f2b0d",
+  "produced_at_sha": "8bb90c83e7187a48b63d4d4e00b48057e1319f75",
   "stem": "box-view",
-  "attempt": 3,
+  "attempt": 4,
   "terminal": "gate_failed",
-  "stage": "review",
-  "verdict": "retry",
+  "stage": "merge",
+  "verdict": "abandon-human",
   "lessons": [
-    "Details focus bug: box.js update() posts {type:'focus'} on every render, and view.js does too. Each snapshot refresh lets the last view to post take Details. Post focus from box.js only on user actions (hover, mouseleave, click, contextmenu, keys), never from render().",
-    "In extension.js DetailsView.setFocus (~line 229), save the old this.focuses[kind] first and change this.focus only when the new id differs from it. A repeated identical post must not take focus back. Keep the fallback to the other view's pin when the id is cleared.",
-    "When a render drops the pinned box id because the message left the snapshot, post one focus change for that real change, not every render. The ticket requires Details to show the last hovered or pinned item, then the other view's pin, then the running ticket.",
-    "Leave view.js unchanged: it is outside the scope fence, and the Tickets view must not change. Fix the bug in box.js and setFocus only. Keep the rest of the diff, which review said meets the ticket, and rerun every Verification command."
+    "The implementation passed all checks and review approved it with no findings. Merge failed only on the dirty_checkout gate: the main checkout has uncommitted edits to chupa/observe.py, tests/test_watch.py, vscode-chupa/extension.js and vscode-chupa/package.json, and the squash would overwrite them.",
+    "A human must inspect those four files in the main checkout. Then either commit the edits (if they are wanted) or revert them. Only then can the ticket re-run through the normal retry path, as the gate's paved_road says.",
+    "Do not change the implementation on the next attempt. The approved diff (8 files, 326 insertions) meets the ticket. A retry before the main checkout is clean will fail the same merge gate again.",
+    "If the operator commits the main-checkout edits to those fenced files, the next attempt must rebase onto them. Read the new chupa/observe.py, extension.js, package.json and test_watch.py before writing, so the box view does not overwrite those changes."
   ],
   "mechanical": null,
   "spec_version": "1.2",
