@@ -317,7 +317,12 @@ def main(
                 raise runner.Refusal(findings[0].message, findings[0].paved_road)
             if not (repo / ticket_path(args.stem)).is_file():
                 raise runner.Refusal(f"{ticket_path(args.stem)} does not exist", f"author it with chupa new {args.stem}")
-            print(ask.render(args.kind, args.stem, config, repo), end="")
+            from chupa import observe
+
+            events = observe.journal(config.state_dir, limit=10**7)
+            last = {e["ticket"]: {**e["body"], "ts": e["ts"]} for e in events if e.get("type") == "state_transition" and e.get("ticket")}
+            kind = "running" if args.kind == "diagnose" and args.stem in observe.running_stems(config.state_dir, last) else args.kind
+            print(ask.render(kind, args.stem, config, repo), end="")
             return 0
         exec_ = SubprocessExec()
         checkout = runner.Checkout(

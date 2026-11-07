@@ -8,11 +8,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
+from typing import get_args
 
 from chupa.drain import RETIRED, authored_at, order_tickets
 from chupa.graph import layout
 from chupa.rework import settled_dependencies
-from chupa.tickets import TicketInvalid, parse_ticket
+from chupa.tickets import Frontmatter, TicketInvalid, parse_ticket
 
 # A stage the engine log records; Check and merge are mechanical and leave no stage events.
 STEP_NAMES = {"implement": "Implement", "review": "Review", "diagnose": "Diagnose", "rework": "Rework", "retro": "Retro", "triage": "Triage", "author": "Author"}
@@ -49,6 +50,15 @@ def clock(ts: str) -> str:
 def ago(ts: str) -> str:
     seconds = int((datetime.now().astimezone() - local(ts)).total_seconds())
     return f"{seconds // 60}m{seconds % 60:02d}s"
+
+
+def relative(ts: str, now: datetime) -> str:
+    minutes = int((now - local(ts)).total_seconds() / 60 + 0.5)
+    if minutes < 60:
+        return f"{minutes} min ago"
+    if minutes < 2880:
+        return f"{int(minutes / 60 + 0.5)} hr ago"
+    return f"{int(minutes / 1440 + 0.5)} days ago"
 
 
 def processes(ctx) -> list[tuple[int, int, str]]:
@@ -280,15 +290,15 @@ def recent_steps(state: Path, log: list[dict], limit: int) -> list[dict]:
         event = e.get("event")
         if event in ("stage_start", "stage_end"):
             verb = "start" if event == "stage_start" else f"end ({e.get('outcome', '?')})"
-            rows.append({"ts": e["ts"], "stem": e.get("stem"), "text": f"{STEP_NAMES.get(e.get('surface'), e.get('surface'))} {verb}"})
+            rows.append({"ts": e["ts"], "stem": e.get("stem"), "text": f"{STEP_NAMES.get(e.get('surface'), e.get('surface'))} {verb}", "kind": "stage_start" if event == "stage_start" else "stage_ok" if e.get("outcome") == "ok" else "stage_failed"})
         elif event == "engine_start":
-            rows.append({"ts": e["ts"], "stem": None, "text": f"{e['verb']} started (pid {e['pid']})"})
+            rows.append({"ts": e["ts"], "stem": None, "text": f"{e['verb']} started (pid {e['pid']})", "kind": "engine_start"})
         elif event == "engine_stop":
-            rows.append({"ts": e["ts"], "stem": None, "text": f"{e['verb']} stopped ({e['outcome']})"})
+            rows.append({"ts": e["ts"], "stem": None, "text": f"{e['verb']} stopped ({e['outcome']})", "kind": "engine_stop"})
     if lifecycle:
         latest = max(enumerate(lifecycle), key=lambda pair: (pair[1]["ts"], pair[0]))[1]
         if latest["event"] == "engine_start" and lock_holder(state) is None:
-            rows.append({"ts": latest["ts"], "stem": None, "text": f"{latest['verb']} ended without a stop record (killed?)"})
+            rows.append({"ts": latest["ts"], "stem": None, "text": f"{latest['verb']} ended without a stop record (killed?)", "kind": "engine_lost"})
     return sorted(rows, key=lambda row: row["ts"], reverse=True)[:limit]
 
 
@@ -423,6 +433,7 @@ def commits(ctx) -> dict[str, dict]:
 
 def snapshot(ctx) -> dict:
     state = ctx.state
+    now = datetime.now().astimezone()
     events = journal(state, limit=10**7)
     log = read_lines(state / "engine.log", 4000) if (state / "engine.log").exists() else []
     last: dict[str, dict] = {}
@@ -543,16 +554,30 @@ def snapshot(ctx) -> dict:
         row = base(stem, "merged", "merged" if body["to"] == "merged" else body["to"].replace("_", " "))
         row["commit"] = log_rows.get(body.get("commit", ""))
         row["mergedAt"] = body["ts"]
+        row["mergedAtAgo"] = relative(body["ts"], now)
+        row["mergedAtDisplay"] = local(body["ts"]).strftime("%x, %X")
+        if row["commit"]:
+            row["commit"] = {**row["commit"], "dateAgo": relative(row["commit"]["date"], now), "dateDisplay": local(row["commit"]["date"]).strftime("%x, %X")}
         rows.append(row)
     shown = {r["stem"] for r in rows}
+    unmerged = [r["stem"] for r in rows if r["section"] != "merged"]
     for r in rows:
+        if r["section"] != "merged":
+            r["runsBeforeChoices"] = [stem for stem in unmerged if stem != r["stem"]]
         r["depends"] = [d for d in r["depends"] if d in shown]
     for row, graph in zip(rows, layout(rows)):
         row["graph"] = graph
     steps = recent_steps(state, log, STEPS)
+    for step in steps:
+        step["timeDisplay"] = clock(step["ts"])
+        step["dateDisplay"] = local(step["ts"]).strftime("%x, %X")
     return {
+        "priorities": list(get_args(Frontmatter.model_fields["priority"].annotation)),
+        "counts": {section: sum(r["section"] == section for r in rows) for section in ("blocked", "queued", "running", "merged")},
+        "runningStem": running[0] if running else None,
+        "verdictCommands": {verb: [verb, "--yes"] for verb in ("confirm", "reject")},
         "stateDir": str(state.resolve()),
-        "at": datetime.now().astimezone().isoformat(),
+        "at": now.isoformat(),
         "engine": alive,
         "lock": lock,
         "rows": rows,

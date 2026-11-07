@@ -84,6 +84,7 @@ def test_recent_steps_merges_engine_and_stage_events(tmp_path, monkeypatch):
                 {"event": "stage_start", "stem": "alpha", "surface": "implement"},
                 {"event": "stage_end", "stem": "alpha", "surface": "implement", "outcome": "ok"},
                 {"event": "engine_stop", "verb": "drain", "pid": 41, "outcome": "quiescent"},
+                {"event": "stage_end", "stem": "alpha", "surface": "review", "outcome": "failed"},
                 {"event": "engine_start", "verb": "serve", "pid": 42},
             ]
         )
@@ -94,16 +95,18 @@ def test_recent_steps_merges_engine_and_stage_events(tmp_path, monkeypatch):
     assert [(r["stem"], r["text"]) for r in rows] == [
         (None, "serve started (pid 42)"),
         (None, "serve ended without a stop record (killed?)"),
+        ("alpha", "Review end (failed)"),
         (None, "drain stopped (quiescent)"),
         ("alpha", "Implement end (ok)"),
         ("alpha", "Implement start"),
         (None, "drain started (pid 41)"),
     ]
+    assert [r["kind"] for r in rows] == ["engine_start", "engine_lost", "stage_failed", "engine_stop", "stage_ok", "stage_start", "engine_start"]  # Each event has its own icon kind.
     assert [r["ts"] for r in rows] == sorted((r["ts"] for r in rows), reverse=True)
     lines = watch.text_snapshot(ctx).split("Recent steps:\n", 1)[1].splitlines()
     assert lines == [f"  {watch.clock(r['ts'])}  " + (f"{r['stem']}  " if r["stem"] else "") + r["text"] for r in rows]
     monkeypatch.setattr(watch, "lock_holder", lambda state: object())
-    assert len(watch.recent_steps(state, log, 20)) == 5
+    assert len(watch.recent_steps(state, log, 20)) == 6
 
 
 def test_snapshot_verb_reads_config_state_dir(tmp_path, capsys):
@@ -169,3 +172,67 @@ def test_snapshot_lock_holder(tmp_path, monkeypatch):
     assert watch.snapshot(ctx)["lock"] == f"chupa since {watch.clock(started_at)} (pid 712)"
     monkeypatch.setattr(watch, "processes", lambda ctx: [(713, 1, "python -m chupa drain")])
     assert watch.snapshot(ctx)["lock"] == f"chupa since {watch.clock(started_at)} (pid 712)"
+
+
+def test_snapshot_display_fields(tmp_path, monkeypatch):
+    from datetime import datetime
+    from types import SimpleNamespace
+
+    ctx = watch.Context(tmp_path, tmp_path, tmp_path / "config.yaml", None, None, None)
+    ts = "2026-01-01T00:00:00+00:00"
+    now = datetime.fromisoformat("2026-01-03T03:00:00+00:00")
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now
+
+    monkeypatch.setattr(watch, "datetime", FixedDateTime)
+    ticket = lambda stem: SimpleNamespace(stem=stem, frontmatter=SimpleNamespace(priority="P1", state="confirmed"), depends=(), runs_before=(), sections={"Goal / Why": "goal"})
+    monkeypatch.setattr(watch, "load_tickets", lambda ctx, skip: ({s: ticket(s) for s in ("live", "waiting")}, {}))
+    events = [
+        {"type": "state_transition", "ticket": "live", "body": {"to": "running"}, "ts": ts},
+        {"type": "state_transition", "ticket": "done", "body": {"to": "merged", "commit": "abc"}, "ts": ts},
+    ]
+    monkeypatch.setattr(watch, "journal", lambda *args, **kwargs: events)
+    monkeypatch.setattr(watch, "running_stems", lambda *args: ["live"])
+    monkeypatch.setattr(watch, "lock_holder", lambda state: None)
+    monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: (set(), set()))
+    monkeypatch.setattr(watch, "committed_ticket_shas", lambda ctx: {})
+    monkeypatch.setattr(watch, "commits", lambda ctx: {"abc": {"date": "2026-01-03T02:00:00+00:00", "subject": "change"}})
+    (tmp_path / "engine.log").write_text(json.dumps({"event": "stage_start", "stem": "live", "surface": "implement", "ts": ts}) + "\n")
+    snap = watch.snapshot(ctx)
+    rows = {r["stem"]: r for r in snap["rows"]}
+    assert snap["priorities"] == ["P0", "P1", "P2", "P3"]  # A copied or missing priority vocabulary differs.
+    assert snap["counts"] == {"blocked": 0, "queued": 1, "running": 1, "merged": 1}  # Counting only open rows loses the merged row.
+    assert rows["live"]["runsBeforeChoices"] == ["waiting"]  # The current and merged stems are excluded.
+    assert rows["waiting"]["runsBeforeChoices"] == ["live"]  # Choices are specific to each row.
+    assert snap["runningStem"] == "live"  # A missing running fallback loses the active ticket.
+    assert snap["verdictCommands"] == {"confirm": ["confirm", "--yes"], "reject": ["reject", "--yes"]}  # Both noninteractive verbs need their flag.
+    assert rows["done"]["mergedAtAgo"] == "2 days ago"  # Settlement time differs from commit time.
+    assert rows["done"]["commit"]["dateAgo"] == "1 hr ago"  # Commit time must not reuse settlement time.
+    assert rows["done"]["mergedAtDisplay"] == watch.local(ts).strftime("%x, %X")  # Settlement date uses its own timestamp.
+    assert rows["done"]["commit"]["dateDisplay"] == watch.local("2026-01-03T02:00:00+00:00").strftime("%x, %X")  # Commit date uses the commit timestamp.
+    step = snap["steps"][0]
+    assert step["timeDisplay"] == watch.clock(ts)  # Tree labels use the event time.
+    assert step["dateDisplay"] == watch.local(ts).strftime("%x, %X")  # Tooltips use the event date.
+    monkeypatch.setattr(watch, "running_stems", lambda *args: [])
+    assert watch.snapshot(ctx)["runningStem"] is None  # A previous running stem must not persist.
+
+
+def test_diagnose_prompt_uses_live_running_state(tmp_path, monkeypatch, capsys):
+    from chupa.__main__ import main
+    from tests.test_config import VALID
+
+    (tmp_path / "config.yaml").write_text(VALID)
+    path = tmp_path / "tickets/live/ticket.md"
+    path.parent.mkdir(parents=True)
+    path.write_text("ticket")
+    monkeypatch.setattr(watch, "journal", lambda *args, **kwargs: [{"type": "state_transition", "ticket": "live", "body": {"to": "running"}, "ts": "2026-01-01T00:00:00+00:00"}])
+    monkeypatch.setattr(watch, "lock_holder", lambda state: watch.datetime.fromisoformat("2025-12-31T00:00:00+00:00"))
+    assert main(["prompt", "diagnose", "live"], cwd=tmp_path) == 0  # The CLI accepts the ticket.
+    running = capsys.readouterr().out
+    assert main(["prompt", "running", "live"], cwd=tmp_path) == 0
+    assert running == capsys.readouterr().out  # Diagnose selects the actual running template.
+    monkeypatch.setattr(watch, "lock_holder", lambda state: None)
+    assert main(["prompt", "diagnose", "live"], cwd=tmp_path) == 0
+    assert capsys.readouterr().out != running  # A stale journal entry keeps the diagnose template.

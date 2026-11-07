@@ -42,10 +42,7 @@ function el(tag, cls, text) {
 }
 
 function render(snap) {
-	const counts = {};
-	for (const r of snap.rows) {
-		counts[r.section] = (counts[r.section] ?? 0) + 1;
-	}
+	const counts = snap.counts;
 	const lock = el('span', '', snap.lock ? '🔒' : '🔓');
 	lock.title = snap.lock || 'unlocked';
 	header.replaceChildren(lock, ` · ${counts.blocked ?? 0} blocked · ${counts.queued ?? 0} queued · ${counts.running ?? 0} running · ${counts.merged ?? 0} merged`);

@@ -15,13 +15,6 @@ function el(tag, cls, text) {
 	return node;
 }
 
-function when(iso) {
-	const d = new Date(iso);
-	const mins = Math.round((Date.now() - d.getTime()) / 60000);
-	const ago = mins < 60 ? `${mins} min ago` : mins < 2880 ? `${Math.round(mins / 60)} hr ago` : `${Math.round(mins / 1440)} days ago`;
-	return `${ago} (${d.toLocaleString()})`;
-}
-
 function openLink(path, label = 'Open ticket.md') {
 	const a = el('a', 'link', label);
 	a.href = '#';
@@ -52,12 +45,12 @@ function content(row) {
 		const c = row.commit;
 		if (c) {
 			box.append(section('Commit', el('div', 'detail-subject', c.subject)));
-			box.append(el('div', 'detail-meta', `${c.short} · ${c.author} · ${when(c.date)}`));
+			box.append(el('div', 'detail-meta', `${c.short} · ${c.author} · ${c.dateAgo} (${c.dateDisplay})`));
 		} else {
 			box.append(el('div', 'detail-meta', 'no commit on main'));
 		}
 		if (row.mergedAt) {
-			box.append(el('div', 'detail-meta', `settled ${when(row.mergedAt)}`));
+			box.append(el('div', 'detail-meta', `settled ${row.mergedAtAgo} (${row.mergedAtDisplay})`));
 		}
 	} else {
 		box.append(section('Goal / Why', el('div', 'detail-text', row.goal || '(none)')));
@@ -75,7 +68,7 @@ function content(row) {
 // focus is the Tickets view's pinned or hovered stem; undefined falls back to the running ticket.
 window.addEventListener('message', e => {
 	const { snap, focus } = e.data;
-	const stem = focus ?? snap.rows.find(r => r.section === 'running')?.stem;
+	const stem = focus ?? snap.runningStem;
 	const row = snap.rows.find(r => r.stem === stem);
 	detail.replaceChildren(row ? content(row) : el('div', 'detail-meta', 'Nothing running. Hover a ticket to see it here; click to pin.'));
 });

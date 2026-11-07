@@ -19,8 +19,6 @@ function openTicket(rel) {
 	}
 }
 
-const STEM = /^[a-z0-9][a-z0-9-]{1,63}$/;
-
 function command(root) {
 	return vscode.workspace.getConfiguration('chupa', vscode.Uri.file(root)).get('command');
 }
@@ -32,9 +30,9 @@ function runData(root, args, options, callback) {
 
 function devCommand(...args) {
 	const root = chupaRoot();
-	if (!root || !args.every(a => STEM.test(a))) return;
+	if (!root) return;
 	const [binary, ...prefix] = command(root);
-	const argv = [...prefix, ...args, ...(['confirm', 'reject'].includes(args[0]) ? ['--yes'] : [])];
+	const argv = [...prefix, ...args];
 	const task = new vscode.Task({ type: 'chupa' }, vscode.workspace.getWorkspaceFolder(vscode.Uri.file(root)), args.join(' '), 'chupa', new vscode.ProcessExecution(binary, argv, { cwd: root }));
 	vscode.tasks.executeTask(task);
 }
@@ -42,15 +40,14 @@ function devCommand(...args) {
 async function orderTicket(ctx, snapshot, field) {
 	const root = chupaRoot();
 	const row = snapshot.snap?.rows.find(r => r.stem === ctx?.chupaStem);
-	if (!root || !row || !STEM.test(row.stem)) return;
+	if (!root || !row) return;
 	let args;
 	if (field === 'priority') {
-		const choice = await vscode.window.showQuickPick(['P0', 'P1', 'P2', 'P3'].map(label => ({ label, description: label === row.priority ? 'current' : '' })), { placeHolder: 'Set priority' });
+		const choice = await vscode.window.showQuickPick(snapshot.snap.priorities.map(label => ({ label, description: label === row.priority ? 'current' : '' })), { placeHolder: 'Set priority' });
 		if (!choice) return;
 		args = ['--priority', choice.label];
 	} else {
-		const choices = snapshot.snap.rows.filter(r => r.section !== 'merged' && r.stem !== row.stem && STEM.test(r.stem))
-			.map(r => ({ label: r.stem, picked: row.runsBefore.includes(r.stem) }));
+		const choices = row.runsBeforeChoices.map(stem => ({ label: stem, picked: row.runsBefore.includes(stem) }));
 		const selected = await vscode.window.showQuickPick(choices, { canPickMany: true, placeHolder: 'Run before' });
 		if (!selected) return;
 		args = ['--runs-before', ...selected.map(item => item.label)];
@@ -66,9 +63,8 @@ async function orderTicket(ctx, snapshot, field) {
 function askClaude(ctx, task) {
 	const root = chupaRoot();
 	const stem = ctx?.chupaStem;
-	if (!root || !stem || !STEM.test(stem)) return;
-	const kind = task === 'diagnose' && ctx.chupaSection === 'running' ? 'running' : task;
-	runData(root, ['prompt', kind, stem], {}, (err, stdout, stderr) => {
+	if (!root || !stem) return;
+	runData(root, ['prompt', task, stem], {}, (err, stdout, stderr) => {
 		if (err) vscode.window.showErrorMessage((stderr || err.message).trim());
 		else vscode.env.openExternal(vscode.Uri.parse(`${vscode.env.uriScheme}://anthropic.claude-code/open?prompt=${encodeURIComponent(stdout)}`));
 	});
@@ -227,12 +223,11 @@ class StepsTree {
 	}
 
 	getTreeItem(step) {
-		const clock = new Date(step.ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-		const item = new vscode.TreeItem(`${clock}  ${step.stem ?? ''}`);
+		const item = new vscode.TreeItem(`${step.timeDisplay}  ${step.stem ?? ''}`);
 		item.description = step.text;
-		item.tooltip = `${new Date(step.ts).toLocaleString()}\n${step.stem ? step.stem + ': ' : ''}${step.text}`;
-		const icon = step.stem ? (step.text.endsWith(' start') ? 'debug-start' : step.text.includes('ok') ? 'pass' : 'circle-slash') :
-			step.text.includes('ended without a stop record') ? 'warning' : step.text.includes(' started ') ? 'debug-start' : 'debug-stop';
+		item.tooltip = `${step.dateDisplay}\n${step.stem ? step.stem + ': ' : ''}${step.text}`;
+		const icons = { stage_start: 'debug-start', stage_ok: 'pass', stage_failed: 'circle-slash', engine_start: 'debug-start', engine_stop: 'debug-stop', engine_lost: 'warning' };
+		const icon = icons[step.kind];
 		item.iconPath = new vscode.ThemeIcon(icon);
 		if (step.stem) {
 			item.command = { command: 'chupa.openTicket', title: 'Open ticket.md', arguments: [`tickets/${step.stem}/ticket.md`] };
@@ -263,8 +258,8 @@ function activate(context) {
 		vscode.commands.registerCommand('chupa.ticket.priority', ctx => orderTicket(ctx, snapshot, 'priority')),
 		vscode.commands.registerCommand('chupa.ticket.runsBefore', ctx => orderTicket(ctx, snapshot, 'runsBefore')),
 		vscode.commands.registerCommand('chupa.ticket.run', ctx => devCommand('run', ctx.chupaStem)),
-		vscode.commands.registerCommand('chupa.ticket.confirm', ctx => devCommand('confirm', ctx.chupaStem)),
-		vscode.commands.registerCommand('chupa.ticket.reject', ctx => devCommand('reject', ctx.chupaStem)),
+		vscode.commands.registerCommand('chupa.ticket.confirm', ctx => devCommand(...snapshot.snap.verdictCommands.confirm, ctx.chupaStem)),
+		vscode.commands.registerCommand('chupa.ticket.reject', ctx => devCommand(...snapshot.snap.verdictCommands.reject, ctx.chupaStem)),
 		vscode.commands.registerCommand('chupa.ticket.askDiagnose', ctx => askClaude(ctx, 'diagnose')),
 		vscode.commands.registerCommand('chupa.ticket.askReview', ctx => askClaude(ctx, 'review')),
 		...['drain', 'stop', 'kill', 'status'].map(verb => vscode.commands.registerCommand(`chupa.${verb}`, () => devCommand(verb))),
