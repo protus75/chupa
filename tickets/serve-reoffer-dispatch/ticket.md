@@ -52,6 +52,7 @@ Serve does not follow the drain's re-offer rule (2026-11-07, `tickets/serve-reof
   - Mechanism: before serve starts, the harness seeds the member journal with `cap_consumed` `retry` events for the stem, as many as the member's configured `retry` cap, so `reofferable` is false after its one failure. A config cap cannot do this: `Count` refuses `retry: 0`, and `attempts: 1` changes the battery's terminals today (9 battery tests fail with it on main).
   - Soak: the `semantic` member's stem gets the seeded draws. `test_daemon_soak_runner.py:169` asserts no `retry` draw only for other stems and is unchanged.
   - Battery: the quota fault stems (`m.fault` and `cooling-second` in the quota members) get the seeded draws. `reliability_battery.py:297`, `:343` and `:360` are rewritten to count only `cap_consumed` events journaled after the seed, so they still assert `[]` for quota members and `["infra"]` for the unknown-failure member.
+  - `tests/integration/test_watchdog_activation.py::test_production_hard_timeout_group_kill_is_harvested`: before serve starts, the test seeds the `work` stem with `retry` draws up to its configured cap, the same mechanism, so its one `timeout` is not re-offered and its worktree wait and teardown are unchanged.
   - The unknown-failure member needs no seed: its `caps: {infra: 1}` is spent by its one failure, so `reofferable` is already false.
 - In: `docs/how-chupa-works.md`:
   - section 6.4 cap table: `retry` is drawn by each drain or serve re-offer;
@@ -63,9 +64,10 @@ Serve does not follow the drain's re-offer rule (2026-11-07, `tickets/serve-reof
   - `chupa run`'s single-ticket dispatch (`chupa/runner.py`);
   - storm holds, provider droughts, quarantine;
   - changing which caps exist or their defaults.
-- Coverage: Other test files that build serve or the daemon core are unaffected unless they hold a Reject-queue stem with caps left, end a serve run in a failed terminal with caps left, or count journal events around a serve re-dispatch. The ones that do (`test_control_cli`, `test_reject_queue`, `test_storm_notification_activation`, `test_daemon_soak`, `test_daemon_soak_runner`, `test_reliability_battery`) are fenced.
+- Coverage: Other test files that build serve or the daemon core are unaffected unless they hold a Reject-queue stem with caps left, end a serve run in a failed terminal with caps left, or count journal events around a serve re-dispatch. The ones that do (`test_control_cli`, `test_reject_queue`, `test_storm_notification_activation`, `test_daemon_soak`, `test_daemon_soak_runner`, `test_reliability_battery`, `test_watchdog_activation`) are fenced.
 
 ## Scope fence
+- tests/integration/test_watchdog_activation.py
 - eval/daemon_soak.py
 - eval/reliability_battery.py
 - tests/integration/test_daemon_soak.py
