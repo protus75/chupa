@@ -1,14 +1,19 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "1db1ece8cd2701c5fff43899df43bacffbb025f9",
+  "produced_at_sha": "0bcaf737c1bae0a09d4d9534bc226982e9b5f691",
   "stem": "graph-lane-cleanup",
-  "passed": false,
+  "passed": true,
   "changed_files": [
+    "chupa/graph.py",
+    "docs/how-chupa-works.md",
+    "tests/regress_graph_lanes.py",
+    "tests/test_graph.py",
     "vscode-chupa/media/graph.js",
-    "vscode-chupa/media/view.js"
+    "vscode-chupa/media/view.js",
+    "vscode-chupa/snapshot.py"
   ],
-  "inserted_lines": 19,
+  "inserted_lines": 169,
   "bypassed": [],
   "reports": [
     {
@@ -43,38 +48,64 @@
     },
     {
       "code": "bug_evidence",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "bug_evidence",
-          "path": null,
-          "line": null,
-          "message": "carries path 'vscode-chupa/media/graph.js' is not a test/fixture file; implementation paths cannot be carried",
-          "paved_road": "supply durable ticket evidence and carries matching only changed test/fixture files; provide a carried reproducer checking prerequisites and emitting the regression result protocol: pass at head, defect at the overlaid base",
-          "kind": null,
-          "unit": null
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false,
       "bug_evidence": {
         "argv": [
-          "node",
-          "-e",
-          "const vm=require('vm'),c={};vm.createContext(c);vm.runInContext(require('fs').readFileSync('vscode-chupa/media/graph.js','utf8')+';this.f=toViewModels',c);const v=c.f([{id:'a',parentIds:['b','d']},{id:'b',parentIds:['c','d']},{id:'c',parentIds:['d']},{id:'d',parentIds:[]}]);for(const m of v){if(m.outputSwimlanes.filter(n=>n.id==='d').length>2)throw new Error(m.item.id)}"
+          "uv",
+          "run",
+          "python",
+          "tests/regress_graph_lanes.py"
         ],
-        "head_sha": "1db1ece8cd2701c5fff43899df43bacffbb025f9",
-        "base_sha": "89d26933cef6b880320c6dd549fd2ba03a548add",
-        "overlay_paths": [],
+        "head_sha": "0bcaf737c1bae0a09d4d9534bc226982e9b5f691",
+        "base_sha": "863bf9634fdea65681ad445931ee7fadbe440fbe",
+        "overlay_paths": [
+          "tests/regress_graph_lanes.py"
+        ],
         "evidence_paths": [
-          "tickets/graph-lane-cleanup/evidence/lanes.txt"
+          "tickets/graph-lane-cleanup/evidence/graph_lanes.js",
+          "tickets/graph-lane-cleanup/evidence/lanes.txt",
+          "tickets/graph-lane-cleanup/evidence/regress_graph_lanes.py"
         ],
-        "head": null,
-        "base": null
+        "head": {
+          "rc": 0,
+          "regression_result": "pass",
+          "tail": "{\"regression_result\": \"pass\"}\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n"
+        },
+        "base": {
+          "rc": 1,
+          "regression_result": "defect",
+          "tail": "{\"regression_result\": \"defect\"}\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\nUsing CPython 3.14.6\nCreating virtual environment at: .venv\nInstalled 16 packages in 9ms\n"
+        }
       }
     }
   ],
   "seeds": [],
   "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "tests/regress_graph_lanes.py"
+      ],
+      "rc": 0,
+      "tail": "{\"regression_result\": \"pass\"}\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "-q",
+        "tests/test_graph.py"
+      ],
+      "rc": 0,
+      "tail": "bringing up nodes...\nbringing up nodes...\n\n.....                                                                    [100%]\n5 passed in 0.72s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false
+    },
     {
       "argv": [
         "node",
@@ -88,11 +119,23 @@
     {
       "argv": [
         "node",
-        "-e",
-        "const vm=require('vm'),c={};vm.createContext(c);vm.runInContext(require('fs').readFileSync('vscode-chupa/media/graph.js','utf8')+';this.f=toViewModels',c);const v=c.f([{id:'a',parentIds:['b','d']},{id:'b',parentIds:['c','d']},{id:'c',parentIds:['d']},{id:'d',parentIds:[]}]);for(const m of v){if(m.outputSwimlanes.filter(n=>n.id==='d').length>2)throw new Error(m.item.id)}"
+        "--check",
+        "vscode-chupa/media/graph.js"
       ],
       "rc": 0,
       "tail": "",
+      "base_red": false
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "-c",
+        "from pathlib import Path; m = Path('vscode-chupa/media'); t = (m / 'graph.js').read_text() + (m / 'view.js').read_text(); assert not any(s in t for s in ('toViewModels', 'LANE_COLORS', 'reachable'))"
+      ],
+      "rc": 0,
+      "tail": "warning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     },
     {
@@ -103,7 +146,7 @@
         "-q"
       ],
       "rc": 0,
-      "tail": "[100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/graph-lane-cleanup/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/test_testguard.py::test_guarded_calls_and_asyncio\ntests/test_testguard.py::test_setup_and_teardown\ntests/test_testguard.py::test_guards_are_phase_scoped\ntests/test_testguard.py::test_budget_and_slowest\ntests/test_testguard.py::test_budget_and_slowest\ntests/test_testguard.py::test_xdist_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\n  /home/djp/source/chupa/.chupa/state/worktrees/graph-lane-cleanup/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3029 passed, 10 warnings in 65.31s (0:01:05)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "[100%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/graph-lane-cleanup/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/test_testguard.py::test_guarded_calls_and_asyncio\ntests/test_testguard.py::test_setup_and_teardown\ntests/test_testguard.py::test_guards_are_phase_scoped\ntests/test_testguard.py::test_budget_and_slowest\ntests/test_testguard.py::test_budget_and_slowest\ntests/test_testguard.py::test_xdist_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\n  /home/djp/source/chupa/.chupa/state/worktrees/graph-lane-cleanup/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3039 passed, 10 warnings in 63.65s (0:01:03)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false
     }
   ]
