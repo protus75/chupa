@@ -99,7 +99,7 @@ def test_serve_holds_a_parked_ticket(tmp_path):
             return await checkout.git.rev_parse(root, f'HEAD:tickets/{stem}/ticket.md')
         async def run(ticket):
             calls.append(ticket.stem)
-        scheduler = Scheduler(checkout.journal, run, ticket_sha=sha, quarantined=set, drought_parked=set, completed_unmerged=lambda: 0, max_unmerged=1)
+        scheduler = Scheduler(checkout.journal, run, caps=lambda: checkout.config.caps, ticket_sha=sha, quarantined=set, drought_parked=set, completed_unmerged=lambda: 0, max_unmerged=1)
         scheduler.update(validate_ticket('gate', (root / 'tickets/gate/ticket.md').read_text(), root))
         assert await scheduler.dispatch_next() is None
         path = root / 'tickets/gate/ticket.md'

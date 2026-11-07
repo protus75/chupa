@@ -13,7 +13,7 @@ from pathlib import Path
 import yaml
 
 from chupa import __main__ as cli
-from chupa import runner
+from chupa import caps, runner
 from chupa.artifacts import _RELIABILITY_BATTERY_EXPECTED, RELIABILITY_BATTERY_MEMBERS, RELIABILITY_BATTERY_SPEC_VERSION, Harvest, ReliabilityBatteryEntry, ReliabilityBatteryReport
 from chupa.audit import audit_journal
 from chupa.config import load_config
@@ -200,6 +200,10 @@ class _Member:
         return await self.core.scheduler.dispatch_next()
 
     async def exercise(self):
+        if self.name == RELIABILITY_BATTERY_MEMBERS[1]:
+            for stem in (self.fault, "cooling-second"):
+                for _ in range(self.checkout.config.caps.retry):
+                    caps.consume(self.journal, stem, "retry", "seed")
         await self.dispatch(self.fault)
         if self.name == RELIABILITY_BATTERY_MEMBERS[1]:
             await self.dispatch("cooling-second")
@@ -287,6 +291,7 @@ def _observe(m):
     need(m.closed and not m.time.waits and not m.session.waits and all(w.ctx.driver._active is None for w in m.writers), "owned lifetimes still active")
     need(m.journal.dir == m.root / ".chupa/state/journal", "cross-member journal")
     events = m.journal.read()
+    drawn = [e for e in events if e.type == EventType.CAP_CONSUMED and e.body.get("ticket_sha") != "seed"]
     allowed = {m.fault, "cooling-second", "cooling-recovery"} if m.name == RELIABILITY_BATTERY_MEMBERS[1] else {m.fault}
     need(all(e.ticket is None or e.ticket in allowed for e in events), "cross-member evidence")
     index = RELIABILITY_BATTERY_MEMBERS.index(m.name)
@@ -294,7 +299,7 @@ def _observe(m):
     quota = index != 2
     outcomes = [e for e in events if e.body.get("signal") == "provider_call_outcome"]
     need(len(outcomes) == (4 if index == 1 else 1) and len(m.exec.calls) == len(outcomes), "extra/missing executed call or inline retry")
-    need([e.body.get("cap") for e in events if e.type == EventType.CAP_CONSUMED] == ([] if quota else ["infra"]), "contradictory member infra accounting")
+    need([e.body.get("cap") for e in drawn] == ([] if quota else ["infra"]), "contradictory member infra accounting")
     for stem, provider in zip(fault_stems, ("codex", "claude")):
         rows = [e for e in outcomes if e.ticket == stem]
         need(
@@ -330,7 +335,7 @@ def _observe(m):
         need(record.is_file() and f"- provider: {provider}\n- model: {model}" in record.read_text(), f"{stem}/0 served run identity missing")
         calls = [c for c in m.exec.calls if c[2] == "implement" and c[3][0] != 0]
         need(len(calls) == len(fault_stems) and calls[fault_stems.index(stem)][:2] == (provider, model), "ordered fault calls missing or inline retry")
-        caps = [e for e in events if e.ticket == stem and e.type == EventType.CAP_CONSUMED]
+        cap_events = [e for e in drawn if e.ticket == stem]
         arms = [e for e in events if e.type == EventType.TIMER_ARMED and e.body.get("timer_id", "").startswith(f"provider-cooldown/{provider}/")]
         need(f"{provider}:" in harvest.stage_log_tail, f"{stem}/0 provider error capture missing")
         if quota:
@@ -340,7 +345,7 @@ def _observe(m):
                 and any(text in harvest.findings[0].message.lower() for text in ("quota", "usage limit reached")),
                 f"{stem}/0 quota finding missing",
             )
-            need(not caps and "dispatch" not in terms[0].body and "routed" not in terms[0].body, f"{stem}/0 quota drew failure spine")
+            need(not cap_events and "dispatch" not in terms[0].body and terms[0].body.get("routed") == ("reject_queue" if index == 1 else None), f"{stem}/0 quota drew failure spine")
             provider_config = next(p for p in m.checkout.config.providers if p.name == provider)
             deadline = render_ts(datetime.fromisoformat(rows[0].ts) + timedelta(minutes=provider_config.limits.quota_window_minutes))
             need(
@@ -357,7 +362,7 @@ def _observe(m):
                 "unknown failure lost captured exit/stderr evidence",
             )
             need(
-                [e.body.get("cap") for e in caps] == ["infra"] and not arms and not any(e.body.get("failure_class") == "quota_exhausted" for e in outcomes),
+                [e.body.get("cap") for e in cap_events] == ["infra"] and not arms and not any(e.body.get("failure_class") == "quota_exhausted" for e in outcomes),
                 "unknown failure infra accounting/classification wrong",
             )
     if index == 1:
@@ -383,7 +388,7 @@ def _observe(m):
         earliest = min(arms, key=lambda e: e.body["deadline"])
         fires = [e for e in events if e.type == EventType.TIMER_FIRED]
         need(len(fires) == 1 and fires[0].body == earliest.body and fires[0].ticket is fires[0].key is None and fires[0].ts == earliest.body["deadline"], "earliest matching timer_fired missing")
-        need(not any(e.type == EventType.CAP_CONSUMED or e.body.get("signal") in {"diagnosis", "reject_arrival"} for e in events), "cooling recovery drew failure spine")
+        need(not drawn and not any(e.body.get("signal") in {"diagnosis", "reject_arrival"} for e in events), "cooling recovery drew failure spine")
         recovered = [e for e in outcomes if e.ticket == "cooling-recovery"]
         need(
             len(recovered) == 2 and all(e.body.get("provider") == "codex" and e.body.get("failure_class") is None for e in recovered) and events.index(fires[0]) < events.index(recovered[0]),

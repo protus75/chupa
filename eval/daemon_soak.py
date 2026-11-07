@@ -12,7 +12,7 @@ from pathlib import Path
 
 import yaml
 
-from chupa import runner, serve
+from chupa import caps, runner, serve
 from chupa.artifacts import DAEMON_SOAK_MEMBERS, DAEMON_SOAK_SPEC_VERSION, DaemonSoakEntry, DaemonSoakReport, Harvest
 from chupa.audit import audit_journal
 from chupa.config import load_config
@@ -421,6 +421,8 @@ class _Member:
             )
             await self.file_fault("unresolved", 0, "unresolved-conflict", "gate_failed", summary)
         else:
+            for _ in range(self.checkout.config.caps.retry):
+                caps.consume(self.journal, "semantic", "retry", "seed")
             self.moves["semantic"] = {"b.txt": "1\n"}
             self.publish("semantic", {"a.txt": "1\n"})
             await self.settled("semantic")

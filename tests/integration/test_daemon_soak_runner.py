@@ -166,9 +166,15 @@ async def test_soak_uses_candidate_base_regate_receipt(evidence):
         for key, receipt in receipts.items():
             assert (receipt["review_provider"], receipt["review_model"]) == ("claude", "script")
             assert receipt["admission"] == "READY" and receipt["reason"] == "bootstrap"
-            assert not any(e.type == EventType.CAP_CONSUMED and e.ticket == receipt["stem"] and e.body.get("cap") == "retry" for e in member.journal.read())
+            draws = [e for e in member.journal.read() if e.type == EventType.CAP_CONSUMED and e.ticket == receipt["stem"] and e.body.get("cap") == "retry"]
+            assert len(draws) == (1 if receipt["stem"] in {"worker", "unresolved"} else 0)
         assert audit_journal(member.journal) == []
     member = members[1]
+    history = member.journal.read()
+    failure = next(i for i, e in enumerate(history) if e.ticket == "unresolved" and e.body.get("to") == "gate_failed" and e.body.get("stage") == "merge")
+    retry = next(i for i, e in enumerate(history) if e.ticket == "unresolved" and e.type == EventType.CAP_CONSUMED and e.body.get("cap") == "retry")
+    running = [i for i, e in enumerate(history) if e.ticket == "unresolved" and e.body.get("to") == "running"]
+    assert len(running) == 2 and running[0] < failure < retry < running[1]
     mechanical = next(r for r in regate_receipts(member.journal.read()).values() if r["stem"] == "mechanical")
     assert await member.git._run(member.root, "show", mechanical["candidate_base_sha"] + ":union.txt") == "base\nmain\n"
     assert await member.git._run(member.root, "show", mechanical["reviewed_sha"] + ":union.txt") == "base\nbranch\n"

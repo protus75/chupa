@@ -501,6 +501,7 @@ def daemon_core(
     scheduler = Scheduler(
         journal,
         admission.dispatch,
+        caps=lambda: load().caps,
         ticket_sha=ticket_sha,
         quarantined=quarantined,
         drought_parked=drought_parked,

@@ -413,6 +413,9 @@ async def test_production_core_preserves_eligibility_order_and_backpressure(tmp_
     rig.transition("retired", "rejected")
     rig.transition("running", "running")
     rig.transition("reject-held", "gate_failed", routed="reject_queue")
+    from chupa import caps
+    for _ in range(rig.checkout.config.caps.retry):
+        caps.consume(rig.journal, "reject-held", "retry", "old")
     rig.quarantine.add("quarantine")
     rig.drought.add("drought")
     assert await rig.core.scheduler.dispatch_next() is None
@@ -421,13 +424,13 @@ async def test_production_core_preserves_eligibility_order_and_backpressure(tmp_
     rig.transition("noop", "already_satisfied")
     assert await rig.core.scheduler.dispatch_next() is child
     assert await rig.core.scheduler.dispatch_next() is None
-    for actor in ("operator", "machine"):
-        rig.journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": actor}, ticket="reject-held")
-        assert (await rig.core.scheduler.dispatch_next()).stem == "reject-held"
-        if actor == "operator":
-            await rig.add("reject-held")
-            rig.transition("reject-held", "gate_failed", routed="reject_queue")
-            assert await rig.core.scheduler.dispatch_next() is None
+    rig.journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}, ticket="reject-held")
+    assert await rig.core.scheduler.dispatch_next() is None
+    rig.journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "operator"}, ticket="reject-held")
+    assert (await rig.core.scheduler.dispatch_next()).stem == "reject-held"
+    await rig.add("budget-left")
+    rig.transition("budget-left", "gate_failed", routed="reject_queue")
+    assert (await rig.core.scheduler.dispatch_next()).stem == "budget-left"
     rig.quarantine.clear()
     assert (await rig.core.scheduler.dispatch_next()).stem == "quarantine"
     rig.drought.clear()
@@ -459,7 +462,7 @@ async def test_production_core_preserves_eligibility_order_and_backpressure(tmp_
     assert await waiting is None
     rig.unmerged = 0
     assert (await rig.core.scheduler.dispatch_next()).stem == "pressure-bb"
-    assert all(e.type != EventType.CAP_CONSUMED for e in rig.journal.read())
+    assert all(e.ticket == "reject-held" for e in rig.journal.read() if e.type == EventType.CAP_CONSUMED)
 
 
 @pytest.mark.asyncio

@@ -1093,6 +1093,10 @@ async def test_serve_admission_holds_and_cleanup(root, monkeypatch, case):
                 "from pathlib import Path; import sys; sys.exit(int(Path('chupa/integration-marker').exists() and any(p.read_text().startswith('red') for p in Path('chupa').glob('*.py'))))",
             ],
         )
+        from chupa import caps
+        for stem in ("one", "two", "three"):
+            for _ in range(rig.checkout.config.caps.retry):
+                caps.consume(rig.journal, stem, "retry", "seed")
         for stem, priority in zip(changes, ("P0", "P1", "P2", "P3"), strict=True):
             admission_ticket(root, stem, paths=(f"chupa/{stem}.py",), priority=priority)
         offers, empty = [], asyncio.Event()
@@ -1309,6 +1313,9 @@ async def test_serve_admission_refusal_keeps_main_green(root, monkeypatch, failu
             await ctx.git.commit(root, "main moves before next admission")
 
     rig = await admission_graph(root, monkeypatch, {"work": {"chupa/thing.py": "ok red\n"}, "main-side": {"chupa/other.py": "moved\n"}, "next": {"chupa/next.py": "ok\n"}}, settled=settled)
+    from chupa import caps
+    for _ in range(rig.checkout.config.caps.retry):
+        caps.consume(rig.journal, "work", "retry", "seed")
     admission_config(root, command=["false"] if failure == "host-red" else command, safety=failure == "safety")
     admission_ticket(root, "work", priority="P0", verification="grep -q absent chupa/thing.py" if failure == "host-red" else "true")
     # Stage selection suspends a genuine producing run while another genuine run moves main.
@@ -1374,7 +1381,7 @@ async def test_serve_admission_refusal_keeps_main_green(root, monkeypatch, failu
         admission_ticket(root, "next", paths=("chupa/next.py",))
         await until(rig, lambda: ("next", "merged") in rig.returns)
         assert "red" not in (root / "chupa/thing.py").read_text() and not rig.owner.queue.red_stems
-        assert [req.surface for llm in rig.models for req in llm.requests if req.ticket == "work"].count("diagnose") == 1
+        assert [req.surface for llm in rig.models for req in llm.requests if req.ticket == "work"].count("diagnose") == 0
     finally:
         await finish(rig, run)
 
@@ -1989,3 +1996,69 @@ async def test_serve_control_stop_lifecycle_log(root, monkeypatch):
         ("engine_start", "serve", os.getpid(), None), ("engine_stop", "serve", os.getpid(), "stopped")
     ]
     assert all("engine_start" not in str((e.type, e.body)) and "engine_stop" not in str((e.type, e.body)) for e in rig.journal.read())
+
+@pytest.mark.asyncio
+async def test_serve_reoffers_failed_dispatch_with_machine_keep_and_retry(root, monkeypatch):
+    calls, _, _ = script(monkeypatch, terminal="gate_failed")
+    check = stages.check
+
+    async def once(ctx, ticket, slip, *, attempt):
+        result = await check(ctx, ticket, slip, attempt=attempt)
+        if attempt:
+            from dataclasses import replace
+            return replace(result, outcome="already_satisfied")
+        return result
+
+    monkeypatch.setattr(stages, "check", once)
+    rig = await graph(root, monkeypatch)
+    write(root, "work", text())
+    run = asyncio.create_task(rig.owner.run())
+    try:
+        await until(rig, lambda: any(e.body.get("to") == "already_satisfied" for e in terminals(rig, "work")))
+        events = [e for e in rig.journal.read() if e.ticket == "work"]
+        keep = [i for i, e in enumerate(events) if e.body.get("signal") == "reject_verdict" and e.body.get("actor") == "machine"]
+        retry = [i for i, e in enumerate(events) if e.type == EventType.CAP_CONSUMED and e.body.get("cap") == "retry"]
+        running = [i for i, e in enumerate(events) if e.body.get("to") == "running"]
+        assert len(keep) == len(retry) == 1 and len(running) == 2
+        assert running[0] < keep[0] < retry[0] < running[1]
+        assert [attempt for stem, stage, attempt in calls if stage == "implement"] == [0, 1]
+    finally:
+        await finish(rig, run)
+
+@pytest.mark.asyncio
+async def test_serve_premise_reoffer_draws_no_retry(root, monkeypatch):
+    calls, _, _ = script(monkeypatch)
+    rig = await graph(root, monkeypatch)
+    write(root, "work", text())
+    await rig.owner.scan()
+    rig.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": "previous-content"}, ticket="work")
+    rig.journal.append(EventType.STATE_TRANSITION, {"to": "premise_failed"}, ticket="work")
+    run = asyncio.create_task(rig.owner.run())
+    try:
+        await until(rig, lambda: any(e.body.get("to") == "already_satisfied" for e in terminals(rig, "work")))
+        assert [attempt for stem, stage, attempt in calls if stage == "implement"] == [1]
+        assert not [e for e in rig.journal.read() if e.ticket == "work" and e.type == EventType.CAP_CONSUMED and e.body.get("cap") == "retry"]
+    finally:
+        await finish(rig, run)
+
+@pytest.mark.asyncio
+async def test_serve_reoffers_merge_failure(root, monkeypatch):
+    async def settled(rig, ctx, ticket, attempt):
+        if attempt == 0:
+            ctx.fs.write(ctx.worktree(ticket.stem) / "tickets/forbidden.md", b"forbidden")
+            await ctx.git.add(ctx.worktree(ticket.stem), ["tickets/forbidden.md"])
+            await ctx.git.commit(ctx.worktree(ticket.stem), "force post-rebase regate failure")
+
+    rig = await admission_graph(root, monkeypatch, {"work": {"chupa/thing.py": "ok\n"}}, settled=settled)
+    admission_ticket(root, "work")
+    run = await start_admission(rig, monkeypatch)
+    try:
+        await until(rig, lambda: ("work", "merged") in rig.returns)
+        events = [e for e in rig.journal.read() if e.ticket == "work"]
+        failures = [i for i, e in enumerate(events) if e.body.get("to") == "gate_failed" and e.body.get("stage") == "merge"]
+        retries = [i for i, e in enumerate(events) if e.type == EventType.CAP_CONSUMED and e.body.get("cap") == "retry"]
+        running = [i for i, e in enumerate(events) if e.body.get("to") == "running"]
+        assert len(failures) == len(retries) == 1 and len(running) == 2
+        assert running[0] < failures[0] < retries[0] < running[1]
+    finally:
+        await finish(rig, run)

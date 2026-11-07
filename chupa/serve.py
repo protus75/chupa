@@ -12,12 +12,12 @@ from pathlib import Path
 from chupa import runner, triage
 from chupa.config import ConfigError, snapshot_config
 from chupa.daemon import DaemonTasks, HeartbeatCycle, TicketWriter, WorkerFailureObserver, WorkerStop, _protected_cleanup, _stop_workers, checkpoint_push
-from chupa.drain import reexec_argv
+from chupa.drain import SETTLED, record_reoffer, reexec_argv
 from chupa.effects import Effects
 from chupa.enginelog import EngineLog
 from chupa.git import GitError
 from chupa.heartbeat import Heartbeat
-from chupa.journal import EventType, JournalCorruption, run_seq
+from chupa.journal import TERMINAL_STATES, EventType, JournalCorruption, run_seq
 from chupa.lockfile import Lockfile
 from chupa.merge import AdmissionBoundary
 from chupa.mergequeue import ConflictHandoff, regate_receipts
@@ -142,12 +142,16 @@ class Serve:
                     self.publish(fresh, committed)
                     return "running"
                 self.writers[ticket.stem] = callback
+                events = local.journal.read()
+                latest = next((e.body.get("to") for e in reversed(events) if e.type == EventType.STATE_TRANSITION and e.ticket == ticket.stem), None)
+                if latest in TERMINAL_STATES:
+                    record_reoffer(local.journal, events, ticket.stem, sha)
                 local.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": sha}, ticket=ticket.stem, key=None)
                 try:
                     return await callback(ticket)
                 finally:
                     latest = next((e.body for e in reversed(local.journal.read()) if e.type == EventType.STATE_TRANSITION and e.ticket == ticket.stem), {})
-                    if "provider_drought" in latest:
+                    if latest.get("to") in TERMINAL_STATES - SETTLED - {"rejected"}:
                         self.core.scheduler.update(ticket)
                     if not callback.continuations and not any(context is callback.ctx and stem in callback.queue.pending.keys() for stem, context in callback.queue.contexts.items()):
                         self.writers.pop(ticket.stem, None)
@@ -405,6 +409,9 @@ class Serve:
                         owner.admission = AdmissionBoundary(owner.ctx, mode="daemon", queue=self.queue)
                     self.writers[ticket.stem] = owner
                     await owner.consume_result(ticket, result, attempt=attempt)
+                    latest = next((e.body.get("to") for e in reversed(self.checkout.journal.read()) if e.type == EventType.STATE_TRANSITION and e.ticket == ticket.stem), None)
+                    if latest in TERMINAL_STATES - SETTLED - {"rejected"}:
+                        self.core.scheduler.update(ticket)
                     if ticket.stem not in self.queue.pending:
                         self.queue.contexts.pop(ticket.stem, None)
                 await self.check_upgrade()

@@ -199,7 +199,7 @@ async def test_reliability_battery_requires_member_local_evidence(tmp_path, monk
         and (e.key.endswith("/harvest") or e.key.endswith("/run-record") or e.key.startswith("llm/"))
         or e.type == EventType.EFFECT_INTENT
         and e.key.startswith("llm/")
-        or e.type == EventType.CAP_CONSUMED
+        or (e.type == EventType.CAP_CONSUMED and e.body.get("ticket_sha") != "seed")
     ]
     for event in required:
         altered = [e for e in history if e is not event]

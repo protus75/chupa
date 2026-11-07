@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from chupa.config import Caps
+from chupa import caps
 from chupa.journal import EventType, Journal
 from chupa.scheduler import Scheduler
 from chupa.tickets import INTAKE_SIGNAL, parse_ticket
@@ -61,6 +63,7 @@ class Rig:
         self.scheduler = Scheduler(
             self.journal,
             self.dispatch,
+            caps=Caps,
             ticket_sha=self.ticket_sha,
             quarantined=lambda: self.quarantine,
             drought_parked=lambda: self.drought,
@@ -198,6 +201,8 @@ async def test_eligibility_and_hold_release(rig):
     rig.transition("settled", "already_satisfied")
     rig.transition("retired", "rejected")
     rig.transition("reject-held", "gate_failed", routed="reject_queue")
+    for _ in range(Caps().retry):
+        caps.consume(rig.journal, "reject-held", "retry", "old")
     rig.quarantine.add("quarantined")
     rig.drought.add("drought-held")
     assert await rig.scheduler.dispatch_next() is None
@@ -206,19 +211,19 @@ async def test_eligibility_and_hold_release(rig):
     rig.transition("noop", "already_satisfied")
     assert (await rig.scheduler.dispatch_next()).stem == "child"
     assert await rig.scheduler.dispatch_next() is None
-    for stem, actor in (("reject-held", "operator"), ("machine-held", "machine")):
-        if stem == "machine-held":
-            rig.add(stem)
-            rig.transition(stem, "gate_failed", routed="reject_queue")
-            assert await rig.scheduler.dispatch_next() is None
-        rig.journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": actor}, ticket=stem)
-        assert (await rig.scheduler.dispatch_next()).stem == stem
+    rig.journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}, ticket="reject-held")
+    assert await rig.scheduler.dispatch_next() is None
+    rig.journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "operator"}, ticket="reject-held")
+    assert (await rig.scheduler.dispatch_next()).stem == "reject-held"
+    rig.add("machine-held")
+    rig.transition("machine-held", "gate_failed", routed="reject_queue")
+    assert (await rig.scheduler.dispatch_next()).stem == "machine-held"
     rig.quarantine.clear()
     assert (await rig.scheduler.dispatch_next()).stem == "quarantined"
     rig.drought.clear()
     assert (await rig.scheduler.dispatch_next()).stem == "drought-held"
     assert await rig.scheduler.dispatch_next() is None
-    assert all(e.type != EventType.CAP_CONSUMED for e in rig.journal.read())
+
 
 
 @pytest.mark.asyncio
@@ -526,3 +531,25 @@ async def test_scheduler_does_not_fetch_blob_for_infra_failure(rig):
     rig.scheduler.ticket_sha = unexpected
     assert (await rig.scheduler.dispatch_next()).stem == "work"  # An unrelated failure remains eligible.
     assert rig.calls == ["work"]  # The candidate actually reached dispatch.
+
+@pytest.mark.asyncio
+async def test_serve_scheduler_follows_the_drain_reoffer_rule(rig):
+    rig.add("budget")
+    rig.transition("budget", "gate_failed", routed="reject_queue")
+    assert (await rig.scheduler.dispatch_next()).stem == "budget"
+    rig.scheduler.update(rig.watcher.cache.get("budget") or parse_ticket("budget", rig.files["budget"], rig.root))
+    for _ in range(Caps().retry):
+        caps.consume(rig.journal, "budget", "retry", "old")
+    assert await rig.scheduler.dispatch_next() is None
+    rig.journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "operator"}, ticket="budget")
+    assert (await rig.scheduler.dispatch_next()).stem == "budget"
+    rig.add("changed")
+    rig.transition("changed", "gate_failed", routed="reject_queue", reason="ticket_changed")
+    assert await rig.scheduler.dispatch_next() is None
+    rig.journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "operator"}, ticket="changed")
+    assert (await rig.scheduler.dispatch_next()).stem == "changed"
+    rig.add("unqueued")
+    rig.transition("unqueued", "gate_failed")
+    for _ in range(Caps().retry):
+        caps.consume(rig.journal, "unqueued", "retry", "old")
+    assert await rig.scheduler.dispatch_next() is None

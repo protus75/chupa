@@ -3,9 +3,10 @@
 import asyncio
 from collections.abc import Awaitable, Callable, Iterable, Set
 
-from chupa.drain import SETTLED, authored_at, order_tickets, parked_blob, write_queue
-from chupa.journal import Journal
-from chupa.status import last_states, reject_queue
+from chupa.config import Caps
+from chupa.drain import SETTLED, authored_at, order_tickets, parked_blob, reofferable, write_queue
+from chupa.journal import TERMINAL_STATES, Journal
+from chupa.status import last_states
 from chupa.tickets import Ticket
 
 
@@ -15,6 +16,7 @@ class Scheduler:
         journal: Journal,
         dispatch: Callable[[Ticket], Awaitable[object]],
         *,
+        caps: Callable[[], Caps],
         ticket_sha: Callable[[str], Awaitable[str]],
         quarantined: Callable[[], Set[str]],
         drought_parked: Callable[[], Set[str]],
@@ -23,6 +25,7 @@ class Scheduler:
     ) -> None:
         self.journal = journal
         self.dispatch = dispatch
+        self.caps = caps
         self.ticket_sha = ticket_sha
         self.quarantined = quarantined
         self.drought_parked = drought_parked
@@ -46,7 +49,7 @@ class Scheduler:
         async with self._slot:
             events = self.journal.read()
             last = last_states(events)
-            held = set(reject_queue(events)) | self.quarantined() | self.drought_parked()
+            held = self.quarantined() | self.drought_parked()
             if self.completed_unmerged() >= self.max_unmerged:
                 return None
             from chupa.rework import settled_dependencies, supersedes_maps
@@ -65,6 +68,7 @@ class Scheduler:
                 if t.frontmatter.state == "confirmed"
                 and last.get(t.stem) not in SETTLED | {"rejected"}
                 and (last.get(t.stem) != "running" or t.stem in retained)
+                and (last.get(t.stem) not in TERMINAL_STATES or reofferable(events, t.stem, self.caps()))
                 and t.stem not in held
                 and t.stem not in maps
                 and set(t.depends) <= settled
