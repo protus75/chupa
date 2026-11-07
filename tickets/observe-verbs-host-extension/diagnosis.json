@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "89e06cf26ce2207f1025f6c5d40e5946940bfa57",
+  "produced_at_sha": "c38d3d4b330f84f4831ff1342da8f3d53680f6bd",
   "stem": "observe-verbs-host-extension",
-  "attempt": 1,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "reject",
+  "attempt": 2,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
   "lessons": [
-    "Add docs/host-running.md to the scope fence. tests/test_host_running.py::test_verb_table_matches_parser requires its verb table to match the parser's subcommands exactly, so adding watch and snapshot forces that file to change.",
-    "Add rows for `watch` and `snapshot` to the docs/host-running.md command table, in the existing format, so the rows match the regex in tests/test_host_running.py.",
-    "Add docs/host-running.md to the Acceptance criteria 5 doc list and to Context, then run chupa review on the ticket until it approves.",
-    "The first attempt passed the focused tests in tests/test_watch.py and the node --check syntax check. Keep that approach. The only full-suite failure was the verb table in docs/host-running.md."
+    "Drop the module globals that `configure()` sets in chupa/observe.py (ROOT, STATE, CONFIG, EXEC, GIT, ENV). Pass one explicit context (root, state dir, config path, exec, git, env) into `snapshot()`, `text_snapshot()` and their helpers so no call leaves process-wide state behind.",
+    "Remove the `ROOT / \"state\"` fallback in `state_dir()`. A state dir must come from the loaded config's `state_dir` (Scope in). Update the existing tests in tests/test_watch.py to pass their state dir explicitly so the `config.yaml` they write is no longer dead.",
+    "The suite runs under xdist (`-n auto`). Check that `test_queue_projection_and_fallback` and `test_recent_steps_merges_engine_and_stage_events` pass in any order after the `main([... 'snapshot'])` tests have run on the same worker.",
+    "In dev.py, keep the old `try/except KeyboardInterrupt: pass` around the call that runs `chupa watch`, so Ctrl-C ends `./dev.py watch` cleanly without a traceback.",
+    "Keep everything else from attempt 2. The reviewer found that the verbs, extension and docs match the ticket, and `./dev.py test` passed. Change only the three findings above."
   ],
   "mechanical": null,
   "spec_version": "1.2",
