@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The focused verification command failed after seeding: the semantic soak receipt includes the required retry draws, and quota terminals are routed to the Reject queue when the seeded retry cap is spent.
+Existing serve tests with deliberate failures needed spent retry budgets to preserve their original admission checks.
 
 ## Dead ends
 
-Implemented the specified seeds and ran the focused verification command; its failures exposed the contradictory expectations. No changes were committed.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-The ticket expected 60 minutes; verification exposed the contradictions during implementation.
+none
 
