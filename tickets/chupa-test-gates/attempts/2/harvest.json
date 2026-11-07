@@ -1,0 +1,536 @@
+{
+  "attempt": 2,
+  "stage": "implement",
+  "terminal": "premise_failed",
+  "findings": [
+    {
+      "code": "premise",
+      "path": "chupa/__main__.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "chupa/ask.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "chupa/control.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "chupa/covmap.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "chupa/drain.py",
+      "line": null,
+      "message": "Ruff lint and format fail outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "chupa/merge.py",
+      "line": null,
+      "message": "Ruff lint and format fail outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "chupa/observe.py",
+      "line": null,
+      "message": "Ruff lint and format fail outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "chupa/requisition.py",
+      "line": null,
+      "message": "Ruff lint and format fail outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "chupa/runner.py",
+      "line": null,
+      "message": "Ruff lint and format fail outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "chupa/serve.py",
+      "line": null,
+      "message": "Ruff lint and format fail outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "chupa/stages.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "chupa/stats.py",
+      "line": null,
+      "message": "Ruff lint and format fail outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "chupa/status.py",
+      "line": null,
+      "message": "Ruff lint and format fail outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "chupa/triage.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "chupa/watchdog.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "eval/daemon_soak.py",
+      "line": null,
+      "message": "Ruff lint and format fail outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "eval/reliability_battery.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "eval/shakeout/bench.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "eval/shakeout/drain.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/approval.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_ask.py",
+      "line": null,
+      "message": "Ruff lint or format fails outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_box.py",
+      "line": null,
+      "message": "Ruff lint or format fails outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_cli.py",
+      "line": null,
+      "message": "Ruff lint or format fails outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_config.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_control_cli.py",
+      "line": null,
+      "message": "Ruff lint or format fails outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_covmap.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_daemon_composition.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_daemon_soak_runner.py",
+      "line": null,
+      "message": "Ruff lint or format fails outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_dev.py",
+      "line": null,
+      "message": "Ruff lint or format fails outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_drain.py",
+      "line": null,
+      "message": "Ruff lint or format fails outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_hostfiles.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_kill_cli_activation.py",
+      "line": null,
+      "message": "Ruff lint or format fails outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_ladder.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_merge.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_mergequeue.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_provider_cooldown_failover.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_reject_queue.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_requisition.py",
+      "line": null,
+      "message": "Ruff lint or format fails outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_requisition_gate.py",
+      "line": null,
+      "message": "Ruff lint or format fails outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_rework.py",
+      "line": null,
+      "message": "Ruff lint or format fails outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_scheduler.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_serve.py",
+      "line": null,
+      "message": "Ruff lint or format fails outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_stages.py",
+      "line": null,
+      "message": "Ruff lint or format fails outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_stats.py",
+      "line": null,
+      "message": "Ruff lint or format fails outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_status.py",
+      "line": null,
+      "message": "Ruff lint or format fails outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_step_events.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_storm_producer.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_terminal.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_triage.py",
+      "line": null,
+      "message": "Ruff lint or format fails outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_watch.py",
+      "line": null,
+      "message": "Ruff lint or format fails outside the fence.",
+      "paved_road": "Clean up repository lint and formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_watchdog.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/integration/test_watchdog_activation.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/regress_graph_lanes.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/regress_serve_reoffer_rule.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/regress_shared_hold_rule.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/regress_vscode_task_identity.py",
+      "line": null,
+      "message": "Ruff format fails outside the fence.",
+      "paved_road": "Clean up repository formatting before this ticket.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tickets/graph-lane-cleanup/evidence/regress_graph_lanes.py",
+      "line": null,
+      "message": "Ruff format fails in ticket evidence, which this task forbids editing.",
+      "paved_road": "Resolve the evidence formatting before this ticket or revise the whole-repository check contract.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tickets/status-optional-locks/evidence/stale_lock.py",
+      "line": null,
+      "message": "Ruff lint fails in ticket evidence, which this task forbids editing.",
+      "paved_road": "Resolve the evidence lint before this ticket or revise the whole-repository check contract.",
+      "kind": null,
+      "unit": null
+    }
+  ],
+  "reason": null,
+  "diff_stat": "",
+  "stage_log_tail": "ved_road\":\"Clean up repository lint and formatting before this ticket.\"},{\"code\":\"premise\",\"path\":\"tests/integration/test_rework.py\",\"line\":null,\"message\":\"Ruff lint or format fails outside the fence.\",\"paved_road\":\"Clean up repository lint and formatting before this ticket.\"},{\"code\":\"premise\",\"path\":\"tests/integration/test_scheduler.py\",\"line\":null,\"message\":\"Ruff format fails outside the fence.\",\"paved_road\":\"Clean up repository formatting before this ticket.\"},{\"code\":\"premise\",\"path\":\"tests/integration/test_serve.py\",\"line\":null,\"message\":\"Ruff lint or format fails outside the fence.\",\"paved_road\":\"Clean up repository lint and formatting before this ticket.\"},{\"code\":\"premise\",\"path\":\"tests/integration/test_stages.py\",\"line\":null,\"message\":\"Ruff lint or format fails outside the fence.\",\"paved_road\":\"Clean up repository lint and formatting before this ticket.\"},{\"code\":\"premise\",\"path\":\"tests/integration/test_stats.py\",\"line\":null,\"message\":\"Ruff lint or format fails outside the fence.\",\"paved_road\":\"Clean up repository lint and formatting before this ticket.\"},{\"code\":\"premise\",\"path\":\"tests/integration/test_status.py\",\"line\":null,\"message\":\"Ruff lint or format fails outside the fence.\",\"paved_road\":\"Clean up repository lint and formatting before this ticket.\"},{\"code\":\"premise\",\"path\":\"tests/integration/test_step_events.py\",\"line\":null,\"message\":\"Ruff format fails outside the fence.\",\"paved_road\":\"Clean up repository formatting before this ticket.\"},{\"code\":\"premise\",\"path\":\"tests/integration/test_storm_producer.py\",\"line\":null,\"message\":\"Ruff format fails outside the fence.\",\"paved_road\":\"Clean up repository formatting before this ticket.\"},{\"code\":\"premise\",\"path\":\"tests/integration/test_terminal.py\",\"line\":null,\"message\":\"Ruff format fails outside the fence.\",\"paved_road\":\"Clean up repository formatting before this ticket.\"},{\"code\":\"premise\",\"path\":\"tests/integration/test_triage.py\",\"line\":null,\"message\":\"Ruff lint or format fails outside the fence.\",\"paved_road\":\"Clean up repository lint and formatting before this ticket.\"},{\"code\":\"premise\",\"path\":\"tests/integration/test_watch.py\",\"line\":null,\"message\":\"Ruff lint or format fails outside the fence.\",\"paved_road\":\"Clean up repository lint and formatting before this ticket.\"},{\"code\":\"premise\",\"path\":\"tests/integration/test_watchdog.py\",\"line\":null,\"message\":\"Ruff format fails outside the fence.\",\"paved_road\":\"Clean up repository formatting before this ticket.\"},{\"code\":\"premise\",\"path\":\"tests/integration/test_watchdog_activation.py\",\"line\":null,\"message\":\"Ruff format fails outside the fence.\",\"paved_road\":\"Clean up repository formatting before this ticket.\"},{\"code\":\"premise\",\"path\":\"tests/regress_graph_lanes.py\",\"line\":null,\"message\":\"Ruff format fails outside the fence.\",\"paved_road\":\"Clean up repository formatting before this ticket.\"},{\"code\":\"premise\",\"path\":\"tests/regress_serve_reoffer_rule.py\",\"line\":null,\"message\":\"Ruff format fails outside the fence.\",\"paved_road\":\"Clean up repository formatting before this ticket.\"},{\"code\":\"premise\",\"path\":\"tests/regress_shared_hold_rule.py\",\"line\":null,\"message\":\"Ruff format fails outside the fence.\",\"paved_road\":\"Clean up repository formatting before this ticket.\"},{\"code\":\"premise\",\"path\":\"tests/regress_vscode_task_identity.py\",\"line\":null,\"message\":\"Ruff format fails outside the fence.\",\"paved_road\":\"Clean up repository formatting before this ticket.\"},{\"code\":\"premise\",\"path\":\"tickets/graph-lane-cleanup/evidence/regress_graph_lanes.py\",\"line\":null,\"message\":\"Ruff format fails in ticket evidence, which this task forbids editing.\",\"paved_road\":\"Resolve the evidence formatting before this ticket or revise the whole-repository check contract.\"},{\"code\":\"premise\",\"path\":\"tickets/status-optional-locks/evidence/stale_lock.py\",\"line\":null,\"message\":\"Ruff lint fails in ticket evidence, which this task forbids editing.\",\"paved_road\":\"Resolve the evidence lint before this ticket or revise the whole-repository check contract.\"}]}",
+  "events_tail": "\\\"premise\\\",\\\"path\\\":\\\"tests/integration/test_serve.py\\\",\\\"line\\\":null,\\\"message\\\":\\\"Ruff lint or format fails outside the fence.\\\",\\\"paved_road\\\":\\\"Clean up repository lint and formatting before this ticket.\\\"},{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"tests/integration/test_stages.py\\\",\\\"line\\\":null,\\\"message\\\":\\\"Ruff lint or format fails outside the fence.\\\",\\\"paved_road\\\":\\\"Clean up repository lint and formatting before this ticket.\\\"},{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"tests/integration/test_stats.py\\\",\\\"line\\\":null,\\\"message\\\":\\\"Ruff lint or format fails outside the fence.\\\",\\\"paved_road\\\":\\\"Clean up repository lint and formatting before this ticket.\\\"},{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"tests/integration/test_status.py\\\",\\\"line\\\":null,\\\"message\\\":\\\"Ruff lint or format fails outside the fence.\\\",\\\"paved_road\\\":\\\"Clean up repository lint and formatting before this ticket.\\\"},{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"tests/integration/test_step_events.py\\\",\\\"line\\\":null,\\\"message\\\":\\\"Ruff format fails outside the fence.\\\",\\\"paved_road\\\":\\\"Clean up repository formatting before this ticket.\\\"},{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"tests/integration/test_storm_producer.py\\\",\\\"line\\\":null,\\\"message\\\":\\\"Ruff format fails outside the fence.\\\",\\\"paved_road\\\":\\\"Clean up repository formatting before this ticket.\\\"},{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"tests/integration/test_terminal.py\\\",\\\"line\\\":null,\\\"message\\\":\\\"Ruff format fails outside the fence.\\\",\\\"paved_road\\\":\\\"Clean up repository formatting before this ticket.\\\"},{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"tests/integration/test_triage.py\\\",\\\"line\\\":null,\\\"message\\\":\\\"Ruff lint or format fails outside the fence.\\\",\\\"paved_road\\\":\\\"Clean up repository lint and formatting before this ticket.\\\"},{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"tests/integration/test_watch.py\\\",\\\"line\\\":null,\\\"message\\\":\\\"Ruff lint or format fails outside the fence.\\\",\\\"paved_road\\\":\\\"Clean up repository lint and formatting before this ticket.\\\"},{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"tests/integration/test_watchdog.py\\\",\\\"line\\\":null,\\\"message\\\":\\\"Ruff format fails outside the fence.\\\",\\\"paved_road\\\":\\\"Clean up repository formatting before this ticket.\\\"},{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"tests/integration/test_watchdog_activation.py\\\",\\\"line\\\":null,\\\"message\\\":\\\"Ruff format fails outside the fence.\\\",\\\"paved_road\\\":\\\"Clean up repository formatting before this ticket.\\\"},{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"tests/regress_graph_lanes.py\\\",\\\"line\\\":null,\\\"message\\\":\\\"Ruff format fails outside the fence.\\\",\\\"paved_road\\\":\\\"Clean up repository formatting before this ticket.\\\"},{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"tests/regress_serve_reoffer_rule.py\\\",\\\"line\\\":null,\\\"message\\\":\\\"Ruff format fails outside the fence.\\\",\\\"paved_road\\\":\\\"Clean up repository formatting before this ticket.\\\"},{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"tests/regress_shared_hold_rule.py\\\",\\\"line\\\":null,\\\"message\\\":\\\"Ruff format fails outside the fence.\\\",\\\"paved_road\\\":\\\"Clean up repository formatting before this ticket.\\\"},{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"tests/regress_vscode_task_identity.py\\\",\\\"line\\\":null,\\\"message\\\":\\\"Ruff format fails outside the fence.\\\",\\\"paved_road\\\":\\\"Clean up repository formatting before this ticket.\\\"},{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"tickets/graph-lane-cleanup/evidence/regress_graph_lanes.py\\\",\\\"line\\\":null,\\\"message\\\":\\\"Ruff format fails in ticket evidence, which this task forbids editing.\\\",\\\"paved_road\\\":\\\"Resolve the evidence formatting before this ticket or revise the whole-repository check contract.\\\"},{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"tickets/status-optional-locks/evidence/stale_lock.py\\\",\\\"line\\\":null,\\\"message\\\":\\\"Ruff lint fails in ticket evidence, which this task forbids editing.\\\",\\\"paved_road\\\":\\\"Resolve the evidence lint before this ticket or revise the whole-repository check contract.\\\"}]}\"}}\n{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":1188845,\"cached_input_tokens\":1140352,\"cache_write_input_tokens\":0,\"output_tokens\":6829,\"reasoning_output_tokens\":459}}\n",
+  "wall_seconds": 224.127078,
+  "usd": 1.0,
+  "run_record": "tickets/chupa-test-gates/run.md"
+}
