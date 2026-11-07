@@ -14,10 +14,6 @@ none
 - chupa/daemon.py
 - tests/test_serve.py
 - tests/test_provider_cooldown_failover.py
-- eval/daemon_soak.py
-- tests/test_daemon_soak_runner.py
-- eval/host_loop.py
-- tests/test_host_loop.py
 - docs/how-chupa-works.md
 
 ## Goal / Why
