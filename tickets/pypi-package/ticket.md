@@ -39,7 +39,7 @@ After this change:
   - `README.md`: one install line.
 - Out:
   - git tags and pushes;
-  - a license: the package carries none;
+  - the license: `LICENSE` and the `license` and `license-files` fields in `pyproject.toml` are already set and stay unchanged;
   - version bumps;
   - the VS Code extension;
   - CI publishing;
