@@ -27,6 +27,7 @@ After this change the review receives, as data, every test file outside the fenc
   - A declared map that is missing or not valid JSON with a `files` mapping returns a mechanical snag (no model call, like the render-headroom snag): code `coverage_map`, paved road `run ./dev.py covmap`.
   - The dependents go to the spec as a new data block `coverage_dependents`.
 - In: `chupa/specs/requisition_review.md`: a `coverage_dependents` data block, and a Task rule: every listed test file must be either in the fence, or cleared in the summary with one sentence on why the ticket's change does not affect it; an unaccounted file is a `snag` finding naming it. Bump the spec version's minor number.
+- In: `tests/test_specs.py`: its `requisition_review` version pin changes from `"3.0"` to `"3.1"`.
 - In: the production callers pass the map path from config: `<state_dir>/coverage-map.json` when `config.review.coverage_map` is set, else None: `chupa/__main__.py` (`review`), `chupa/runner.py`, `chupa/author.py`, `chupa/rework.py`.
 - In: tests that call `review_ticket` pass `coverage_map=None` unless they test it: `tests/test_requisition.py`, `tests/test_provider_cooldown_failover.py`, `tests/test_watchdog_activation.py`, `tests/test_rework.py`.
 - In: `tests/test_requisition.py`: with an inline map, the rendered prompt lists an out-of-fence test file that runs a fenced file and omits one that is fenced; a declared but missing map snags with code `coverage_map` and makes no model call; None renders `no coverage map configured`.
@@ -44,6 +45,7 @@ After this change the review receives, as data, every test file outside the fenc
 - tests/test_provider_cooldown_failover.py
 - tests/test_watchdog_activation.py
 - tests/test_rework.py
+- tests/test_specs.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
