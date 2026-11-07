@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "e394ca290385afc7ce8c44d11f534b56fe138812",
+  "stem": "extension-thin-wrapper",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Every new snapshot field needs a test in tests/test_watch.py (Scope in). Assert snap[\"runningStem\"] is the running stem and is None when nothing runs. Assert snap[\"verdictCommands\"] equals the confirm/reject argv the CLI accepts.",
+    "Assert step[\"timeDisplay\"] == watch.clock(step[\"ts\"]) and check dateDisplay for at least one step, because StepsTree.getTreeItem renders both fields.",
+    "Extend test_snapshot_display_fields to assert rows[\"done\"][\"mergedAtDisplay\"] and rows[\"done\"][\"commit\"][\"dateDisplay\"] against watch.local(ts).strftime(\"%x, %X\"), because detail.js renders both.",
+    "In test_diagnose_prompt_uses_live_running_state, do not copy Path(\"config.yaml\") from the current directory. Write a minimal inline config to tmp_path / \"config.yaml\", as tests/test_cli.py and tests/test_diagnose_eval.py do.",
+    "Keep the existing extension and observe.py changes; review found them correct. Before finishing, list every key the diff adds to the snapshot and confirm each one has an assert in tests/test_watch.py."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
