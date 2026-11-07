@@ -1430,18 +1430,18 @@ def test_runs_before_failed_ticket_does_not_block_named_ticket(tmp_path):
 
 
 def test_historical_spec_gap_hold_terminal_reads_without_release(root):
-    from chupa.drain import premise_parked
+    from chupa.drain import parked_blob
     from chupa.journal import dispatch_of
 
     commit_ticket(root, "work", confirmed())
     blob = prior_failure(root, terminal="premise_failed", extra={"dispatch": "spec_gap_hold", "round": 1, "plan_units": {"19.P3.held": "absent"}})
     events = journal(root).read()
     assert dispatch_of(events[-1].body) == "spec_gap_hold"  # Rejecting the old vocabulary must fail.
-    assert premise_parked(events, "work", blob)  # Releasing on the historical round must fail.
+    assert parked_blob(events, "work") == blob  # Releasing on the historical round must fail.
     script = Script()
     assert drain(root, script) == 0
     assert script.calls == []  # The unchanged ticket must not be dispatched.
-    assert not premise_parked(events, "work", "different-ticket-blob")  # A ticket edit releases the park.
+    assert parked_blob(events, "work") != "different-ticket-blob"  # A ticket edit releases the park.
 
 
 @pytest.mark.asyncio

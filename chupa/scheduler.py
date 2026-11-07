@@ -3,8 +3,8 @@
 import asyncio
 from collections.abc import Awaitable, Callable, Iterable, Set
 
-from chupa.drain import SETTLED, authored_at, budget_parked, order_tickets, premise_parked, write_queue
-from chupa.journal import EventType, Journal
+from chupa.drain import SETTLED, authored_at, order_tickets, parked_blob, write_queue
+from chupa.journal import Journal
 from chupa.status import last_states, reject_queue
 from chupa.tickets import Ticket
 
@@ -57,11 +57,8 @@ class Scheduler:
             retained = {t.stem: t for t in self.continuations()}
             candidates = {**self.pending, **retained}
             for stem in candidates:
-                body = next((e.body for e in reversed(events) if e.ticket == stem and e.type == EventType.STATE_TRANSITION), {})
-                if last.get(stem) == "premise_failed" or (last.get(stem) == "gate_failed" and "diff_budget" in body.get("reason", "").split(",")):
-                    sha = await self.ticket_sha(stem)
-                    if premise_parked(events, stem, sha) or budget_parked(events, stem, sha):
-                        held.add(stem)
+                if (blob := parked_blob(events, stem)) is not None and blob == await self.ticket_sha(stem):
+                    held.add(stem)
             ready = [
                 t
                 for t in candidates.values()

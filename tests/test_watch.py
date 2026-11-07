@@ -16,10 +16,10 @@ def test_queue_projection_and_fallback(tmp_path, monkeypatch):
     for stem in ("old", "new"):
         path = tmp_path / "tickets" / stem / "ticket.md"
         path.write_text(path.read_text().replace("- none", "none"))
-    assert [row[1] for row in watch.queue(ctx, [], {}, set())] == ["blocked", "old", "new"]
+    assert [row[1] for row in watch.queue(ctx, [], {}, set(), set())] == ["blocked", "old", "new"]
     (tmp_path / "state").mkdir()
     (tmp_path / "state/queue.json").write_text(json.dumps({"at": "2026-01-01T00:00:00+00:00", "order": ["new", "old"], "runs_before": {"new": ["old"]}}))
-    assert watch.queue(ctx, [], {}, set()) == [
+    assert watch.queue(ctx, [], {}, set(), set()) == [
         ("P2", "new", "ready, not run yet; runs before: old"),
         ("P1", "old", "ready, not run yet"),
         ("P0", "blocked", "waits on missing"),
@@ -69,7 +69,7 @@ def test_queue_counts_a_split_dependency_met_by_its_successors(tmp_path, monkeyp
         {"type": "state_transition", "ticket": "part", "body": {"to": "merged"}, "ts": "2026-01-01T00:00:02+00:00"},
     ]
     last_state = {e["ticket"]: e["body"] for e in events if e["type"] == "state_transition"}
-    assert watch.queue(ctx, events, last_state, set()) == [("P1", "child", "ready, not run yet")]
+    assert watch.queue(ctx, events, last_state, set(), set()) == [("P1", "child", "ready, not run yet")]
 
 
 def test_recent_steps_merges_engine_and_stage_events(tmp_path, monkeypatch):
@@ -103,6 +103,7 @@ def test_recent_steps_merges_engine_and_stage_events(tmp_path, monkeypatch):
     ]
     assert [r["kind"] for r in rows] == ["engine_start", "engine_lost", "review_failed", "engine_stop", "implement_ok", "implement_start", "engine_start"]  # Each event has its own icon kind.
     assert [r["ts"] for r in rows] == sorted((r["ts"] for r in rows), reverse=True)
+    monkeypatch.setattr(watch, "committed_ticket_shas", lambda ctx: {})
     lines = watch.text_snapshot(ctx).split("Recent steps:\n", 1)[1].splitlines()
     assert lines == [f"  {watch.clock(r['ts'])}  " + (f"{r['stem']}  " if r["stem"] else "") + r["text"] for r in rows]
     monkeypatch.setattr(watch, "lock_holder", lambda state: object())
@@ -338,3 +339,40 @@ def test_snapshot_box_external_state_and_resolution_counts(tmp_path, monkeypatch
     assert all(row['path'] is None for row in snap['box'])  # External files cannot be opened relative to the workspace.
     assert snap['box'][1]['summary'] == 'A' * 117 + '...'  # The status truncation applies only to the row.
     assert ['Recorded verdict', 'tombstone: covered'] in snap['box'][1]['fields']  # A resolution must not hide its recorded verdict.
+
+
+def test_snapshot_holds_a_parked_ticket(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    ctx = watch.Context(tmp_path, tmp_path, tmp_path / "config.yaml", None, None, None)
+    ticket = SimpleNamespace(stem="work", frontmatter=SimpleNamespace(priority="P1", state="confirmed"), depends=(), runs_before=(), sections={})
+    monkeypatch.setattr(watch, "load_tickets", lambda ctx, skip: ({"work": ticket}, {}))
+    monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: (set(), set()))
+    monkeypatch.setattr(watch, "commits", lambda ctx: {})
+    for terminal, reason in (("premise_failed", "review"), ("gate_failed", "verification,diff_budget")):
+        events = [
+            {"type": "state_transition", "ticket": "work", "body": {"to": "running", "ticket_sha": "blob-B"}, "ts": "2026-01-01T00:00:00+00:00"},
+            {"type": "state_transition", "ticket": "work", "body": {"to": terminal, "reason": reason}, "ts": "2026-01-01T00:00:01+00:00"},
+        ]
+        monkeypatch.setattr(watch, "journal", lambda *args, **kwargs: events)
+        for blobs, section, is_held in (({"work": "blob-B"}, "blocked", True), ({"work": "blob-C"}, "queued", False), ({}, "queued", False)):
+            monkeypatch.setattr(watch, "committed_ticket_shas", lambda ctx: blobs)
+            row = watch.snapshot(ctx)["rows"][0]
+            assert (row["section"], row["held"]) == (section, is_held)  # Matching content alone must hold.
+            if is_held:
+                assert row["status"] == f"held until the ticket changes (last: {terminal})"  # A generic retry reason hides the hold.
+
+
+def test_queue_reports_content_hold(tmp_path):
+    from types import SimpleNamespace
+    ctx = watch.Context(tmp_path, tmp_path / "state", tmp_path / "config.yaml", None, None, None)
+    path = tmp_path / "tickets/work/ticket.md"
+    path.parent.mkdir(parents=True)
+    path.write_text("---\nstate: confirmed\npriority: P1\n---\n## Depends on\nnone\n")
+    events = [
+        {"type": "state_transition", "ticket": "work", "body": {"to": "running", "ticket_sha": "B"}},
+        {"type": "state_transition", "ticket": "work", "body": {"to": "premise_failed"}},
+    ]
+    history = [SimpleNamespace(**e) for e in events]
+    holds = watch.held(history, {"work": "B"})
+    assert watch.queue(ctx, events, {"work": events[-1]["body"]}, set(), holds) == [("P1", "work", "held until the ticket changes")]  # A retry or ready label conceals the park.

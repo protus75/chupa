@@ -62,22 +62,8 @@ def reexec_argv(args: Iterable[str], *, engine: Path | None = None) -> list[str]
     return ["uv", "run", "--project", str(engine), "python", "-m", "chupa", *args]
 
 
-def premise_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:
-    """The premise park: the stem's last run ended `premise_failed` against this same `ticket.md`."""
-    last: str | None = None
-    ran_sha: str | None = None
-    body: Mapping = {}
-    for e in events:
-        if e.type == EventType.STATE_TRANSITION and e.ticket == stem:
-            body = e.body
-            last = body.get("to")
-            if last == "running":
-                ran_sha = e.body.get("ticket_sha")
-    return last == PREMISE and ran_sha == ticket_sha
-
-
-def budget_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:
-    """Hold a diff-budget failure against the ticket content that produced it."""
+def parked_blob(events: Iterable[Event], stem: str) -> str | None:
+    """Return the content identity held by the last transition, if any."""
     body: Mapping = {}
     ran_sha: str | None = None
     for e in events:
@@ -85,7 +71,9 @@ def budget_parked(events: Iterable[Event], stem: str, ticket_sha: str) -> bool:
             body = e.body
             if body.get("to") == "running":
                 ran_sha = body.get("ticket_sha")
-    return body.get("to") == "gate_failed" and "diff_budget" in body.get("reason", "").split(",") and ran_sha == ticket_sha
+    if body.get("to") == PREMISE or (body.get("to") == "gate_failed" and "diff_budget" in body.get("reason", "").split(",")):
+        return ran_sha
+    return None
 
 
 def authored_at(events: Iterable[Event]) -> dict[str, str]:
@@ -343,7 +331,7 @@ class _Drain:
             if material != self._offer_material() or events != prepared_events:
                 continue
             last = last_states(events)
-            held = {s for s in scan.tickets if (last.get(s) == PREMISE and premise_parked(events, s, shas[s])) or budget_parked(events, s, shas[s])}
+            held = {s for s in scan.tickets if (blob := parked_blob(events, s)) is not None and blob == shas[s]}
             pick, reoffer = self._select(scan, events, last, held)
             if pick is None:
                 if self.provider_deadlines:
@@ -381,9 +369,9 @@ class _Drain:
             return True
         if self.c.control is not None and stem in self.c.control.storm_holds().values():
             return True
-        if body.get("to") in {PREMISE, "gate_failed"} and (self.c.repo / ticket_path(stem)).exists():
+        if (blob := parked_blob(events, stem)) is not None and (self.c.repo / ticket_path(stem)).exists():
             sha = await self._sha(stem)
-            return premise_parked(events, stem, sha) or budget_parked(events, stem, sha)
+            return blob == sha
         return False
 
     def _offer_material(self) -> dict[str, bytes]:

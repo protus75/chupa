@@ -10,13 +10,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import get_args
 
-from chupa.drain import RETIRED, authored_at, order_tickets
+from chupa.drain import RETIRED, authored_at, order_tickets, parked_blob
 from chupa.graph import layout
 from chupa.rework import settled_dependencies
+from chupa.status import SETTLED, reject_queue
 from chupa.tickets import Frontmatter, TicketInvalid, parse_ticket
 
 STEP_NAMES = {"implement": "Implement", "check": "Check", "merge": "Merge", "review": "Review", "diagnose": "Diagnose", "rework": "Rework", "retro": "Retro", "triage": "Triage", "author": "Author"}
-SETTLED = {"merged", "already_satisfied"}
 
 
 @dataclass(frozen=True)
@@ -219,30 +219,17 @@ def depends(path: Path) -> list[str]:
     return re.findall(r"^- (\S+)", section, re.M)
 
 
-def held(events: list[dict]) -> set[str]:
-    """Stems waiting on a person's keep or kill: the same fold `chupa status` uses for its Reject queue."""
-    terminals: dict[str, dict] = {}
-    waiting: set[str] = set()
-    for e in events:
-        stem, body = e.get("ticket"), e.get("body", {})
-        if stem is None:
-            continue
-        if e.get("type") == "state_transition" and body.get("to") != "running":
-            terminals[stem] = body
-            waiting.discard(stem)
-            if body.get("routed") == "reject_queue":
-                waiting.add(stem)
-        elif body.get("signal") == "reject_arrival" and stem in terminals:
-            waiting.add(stem)
-        elif body.get("signal") == "reject_verdict":
-            waiting.discard(stem)
-    return {s for s in waiting if terminals[s].get("to") not in SETTLED}
+def held(history, blobs) -> set[str]:
+    """Reject-queue stems and content parks matching a committed ticket."""
+    stems = {e.ticket for e in history if e.ticket is not None}
+    return set(reject_queue(history)) | {s for s in stems if (blob := parked_blob(history, s)) is not None and blob == blobs.get(s)}
 
 
-def queue(ctx, events: list[dict], last_state: dict[str, dict], running: set[str]) -> list[tuple[str, str, str]]:
+def queue(ctx, events: list[dict], last_state: dict[str, dict], running: set[str], held_stems: set[str]) -> list[tuple[str, str, str]]:
     """Every confirmed ticket not yet settled, rejected, or running: (priority, stem, why it is waiting)."""
     done = SETTLED | {"rejected"}
-    waiting_on_person = held(events)
+    history = [SimpleNamespace(type=e.get("type"), body=e.get("body", {}), ticket=e.get("ticket"), ts=e.get("ts")) for e in events]
+    waiting_on_person = set(reject_queue(history))
     # A dependency is met when it, or every leaf of the split that superseded it, settled: the drain's own test.
     settled = settled_dependencies(SimpleNamespace(type=e.get("type"), body=e.get("body", {}), ticket=e.get("ticket"), ts=e.get("ts")) for e in events)
     rows = []
@@ -255,6 +242,8 @@ def queue(ctx, events: list[dict], last_state: dict[str, dict], running: set[str
         if stem in waiting_on_person:
             spent = next((e["body"].get("mechanical") for e in reversed(events) if e.get("ticket") == stem and e.get("body", {}).get("signal") == "diagnosis"), None)
             why = f"NEEDS YOUR KEEP OR KILL ({spent})" if spent and "cap spent" in spent else "held; the drain retries it when new work runs out"
+        elif stem in held_stems:
+            why = "held until the ticket changes"
         elif last == "running":
             why = "interrupted: the engine stopped mid-run; reruns when it restarts"
         elif open_deps:
@@ -272,7 +261,7 @@ def queue(ctx, events: list[dict], last_state: dict[str, dict], running: set[str
     by_stem = {row[1]: row for row in rows}
     ordered = []
     for stem in view["order"]:
-        if stem in by_stem and not (by_stem[stem][2].startswith("waits on ") or stem in waiting_on_person):
+        if stem in by_stem and not (by_stem[stem][2].startswith("waits on ") or stem in held_stems):
             priority, _, why = by_stem.pop(stem)
             hints = view["runs_before"].get(stem, [])
             if hints:
@@ -349,7 +338,8 @@ def text_snapshot(ctx) -> str:
             lines.append(f"  {clock(body['ts'])}  {stem}  {outcome}")
         if not done:
             lines.append("  (nothing finished yet)")
-    pending = queue(ctx, events, last_state, set(running))
+    history = [SimpleNamespace(type=e.get("type"), body=e.get("body", {}), ticket=e.get("ticket"), ts=e.get("ts")) for e in events]
+    pending = queue(ctx, events, last_state, set(running), held(history, committed_ticket_shas(ctx)))
     lines += ["", f"Queue ({len(pending)} to do):"]
     lines += [f"  {priority}  {stem}  {why}" for priority, stem, why in pending] or ["  (empty)"]
     recent = recent_steps(state, log, 8)
@@ -447,7 +437,9 @@ def snapshot(ctx) -> dict:
     authored = authored_at(history)
     # The drain's own test: a dependency is met when it, or every leaf of the split that superseded it, settled.
     settled = set(settled_dependencies(history))
-    held_stems = held(events)
+    blobs = committed_ticket_shas(ctx)
+    held_stems = held(history, blobs)
+    reject_stems = set(reject_queue(history))
 
     def to(stem: str) -> str | None:
         return last.get(stem, {}).get("to")
@@ -484,7 +476,6 @@ def snapshot(ctx) -> dict:
     blocked_stems = {t.stem for t in blocked}
 
     dirty, new = uncommitted_tickets(ctx)
-    blobs = committed_ticket_shas(ctx)
     verdicts: dict[str, dict[str, str]] = {}  # stem -> ticket_sha -> last verdict for that content
     for e in events:
         body = e.get("body", {})
@@ -509,7 +500,9 @@ def snapshot(ctx) -> dict:
             return "new: confirmed by next intake"  # human intake auto-confirms a new hand-written ticket
         if t.frontmatter.state != "confirmed":
             return t.frontmatter.state
-        if t.stem in held_stems:
+        if t.stem in held_stems and t.stem not in reject_stems:
+            return f"held until the ticket changes (last: {to(t.stem)})"
+        if t.stem in reject_stems:
             spent = next((e["body"].get("mechanical") for e in reversed(events) if e.get("ticket") == t.stem and e.get("body", {}).get("signal") == "diagnosis"), None)
             return f"held: {spent}" if spent else f"held (last: {to(t.stem)})"
         waits = [d for d in t.depends if d not in settled]

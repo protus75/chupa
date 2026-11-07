@@ -503,3 +503,26 @@ async def test_watcher_skips_finished_tickets(rig):
     assert "merged" not in rig.watcher.cache
     assert "merged" not in rig.scheduler.pending
     assert "live" not in rig.scheduler.pending
+
+
+@pytest.mark.asyncio
+async def test_scheduler_holds_premise_until_content_changes(rig):
+    rig.add("work")
+    rig.transition("work", "running", ticket_sha=rig.files["work"])
+    rig.transition("work", "premise_failed")
+    assert await rig.scheduler.dispatch_next() is None  # Unchanged content must not dispatch.
+    rig.files["work"] += "\nrevised\n"
+    assert (await rig.scheduler.dispatch_next()).stem == "work"  # Changed content releases the park.
+    assert rig.calls == ["work"]  # Only the released offer dispatches.
+
+
+@pytest.mark.asyncio
+async def test_scheduler_does_not_fetch_blob_for_infra_failure(rig):
+    rig.add("work")
+    rig.transition("work", "running", ticket_sha="old")
+    rig.transition("work", "infra_error")
+    async def unexpected(stem):
+        pytest.fail(f"unnecessary blob lookup for {stem}")
+    rig.scheduler.ticket_sha = unexpected
+    assert (await rig.scheduler.dispatch_next()).stem == "work"  # An unrelated failure remains eligible.
+    assert rig.calls == ["work"]  # The candidate actually reached dispatch.

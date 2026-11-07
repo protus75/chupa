@@ -50,7 +50,7 @@ def test_approved_content_runs_without_review(tmp_path):
 
 
 def test_snag_parks_before_implement(tmp_path):
-    from chupa.drain import premise_parked
+    from chupa.drain import parked_blob
     root, checkout, llm, writer = setup(tmp_path, [reply('snag', 'missing_file')])
     assert asyncio.run(dispatch(root, checkout, writer)) == 'premise_failed'
     events = checkout.journal.read()
@@ -61,7 +61,7 @@ def test_snag_parks_before_implement(tmp_path):
     assert not writer.ctx.worktree('gate').exists() and not reject_queue(events)
     assert all(draws(events, 'gate', cap) == 0 for cap in ('retry', 'diagnosis', 'premise_bounce'))
     sha = git_out(root, 'rev-parse', 'HEAD:tickets/gate/ticket.md').strip()
-    assert premise_parked(events, 'gate', sha)
+    assert parked_blob(events, 'gate') == sha
     from chupa.__main__ import main
     assert main(['drain'], cwd=root, env=ENV, clock=checkout.clock, pipeline=lambda c: runner.bind(c, llm)) == 0
     assert [r.surface for r in llm.requests] == ['requisition_review']
@@ -74,7 +74,7 @@ def test_render_feasibility_snag_proceeds_to_implement(tmp_path):
 
 
 def test_edit_releases_and_reviews_the_new_content(tmp_path):
-    from chupa.drain import premise_parked
+    from chupa.drain import parked_blob
     root, checkout, llm, writer = setup(tmp_path, [reply('snag', 'missing_file'), reply('approve'), implement_reply('premise_failed', [{'code': 'premise', 'message': 'cannot build', 'paved_road': 'repair'}])])
     assert asyncio.run(dispatch(root, checkout, writer)) == 'premise_failed'
     path = root / 'tickets/gate/ticket.md'
@@ -82,7 +82,7 @@ def test_edit_releases_and_reviews_the_new_content(tmp_path):
     git_out(root, 'add', str(path.relative_to(root)))
     git_out(root, 'commit', '-m', 'edit ticket')
     sha = git_out(root, 'rev-parse', 'HEAD:tickets/gate/ticket.md').strip()
-    assert not premise_parked(checkout.journal.read(), 'gate', sha)
+    assert parked_blob(checkout.journal.read(), 'gate') != sha
     from chupa.__main__ import main
     assert main(['drain'], cwd=root, env=ENV, clock=checkout.clock, pipeline=lambda c: runner.bind(c, llm)) == 0
     assert [r.surface for r in llm.requests] == ['requisition_review', 'requisition_review', 'implement']
