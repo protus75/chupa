@@ -70,7 +70,7 @@ After this change every repo-path matcher, model-facing spec path, and doc names
 1. `drain.UPGRADE_PREFIXES == ("chupa/",)`. The first Verification command and `tests/test_closed_sets.py` check it.
 2. A merged commit touching `chupa/specs/b.md` triggers the drain handoff in `tests/test_drain_upgrade.py`, and `merge.py` reports `chupa/specs/a.md` and `chupa/specs/z.md` as `changed_spec_paths` in `tests/test_merge.py`.
 3. A ticket whose `## Context` lists `chupa/specs/review.md` gets the "prompt spec" finding in `tests/test_tickets.py`.
-4. A box message with `proposed_spec_paths: ["specs/review.md"]` still loads through `Box.messages`, and the Author request built from it holds `chupa/specs/review.md`, not `specs/review.md`. A test in `tests/test_author.py` checks this.
+4. A box message with `proposed_spec_paths: ["specs/review.md"]` still loads through `Box.messages`, and the Author and Triage requests built from it hold `chupa/specs/review.md`, not `specs/review.md`. A test in `tests/test_author.py` and a test in `tests/test_triage.py` check this.
 5. `uv run pytest -q` exits 0.
 
 ## Verification
