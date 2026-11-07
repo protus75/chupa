@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-none
+Restored the prior approved implementation; all verification commands passed, including the full suite with 3,098 tests.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+The ticket budget was 75 minutes expected; the work took approximately 3 minutes.
 
