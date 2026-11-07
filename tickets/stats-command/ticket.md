@@ -94,7 +94,7 @@ The operator also wants to see how long the test suite takes (2026-11-06). Check
   - A malformed `--window` is an engine refusal: exit 2, `chupa stats: bad window <value> -- use <N>h, <N>d, or <N>t`.
   - `--json` prints `json.dumps(stats)`; otherwise it prints `render_stats`.
 - In: `dev.py`: `stats` subcommand passing `--window W` and `--json` through, with a docstring line.
-- In: `docs/how-chupa-works.md` section 2.1 verbs table row for `stats`, and section 2.2 table row for `./dev.py stats`. Describe it as a projection, never an authority, like `status`.
+- In: `docs/how-chupa-works.md` section 2.1 verbs table row for `stats`, and section 2.2 table row for `./dev.py stats`. Describe it as a projection, never an authority, like `status`. `docs/host-running.md`'s verb table gets a `stats` row (works while serve runs: Yes), which `tests/test_host_running.py::test_verb_table_matches_parser` requires.
 - In: `tests/test_stats.py`. Build journals with `Journal.append` and a fake clock, as `tests/test_status.py` does. Cover:
   - stage durations, including `check` and `merge` derived from neighbouring events, with distinct per-stage times so a swapped stage fails;
   - an `h`/`d` window that excludes an older interval, and a `t` window whose start is the N-th most recent settle;
@@ -113,6 +113,7 @@ The operator also wants to see how long the test suite takes (2026-11-06). Check
 - chupa/__main__.py
 - dev.py
 - docs/how-chupa-works.md
+- docs/host-running.md
 - tests/test_stats.py
 - tests/test_stages.py
 
@@ -120,7 +121,7 @@ The operator also wants to see how long the test suite takes (2026-11-06). Check
 1. `./dev.py test tests/test_stats.py` exits 0, including the tests above.
 2. `--json` output's top-level keys are exactly `window`, `throughput`, `durations`, `verification`, `cycles`, `ladder`, `failures`, `holds`, `spend`, in that order.
 3. `./dev.py test tests/test_stages.py` exits 0 with `test_verification_records_each_command_seconds` passing: each command's `seconds` equals its own clock advance, not the sum or None.
-4. `docs/how-chupa-works.md` sections 2.1 and 2.2 list `stats`.
+4. `docs/how-chupa-works.md` sections 2.1 and 2.2 list `stats`, and `docs/host-running.md`'s verb table has a `stats` row.
 5. `./dev.py test` exits 0.
 
 ## Verification
