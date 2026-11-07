@@ -199,7 +199,11 @@ def test_status_preserves_sections_and_is_write_free(tmp_path, monkeypatch, caps
             "spend:\n$0.00\n\nReject queue:\n(none)\n\nConfirmed-class tombstones:\n(none)\n\n"
             "Tombstone reopens:\n(none)\n"
         )
-    box_block = (f"Suggestion Box (1 pending, 1 resolved):\n- {id}: failure_report: tombstone -> retired: visible\n- {reopened}: failure_report: reopened: reopened" if populated else "Suggestion Box (0 pending, 0 resolved):\n(none)")
+    box_block = (
+        f"Suggestion Box (1 pending, 1 resolved):\n- {id}: failure_report: tombstone -> retired: visible\n- {reopened}: failure_report: reopened: reopened"
+        if populated
+        else "Suggestion Box (0 pending, 0 resolved):\n(none)"
+    )
     legacy = legacy.replace("Confirmed-class tombstones:", box_block + "\n\nConfirmed-class tombstones:")
     before = {p: p.read_bytes() for p in c.repo.rglob("*") if p.is_file()}
 
@@ -240,7 +244,12 @@ def test_box_status_labels_and_summary(tmp_path):
     box.resolve(ids[2], Resolution(kind="tombstone", link="old"))
     box.resolve(ids[3], Resolution(kind="declined", link="declined-id"))
     block = render(project([], box=box)).split("Suggestion Box (1 pending, 3 resolved):\n")[1].split("\n\n")[0]
-    assert block.splitlines() == [f"- {ids[0]}: suggestion: pending: first", f"- {ids[1]}: suggestion: author -> repair: {'x' * 117}...", f"- {ids[2]}: suggestion: tombstone -> old: third", f"- {ids[3]}: suggestion: declined: fourth"]  # Order, labels, first line and truncation differ from full or reversed messages.
+    assert block.splitlines() == [
+        f"- {ids[0]}: suggestion: pending: first",
+        f"- {ids[1]}: suggestion: author -> repair: {'x' * 117}...",
+        f"- {ids[2]}: suggestion: tombstone -> old: third",
+        f"- {ids[3]}: suggestion: declined: fourth",
+    ]  # Order, labels, first line and truncation differ from full or reversed messages.
 
 
 def test_corrupt_box_does_not_receive_unknown_id_advice(tmp_path, capsys):

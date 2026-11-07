@@ -76,6 +76,7 @@ async def ready(ctx, stem=STEM, *, changes=None, fence=("chupa/thing.py",), veri
     ctx.fs.write(root / "run.md", record.encode())
     await commit(ctx, ctx.repo, [f"tickets/{stem}"], "ticket and run record")
     from tests.approval import approve as approve_ticket
+
     approve_ticket(ctx.repo, stem, ctx.driver.clock)
     ticket = dataclasses.replace(validate_ticket(stem, text, ctx.repo), verification=verification)
     await ctx.git.worktree_add(ctx.repo, ctx.worktree(stem), stem, "main")
@@ -925,10 +926,7 @@ def test_merge_queue_is_reachable_from_production():
     assert_reachable(sources)
     closure = import_closure("chupa.__main__", sources)
     assert "chupa.merge" in closure
-    assert any(
-        isinstance(node, ast.ImportFrom) and node.module == "chupa.mergequeue" and "MergeQueue" in {alias.name for alias in node.names}
-        for node in ast.walk(ast.parse(sources["chupa.merge"]))
-    )
+    assert any(isinstance(node, ast.ImportFrom) and node.module == "chupa.mergequeue" and "MergeQueue" in {alias.name for alias in node.names} for node in ast.walk(ast.parse(sources["chupa.merge"])))
 
     class RemoveMergeQueue(ast.NodeTransformer):
         def visit_Import(self, node):

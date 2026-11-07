@@ -185,8 +185,17 @@ def test_split_reviews_after_pre_run_review_use_new_keys(ctx):
         ctx.driver.retry_cap = 0
         ctx.driver.llm = FakeLLM([requisition()])
         prior = await review_ticket(
-            ctx.driver, repo=ctx.repo, stem=ticket.stem, text=text, specs_dir=ctx.specs_dir, coverage_map=None,
-            tier="max", stem_slot=ticket.stem, run_seq=attempt, attempt=attempt, call_seq=1,
+            ctx.driver,
+            repo=ctx.repo,
+            stem=ticket.stem,
+            text=text,
+            specs_dir=ctx.specs_dir,
+            coverage_map=None,
+            tier="max",
+            stem_slot=ticket.stem,
+            run_seq=attempt,
+            attempt=attempt,
+            call_seq=1,
             expected_budget=ticket.expected_minutes * 60.0,
         )
         assert prior.verdict == "approve"
@@ -213,7 +222,9 @@ def test_split_reviews_keep_unique_keys_when_one_reasks(ctx, monkeypatch, headro
             from chupa import requisition as requisition_module
 
             base_render = requisition_module._base_render
-            monkeypatch.setattr(requisition_module, "_base_render", lambda repo, candidate, text, specs: "x" * RENDER_BOUND_CHARS if candidate.stem == "piece-one" else base_render(repo, candidate, text, specs))
+            monkeypatch.setattr(
+                requisition_module, "_base_render", lambda repo, candidate, text, specs: "x" * RENDER_BOUND_CHARS if candidate.stem == "piece-one" else base_render(repo, candidate, text, specs)
+            )
             ctx.driver.retry_cap = 0
             script = [order("split", proposals), requisition()]
         else:

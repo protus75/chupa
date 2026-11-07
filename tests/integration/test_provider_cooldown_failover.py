@@ -91,6 +91,7 @@ async def test_quota_failure_arms_cooldown_without_infra_draw(root, monkeypatch)
     rig = await repository(root, monkeypatch)
     ticket = await rig.add("quota")
     from tests.approval import approve
+
     approve(root, "quota", rig.time)
     await intake(root, rig.checkout.git, rig.journal, rig.fs)
     writer = await prepared(rig)
@@ -212,6 +213,7 @@ async def test_mid_run_drought_is_harvested_without_spine_draws(root, monkeypatc
     rig = await repository(root, monkeypatch)
     ticket = await rig.add("midrun")
     from tests.approval import approve
+
     approve(root, "midrun", rig.time)
     await intake(root, rig.checkout.git, rig.journal, rig.fs)
     writer = await prepared(rig)
@@ -242,7 +244,8 @@ async def test_mid_run_drought_is_harvested_without_spine_draws(root, monkeypatc
                 repo=root,
                 stem="seed",
                 text=TICKET.replace("context.txt", "config.yaml"),
-                specs_dir=runner.SPECS_DIR, coverage_map=None,
+                specs_dir=runner.SPECS_DIR,
+                coverage_map=None,
                 tier="medium",
                 stem_slot=ticket.stem,
                 run_seq=0,
@@ -645,6 +648,7 @@ async def test_executed_failures_preserve_classification_and_infra_accounting(ro
     rig = await repository(root, monkeypatch)
     ticket = await rig.add("failure")
     from tests.approval import approve
+
     approve(root, "failure", rig.time)
     await intake(root, rig.checkout.git, rig.journal, rig.fs)
     writer = await prepared(rig)
@@ -684,6 +688,7 @@ async def test_escalated_drought_uses_effective_route(root, monkeypatch, entry, 
     checkout = replace(rig.checkout, control=control)
     ticket = await rig.add("escalated")
     from tests.approval import approve
+
     approve(root, "escalated", rig.time)
     assert ticket.frontmatter.agent_tier == "medium"
     caps.consume(rig.journal, ticket.stem, "retry", "fixture", rung={"tier": "high", "effort": "high"})

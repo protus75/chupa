@@ -152,7 +152,9 @@ def test_vscode_package_skips_wslpath_outside_wsl(vscode_package, monkeypatch, c
 
     dev.main()
 
-    run.assert_called_once_with(["npx", "--yes", "@vscode/vsce", "package", "--no-dependencies", "-o", str(vscode_package)], cwd=dev.ROOT / "vscode-chupa", check=False)  # No translation subprocess outside WSL.
+    run.assert_called_once_with(
+        ["npx", "--yes", "@vscode/vsce", "package", "--no-dependencies", "-o", str(vscode_package)], cwd=dev.ROOT / "vscode-chupa", check=False
+    )  # No translation subprocess outside WSL.
     assert "Windows path" not in capsys.readouterr().out  # Do not print a fabricated path outside WSL.
 
 

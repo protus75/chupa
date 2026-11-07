@@ -13,10 +13,12 @@ def main():
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     try:
         from chupa.scheduler import Scheduler
+
         if "caps" not in inspect.signature(Scheduler).parameters:
             result = "defect"
         else:
             from tests.integration.test_scheduler import Rig
+
             with tempfile.TemporaryDirectory() as directory:
                 rig = Rig(Path(directory))
                 rig.add("work")

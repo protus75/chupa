@@ -122,12 +122,14 @@ def test_recent_steps_merges_engine_and_stage_events(tmp_path, monkeypatch):
 def test_recent_steps_triage_message_number():
     log = [
         {"ts": f"2026-01-01T00:00:0{i}+00:00", "stem": "triage", "surface": "triage", **event}
-        for i, event in enumerate([
-            {"event": "stage_start", "run_seq": 337},
-            {"event": "stage_end", "run_seq": 337, "outcome": "ok"},
-            {"event": "stage_start"},
-            {"event": "stage_end", "run_seq": 337, "outcome": "failed"},
-        ])
+        for i, event in enumerate(
+            [
+                {"event": "stage_start", "run_seq": 337},
+                {"event": "stage_end", "run_seq": 337, "outcome": "ok"},
+                {"event": "stage_start"},
+                {"event": "stage_end", "run_seq": 337, "outcome": "failed"},
+            ]
+        )
     ]
     rows = watch.recent_steps(None, log, 10)
     assert [(row["kind"], row["text"]) for row in rows] == [
@@ -211,13 +213,17 @@ def test_snapshot_display_fields(tmp_path, monkeypatch):
     ctx = watch.Context(tmp_path, tmp_path, tmp_path / "config.yaml", None, None, None)
     ts = "2026-01-01T00:00:00+00:00"
     now = datetime.fromisoformat("2026-01-03T03:00:00+00:00")
+
     class FixedDateTime(datetime):
         @classmethod
         def now(cls, tz=None):
             return now
 
     monkeypatch.setattr(watch, "datetime", FixedDateTime)
-    ticket = lambda stem: SimpleNamespace(stem=stem, frontmatter=SimpleNamespace(priority="P1", state="confirmed"), depends=(), runs_before=(), sections={"Goal / Why": "goal"})
+
+    def ticket(stem):
+        return SimpleNamespace(stem=stem, frontmatter=SimpleNamespace(priority="P1", state="confirmed"), depends=(), runs_before=(), sections={"Goal / Why": "goal"})
+
     monkeypatch.setattr(watch, "load_tickets", lambda ctx, skip: ({s: ticket(s) for s in ("live", "waiting")}, {}))
     events = [
         {"type": "state_transition", "ticket": "live", "body": {"to": "running"}, "ts": ts},
@@ -249,12 +255,12 @@ def test_snapshot_display_fields(tmp_path, monkeypatch):
     assert watch.snapshot(ctx)["runningStem"] is None  # A previous running stem must not persist.
 
 
-
 def test_snapshot_badge(tmp_path, monkeypatch):
     from datetime import datetime
     from types import SimpleNamespace
 
     ctx = watch.Context(tmp_path, tmp_path, tmp_path / "config.yaml", None, None, None)
+
     def ticket(stem, state="confirmed"):
         return SimpleNamespace(stem=stem, frontmatter=SimpleNamespace(priority="P1", state=state), depends=(), runs_before=(), sections={})
 
@@ -310,10 +316,7 @@ def test_snapshot_step_files_and_mechanical_kinds(tmp_path, monkeypatch):
     directory.mkdir(parents=True)
     (directory / "run.md").write_text("run")
     (directory / "checks.json").write_text("checks")
-    events = [
-        {"event": "stage_start", "stem": "alpha", "surface": surface, "ts": f"2026-01-01T00:00:0{i}+00:00"}
-        for i, surface in enumerate(("implement", "check", "merge"))
-    ]
+    events = [{"event": "stage_start", "stem": "alpha", "surface": surface, "ts": f"2026-01-01T00:00:0{i}+00:00"} for i, surface in enumerate(("implement", "check", "merge"))]
     (tmp_path / "engine.log").write_text("".join(json.dumps(e) + "\n" for e in events))
     rows = {row["text"]: row for row in watch.snapshot(ctx)["steps"]}
     assert rows["Implement start"]["path"] == "tickets/alpha/run.md"  # The ticket file is a different target.
@@ -329,46 +332,46 @@ def test_snapshot_box_messages(tmp_path, monkeypatch):
     from chupa.box import Box, Resolution
     from chupa.seams import LocalFileSystem
 
-    ctx = watch.Context(tmp_path, tmp_path / 'state', tmp_path / 'config.yaml', None, None, None)
-    monkeypatch.setattr(watch, 'uncommitted_tickets', lambda ctx: (set(), set()))
-    monkeypatch.setattr(watch, 'committed_ticket_shas', lambda ctx: {})
-    monkeypatch.setattr(watch, 'commits', lambda ctx: {})
-    box = Box(ctx.state / 'box', LocalFileSystem())
-    first, _ = box.enqueue(message_class='suggestion', origin='operator', summary='First message')
-    second, _ = box.enqueue(message_class='failure_report', origin='engine', summary='Second message\nMore detail', stage='check', outcome='failed')
-    box.resolve(first, Resolution(kind='ticket', link='fixed'))
+    ctx = watch.Context(tmp_path, tmp_path / "state", tmp_path / "config.yaml", None, None, None)
+    monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: (set(), set()))
+    monkeypatch.setattr(watch, "committed_ticket_shas", lambda ctx: {})
+    monkeypatch.setattr(watch, "commits", lambda ctx: {})
+    box = Box(ctx.state / "box", LocalFileSystem())
+    first, _ = box.enqueue(message_class="suggestion", origin="operator", summary="First message")
+    second, _ = box.enqueue(message_class="failure_report", origin="engine", summary="Second message\nMore detail", stage="check", outcome="failed")
+    box.resolve(first, Resolution(kind="ticket", link="fixed"))
     snap = watch.snapshot(ctx)
-    assert [row['id'] for row in snap['box']] == [second, first]  # Arrival order would reverse these.
-    resolved = snap['box'][1]
-    assert (resolved['state'], resolved['status'], resolved['link']) == ('resolved', 'suggestion · author -> fixed', 'tickets/fixed/ticket.md')  # Pending or a decision path loses the resolution.
-    assert (tmp_path / resolved['path']).is_file()  # The path must point to the actual message file.
-    assert snap['boxCounts'] == {'pending': 1, 'author': 1, 'tombstone': 0, 'declined': 0}  # Counting all messages as pending or omitting resolved authors differs.
-    assert snap['box'][0]['fields'] == [['Summary', 'Second message\nMore detail'], ['Origin', 'engine'], ['Stage', 'check: failed']]  # The summary must retain its second line and stage its outcome.
+    assert [row["id"] for row in snap["box"]] == [second, first]  # Arrival order would reverse these.
+    resolved = snap["box"][1]
+    assert (resolved["state"], resolved["status"], resolved["link"]) == ("resolved", "suggestion · author -> fixed", "tickets/fixed/ticket.md")  # Pending or a decision path loses the resolution.
+    assert (tmp_path / resolved["path"]).is_file()  # The path must point to the actual message file.
+    assert snap["boxCounts"] == {"pending": 1, "author": 1, "tombstone": 0, "declined": 0}  # Counting all messages as pending or omitting resolved authors differs.
+    assert snap["box"][0]["fields"] == [["Summary", "Second message\nMore detail"], ["Origin", "engine"], ["Stage", "check: failed"]]  # The summary must retain its second line and stage its outcome.
 
 
 def test_snapshot_box_external_state_and_resolution_counts(tmp_path, monkeypatch):
     from chupa.box import Box, Resolution, Verdict
     from chupa.seams import LocalFileSystem
 
-    root = tmp_path / 'workspace'
+    root = tmp_path / "workspace"
     root.mkdir()
-    state = tmp_path / 'external'
-    ctx = watch.Context(root, state, root / 'config.yaml', None, None, None)
-    monkeypatch.setattr(watch, 'uncommitted_tickets', lambda ctx: (set(), set()))
-    monkeypatch.setattr(watch, 'committed_ticket_shas', lambda ctx: {})
-    monkeypatch.setattr(watch, 'commits', lambda ctx: {})
-    box = Box(state / 'box', LocalFileSystem())
-    tomb, _ = box.enqueue(message_class='suggestion', origin='one', summary='A' * 125)
-    decision, _ = box.enqueue(message_class='suggestion', origin='two', summary='Decision')
-    box.record_verdict(tomb, Verdict(verdict='tombstone', produced_by_spec_version='v1', rationale='covered'))
-    box.resolve(tomb, Resolution(kind='tombstone', link='covered'))
-    box.resolve(decision, Resolution(kind='declined', link='chosen'))
+    state = tmp_path / "external"
+    ctx = watch.Context(root, state, root / "config.yaml", None, None, None)
+    monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: (set(), set()))
+    monkeypatch.setattr(watch, "committed_ticket_shas", lambda ctx: {})
+    monkeypatch.setattr(watch, "commits", lambda ctx: {})
+    box = Box(state / "box", LocalFileSystem())
+    tomb, _ = box.enqueue(message_class="suggestion", origin="one", summary="A" * 125)
+    decision, _ = box.enqueue(message_class="suggestion", origin="two", summary="Decision")
+    box.record_verdict(tomb, Verdict(verdict="tombstone", produced_by_spec_version="v1", rationale="covered"))
+    box.resolve(tomb, Resolution(kind="tombstone", link="covered"))
+    box.resolve(decision, Resolution(kind="declined", link="chosen"))
     snap = watch.snapshot(ctx)
-    assert snap['boxCounts'] == {'pending': 0, 'author': 0, 'tombstone': 1, 'declined': 1}  # Resolution kinds must be counted separately.
-    assert [row['link'] for row in snap['box']] == ['tickets/decisions/chosen.md', 'tickets/decisions/covered.md']  # Both records use their own names.
-    assert all(row['path'] is None for row in snap['box'])  # External files cannot be opened relative to the workspace.
-    assert snap['box'][1]['summary'] == 'A' * 117 + '...'  # The status truncation applies only to the row.
-    assert ['Recorded verdict', 'tombstone: covered'] in snap['box'][1]['fields']  # A resolution must not hide its recorded verdict.
+    assert snap["boxCounts"] == {"pending": 0, "author": 0, "tombstone": 1, "declined": 1}  # Resolution kinds must be counted separately.
+    assert [row["link"] for row in snap["box"]] == ["tickets/decisions/chosen.md", "tickets/decisions/covered.md"]  # Both records use their own names.
+    assert all(row["path"] is None for row in snap["box"])  # External files cannot be opened relative to the workspace.
+    assert snap["box"][1]["summary"] == "A" * 117 + "..."  # The status truncation applies only to the row.
+    assert ["Recorded verdict", "tombstone: covered"] in snap["box"][1]["fields"]  # A resolution must not hide its recorded verdict.
 
 
 def test_snapshot_holds_a_parked_ticket(tmp_path, monkeypatch):
@@ -395,6 +398,7 @@ def test_snapshot_holds_a_parked_ticket(tmp_path, monkeypatch):
 
 def test_queue_reports_content_hold(tmp_path):
     from types import SimpleNamespace
+
     ctx = watch.Context(tmp_path, tmp_path / "state", tmp_path / "config.yaml", None, None, None)
     path = tmp_path / "tickets/work/ticket.md"
     path.parent.mkdir(parents=True)

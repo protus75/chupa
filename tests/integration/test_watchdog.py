@@ -254,6 +254,7 @@ def test_spend_resets_only_on_observed_scope_mutation(tmp_path, seconds, region)
         rig.call(estimate=1)
     assert d.bases == {}  # Progress never completes a call or learns its basis.
 
+
 def test_spend_metering_and_threshold(tmp_path):
     rig = DetectorRig(tmp_path)
     d = rig.detector

@@ -43,6 +43,7 @@ def author(repo: Path, stem: str = STEM, depends: str = "none") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(TICKET.format(bypass="").replace("## Depends on\nnone", f"## Depends on\n{depends}"))
     from tests.approval import approve
+
     approve(repo, stem, clock)
 
 

@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from chupa.config import Caps
 from chupa import caps
+from chupa.config import Caps
 from chupa.journal import EventType, Journal
 from chupa.scheduler import Scheduler
 from chupa.tickets import INTAKE_SIGNAL, parse_ticket
@@ -223,7 +223,6 @@ async def test_eligibility_and_hold_release(rig):
     rig.drought.clear()
     assert (await rig.scheduler.dispatch_next()).stem == "drought-held"
     assert await rig.scheduler.dispatch_next() is None
-
 
 
 @pytest.mark.asyncio
@@ -526,11 +525,14 @@ async def test_scheduler_does_not_fetch_blob_for_infra_failure(rig):
     rig.add("work")
     rig.transition("work", "running", ticket_sha="old")
     rig.transition("work", "infra_error")
+
     async def unexpected(stem):
         pytest.fail(f"unnecessary blob lookup for {stem}")
+
     rig.scheduler.ticket_sha = unexpected
     assert (await rig.scheduler.dispatch_next()).stem == "work"  # An unrelated failure remains eligible.
     assert rig.calls == ["work"]  # The candidate actually reached dispatch.
+
 
 @pytest.mark.asyncio
 async def test_serve_scheduler_follows_the_drain_reoffer_rule(rig):

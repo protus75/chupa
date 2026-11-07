@@ -23,7 +23,8 @@ from chupa.merge import Admission
 from chupa.mergequeue import CONFLICT_FACTS, RED_STREAK, TREE_MISMATCH, MergeQueue, TreeMismatch
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.stages import Invoice, PackingSlip
-from tests.integration.test_cli import ENV, root, write as write_ticket
+from tests.integration.test_cli import ENV, root
+from tests.integration.test_cli import write as write_ticket
 from tests.integration.test_daemon_composition import sources
 from tests.integration.test_restart_timers import orphan, repository
 from tests.integration.test_scheduler import import_closure, text, turn
@@ -60,6 +61,7 @@ async def graph(root, monkeypatch, **kwargs):
 def write(root, stem, text):
     from tests.approval import approve
     from tests.integration.test_drain import Clock
+
     write_ticket(root, stem, text)
     approve(root, stem, Clock())
 
@@ -1094,6 +1096,7 @@ async def test_serve_admission_holds_and_cleanup(root, monkeypatch, case):
             ],
         )
         from chupa import caps
+
         for stem in ("one", "two", "three"):
             for _ in range(rig.checkout.config.caps.retry):
                 caps.consume(rig.journal, stem, "retry", "seed")
@@ -1314,6 +1317,7 @@ async def test_serve_admission_refusal_keeps_main_green(root, monkeypatch, failu
 
     rig = await admission_graph(root, monkeypatch, {"work": {"chupa/thing.py": "ok red\n"}, "main-side": {"chupa/other.py": "moved\n"}, "next": {"chupa/next.py": "ok\n"}}, settled=settled)
     from chupa import caps
+
     for _ in range(rig.checkout.config.caps.retry):
         caps.consume(rig.journal, "work", "retry", "seed")
     admission_config(root, command=["false"] if failure == "host-red" else command, safety=failure == "safety")
@@ -1952,6 +1956,7 @@ async def test_stop_finishes_merge_without_admitting_next_or_spawning(root, monk
         if not run.done():
             await finish(rig, run)
 
+
 @pytest.mark.asyncio
 async def test_live_keep_dispatches_again_without_restart(root, monkeypatch):
     from chupa.control import AdmissionRequest
@@ -1992,10 +1997,9 @@ async def test_serve_control_stop_lifecycle_log(root, monkeypatch):
     request(rig, "stop", "lifecycle-stop")
     await until(rig, run.done)
     assert await run == 0
-    assert [(e["event"], e["verb"], e["pid"], e.get("outcome")) for e in released] == [
-        ("engine_start", "serve", os.getpid(), None), ("engine_stop", "serve", os.getpid(), "stopped")
-    ]
+    assert [(e["event"], e["verb"], e["pid"], e.get("outcome")) for e in released] == [("engine_start", "serve", os.getpid(), None), ("engine_stop", "serve", os.getpid(), "stopped")]
     assert all("engine_start" not in str((e.type, e.body)) and "engine_stop" not in str((e.type, e.body)) for e in rig.journal.read())
+
 
 @pytest.mark.asyncio
 async def test_serve_reoffers_failed_dispatch_with_machine_keep_and_retry(root, monkeypatch):
@@ -2006,6 +2010,7 @@ async def test_serve_reoffers_failed_dispatch_with_machine_keep_and_retry(root, 
         result = await check(ctx, ticket, slip, attempt=attempt)
         if attempt:
             from dataclasses import replace
+
             return replace(result, outcome="already_satisfied")
         return result
 
@@ -2025,6 +2030,7 @@ async def test_serve_reoffers_failed_dispatch_with_machine_keep_and_retry(root, 
     finally:
         await finish(rig, run)
 
+
 @pytest.mark.asyncio
 async def test_serve_premise_reoffer_draws_no_retry(root, monkeypatch):
     calls, _, _ = script(monkeypatch)
@@ -2040,6 +2046,7 @@ async def test_serve_premise_reoffer_draws_no_retry(root, monkeypatch):
         assert not [e for e in rig.journal.read() if e.ticket == "work" and e.type == EventType.CAP_CONSUMED and e.body.get("cap") == "retry"]
     finally:
         await finish(rig, run)
+
 
 @pytest.mark.asyncio
 async def test_serve_reoffers_merge_failure(root, monkeypatch):

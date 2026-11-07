@@ -82,7 +82,9 @@ engine_plane_safety_inventory: [context.txt]
 
 
 def run(driver: Driver, repo: Path, text: str = TICKET, stem: str = "one-thing", coverage_map: Path | None = None) -> RequisitionVerdict:
-    return asyncio.run(review_ticket(driver, repo=repo, stem=stem, text=text, specs_dir=SPECS, coverage_map=coverage_map, tier="high", stem_slot="s", run_seq=0, attempt=1, call_seq=1, expected_budget="surface"))
+    return asyncio.run(
+        review_ticket(driver, repo=repo, stem=stem, text=text, specs_dir=SPECS, coverage_map=coverage_map, tier="high", stem_slot="s", run_seq=0, attempt=1, call_seq=1, expected_budget="surface")
+    )
 
 
 def reply(verdict: str, findings: list | None = None) -> str:
@@ -123,7 +125,9 @@ def test_snag_and_invalid_reply(tmp_path):
     repo, driver, llm = setup(tmp_path, [reply("snag", [FINDING])] + [reply("wrong")] * 10)
     assert run(driver, repo).findings[0].paved_road == "add it to the fence"
     # A new call identity avoids replaying the first completion.
-    invalid = asyncio.run(review_ticket(driver, repo=repo, stem="one-thing", text=TICKET, specs_dir=SPECS, coverage_map=None, tier="high", stem_slot="s", run_seq=0, attempt=1, call_seq=2, expected_budget="surface"))
+    invalid = asyncio.run(
+        review_ticket(driver, repo=repo, stem="one-thing", text=TICKET, specs_dir=SPECS, coverage_map=None, tier="high", stem_slot="s", run_seq=0, attempt=1, call_seq=2, expected_budget="surface")
+    )
     assert invalid.verdict == "snag" and invalid.mechanical == "invalid reply"
     assert invalid.calls == 1 + driver.retry_cap
     assert len(llm.requests) == 2 + driver.retry_cap
@@ -228,10 +232,16 @@ def test_base_render_matches_implement_and_gate(tmp_path):
 def test_coverage_dependents_in_prompt(tmp_path):
     repo, driver, llm = setup(tmp_path, [reply("approve")])
     map_path = repo / "map.json"
-    map_path.write_text(json.dumps({"files": {
-        "thing.py": ["tests/outside.py", "tests/in_fence/test_inside.py"],
-        "other.py": ["tests/unrelated.py"],
-    }}))
+    map_path.write_text(
+        json.dumps(
+            {
+                "files": {
+                    "thing.py": ["tests/outside.py", "tests/in_fence/test_inside.py"],
+                    "other.py": ["tests/unrelated.py"],
+                }
+            }
+        )
+    )
     ticket = TICKET.replace("- thing.py\n\n## Acceptance", "- thing.py\n- tests/in_fence\n\n## Acceptance")
     assert run(driver, repo, text=ticket, coverage_map=map_path).verdict == "approve"
     prompt = llm.requests[0].rendered

@@ -159,6 +159,7 @@ def author(repo: Path, bypass: str = "") -> None:
     git(repo, "add", "tickets")
     git(repo, "commit", "-m", f"chupa({STEM}): ticket")
     from tests.approval import approve
+
     approve(repo, STEM, lambda: datetime(2026, 10, 5, tzinfo=UTC))
 
 
@@ -839,19 +840,24 @@ def test_scope_fence_refuses_a_plan_edit(repo):
 
 def test_verification_records_each_command_seconds(repo, monkeypatch):
     from datetime import timedelta
+
     from tests.integration.test_drain import Clock
 
     clock = Clock()
     original = SubprocessExec.run
+
     async def timed(self, argv, **kwargs):
         if argv[0] in {"grep", "env"}:
             clock.now += timedelta(seconds=13 if argv[0] == "grep" else 29)
         return await original(self, argv, **kwargs)
+
     monkeypatch.setattr(SubprocessExec, "run", timed)
     original_driver = Driver.from_config.__func__
+
     def configured(cls, *args, **kwargs):
         kwargs["clock"] = clock
         return original_driver(cls, *args, **kwargs)
+
     monkeypatch.setattr(Driver, "from_config", classmethod(configured))
     run(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
     invoice = Invoice.model_validate_json((repo / "tickets" / STEM / "checks.json").read_text())

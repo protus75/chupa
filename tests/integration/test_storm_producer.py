@@ -244,6 +244,7 @@ def test_storm_producer_hook_is_active(tmp_path, monkeypatch, admission_context,
     source = admission_context
     source.fs.write(source.repo / f"tickets/{STEM}/ticket.md", TICKET.format(bypass="").encode())
     from tests.approval import approve
+
     approve(source.repo, STEM, source.driver.clock)
     implement = agent({"chupa/thing.py": "ok\n"})
 

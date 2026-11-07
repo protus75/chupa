@@ -12,9 +12,11 @@ from tests.integration.test_drain import Clock, make_root
 def test_projection_windows_durations_cycles_and_invoices(tmp_path):
     clock = Clock()
     journal = Journal(tmp_path, clock)
+
     def emit(minutes, typ, body, stem="one", key=None):
         clock.now += timedelta(minutes=minutes)
         return journal.append(typ, body, ticket=stem, key=key)
+
     emit(0, EventType.SIGNAL, {"signal": "ticket_intake", "new": True})
     emit(1, EventType.STATE_TRANSITION, {"to": "running"})
     emit(1, EventType.EFFECT_INTENT, {}, key="llm/one/0/implement/0/1")
@@ -30,7 +32,10 @@ def test_projection_windows_durations_cycles_and_invoices(tmp_path):
     emit(1, EventType.STATE_TRANSITION, {"to": "merged"}, "three")
     emit(1, EventType.EFFECT_COMPLETION, {}, key="ticket-plane/one/0/checks")
     emit(1, EventType.EFFECT_COMPLETION, {}, key="ticket-plane/two/0/checks")
-    checks = {f"ticket-plane/{stem}/0/checks": SimpleNamespace(verification=[SimpleNamespace(argv=["test", "suite"], seconds=seconds), SimpleNamespace(argv=["old"], seconds=None)]) for stem, seconds in (("one", 60.0), ("two", 180.0))}
+    checks = {
+        f"ticket-plane/{stem}/0/checks": SimpleNamespace(verification=[SimpleNamespace(argv=["test", "suite"], seconds=seconds), SimpleNamespace(argv=["old"], seconds=None)])
+        for stem, seconds in (("one", 60.0), ("two", 180.0))
+    }
     result = project_stats(journal.read(), {"one": "feature", "two": "bug", "three": "bug"}, checks, now=clock(), window="7d")
     assert {k: result["durations"][k]["p50"] for k in ("implement", "check", "review", "merge", "lead_time")} == {"implement": 3, "check": 2, "review": 4, "merge": 5, "lead_time": 16}
     assert result["cycles"]["feature"]["attempts_mean"] == 1
@@ -77,8 +82,16 @@ def test_stats_tree_generic_rows():
     assert rows[1]["children"][0] == {"label": "first", "description": "8", "children": []}  # Top-level pairs are direct children.
     children = rows[2]["children"]
     assert children[0] == {"label": "summary", "description": "n 4 · median –", "children": []}  # Scalars combine and null is distinct.
-    assert children[1] == {"label": "nested", "description": "", "children": [{"label": "value", "description": "9", "children": []}, {"label": "inner", "description": "x 2", "children": []}]}  # Mixed objects recurse.
-    assert children[2] == {"label": "pairs", "description": "", "children": [{"label": "alpha", "description": "7", "children": []}, {"label": "beta", "description": "3", "children": []}]}  # Pairs become separate leaves.
+    assert children[1] == {
+        "label": "nested",
+        "description": "",
+        "children": [{"label": "value", "description": "9", "children": []}, {"label": "inner", "description": "x 2", "children": []}],
+    }  # Mixed objects recurse.
+    assert children[2] == {
+        "label": "pairs",
+        "description": "",
+        "children": [{"label": "alpha", "description": "7", "children": []}, {"label": "beta", "description": "3", "children": []}],
+    }  # Pairs become separate leaves.
     assert children[3] == {"label": "single", "description": "12", "children": []}  # Scalars retain their value.
 
 

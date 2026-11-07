@@ -128,7 +128,8 @@ async def test_every_production_driver_surface_is_watched(tmp_path, monkeypatch)
             repo=tmp_path,
             stem="candidate",
             text=TICKET,
-            specs_dir=SPECS, coverage_map=None,
+            specs_dir=SPECS,
+            coverage_map=None,
             tier="medium",
             stem_slot="author",
             run_seq=8,
@@ -167,7 +168,8 @@ async def test_every_production_driver_surface_is_watched(tmp_path, monkeypatch)
             repo=tmp_path,
             stem="candidate",
             text=TICKET,
-            specs_dir=SPECS, coverage_map=None,
+            specs_dir=SPECS,
+            coverage_map=None,
             tier="medium",
             stem_slot=ticket.stem,
             run_seq=0,
@@ -192,7 +194,8 @@ async def test_every_production_driver_surface_is_watched(tmp_path, monkeypatch)
             repo=tmp_path,
             stem="candidate",
             text=TICKET,
-            specs_dir=SPECS, coverage_map=None,
+            specs_dir=SPECS,
+            coverage_map=None,
             tier="medium",
             stem_slot="seeding",
             run_seq=0,
@@ -426,6 +429,7 @@ async def test_production_hard_timeout_group_kill_is_harvested(root, monkeypatch
     monkeypatch.setattr(rig.checkout.git, "worktree_remove", removed)
     write(root, "work", text().replace("expected: 10m", "expected: 1m").replace("stuck: 20m", "stuck: 2m"))
     from tests.approval import approve
+
     approve(root, "work", rig.time)
     run = asyncio.create_task(rig.owner.run())
     writer = None

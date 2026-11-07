@@ -154,7 +154,15 @@ def test_three_verdicts_and_second_pass_and_stale_author(tmp_path, monkeypatch, 
 
 def test_retro_proposal_paths_in_triage_request(tmp_path, monkeypatch):
     root, box = root_with_box(tmp_path)
-    box.enqueue(message_class="retro_finding", origin="retro", summary="broken behavior", retro_report_key="retro/1", fixed_failure="broken behavior", overcorrection_risk="useful inputs", proposed_spec_paths=["specs/review.md"])
+    box.enqueue(
+        message_class="retro_finding",
+        origin="retro",
+        summary="broken behavior",
+        retro_report_key="retro/1",
+        fixed_failure="broken behavior",
+        overcorrection_risk="useful inputs",
+        proposed_spec_paths=["specs/review.md"],
+    )
     assert box.messages()[0].proposed_spec_paths == ["specs/review.md"]
     llm = FakeLLM([reply("declined")])
     assert run(root, monkeypatch, llm) == 0
@@ -567,6 +575,7 @@ def test_escape_unattributed_reports(tmp_path):
 @pytest.mark.parametrize("report_inbox", [False, True])
 def test_suggestion_drops_ingest_and_retry(tmp_path, monkeypatch, report_inbox):
     from dataclasses import replace
+
     from chupa import triage
     from chupa.config import load_config
     from tests.integration.test_drain import pause_checkout
