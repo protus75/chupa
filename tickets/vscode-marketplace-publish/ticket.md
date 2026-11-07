@@ -36,6 +36,7 @@ After this change, `./dev.py vscode-package` builds the current version's `.vsix
   - `"repository": {"type": "git", "url": "https://github.com/protus75/chupa.git"}`;
   - `publisher` becomes `chunkydragon`, the registered Marketplace publisher ID (`chupa` was taken), so the extension ID becomes `chunkydragon.vscode-chupa`;
   - keep the `license` field and `vscode-chupa/LICENSE` unchanged;
+  - a `"files": ["extension.js", "media/**", "README.md", "LICENSE"]` allowlist, so the VSIX packs nothing else (no `__pycache__` or engine code);
   - the `chupa.command` default becomes `["chupa"]`, the command `uv tool install chupa` puts on PATH. If `extension.js` repeats the default, it changes there too.
   - `extension.js`'s `chupa.openSettings` filter `@ext:chupa.vscode-chupa` becomes `@ext:chunkydragon.vscode-chupa`.
 - In: `vscode-chupa/README.md`, the Marketplace listing page:
@@ -77,7 +78,7 @@ After this change, `./dev.py vscode-package` builds the current version's `.vsix
 - docs/host-contract.md
 
 ## Acceptance criteria
-1. `vscode-chupa/package.json` parses as JSON with `extensionKind == ["workspace"]`, a `repository.url` naming `github.com/protus75/chupa`, `publisher == "chunkydragon"`, `license == "SEE LICENSE IN LICENSE"`, and `chupa.command` defaulting to `["chupa"]`. `.vscode/settings.json` sets `chupa.command` to `["uv", "run", "chupa"]`. `vscode-chupa/README.md` and `vscode-chupa/LICENSE` exist. The first Verification command checks all of this.
+1. `vscode-chupa/package.json` parses as JSON with `extensionKind == ["workspace"]`, a `repository.url` naming `github.com/protus75/chupa`, `publisher == "chunkydragon"`, `license == "SEE LICENSE IN LICENSE"`, `files == ["extension.js", "media/**", "README.md", "LICENSE"]`, and `chupa.command` defaulting to `["chupa"]`. `.vscode/settings.json` sets `chupa.command` to `["uv", "run", "chupa"]`. `vscode-chupa/README.md` and `vscode-chupa/LICENSE` exist. The first Verification command checks all of this.
 2. `./dev.py --help` lists `vscode-package`, `dev.py` contains no `VSCE_PAT`, and `.gitignore` lists `dist/`. The second Verification command checks this.
 3. `node --check vscode-chupa/extension.js` exits 0.
 4. `docs/how-chupa-works.md` section 2.2 describes `vscode-package` and the upload steps, and `docs/host-contract.md` describes installing the extension.
@@ -85,7 +86,7 @@ After this change, `./dev.py vscode-package` builds the current version's `.vsix
 
 ## Verification
 ```
-uv run python -c "import json, pathlib; p = json.load(open('vscode-chupa/package.json')); assert p['extensionKind'] == ['workspace'] and 'github.com/protus75/chupa' in p['repository']['url'] and p['publisher'] == 'chunkydragon' and p['license'] == 'SEE LICENSE IN LICENSE' and p['contributes']['configuration']['properties']['chupa.command']['default'] == ['chupa']; assert json.load(open('.vscode/settings.json'))['chupa.command'] == ['uv', 'run', 'chupa']; assert pathlib.Path('vscode-chupa/README.md').is_file() and pathlib.Path('vscode-chupa/LICENSE').is_file()"
+uv run python -c "import json, pathlib; p = json.load(open('vscode-chupa/package.json')); assert p['extensionKind'] == ['workspace'] and 'github.com/protus75/chupa' in p['repository']['url'] and p['publisher'] == 'chunkydragon' and p['license'] == 'SEE LICENSE IN LICENSE' and p['files'] == ['extension.js', 'media/**', 'README.md', 'LICENSE'] and p['contributes']['configuration']['properties']['chupa.command']['default'] == ['chupa']; assert json.load(open('.vscode/settings.json'))['chupa.command'] == ['uv', 'run', 'chupa']; assert pathlib.Path('vscode-chupa/README.md').is_file() and pathlib.Path('vscode-chupa/LICENSE').is_file()"
 uv run python -c "import subprocess, pathlib; h = subprocess.run(['./dev.py', '--help'], capture_output=True, text=True, check=True).stdout; assert 'vscode-package' in h, h; s = pathlib.Path('dev.py').read_text(); assert 'VSCE_PAT' not in s; assert 'dist/' in pathlib.Path('.gitignore').read_text().split()"
 node --check vscode-chupa/extension.js
 ./dev.py test
