@@ -33,7 +33,7 @@ function devCommand(...args) {
 	if (!root) return;
 	const [binary, ...prefix] = command(root);
 	const argv = [...prefix, ...args];
-	const task = new vscode.Task({ type: 'chupa' }, vscode.workspace.getWorkspaceFolder(vscode.Uri.file(root)), args.join(' '), 'chupa', new vscode.ProcessExecution(binary, argv, { cwd: root }));
+	const task = new vscode.Task({ type: 'chupa', args }, vscode.workspace.getWorkspaceFolder(vscode.Uri.file(root)), args.join(' '), 'chupa', new vscode.ProcessExecution(binary, argv, { cwd: root }));
 	vscode.tasks.executeTask(task);
 }
 
