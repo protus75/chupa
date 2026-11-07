@@ -14,6 +14,10 @@ none
 - chupa/daemon.py
 - tests/test_serve.py
 - tests/test_provider_cooldown_failover.py
+- eval/daemon_soak.py
+- tests/test_daemon_soak_runner.py
+- eval/host_loop.py
+- tests/test_host_loop.py
 - docs/how-chupa-works.md
 
 ## Goal / Why
@@ -36,6 +40,10 @@ After this change `serve`'s box consumer still ingests host bug reports from `re
   - The consumer-ending test's `rig.owner.triage` becomes `rig.owner.box_intake`.
   - `test_serve_failed_notify_backoff_and_restart`: drop the `wait_until(lambda: not rig.owner.box.pending())` line and its comment, since serve no longer settles the storm reports; assert instead that the storm `failure_report` messages are still pending.
 - In: `tests/test_provider_cooldown_failover.py`, the test that starts `cli.build_serve` after a drain: remove its serve-triage block (the `triage_pass` stub, the `box.pending` monkeypatches, the `refreshed` wait, and the `c-live` config assertions). Keep its drain and serve provider-session and timer assertions.
+- In: `eval/daemon_soak.py`: `file_fault` stops waiting for serve to empty the pending box; it waits until the enqueued message is pending and nothing is mutating. The box-consumer evidence check expects the filed fault reports to be pending and no `triage_pass` signal, instead of requiring a `triage_pass` signal.
+- In: `tests/test_daemon_soak_runner.py`: assert the soak's merge `failure_report` messages stay `pending`, not `resolved`.
+- In: `eval/host_loop.py`: after the fixture enqueues a suggestion or drops a report into the inbox, it runs the operator `triage` command itself (`python -m chupa triage` through its exec seam, same cwd and env as `serve`) once the message is pending, then waits for the ticket as now. `serve` gains no triage path.
+- In: `tests/test_host_loop.py`: update only what the harness change forces.
 - In: `docs/how-chupa-works.md`:
   - section 7.2: the fourth loop is **Box intake**, which ingests host bug reports into the Suggestion Box and never triages;
   - section 9.2: only the `triage` command triages; drop "(or `serve`'s triage loop)".
@@ -51,6 +59,10 @@ After this change `serve`'s box consumer still ingests host bug reports from `re
 - chupa/daemon.py
 - tests/test_serve.py
 - tests/test_provider_cooldown_failover.py
+- eval/daemon_soak.py
+- tests/test_daemon_soak_runner.py
+- eval/host_loop.py
+- tests/test_host_loop.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
