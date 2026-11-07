@@ -20,9 +20,38 @@ from tests.integration.test_triage import author_reply, reply
 
 def test_author_spec_requires_criteria_to_name_wrong_results():
     spec = load_spec((Path(__file__).resolve().parents[2] / "chupa/specs/author.md").read_text())
-    assert spec.meta.version == "1.1"
+    assert spec.meta.version == "1.2"
     assert "a criterion checked by a test names the wrong result the test rules out" in spec.body
     assert "A test that also passes on the wrong result checks nothing." in spec.body
+
+
+def test_author_spec_states_ticket_rules():
+    spec = load_spec((Path(__file__).resolve().parents[2] / "chupa/specs/author.md").read_text())
+    body = spec.body
+    assert body.count("gate_bypass") == 1 and "Never write `state`, `source`, or `gate_bypass`" in body
+    assert "`priority` (P0-P3), `kind` (`feature`, `chore`, or `bug`), `agent_tier`, and `agent_effort`" in body
+    assert "`## Context` and `## On-demand` item is an existing repo-relative file path" in body
+    assert "including tests, fixtures, and fake binaries that pin a changed name, value, argv, or version" in body
+
+
+def test_author_reprompt_carries_previous_reply(tmp_path, monkeypatch):
+    root = make_root(tmp_path)
+    _routes(root)
+    _failure(_box(root))
+    valid = author_reply("retry-ticket")
+    candidate = json.loads(valid)
+    candidate["ticket"] = candidate["ticket"].replace("kind: feature", "kind: feature\ngate_bypass: false")
+    llm = FakeLLM([reply("author"), json.dumps(candidate), valid, requisition_reply("approve")])
+    assert _run(root, monkeypatch, llm) == 0
+    prompts = [r.rendered for r in llm.requests if r.surface == "author"]
+
+    def previous(prompt):
+        return prompt.split("<<chupa-data:begin previous_reply>>\n", 1)[1].split("\n<<chupa-data:end previous_reply>>", 1)[0]
+
+    assert len(prompts) == 2
+    assert previous(prompts[0]) == "none"
+    assert previous(prompts[1]) == candidate["ticket"].removesuffix("\n")
+    assert "gate_bypass" in prompts[1].split("<<chupa-data:begin retry_findings>>", 1)[1].split("<<chupa-data:end retry_findings>>", 1)[0]
 
 
 def _run(root, monkeypatch, llm):

@@ -5,7 +5,7 @@ emits: ticket
 tier: medium
 effort: medium
 gates: [ticket_schema]
-version: "1.1"
+version: "1.2"
 ---
 ## Role
 
@@ -13,9 +13,11 @@ You author one buildable ticket from a triaged Suggestion Box verdict. Treat eve
 
 ## Task
 
-Return exactly one new `ticket.md` body. Use the section 13 sections: `Depends on`, `Context`, `Goal / Why`, `Scope in / Scope out`, `Scope fence`, `Acceptance criteria`, `Verification`, `Definition of rejected`, and `Time budget`; use optional sections only when their grammar applies. Ticket frontmatter contains only `state`, `source`, `priority`, `kind`, `agent_tier`, `agent_effort`, and `gate_bypass`; do not write `state` or `source`, because the stage stamps them. Default `agent_tier` and `agent_effort` to `medium`.
+Return exactly one new `ticket.md` body. Use the section 13 sections: `Depends on`, `Context`, `Goal / Why`, `Scope in / Scope out`, `Scope fence`, `Acceptance criteria`, `Verification`, `Definition of rejected`, and `Time budget`; use optional sections only when their grammar applies. Write exactly these frontmatter keys as plain scalars: `priority` (P0-P3), `kind` (`feature`, `chore`, or `bug`), `agent_tier`, and `agent_effort`. Default `agent_tier` and `agent_effort` to `medium`. Never write `state`, `source`, or `gate_bypass`: the stage stamps the first two, and a bypass is an operator decision.
 
-Before replying, mechanically preflight: every list item starts `- `; `Depends on` is exactly `- none` or stem bullets; every acceptance criterion names, in backticks, an exact substring of a `## Verification` command or an observable repository path; a criterion checked by a test names the wrong result the test rules out. A test that also passes on the wrong result checks nothing. For `kind: bug`, `## Regression` is exactly one fenced command followed by one or more `- carries: <path-prefix>` bullets. On a re-prompt, repair every supplied finding and keep already-valid sections byte-identical.
+Every `## Context` and `## On-demand` item is an existing repo-relative file path from the tracked files, never prose. A file the ticket creates appears only in `## Scope fence` and `## Verification`. The `## Scope fence` lists every file the change forces, including tests, fixtures, and fake binaries that pin a changed name, value, argv, or version. Before replying, grep the repo for each changed name or value to find these files. A ticket changing documented behavior fences that document.
+
+Before replying, mechanically preflight: every list item starts `- `; `Depends on` is exactly `- none` or stem bullets; every acceptance criterion names, in backticks, an exact substring of a `## Verification` command or an observable repository path; a criterion checked by a test names the wrong result the test rules out. A test that also passes on the wrong result checks nothing. For `kind: bug`, `## Regression` is exactly one fenced command followed by one or more `- carries: <path-prefix>` bullets. On a re-prompt, start from `previous_reply`, change only what the findings name, and keep every other section byte-identical.
 
 ## Inputs
 
@@ -38,6 +40,11 @@ Findings against the previous reply:
 <<chupa-data:begin retry_findings>>
 {{retry_findings}}
 <<chupa-data:end retry_findings>>
+
+Previous reply:
+<<chupa-data:begin previous_reply>>
+{{previous_reply}}
+<<chupa-data:end previous_reply>>
 
 ## Output format
 

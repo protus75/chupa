@@ -212,10 +212,17 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
     )
 
     def render_author(_: object, findings: list) -> str:
-        inputs = {"request": request, "files": files, "open_tickets": open_tickets, "retry_findings": findings_text(findings)}
+        inputs = {
+            "request": request,
+            "files": files,
+            "open_tickets": open_tickets,
+            "retry_findings": findings_text(findings),
+            "previous_reply": previous_reply if previous_reply is not None else "none",
+        }
         return render(spec, inputs)
 
     open_tickets = await _open_tickets(checkout)
+    previous_reply: str | None = None
     next_unused = 1
     reviewed: RequisitionVerdict | None = None
     reviewed_text: str | None = None
@@ -224,8 +231,9 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
     author_gate.message = message
 
     async def review_candidate(artifact: BaseModel, call_seq: int) -> GateReport:
-        nonlocal reviewed, reviewed_text, reviewed_state, next_unused
+        nonlocal reviewed, reviewed_text, reviewed_state, next_unused, previous_reply
         assert isinstance(artifact, AuthorReply)
+        previous_reply = artifact.ticket
         if author_gate.check(artifact, checkout.repo).verdict == "fail":
             # Grammar-invalid candidates never spend a requisition review call.
             return GateReport(code="requisition_review", verdict="pass")
