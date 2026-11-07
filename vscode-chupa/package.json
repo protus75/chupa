@@ -2,7 +2,7 @@
 	"name": "vscode-chupa",
 	"displayName": "chupa tickets",
 	"description": "chupa's tickets as an SCM-style dependency graph: blocked, queued, running, merged.",
-	"version": "0.0.23",
+	"version": "0.0.24",
 	"publisher": "chunkydragon",
 	"extensionKind": [
 		"workspace"
@@ -436,7 +436,7 @@
 				{
 					"command": "chupa.lifecycle",
 					"when": "view == chupa.tickets",
-					"group": "navigation"
+					"group": "chupa@6"
 				},
 				{
 					"command": "chupa.bulkTriage",
@@ -466,7 +466,7 @@
 				{
 					"command": "chupa.openConfig",
 					"when": "view == chupa.tickets",
-					"group": "navigation"
+					"group": "chupa@5"
 				}
 			]
 		},
