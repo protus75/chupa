@@ -578,7 +578,41 @@ def snapshot(ctx) -> dict:
             step["path"] = str(path if (ctx.root / path).is_file() else path.with_name("ticket.md"))
         step["timeDisplay"] = clock(step["ts"])
         step["dateDisplay"] = local(step["ts"]).strftime("%x, %X")
+    from chupa.box import Box
+    from chupa.seams import LocalFileSystem
+    from chupa.status import project
+
+    box = Box(state / "box", LocalFileSystem())
+    messages = box.messages()
+    labels = {id: (cls, label, summary) for id, cls, label, summary in project([], box=box).box}
+    box_rows = []
+    for m in reversed(messages):
+        cls, label, summary = labels[m.id]
+        fields = [["Summary", m.summary], ["Origin", m.origin]]
+        if m.stage is not None:
+            fields.append(["Stage", f"{m.stage}: {m.outcome}"])
+        if m.reports:
+            fields.append(["Re-reports", str(m.reports)])
+        if m.verdict:
+            fields.append(["Recorded verdict", f"{m.verdict.verdict}: {m.verdict.rationale}"])
+        if m.resolution:
+            fields.append(["Resolution", f"{m.resolution.kind} -> {m.resolution.link}"])
+        for title, value in (("Fixed failure", m.fixed_failure), ("Overcorrection risk", m.overcorrection_risk), ("Retro report", m.retro_report_key)):
+            if value:
+                fields.append([title, value])
+        if m.proposed_spec_paths:
+            fields.append(["Proposed specs", "\n".join(m.proposed_spec_paths)])
+        path = box.path(m).resolve()
+        link = None
+        if m.resolution:
+            link = str(Path("tickets") / m.resolution.link / "ticket.md") if m.resolution.kind == "ticket" else str(Path("tickets/decisions") / (m.resolution.link + ".md"))
+        box_rows.append({"id": m.id, "seq": m.seq, "messageClass": cls, "state": m.status,
+                         "status": f"{cls} · {label}", "summary": summary, "fields": fields,
+                         "path": str(path.relative_to(ctx.root.resolve())) if path.is_relative_to(ctx.root.resolve()) else None, "link": link})
+    box_counts = {kind: sum(m.status == "pending" if kind == "pending" else m.resolution is not None and m.resolution.kind == ("ticket" if kind == "author" else kind) for m in messages) for kind in ("pending", "author", "tombstone", "decision")}
     return {
+        "box": box_rows,
+        "boxCounts": box_counts,
         "priorities": list(get_args(Frontmatter.model_fields["priority"].annotation)),
         "counts": {section: sum(r["section"] == section for r in rows) for section in ("blocked", "queued", "running", "merged")},
         "runningStem": running[0] if running else None,

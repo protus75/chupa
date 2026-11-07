@@ -40,6 +40,11 @@
 					"id": "chupa.tickets",
 					"name": "Tickets",
 					"initialSize": 6
+				},
+				{
+					"type": "webview",
+					"id": "chupa.box",
+					"name": "Suggestion Box"
 				}
 			]
 		},
@@ -165,12 +170,44 @@
 			},
 			{
 				"command": "chupa.ticket.priority",
-				"title": "Set priority\u2026",
+				"title": "Set priority…",
 				"category": "chupa"
 			},
 			{
 				"command": "chupa.ticket.runsBefore",
-				"title": "Run before\u2026",
+				"title": "Run before…",
+				"category": "chupa"
+			},
+			{
+				"command": "chupa.box.open",
+				"title": "Open message file",
+				"category": "chupa"
+			},
+			{
+				"command": "chupa.box.link",
+				"title": "Open ticket/record",
+				"category": "chupa"
+			},
+			{
+				"command": "chupa.box.triage",
+				"title": "Triage",
+				"category": "chupa",
+				"enablement": "!chupaEngine"
+			},
+			{
+				"command": "chupa.box.dismiss",
+				"title": "Dismiss",
+				"category": "chupa",
+				"enablement": "!chupaEngine"
+			},
+			{
+				"command": "chupa.box.discuss",
+				"title": "Ask Claude: discuss",
+				"category": "chupa"
+			},
+			{
+				"command": "chupa.bulkTriage",
+				"title": "Bulk Triage",
 				"category": "chupa"
 			}
 		],
@@ -225,6 +262,31 @@
 					"command": "chupa.ticket.runsBefore",
 					"when": "webviewId == 'chupa.tickets' && chupaSection =~ /^(queued|blocked)$/",
 					"group": "2_engine"
+				},
+				{
+					"command": "chupa.box.open",
+					"when": "webviewId == 'chupa.box' && chupaPath",
+					"group": "box@10"
+				},
+				{
+					"command": "chupa.box.link",
+					"when": "webviewId == 'chupa.box' && chupaLink",
+					"group": "box@11"
+				},
+				{
+					"command": "chupa.box.triage",
+					"when": "webviewId == 'chupa.box' && chupaState == 'pending' && (config.chupa.unavailableMenuItems != 'hide' || !chupaEngine)",
+					"group": "box@12"
+				},
+				{
+					"command": "chupa.box.dismiss",
+					"when": "webviewId == 'chupa.box' && chupaState == 'pending' && (config.chupa.unavailableMenuItems != 'hide' || !chupaEngine)",
+					"group": "box@13"
+				},
+				{
+					"command": "chupa.box.discuss",
+					"when": "webviewId == 'chupa.box' && chupaIds",
+					"group": "box@14"
 				}
 			],
 			"commandPalette": [
@@ -271,6 +333,30 @@
 				{
 					"command": "chupa.ticket.runsBefore",
 					"when": "false"
+				},
+				{
+					"command": "chupa.box.open",
+					"when": "false"
+				},
+				{
+					"command": "chupa.box.link",
+					"when": "false"
+				},
+				{
+					"command": "chupa.box.triage",
+					"when": "false"
+				},
+				{
+					"command": "chupa.box.dismiss",
+					"when": "false"
+				},
+				{
+					"command": "chupa.box.discuss",
+					"when": "false"
+				},
+				{
+					"command": "chupa.bulkTriage",
+					"when": "false"
 				}
 			],
 			"view/title": [
@@ -308,6 +394,11 @@
 					"command": "chupa.status",
 					"when": "view == chupa.tickets",
 					"group": "chupa@3"
+				},
+				{
+					"command": "chupa.bulkTriage",
+					"when": "view == chupa.tickets",
+					"group": "chupa@4"
 				}
 			]
 		},

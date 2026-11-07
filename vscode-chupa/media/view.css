@@ -98,3 +98,7 @@ body {
 .badge.merged { background: var(--chupa-merged); }
 .badge.queued, .badge.running { background: var(--chupa-queued); }
 .badge.blocked { background: var(--chupa-blocked); }
+
+.badge.pending { background: var(--chupa-queued); }
+.badge.resolved { background: var(--chupa-merged); }
+.detail-links .link + .link { margin-left: 8px; }

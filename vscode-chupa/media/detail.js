@@ -65,11 +65,24 @@ function content(row) {
 	return box;
 }
 
-// focus is the Tickets view's pinned or hovered stem; undefined falls back to the running ticket.
+function boxContent(row) {
+	const result = el('div');
+	const head = el('div', 'detail-title');
+	head.append(el('span', `badge ${row.state}`, row.messageClass), el('span', 'detail-stem', ` ${row.id}`));
+	result.append(head);
+	for (const [label, text] of row.fields) result.append(section(label, el('div', 'detail-text', text)));
+	const links = el('div', 'detail-links');
+	if (row.path) links.append(openLink(row.path, 'Open message file'));
+	if (row.link) links.append(openLink(row.link, 'Open ticket/record'));
+	result.append(links);
+	return result;
+}
+
 window.addEventListener('message', e => {
 	const { snap, focus } = e.data;
-	const stem = focus ?? snap.runningStem;
+	const box = focus?.kind === 'box' ? snap.box.find(r => r.id === focus.id) : undefined;
+	const stem = focus?.kind === 'ticket' ? focus.id : snap.runningStem;
 	const row = snap.rows.find(r => r.stem === stem);
-	detail.replaceChildren(row ? content(row) : el('div', 'detail-meta', 'Nothing running. Hover a ticket to see it here; click to pin.'));
+	detail.replaceChildren(box ? boxContent(box) : row ? content(row) : el('div', 'detail-meta', 'Nothing running. Hover a ticket or message to see it here; click to pin.'));
 });
 vscode.postMessage({ type: 'ready' });

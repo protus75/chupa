@@ -157,7 +157,7 @@ class TicketsView {
 			if (msg.type === 'ready') {
 				this.snapshot.snap ? this.post() : this.snapshot.refresh();
 			} else if (msg.type === 'focus') {
-				this.details.setFocus(msg.stem);
+				this.details.setFocus('ticket', msg.stem);
 			} else if (msg.type === 'open') {
 				openTicket(msg.path);
 			}
@@ -175,11 +175,37 @@ class TicketsView {
 	}
 }
 
+class BoxView {
+	constructor(extensionUri, snapshot, details) {
+		this.extensionUri = extensionUri;
+		this.snapshot = snapshot;
+		this.details = details;
+		snapshot.listeners.push(() => this.post());
+	}
+	resolveWebviewView(view) {
+		this.view = view;
+		this.snapshot.views.push(view);
+		webviewHtml(this.extensionUri, view.webview, '<div id="header">loading…</div><div id="list"></div>', ['box.js']);
+		view.webview.onDidReceiveMessage(msg => {
+			if (msg.type === 'ready') this.snapshot.snap ? this.post() : this.snapshot.refresh();
+			else if (msg.type === 'focus') this.details.setFocus('box', msg.id);
+			else if (msg.type === 'open' && msg.path) openTicket(msg.path);
+		});
+		view.onDidChangeVisibility(() => view.visible && this.snapshot.refresh());
+	}
+	post() {
+		const { snap, error } = this.snapshot;
+		if (error) this.view?.webview.postMessage({ type: 'error', message: error });
+		else if (snap) this.view?.webview.postMessage({ type: 'data', snap });
+	}
+}
+
 class DetailsView {
 	constructor(extensionUri, snapshot) {
 		this.extensionUri = extensionUri;
 		this.snapshot = snapshot;
 		this.focus = undefined;
+		this.focuses = {};
 		snapshot.listeners.push(() => this.post());
 	}
 
@@ -197,8 +223,12 @@ class DetailsView {
 		view.onDidChangeVisibility(() => view.visible && this.post());
 	}
 
-	setFocus(stem) {
-		this.focus = stem;
+	setFocus(kind, id) {
+		const previous = this.focuses[kind];
+		this.focuses[kind] = id;
+		const other = kind === 'box' ? 'ticket' : 'box';
+		if (id && id !== previous) this.focus = { kind, id };
+		else if (!id && this.focus?.kind === kind) this.focus = this.focuses[other] ? { kind: other, id: this.focuses[other] } : undefined;
 		this.post();
 	}
 
@@ -240,6 +270,7 @@ function activate(context) {
 	const snapshot = new Snapshot();
 	const details = new DetailsView(context.extensionUri, snapshot);
 	const tickets = new TicketsView(context.extensionUri, snapshot, details);
+	const box = new BoxView(context.extensionUri, snapshot, details);
 	const steps = new StepsTree(snapshot);
 	const stepsView = vscode.window.createTreeView('chupa.steps', { treeDataProvider: steps });
 	snapshot.views.push(stepsView);
@@ -248,6 +279,20 @@ function activate(context) {
 		stepsView,
 		vscode.window.registerWebviewViewProvider('chupa.details', details),
 		vscode.window.registerWebviewViewProvider('chupa.tickets', tickets),
+		vscode.window.registerWebviewViewProvider('chupa.box', box),
+		vscode.commands.registerCommand('chupa.box.open', ctx => openTicket(ctx.chupaPath)),
+		vscode.commands.registerCommand('chupa.box.link', ctx => openTicket(ctx.chupaLink)),
+		vscode.commands.registerCommand('chupa.box.triage', ctx => devCommand('triage', ...ctx.chupaIds)),
+		vscode.commands.registerCommand('chupa.box.dismiss', ctx => devCommand('dismiss', ...ctx.chupaIds)),
+		vscode.commands.registerCommand('chupa.box.discuss', ctx => {
+			const root = chupaRoot();
+			if (!root) return;
+			runData(root, ['prompt', 'box', ...ctx.chupaIds], {}, (err, stdout, stderr) => {
+				if (err) vscode.window.showErrorMessage((stderr || err.message).trim());
+				else vscode.env.openExternal(vscode.Uri.parse(`${vscode.env.uriScheme}://anthropic.claude-code/open?prompt=${encodeURIComponent(stdout)}`));
+			});
+		}),
+		vscode.commands.registerCommand('chupa.bulkTriage', () => devCommand('triage')),
 		vscode.commands.registerCommand('chupa.refresh', () => snapshot.refresh()),
 		vscode.commands.registerCommand('chupa.openTicket', openTicket),
 		vscode.commands.registerCommand('chupa.lifecycle', () => showLifecycle(context.extensionUri)),
@@ -287,7 +332,7 @@ function activate(context) {
 			if (next && next !== stateDir) {
 				stateWatcher?.dispose();
 				stateDir = next;
-				stateWatcher = watch(next, '{journal/*.jsonl,queue.json,engine.log}');
+				stateWatcher = watch(next, '{journal/*.jsonl,queue.json,engine.log,box/*.json}');
 			}
 		});
 	}
