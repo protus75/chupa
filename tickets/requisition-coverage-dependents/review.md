@@ -1,6 +1,6 @@
 # Review: approve
 
-The diff adds the required keyword-only coverage_map parameter with no default, computes the sorted out-of-fence dependents before any model call, returns a mechanical coverage_map snag for a missing or malformed declared map, adds the coverage_dependents data block and the fenced-or-cleared Task rule with the version bumped to 3.1, wires all four production callers and the listed tests, and updates the docs row, all inside the fence.
+The diff satisfies every acceptance criterion and stays inside the fence. `review_ticket` takes a required `coverage_map` keyword. It computes the out-of-fence dependents before the first model call. A declared map that is missing or invalid returns a mechanical `coverage_map` snag with no model call. The new data block, the fenced-or-cleared Task rule, the 3.1 version bump, every caller, the tests and the docs row are all updated.
 
 ## Findings
 
@@ -12,10 +12,10 @@ none
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "aadee8a598a6b9c2b049f179528667166be83996",
+  "produced_at_sha": "57e69cb0665be4700e0d1d310649c41b99157a4d",
   "stem": "requisition-coverage-dependents",
-  "reviewed_sha": "aadee8a598a6b9c2b049f179528667166be83996",
-  "summary": "The diff adds the required keyword-only coverage_map parameter with no default, computes the sorted out-of-fence dependents before any model call, returns a mechanical coverage_map snag for a missing or malformed declared map, adds the coverage_dependents data block and the fenced-or-cleared Task rule with the version bumped to 3.1, wires all four production callers and the listed tests, and updates the docs row, all inside the fence.",
+  "reviewed_sha": "57e69cb0665be4700e0d1d310649c41b99157a4d",
+  "summary": "The diff satisfies every acceptance criterion and stays inside the fence. `review_ticket` takes a required `coverage_map` keyword. It computes the out-of-fence dependents before the first model call. A declared map that is missing or invalid returns a mechanical `coverage_map` snag with no model call. The new data block, the fenced-or-cleared Task rule, the 3.1 version bump, every caller, the tests and the docs row are all updated.",
   "findings": [],
   "spec_version": "1.4",
   "provider": "claude",
