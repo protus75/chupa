@@ -129,7 +129,18 @@ class ReviewSurface(_Strict):
     severity: Severity
 
 
+class CoverageMap(_Strict):
+    argv: Argv
+    report: str
+
+    @field_validator("report")
+    @classmethod
+    def _report_path(cls, value: str, info: ValidationInfo) -> str:
+        return MechanicalCheck._results_path(value, info)
+
+
 class Review(_Strict):
+    coverage_map: CoverageMap | None = None
     autofix: list[AutofixCommand] = []
     mechanical: list[MechanicalCheck] = []
     surfaces: list[ReviewSurface] = []

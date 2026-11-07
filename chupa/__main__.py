@@ -239,6 +239,7 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("stop", help="finish the running ticket, admit nothing new, then exit")
     sub.add_parser("review", help="review a committed ticket under the lock").add_argument("stem")
     sub.add_parser("triage", help="make one sequential pass over pending suggestions under the lock")
+    sub.add_parser("covmap", help="build the coverage map")
     covgate = sub.add_parser("covgate", help="check a coverage JSON report against thresholds")
     covgate.add_argument("--gate", type=Path, default=Path("test-gate.toml"))
     covgate.add_argument("--report", type=Path, default=Path("coverage.json"))
@@ -329,6 +330,11 @@ def main(
             fs=LocalFileSystem(),
             clock=clock,
         )
+        if args.verb == "covmap":
+            from chupa.covmap import build
+
+            asyncio.run(build(repo=repo, config=config, exec_=exec_, git=checkout.git, fs=checkout.fs, env=child_env(env, config)))
+            return 0
         if args.verb in {"watch", "snapshot"}:
             from chupa import observe
 
@@ -429,7 +435,7 @@ def main(
             return report.exit_code
         return asyncio.run(runner.run_ticket(args.stem, checkout, dispatch))
     except (ConfigError, runner.Refusal, LockHeld, IntakeRefused, JournalCorruption, ProviderSetupError, ExecutableNotFound, hostfiles.MarkerCorruption) as e:
-        road = " -- repair the selected config and retry retro" if args.verb == "retro" and isinstance(e, ConfigError) else ""
+        road = f" -- repair the selected config and retry {args.verb}" if args.verb in {"retro", "covmap"} and isinstance(e, ConfigError) else ""
         print(f"chupa {args.verb}: {e}{road}", file=sys.stderr)
         return runner.EXIT_REFUSED
 

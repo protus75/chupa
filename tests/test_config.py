@@ -396,3 +396,20 @@ def test_migrate_config_refuses_unsupported_inputs(tmp_path, text, cause, road, 
 def test_retro_yaml_values(tmp_path):
     cfg = load_config(write(tmp_path, VALID + "retro: {enabled: false, every_merges: 3, every_days: 2, spike_count: 4}\n"), cwd=tmp_path)
     assert cfg.retro.model_dump() == {"enabled": False, "every_merges": 3, "every_days": 2, "spike_count": 4}  # Defaults or ignored keys give different values.
+
+
+def test_coverage_map_config(tmp_path):
+    text = edit(VALID, "review:\n", "review:\n  coverage_map: {argv: [pytest, -q], report: .chupa/cov.json}\n")
+    setting = load_config(write(tmp_path, text), cwd=tmp_path).review.coverage_map
+    assert setting.argv == ["pytest", "-q"]
+    assert setting.report == ".chupa/cov.json"
+
+
+@pytest.mark.parametrize("entry,key", [
+    ("argv: [pytest], report: /tmp/cov.json", "report"),
+    ("argv: [pytest], report: ../cov.json", "report"),
+    ("argv: [pytest], report: cov.json, extra: true", "extra"),
+])
+def test_coverage_map_invalid(tmp_path, entry, key):
+    text = edit(VALID, "review:\n", f"review:\n  coverage_map: {{{entry}}}\n")
+    assert refusal(tmp_path, text).key == f"review.coverage_map.{key}"

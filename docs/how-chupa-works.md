@@ -44,6 +44,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `status` | no | Prints the journal projection (section 10.3). Read-only. |
 | `stats [--window W] [--json]` | no | Prints a read-only health and efficiency projection over a time or ticket window (default `7d`); it is not an authority. |
 | `lint [stem ...]` | no | Validates ticket grammar, intake claims, and committable bug evidence without running tickets or writing files, journal events, or git state. With no stems, checks every ticket except those settled or rejected in the journal; with no journal, checks all tickets. Prints each finding and its fix, then `lint: <valid>/<total> tickets valid`. Exits 0 when valid, 1 for findings, or 2 for a missing named ticket or unreadable tickets directory. |
+| `covmap` | no | Runs `review.coverage_map.argv` and writes `<state_dir>/coverage-map.json`; exits 0 on success or 2 on refusal. |
 | `covgate [--gate PATH] [--report PATH] -- <argv>` | no | Runs the unit-test command, then checks its fresh coverage report against `test-gate.toml` (default report `coverage.json`; paths relative to the invocation directory). Returns the command’s nonzero exit code, or 0 on coverage pass, 1 on threshold failures, or 2 for a refusal. |
 | `doctor` | no | Checks venv, git, config load, lock probe, journal readability. Exit 2 on any failure. |
 | `prompt <diagnose\|running\|review> <stem>` | no | Prints an operator prompt for an existing ticket without writing state. |
@@ -71,6 +72,7 @@ Each test has a 120-second hard limit.
 |---|---|
 | (none) | `uv run pytest -q` |
 | `test [args]` | pytest with those args |
+| `covmap` | `chupa covmap` |
 | `stats [--window W] [--json]` | `chupa stats` with the supplied options; a read-only projection |
 | `new STEM [--kind K]` | `chupa new <stem> --kind feature\|bug\|chore` (default `feature`) |
 | `order STEM [--priority P] [--runs-before [STEM ...]]` | `chupa order` with the supplied ordering options |
@@ -662,7 +664,7 @@ with the fix. The full field inventory is in `docs/host-contract.md`.
 |---|---|
 | `schema_version`, `state_dir`, `worktree_root` | config version; where state and worktrees live |
 | `providers`, `routing`, `routing_default_tier` | models and which serves what (section 8) |
-| `review` | `gate_severity`, host `autofix` commands and `mechanical` checks; declared `surfaces` entries are refused at config load; `trigger_map` is accepted, unused |
+| `review` | `coverage_map`, `gate_severity`, host `autofix` commands and `mechanical` checks; declared `surfaces` entries are refused at config load; `trigger_map` is accepted, unused |
 | `merge` | `safety_checks`, conflict `strategies` (serve only) |
 | `caps`, `circuit_breaker` | failure bounds (section 6.4, 8.3) |
 | `retro` | `enabled`, `every_merges`, `every_days`, `spike_count` control automatic reports (section 9.5) |

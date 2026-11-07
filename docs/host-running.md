@@ -28,6 +28,7 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | `stop` | Yes | Finish active work and exit. |
 | `review` | No | Review a committed ticket. |
 | `triage` | No | Make one pass over pending suggestions. |
+| `covmap` | Yes | Runs `review.coverage_map.argv` and writes `<state_dir>/coverage-map.json`; exits 0 on success or 2 on refusal. |
 | `covgate` | Yes | Run a unit command and check its coverage report. |
 | `new` | Yes | Create and lint a ticket skeleton. |
 | `order` | Yes | Validate and edit a ticket's priority or runs-before ordering. |

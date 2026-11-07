@@ -27,7 +27,10 @@ routing:
   - {tier: max, surface: implement, candidates: [{provider: codex}]}
   - {tier: max, surface: author, candidates: [{provider: claude}]}
   - {tier: max, surface: review, candidates: [{provider: claude, model: claude-opus-5-5}]}
-review: {}
+review:
+  coverage_map:
+    argv: [uv, run, pytest, -q, --cov=chupa, --cov=eval, --cov-context=test, --cov-report=json:.chupa/coverage.json]
+    report: .chupa/coverage.json
 merge: {}
 drain:
   max_ticket_minutes: 180  # raised from the shipped 90 to admit the Phase 2 seeds' largest stuck budget (section 18)

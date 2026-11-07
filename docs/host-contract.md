@@ -146,7 +146,11 @@ Candidate:
   defaults: {model: unset}
 Review:
   required: []
-  defaults: {autofix: [], mechanical: [], surfaces: [], trigger_map: {}, gate_severity: {}}
+  defaults: {coverage_map: unset, autofix: [], mechanical: [], surfaces: [], trigger_map: {}, gate_severity: {}}
+CoverageMap:
+  required: [argv, report]
+  defaults: {}
+  report: non-blank worktree-relative path without ..
 AutofixCommand:
   required: [code, argv, files]
   defaults: {}

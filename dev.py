@@ -7,6 +7,7 @@
     ./dev.py order STEM [--priority P] [--runs-before [STEM ...]]  reorder a ticket
     ./dev.py review STEM...   review each ticket against merged code
     ./dev.py lint [STEM...]   validate tickets without running or writing anything
+    ./dev.py covmap           build the coverage map
     ./dev.py status           the engine's projected state
     ./dev.py stats [--window W] [--json]  journal health projection
     ./dev.py run STEM         run one ticket through every stage
@@ -49,6 +50,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="./dev.py", description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="task")
     sub.add_parser("test", help="the suite, or the named tests").add_argument("args", nargs=argparse.REMAINDER)
+    sub.add_parser("covmap", help="build the coverage map")
     sub.add_parser("status", help="the engine's projected state")
     stats = sub.add_parser("stats", help="journal health projection")
     stats.add_argument("--window", default="7d")

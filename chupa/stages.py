@@ -1019,8 +1019,7 @@ def _changed_lines(diff: str) -> dict[str, set[int]]:
     return lines
 
 
-def _coverage_contexts(path: Path) -> dict[str, dict[str, list[str]]]:
-    report = json.loads(path.read_text())
+def coverage_contexts(report: dict) -> dict[str, dict[str, list[str]]]:
     files = report["files"]
     if not isinstance(files, dict):
         raise ValueError("invalid files")
@@ -1087,7 +1086,7 @@ async def _check_host_results(ctx, ticket, entry, n, attempt, changed_files):
         covered = set()
         if flaky and entry.coverage is not None:
             try:
-                contexts = _coverage_contexts(root / entry.coverage)
+                contexts = coverage_contexts(json.loads((root / entry.coverage).read_text()))
             except OSError, UnicodeError, ValueError, KeyError, TypeError:
                 return _report(
                     entry.code,
