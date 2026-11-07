@@ -13,6 +13,7 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | Verb | Works while serve runs? | What it does |
 |---|---|---|
 | `status` | Yes | Show the journal projection. |
+| `stats` | Yes | Show the read-only health and efficiency projection. |
 | `lint` | Yes | Validate tickets without writing. |
 | `retro` | No | Force a retro report. |
 | `doctor` | No | Inspect setup; its lock probe reports a held lock as a failure. |

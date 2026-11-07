@@ -5,6 +5,10 @@ The composition root: the only place real seams are constructed. Exit 2 is an en
 
 import argparse
 import asyncio
+import json
+import re
+
+import yaml
 import os
 import signal
 import subprocess
@@ -217,6 +221,9 @@ def _parser() -> argparse.ArgumentParser:
     ap.add_argument("--config", type=Path, help="config path (default: config.yaml at the checkout root)")
     sub = ap.add_subparsers(dest="verb", required=True)
     sub.add_parser("status", help="project current state from the journal (read-only)")
+    stats = sub.add_parser("stats", help="project journal health over a window (read-only)")
+    stats.add_argument("--window", default="7d")
+    stats.add_argument("--json", action="store_true")
     sub.add_parser("lint", help="validate tickets without running or writing anything").add_argument("stems", nargs="*")
     sub.add_parser("retro", help="force a retro report under the writer lock")
     sub.add_parser("doctor", help="inspect setup without changing state")
@@ -321,6 +328,19 @@ def main(
             fs=LocalFileSystem(),
             clock=clock,
         )
+        if args.verb == "stats":
+            from chupa.stats import render_stats, window_start
+
+            events = checkout.journal.read()
+            now = checkout.clock()
+            try:
+                window_start(events, now, args.window)
+            except ValueError as exc:
+                print(f"chupa stats: {exc}", file=sys.stderr)
+                return 2
+            result = asyncio.run(_stats(checkout, events, now, args.window))
+            print(json.dumps(result) if args.json else render_stats(result), end="\n" if args.json else "")
+            return 0
         if args.verb == "lint":
             return asyncio.run(_lint(checkout, args.stems))
         if args.verb == "order":
@@ -541,6 +561,28 @@ async def _lint(checkout: runner.Checkout, stems: Sequence[str]) -> int:
         exit_code = 2
     print(f"lint: {valid}/{total} tickets valid")
     return exit_code
+
+
+async def _stats(checkout, events, now, window):
+    from chupa.stages import Invoice
+    from chupa.stats import project_stats, window_start
+
+    start = window_start(events, now, window)
+    kinds = {}
+    for stem in {e.ticket for e in events if e.ticket}:
+        try:
+            split = split_frontmatter((checkout.repo / ticket_path(stem)).read_text())
+            data = yaml.safe_load(split[0]) if split else None
+            if isinstance(data, dict) and data.get("kind") in {"feature", "bug", "chore"}:
+                kinds[stem] = data["kind"]
+        except (OSError, UnicodeError, yaml.YAMLError):
+            pass
+    checks = {}
+    for e in events:
+        if e.type == EventType.EFFECT_COMPLETION and e.ticket and re.fullmatch(r"ticket-plane/[^/]+/\d+/checks", e.key or "") and start <= datetime.fromisoformat(e.ts) <= now:
+            text = await checkout.git._run(checkout.repo, "show", f"{e.body['result']['commit']}:tickets/{e.ticket}/checks.json")
+            checks[e.key] = Invoice.model_validate_json(text)
+    return project_stats(events, kinds, checks, now=now, window=window)
 
 
 async def _status(checkout: runner.Checkout):

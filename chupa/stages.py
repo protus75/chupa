@@ -690,6 +690,7 @@ class CommandResult(_Strict):
     rc: int | None  # None: the command could not run or timed out -- fails closed like a nonzero exit
     tail: str
     base_red: bool = False
+    seconds: float | None = None
 
 
 async def run_host_command(ctx, ticket, attempt, argv, code, name, *, cwd=None):
@@ -852,15 +853,17 @@ async def gather_evidence(
     red: list[tuple[int, list[str]]] = []
     timeout = ticket.stuck_minutes * 60.0
     for n, argv in enumerate(ticket.verification, 1):
+        started = ctx.driver.clock()
         try:
             rc, out, err = await ctx.exec_.run(list(argv), cwd=worktree, env=env, timeout=timeout)
         except TimeoutError:
             rc, out, err = None, "", f"timed out after the ticket's stuck budget ({ticket.stuck_minutes}m)"
         except ExecutableNotFound as e:
             rc, out, err = None, "", str(e)
+        seconds = (ctx.driver.clock() - started).total_seconds()
         ctx.driver.spool.write(stem, attempt, f"{stage}/verify-{n:02d}.txt", f"$ {' '.join(argv)}\n[exit {rc}]\n--- stdout\n{out}\n--- stderr\n{err}")
         tail = ctx.driver.redactor.scrub((out + err)[-OUTPUT_TAIL_CHARS:])
-        results.append(CommandResult(argv=list(argv), rc=rc, tail=tail))
+        results.append(CommandResult(argv=list(argv), rc=rc, tail=tail, seconds=seconds))
         if rc != 0:
             red.append((n, list(argv)))
     if red:

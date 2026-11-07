@@ -835,3 +835,24 @@ def test_scope_fence_refuses_a_plan_edit(repo):
         assert result.findings[0].path == "CHUPA_PLAN.md"
 
     asyncio.run(scenario())
+
+
+def test_verification_records_each_command_seconds(repo, monkeypatch):
+    from datetime import timedelta
+    from tests.test_drain import Clock
+
+    clock = Clock()
+    original = SubprocessExec.run
+    async def timed(self, argv, **kwargs):
+        if argv[0] in {"grep", "env"}:
+            clock.now += timedelta(seconds=13 if argv[0] == "grep" else 29)
+        return await original(self, argv, **kwargs)
+    monkeypatch.setattr(SubprocessExec, "run", timed)
+    original_driver = Driver.from_config.__func__
+    def configured(cls, *args, **kwargs):
+        kwargs["clock"] = clock
+        return original_driver(cls, *args, **kwargs)
+    monkeypatch.setattr(Driver, "from_config", classmethod(configured))
+    run(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
+    invoice = Invoice.model_validate_json((repo / "tickets" / STEM / "checks.json").read_text())
+    assert [result.seconds for result in invoice.verification] == [13.0, 29.0]

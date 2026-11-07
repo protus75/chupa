@@ -8,6 +8,7 @@
     ./dev.py review STEM...   review each ticket against merged code
     ./dev.py lint [STEM...]   validate tickets without running or writing anything
     ./dev.py status           the engine's projected state
+    ./dev.py stats [--window W] [--json]  journal health projection
     ./dev.py run STEM         run one ticket through every stage
     ./dev.py serve            run the continuous daemon
     ./dev.py drain            run every eligible ticket to quiescence
@@ -49,6 +50,9 @@ def main() -> None:
     sub = parser.add_subparsers(dest="task")
     sub.add_parser("test", help="the suite, or the named tests").add_argument("args", nargs=argparse.REMAINDER)
     sub.add_parser("status", help="the engine's projected state")
+    stats = sub.add_parser("stats", help="journal health projection")
+    stats.add_argument("--window", default="7d")
+    stats.add_argument("--json", action="store_true")
     sub.add_parser("lint", help="validate tickets without running them").add_argument("stems", nargs="*")
     new = sub.add_parser("new", help="author and lint a ticket")
     new.add_argument("stem")
@@ -79,6 +83,8 @@ def main() -> None:
         chupa("new", args.stem, "--kind", args.kind)
     elif args.task == "order":
         chupa("order", args.stem, *(["--priority", args.priority] if args.priority is not None else []), *(["--runs-before", *args.runs_before] if args.runs_before is not None else []))
+    elif args.task == "stats":
+        chupa("stats", "--window", args.window, *(["--json"] if args.json else []))
     elif args.task == "run":
         chupa("run", args.stem)
     elif args.task == "lint":
