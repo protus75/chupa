@@ -57,6 +57,13 @@ body {
 .row.blocked .stem { color: var(--chupa-blocked); }
 .row.running .stem { font-weight: bold; }
 
+.priority {
+	margin-left: 4px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 0.9em;
+	flex: none;
+}
+
 .status {
 	margin-left: 8px;
 	color: var(--vscode-descriptionForeground);

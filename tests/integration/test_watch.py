@@ -255,6 +255,33 @@ def test_snapshot_display_fields(tmp_path, monkeypatch):
     assert watch.snapshot(ctx)["runningStem"] is None  # A previous running stem must not persist.
 
 
+def test_snapshot_priority_tag_on_running_and_queued(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    ctx = watch.Context(tmp_path, tmp_path, tmp_path / "config.yaml", None, None, None)
+    tickets = {
+        stem: SimpleNamespace(stem=stem, frontmatter=SimpleNamespace(priority=priority, state=state), depends=(), runs_before=(), sections={})
+        for stem, priority, state in (("live", "P1", "confirmed"), ("waiting", "P2", "confirmed"), ("blocked", "P0", "draft"))
+    }
+    merged = tmp_path / "tickets/done/ticket.md"
+    merged.parent.mkdir(parents=True)
+    merged.write_text("---\npriority: P3\n---\n")
+    events = [{"type": "state_transition", "ticket": stem, "body": {"to": state}, "ts": "2026-01-01T00:00:00+00:00"} for stem, state in (("live", "running"), ("done", "merged"))]
+    monkeypatch.setattr(watch, "load_tickets", lambda ctx, skip: (tickets, {}))
+    monkeypatch.setattr(watch, "journal", lambda *args, **kwargs: events)
+    monkeypatch.setattr(watch, "running_stems", lambda *args: ["live"])
+    monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: (set(), set()))
+    monkeypatch.setattr(watch, "committed_ticket_shas", lambda ctx: {})
+    monkeypatch.setattr(watch, "commits", lambda ctx: {})
+    rows = {r["stem"]: r for r in watch.snapshot(ctx)["rows"]}
+    assert {stem: (row["section"], row["priority"], row["priorityTag"]) for stem, row in rows.items()} == {
+        "live": ("running", "P1", "P1"),
+        "waiting": ("queued", "P2", "P2"),
+        "blocked": ("blocked", "P0", ""),
+        "done": ("merged", "P3", ""),
+    }  # Missing tags, tags on other sections, or using another row's priority differ.
+
+
 def test_snapshot_badge(tmp_path, monkeypatch):
     from datetime import datetime
     from types import SimpleNamespace

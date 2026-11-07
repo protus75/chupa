@@ -52,6 +52,9 @@ function render(snap) {
 		// Context keys for the right-click menu's `when` clauses in package.json; the command receives this object.
 		row.dataset.vscodeContext = JSON.stringify({ chupaStem: r.stem, chupaSection: r.section, chupaHeld: r.held, chupaDraft: r.draft, chupaRunnable: r.runnable, chupaCommitted: r.committed, chupaEngine: snap.engine, preventDefaultContextMenuItems: true });
 		row.append(renderGraph(r.graph, r.stem, COLOR[r.section], COLOR));
+		if (r.priorityTag) {
+			row.append(el('span', 'priority', r.priorityTag));
+		}
 		row.append(el('span', 'stem', r.stem));
 		row.append(el('span', 'status', r.status));
 		row.addEventListener('mouseenter', () => {

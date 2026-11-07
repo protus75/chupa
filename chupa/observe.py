@@ -570,6 +570,7 @@ def snapshot(ctx) -> dict:
     shown = {r["stem"] for r in rows}
     unmerged = [r["stem"] for r in rows if r["section"] != "merged"]
     for r in rows:
+        r["priorityTag"] = r["priority"] if r["section"] in ("running", "queued") else ""
         if r["section"] != "merged":
             r["runsBeforeChoices"] = [stem for stem in unmerged if stem != r["stem"]]
         r["depends"] = [d for d in r["depends"] if d in shown]
