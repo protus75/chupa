@@ -91,7 +91,7 @@ Each test has a 120-second hard limit.
 `vscode-chupa/` is an operator-only VS Code extension: an Activity Bar view of every ticket as an
 SCM-style graph (blocked, queued, running, merged) with a detail pane. The Tickets view's `?`
 button opens `vscode-chupa/media/ticket-lifecycle.svg`, a hand-drawn diagram of ticket states.
-`chupa snapshot` builds its data read-only from the configured host state and `order_tickets`; `chupa/graph.py` computes the graph layout for the extension to draw. The engine never runs the extension.
+Recent Steps opens each step’s file. `chupa snapshot` builds its data read-only from the configured host state and `order_tickets`; `chupa/graph.py` computes the graph layout for the extension to draw. The engine never runs the extension.
 
 ## 3. Tickets
 
@@ -624,7 +624,7 @@ Everything lives under `state_dir` (this repo: `.chupa/state`).
 | Path | Holds |
 |---|---|
 | `journal/NNNNNN-YYYYMMDD.jsonl` | The journal (section 10.2). |
-| `engine.log` | Diagnostics including `engine_start` and `engine_stop`, redacted, rotated; never authoritative. |
+| `engine.log` | Diagnostics including `engine_start`, `engine_stop`, and stage start/end events for every stage, including Check and merge; redacted, rotated, and never authoritative. |
 | `queue.json` | Derived pick order, timestamp, and `Runs before` hints for watch. |
 | `spools/` | Per-attempt prompts, outputs, and command output; `spools/providers/` holds raw CLI captures. |
 | `chupa.lock` | The single-writer lock. Its JSON identity is informational; the kernel frees the lock when the holder dies. |

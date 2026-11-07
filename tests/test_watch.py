@@ -236,3 +236,27 @@ def test_diagnose_prompt_uses_live_running_state(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(watch, "lock_holder", lambda state: None)
     assert main(["prompt", "diagnose", "live"], cwd=tmp_path) == 0
     assert capsys.readouterr().out != running  # A stale journal entry keeps the diagnose template.
+
+
+def test_snapshot_step_files_and_mechanical_kinds(tmp_path, monkeypatch):
+    ctx = watch.Context(tmp_path, tmp_path, tmp_path / "config.yaml", None, None, None)
+    monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: (set(), set()))
+    monkeypatch.setattr(watch, "committed_ticket_shas", lambda ctx: {})
+    monkeypatch.setattr(watch, "commits", lambda ctx: {})
+    directory = tmp_path / "tickets" / "alpha"
+    directory.mkdir(parents=True)
+    (directory / "run.md").write_text("run")
+    (directory / "checks.json").write_text("checks")
+    events = [
+        {"event": "stage_start", "stem": "alpha", "surface": surface, "ts": f"2026-01-01T00:00:0{i}+00:00"}
+        for i, surface in enumerate(("implement", "check", "merge"))
+    ]
+    (tmp_path / "engine.log").write_text("".join(json.dumps(e) + "\n" for e in events))
+    rows = {row["text"]: row for row in watch.snapshot(ctx)["steps"]}
+    assert rows["Implement start"]["path"] == "tickets/alpha/run.md"  # The ticket file is a different target.
+    assert (rows["Check start"]["kind"], rows["Check start"]["path"]) == ("check_start", "tickets/alpha/checks.json")  # Generic stage kind or ticket path is wrong.
+    assert watch.current_step(events, "alpha") == ("Merge", events[-1]["ts"], None)  # A model surface would display model details.
+    (directory / "run.md").unlink()
+    rows = {row["text"]: row for row in watch.snapshot(ctx)["steps"]}
+    assert rows["Implement start"]["path"] == "tickets/alpha/ticket.md"  # A missing run record must not be opened.
+    assert watch.current_step([dict(events[1], event="stage_end", outcome="ok")], "alpha")[0] == "Review"  # Check advances to Review.

@@ -15,8 +15,7 @@ from chupa.graph import layout
 from chupa.rework import settled_dependencies
 from chupa.tickets import Frontmatter, TicketInvalid, parse_ticket
 
-# A stage the engine log records; Check and merge are mechanical and leave no stage events.
-STEP_NAMES = {"implement": "Implement", "review": "Review", "diagnose": "Diagnose", "rework": "Rework", "retro": "Retro", "triage": "Triage", "author": "Author"}
+STEP_NAMES = {"implement": "Implement", "check": "Check", "merge": "Merge", "review": "Review", "diagnose": "Diagnose", "rework": "Rework", "retro": "Retro", "triage": "Triage", "author": "Author"}
 SETTLED = {"merged", "already_satisfied"}
 
 
@@ -209,8 +208,8 @@ def current_step(log: list[dict], stem: str) -> tuple[str, str, str | None]:
     last = stages[-1]
     name = STEP_NAMES.get(last.get("surface"), last.get("surface", "?"))
     if last["event"] == "stage_start":
-        return name, last["ts"], last.get("surface")
-    after = {"implement": "Check", "review": "Merge", "diagnose": "Retry or hold"}.get(last.get("surface"))
+        return name, last["ts"], None if last.get("surface") in ("check", "merge") else last.get("surface")
+    after = {"implement": "Check", "check": "Review", "review": "Merge", "diagnose": "Retry or hold"}.get(last.get("surface"))
     return (after or f"after {name}"), last["ts"], None
 
 
@@ -290,7 +289,10 @@ def recent_steps(state: Path, log: list[dict], limit: int) -> list[dict]:
         event = e.get("event")
         if event in ("stage_start", "stage_end"):
             verb = "start" if event == "stage_start" else f"end ({e.get('outcome', '?')})"
-            rows.append({"ts": e["ts"], "stem": e.get("stem"), "text": f"{STEP_NAMES.get(e.get('surface'), e.get('surface'))} {verb}", "kind": "stage_start" if event == "stage_start" else "stage_ok" if e.get("outcome") == "ok" else "stage_failed"})
+            surface = e.get("surface")
+            prefix = surface if surface in ("check", "merge") else "stage"
+            suffix = "start" if event == "stage_start" else "ok" if e.get("outcome") == "ok" else "failed"
+            rows.append({"ts": e["ts"], "stem": e.get("stem"), "surface": surface, "text": f"{STEP_NAMES.get(surface, surface)} {verb}", "kind": f"{prefix}_{suffix}"})
         elif event == "engine_start":
             rows.append({"ts": e["ts"], "stem": None, "text": f"{e['verb']} started (pid {e['pid']})", "kind": "engine_start"})
         elif event == "engine_stop":
@@ -569,6 +571,11 @@ def snapshot(ctx) -> dict:
         row["graph"] = graph
     steps = recent_steps(state, log, STEPS)
     for step in steps:
+        surface = step.pop("surface", None)
+        if stem := step.get("stem"):
+            name = {"implement": "run.md", "check": "checks.json", "review": "review.md", "diagnose": "diagnosis.json"}.get(surface, "ticket.md")
+            path = Path("tickets") / stem / name
+            step["path"] = str(path if (ctx.root / path).is_file() else path.with_name("ticket.md"))
         step["timeDisplay"] = clock(step["ts"])
         step["dateDisplay"] = local(step["ts"]).strftime("%x, %X")
     return {

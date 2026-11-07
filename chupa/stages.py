@@ -1558,6 +1558,8 @@ async def run_stages(ctx: StageContext, ticket: Ticket) -> StagesRun:
             invoice = run.results["check"].artifact
             assert isinstance(invoice, Invoice)
             operation = review(ctx, ticket, invoice, attempt=run.attempt)
+        if stage == "check":
+            ctx.driver.log.event("stage_start", stem=ticket.stem, attempt=run.attempt, surface="check")
         try:
             if boundary.select is None:
                 result = await operation
@@ -1584,6 +1586,8 @@ async def run_stages(ctx: StageContext, ticket: Ticket) -> StagesRun:
                 )
             else:
                 raise
+        if stage == "check":
+            ctx.driver.log.event("stage_end", stem=ticket.stem, attempt=run.attempt, surface="check", outcome=result.outcome)
         run.results[stage] = result
         if result.outcome != "ok":
             break

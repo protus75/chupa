@@ -226,11 +226,11 @@ class StepsTree {
 		const item = new vscode.TreeItem(`${step.timeDisplay}  ${step.stem ?? ''}`);
 		item.description = step.text;
 		item.tooltip = `${step.dateDisplay}\n${step.stem ? step.stem + ': ' : ''}${step.text}`;
-		const icons = { stage_start: 'debug-start', stage_ok: 'pass', stage_failed: 'circle-slash', engine_start: 'debug-start', engine_stop: 'debug-stop', engine_lost: 'warning' };
-		const icon = icons[step.kind];
-		item.iconPath = new vscode.ThemeIcon(icon);
-		if (step.stem) {
-			item.command = { command: 'chupa.openTicket', title: 'Open ticket.md', arguments: [`tickets/${step.stem}/ticket.md`] };
+		const icons = { stage_start: ['debug-start'], stage_ok: ['pass'], stage_failed: ['circle-slash'], engine_start: ['debug-start'], engine_stop: ['debug-stop'], engine_lost: ['warning'], check_start: ['checklist'], check_ok: ['checklist', 'testing.iconPassed'], check_failed: ['checklist', 'testing.iconFailed'], merge_start: ['git-merge'], merge_ok: ['git-merge', 'testing.iconPassed'], merge_failed: ['git-merge', 'testing.iconFailed'] };
+		const [icon, color] = icons[step.kind];
+		item.iconPath = new vscode.ThemeIcon(icon, color ? new vscode.ThemeColor(color) : undefined);
+		if (step.path) {
+			item.command = { command: 'chupa.openTicket', title: 'Open step file', arguments: [step.path] };
 		}
 		return item;
 	}
