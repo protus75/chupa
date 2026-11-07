@@ -1,0 +1,257 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "c4ef7878c31d54bc0a2a181a971e71589ee64b05",
+  "stem": "tests-split",
+  "passed": true,
+  "changed_files": [
+    "docs/how-chupa-works.md",
+    "pyproject.toml",
+    "tests/integration/test_ask.py",
+    "tests/integration/test_audit.py",
+    "tests/integration/test_author.py",
+    "tests/integration/test_baseline.py",
+    "tests/integration/test_box.py",
+    "tests/integration/test_bug_gate.py",
+    "tests/integration/test_caps.py",
+    "tests/integration/test_checkpoint.py",
+    "tests/integration/test_cli.py",
+    "tests/integration/test_closed_sets.py",
+    "tests/integration/test_config.py",
+    "tests/integration/test_control.py",
+    "tests/integration/test_control_cli.py",
+    "tests/integration/test_covgate.py",
+    "tests/integration/test_covmap.py",
+    "tests/integration/test_daemon_admission.py",
+    "tests/integration/test_daemon_composition.py",
+    "tests/integration/test_daemon_config.py",
+    "tests/integration/test_daemon_pause.py",
+    "tests/integration/test_daemon_soak.py",
+    "tests/integration/test_daemon_soak_runner.py",
+    "tests/integration/test_daemon_tasks.py",
+    "tests/integration/test_dev.py",
+    "tests/integration/test_diagnose.py",
+    "tests/integration/test_diagnose_eval.py",
+    "tests/integration/test_doctor.py",
+    "tests/integration/test_drain.py",
+    "tests/integration/test_drain_reentry.py",
+    "tests/integration/test_drain_upgrade.py",
+    "tests/integration/test_driver.py",
+    "tests/integration/test_echo_stage.py",
+    "tests/integration/test_effects.py",
+    "tests/integration/test_eval_harness.py",
+    "tests/integration/test_fault_injection.py",
+    "tests/integration/test_fixture_host.py",
+    "tests/integration/test_flake.py",
+    "tests/integration/test_gates.py",
+    "tests/integration/test_git.py",
+    "tests/integration/test_go_grade.py",
+    "tests/integration/test_harvest.py",
+    "tests/integration/test_harvest_orphans.py",
+    "tests/integration/test_heartbeat.py",
+    "tests/integration/test_host_contract.py",
+    "tests/integration/test_host_loop.py",
+    "tests/integration/test_host_mechanical.py",
+    "tests/integration/test_hostfiles.py",
+    "tests/integration/test_inbox.py",
+    "tests/integration/test_journal.py",
+    "tests/integration/test_journal_roll.py",
+    "tests/integration/test_kill_cli_activation.py",
+    "tests/integration/test_kill_executor_abort.py",
+    "tests/integration/test_kill_failure_suppression.py",
+    "tests/integration/test_kill_signal_journal.py",
+    "tests/integration/test_kill_worker_stop.py",
+    "tests/integration/test_ladder.py",
+    "tests/integration/test_lint_verb.py",
+    "tests/integration/test_llm_effect.py",
+    "tests/integration/test_lockfile.py",
+    "tests/integration/test_merge.py",
+    "tests/integration/test_mergequeue.py",
+    "tests/integration/test_notify.py",
+    "tests/integration/test_policy.py",
+    "tests/integration/test_provider_cooldown_failover.py",
+    "tests/integration/test_providers.py",
+    "tests/integration/test_reconcile.py",
+    "tests/integration/test_reject_queue.py",
+    "tests/integration/test_reliability_battery.py",
+    "tests/integration/test_requisition.py",
+    "tests/integration/test_requisition_gate.py",
+    "tests/integration/test_restart_timers.py",
+    "tests/integration/test_retro.py",
+    "tests/integration/test_retro_box.py",
+    "tests/integration/test_review_command.py",
+    "tests/integration/test_rework.py",
+    "tests/integration/test_scheduler.py",
+    "tests/integration/test_scorecard.py",
+    "tests/integration/test_second_problems.py",
+    "tests/integration/test_serve.py",
+    "tests/integration/test_shakeout.py",
+    "tests/integration/test_stages.py",
+    "tests/integration/test_stats.py",
+    "tests/integration/test_status.py",
+    "tests/integration/test_step_events.py",
+    "tests/integration/test_storm.py",
+    "tests/integration/test_storm_hold.py",
+    "tests/integration/test_storm_notification_activation.py",
+    "tests/integration/test_storm_producer.py",
+    "tests/integration/test_terminal.py",
+    "tests/integration/test_testguard.py",
+    "tests/integration/test_testreport.py",
+    "tests/integration/test_thresh.py",
+    "tests/integration/test_tickets.py",
+    "tests/integration/test_triage.py",
+    "tests/integration/test_vocabularies.py",
+    "tests/integration/test_watch.py",
+    "tests/integration/test_watchdog.py",
+    "tests/integration/test_watchdog_activation.py",
+    "tests/unit/test_graph.py",
+    "tests/unit/test_host_running.py",
+    "tests/unit/test_scaffold.py",
+    "tests/unit/test_specs.py"
+  ],
+  "inserted_lines": 407,
+  "bypassed": [
+    "diff_budget"
+  ],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "fail",
+      "findings": [
+        {
+          "code": "diff_budget",
+          "path": null,
+          "line": null,
+          "message": "diff is 103 files / 407 inserted lines, over the budget of 30 files / 1500 lines",
+          "paved_road": "split the ticket into smaller stems, each under the diff budget",
+          "kind": null,
+          "unit": null
+        }
+      ],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "-c",
+        "import pathlib,sys; sys.exit(any(pathlib.Path('tests').glob('test_*.py')))"
+      ],
+      "rc": 0,
+      "tail": "warning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 0.193978
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "pytest",
+        "tests/unit",
+        "-p",
+        "chupa.testguard",
+        "-q"
+      ],
+      "rc": 0,
+      "tail": "bringing up nodes...\nbringing up nodes...\n\n...............................                                          [100%]\n31 passed in 0.98s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 1.237107
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "-c",
+        "import pathlib,re,sys; sys.exit(any(re.search(r'\\b(tmp_path|tmp_path_factory|tmpdir)\\b', p.read_text()) for p in pathlib.Path('tests/unit').glob('*.py')))"
+      ],
+      "rc": 0,
+      "tail": "warning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 0.038658
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "-c",
+        "import ast,subprocess,pathlib,collections as c;b=subprocess.run(['git','merge-base','HEAD','main'],capture_output=True,text=True,check=True).stdout.strip();names=lambda src:[n.name for n in ast.walk(ast.parse(src)) if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef)) and n.name.startswith('test')];old=c.Counter(x for f in subprocess.run(['git','ls-tree','-r','--name-only',b,'tests/'],capture_output=True,text=True,check=True).stdout.split() if pathlib.PurePath(f).name.startswith('test_') and f.endswith('.py') for x in names(subprocess.run(['git','show',b+':'+f],capture_output=True,text=True,check=True).stdout));new=c.Counter(x for p in pathlib.Path('tests').rglob('test_*.py') for x in names(p.read_text()));assert old==new,(old-new,new-old)"
+      ],
+      "rc": 0,
+      "tail": "warning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 0.831055
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "-c",
+        "import ast,pathlib,sys; sys.exit(any(isinstance(n,ast.ImportFrom) and (n.module or '').startswith('tests.test_') for p in pathlib.Path('tests').rglob('*.py') for n in ast.walk(ast.parse(p.read_text()))))"
+      ],
+      "rc": 0,
+      "tail": "warning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 0.362883
+    },
+    {
+      "argv": [
+        "./dev.py",
+        "test"
+      ],
+      "rc": 0,
+      "tail": "test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/tests-split/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/integration/test_testguard.py::test_guards_are_phase_scoped\ntests/integration/test_testguard.py::test_guarded_calls_and_asyncio\ntests/integration/test_testguard.py::test_setup_and_teardown\ntests/integration/test_testguard.py::test_budget_and_slowest\ntests/integration/test_testguard.py::test_budget_and_slowest\ntests/integration/test_testguard.py::test_xdist_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\n  /home/djp/source/chupa/.chupa/state/worktrees/tests-split/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3109 passed, 10 warnings in 75.34s (0:01:15)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 81.388748
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "-c",
+        "import tomllib; i = tomllib.load(open('pyproject.toml', 'rb'))['tool']['ruff']['lint']['per-file-ignores']; assert 'tests/**/test_hostfiles.py' in i and 'tests/test_hostfiles.py' not in i"
+      ],
+      "rc": 0,
+      "tail": "warning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 0.04335
+    }
+  ]
+}
