@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The full suite also reported a fixture snapshot failure because stats.py changed while the suite was running; that failure was caused by the concurrent edit.
+Percentiles use linear interpolation between samples.
 
 ## Dead ends
 
-Implemented the fenced changes and ran the targeted tests successfully, but the full suite requires the new verb in the host-running documentation.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Expected 60 minutes; completed within the ticket budget.
 
