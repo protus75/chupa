@@ -1,6 +1,6 @@
 # Review: approve
 
-The diff satisfies every acceptance criterion and stays inside the fence. `review_ticket` takes a required `coverage_map` keyword. It computes the out-of-fence dependents before the first model call. A declared map that is missing or invalid returns a mechanical `coverage_map` snag with no model call. The new data block, the fenced-or-cleared Task rule, the 3.1 version bump, every caller, the tests and the docs row are all updated.
+The diff adds a required keyword `coverage_map` to `review_ticket`, with no default. Before any model call it computes the out-of-fence coverage dependents, or snags with code `coverage_map` when a declared map is missing or invalid. The dependents go to the spec as a `coverage_dependents` block with the fenced-or-cleared Task rule, the spec version moves to 3.1, every caller and test is updated, and the doc row is updated.
 
 ## Findings
 
@@ -12,10 +12,10 @@ none
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "57e69cb0665be4700e0d1d310649c41b99157a4d",
+  "produced_at_sha": "3728cbfddc67bd633c37922bcf2e5cb310c9d838",
   "stem": "requisition-coverage-dependents",
-  "reviewed_sha": "57e69cb0665be4700e0d1d310649c41b99157a4d",
-  "summary": "The diff satisfies every acceptance criterion and stays inside the fence. `review_ticket` takes a required `coverage_map` keyword. It computes the out-of-fence dependents before the first model call. A declared map that is missing or invalid returns a mechanical `coverage_map` snag with no model call. The new data block, the fenced-or-cleared Task rule, the 3.1 version bump, every caller, the tests and the docs row are all updated.",
+  "reviewed_sha": "3728cbfddc67bd633c37922bcf2e5cb310c9d838",
+  "summary": "The diff adds a required keyword `coverage_map` to `review_ticket`, with no default. Before any model call it computes the out-of-fence coverage dependents, or snags with code `coverage_map` when a declared map is missing or invalid. The dependents go to the spec as a `coverage_dependents` block with the fenced-or-cleared Task rule, the spec version moves to 3.1, every caller and test is updated, and the doc row is updated.",
   "findings": [],
   "spec_version": "1.4",
   "provider": "claude",
