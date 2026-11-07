@@ -35,7 +35,7 @@ After this change every repo-path matcher, model-facing spec path, and doc names
   - `chupa/specs/retro.md` says "`specs/<name>.md` paths, relative to the `chupa/` package" instead of "repo-relative `specs/<name>.md` paths", and its `version` minor number goes up by one;
   - `author.py` and `triage.py` prefix each value with `chupa/` where they put `proposed_spec_paths` into a model request, so the model sees the real repo path.
 - In: docstrings naming `specs/review.md` or `specs/implement.md` in `chupa/artifacts.py` and `chupa/stages.py`.
-- In: tests that assert the values changed above: `tests/test_closed_sets.py`, `tests/test_drain_upgrade.py`, `tests/test_merge.py`, `tests/test_tickets.py`, `tests/test_author.py`, `tests/test_triage.py`, `tests/test_retro_box.py`.
+- In: tests that assert the values changed above: `tests/test_closed_sets.py`, `tests/test_drain_upgrade.py`, `tests/test_merge.py`, `tests/test_tickets.py`, `tests/test_author.py`, `tests/test_triage.py`, `tests/test_retro_box.py`, `tests/test_retro.py` (pinned retro `spec_version` moves to the new version), `tests/test_status.py` (its `version:` replace looks for the new version).
 - In: docs.
   - `docs/how-chupa-works.md`: every repo `specs/` path (sections 1, 4.2, 4.4, 6.3, 6.5, 7.1 self-upgrade and the serve sentence recording the `chupa` and `specs` trees, now `chupa` only, and 8.4).
   - `docs/host-contract.md`: the `engine_plane_safety_inventory` example and the Instance custody sentence on restarting when `chupa/` or `specs/` changes.
@@ -63,6 +63,8 @@ After this change every repo-path matcher, model-facing spec path, and doc names
 - tests/test_author.py
 - tests/test_triage.py
 - tests/test_retro_box.py
+- tests/test_retro.py
+- tests/test_status.py
 
 ## Acceptance criteria
 1. `drain.UPGRADE_PREFIXES == ("chupa/",)`. The first Verification command and `tests/test_closed_sets.py` check it.
