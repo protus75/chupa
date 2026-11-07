@@ -8,6 +8,10 @@ kind: feature
 ## Depends on
 none
 
+## Runs before
+- chupa-ruff-reclean
+- chupa-ruff-reclean-tests-a-l
+
 ## Context
 - chupa/observe.py
 - tests/integration/test_watch.py
