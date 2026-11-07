@@ -1,0 +1,31 @@
+# Drain re-offers a failed ticket: machine keep for a Reject-queue stem with budget, then a retry draw (chupa/drain.py)
+            await self.dispatch.prepare()
+        if reoffer:
+            history = self.c.journal.read()
+            queued = reject_queue(history)
+            if stem in queued:
+                self.c.journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}, ticket=stem)
+            body = next(e.body for e in reversed(history) if e.type == EventType.STATE_TRANSITION and e.ticket == stem and e.body.get("to") in TERMINAL_STATES)
+            draw_retry = body.get("to") != PREMISE and "provider_drought" not in body
+            if draw_retry:
+                caps.consume(self.c.journal, stem, "retry", sha, rung=body.get("rung"))
+
+# Drain skips a re-offer when caps are spent, or when a Reject-queue entry is ticket_changed (chupa/drain.py)
+        for t in ready:
+            if t.stem in awaiting and "ticket_changed" in awaiting[t.stem].get("reason", "").split(","):
+            if t.stem in self.over_budget:
+                continue
+                candidates.append((t, False))
+            elif t.stem not in held and budget:
+                candidates.append((t, True))
+
+# Serve's scheduler holds the whole Reject queue and never checks caps (chupa/scheduler.py)
+            held = set(reject_queue(events)) | self.quarantined() | self.drought_parked()
+
+# Serve journals running with no machine keep and no retry draw (chupa/serve.py)
+                self.writers[ticket.stem] = callback
+                local.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": sha}, ticket=ticket.stem, key=None)
+
+# This host allows a second premise bounce (config.yaml), so the drain machine-kept box-view after a ticket edit:
+38:  premise_bounce: 2  # a fixed ticket.md re-offers a premise park without an operator keep; the second bounce still needs one
+{"v":1,"type":"signal","ts":"2026-11-07T04:48:41.155262+00:00","ticket":"box-view","key":null,"body":{"signal":"reject_verdict","verdict":"keep","actor":"machine"}}
