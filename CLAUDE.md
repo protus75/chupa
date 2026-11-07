@@ -57,6 +57,8 @@ Every rule below is behavioral (no gate checks it yet): the prose is the only en
   Why: guessed facts are the cheapest bug to write and the costliest to find. (section 13)
 - **Lean ticket frontmatter.** Only fields the scheduler, a gate, or the authoring/triage policy reads. `depends` names only a ticket whose merged code this one needs; all other ordering lives in `priority`, never in prose.
   Why: metadata for subsystems that do not exist is accretion; prose ordering is invisible to the scheduler; a `depends` used for ordering blocks the queue when the first ticket fails. (section 13)
+- **Verification uses `./dev.py test`.** A ticket's `## Verification` and acceptance criteria run tests as `./dev.py test [pytest args]`, never raw `uv run pytest`.
+  Why: one command surface for people and tickets; nothing chose the raw form, it was copied ticket to ticket.
 - **Use the injectable seams.** Clock, process exec, filesystem, and notifications go through their seams; never called raw in engine code.
   Why: fake-driven tests and group-kill guarantees exist only at the seam. (section 15)
 - **Fenced by gates, not jailed.** v1 does not sandbox executed code; never rely on its goodwill. Never pass a provider key to a process that does not need it.
@@ -83,8 +85,8 @@ A human-present chat session is the one context the pipeline machinery does not 
 - **Supervising session.** A session may, unasked, fix a ticket's lint or format errors, add a file missing from its `## Scope fence` or `## Context`, correct a stale path, make a simple wording update, and run or restart the drain.
   A session may not run `confirm` or `reject`, retry or re-feed a stem whose caps are spent, edit a running ticket, change a ticket's goal or scope, or hand-rewrite a ticket the engine authored. Those decisions go to the user.
   Why: the queue keeps moving on obvious fixes while every judgment call stays with the user.
-- **Command surface.** A session runs or gives the user `./dev.py` subcommands, never raw `uv run python -m chupa ...`; a missing command becomes a new `./dev.py` subcommand. Give commands for the user in a copy/paste code block.
-  Why: one memorable command surface.
+- **Command surface.** For any task a `./dev.py` subcommand covers (test, lint, status, review, confirm, drain, ...), a session runs exactly that subcommand, as the user would type it; never a hand-built equivalent (`uv run pytest`, `uv run python -m chupa ...`, ad-hoc scripts). A missing command becomes a new `./dev.py` subcommand. Give commands for the user in a copy/paste code block.
+  Why: one memorable command surface; hand-built command lines drift from what the user runs.
 - **Instance first, cause captured.** A reported problem gets the minimal unblock first, and a separately filed cause ticket in the same session. (section 14)
   Why: unblocking without capturing the cause guarantees a repeat.
 - **Git session safety.**

@@ -49,6 +49,8 @@ Every rule below is behavioral (no gate checks it yet): the prose is the only en
   Why: folded fixes blow scope and hide cause. (section 11)
 - **Read before write.** No command, claim, or test is written until the artifact that owns that fact has been read.
   Why: guessed facts are the cheapest bug to write and the costliest to find. (section 13)
+- **Verification uses `./dev.py test`.** A ticket's `## Verification` and acceptance criteria run tests as `./dev.py test [pytest args]`, never raw `uv run pytest`.
+  Why: one command surface for people and tickets; nothing chose the raw form, it was copied ticket to ticket.
 - **Use the injectable seams.** Clock, process exec, filesystem, and notifications go through their seams; never called raw in engine code.
   Why: fake-driven tests and group-kill guarantees exist only at the seam. (section 15)
 - **Fenced by gates, not jailed.** v1 does not sandbox executed code; never rely on its goodwill. Never pass a provider key to a process that does not need it.
