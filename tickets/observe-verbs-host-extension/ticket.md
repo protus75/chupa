@@ -24,6 +24,8 @@ kind: feature
 - tests/test_watch.py
 - docs/how-chupa-works.md
 - docs/host-contract.md
+- docs/host-running.md
+- tests/test_host_running.py
 
 ## Goal / Why
 The `vscode-chupa` extension and `watch` work only in the chupa checkout:
@@ -71,6 +73,7 @@ After this change:
   - `docs/how-chupa-works.md` section 2.1: `watch` and `snapshot` rows.
   - Section 2.2: the `watch` row.
   - `docs/host-contract.md`: the extension and `chupa.command`.
+  - `docs/host-running.md` verb table: `watch` and `snapshot` rows (both work while serve runs: Yes), which `tests/test_host_running.py::test_verb_table_matches_parser` requires.
 - Out: engine behavior, the extension's views, colors and menu conditions, and host repos' own files (fungo's `scripts/watch` is the host's to drop).
 
 ## Scope fence
@@ -85,13 +88,14 @@ After this change:
 - tests/test_watch.py
 - docs/how-chupa-works.md
 - docs/host-contract.md
+- docs/host-running.md
 
 ## Acceptance criteria
 1. `./dev.py test tests/test_watch.py` exits 0, including `test_snapshot_verb_reads_config_state_dir`.
 2. `test_observe_verbs_take_no_lock_and_write_nothing` passes: with the lock held elsewhere, both verbs exit 0 instead of refusing on the held lock, and the state dir is byte-identical, not changed by a written `queue.json` or journal segment.
 3. `watch.py` and `vscode-chupa/snapshot.py` no longer exist. `grep -rn "dev.py\|\.chupa/state" vscode-chupa/` prints nothing.
 4. `node --check vscode-chupa/extension.js` exits 0.
-5. `docs/how-chupa-works.md` sections 2.1 and 2.2, and `docs/host-contract.md`, describe `watch`, `snapshot`, and `chupa.command`.
+5. `docs/how-chupa-works.md` sections 2.1 and 2.2, and `docs/host-contract.md`, describe `watch`, `snapshot`, and `chupa.command`; `docs/host-running.md`'s verb table has `watch` and `snapshot` rows.
 6. `./dev.py test` exits 0.
 
 ## Verification
