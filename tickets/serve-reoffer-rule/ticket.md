@@ -8,6 +8,9 @@ kind: bug
 ## Depends on
 - shared-hold-rule
 
+## Runs before
+- tests-split
+
 ## Context
 - chupa/drain.py
 - chupa/scheduler.py
