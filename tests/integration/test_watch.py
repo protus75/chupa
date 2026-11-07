@@ -274,10 +274,11 @@ def test_snapshot_badge(tmp_path, monkeypatch):
     assert snap["counts"] == {"blocked": 1, "queued": 1, "running": 1, "merged": 1}  # All four categories must be represented.
     assert snap["badge"] == {"value": 2, "tooltip": "1 running, 1 queued"}  # Merged and blocked rows must not count.
     monkeypatch.setattr(watch, "lock_holder", lambda state: None)
-    assert watch.snapshot(ctx)["badge"] is None  # A dead engine must not show queued work.
+    assert watch.snapshot(ctx)["badge"] == {"value": 2, "tooltip": "engine stopped: 1 blocked, 1 queued"}  # Running and merged rows must not count.
+    tickets.clear()
+    assert watch.snapshot(ctx)["badge"] is None  # Running and merged rows alone must not produce a zero badge.
     monkeypatch.setattr(watch, "lock_holder", lambda state: datetime.fromisoformat("2025-12-31T00:00:00+00:00"))
     monkeypatch.setattr(watch, "running_stems", lambda *args: [])
-    tickets.clear()
     assert watch.snapshot(ctx)["badge"] is None  # An alive engine with no work must not show zero.
 
 

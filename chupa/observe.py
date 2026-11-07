@@ -617,8 +617,9 @@ def snapshot(ctx) -> dict:
                          "path": str(path.relative_to(ctx.root.resolve())) if path.is_relative_to(ctx.root.resolve()) else None, "link": link})
     box_counts = {kind: sum(m.status == "pending" if kind == "pending" else m.resolution is not None and m.resolution.kind == ("ticket" if kind == "author" else kind) for m in messages) for kind in ("pending", "author", "tombstone", "declined")}
     counts = {section: sum(r["section"] == section for r in rows) for section in ("blocked", "queued", "running", "merged")}
-    total = counts["queued"] + counts["running"]
-    badge = {"value": total, "tooltip": f'{counts["running"]} running, {counts["queued"]} queued'} if alive and total else None
+    total = counts["queued"] + counts["running" if alive else "blocked"]
+    tooltip = f'{counts["running"]} running, {counts["queued"]} queued' if alive else f'engine stopped: {counts["blocked"]} blocked, {counts["queued"]} queued'
+    badge = {"value": total, "tooltip": tooltip} if total else None
     return {
         "badge": badge,
         "box": box_rows,

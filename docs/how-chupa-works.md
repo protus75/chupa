@@ -103,7 +103,7 @@ Choose New extension for the first release and the extension's Update action for
 The Marketplace refuses a version it already holds.
 
 `vscode-chupa/` is an operator-only VS Code extension: an Activity Bar view of every ticket as an
-SCM-style graph (blocked, queued, running, merged) with a detail pane. Its Activity Bar badge shows the queued and running ticket count while the engine is alive and the count is nonzero. The Tickets view's `?`
+SCM-style graph (blocked, queued, running, merged) with a detail pane. Its Activity Bar badge shows the queued and running ticket count while the engine is alive, or the blocked and queued count while it is stopped, and is hidden when the count is zero. The Tickets view's `?`
 button opens `vscode-chupa/media/ticket-lifecycle.svg`, a hand-drawn diagram of ticket states.
 The Tickets view’s Engine… picker runs drain, serve, stop, kill, status, or retro. Its start/stop icon follows the snapshot engine flag; `chupa.playAction` selects drain or serve for starting. Open config.yaml opens the snapshot’s `configPath`. Recent Steps opens each step’s file. The collapsed Stats view shows health figures for the window configured by `chupa.statsWindow` (default `7d`). The Suggestion Box view lists messages, supports multi-selection and manual triage or dismissal, and shows message details alongside tickets. `chupa snapshot` builds its data read-only from the configured host state and `order_tickets`, holding tickets awaiting an operator and those held by the drain's `parked_blob` rule; `chupa/graph.py` computes the graph layout for the extension to draw. The engine never runs the extension.
 
