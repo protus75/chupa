@@ -1,34 +1,41 @@
-#!/usr/bin/env python3
-"""Live view of the running drain: the ticket, its step, and what this drain has done. Read-only.
+"""Read-only host observations for the CLI and extension."""
 
-    ./dev.py watch           refresh every 3 seconds until Ctrl-C
-    ./dev.py watch --once    print one snapshot
-
-Reads the journal and engine log under the config's state_dir; writes nothing and takes no lock.
-Runs in the chupa venv so dependency status comes from the engine's own rule (`settled_dependencies`).
-"""
-
-import argparse
+import asyncio
 import json
 import os
 import re
-import subprocess
-import time
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
+from chupa.drain import RETIRED, authored_at, order_tickets
+from chupa.graph import layout
 from chupa.rework import settled_dependencies
+from chupa.tickets import TicketInvalid, parse_ticket
 
-ROOT = Path(__file__).resolve().parent
 # A stage the engine log records; Check and merge are mechanical and leave no stage events.
 STEP_NAMES = {"implement": "Implement", "review": "Review", "diagnose": "Diagnose", "rework": "Rework", "retro": "Retro", "triage": "Triage", "author": "Author"}
 SETTLED = {"merged", "already_satisfied"}
 
 
-def state_dir() -> Path:
-    match = re.search(r"^state_dir:\s*(\S+)", (ROOT / "config.yaml").read_text(), re.M)
-    return ROOT / (match.group(1) if match else ".chupa/state")
+@dataclass(frozen=True)
+class Context:
+    root: Path
+    state: Path
+    config: Path
+    exec: object
+    git: object
+    env: object
+
+
+def process_output(ctx, *args):
+    _, out, _ = asyncio.run(ctx.exec.run(args, cwd=ctx.root, env=ctx.env, timeout=30))
+    return out
+
+
+def git_output(ctx, *args):
+    return asyncio.run(ctx.git._run(ctx.root, *args))
 
 
 def local(ts: str) -> datetime:
@@ -44,8 +51,8 @@ def ago(ts: str) -> str:
     return f"{seconds // 60}m{seconds % 60:02d}s"
 
 
-def processes() -> list[tuple[int, int, str]]:
-    out = subprocess.run(["ps", "-eo", "pid=,ppid=,args="], capture_output=True, text=True).stdout
+def processes(ctx) -> list[tuple[int, int, str]]:
+    out = process_output(ctx, "ps", "-eo", "pid=,ppid=,args=")
     rows = []
     for line in out.splitlines():
         pid, ppid, *args = line.split(None, 2)
@@ -53,8 +60,8 @@ def processes() -> list[tuple[int, int, str]]:
     return rows
 
 
-def started(pid: int) -> datetime:
-    text = subprocess.run(["ps", "-o", "lstart=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
+def started(ctx, pid: int) -> datetime:
+    text = process_output(ctx, "ps", "-o", "lstart=", "-p", str(pid)).strip()
     return datetime.strptime(text, "%a %b %d %H:%M:%S %Y").astimezone()
 
 
@@ -90,16 +97,16 @@ def running_stems(state: Path, last_state: dict[str, dict]) -> list[str]:
     return [s for s, b in last_state.items() if b.get("to") == "running" and datetime.fromisoformat(b["ts"]) >= since]
 
 
-def this_repo(pid: int, config: str | None) -> bool:
+def this_repo(ctx, pid: int, config: str | None) -> bool:
     """Whether a drain runs against this checkout: its --config is ours, or it has none and runs here."""
     try:
         cwd = Path(os.readlink(f"/proc/{pid}/cwd"))
     except OSError:
         return False
-    return (cwd / config).resolve() == ROOT / "config.yaml" if config else cwd.resolve() == ROOT
+    return (cwd / config).resolve() == ctx.config if config else cwd.resolve() == ctx.root and ctx.config == ctx.root / "config.yaml"
 
 
-def drain_processes(rows: list[tuple[int, int, str]]) -> list[int]:
+def drain_processes(ctx, rows: list[tuple[int, int, str]]) -> list[int]:
     """This repo's engine drain processes, oldest first; a self-upgrade re-exec leaves its parent waiting on the child.
 
     Another host's drain also runs `python -m chupa --config <its config> drain` from this venv.
@@ -107,9 +114,9 @@ def drain_processes(rows: list[tuple[int, int, str]]) -> list[int]:
     pids = []
     for pid, _, args in rows:
         match = re.match(r"\S*python3? -m chupa (?:--config (\S+) )?drain\b", args)
-        if match and this_repo(pid, match.group(1)):
+        if match and this_repo(ctx, pid, match.group(1)):
             pids.append(pid)
-    return sorted(pids, key=started)
+    return sorted(pids, key=lambda pid: started(ctx, pid))
 
 
 def live_call(rows: list[tuple[int, int, str]], root: int) -> str:
@@ -147,10 +154,10 @@ def frontmatter(path: Path) -> dict[str, str]:
     return dict(re.findall(r"^(\w+):\s*\"?([^\"\n]+)\"?\s*$", head, re.M))
 
 
-def capability(events: list[dict], stem: str, surface: str) -> str:
+def capability(ctx, events: list[dict], stem: str, surface: str) -> str:
     """Tier/effort chupa asked for: Implement uses the ticket (or its escalation rung); other steps use their spec."""
     if surface != "implement":
-        meta = frontmatter(ROOT / "chupa" / "specs" / f"{surface}.md")
+        meta = frontmatter(Path(__file__).parent / "specs" / f"{surface}.md")
         return f"{meta.get('tier', '?')}/{meta.get('effort', '?')}" if meta else ""
     window = events
     for i, e in enumerate(events):
@@ -160,7 +167,7 @@ def capability(events: list[dict], stem: str, surface: str) -> str:
     rung = next((e["body"]["rung"] for e in reversed(window) if e.get("type") == "cap_consumed" and e.get("ticket") == stem and e["body"].get("cap") == "retry" and "rung" in e["body"]), None)
     if rung:
         return f"{rung['tier']}/{rung['effort']} (escalated)"
-    meta = frontmatter(ROOT / "tickets" / stem / "ticket.md")
+    meta = frontmatter(ctx.root / "tickets" / stem / "ticket.md")
     return f"{meta.get('agent_tier', 'medium')}/{meta.get('agent_effort', 'medium')}"
 
 
@@ -223,14 +230,14 @@ def held(events: list[dict]) -> set[str]:
     return {s for s in waiting if terminals[s].get("to") not in SETTLED}
 
 
-def queue(events: list[dict], last_state: dict[str, dict], running: set[str]) -> list[tuple[str, str, str]]:
+def queue(ctx, events: list[dict], last_state: dict[str, dict], running: set[str]) -> list[tuple[str, str, str]]:
     """Every confirmed ticket not yet settled, rejected, or running: (priority, stem, why it is waiting)."""
     done = SETTLED | {"rejected"}
     waiting_on_person = held(events)
     # A dependency is met when it, or every leaf of the split that superseded it, settled: the drain's own test.
     settled = settled_dependencies(SimpleNamespace(type=e.get("type"), body=e.get("body", {}), ticket=e.get("ticket"), ts=e.get("ts")) for e in events)
     rows = []
-    for path in sorted((ROOT / "tickets").glob("*/ticket.md")):
+    for path in sorted((ctx.root / "tickets").glob("*/ticket.md")):
         stem, meta = path.parent.name, frontmatter(path)
         last = last_state.get(stem, {}).get("to")
         if meta.get("state") != "confirmed" or last in done or stem in running:
@@ -250,7 +257,7 @@ def queue(events: list[dict], last_state: dict[str, dict], running: set[str]) ->
         rows.append((meta.get("priority", "P2"), stem, why))
     rows.sort()
     try:
-        view = json.loads((state_dir() / "queue.json").read_text())
+        view = json.loads((ctx.state / "queue.json").read_text())
     except FileNotFoundError:
         return rows
     by_stem = {row[1]: row for row in rows}
@@ -285,18 +292,18 @@ def recent_steps(state: Path, log: list[dict], limit: int) -> list[dict]:
     return sorted(rows, key=lambda row: row["ts"], reverse=True)[:limit]
 
 
-def snapshot() -> str:
-    state = state_dir()
+def text_snapshot(ctx) -> str:
+    state = ctx.state
     events = journal(state)
-    log = read_lines(state / "engine.log", 4000)
-    rows = processes()
-    drains = drain_processes(rows)
+    log = read_lines(state / "engine.log", 4000) if (state / "engine.log").exists() else []
+    rows = processes(ctx)
+    drains = drain_processes(ctx, rows)
     lines = [f"chupa watch  {datetime.now().astimezone().strftime('%-I:%M:%S %p')}", ""]
     if not drains:
         lines.append("Drain: not running")
         since = None
     else:
-        since = started(drains[0])
+        since = started(ctx, drains[0])
         restarts = f", restarted {len(drains) - 1}x on new engine code" if len(drains) > 1 else ""
         lines.append(f"Drain: running since {since.strftime('%-I:%M %p')} (pid {drains[-1]}{restarts})")
     last_state: dict[str, dict] = {}
@@ -312,7 +319,7 @@ def snapshot() -> str:
             when = f" for {ago(began)} (since {clock(began)})" if began else ""
             lines.append(f"Now: {stem}  attempt {attempt + 1}  step: {step}{when}")
             if surface:
-                lines.append(f"     asked for tier/effort {capability(events, stem, surface)}")
+                lines.append(f"     asked for tier/effort {capability(ctx, events, stem, surface)}")
                 model = live_call(rows, drains[-1]) if drains else ""
                 lines.append(f"     model: {model or 'no model call running'}")
             else:
@@ -330,7 +337,7 @@ def snapshot() -> str:
             lines.append(f"  {clock(body['ts'])}  {stem}  {outcome}")
         if not done:
             lines.append("  (nothing finished yet)")
-    pending = queue(events, last_state, set(running))
+    pending = queue(ctx, events, last_state, set(running))
     lines += ["", f"Queue ({len(pending)} to do):"]
     lines += [f"  {priority}  {stem}  {why}" for priority, stem, why in pending] or ["  (empty)"]
     recent = recent_steps(state, log, 8)
@@ -342,20 +349,191 @@ def snapshot() -> str:
     return "\n".join(lines)
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--once", action="store_true", help="print one snapshot and exit")
-    args = parser.parse_args()
-    if args.once:
-        print(snapshot())
-        return
-    try:
-        while True:
-            print("\033[2J\033[H" + snapshot(), flush=True)
-            time.sleep(3)
-    except KeyboardInterrupt:
-        pass
+# Recent Steps keeps more history than watch's 8 because its view scrolls.
+STEPS = 40
 
 
-if __name__ == "__main__":
-    main()
+def load_tickets(ctx, skip: set[str]) -> tuple[dict, dict]:
+    """Full engine parse of unsettled tickets only."""
+    parsed, invalid = {}, {}
+    for path in sorted((ctx.root / "tickets").glob("*/ticket.md")):
+        stem = path.parent.name
+        if stem in skip:
+            continue
+        try:
+            parsed[stem] = parse_ticket(stem, path.read_text(), ctx.root)
+        except TicketInvalid as e:
+            invalid[stem] = str(e).splitlines()[0] if str(e) else "invalid ticket"
+    return parsed, invalid
+
+
+def simulate(candidates: dict, done: set[str], authored: dict, *, strict: bool) -> list:
+    """Pick tickets one at a time the way the drain does; strict stops when nothing is eligible."""
+    order, done, remaining = [], set(done), dict(candidates)
+    while remaining:
+        if strict:
+            eligible = [t for t in remaining.values() if set(t.depends) <= done]
+        else:
+            # Unblocked view: a dependency outside the blocked set (rejected, missing) no longer holds anything back.
+            eligible = [t for t in remaining.values() if all(d in done or d not in remaining for d in t.depends)]
+        if not eligible:
+            if strict:
+                break
+            eligible = list(remaining.values())  # a depends cycle among blocked tickets: still list them
+        pick = order_tickets(eligible, authored)[0]
+        order.append(pick)
+        done.add(pick.stem)
+        del remaining[pick.stem]
+    return order
+
+
+def uncommitted_tickets(ctx) -> tuple[set[str], set[str]]:
+    """(stems whose ticket.md differs from HEAD or is untracked, stems never committed): not yet on the ticket plane."""
+    out = git_output(ctx, "status", "--porcelain", "--", "tickets")
+    dirty, new = set(), set()
+    for line in out.splitlines():
+        code, path = line[:2], line[3:]
+        # `tickets/<stem>/ticket.md` changed, or the whole `tickets/<stem>/` dir is untracked.
+        if path.endswith("/ticket.md") or (path.endswith("/") and len(Path(path).parts) == 2):
+            dirty.add(Path(path).parts[1])
+            if code == "??":
+                new.add(Path(path).parts[1])
+    return dirty, new
+
+
+def committed_ticket_shas(ctx) -> dict[str, str]:
+    """Each stem's committed ticket.md blob: the content a `requisition_verdict` approves by `ticket_sha`."""
+    out = git_output(ctx, "ls-tree", "-r", "HEAD", "--", "tickets")
+    shas = {}
+    for line in out.splitlines():
+        meta, path = line.split("\t", 1)
+        if path.endswith("/ticket.md"):
+            shas[Path(path).parts[1]] = meta.split()[2]
+    return shas
+
+
+def commits(ctx) -> dict[str, dict]:
+    out = git_output(ctx, "log", "--format=%H%x1f%h%x1f%an%x1f%aI%x1f%s", "main")
+    rows = {}
+    for line in out.splitlines():
+        sha, short, author, date, subject = line.split("\x1f", 4)
+        rows[sha] = {"sha": sha, "short": short, "author": author, "date": date, "subject": subject}
+    return rows
+
+
+def snapshot(ctx) -> dict:
+    state = ctx.state
+    events = journal(state, limit=10**7)
+    log = read_lines(state / "engine.log", 4000) if (state / "engine.log").exists() else []
+    last: dict[str, dict] = {}
+    for e in events:
+        if e.get("type") == "state_transition" and e.get("ticket"):
+            last[e["ticket"]] = {**e["body"], "ts": e["ts"]}
+    tickets, invalid = load_tickets(ctx, {s for s, b in last.items() if b.get("to") in SETTLED | RETIRED})
+    history = [SimpleNamespace(type=e.get("type"), body=e.get("body", {}), ticket=e.get("ticket"), ts=e.get("ts")) for e in events]
+    authored = authored_at(history)
+    # The drain's own test: a dependency is met when it, or every leaf of the split that superseded it, settled.
+    settled = set(settled_dependencies(history))
+    held_stems = held(events)
+
+    def to(stem: str) -> str | None:
+        return last.get(stem, {}).get("to")
+
+    merged = sorted((s for s in last if to(s) in SETTLED), key=lambda s: last[s]["ts"], reverse=True)
+    alive = lock_holder(state) is not None
+    running = running_stems(state, last)
+    open_ = {s: t for s, t in tickets.items() if to(s) not in SETTLED | RETIRED and s not in running and t.frontmatter.state not in ("rejected", "merged")}
+    runnable = {s: t for s, t in open_.items() if t.frontmatter.state == "confirmed" and s not in held_stems}
+    queued = simulate(runnable, settled | set(running), authored, strict=True)
+    queued_stems = {t.stem for t in queued}
+    blocked = simulate({s: t for s, t in open_.items() if s not in queued_stems}, settled | set(running) | queued_stems, authored, strict=False)
+    blocked_stems = {t.stem for t in blocked}
+
+    dirty, new = uncommitted_tickets(ctx)
+    blobs = committed_ticket_shas(ctx)
+    verdicts: dict[str, dict[str, str]] = {}  # stem -> ticket_sha -> last verdict for that content
+    for e in events:
+        body = e.get("body", {})
+        if e.get("type") == "signal" and body.get("signal") == "requisition_verdict" and e.get("ticket"):
+            verdicts.setdefault(e["ticket"], {})[body.get("ticket_sha")] = body.get("verdict")
+
+    def review(stem: str) -> str:
+        """The buildability review for the ticket's current committed text; the drain reviews before a first run."""
+        if stem in new or stem not in blobs:
+            return "not reviewed: reviewed before its first run, once committed"
+        verdict = verdicts.get(stem, {}).get(blobs[stem])
+        if verdict == "approve":
+            return "approved"
+        if verdict:
+            return f"{verdict} on this text: edit the ticket to address the findings"
+        if verdicts.get(stem):
+            return "approved an earlier version: re-reviewed before it runs"
+        return "not reviewed: reviewed before its first run"
+
+    def why_blocked(t) -> str:
+        if t.stem in new:
+            return "new: confirmed by next intake"  # human intake auto-confirms a new hand-written ticket
+        if t.frontmatter.state != "confirmed":
+            return t.frontmatter.state
+        if t.stem in held_stems:
+            spent = next((e["body"].get("mechanical") for e in reversed(events) if e.get("ticket") == t.stem and e.get("body", {}).get("signal") == "diagnosis"), None)
+            return f"held: {spent}" if spent else f"held (last: {to(t.stem)})"
+        waits = [d for d in t.depends if d not in settled]
+        return "waits on " + ", ".join(waits) if waits else "not eligible"
+
+    def why_queued(t) -> str:
+        if to(t.stem) == "running":
+            return "interrupted: the engine stopped mid-run; reruns when it restarts"
+        if to(t.stem) is not None:
+            return f"retry pending (last: {to(t.stem)})"
+        waits = [d for d in t.depends if d not in settled]
+        return "after " + ", ".join(waits) if waits else "ready"
+
+    def base(stem: str, section: str, status: str) -> dict:
+        t, path = tickets.get(stem), ctx.root / "tickets" / stem / "ticket.md"
+        return {
+            "stem": stem,
+            "section": section,
+            "status": status,
+            "priority": t.frontmatter.priority if t else frontmatter(path).get("priority", ""),
+            "depends": list(t.depends) if t else depends(path) if path.exists() else [],
+            "goal": t.sections.get("Goal / Why", "") if t else "",
+            "runsBefore": list(t.runs_before) if t else [],
+            "path": f"tickets/{stem}/ticket.md",
+            "held": stem in held_stems,
+            # Only a committed draft awaits `chupa confirm`; intake confirms a new hand-written one itself.
+            "draft": bool(t) and t.frontmatter.state == "draft" and stem not in new,
+            # A committed draft can be confirmed while another process holds the lock; an uncommitted one cannot.
+            "committed": stem not in dirty,
+            # What `chupa run` accepts: confirmed, every dependency settled (it also needs the lock).
+            "runnable": bool(t) and t.frontmatter.state == "confirmed" and set(t.depends) <= settled,
+            "review": review(stem) if section != "merged" else "",
+        }
+
+    rows = [base(t.stem, "blocked", why_blocked(t)) for t in reversed(blocked)]
+    rows += [{**base(stem, "blocked", "invalid: " + why), "goal": ""} for stem, why in sorted(invalid.items()) if to(stem) not in SETTLED | RETIRED and stem not in running]
+    rows += [base(t.stem, "queued", why_queued(t)) for t in reversed(queued)]
+    for stem in running:
+        step, began, _ = current_step(log, stem)
+        rows.append(base(stem, "running", f"running: {step}" + (f" for {ago(began)}" if began else "")))
+    log_rows = commits(ctx)
+    for stem in merged:
+        body = last[stem]
+        row = base(stem, "merged", "merged" if body["to"] == "merged" else body["to"].replace("_", " "))
+        row["commit"] = log_rows.get(body.get("commit", ""))
+        row["mergedAt"] = body["ts"]
+        rows.append(row)
+    shown = {r["stem"] for r in rows}
+    for r in rows:
+        r["depends"] = [d for d in r["depends"] if d in shown]
+    for row, graph in zip(rows, layout(rows)):
+        row["graph"] = graph
+    steps = recent_steps(state, log, STEPS)
+    return {
+        "stateDir": str(state.resolve()),
+        "at": datetime.now().astimezone().isoformat(),
+        "engine": alive,
+        "rows": rows,
+        "steps": steps,
+        "blockedCount": len(blocked_stems) + len(invalid),
+    }

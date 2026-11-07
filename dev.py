@@ -98,9 +98,8 @@ def main() -> None:
             child = subprocess.Popen(["uv", "run", "python", "-m", "chupa", "drain"], cwd=ROOT, start_new_session=True, stdin=subprocess.DEVNULL, stdout=stream, stderr=stream)
         print(f"dev: drain pid {child.pid}, output {output}")
     elif args.task == "watch":
-        # watch.py is read-only and imports the engine's rules, so it runs in the uv environment; Ctrl-C is a normal exit.
         try:
-            subprocess.run(["uv", "run", "python", str(ROOT / "watch.py"), *(["--once"] if args.once else [])], cwd=ROOT)
+            chupa("watch", *(["--once"] if args.once else []))
         except KeyboardInterrupt:
             pass
     elif args.task == "publish":

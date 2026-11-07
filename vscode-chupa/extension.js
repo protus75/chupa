@@ -5,11 +5,11 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
 
-// The chupa checkout: the first workspace folder holding watch.py and this extension's snapshot script.
+// The first workspace folder containing tickets.
 function chupaRoot() {
 	return (vscode.workspace.workspaceFolders ?? [])
 		.map(f => f.uri.fsPath)
-		.find(p => fs.existsSync(path.join(p, 'watch.py')) && fs.existsSync(path.join(p, 'vscode-chupa', 'snapshot.py')));
+		.find(p => fs.existsSync(path.join(p, 'tickets')) && fs.statSync(path.join(p, 'tickets')).isDirectory());
 }
 
 function openTicket(rel) {
@@ -21,15 +21,22 @@ function openTicket(rel) {
 
 const STEM = /^[a-z0-9][a-z0-9-]{1,63}$/;
 
-// Engine commands run in one shared terminal so their output (and any refusal) stays visible.
+function command(root) {
+	return vscode.workspace.getConfiguration('chupa', vscode.Uri.file(root)).get('command');
+}
+
+function runData(root, args, options, callback) {
+	const [binary, ...prefix] = command(root);
+	execFile(binary, [...prefix, ...args], { cwd: root, ...options }, callback);
+}
+
 function devCommand(...args) {
 	const root = chupaRoot();
-	if (!root || !args.every(a => STEM.test(a))) {
-		return;
-	}
-	const terminal = vscode.window.terminals.find(t => t.name === 'chupa') ?? vscode.window.createTerminal({ name: 'chupa', cwd: root });
-	terminal.show(true);
-	terminal.sendText(`./dev.py ${args.join(' ')}${['confirm', 'reject'].includes(args[0]) ? ' --yes' : ''}`);
+	if (!root || !args.every(a => STEM.test(a))) return;
+	const [binary, ...prefix] = command(root);
+	const argv = [...prefix, ...args, ...(['confirm', 'reject'].includes(args[0]) ? ['--yes'] : [])];
+	const task = new vscode.Task({ type: 'chupa' }, vscode.workspace.getWorkspaceFolder(vscode.Uri.file(root)), args.join(' '), 'chupa', new vscode.ProcessExecution(binary, argv, { cwd: root }));
+	vscode.tasks.executeTask(task);
 }
 
 async function orderTicket(ctx, snapshot, field) {
@@ -48,7 +55,7 @@ async function orderTicket(ctx, snapshot, field) {
 		if (!selected) return;
 		args = ['--runs-before', ...selected.map(item => item.label)];
 	}
-	execFile('./dev.py', ['order', row.stem, ...args], { cwd: root }, (err, stdout, stderr) => {
+	runData(root, ['order', row.stem, ...args], {}, (err, stdout, stderr) => {
 		if (err) vscode.window.showErrorMessage((stderr || err.message).trim());
 		else snapshot.refresh();
 	});
@@ -61,13 +68,13 @@ function askClaude(ctx, task) {
 	const stem = ctx?.chupaStem;
 	if (!root || !stem || !STEM.test(stem)) return;
 	const kind = task === 'diagnose' && ctx.chupaSection === 'running' ? 'running' : task;
-	execFile('uv', ['run', 'python', '-m', 'chupa', 'prompt', kind, stem], { cwd: root }, (err, stdout, stderr) => {
+	runData(root, ['prompt', kind, stem], {}, (err, stdout, stderr) => {
 		if (err) vscode.window.showErrorMessage((stderr || err.message).trim());
 		else vscode.env.openExternal(vscode.Uri.parse(`${vscode.env.uriScheme}://anthropic.claude-code/open?prompt=${encodeURIComponent(stdout)}`));
 	});
 }
 
-// One snapshot.py run feeds every view; it runs only while at least one view is visible.
+// One snapshot run feeds every view; it runs only while at least one view is visible.
 class Snapshot {
 	constructor() {
 		this.snap = undefined;
@@ -88,12 +95,11 @@ class Snapshot {
 		}
 		const root = chupaRoot();
 		if (!root) {
-			this.publish(undefined, 'no workspace folder holds watch.py and vscode-chupa/snapshot.py');
+			this.publish(undefined, 'no workspace folder holds tickets/');
 			return;
 		}
 		this.running = true;
-		const python = path.join(root, '.venv', 'bin', 'python');
-		execFile(python, [path.join(root, 'vscode-chupa', 'snapshot.py')], { cwd: root, timeout: 30000, maxBuffer: 64 * 1024 * 1024 }, (err, stdout, stderr) => {
+		runData(root, ['snapshot'], { timeout: 30000, maxBuffer: 64 * 1024 * 1024 }, (err, stdout, stderr) => {
 			this.running = false;
 			if (err) {
 				this.publish(this.snap, (stderr || err.message).trim().split('\n').pop());
@@ -271,14 +277,26 @@ function activate(context) {
 	};
 	const root = chupaRoot();
 	if (root) {
-		for (const glob of ['.chupa/state/{journal/*.jsonl,queue.json,engine.log}', 'tickets/*/ticket.md']) {
-			const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(root, glob));
+		const watch = (base, glob) => {
+			const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(base, glob));
 			watcher.onDidChange(soon);
 			watcher.onDidCreate(soon);
 			watcher.onDidDelete(soon);
 			context.subscriptions.push(watcher);
-		}
+			return watcher;
+		};
+		watch(root, 'tickets/*/ticket.md');
+		let stateWatcher, stateDir;
+		snapshot.listeners.push(() => {
+			const next = snapshot.snap?.stateDir;
+			if (next && next !== stateDir) {
+				stateWatcher?.dispose();
+				stateDir = next;
+				stateWatcher = watch(next, '{journal/*.jsonl,queue.json,engine.log}');
+			}
+		});
 	}
+
 	// The running step's elapsed time moves without any file changing; 0 seconds leaves only file-change refreshes.
 	let tick;
 	const schedule = () => {

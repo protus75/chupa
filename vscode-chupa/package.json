@@ -10,7 +10,7 @@
 	},
 	"main": "./extension.js",
 	"activationEvents": [
-		"workspaceContains:watch.py"
+		"workspaceContains:tickets/*/ticket.md"
 	],
 	"contributes": {
 		"viewsContainers": {
@@ -46,6 +46,13 @@
 		"configuration": {
 			"title": "chupa",
 			"properties": {
+				"chupa.command": {
+					"type": "array",
+					"items": { "type": "string" },
+					"scope": "resource",
+					"default": ["uv", "run", "python", "-m", "chupa"],
+					"description": "Command and arguments used to run chupa in this workspace."
+				},
 				"chupa.refreshSeconds": {
 					"type": "number",
 					"default": 15,

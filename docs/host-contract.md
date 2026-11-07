@@ -49,6 +49,10 @@ engine_plane_safety_inventory: [config.yaml, chupa/specs/, chupa/gates.py]
 # context_files: [docs/architecture.md]
 ```
 
+## VS Code extension
+
+The `vscode-chupa` extension activates in a workspace containing `tickets/` and uses the first such folder. Set the resource-scoped `chupa.command` array to the host invocation, for example `["scripts/chupa"]`; its default is `["uv", "run", "python", "-m", "chupa"]`. The extension calls `snapshot` for its read-only view and watches the returned state directory. `chupa watch [--once]` provides the same host observation as text. Both verbs work while the engine holds its lock.
+
 ## Python host test setup
 
 Merge this block into the example configuration, replacing the package placeholder in the

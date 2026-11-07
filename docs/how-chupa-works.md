@@ -39,6 +39,8 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 
 | Verb | Lock | What it does |
 |---|---|---|
+| `watch [--once]` | no | Prints a live text view of the configured host state, refreshing every three seconds unless `--once` is supplied. |
+| `snapshot` | no | Prints the extension snapshot as JSON, including the absolute state directory. |
 | `status` | no | Prints the journal projection (section 10.3). Read-only. |
 | `stats [--window W] [--json]` | no | Prints a read-only health and efficiency projection over a time or ticket window (default `7d`); it is not an authority. |
 | `lint [stem ...]` | no | Validates ticket grammar, intake claims, and committable bug evidence without running tickets or writing files, journal events, or git state. With no stems, checks every ticket except those settled or rejected in the journal; with no journal, checks all tickets. Prints each finding and its fix, then `lint: <valid>/<total> tickets valid`. Exits 0 when valid, 1 for findings, or 2 for a missing named ticket or unreadable tickets directory. |
@@ -78,15 +80,14 @@ Each test has a 120-second hard limit.
 | `status`, `serve`, `kill`, `stop` | the matching chupa verb |
 | `drain` | runs `chupa drain` detached and appends output to `<state_dir>/drain.out` |
 | `confirm STEM... [--yes]`, `reject STEM... [--yes]` | `chupa confirm` or `chupa reject` once per stem; a person at a terminal answers `y` for each stem unless `--yes` is passed |
-| `watch [--once]` | `watch.py` through `uv`: a read-only live view of this checkout's engine and the queue, using the engine's dependency rule |
+| `watch [--once]` | `chupa watch` through `uv`: a read-only live view of the engine and queue |
 | `publish` | builds and uploads the current release with `UV_PUBLISH_TOKEN` set (`./dev.py publish`) |
 | `vscode` | bumps the patch version in `vscode-chupa/package.json` (VS Code keeps an extension's old icon until its version changes), packages it with `npx @vscode/vsce`, and installs it with `code --install-extension --force`; reload the window to load it |
 
 `vscode-chupa/` is an operator-only VS Code extension: an Activity Bar view of every ticket as an
 SCM-style graph (blocked, queued, running, merged) with a detail pane. The Tickets view's `?`
 button opens `vscode-chupa/media/ticket-lifecycle.svg`, a hand-drawn diagram of ticket states.
-`vscode-chupa/snapshot.py`
-builds its data read-only from the journal, `watch.py`, and `order_tickets`; `chupa/graph.py` computes the graph layout for the extension to draw. The engine never runs the extension.
+`chupa snapshot` builds its data read-only from the configured host state and `order_tickets`; `chupa/graph.py` computes the graph layout for the extension to draw. The engine never runs the extension.
 
 ## 3. Tickets
 

@@ -6,18 +6,19 @@ The composition root: the only place real seams are constructed. Exit 2 is an en
 import argparse
 import asyncio
 import json
-import re
-
-import yaml
 import os
+import re
 import signal
 import subprocess
 import sys
+import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence, Set
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
+
+import yaml
 
 from chupa import ask, control, drain, hostfiles, requisition, runner, serve, triage
 from chupa.config import ConfigError, ConfigSnapshot, load_config, migrate_config
@@ -155,9 +156,7 @@ def build_daemon_core(
     return core
 
 
-def build_serve(
-    checkout: runner.Checkout, *, config_path=None, read=None, stems=None, prepare=runner.prepare_pipeline, signals=None, failure=None, argv=("serve",), reexec=None
-) -> serve.Serve:
+def build_serve(checkout: runner.Checkout, *, config_path=None, read=None, stems=None, prepare=runner.prepare_pipeline, signals=None, failure=None, argv=("serve",), reexec=None) -> serve.Serve:
     """Compose filesystem delivery at the same root as every other real seam."""
 
     def read_ticket(stem):
@@ -220,6 +219,8 @@ def _parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="python -m chupa", description="Host run guide: docs/host-running.md")
     ap.add_argument("--config", type=Path, help="config path (default: config.yaml at the checkout root)")
     sub = ap.add_subparsers(dest="verb", required=True)
+    sub.add_parser("watch", help="read-only live engine view").add_argument("--once", action="store_true")
+    sub.add_parser("snapshot", help="read-only JSON snapshot")
     sub.add_parser("status", help="project current state from the journal (read-only)")
     stats = sub.add_parser("stats", help="project journal health over a window (read-only)")
     stats.add_argument("--window", default="7d")
@@ -323,11 +324,27 @@ def main(
             config=config,
             env=env,
             exec_=exec_,
-            git=Git(exec_, env={**child_env(env, config), **({"GIT_OPTIONAL_LOCKS": "0"} if args.verb == "lint" else {})}, timeout=GIT_TIMEOUT_S),
+            git=Git(exec_, env={**child_env(env, config), **({"GIT_OPTIONAL_LOCKS": "0"} if args.verb in {"lint", "watch", "snapshot"} else {})}, timeout=GIT_TIMEOUT_S),
             journal=Journal(config.state_dir, clock),
             fs=LocalFileSystem(),
             clock=clock,
         )
+        if args.verb in {"watch", "snapshot"}:
+            from chupa import observe
+
+            context = observe.Context(repo.resolve(), config.state_dir.resolve(), (args.config or repo / "config.yaml").resolve(), exec_, checkout.git, child_env(env, config))
+            if args.verb == "snapshot":
+                print(json.dumps(observe.snapshot(context)))
+            elif args.once:
+                print(observe.text_snapshot(context))
+            else:
+                try:
+                    while True:
+                        print("\033[2J\033[H" + observe.text_snapshot(context), flush=True)
+                        time.sleep(3)
+                except KeyboardInterrupt:
+                    pass
+            return 0
         if args.verb == "stats":
             from chupa.stats import render_stats, window_start
 
@@ -575,7 +592,7 @@ async def _stats(checkout, events, now, window):
             data = yaml.safe_load(split[0]) if split else None
             if isinstance(data, dict) and data.get("kind") in {"feature", "bug", "chore"}:
                 kinds[stem] = data["kind"]
-        except (OSError, UnicodeError, yaml.YAMLError):
+        except OSError, UnicodeError, yaml.YAMLError:
             pass
     checks = {}
     for e in events:
@@ -696,7 +713,7 @@ def _order(checkout, stem, priority, runs_before):
     try:
         try:
             changed = order(text, priority=priority, runs_before=runs_before)
-        except (ValueError, StopIteration):
+        except ValueError, StopIteration:
             validate_ticket(stem, text, checkout.repo)
             raise runner.Refusal("ticket ordering fields cannot be edited", "use ordinary priority and section headings, then retry order") from None
         ticket = validate_ticket(stem, changed, checkout.repo)
