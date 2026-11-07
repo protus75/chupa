@@ -18,7 +18,6 @@ kind: feature
 - tests/test_box.py
 - tests/test_dev.py
 - tests/test_status.py
-- tickets/decisions
 
 ## On-demand
 - chupa/specs/triage.md
