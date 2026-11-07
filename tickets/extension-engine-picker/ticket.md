@@ -8,10 +8,15 @@ kind: feature
 ## Depends on
 - observe-verbs-host-extension
 
+## Runs before
+- tests-split
+
 ## Context
 - vscode-chupa/package.json
 - vscode-chupa/extension.js
 - chupa/__main__.py
+- chupa/observe.py
+- tests/test_watch.py
 - docs/how-chupa-works.md
 
 ## Goal / Why
@@ -39,7 +44,9 @@ After this change, one "Engine…" button in the Tickets view title opens a Quic
     - status: print the journal projection;
     - retro: run a retro report now (`chupa retro`), whatever the automatic triggers say.
 - In: a sixth picker item, "Retro (run now)", runs `retro`.
-- In: an "Open config.yaml" icon (`$(file-code)`, command `chupa.openConfig`) beside Settings in the Tickets `view/title` `navigation` group. It opens the repo's `config.yaml` in an editor. Retry caps, model mappings, and the `retro:` triggers live there; the extension keeps no copy of them.
+- In: `chupa/observe.py`: the snapshot gains `configPath`, the resolved `ctx.config` as a string.
+- In: `tests/test_watch.py`: a snapshot built with a non-default `--config` path has `configPath` equal to that path resolved.
+- In: an "Open config.yaml" icon (`$(file-code)`, command `chupa.openConfig`) beside Settings in the Tickets `view/title` `navigation` group. It opens the snapshot's `configPath` in an editor; the extension never builds the path itself. Retry caps, model mappings, and the `retro:` triggers live there; the extension keeps no copy of them.
 - In: picking an item runs `<chupa.command> <verb>` through the same interactive-action path that `observe-verbs-host-extension` uses for engine actions. Escape does nothing.
 - In: one start/stop icon in the Tickets `view/title` `navigation` group that follows the engine's state.
   - On every snapshot, `extension.js` sets the context key `chupa.engineRunning` with `setContext`, from the snapshot's engine flag.
@@ -50,23 +57,27 @@ After this change, one "Engine…" button in the Tickets view title opens a Quic
   - `chupa.stopRunning`, icon `$(debug-stop)`, titled "Stop after the running ticket", shown when `chupa.engineRunning`.
   - These three run `drain`, `serve`, and `stop` through the same path as the picker.
   - All five new commands are hidden from the command palette.
-- Out: `pause` and `resume`, a Kill icon (Kill stays in the picker only), the right-click ticket menu, and every engine verb.
+- Out: `pause` and `resume`, a Kill icon (Kill stays in the picker only), the right-click ticket menu, and every engine verb. No other snapshot field changes.
 
 ## Scope fence
 - vscode-chupa/package.json
 - vscode-chupa/extension.js
+- chupa/observe.py
+- tests/test_watch.py
 
 ## Acceptance criteria
 1. `node --check vscode-chupa/extension.js` exits 0.
 2. `vscode-chupa/package.json` parses as JSON. It declares `chupa.engine`, `chupa.playDrain`, `chupa.playServe`, `chupa.stopRunning`, and `chupa.openConfig` in the `view/title` menu, and the `chupa.playAction` setting. It no longer declares `chupa.drain`, `chupa.stop`, `chupa.kill`, or `chupa.status`.
 3. `grep -c "serve" vscode-chupa/extension.js` prints at least 1.
-4. `uv run pytest -q` exits 0.
+4. `./dev.py test tests/test_watch.py` exits 0, including the new `configPath` test.
+5. `./dev.py test` exits 0.
 
 ## Verification
 ```
 node --check vscode-chupa/extension.js
 uv run python -c "import json; c=json.load(open('vscode-chupa/package.json'))['contributes']; ids={x['command'] for x in c['commands']}; new={'chupa.engine','chupa.playDrain','chupa.playServe','chupa.stopRunning','chupa.openConfig'}; assert new <= ids and not ids & {'chupa.drain','chupa.stop','chupa.kill','chupa.status'}; assert new <= {m['command'] for m in c['menus']['view/title']}; assert 'chupa.playAction' in c['configuration']['properties']"
-uv run pytest -q
+./dev.py test tests/test_watch.py
+./dev.py test
 ```
 
 ## Definition of rejected
