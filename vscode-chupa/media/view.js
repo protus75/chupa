@@ -1,5 +1,5 @@
 'use strict';
-/* global acquireVsCodeApi, toViewModels, renderGraph */
+/* global acquireVsCodeApi, renderGraph */
 
 const vscode = acquireVsCodeApi();
 const list = document.getElementById('list');
@@ -47,46 +47,12 @@ function render(snap) {
 		counts[r.section] = (counts[r.section] ?? 0) + 1;
 	}
 	header.textContent = `engine ${snap.engine ? 'running' : 'stopped'} · ${counts.blocked ?? 0} blocked · ${counts.queued ?? 0} queued · ${counts.running ?? 0} running · ${counts.merged ?? 0} merged`;
-	// Merged, running and queued rows form one line in run order, like main after squash merges. Branches are
-	// Depends on edges between unmerged tickets only, transitively reduced; Details still lists every edge.
-	const unmerged = new Set(snap.rows.filter(r => r.section !== 'merged').map(r => r.stem));
-	const deps = new Map(snap.rows.map(r => [r.stem, r.depends.filter(d => unmerged.has(d))]));
-	const reach = new Map();
-	const reachable = stem => {
-		if (!reach.has(stem)) {
-			const seen = new Set();
-			reach.set(stem, seen);
-			for (const d of deps.get(stem) ?? []) {
-				seen.add(d);
-				reachable(d).forEach(x => seen.add(x));
-			}
-		}
-		return reach.get(stem);
-	};
-	// Lane order, left to right (the ticket's listed order says nothing about layout): dependencies on the main line,
-	// nearest first, so each peels off left into it with no lane between; then blocked dependencies, farthest first,
-	// so the outermost ends first at its own dot and never pushes a later one's dot outward.
-	const position = new Map(snap.rows.map((r, i) => [r.stem, i]));
-	const blocked = new Set(snap.rows.filter(r => r.section === 'blocked').map(r => r.stem));
-	const laneKey = d => (blocked.has(d) ? [1, -position.get(d)] : [0, position.get(d)]);
-	const byLane = (a, b) => laneKey(a)[0] - laneKey(b)[0] || laneKey(a)[1] - laneKey(b)[1];
-	const reduced = stem => deps.get(stem).filter(d => !deps.get(stem).some(o => o !== d && reachable(o).has(d))).sort(byLane);
-	const items = snap.rows.map((r, i) => {
-		const below = snap.rows[i + 1]?.stem;
-		const kind = r.section === 'running' ? 'HEAD' : 'node';
-		if (r.section === 'blocked') {
-			return { id: r.stem, parentIds: reduced(r.stem), kind, laneColor: COLOR.blocked, branchColor: COLOR.blocked };
-		}
-		const branches = r.section === 'merged' ? [] : reduced(r.stem).filter(d => d !== below);
-		return { id: r.stem, parentIds: below ? [below, ...branches] : branches, kind, laneColor: COLOR[r.section] };
-	});
-	const vms = toViewModels(items);
-	const rows = snap.rows.map((r, i) => {
+	const rows = snap.rows.map(r => {
 		const row = el('div', `row ${r.section}`);
 		row.dataset.stem = r.stem;
 		// Context keys for the right-click menu's `when` clauses in package.json; the command receives this object.
 		row.dataset.vscodeContext = JSON.stringify({ chupaStem: r.stem, chupaSection: r.section, chupaHeld: r.held, chupaDraft: r.draft, chupaRunnable: r.runnable, chupaCommitted: r.committed, chupaEngine: snap.engine, preventDefaultContextMenuItems: true });
-		row.append(renderGraph(vms[i], COLOR[r.section]));
+		row.append(renderGraph(r.graph, r.stem, COLOR[r.section], COLOR));
 		row.append(el('span', 'stem', r.stem));
 		row.append(el('span', 'status', r.status));
 		row.addEventListener('mouseenter', () => {

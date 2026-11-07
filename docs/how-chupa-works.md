@@ -82,7 +82,7 @@ Each test has a 120-second hard limit.
 SCM-style graph (blocked, queued, running, merged) with a detail pane. The Tickets view's `?`
 button opens `vscode-chupa/media/ticket-lifecycle.svg`, a hand-drawn diagram of ticket states.
 `vscode-chupa/snapshot.py`
-builds its data read-only from the journal, `watch.py`, and `order_tickets`; the engine never runs it.
+builds its data read-only from the journal, `watch.py`, and `order_tickets`; `chupa/graph.py` computes the graph layout for the extension to draw. The engine never runs the extension.
 
 ## 3. Tickets
 

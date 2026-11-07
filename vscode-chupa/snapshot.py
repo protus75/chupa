@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT))
 
 import watch  # noqa: E402
 from chupa.drain import RETIRED, authored_at, order_tickets  # noqa: E402
+from chupa.graph import layout  # noqa: E402
 from chupa.rework import settled_dependencies  # noqa: E402
 from chupa.tickets import TicketInvalid, parse_ticket  # noqa: E402
 
@@ -199,6 +200,8 @@ def snapshot() -> dict:
     shown = {r["stem"] for r in rows}
     for r in rows:
         r["depends"] = [d for d in r["depends"] if d in shown]
+    for row, graph in zip(rows, layout(rows)):
+        row["graph"] = graph
     steps = watch.recent_steps(state, log, STEPS)
     return {
         "at": watch.datetime.now().astimezone().isoformat(),

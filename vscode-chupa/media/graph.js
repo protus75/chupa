@@ -1,4 +1,4 @@
-// Swimlane layout and row SVG, ported from VS Code's src/vs/workbench/contrib/scm/browser/scmHistory.ts
+// Row SVG drawing, ported from VS Code's src/vs/workbench/contrib/scm/browser/scmHistory.ts
 // (Copyright (c) Microsoft Corporation, MIT License). Kept close to the original so the graph draws like the SCM view;
 // dropped: references, incoming/outgoing-change nodes, hover rendering.
 'use strict';
@@ -9,8 +9,6 @@ const SWIMLANE_CURVE_RADIUS = 5;
 const CIRCLE_RADIUS = 4;
 const CIRCLE_STROKE_WIDTH = 2;
 const SVG_NS = 'http://www.w3.org/2000/svg';
-
-const LANE_COLORS = [1, 2, 3, 4, 5].map(i => `var(--vscode-scmGraph-foreground${i}, ${['#FFB000', '#DC267F', '#994F00', '#40B0A6', '#B66DFF'][i - 1]})`);
 
 function createPath(color, strokeWidth = 1) {
 	const path = document.createElementNS(SVG_NS, 'path');
@@ -48,67 +46,23 @@ function findLastIndex(nodes, id) {
 	return -1;
 }
 
-// items: [{ id, parentIds, kind?, laneColor?, branchColor? }] top row first; a parent must appear below its child to be joined.
-// laneColor colors the first-parent lane, branchColor the other parents' lanes; unset falls back to the SCM rotation.
-function toViewModels(items) {
-	let colorIndex = -1;
-	const viewModels = [];
-	for (const item of items) {
-		const inputSwimlanes = (viewModels.at(-1)?.outputSwimlanes ?? []).map(n => ({ ...n }));
-		const outputSwimlanes = [];
-		let firstParentAdded = false;
-		// Unlike git history, a parentless row is not the root: lanes for other rows still pass through it.
-		for (const node of inputSwimlanes) {
-			if (node.id === null) {
-				continue; // last row's held-open gap closes here, where no dot sits in it
-			}
-			if (node.id === item.id) {
-				if (!firstParentAdded && item.parentIds.length > 0) {
-					outputSwimlanes.push({ id: item.parentIds[0], color: item.laneColor ?? node.color });
-					firstParentAdded = true;
-				} else {
-					// Every other lane into this node ends at its dot. Hold its column open for one row, so the lanes to
-					// its right shift left in the next row, not across this row's merge curves and dot.
-					outputSwimlanes.push({ id: null, color: undefined });
-				}
-				continue;
-			}
-			outputSwimlanes.push({ ...node });
-		}
-		while (outputSwimlanes.at(-1)?.id === null) {
-			outputSwimlanes.pop();
-		}
-		for (let i = firstParentAdded ? 1 : 0; i < item.parentIds.length; i++) {
-			let color = i === 0 ? item.laneColor : item.branchColor;
-			if (!color) {
-				colorIndex = (colorIndex + 1) % LANE_COLORS.length;
-				color = LANE_COLORS[colorIndex];
-			}
-			outputSwimlanes.push({ id: item.parentIds[i], color });
-		}
-		viewModels.push({ item, kind: item.kind ?? 'node', inputSwimlanes, outputSwimlanes });
-	}
-	return viewModels;
-}
-
-// dotColor overrides the node fill so the dot carries the ticket's status color; lanes keep the SCM palette.
-function renderGraph(vm, dotColor) {
+function renderGraph(graph, stem, dotColor, colors) {
 	const svg = document.createElementNS(SVG_NS, 'svg');
 	svg.classList.add('graph');
-	const { item, inputSwimlanes, outputSwimlanes } = vm;
-	const inputIndex = inputSwimlanes.findIndex(node => node.id === item.id);
+	const { parents, lanesIn: inputSwimlanes, lanesOut: outputSwimlanes } = graph;
+	const inputIndex = inputSwimlanes.findIndex(node => node.id === stem);
 	const circleIndex = inputIndex !== -1 ? inputIndex : inputSwimlanes.length;
-	const laneColor = circleIndex < outputSwimlanes.length ? outputSwimlanes[circleIndex].color :
-		circleIndex < inputSwimlanes.length ? inputSwimlanes[circleIndex].color : dotColor;
+	const laneColor = circleIndex < outputSwimlanes.length ? colors[outputSwimlanes[circleIndex].section] :
+		circleIndex < inputSwimlanes.length ? colors[inputSwimlanes[circleIndex].section] : dotColor;
 	const circleColor = dotColor ?? laneColor;
 
 	let outputSwimlaneIndex = 0;
 	for (let index = 0; index < inputSwimlanes.length; index++) {
-		const color = inputSwimlanes[index].color;
+		const color = colors[inputSwimlanes[index].section];
 		if (inputSwimlanes[index].id === null) {
-			continue; // a gap held open by the row above: nothing to draw, and toViewModels gave it no output slot
+			continue; // a gap held open by the row above: nothing to draw, and it has no output slot
 		}
-		if (inputSwimlanes[index].id === item.id) {
+		if (inputSwimlanes[index].id === stem) {
 			if (index !== circleIndex) {
 				const path = createPath(color);
 				path.setAttribute('d', [
@@ -139,12 +93,12 @@ function renderGraph(vm, dotColor) {
 		}
 	}
 
-	for (let i = 1; i < item.parentIds.length; i++) {
-		const parentOutputIndex = findLastIndex(outputSwimlanes, item.parentIds[i]);
+	for (let i = 1; i < parents.length; i++) {
+		const parentOutputIndex = findLastIndex(outputSwimlanes, parents[i]);
 		if (parentOutputIndex === -1) {
 			continue;
 		}
-		const path = createPath(outputSwimlanes[parentOutputIndex].color);
+		const path = createPath(colors[outputSwimlanes[parentOutputIndex].section]);
 		path.setAttribute('d', [
 			`M ${SWIMLANE_WIDTH * parentOutputIndex} ${SWIMLANE_HEIGHT / 2}`,
 			`A ${SWIMLANE_WIDTH} ${SWIMLANE_WIDTH} 0 0 1 ${SWIMLANE_WIDTH * (parentOutputIndex + 1)} ${SWIMLANE_HEIGHT}`,
@@ -155,16 +109,16 @@ function renderGraph(vm, dotColor) {
 	}
 
 	if (inputIndex !== -1) {
-		svg.append(drawVerticalLine(SWIMLANE_WIDTH * (circleIndex + 1), 0, SWIMLANE_HEIGHT / 2, inputSwimlanes[inputIndex].color));
+		svg.append(drawVerticalLine(SWIMLANE_WIDTH * (circleIndex + 1), 0, SWIMLANE_HEIGHT / 2, colors[inputSwimlanes[inputIndex].section]));
 	}
-	if (item.parentIds.length > 0) {
+	if (parents.length > 0) {
 		svg.append(drawVerticalLine(SWIMLANE_WIDTH * (circleIndex + 1), SWIMLANE_HEIGHT / 2, SWIMLANE_HEIGHT, laneColor));
 	}
 
-	if (vm.kind === 'HEAD') {
+	if (graph.kind === 'head') {
 		svg.append(drawCircle(circleIndex, CIRCLE_RADIUS + 3, CIRCLE_STROKE_WIDTH, circleColor));
 		svg.append(drawCircle(circleIndex, CIRCLE_STROKE_WIDTH, CIRCLE_RADIUS));
-	} else if (item.parentIds.length > 1) {
+	} else if (parents.length > 1) {
 		svg.append(drawCircle(circleIndex, CIRCLE_RADIUS + 2, CIRCLE_STROKE_WIDTH, circleColor));
 		svg.append(drawCircle(circleIndex, CIRCLE_RADIUS - 1, CIRCLE_STROKE_WIDTH, circleColor));
 	} else {
