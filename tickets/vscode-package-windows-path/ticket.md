@@ -20,7 +20,7 @@ After this change, under WSL, `vscode-package` also prints the VSIX's Windows pa
 
 ## Scope in / Scope out
 - In: `dev.py` `vscode-package`: after packaging succeeds and the existing upload line prints, when `WSL_DISTRO_NAME` is set, it runs `wslpath -w <vsix path>` through `subprocess.run` as an argv list with captured text output, and prints `dev: Windows path <wslpath stdout, stripped>`. A non-zero `wslpath` exit stops with a `dev:` message naming `wslpath`. When `WSL_DISTRO_NAME` is unset, nothing beyond today's output prints and `wslpath` is not run. The path comes from `wslpath`, never a string assembled from the distro name, because a repo under `/mnt/c` maps to `C:\...`, not `\\wsl.localhost\...`.
-- In: `tests/integration/test_dev.py`: two new tests, faking `dev.subprocess.run` and reading `capsys`:
+- In: `tests/integration/test_dev.py`: three new tests, faking `dev.subprocess.run` and reading `capsys`:
   - `test_vscode_package_prints_windows_path_under_wsl`;
   - `test_vscode_package_skips_wslpath_outside_wsl`;
   - `test_vscode_package_stops_when_wslpath_fails`.
