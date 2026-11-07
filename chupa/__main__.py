@@ -21,6 +21,7 @@ from uuid import uuid4
 import yaml
 
 from chupa import ask, control, drain, hostfiles, requisition, runner, serve, triage
+from chupa.box import UnknownBoxId
 from chupa.config import ConfigError, ConfigSnapshot, load_config, migrate_config
 from chupa.daemon import DaemonCore, PauseConsumer, StartupBoundary, daemon_core
 from chupa.git import Git, GitError
@@ -231,7 +232,7 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("core", help="refresh managed conduct in every routed agent's root file")
     prompt = sub.add_parser("prompt", help="render an operator prompt for a ticket")
     prompt.add_argument("kind", choices=ask.KINDS)
-    prompt.add_argument("stem")
+    prompt.add_argument("stems", nargs="+")
     sub.add_parser("migrate-config", help="validate and migrate schema_version: 0 to the current config schema")
     for verb in ("pause", "resume"):
         sub.add_parser(verb, help=f"submit {verb} to the running engine, or do nothing under the idle lock")
@@ -239,7 +240,8 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("stop", help="finish the running ticket, admit nothing new, then exit")
     sub.add_parser("review", help="review a committed ticket under the lock").add_argument("stem")
     sub.add_parser("suggest", help="queue an idea for triage").add_argument("summary")
-    sub.add_parser("triage", help="make one sequential pass over pending suggestions under the lock")
+    sub.add_parser("triage", help="make one sequential pass over pending suggestions under the lock").add_argument("ids", nargs="*")
+    sub.add_parser("dismiss", help="dismiss box messages under the lock").add_argument("ids", nargs="+")
     sub.add_parser("covmap", help="build the coverage map")
     covgate = sub.add_parser("covgate", help="check a coverage JSON report against thresholds")
     covgate.add_argument("--gate", type=Path, default=Path("test-gate.toml"))
@@ -314,6 +316,12 @@ def main(
             hostfiles.refresh(routed_conduct_paths(config, repo), LocalFileSystem())
             return 0
         if args.verb == "prompt":
+            if args.kind == "box":
+                print(ask.render("box", args.stems, config, repo), end="")
+                return 0
+            if len(args.stems) != 1:
+                raise runner.Refusal("ticket prompt requires exactly one stem", "name one ticket stem")
+            args.stem = args.stems[0]
             if findings := stem_findings(args.stem):
                 raise runner.Refusal(findings[0].message, findings[0].paved_road)
             if not (repo / ticket_path(args.stem)).is_file():
@@ -390,6 +398,16 @@ def main(
             return asyncio.run(_verdict(checkout, args.stem, args.verb, read_input, args.yes))
         if args.verb == "review":
             return asyncio.run(_review(checkout, args.stem))
+        if args.verb == "dismiss":
+            async def dismiss_messages():
+                lock = Lockfile(config.state_dir, instance_id=await checkout.git.describe(repo), clock=clock)
+                lock.acquire()
+                try:
+                    return await triage.dismiss(checkout, args.ids)
+                finally:
+                    lock.release()
+            print("\n".join(asyncio.run(dismiss_messages())))
+            return 0
         if args.verb == "triage":
 
             async def one_pass() -> list[tuple[str, str]]:
@@ -397,13 +415,14 @@ def main(
                 lock.acquire()
                 session = build_control(checkout).providers
                 try:
+                    triage.validate_ids(checkout, args.ids)
                     llm = ProviderLLM(config, exec_=exec_, fs=checkout.fs, env=env, cwd=repo, timeout=runner.call_timeout(config), session=session)
                     session.timers.reconstruct()
                     session.timers.fire_due()
                     problems = await llm.preflight() if session.active else []
                     if problems:
                         raise ProviderSetupError("; ".join(problems))
-                    return await triage.triage_pass(checkout, llm)
+                    return await triage.triage_pass(checkout, llm, frozenset(args.ids))
                 finally:
                     try:
                         await session.close()
@@ -447,6 +466,9 @@ def main(
                 print(report.render(), end="")
             return report.exit_code
         return asyncio.run(runner.run_ticket(args.stem, checkout, dispatch))
+    except UnknownBoxId as e:
+        print(f"chupa {args.verb}: {e} -- name ids that chupa status lists", file=sys.stderr)
+        return runner.EXIT_REFUSED
     except (ConfigError, runner.Refusal, LockHeld, IntakeRefused, JournalCorruption, ProviderSetupError, ExecutableNotFound, hostfiles.MarkerCorruption) as e:
         road = f" -- repair the selected config and retry {args.verb}" if args.verb in {"retro", "covmap"} and isinstance(e, ConfigError) else ""
         print(f"chupa {args.verb}: {e}{road}", file=sys.stderr)

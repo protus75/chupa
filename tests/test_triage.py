@@ -600,3 +600,35 @@ def test_suggestion_drops_ingest_and_retry(tmp_path, monkeypatch, report_inbox):
     assert (drops / "bad.json").exists()
     assert "suggestion_intake_refused" in (c.config.state_dir / "engine.log").read_text()
     assert c.fs.replace == original
+
+
+def test_selected_triage_and_unknown_refusal(tmp_path, monkeypatch, capsys):
+    root, box = root_with_box(tmp_path)
+    first, second = enqueue(box, "first selection"), enqueue(box, "second selection")
+    llm = FakeLLM([reply("decision")])
+    monkeypatch.setattr("chupa.__main__.ProviderLLM", lambda *args, **kwargs: llm)
+    assert main(["triage", second], cwd=root, env=ENV, clock=Clock()) == 0
+    assert box.get(first).status == "pending" and box.get(second).status == "resolved"  # A pass over all messages differs.
+    assert len(llm.requests) == 1  # Only the selected message calls the model.
+    before = events(root)
+    assert main(["triage", first, "unknown"], cwd=root, env=ENV, clock=Clock()) == 2
+    assert "unknown box id unknown -- name ids that chupa status lists" in capsys.readouterr().err
+    assert events(root) == before and len(llm.requests) == 1 and box.get(first).status == "pending"  # Refusal precedes the signal and model call.
+
+
+def test_dismiss_validates_and_commits_once(tmp_path, monkeypatch, capsys):
+    root, box = root_with_box(tmp_path)
+    ids = [enqueue(box, "first dismiss"), enqueue(box, "second dismiss")]
+    monkeypatch.setattr("chupa.__main__.ProviderLLM", lambda *args, **kwargs: pytest.fail("dismiss called provider"))
+    before = subjects(root)
+    assert main(["dismiss", ids[0], "unknown"], cwd=root, env=ENV, clock=Clock()) == 2
+    assert box.get(ids[0]).status == "pending" and subjects(root) == before  # Validation must precede any write.
+    assert main(["dismiss", *ids], cwd=root, env=ENV, clock=Clock()) == 0
+    assert subjects(root)[:2] == [f"chupa(decisions): decision-{id}" for id in reversed(ids)]  # Both records have separate commits.
+    for id in ids:
+        record, body = parse_record((root / record_path(f"decision-{id}")).read_text())
+        assert (record.kind, record.link, record.reopen_after_days) == ("decision", id, 30) and "dismissed by the operator" in body.lower()
+        assert box.get(id).resolution == Resolution(kind="decision", link=f"decision-{id}")
+    committed = subjects(root)
+    assert main(["dismiss", ids[0]], cwd=root, env=ENV, clock=Clock()) == 0
+    assert f"{ids[0]}: already resolved -> decision-{ids[0]}" in capsys.readouterr().out and subjects(root) == committed  # Repeat does not commit again.

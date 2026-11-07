@@ -14,7 +14,7 @@ def config(tmp_path):
     return load_config(None, cwd=tmp_path)
 
 
-@pytest.mark.parametrize("kind", ask.KINDS)
+@pytest.mark.parametrize("kind", [kind for kind in ask.KINDS if kind != "box"])
 def test_each_kind_renders_stem_ticket_and_state_dir(config, tmp_path, kind):
     text = ask.render(kind, "unique-stem", config, tmp_path)
     assert "`unique-stem`" in text  # A fixed or missing stem gives a different prompt.
@@ -53,3 +53,20 @@ def test_prompt_verb_writes_no_state(config, tmp_path, capsys):
     assert main(["prompt", "diagnose", "unique-stem"], cwd=tmp_path) == 0  # An existing ticket succeeds.
     assert "tickets/unique-stem/ticket.md" in capsys.readouterr().out  # The verb prints the requested prompt.
     assert not config.state_dir.exists()  # Constructing a lock or journal would create state.
+
+
+def test_box_prompt_names_requested_files(config, tmp_path, capsys):
+    from chupa.box import Box
+    from chupa.seams import LocalFileSystem
+    box = Box(config.state_dir / "box", LocalFileSystem())
+    ids = [box.enqueue(message_class="suggestion", origin=str(n), summary=f"idea {n}")[0] for n in range(2)]
+    assert main(["prompt", "box", *ids], cwd=tmp_path) == 0
+    output = capsys.readouterr().out
+    for id in ids:
+        assert f"{id}: custom/state/box/{box.path(box.get(id)).name}" in output  # Each requested file uses the configured state directory.
+    assert '"Recommendation"' in output  # The prompt asks for actionable advice.
+
+
+def test_box_prompt_unknown_id_refuses(config, tmp_path, capsys):
+    assert main(["prompt", "box", "missing-id"], cwd=tmp_path) == 2
+    assert "unknown box id missing-id -- name ids that chupa status lists" in capsys.readouterr().err

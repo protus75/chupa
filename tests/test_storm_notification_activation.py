@@ -80,7 +80,7 @@ def test_production_arrivals_and_dedup_hits_trip_once(tmp_path):
         held=dict(emitting_stage="implement", emitting_origin="one"),
     )
     report = reports[0]
-    assert Message.model_validate_json(box._path(report).read_bytes()) == report
+    assert Message.model_validate_json(box.path(report).read_bytes()) == report
     assert (report.message_class, report.origin, report.stage, report.outcome, report.bug_origin, report.has_repro, report.status, report.verdict, report.resolution) == (
         "failure_report",
         "storm-breaker/" + tid,

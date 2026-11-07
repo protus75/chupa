@@ -60,7 +60,7 @@ def test_status_surfaces_confirmed_class_tombstones(tmp_path, monkeypatch, capsy
     status = project(journal.read(), box=box, provenance=provenance)
     assert status.tombstones == tuple((m.id, m.message_class, 0) for m in box.messages()[:2])
     output = render(status)
-    assert all(id in output for id in ids[:2]) and ids[2] not in output
+    assert all(id in output for id in ids)  # The box includes classes excluded from confirmed tombstones.
     assert main(["status"], cwd=root, env=ENV, clock=clock) == 0
     assert capsys.readouterr().out == output
     assert {p: p.read_bytes() for p in root.rglob("*") if p.is_file()} == before
@@ -199,6 +199,8 @@ def test_status_preserves_sections_and_is_write_free(tmp_path, monkeypatch, caps
             "spend:\n$0.00\n\nReject queue:\n(none)\n\nConfirmed-class tombstones:\n(none)\n\n"
             "Tombstone reopens:\n(none)\n"
         )
+    box_block = (f"Suggestion Box (1 pending, 1 resolved):\n- {id}: failure_report: tombstone -> retired: visible\n- {reopened}: failure_report: reopened: reopened" if populated else "Suggestion Box (0 pending, 0 resolved):\n(none)")
+    legacy = legacy.replace("Confirmed-class tombstones:", box_block + "\n\nConfirmed-class tombstones:")
     before = {p: p.read_bytes() for p in c.repo.rglob("*") if p.is_file()}
 
     def forbidden(*args, **kwargs):
@@ -229,3 +231,25 @@ def test_status_preserves_sections_and_is_write_free(tmp_path, monkeypatch, caps
     assert main(["status"], cwd=c.repo, env=ENV, clock=c.clock, pipeline=forbidden) == 0
     assert capsys.readouterr().out == first
     assert {p: p.read_bytes() for p in c.repo.rglob("*") if p.is_file()} == before
+
+
+def test_box_status_labels_and_summary(tmp_path):
+    box = Box(tmp_path / "box", LocalFileSystem())
+    ids = [box.enqueue(message_class="suggestion", origin=str(n), summary=text)[0] for n, text in enumerate(["first\nsecret second line", "x" * 200, "third", "fourth"])]
+    box.resolve(ids[1], Resolution(kind="ticket", link="repair"))
+    box.resolve(ids[2], Resolution(kind="tombstone", link="old"))
+    box.resolve(ids[3], Resolution(kind="decision", link="decision-id"))
+    block = render(project([], box=box)).split("Suggestion Box (1 pending, 3 resolved):\n")[1].split("\n\n")[0]
+    assert block.splitlines() == [f"- {ids[0]}: suggestion: pending: first", f"- {ids[1]}: suggestion: author -> repair: {'x' * 117}...", f"- {ids[2]}: suggestion: tombstone -> old: third", f"- {ids[3]}: suggestion: decision: fourth"]  # Order, labels, first line and truncation differ from full or reversed messages.
+
+
+def test_corrupt_box_does_not_receive_unknown_id_advice(tmp_path, capsys):
+    from chupa.box import BoxError
+
+    root = make_root(tmp_path)
+    folder = root / ".chupa/state/box"
+    folder.mkdir(parents=True)
+    (folder / "corrupt.json").write_text("{}")
+    with pytest.raises(BoxError, match="invalid box file"):
+        main(["status"], cwd=root, env=ENV, clock=Clock())
+    assert "name ids that chupa status lists" not in capsys.readouterr().err

@@ -67,7 +67,7 @@ def test_host_report_signature(tmp_path):
     assert durable.report.custody.replay is None and durable.has_repro is False
     engine, _ = box.enqueue(message_class="failure_report", origin="engine", stage="check", outcome="gate_failed", summary="failed at 42 /tmp/file")
     assert box.get(engine).signature == signature("failure_report", "engine", "check", "gate_failed", reason="failed at 51 /other/file")
-    path = box._path(box.get(engine))
+    path = box.path(box.get(engine))
     legacy = json.loads(path.read_text())
     legacy.pop("report")
     legacy.pop("report_arrivals")

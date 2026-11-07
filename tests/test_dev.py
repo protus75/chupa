@@ -91,3 +91,12 @@ def test_test_passes_leading_options_to_pytest(monkeypatch):
     with pytest.raises(SystemExit) as error:
         dev.main()
     assert error.value.code == 2  # Other commands must still reject unknown options.
+
+
+@pytest.mark.parametrize("verb", ["triage", "dismiss"])
+def test_box_verbs_forward_all_ids_once(monkeypatch, verb):
+    monkeypatch.setattr(dev.sys, "argv", ["dev.py", verb, "box-one", "box-two"])
+    call = Mock()
+    monkeypatch.setattr(dev, "chupa", call)
+    dev.main()
+    call.assert_called_once_with(verb, "box-one", "box-two")  # One pass must receive both IDs.

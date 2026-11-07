@@ -394,7 +394,7 @@ def test_daemon_soak_command_writes_report_only_on_green(tmp_path, monkeypatch, 
         if member.name == "conflict_resolution_rungs":
             # Remove a required report from the member's own Box, after genuine production runs.
             message = next(m for m in member.owner.box.messages() if m.origin == "unresolved")
-            member.owner.box._path(message).unlink()
+            member.owner.box.path(message).unlink()
         return await observe(member)
 
     monkeypatch.setattr(daemon_soak, "_observe", missing)

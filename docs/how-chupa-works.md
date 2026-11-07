@@ -58,7 +58,9 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `serve` | yes | Runs the continuous daemon until `kill`, `stop`, or a signal (section 7.2). |
 | `retro` | yes | Forces a retro report (section 9.5). |
 | `suggest <summary>` | no | Queues an idea for Suggestion Box intake. |
-| `triage` | yes | One sequential pass over pending Suggestion Box messages (section 9.2). |
+| `triage [id ...]` | yes | One sequential pass over named pending messages, or all pending messages (section 9.2). |
+| `dismiss <id> ...` | yes | Dismiss named messages without a model call. |
+| `prompt box <id> ...` | no | Print a prompt for discussing named box messages. |
 | `pause` / `resume` / `kill` / `stop` | try | With a running engine, publish a control request to it (section 7.3). With none: `kill` and `stop` refuse (exit 2); `pause`/`resume` print "nothing running". |
 | `confirm <stem> [--yes]` | try | A person at a terminal answers `y` to keep (or uses `--yes` to skip the prompt): promotes a draft to confirmed, keeps a Reject-queue item (section 6.6). With serve running, publishes the verdict to serve. |
 | `reject <stem> [--yes]` | try | A person at a terminal answers `y` to kill (or uses `--yes` to skip the prompt): stamps the ticket `rejected` (section 6.6). Refuses settled stems. With serve running, publishes the verdict to serve. |
@@ -73,6 +75,7 @@ Each test has a 120-second hard limit.
 |---|---|
 | (none) | `uv run pytest -q` |
 | `test [args]` | pytest with those args |
+| `triage [ID ...]`, `dismiss ID ...` | One matching chupa call with all supplied IDs |
 | `suggest SUMMARY` | `chupa suggest <summary>` |
 | `covmap` | `chupa covmap` |
 | `stats [--window W] [--json]` | `chupa stats` with the supplied options; a read-only projection |
@@ -580,12 +583,14 @@ Problems found while working are filed, not fixed in the current diff. Classes: 
 
 ### 9.2 Triage
 
-Only the `triage` command settles pending messages, one at a time:
+`triage` settles named pending messages, or all pending messages when no IDs are supplied, one at a time:
 
 - `author`: run the Author stage to write a ticket.
 - `tombstone`: the message is already covered by a merged or committed ticket. A third
   re-report reopens it.
 - `decision`: record a decision in `tickets/decisions/<id>.md`.
+
+`dismiss <id> ...` records operator decisions without a model call; unknown IDs refuse before any message is settled.
 
 ### 9.3 Author and starting state
 
@@ -654,8 +659,9 @@ and notifications are Effects, so a crash never repeats one.
 2. Every intake.
 3. Total spend.
 4. The Reject queue.
-5. Tombstones and reopens.
-6. The current retro window's scorecard and provenance.
+5. Every Suggestion Box message in arrival order, with its state and summary.
+6. Tombstones and reopens.
+7. The current retro window's scorecard and provenance.
 
 ## 11. Config
 

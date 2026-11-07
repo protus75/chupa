@@ -8,7 +8,7 @@ from chupa.config import Config
 from chupa.runner import SPECS_DIR
 from chupa.tickets import ticket_path
 
-KINDS = ("diagnose", "running", "review")
+KINDS = ("diagnose", "running", "review", "box")
 
 
 def render(kind: str, stem: str, config: Config, repo: Path) -> str:
@@ -17,8 +17,17 @@ def render(kind: str, stem: str, config: Config, repo: Path) -> str:
     state = config.state_dir.resolve()
     root = repo.resolve()
     state_dir = state.relative_to(root) if state.is_relative_to(root) else state
-    template = Template((SPECS_DIR / "ask" / f"{kind}.md").read_text())
-    result = template.substitute(stem=stem, ticket=str(ticket_path(stem)), state_dir=str(state_dir))
+    if kind == "box":
+        from chupa.box import Box
+        from chupa.seams import LocalFileSystem
+        box = Box(state / "box", LocalFileSystem())
+        messages = [box.get(id) for id in stem]
+        paths = "\n".join(f"- {m.id}: {state_dir / 'box' / box.path(m).name}" for m in messages)
+        template = Template((SPECS_DIR / "ask" / "box.md").read_text())
+        result = template.substitute(messages=paths)
+    else:
+        template = Template((SPECS_DIR / "ask" / f"{kind}.md").read_text())
+        result = template.substitute(stem=stem, ticket=str(ticket_path(stem)), state_dir=str(state_dir))
     if config.ask_notes is not None:
         result += f"\n{specs.data_open('host_notes')}\n{specs.quote_payload(config.ask_notes)}\n{specs.data_close('host_notes')}\n"
     return result

@@ -24,6 +24,10 @@ class BoxError(Exception):
     """A box message or registry record is missing or invalid."""
 
 
+class UnknownBoxId(BoxError):
+    """A requested box message does not exist."""
+
+
 class RereportCallbackRequired(BoxError):
     """The reopen signal must be durable before the queue is reopened."""
 
@@ -169,13 +173,13 @@ class Box:
         for message in self.messages():
             if message.id == id:
                 return message
-        raise BoxError(f"unknown box id {id}")
+        raise UnknownBoxId(f"unknown box id {id}")
 
-    def _path(self, message: Message) -> Path:
+    def path(self, message: Message) -> Path:
         return self.root / f"{message.seq:06d}-{message.signature[:8]}.json"
 
     def _write(self, message: Message) -> None:
-        self.fs.write(self._path(message), message.model_dump_json().encode())
+        self.fs.write(self.path(message), message.model_dump_json().encode())
 
     def enqueue(
         self,

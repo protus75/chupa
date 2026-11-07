@@ -19,7 +19,7 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | `lint` | Yes | Validate tickets without writing. |
 | `retro` | No | Force a retro report. |
 | `doctor` | No | Inspect setup; its lock probe reports a held lock as a failure. |
-| `prompt` | Yes | Render an operator prompt for a ticket without writing state. |
+| `prompt` | Yes | Render an operator prompt for a ticket or named box IDs without writing state. |
 | `core` | Yes | Refresh managed conduct files. |
 | `migrate-config` | Yes | Validate and migrate an older config. |
 | `pause` | Yes | Ask the running engine to pause admission. |
@@ -28,7 +28,8 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | `stop` | Yes | Finish active work and exit. |
 | `review` | No | Review a committed ticket. |
 | `suggest` | Yes | Queue an idea for Suggestion Box intake. |
-| `triage` | No | Make one pass over pending suggestions. |
+| `triage` | No | Make one pass over named pending box IDs, or all pending messages. |
+| `dismiss` | No | Dismiss named box IDs without a model call. |
 | `covmap` | Yes | Runs `review.coverage_map.argv` and writes `<state_dir>/coverage-map.json`; exits 0 on success or 2 on refusal. |
 | `covgate` | Yes | Run a unit command and check its coverage report. |
 | `new` | Yes | Create and lint a ticket skeleton. |
@@ -39,4 +40,4 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | `drain` | No | Run eligible tickets to quiescence. |
 | `serve` | No | Run the continuous daemon. |
 
-Stop serve before `retro`, `review`, `triage`, `run`, `drain`, or another `serve`: each takes the writer lock outright and refuses while it is held. `doctor` also needs the lock available to pass its probe. There is one writer per host; the kernel releases its lock when the holder exits. Never delete `chupa.lock`—wait for or stop the holder instead.
+Stop serve before `retro`, `review`, `triage`, `dismiss`, `run`, `drain`, or another `serve`: each takes the writer lock outright and refuses while it is held. `doctor` also needs the lock available to pass its probe. There is one writer per host; the kernel releases its lock when the holder exits. Never delete `chupa.lock`—wait for or stop the holder instead.

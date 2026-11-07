@@ -97,8 +97,9 @@ def _goal(text: str) -> str:
     return next((line.strip() for line in after.splitlines() if line.strip()), "")
 
 
-async def triage_pass(checkout: Checkout, llm: LLM) -> list[tuple[str, str]]:
+async def triage_pass(checkout: Checkout, llm: LLM, ids=frozenset()) -> list[tuple[str, str]]:
     """Journal one pass, then settle each pending message in sequence order."""
+    validate_ids(checkout, ids)
     history = checkout.journal.read()
     pass_no = sum(e.type == EventType.SIGNAL and e.body.get("signal") == "triage_pass" for e in history)
     checkout.journal.append(EventType.SIGNAL, {"signal": "triage_pass", "pass": pass_no})
@@ -107,7 +108,7 @@ async def triage_pass(checkout: Checkout, llm: LLM) -> list[tuple[str, str]]:
     driver = Driver.from_config(checkout.config, llm=llm, env=checkout.env, clock=checkout.clock, sleep=checkout.sleep, fs=checkout.fs)
     driver.journal = checkout.journal
     driver.effects = Effects(checkout.journal)
-    lines = await _settle_pass(checkout, driver, box, spec, history, pass_no)
+    lines = await _settle_pass(checkout, driver, box, spec, history, pass_no, ids)
     for message in box.messages():
         if message.message_class == "bug_report" and message.resolution is not None and message.resolution.kind == "ticket":
             try:
@@ -117,6 +118,29 @@ async def triage_pass(checkout: Checkout, llm: LLM) -> list[tuple[str, str]]:
                 lines.append((message.id, f"{message.id}: attribution incomplete; repair repository/evidence access and retry triage"))
     return lines
 
+
+
+def validate_ids(checkout: Checkout, ids):
+    box = Box(checkout.config.state_dir / BOX_DIR, checkout.fs, rereport=RereportJournal(checkout.journal))
+    for id in ids:
+        box.get(id)
+    return box
+
+
+async def dismiss(checkout: Checkout, ids) -> list[str]:
+    box = validate_ids(checkout, ids)
+    driver = Driver.from_config(checkout.config, llm=None, env=checkout.env, clock=checkout.clock, sleep=checkout.sleep, fs=checkout.fs)
+    driver.journal = checkout.journal
+    driver.effects = Effects(checkout.journal)
+    lines = []
+    for id in ids:
+        message = box.get(id)
+        if message.resolution is not None:
+            lines.append(f"{id}: already resolved -> {message.resolution.link}")
+            continue
+        reply = TriageReply(verdict="decision", link=None, summary="Dismissed by the operator.", rationale="The operator dismissed this message.", evidence=[], reopen_after_days=30)
+        lines.append(await _record(checkout, driver, box, id, "decision", id, reply, message.summary))
+    return lines
 
 async def _passed_surfaces(checkout, candidate, history):
     """Pin Check and Review to the completed admission, including clean-rebase carry."""
@@ -222,11 +246,13 @@ async def attribute_escape(checkout, driver, message):
     return await driver.effects.run(collect, key=f"{ESCAPE_ATTRIBUTION}/{message.id}", ticket=stem)
 
 
-async def _settle_pass(checkout, driver, box, spec, history, pass_no):
+async def _settle_pass(checkout, driver, box, spec, history, pass_no, ids):
     states = last_states(history)
     merged = sorted(stem for stem, state in states.items() if state == "merged")
     lines: list[tuple[str, str]] = []
     for message in box.pending():
+        if ids and message.id not in ids:
+            continue
         if recovered := await recover_retro_ticket(checkout, box, message):
             lines.append((message.id, f"{message.id}: ticket -> {recovered.stem}"))
             continue

@@ -8,6 +8,8 @@
     ./dev.py review STEM...   review each ticket against merged code
     ./dev.py lint [STEM...]   validate tickets without running or writing anything
     ./dev.py covmap           build the coverage map
+    ./dev.py triage [ID ...]  triage pending messages
+    ./dev.py dismiss ID ...   dismiss messages
     ./dev.py suggest SUMMARY  queue an idea for triage
     ./dev.py status           the engine's projected state
     ./dev.py stats [--window W] [--json]  journal health projection
@@ -56,6 +58,8 @@ def main() -> None:
     sub = parser.add_subparsers(dest="task")
     sub.add_parser("test", help="the suite, or the named tests")
     sub.add_parser("covmap", help="build the coverage map")
+    sub.add_parser("triage", help="triage pending messages").add_argument("ids", nargs="*")
+    sub.add_parser("dismiss", help="dismiss messages").add_argument("ids", nargs="+")
     sub.add_parser("suggest", help="queue an idea for triage").add_argument("summary")
     sub.add_parser("status", help="the engine's projected state")
     stats = sub.add_parser("stats", help="journal health projection")
@@ -91,6 +95,8 @@ def main() -> None:
         chupa("order", args.stem, *(["--priority", args.priority] if args.priority is not None else []), *(["--runs-before", *args.runs_before] if args.runs_before is not None else []))
     elif args.task == "stats":
         chupa("stats", "--window", args.window, *(["--json"] if args.json else []))
+    elif args.task in {"triage", "dismiss"}:
+        chupa(args.task, *args.ids)
     elif args.task == "suggest":
         chupa("suggest", args.summary)
     elif args.task == "run":
