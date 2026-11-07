@@ -54,6 +54,7 @@ The drain's rule is the documented one (`docs/how-chupa-works.md` section 6.6, "
   - `tests/test_daemon_composition.py`: the `reject-held` case near line 410 gets a spent cap, so it still tests a hold that needs a verdict.
   - `tests/test_serve.py`: a serve re-dispatch of a `gate_failed` ticket journals one `retry` draw before `running`. A re-dispatch after `premise_failed` journals none.
   - `tests/test_watch.py`: the snapshot lists a Reject-queue ticket with caps left as `queued`, and one with a spent cap as held.
+  - New carried reproducer `tests/regress_serve_reoffer_rule.py`, in the style of `tests/regress_graph_lanes.py`. It imports `reofferable` and `awaiting_operator` from `chupa.drain` and builds journal events for a `gate_failed` Reject-queue ticket. It prints exactly one `{"regression_result": ...}` line: `pass` (exit 0) when that ticket is `reofferable` with caps left and `awaiting_operator` with a spent cap, `defect` (exit 1) when either check is wrong or the functions cannot be imported, and `error` (exit 2) for any other failure.
 - In: `docs/how-chupa-works.md`:
   - section 6.6 "Machine keep": both drain and serve re-offer a Reject-queue stem whose caps have budget;
   - section 7.2 `serve`: serve draws `retry` on a re-offer, as the drain does.
@@ -75,6 +76,7 @@ The drain's rule is the documented one (`docs/how-chupa-works.md` section 6.6, "
 - tests/test_serve.py
 - tests/test_watch.py
 - tests/test_drain.py
+- tests/regress_serve_reoffer_rule.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
@@ -90,9 +92,9 @@ The drain's rule is the documented one (`docs/how-chupa-works.md` section 6.6, "
 
 ## Regression
 ```
-./dev.py test tests/test_scheduler.py -k test_serve_scheduler_follows_the_drain_reoffer_rule
+uv run python tests/regress_serve_reoffer_rule.py
 ```
-- carries: tests/test_scheduler.py
+- carries: tests/regress_serve_reoffer_rule.py
 
 ## Definition of rejected
 Reject the branch if any of the following holds:
