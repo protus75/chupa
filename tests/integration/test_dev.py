@@ -44,9 +44,6 @@ def test_drain_detaches_and_appends_to_configured_state(monkeypatch, capsys):
 
 
 def test_publish_uploads_built_files(tmp_path, monkeypatch):
-    project = tmp_path / "pyproject.toml"
-    project.write_text('version = "0.1.1"\n')
-    before = project.read_bytes()
     monkeypatch.setattr(dev, "ROOT", tmp_path)
     monkeypatch.setattr(dev.sys, "argv", ["dev.py", "publish"])
     monkeypatch.setenv("UV_PUBLISH_TOKEN", "test-token")
@@ -62,11 +59,24 @@ def test_publish_uploads_built_files(tmp_path, monkeypatch):
 
     monkeypatch.setattr(dev.subprocess, "run", fake_run)
     dev.main()
-    build, publish = calls  # Extra git calls or missing upload must fail.
+    bump, build, publish = calls  # Extra calls, including git or a second bump, must fail.
     directory = Path(build[0][3])
+    assert bump == (["uv", "version", "--bump", "patch"], tmp_path, False)  # The bump must precede the build.
     assert build == (["uv", "build", "-o", str(directory)], tmp_path, False)  # Build into the temporary directory.
     assert publish == (["uv", "publish", str(directory / "chupa-0.1.1.tar.gz"), str(directory / "chupa-0.1.1.whl")], tmp_path, False)  # Upload both actual artifacts.
-    assert project.read_bytes() == before  # Publishing must not bump the version.
+
+
+def test_publish_refuses_without_token(monkeypatch):
+    monkeypatch.setattr(dev.sys, "argv", ["dev.py", "publish"])
+    monkeypatch.delenv("UV_PUBLISH_TOKEN", raising=False)
+    run = Mock()
+    monkeypatch.setattr(dev.subprocess, "run", run)
+
+    with pytest.raises(SystemExit) as error:
+        dev.main()
+    assert "UV_PUBLISH_TOKEN" in str(error.value.code)  # A generic failure would not identify the missing credential.
+    assert error.value.code != 0  # Refusal must not report success.
+    run.assert_not_called()  # Refusal must happen before the bump or any other subprocess.
 
 
 def test_suggest_forwards_summary(monkeypatch):

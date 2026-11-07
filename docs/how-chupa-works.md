@@ -93,7 +93,7 @@ Tests live in `tests/unit/` (no disk, network or process; run under `chupa.testg
 | `drain` | runs `chupa drain` detached and appends output to `<state_dir>/drain.out` |
 | `confirm STEM... [--yes]`, `reject STEM... [--yes]` | `chupa confirm` or `chupa reject` once per stem; a person at a terminal answers `y` for each stem unless `--yes` is passed |
 | `watch [--once]` | `chupa watch` through `uv`: a read-only live view of the engine and queue |
-| `publish` | builds and uploads the current release with `UV_PUBLISH_TOKEN` set (`./dev.py publish`) |
+| `publish` | with `UV_PUBLISH_TOKEN` set, bumps the patch version, then builds and uploads; the operator commits `pyproject.toml` and `uv.lock` |
 | `vscode-package` | packages the current manifest version into `dist/vscode-chupa-<version>.vsix` and prints the Marketplace upload page |
 | `vscode` | bumps the patch version in `vscode-chupa/package.json` (VS Code keeps an extension's old icon until its version changes), packages it with `npx @vscode/vsce`, and installs it with `code --install-extension --force`; reload the window to load it |
 

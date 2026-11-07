@@ -18,7 +18,7 @@
     ./dev.py serve            run the continuous daemon
     ./dev.py drain            run every eligible ticket to quiescence
     ./dev.py watch [--once]   live view: running ticket, step, model, and the queue
-    ./dev.py publish          build and upload the current release
+    ./dev.py publish          bump the patch version, build and upload the release
     ./dev.py vscode           package and install the vscode-chupa extension (then reload the window)
     ./dev.py vscode-package   build a VSIX for Marketplace upload
     ./dev.py kill             hard-stop the running drain or serve
@@ -82,7 +82,7 @@ def main() -> None:
     sub.add_parser("kill", help="hard-stop the running drain or serve")
     sub.add_parser("stop", help="finish the running ticket and exit")
     sub.add_parser("watch", help="live view of the drain and the queue").add_argument("--once", action="store_true")
-    sub.add_parser("publish", help="build and upload the current release")
+    sub.add_parser("publish", help="bump the patch version, build and upload the release")
     sub.add_parser("vscode", help="package and install the vscode-chupa extension")
     sub.add_parser("vscode-package", help="build a VSIX for Marketplace upload")
     for verb in ("confirm", "reject", "review"):
@@ -123,6 +123,7 @@ def main() -> None:
     elif args.task == "publish":
         if not os.environ.get("UV_PUBLISH_TOKEN"):
             sys.exit("dev: set UV_PUBLISH_TOKEN to publish")
+        run(["uv", "version", "--bump", "patch"])
         with tempfile.TemporaryDirectory() as tmp:
             run(["uv", "build", "-o", tmp])
             run(["uv", "publish", *(str(path) for path in sorted(Path(tmp).iterdir()))])
