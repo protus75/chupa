@@ -8,7 +8,7 @@ kind: chore
 ## Depends on
 - tests-split
 - autofix-file-globs
-- chupa-ruff-config
+- chupa-ruff-tests-l-z
 - covgate-runs-tests
 - testguard
 - testreport
