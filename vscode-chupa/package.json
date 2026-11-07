@@ -2,7 +2,7 @@
 	"name": "vscode-chupa",
 	"displayName": "chupa tickets",
 	"description": "chupa's tickets as an SCM-style dependency graph: blocked, queued, running, merged.",
-	"version": "0.0.19",
+	"version": "0.0.20",
 	"publisher": "chupa",
 	"license": "SEE LICENSE IN LICENSE",
 	"engines": {
@@ -170,12 +170,12 @@
 			},
 			{
 				"command": "chupa.ticket.priority",
-				"title": "Set priority…",
+				"title": "Set priority\u2026",
 				"category": "chupa"
 			},
 			{
 				"command": "chupa.ticket.runsBefore",
-				"title": "Run before…",
+				"title": "Run before\u2026",
 				"category": "chupa"
 			},
 			{
