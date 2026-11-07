@@ -10,7 +10,9 @@ def main() -> int:
     try:
         result = subprocess.run(
             ["node", str(Path(__file__).with_name("vscode_task_identity.js"))],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         )
         definitions = json.loads(result.stdout)
         if not isinstance(definitions, list) or len(definitions) < 3:

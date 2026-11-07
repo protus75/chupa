@@ -28,11 +28,7 @@ def main() -> int:
         shared = layout([row("a", "queued", ["d"]), row("b", "queued", ["d"]), row("c", "queued", []), row("d", "running", [])])
         blocked = layout([row("x", "blocked", ["y"]), row("y", "queued", []), row("z", "running", [])])
         lanes = [lane for g in shared + blocked for lane in g["lanesIn"] + g["lanesOut"] if lane["id"] is not None]
-        defect = (
-            any(sum(lane["id"] == "d" for lane in g["lanesOut"]) > 2 for g in shared)
-            or blocked[0]["parents"] != []
-            or any(lane["section"] not in SECTIONS for lane in lanes)
-        )
+        defect = any(sum(lane["id"] == "d" for lane in g["lanesOut"]) > 2 for g in shared) or blocked[0]["parents"] != [] or any(lane["section"] not in SECTIONS for lane in lanes)
     except Exception:
         traceback.print_exc(file=sys.stderr)
         print(json.dumps({"regression_result": "error"}))

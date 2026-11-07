@@ -323,6 +323,7 @@ def test_stop_refuses_when_idle_and_publishes_when_live(root, capsys):
     finally:
         lock.release()
 
+
 @pytest.mark.parametrize("kind", ["keep", "reject-queue", "reject-draft"])
 def test_live_verdict_recovery_and_refusal(tmp_path, monkeypatch, capsys, kind):
     import asyncio
@@ -361,9 +362,11 @@ def test_live_verdict_recovery_and_refusal(tmp_path, monkeypatch, capsys, kind):
             assert f"{verb} submitted:" in capsys.readouterr().out
             inbox.consume()
             original = owner.apply_verdict
+
             async def crash_after(stem, verb, key):
                 await original(stem, verb, key)
                 raise RuntimeError("crash after mutation")
+
             with pytest.raises(RuntimeError, match="crash after mutation"):
                 await inbox.settle_admissions(crash_after)
             await inbox.settle_admissions(entry.build_serve(checkout).apply_verdict)
@@ -439,8 +442,8 @@ def test_yes_matches_typed_verdict(tmp_path, capsys, verb, verdict):
     import asyncio
 
     from chupa.journal import EventType
-    from tests.integration.test_mergequeue import ready
     from tests.integration.test_mergequeue import ctx as context_fixture
+    from tests.integration.test_mergequeue import ready
 
     ctx = context_fixture.__wrapped__(tmp_path)
 

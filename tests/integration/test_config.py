@@ -405,11 +405,14 @@ def test_coverage_map_config(tmp_path):
     assert setting.report == ".chupa/cov.json"
 
 
-@pytest.mark.parametrize("entry,key", [
-    ("argv: [pytest], report: /tmp/cov.json", "report"),
-    ("argv: [pytest], report: ../cov.json", "report"),
-    ("argv: [pytest], report: cov.json, extra: true", "extra"),
-])
+@pytest.mark.parametrize(
+    "entry,key",
+    [
+        ("argv: [pytest], report: /tmp/cov.json", "report"),
+        ("argv: [pytest], report: ../cov.json", "report"),
+        ("argv: [pytest], report: cov.json, extra: true", "extra"),
+    ],
+)
 def test_coverage_map_invalid(tmp_path, entry, key):
     text = edit(VALID, "review:\n", f"review:\n  coverage_map: {{{entry}}}\n")
     assert refusal(tmp_path, text).key == f"review.coverage_map.{key}"

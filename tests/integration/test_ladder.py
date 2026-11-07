@@ -103,6 +103,7 @@ def test_exhausted_ladder_routes_and_auto_keeps(repo):
     path = repo / "tickets" / STEM / "ticket.md"
     path.write_text(path.read_text().replace("kind: feature", "kind: feature\nagent_tier: high\nagent_effort: max"))
     from tests.approval import approve
+
     approve(repo, STEM, clock)
     run_drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict("snag", [SNAG]), diagnosis("escalate"), agent({"chupa/thing.py": "ok\n"}), verdict()])
     assert terminals(repo)[0]["dispatch"] == "reject_queue"
@@ -163,6 +164,7 @@ def test_same_retry_wall_at_top_routes_to_queue(repo):
     path = repo / "tickets" / STEM / "ticket.md"
     path.write_text(path.read_text().replace("kind: feature", "kind: feature\nagent_tier: high\nagent_effort: max"))
     from tests.approval import approve
+
     approve(repo, STEM, clock)
     run_drain(
         repo,
@@ -281,6 +283,7 @@ def test_rework_escalation_preserves_starting_capability_and_caps(repo, action):
         starting = starting.replace("kind: feature", "kind: feature\nagent_tier: high\nagent_effort: max")
         (repo / f"tickets/{STEM}/ticket.md").write_text(starting)
         from tests.approval import approve
+
         approve(repo, STEM, clock)
     else:
         consume(Journal(repo / ".chupa/state", clock), STEM, "retry", "prior", rung={"tier": "high", "effort": "medium"})

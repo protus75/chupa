@@ -709,6 +709,7 @@ def test_render_over_bound_dispatches_rework_without_diagnosis(rework_repo, monk
         path = repo / f"tickets/{STEM}/ticket.md"
         path.write_text(path.read_text().replace("kind: feature", "kind: feature\nagent_tier: max\nagent_effort: max"))
         from tests.approval import approve
+
         approve(repo, STEM, clock)
     mechanical_first(monkeypatch, STEM, workspace=action != "missing")
     calls = []
@@ -1274,6 +1275,7 @@ def test_diff_budget_failure_holds_until_ticket_changes(root, capsys):
             body = {"to": "gate_failed", "reason": "verification,diff_budget", "routed": "reject_queue"} if len(calls) == 1 else {"to": "merged"}
             checkout.journal.append(EventType.STATE_TRANSITION, body, ticket=ticket.stem)
             return body["to"]
+
         return with_retro_driver(checkout, dispatch)
 
     assert main(["drain"], cwd=root, env=ENV, clock=Clock(), pipeline=pipeline) == 0
@@ -1302,6 +1304,7 @@ def test_other_gate_failure_is_still_reoffered(root):
             body = {"to": "gate_failed", "reason": "verification"} if len(calls) == 1 else {"to": "merged"}
             checkout.journal.append(EventType.STATE_TRANSITION, body, ticket=ticket.stem)
             return body["to"]
+
         return with_retro_driver(checkout, dispatch)
 
     assert main(["drain"], cwd=root, env=ENV, clock=Clock(), pipeline=pipeline) == 0
@@ -1374,6 +1377,7 @@ def _mid_run_hold(repo, monkeypatch, *, committed, failed=False):
     monkeypatch.setattr(stages, "implement", original)
     assert main(["confirm", STEM], cwd=repo, env=ENV, clock=clock, terminal=(lambda: True, lambda _: "y")) == 0
     from tests.approval import approve
+
     approve(repo, STEM, clock)
     fresh = FakeLLM([agent({"chupa/thing.py": "ok\n"}), verdict()])
     from tests.integration.test_drain_reentry import NoChild
@@ -1485,7 +1489,6 @@ async def test_stop_finishes_current_ticket_and_releases_lock(root):
 @pytest.mark.asyncio
 async def test_stop_survives_self_upgrade_handoff(root, monkeypatch):
     from chupa import drain as drain_mod
-
     from chupa.control import ControlRequest, publish_request
     from chupa.drain import drain as run_drain
     from tests.integration.test_drain_reentry import NoChild
@@ -1555,9 +1558,7 @@ def test_lifecycle_log_precedes_lock_release(root, monkeypatch):
 
     monkeypatch.setattr(Lockfile, "release", released)
     assert drain(root, Script()) == 0
-    assert [(e["event"], e["verb"], e["pid"], e.get("outcome")) for e in observed] == [
-        ("engine_start", "drain", os.getpid(), None), ("engine_stop", "drain", os.getpid(), "quiescent")
-    ]
+    assert [(e["event"], e["verb"], e["pid"], e.get("outcome")) for e in observed] == [("engine_start", "drain", os.getpid(), None), ("engine_stop", "drain", os.getpid(), "quiescent")]
     assert all("engine_start" not in str((e.type, e.body)) and "engine_stop" not in str((e.type, e.body)) for e in journal(root).read())
 
 

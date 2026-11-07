@@ -352,10 +352,11 @@ def test_tombstone_visibility_uses_message_class(tmp_path, monkeypatch):
 
 
 def test_migrate_box_preserves_other_messages(tmp_path, capsys):
+    from pydantic import ValidationError
+
     from chupa.__main__ import main
     from tests.integration.test_cli import ENV, Clock
     from tests.integration.test_drain import make_root
-    from pydantic import ValidationError
 
     root = make_root(tmp_path)
     box = Box(root / ".chupa/state/box", LocalFileSystem())

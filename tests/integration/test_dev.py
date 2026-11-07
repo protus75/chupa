@@ -1,8 +1,9 @@
 from pathlib import Path
 from unittest.mock import Mock, mock_open
 
-import dev
 import pytest
+
+import dev
 
 
 def test_drain_detaches_and_appends_to_configured_state(monkeypatch, capsys):

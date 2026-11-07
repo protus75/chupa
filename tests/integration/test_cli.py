@@ -849,6 +849,7 @@ def test_suggest_refuses_blank(root, capsys):
 
 def test_migrate_box_lock_and_repeat(root, capsys):
     import json
+
     from chupa.box import Box, Resolution
     from chupa.seams import LocalFileSystem
 

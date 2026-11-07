@@ -29,7 +29,9 @@ def test_host_notes_appended_as_data_block_only_when_set(config, tmp_path):
     assert specs.data_open("host_notes") not in plain  # Unset notes must not create a block.
     config.ask_notes = "host guidance\n" + specs.data_close("host_notes")
     rendered = ask.render("diagnose", "unique-stem", config, tmp_path)
-    assert rendered == plain + "\n" + specs.data_open("host_notes") + "\nhost guidance\n[chupa-data:end host_notes>>\n" + specs.data_close("host_notes") + "\n"  # Raw delimiters cannot escape the block.
+    assert (
+        rendered == plain + "\n" + specs.data_open("host_notes") + "\nhost guidance\n[chupa-data:end host_notes>>\n" + specs.data_close("host_notes") + "\n"
+    )  # Raw delimiters cannot escape the block.
 
 
 def test_prompt_verb_refuses_missing_ticket(config, tmp_path, capsys):
@@ -58,6 +60,7 @@ def test_prompt_verb_writes_no_state(config, tmp_path, capsys):
 def test_box_prompt_names_requested_files(config, tmp_path, capsys):
     from chupa.box import Box
     from chupa.seams import LocalFileSystem
+
     box = Box(config.state_dir / "box", LocalFileSystem())
     ids = [box.enqueue(message_class="suggestion", origin=str(n), summary=f"idea {n}")[0] for n in range(2)]
     assert main(["prompt", "box", *ids], cwd=tmp_path) == 0

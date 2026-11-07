@@ -414,6 +414,7 @@ async def test_production_core_preserves_eligibility_order_and_backpressure(tmp_
     rig.transition("running", "running")
     rig.transition("reject-held", "gate_failed", routed="reject_queue")
     from chupa import caps
+
     for _ in range(rig.checkout.config.caps.retry):
         caps.consume(rig.journal, "reject-held", "retry", "old")
     rig.quarantine.add("quarantine")
@@ -1061,12 +1062,7 @@ def sources():
 
 def without_core_import(material):
     main = ast.parse(material["chupa.__main__"])
-    assert any(
-        isinstance(node, ast.ImportFrom)
-        and node.module == "chupa.daemon"
-        and {"DaemonCore", "PauseConsumer", "daemon_core"} <= {alias.name for alias in node.names}
-        for node in ast.walk(main)
-    )
+    assert any(isinstance(node, ast.ImportFrom) and node.module == "chupa.daemon" and {"DaemonCore", "PauseConsumer", "daemon_core"} <= {alias.name for alias in node.names} for node in ast.walk(main))
 
     class RemoveDaemon(ast.NodeTransformer):
         def visit_Import(self, node):
@@ -2043,6 +2039,7 @@ def test_bootstrap_inline_admission_never_holds(admission_context, monkeypatch, 
     source = admission_context
     source.fs.write(source.repo / f"tickets/{STEM}/ticket.md", TICKET.format(bypass="").encode())
     from tests.approval import approve
+
     approve(source.repo, STEM, source.driver.clock)
     llm = FakeLLM([agent({"chupa/thing.py": "ok\n"}), verdict()])
     captured = capture_pipeline_queue(monkeypatch)
