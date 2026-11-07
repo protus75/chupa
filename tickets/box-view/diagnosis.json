@@ -1,15 +1,20 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "045a694194f670aeb065197ad041542bf38502ad",
+  "produced_at_sha": "f8ff7afdb6b9ea2d31abf5e707a4c2f02b1f2b0d",
   "stem": "box-view",
-  "attempt": 2,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "premise_bounce cap spent",
+  "attempt": 3,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Details focus bug: box.js update() posts {type:'focus'} on every render, and view.js does too. Each snapshot refresh lets the last view to post take Details. Post focus from box.js only on user actions (hover, mouseleave, click, contextmenu, keys), never from render().",
+    "In extension.js DetailsView.setFocus (~line 229), save the old this.focuses[kind] first and change this.focus only when the new id differs from it. A repeated identical post must not take focus back. Keep the fallback to the other view's pin when the id is cleared.",
+    "When a render drops the pinned box id because the message left the snapshot, post one focus change for that real change, not every render. The ticket requires Details to show the last hovered or pinned item, then the other view's pin, then the running ticket.",
+    "Leave view.js unchanged: it is outside the scope fence, and the Tickets view must not change. Fix the bug in box.js and setFocus only. Keep the rest of the diff, which review said meets the ticket, and rerun every Verification command."
+  ],
+  "mechanical": null,
   "spec_version": "1.2",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
