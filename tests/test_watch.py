@@ -110,6 +110,25 @@ def test_recent_steps_merges_engine_and_stage_events(tmp_path, monkeypatch):
     assert len(watch.recent_steps(state, log, 20)) == 6
 
 
+def test_recent_steps_triage_message_number():
+    log = [
+        {"ts": f"2026-01-01T00:00:0{i}+00:00", "stem": "triage", "surface": "triage", **event}
+        for i, event in enumerate([
+            {"event": "stage_start", "run_seq": 337},
+            {"event": "stage_end", "run_seq": 337, "outcome": "ok"},
+            {"event": "stage_start"},
+            {"event": "stage_end", "run_seq": 337, "outcome": "failed"},
+        ])
+    ]
+    rows = watch.recent_steps(None, log, 10)
+    assert [(row["kind"], row["text"]) for row in rows] == [
+        ("triage_failed", "Triage #337 end (failed)"),
+        ("triage_start", "Triage start"),
+        ("triage_ok", "Triage #337 end (ok)"),
+        ("triage_start", "Triage #337 start"),
+    ]  # Generic kinds, missing numbers, or a missing legacy label differ.
+
+
 def test_snapshot_verb_reads_config_state_dir(tmp_path, capsys):
     from pathlib import Path
 

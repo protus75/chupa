@@ -330,6 +330,14 @@ def test_ticketless_surface_spools_under_its_surface_name(tmp_path):
     assert (spool(state, "triage") / "triage" / "call-01" / "prompt.md").exists()
 
 
+def test_ticketless_stage_logs_caller_run_sequence(tmp_path):
+    driver, state = build(tmp_path, FakeLLM([echo_json("hi")]))
+    stage = LlmStage(surface="triage", emits=Echo, gates=[], render=render)
+    run(driver, stage, ticket=None, run_seq=337)
+    events = [e for e in log_events(state) if e["event"] in ("stage_start", "stage_end")]
+    assert [(e["event"], e["run_seq"]) for e in events] == [("stage_start", 337), ("stage_end", 337)]  # Journal-derived sequence is zero.
+
+
 def test_surfaces_sharing_an_attempt_keep_separate_spools(tmp_path):
     llm = FakeLLM([echo_json("implemented"), echo_json("reviewed")])
     driver, state = build(tmp_path, llm)

@@ -274,11 +274,11 @@ class Driver:
         deadline = started.timestamp() + stuck_budget
         ctx = {"stem": stem, "attempt": attempt, "surface": stage.surface}
         tally = _Tally()
-        self.log.event("stage_start", **ctx, stuck_budget=stuck_budget)
+        self.log.event("stage_start", **ctx, run_seq=seq, stuck_budget=stuck_budget)
 
         def done(outcome: Outcome, artifact: BaseModel | None = None) -> StageResult:
             seconds = max(0, (self.clock() - started).total_seconds() - ((self.detector.cap_wait() if self.detector else 0) - prior_wait))
-            self.log.event("stage_end", **ctx, outcome=outcome, calls=tally.calls)
+            self.log.event("stage_end", **ctx, run_seq=seq, outcome=outcome, calls=tally.calls)
             last = tally.last
             detector = self.detector
             meter = detector.call if detector is not None else None
