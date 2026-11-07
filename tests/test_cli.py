@@ -458,13 +458,12 @@ def test_python_dash_m_chupa_is_the_entry(root):
     assert proc.returncode == 2
 
 
-def test_project_stays_virtual():
+def test_project_declares_build_and_console_script():
     import tomllib
 
     pyproject = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text())
-    assert "scripts" not in pyproject["project"]
-    assert "build-system" not in pyproject
-    assert os.path.isfile(Path(__file__).resolve().parents[1] / "chupa" / "__main__.py")
+    assert pyproject["build-system"]["build-backend"] == "uv_build"  # A virtual project cannot build a wheel.
+    assert pyproject["project"]["scripts"]["chupa"] == "chupa.__main__:main"  # The installed command must invoke the CLI.
 
 
 def released(root):

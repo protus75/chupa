@@ -26,7 +26,8 @@ chupa develops itself: this repo is both the engine and its own first host.
 
 ## 2. Commands
 
-Run chupa as `uv run python -m chupa <verb>` (global flag `--config PATH`, default `config.yaml`
+Install with `uv tool install chupa` and run `chupa <verb>`; from a checkout, run
+`uv run python -m chupa <verb>` (global flag `--config PATH`, default `config.yaml`
 at the checkout root). In this repo, use `./dev.py` (section 2.2).
 
 ### 2.1 Verbs
@@ -76,6 +77,7 @@ Each test has a 120-second hard limit.
 | `drain` | runs `chupa drain` detached and appends output to `<state_dir>/drain.out` |
 | `confirm STEM... [--yes]`, `reject STEM... [--yes]` | `chupa confirm` or `chupa reject` once per stem; a person at a terminal answers `y` for each stem unless `--yes` is passed |
 | `watch [--once]` | `watch.py` through `uv`: a read-only live view of this checkout's engine and the queue, using the engine's dependency rule |
+| `publish` | builds and uploads the current release with `UV_PUBLISH_TOKEN` set (`./dev.py publish`) |
 | `vscode` | bumps the patch version in `vscode-chupa/package.json` (VS Code keeps an extension's old icon until its version changes), packages it with `npx @vscode/vsce`, and installs it with `code --install-extension --force`; reload the window to load it |
 
 `vscode-chupa/` is an operator-only VS Code extension: an Activity Bar view of every ticket as an

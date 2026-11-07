@@ -12,6 +12,7 @@
     ./dev.py serve            run the continuous daemon
     ./dev.py drain            run every eligible ticket to quiescence
     ./dev.py watch [--once]   live view: running ticket, step, model, and the queue
+    ./dev.py publish          build and upload the current release
     ./dev.py vscode           package and install the vscode-chupa extension (then reload the window)
     ./dev.py kill             hard-stop the running drain or serve
     ./dev.py stop             finish the running ticket and exit
@@ -23,6 +24,7 @@ Standard library only, so any python3 starts it; every task runs through uv in t
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -61,6 +63,7 @@ def main() -> None:
     sub.add_parser("kill", help="hard-stop the running drain or serve")
     sub.add_parser("stop", help="finish the running ticket and exit")
     sub.add_parser("watch", help="live view of the drain and the queue").add_argument("--once", action="store_true")
+    sub.add_parser("publish", help="build and upload the current release")
     sub.add_parser("vscode", help="package and install the vscode-chupa extension")
     for verb in ("confirm", "reject", "review"):
         verdict = sub.add_parser(verb, help=f"{verb} each named ticket")
@@ -94,6 +97,12 @@ def main() -> None:
             subprocess.run(["uv", "run", "python", str(ROOT / "watch.py"), *(["--once"] if args.once else [])], cwd=ROOT)
         except KeyboardInterrupt:
             pass
+    elif args.task == "publish":
+        if not os.environ.get("UV_PUBLISH_TOKEN"):
+            sys.exit("dev: set UV_PUBLISH_TOKEN to publish")
+        with tempfile.TemporaryDirectory() as tmp:
+            run(["uv", "build", "-o", tmp])
+            run(["uv", "publish", *(str(path) for path in sorted(Path(tmp).iterdir()))])
     elif args.task == "vscode":
         # VS Code keeps an extension's old icon and views until its version changes, so every install bumps the patch.
         manifest = ROOT / "vscode-chupa" / "package.json"
