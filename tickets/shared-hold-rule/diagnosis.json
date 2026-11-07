@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "bab8caa133be1cb3282f42b54a8b7af4f6eef4db",
+  "stem": "shared-hold-rule",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "reject",
+  "lessons": [
+    "The code passed: 3062 tests, exit 0. The ticket failed because its `## Regression` command, `./dev.py test ... -k test_snapshot_holds_a_parked_ticket`, prints pytest output. BugEvidenceGate in chupa/stages.py needs stdout to be exactly one JSON object {\"regression_result\": ...}.",
+    "Rewrite `## Regression` to run a carried reproducer, as tests/regress_graph_lanes.py and tests/regress_already_satisfied.py do. It must print {\"regression_result\":\"pass\"} with exit 0 at head and {\"regression_result\":\"defect\"} with a positive exit at the overlaid base.",
+    "Add the new tests/regress_<stem>.py to `carries` and to `## Scope fence`. Have it check its prerequisites and test the snapshot/queue hold for a premise-parked ticket. At base the snapshot lists that ticket as queued or ready, which should yield defect, not error.",
+    "Keep the existing implementation approach (parked_blob in drain.py, used by the drain, scheduler.dispatch_next and observe.held). It met every scope item and test. Only the regression evidence path needs to change."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
