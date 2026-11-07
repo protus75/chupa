@@ -145,3 +145,27 @@ def test_observe_verbs_take_no_lock_and_write_nothing(tmp_path, capsys):
         assert "serve stopped (stopped)" in capsys.readouterr().out
     finally:
         lock.release()
+
+
+def test_snapshot_lock_holder(tmp_path, monkeypatch):
+    ctx = watch.Context(tmp_path, tmp_path, tmp_path / "config.yaml", None, None, None)
+    monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: (set(), set()))
+    monkeypatch.setattr(watch, "committed_ticket_shas", lambda ctx: {})
+    monkeypatch.setattr(watch, "commits", lambda ctx: {})
+    monkeypatch.setattr(watch, "processes", lambda ctx: [(712, 1, "python -m chupa --config x.yaml review stem")])
+    monkeypatch.setattr(watch.os, "kill", lambda pid, signal: None)
+    assert watch.snapshot(ctx)["lock"] == ""  # A missing lockfile is not a live holder.
+    started_at = "2026-11-06T07:19:00+00:00"
+    (tmp_path / "chupa.lock").write_text(json.dumps({"pid": 712, "started_at": started_at}))
+
+    def dead(pid, signal):
+        raise ProcessLookupError
+
+    monkeypatch.setattr(watch.os, "kill", dead)
+    assert watch.snapshot(ctx)["lock"] == ""  # A stale lockfile is not a live holder.
+    monkeypatch.setattr(watch.os, "kill", lambda pid, signal: None)
+    assert watch.snapshot(ctx)["lock"] == f"review since {watch.clock(started_at)} (pid 712)"
+    monkeypatch.setattr(watch, "processes", lambda ctx: [(712, 1, "python -m chupa")])
+    assert watch.snapshot(ctx)["lock"] == f"chupa since {watch.clock(started_at)} (pid 712)"
+    monkeypatch.setattr(watch, "processes", lambda ctx: [(713, 1, "python -m chupa drain")])
+    assert watch.snapshot(ctx)["lock"] == f"chupa since {watch.clock(started_at)} (pid 712)"

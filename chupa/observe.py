@@ -441,6 +441,27 @@ def snapshot(ctx) -> dict:
 
     merged = sorted((s for s in last if to(s) in SETTLED), key=lambda s: last[s]["ts"], reverse=True)
     alive = lock_holder(state) is not None
+    lock = ""
+    if alive:
+        try:
+            holder = json.loads((state / "chupa.lock").read_text())
+            pid, started_at = holder["pid"], holder["started_at"]
+        except (OSError, ValueError, KeyError):
+            pass
+        else:
+            args = next((args.split() for row_pid, _, args in processes(ctx) if row_pid == pid), [])
+            verb = "chupa"
+            for i in range(len(args) - 1):
+                if args[i:i + 2] == ["-m", "chupa"]:
+                    tokens = iter(args[i + 2:])
+                    for token in tokens:
+                        if token == "--config":
+                            next(tokens, None)
+                        elif not token.startswith("-"):
+                            verb = token
+                            break
+                    break
+            lock = f"{verb} since {clock(started_at)} (pid {pid})"
     running = running_stems(state, last)
     open_ = {s: t for s, t in tickets.items() if to(s) not in SETTLED | RETIRED and s not in running and t.frontmatter.state not in ("rejected", "merged")}
     runnable = {s: t for s, t in open_.items() if t.frontmatter.state == "confirmed" and s not in held_stems}
@@ -533,6 +554,7 @@ def snapshot(ctx) -> dict:
         "stateDir": str(state.resolve()),
         "at": datetime.now().astimezone().isoformat(),
         "engine": alive,
+        "lock": lock,
         "rows": rows,
         "steps": steps,
         "blockedCount": len(blocked_stems) + len(invalid),

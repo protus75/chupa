@@ -46,7 +46,9 @@ function render(snap) {
 	for (const r of snap.rows) {
 		counts[r.section] = (counts[r.section] ?? 0) + 1;
 	}
-	header.textContent = `engine ${snap.engine ? 'running' : 'stopped'} · ${counts.blocked ?? 0} blocked · ${counts.queued ?? 0} queued · ${counts.running ?? 0} running · ${counts.merged ?? 0} merged`;
+	const lock = el('span', '', snap.lock ? '🔒' : '🔓');
+	lock.title = snap.lock || 'unlocked';
+	header.replaceChildren(lock, ` · ${counts.blocked ?? 0} blocked · ${counts.queued ?? 0} queued · ${counts.running ?? 0} running · ${counts.merged ?? 0} merged`);
 	const rows = snap.rows.map(r => {
 		const row = el('div', `row ${r.section}`);
 		row.dataset.stem = r.stem;
