@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-none
+The observation context is passed explicitly to avoid process-wide state and test-order dependence.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Ticket budget: 90 minutes expected, 180 minutes stuck; completed within the expected budget.
+Expected 90 minutes; completed within the expected budget.
 
