@@ -242,6 +242,7 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("review", help="review a committed ticket under the lock").add_argument("stem")
     sub.add_parser("suggest", help="queue an idea for triage").add_argument("summary")
     sub.add_parser("triage", help="make one sequential pass over pending suggestions under the lock").add_argument("ids", nargs="*")
+    sub.add_parser("migrate-box", help="migrate old box resolutions under the lock")
     sub.add_parser("dismiss", help="dismiss box messages under the lock").add_argument("ids", nargs="+")
     sub.add_parser("covmap", help="build the coverage map")
     covgate = sub.add_parser("covgate", help="check a coverage JSON report against thresholds")
@@ -399,6 +400,28 @@ def main(
             return asyncio.run(_verdict(checkout, args.stem, args.verb, read_input, args.yes))
         if args.verb == "review":
             return asyncio.run(_review(checkout, args.stem))
+        if args.verb == "migrate-box":
+            async def migrate_box():
+                lock = Lockfile(config.state_dir, instance_id=await checkout.git.describe(repo), clock=clock)
+                lock.acquire()
+                try:
+                    count = 0
+                    for path in sorted((config.state_dir / "box").glob("*.json")):
+                        data = json.loads(path.read_bytes())
+                        resolution = data.get("resolution")
+                        if resolution is None or resolution.get("kind") != "decision":
+                            continue
+                        resolution["kind"] = "declined"
+                        if resolution["link"].startswith("decision-"):
+                            resolution["link"] = "declined-" + resolution["link"][len("decision-"):]
+                        checkout.fs.write(path, json.dumps(data).encode())
+                        print(f"{data['id']}: decision -> declined")
+                        count += 1
+                    print(f"migrate-box: {count} migrated")
+                finally:
+                    lock.release()
+            asyncio.run(migrate_box())
+            return 0
         if args.verb == "dismiss":
             async def dismiss_messages():
                 lock = Lockfile(config.state_dir, instance_id=await checkout.git.describe(repo), clock=clock)

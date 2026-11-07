@@ -66,7 +66,7 @@ def project(events: Iterable[Event], *, box=None, policy=None, window: Window | 
     def row(m):
         label = ("reopened" if m.reopen else "pending") if m.status == "pending" else (
             f"author -> {m.resolution.link}" if m.resolution.kind == "ticket" else
-            f"tombstone -> {m.resolution.link}" if m.resolution.kind == "tombstone" else "decision"
+            f"tombstone -> {m.resolution.link}" if m.resolution.kind == "tombstone" else "declined"
         )
         summary = m.summary.splitlines()[0]
         return (m.id, m.message_class, label, summary if len(summary) <= 120 else summary[:117] + "...")

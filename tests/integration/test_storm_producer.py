@@ -110,8 +110,8 @@ def test_dedup_preserves_resolved_message_and_incoming_identity(tmp_path, incomi
     message = box.get(id)
     # Stored diagnostic fields are not the arriving producer's identity.
     box._write(message.model_copy(update={"stage": "check", "outcome": "gate_failed", "origin": "stored", "summary": "old diagnostic"}))
-    verdict = Verdict(verdict="decision", produced_by_spec_version="1", rationale="recorded")
-    resolution = Resolution(kind="decision", link="known")
+    verdict = Verdict(verdict="declined", produced_by_spec_version="1", rationale="recorded")
+    resolution = Resolution(kind="declined", link="known")
     box.record_verdict(id, verdict)
     box.resolve(id, resolution)
     before = snapshot(box.root)
@@ -218,8 +218,8 @@ def test_box_operations_without_arrivals_are_idle(tmp_path, monkeypatch):
     callback = Mock(side_effect=AssertionError("non-arrival called hook"))
     box._arrival = callback
     assert len(box.messages()) == len(box.pending()) == 1 and box.get(id).id == id
-    box.record_verdict(id, Verdict(verdict="decision", produced_by_spec_version="1", rationale="known"))
-    box.resolve(id, Resolution(kind="decision", link="known"))
+    box.record_verdict(id, Verdict(verdict="declined", produced_by_spec_version="1", rationale="known"))
+    box.resolve(id, Resolution(kind="declined", link="known"))
     assert box.pending() == []
     callback.assert_not_called()
     read.assert_not_called()

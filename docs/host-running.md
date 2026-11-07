@@ -29,6 +29,7 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | `review` | No | Review a committed ticket. |
 | `suggest` | Yes | Queue an idea for Suggestion Box intake. |
 | `triage` | No | Make one pass over named pending box IDs, or all pending messages. |
+| `migrate-box` | No | Migrate old Suggestion Box resolutions under the writer lock. |
 | `dismiss` | No | Dismiss named box IDs without a model call. |
 | `covmap` | Yes | Runs `review.coverage_map.argv` and writes `<state_dir>/coverage-map.json`; exits 0 on success or 2 on refusal. |
 | `covgate` | Yes | Run a unit command and check its coverage report. |
@@ -40,4 +41,4 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | `drain` | No | Run eligible tickets to quiescence. |
 | `serve` | No | Run the continuous daemon. |
 
-Stop serve before `retro`, `review`, `triage`, `dismiss`, `run`, `drain`, or another `serve`: each takes the writer lock outright and refuses while it is held. `doctor` also needs the lock available to pass its probe. There is one writer per host; the kernel releases its lock when the holder exits. Never delete `chupa.lock`—wait for or stop the holder instead.
+Stop serve before `retro`, `review`, `triage`, `dismiss`, `migrate-box`, `run`, `drain`, or another `serve`: each takes the writer lock outright and refuses while it is held. `doctor` also needs the lock available to pass its probe. There is one writer per host; the kernel releases its lock when the holder exits. Never delete `chupa.lock`—wait for or stop the holder instead.

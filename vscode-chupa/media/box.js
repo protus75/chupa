@@ -15,7 +15,7 @@ function update() {
 	const ids = [];
 	for (const row of snap.box) if (selected.has(row.id)) ids.push(row.id);
 	const c = snap.boxCounts;
-	header.textContent = `${c.pending} pending · ${c.author} author · ${c.tombstone} tombstone · ${c.decision} decision` + (ids.length > 1 ? ` · ${ids.length} selected` : '');
+	header.textContent = `${c.pending} pending · ${c.author} author · ${c.tombstone} tombstone · ${c.declined} declined` + (ids.length > 1 ? ` · ${ids.length} selected` : '');
 	for (const node of list.children) {
 		const row = snap.box.find(r => r.id === node.dataset.id);
 		node.classList.toggle('pinned', selected.has(row.id));

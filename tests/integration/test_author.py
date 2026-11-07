@@ -250,7 +250,7 @@ def test_report_failed_publication_cleans_candidate(tmp_path, monkeypatch, failu
     assert not (root / "tickets/failed").exists()
     assert "tickets/failed" not in git_out(root, "status", "--porcelain")
     (message,) = _box(root).messages()
-    assert message.resolution.kind == "decision"
+    assert message.resolution.kind == "declined"
 
 
 def test_triage_authors_ticket_and_journals_intake(tmp_path, monkeypatch):
@@ -390,7 +390,7 @@ def test_author_rma_writes_decision_without_ticket(tmp_path, monkeypatch):
     assert _run(root, monkeypatch, llm) == 0
     assert not (root / "tickets/blocked").exists()
     assert [request.surface for request in llm.requests] == ["triage", "author", "requisition_review"]
-    _, body = parse_record((root / record_path(f"decision-{message_id}")).read_text())
+    _, body = parse_record((root / record_path(f"declined-{message_id}")).read_text())
     assert "plan cannot support this" in body
 
 
@@ -402,9 +402,9 @@ def test_author_exhaustion_records_one_decision(tmp_path, monkeypatch):
     llm = FakeLLM([reply("author"), *[json.dumps({"stem": "bad", "ticket": "bad"}) for _ in range(7)]])
     assert _run(root, monkeypatch, llm) == 0
     assert not (root / "tickets/bad").exists()
-    record, _ = parse_record((root / record_path(f"decision-{message_id}")).read_text())
-    assert record.id == f"decision-{message_id}"
-    assert box.get(message_id).resolution == Resolution(kind="decision", link=record.id)
+    record, _ = parse_record((root / record_path(f"declined-{message_id}")).read_text())
+    assert record.id == f"declined-{message_id}"
+    assert box.get(message_id).resolution == Resolution(kind="declined", link=record.id)
 
 
 def test_prior_author_invocation_records_decision_without_author_call(tmp_path, monkeypatch):
@@ -417,8 +417,8 @@ def test_prior_author_invocation_records_decision_without_author_call(tmp_path, 
     llm = FakeLLM([])
     assert _run(root, monkeypatch, llm) == 0
     assert [r for r in llm.requests if r.surface == "author"] == []
-    record, _ = parse_record((root / record_path(f"decision-{message_id}")).read_text())
-    assert box.get(message_id).resolution == Resolution(kind="decision", link=record.id)
+    record, _ = parse_record((root / record_path(f"declined-{message_id}")).read_text())
+    assert box.get(message_id).resolution == Resolution(kind="declined", link=record.id)
 
 
 def test_reopened_retro_ticket_starts_draft(tmp_path, monkeypatch):

@@ -59,6 +59,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `retro` | yes | Forces a retro report (section 9.5). |
 | `suggest <summary>` | no | Queues an idea for Suggestion Box intake. |
 | `triage [id ...]` | yes | One sequential pass over named pending messages, or all pending messages (section 9.2). |
+| `migrate-box` | yes | Migrate old Suggestion Box resolutions under the writer lock. |
 | `dismiss <id> ...` | yes | Dismiss named messages without a model call. |
 | `prompt box <id> ...` | no | Print a prompt for discussing named box messages. |
 | `pause` / `resume` / `kill` / `stop` | try | With a running engine, publish a control request to it (section 7.3). With none: `kill` and `stop` refuse (exit 2); `pause`/`resume` print "nothing running". |
@@ -78,6 +79,7 @@ Tests live in `tests/unit/` (no disk, network or process; run under `chupa.testg
 |---|---|
 | (none) | `uv run pytest -q` |
 | `test [args]` | pytest with those args |
+| `migrate-box` | Migrate old Suggestion Box resolutions |
 | `triage [ID ...]`, `dismiss ID ...` | One matching chupa call with all supplied IDs |
 | `suggest SUMMARY` | `chupa suggest <summary>` |
 | `covmap` | `chupa covmap` |
@@ -565,7 +567,7 @@ Every model call goes through one driver (`chupa/driver.py`) using a prompt spec
 | `rework.md` | rewriting or splitting a ticket | update / split / escalate |
 | `requisition_review.md` | checking an authored ticket is buildable, including coverage dependents outside its fence; a missing or invalid configured map snags | approve / snag / rma |
 | `author.md` | writing a ticket from a Suggestion Box message | stem + ticket |
-| `triage.md` | settling a Suggestion Box message | author / tombstone / decision |
+| `triage.md` | settling a Suggestion Box message | author / tombstone / declined |
 | `retro.md` | proposing prompt-spec changes | proposals |
 
 Specs always load from the engine's `chupa/specs/`, never from the host. Host material is injected only
@@ -596,7 +598,7 @@ Problems found while working are filed, not fixed in the current diff. Classes: 
 - `author`: run the Author stage to write a ticket.
 - `tombstone`: the message is already covered by a merged or committed ticket. A third
   re-report reopens it.
-- `decision`: record a decision in `tickets/decisions/<id>.md`.
+- `declined`: record a decision in `tickets/decisions/<id>.md`.
 
 `dismiss <id> ...` records operator decisions without a model call; unknown IDs refuse before any message is settled.
 

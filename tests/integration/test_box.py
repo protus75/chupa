@@ -122,13 +122,13 @@ def test_durability_and_corruption(tmp_path):
 
 
 def test_registry_format(tmp_path):
-    record = DecisionRecord(id="b", kind="decision", link="ticket-b", reopen_after_days=30)
+    record = DecisionRecord(id="b", kind="declined", link="ticket-b", reopen_after_days=30)
     assert record_path("b") == Path("tickets/decisions/b.md")
     assert parse_record(render_record(record, "Reason\n")) == (record, "Reason\n")
     for text in [
         "body only",
-        "---\nid: b\nkind: decision\nlink: ticket-b\n---\nbody",
-        "---\nid: b\nkind: decision\nlink: ticket-b\nreopen_after_days: 30\nextra: x\n---\nbody",
+        "---\nid: b\nkind: declined\nlink: ticket-b\n---\nbody",
+        "---\nid: b\nkind: declined\nlink: ticket-b\nreopen_after_days: 30\nextra: x\n---\nbody",
     ]:
         with pytest.raises(BoxError):
             parse_record(text)
@@ -349,3 +349,31 @@ def test_tombstone_visibility_uses_message_class(tmp_path, monkeypatch):
     assert [m.id for m in box.confirmed_tombstones()] == expected
     assert all("priority" not in m.model_dump() for m in box.messages())
     assert {p: p.read_bytes() for p in box.root.glob("*.json")} == before
+
+
+def test_migrate_box_preserves_other_messages(tmp_path, capsys):
+    from chupa.__main__ import main
+    from tests.integration.test_cli import ENV, Clock
+    from tests.integration.test_drain import make_root
+    from pydantic import ValidationError
+
+    root = make_root(tmp_path)
+    box = Box(root / ".chupa/state/box", LocalFileSystem())
+    ids = [box.enqueue(message_class="suggestion", origin=str(n), summary=f"message {n}")[0] for n in range(3)]
+    box.resolve(ids[0], Resolution(kind="declined", link=f"declined-{ids[0]}"))
+    box.resolve(ids[1], Resolution(kind="tombstone", link="covered"))
+    paths = [box.path(box.get(id)) for id in ids]
+    legacy = json.loads(paths[0].read_bytes())
+    legacy["resolution"] = {"kind": "decision", "link": f"decision-{ids[0]}"}
+    paths[0].write_text(json.dumps(legacy))
+    unchanged = [path.read_bytes() for path in paths[1:]]
+    with pytest.raises(ValidationError):
+        Resolution(kind="decision", link="old")
+    assert main(["migrate-box"], cwd=root, env=ENV, clock=Clock()) == 0
+    assert capsys.readouterr().out == f"{ids[0]}: decision -> declined\nmigrate-box: 1 migrated\n"
+    assert [path.read_bytes() for path in paths[1:]] == unchanged
+    messages = box.messages()
+    assert [m.id for m in messages] == ids
+    assert messages[0].resolution == Resolution(kind="declined", link=f"declined-{ids[0]}")
+    assert messages[1].resolution == Resolution(kind="tombstone", link="covered")
+    assert messages[2].resolution is None

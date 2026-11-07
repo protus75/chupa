@@ -313,7 +313,7 @@ async def test_release_construction_is_idle(monkeypatch):
     await test_flake_construction_is_idle(monkeypatch)
 
 
-@pytest.mark.parametrize("resolution", [None, "tombstone", "decision", "ticket"])
+@pytest.mark.parametrize("resolution", [None, "tombstone", "declined", "ticket"])
 def test_release_resolves_exact_box_identity(rig, resolution, monkeypatch):
     (identity,) = detect(rig).active.values()
     # A merge whose name resembles the report and summary supplies no resolution.

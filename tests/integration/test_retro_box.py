@@ -40,7 +40,7 @@ async def test_completed_retro_proposals_reach_prompt_spec_merge(tmp_path, monke
     authored = json.loads(author_reply("repair-spec"))
     authored["ticket"] = authored["ticket"].replace("`chupa/thing.py`", "`chupa/specs/review.md`").replace("## Scope fence\n- chupa/thing.py", "## Scope fence\n- chupa/specs/")
     authored["ticket"] = authored["ticket"].replace("uv run pytest", "test -f chupa/specs/review.md")
-    llm = FakeLLM([json.dumps({"proposals": [PROPOSAL, PROPOSAL, other]}), reply("author"), json.dumps(authored), requisition_reply("approve"), reply("decision")])
+    llm = FakeLLM([json.dumps({"proposals": [PROPOSAL, PROPOSAL, other]}), reply("author"), json.dumps(authored), requisition_reply("approve"), reply("declined")])
     writer = runner.bind(c, llm)
     hook = Retro(c, writer)
     c.journal.append(EventType.STATE_TRANSITION, {"to": "merged", "commit": None}, ticket="history")

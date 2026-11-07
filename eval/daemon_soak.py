@@ -108,7 +108,7 @@ class _Exec:
             if "<<chupa-data:begin message>>" not in prompt:
                 raise AssertionError("soak transport accepts only triage, never host work")
             reply = json.dumps(
-                dict(verdict="decision", link=None, summary="Observed synthetic fault", rationale="Retain the disposable fixture evidence", evidence=["production fault record"], reopen_after_days=1)
+                dict(verdict="declined", link=None, summary="Observed synthetic fault", rationale="Retain the disposable fixture evidence", evidence=["production fault record"], reopen_after_days=1)
             )
             result = (0, json.dumps(dict(type="result", subtype="success", is_error=False, result=reply, total_cost_usd=0.0)) + "\n", "")
         elif argv[0] == "git" or argv[0] == sys.executable:

@@ -50,13 +50,13 @@ class _Strict(BaseModel):
 
 
 class Verdict(_Strict):
-    verdict: Literal["author", "tombstone", "decision"]
+    verdict: Literal["author", "tombstone", "declined"]
     produced_by_spec_version: NonBlank
     rationale: NonBlank
 
 
 class Resolution(_Strict):
-    kind: Literal["ticket", "tombstone", "decision"]
+    kind: Literal["ticket", "tombstone", "declined"]
     link: NonBlank
 
 
@@ -356,7 +356,7 @@ class Box:
 
 class DecisionRecord(_Strict):
     id: NonBlank
-    kind: Literal["decision", "tombstone"]
+    kind: Literal["declined", "tombstone"]
     link: NonBlank
     reopen_after_days: Annotated[int, Field(ge=1)]
 

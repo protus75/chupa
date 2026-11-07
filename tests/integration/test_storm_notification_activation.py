@@ -195,8 +195,8 @@ def test_storm_trip_and_report_crash_replay(tmp_path, monkeypatch, point, after,
     (trip,) = trips(journal)
     assert trip.body["trip_id"] == digest([SIG, "arrival/0", "arrival/5"])
     (report,) = [m for m in box.messages() if m.origin.startswith("storm-breaker/")]
-    verdict = Verdict(verdict="decision", produced_by_spec_version="1", rationale="already reviewed")
-    resolution = Resolution(kind="decision", link="known")
+    verdict = Verdict(verdict="declined", produced_by_spec_version="1", rationale="already reviewed")
+    resolution = Resolution(kind="declined", link="known")
     box.record_verdict(report.id, verdict)
     box.resolve(report.id, resolution)
     before = snapshot(tmp_path)

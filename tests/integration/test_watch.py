@@ -341,7 +341,7 @@ def test_snapshot_box_messages(tmp_path, monkeypatch):
     resolved = snap['box'][1]
     assert (resolved['state'], resolved['status'], resolved['link']) == ('resolved', 'suggestion · author -> fixed', 'tickets/fixed/ticket.md')  # Pending or a decision path loses the resolution.
     assert (tmp_path / resolved['path']).is_file()  # The path must point to the actual message file.
-    assert snap['boxCounts'] == {'pending': 1, 'author': 1, 'tombstone': 0, 'decision': 0}  # Counting all messages as pending or omitting resolved authors differs.
+    assert snap['boxCounts'] == {'pending': 1, 'author': 1, 'tombstone': 0, 'declined': 0}  # Counting all messages as pending or omitting resolved authors differs.
     assert snap['box'][0]['fields'] == [['Summary', 'Second message\nMore detail'], ['Origin', 'engine'], ['Stage', 'check: failed']]  # The summary must retain its second line and stage its outcome.
 
 
@@ -361,9 +361,9 @@ def test_snapshot_box_external_state_and_resolution_counts(tmp_path, monkeypatch
     decision, _ = box.enqueue(message_class='suggestion', origin='two', summary='Decision')
     box.record_verdict(tomb, Verdict(verdict='tombstone', produced_by_spec_version='v1', rationale='covered'))
     box.resolve(tomb, Resolution(kind='tombstone', link='covered'))
-    box.resolve(decision, Resolution(kind='decision', link='chosen'))
+    box.resolve(decision, Resolution(kind='declined', link='chosen'))
     snap = watch.snapshot(ctx)
-    assert snap['boxCounts'] == {'pending': 0, 'author': 0, 'tombstone': 1, 'decision': 1}  # Resolution kinds must be counted separately.
+    assert snap['boxCounts'] == {'pending': 0, 'author': 0, 'tombstone': 1, 'declined': 1}  # Resolution kinds must be counted separately.
     assert [row['link'] for row in snap['box']] == ['tickets/decisions/chosen.md', 'tickets/decisions/covered.md']  # Both records use their own names.
     assert all(row['path'] is None for row in snap['box'])  # External files cannot be opened relative to the workspace.
     assert snap['box'][1]['summary'] == 'A' * 117 + '...'  # The status truncation applies only to the row.

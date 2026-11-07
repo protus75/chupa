@@ -101,7 +101,7 @@ class AuthorGate:
 @dataclass(frozen=True)
 class AuthorOutcome:
     stem: str | None = None
-    decision: str | None = None
+    declined: str | None = None
 
 
 def _goal(text: str) -> str:
@@ -131,14 +131,14 @@ async def _commit_record(checkout: Checkout, driver: Driver, record_id: str) -> 
     await driver.effects.run(commit, key=f"ticket-plane/decisions/{record_id}", ticket=None)
 
 
-async def failure_decision(checkout: Checkout, driver: Driver, box: Box, message: Message, evidence: str) -> AuthorOutcome:
-    record_id = f"decision-{message.id}"
-    record = DecisionRecord(id=record_id, kind="decision", link=message.id, reopen_after_days=30)
+async def failure_declined(checkout: Checkout, driver: Driver, box: Box, message: Message, evidence: str) -> AuthorOutcome:
+    record_id = f"declined-{message.id}"
+    record = DecisionRecord(id=record_id, kind="declined", link=message.id, reopen_after_days=30)
     body = f"Author could not produce a ticket.\n\nEvidence: {evidence}\n"
     checkout.fs.write(checkout.repo / record_path(record_id), render_record(record, body).encode())
     await _commit_record(checkout, driver, record_id)
-    box.resolve(message.id, Resolution(kind="decision", link=record_id))
-    return AuthorOutcome(decision=record_id)
+    box.resolve(message.id, Resolution(kind="declined", link=record_id))
+    return AuthorOutcome(declined=record_id)
 
 
 def record_retro_ticket(journal, message: Message, stem: str) -> None:
@@ -189,14 +189,14 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
     try:
         row = policy_row(message.message_class, message.bug_origin, message.has_repro)
     except ValueError as exc:
-        return await failure_decision(checkout, driver, box, message, str(exc))
+        return await failure_declined(checkout, driver, box, message, str(exc))
     assert message.verdict is not None
     spec: Spec = load_spec((SPECS_DIR / "author.md").read_text())
     files = "\n".join(await checkout.git.ls_files(checkout.repo))
     try:
         report = report_data(message.report, box.root) if message.report else None
     except (OSError, ValueError) as exc:
-        return await failure_decision(checkout, driver, box, message, f"report custody refused: {exc}")
+        return await failure_declined(checkout, driver, box, message, f"report custody refused: {exc}")
     request = json.dumps(
         {
             "class": message.message_class,
@@ -285,7 +285,7 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
         raise
     if result.outcome != "ok" or not isinstance(result.artifact, AuthorReply):
         author_gate.cleanup()
-        return await failure_decision(checkout, driver, box, message, findings_text(result.findings) or result.outcome)
+        return await failure_declined(checkout, driver, box, message, findings_text(result.findings) or result.outcome)
     reply = result.artifact
     assert reviewed is not None and reviewed_text is not None and reviewed_state is not None
     text = reviewed_text
@@ -317,7 +317,7 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
                 author_gate.copied.clear()
         if not isinstance(exc, Exception):
             raise
-        return await failure_decision(checkout, driver, box, message, f"commit failed: {type(exc).__name__}: {exc}")
+        return await failure_declined(checkout, driver, box, message, f"commit failed: {type(exc).__name__}: {exc}")
     author_gate.copied.clear()
     checkout.journal.append(EventType.SIGNAL, {"signal": "ticket_intake", "source": f"box:{message.message_class}", "state": reviewed_state, "new": True, "commit": sha}, ticket=reply.stem)
     checkout.journal.append(

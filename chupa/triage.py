@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from chupa.author import author, failure_decision, recover_retro_ticket
+from chupa.author import author, failure_declined, recover_retro_ticket
 from chupa.box import BOX_DIR, Box, DecisionRecord, RereportJournal, Resolution, Verdict, read_registry, record_path, render_record
 from chupa.driver import Driver, LlmStage
 from chupa.effects import Effects
@@ -30,7 +30,7 @@ NonBlank = Annotated[str, Field(min_length=1, pattern=r"\S")]
 class TriageReply(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid")
 
-    verdict: Literal["author", "tombstone", "decision"]
+    verdict: Literal["author", "tombstone", "declined"]
     link: str | None
     summary: NonBlank
     rationale: NonBlank
@@ -44,7 +44,7 @@ class TriageReply(BaseModel):
         if self.verdict == "tombstone" and not self.link.strip():
             raise ValueError("tombstone link must not be blank")
         if (self.reopen_after_days is not None) != (self.verdict != "author"):
-            raise ValueError("reopen_after_days is required exactly for tombstone and decision")
+            raise ValueError("reopen_after_days is required exactly for tombstone and declined")
         return self
 
 
@@ -78,7 +78,7 @@ async def _record(
     driver: Driver,
     box: Box,
     message_id: str,
-    kind: Literal["decision", "tombstone"],
+    kind: Literal["declined", "tombstone"],
     link: str,
     reply: TriageReply,
     raw_summary: str,
@@ -138,8 +138,8 @@ async def dismiss(checkout: Checkout, ids) -> list[str]:
         if message.resolution is not None:
             lines.append(f"{id}: already resolved -> {message.resolution.link}")
             continue
-        reply = TriageReply(verdict="decision", link=None, summary="Dismissed by the operator.", rationale="The operator dismissed this message.", evidence=[], reopen_after_days=30)
-        lines.append(await _record(checkout, driver, box, id, "decision", id, reply, message.summary))
+        reply = TriageReply(verdict="declined", link=None, summary="Dismissed by the operator.", rationale="The operator dismissed this message.", evidence=[], reopen_after_days=30)
+        lines.append(await _record(checkout, driver, box, id, "declined", id, reply, message.summary))
     return lines
 
 async def _passed_surfaces(checkout, candidate, history):
@@ -259,7 +259,7 @@ async def _settle_pass(checkout, driver, box, spec, history, pass_no, ids):
         registry = read_registry(checkout.repo)
         if message.reopen:
             registry = [(r, body) for r, body in registry if r.id != f"tombstone-{message.id}"]
-        existing = next((r for r, _ in registry if r.id in {f"decision-{message.id}", f"tombstone-{message.id}"}), None)
+        existing = next((r for r, _ in registry if r.id in {f"declined-{message.id}", f"tombstone-{message.id}"}), None)
         if existing is not None:
             if not await _committed(checkout, record_path(existing.id)):
                 await _commit_record(checkout, driver, existing.id)
@@ -270,18 +270,18 @@ async def _settle_pass(checkout, driver, box, spec, history, pass_no, ids):
         if message.verdict is not None and message.verdict.verdict == "author":
             if message.verdict.produced_by_spec_version != spec.meta.version:
                 reply = TriageReply(
-                    verdict="decision",
+                    verdict="declined",
                     link=None,
                     summary="Recorded author verdict superseded",
                     rationale="The triage policy changed before the Author stage handled this message.",
                     evidence=[f"recorded version: {message.verdict.produced_by_spec_version}", f"current version: {spec.meta.version}"],
                     reopen_after_days=30,
                 )
-                line = await _record(checkout, driver, box, message.id, "decision", message.id, reply, message.summary)
+                line = await _record(checkout, driver, box, message.id, "declined", message.id, reply, message.summary)
             else:
                 invoked = any(event.type == EventType.SIGNAL and event.body.get("signal") == "author_invoked" and event.body.get("message") == message.id for event in checkout.journal.read())
-                outcome = await failure_decision(checkout, driver, box, message, "previous Author invocation did not settle") if invoked else await author(checkout, driver, box, message, pass_no)
-                line = f"{message.id}: " + (f"ticket -> {outcome.stem}" if outcome.stem else f"decision -> {outcome.decision}")
+                outcome = await failure_declined(checkout, driver, box, message, "previous Author invocation did not settle") if invoked else await author(checkout, driver, box, message, pass_no)
+                line = f"{message.id}: " + (f"ticket -> {outcome.stem}" if outcome.stem else f"declined -> {outcome.declined}")
             lines.append((message.id, line))
             continue
 
@@ -339,7 +339,7 @@ async def _settle_pass(checkout, driver, box, spec, history, pass_no, ids):
             if reply.verdict == "author":
                 box.record_verdict(message.id, Verdict(verdict="author", produced_by_spec_version=spec.meta.version, rationale=reply.rationale))
                 outcome = await author(checkout, driver, box, box.get(message.id), pass_no)
-                line = f"{message.id}: " + (f"ticket -> {outcome.stem}" if outcome.stem else f"decision -> {outcome.decision}")
+                line = f"{message.id}: " + (f"ticket -> {outcome.stem}" if outcome.stem else f"declined -> {outcome.declined}")
             else:
                 kind = reply.verdict
                 if kind == "tombstone":
@@ -353,12 +353,12 @@ async def _settle_pass(checkout, driver, box, spec, history, pass_no, ids):
                     if not target:
                         reply = reply.model_copy(
                             update={
-                                "verdict": "decision",
+                                "verdict": "declined",
                                 "link": None,
                                 "evidence": [*reply.evidence, f"unresolvable link: {reply.link}"],
                             }
                         )
-                        kind = "decision"
+                        kind = "declined"
                     else:
                         for prior in box.messages():
                             if prior.id != message.id and prior.resolution is not None and prior.resolution.kind == "tombstone" and prior.resolution.link == reply.link:

@@ -46,7 +46,7 @@ async def until(rig, predicate):
 async def graph(root, monkeypatch, **kwargs):
     rig = await repository(root, monkeypatch)
     rig.fs.publish = LocalFileSystem().publish
-    rig.exec.reply = reply("decision")
+    rig.exec.reply = reply("declined")
     owner = serve.Serve(
         rig.checkout,
         read=lambda stem: (root / f"tickets/{stem}/ticket.md").read_text() if (root / f"tickets/{stem}/ticket.md").is_file() else None,

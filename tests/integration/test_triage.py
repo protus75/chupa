@@ -114,13 +114,13 @@ def test_three_verdicts_and_second_pass_and_stale_author(tmp_path, monkeypatch, 
     marker = "RAW-SUMMARY-UNIQUE-987"
     ids = [enqueue(box, marker), enqueue(box, "another concern"), enqueue(box, "third concern")]
     messages = [box.get(id) for id in ids]
-    llm = FakeLLM([reply("tombstone", link="existing", days=7), reply("decision", days=14), reply("author"), author_reply("authored"), requisition_reply("approve")])
+    llm = FakeLLM([reply("tombstone", link="existing", days=7), reply("declined", days=14), reply("author"), author_reply("authored"), requisition_reply("approve")])
     before = subjects(root)
     assert run(root, monkeypatch, llm) == 0
     assert "ticket -> authored" in capsys.readouterr().out
-    assert subjects(root)[:3] == ["chupa(authored): ticket", f"chupa(decisions): decision-{ids[1]}", f"chupa(decisions): tombstone-{ids[0]}"]
+    assert subjects(root)[:3] == ["chupa(authored): ticket", f"chupa(decisions): declined-{ids[1]}", f"chupa(decisions): tombstone-{ids[0]}"]
     assert subjects(root)[3:] == before
-    for id, kind, link, days in [(ids[0], "tombstone", "existing", 7), (ids[1], "decision", ids[1], 14)]:
+    for id, kind, link, days in [(ids[0], "tombstone", "existing", 7), (ids[1], "declined", ids[1], 14)]:
         path = record_path(f"{kind}-{id}")
         record, body = parse_record((root / path).read_text())
         assert (record.kind, record.link, record.reopen_after_days) == (kind, link, days)
@@ -147,16 +147,16 @@ def test_three_verdicts_and_second_pass_and_stale_author(tmp_path, monkeypatch, 
     assert run(root, monkeypatch, llm) == 0
     assert len(llm.requests) == 5
     assert box.get(stale_id).status == "resolved"
-    assert subjects(root)[0] == f"chupa(decisions): decision-{stale_id}"
-    stale, body = parse_record((root / record_path(f"decision-{stale_id}")).read_text())
-    assert stale.kind == "decision" and "0.9" in body and "1.0" in body
+    assert subjects(root)[0] == f"chupa(decisions): declined-{stale_id}"
+    stale, body = parse_record((root / record_path(f"declined-{stale_id}")).read_text())
+    assert stale.kind == "declined" and "0.9" in body and "1.0" in body
 
 
 def test_retro_proposal_paths_in_triage_request(tmp_path, monkeypatch):
     root, box = root_with_box(tmp_path)
     box.enqueue(message_class="retro_finding", origin="retro", summary="broken behavior", retro_report_key="retro/1", fixed_failure="broken behavior", overcorrection_risk="useful inputs", proposed_spec_paths=["specs/review.md"])
     assert box.messages()[0].proposed_spec_paths == ["specs/review.md"]
-    llm = FakeLLM([reply("decision")])
+    llm = FakeLLM([reply("declined")])
     assert run(root, monkeypatch, llm) == 0
     prompt = next(r.rendered for r in llm.requests if r.surface == "triage")
     assert '"proposed_spec_paths": ["chupa/specs/review.md"]' in prompt
@@ -167,8 +167,8 @@ def test_bad_tombstone_link_becomes_decision(tmp_path, monkeypatch):
     id = enqueue(box, "bad reference")
     llm = FakeLLM([reply("tombstone", link="missing")])
     assert run(root, monkeypatch, llm) == 0
-    record, body = parse_record((root / record_path(f"decision-{id}")).read_text())
-    assert record.kind == "decision" and record.link == id and "missing" in body
+    record, body = parse_record((root / record_path(f"declined-{id}")).read_text())
+    assert record.kind == "declined" and record.link == id and "missing" in body
     assert box.get(id).status == "resolved"
 
 
@@ -176,36 +176,36 @@ def test_model_echo_of_raw_summary_is_removed_from_record(tmp_path, monkeypatch)
     root, box = root_with_box(tmp_path)
     marker = "RAW-SUMMARY-PRIVATE-123"
     id = enqueue(box, marker)
-    llm = FakeLLM([reply("decision", summary=marker, evidence=[f"report said {marker}"])])
+    llm = FakeLLM([reply("declined", summary=marker, evidence=[f"report said {marker}"])])
     assert run(root, monkeypatch, llm) == 0
-    committed = git_out(root, "show", f"HEAD:{record_path(f'decision-{id}')}")
+    committed = git_out(root, "show", f"HEAD:{record_path(f'declined-{id}')}")
     assert marker not in committed
 
 
 def test_precommitted_record_resolves_without_call(tmp_path, monkeypatch):
     root, box = root_with_box(tmp_path)
     id = enqueue(box, "already classified")
-    path = record_path(f"decision-{id}")
+    path = record_path(f"declined-{id}")
     (root / path).parent.mkdir(parents=True)
-    (root / path).write_text(render_record(DecisionRecord(id=f"decision-{id}", kind="decision", link=id, reopen_after_days=8), "Prior classification\n"))
+    (root / path).write_text(render_record(DecisionRecord(id=f"declined-{id}", kind="declined", link=id, reopen_after_days=8), "Prior classification\n"))
     git_out(root, "add", str(path))
-    git_out(root, "commit", "-m", f"chupa(decisions): decision-{id}", "--only", "--", str(path))
+    git_out(root, "commit", "-m", f"chupa(decisions): declined-{id}", "--only", "--", str(path))
     llm = FakeLLM([])
     assert run(root, monkeypatch, llm) == 0
-    assert box.get(id).resolution == Resolution(kind="decision", link=f"decision-{id}")
+    assert box.get(id).resolution == Resolution(kind="declined", link=f"declined-{id}")
     assert llm.requests == []
 
 
 def test_uncommitted_record_is_committed_before_resolution(tmp_path, monkeypatch):
     root, box = root_with_box(tmp_path)
     id = enqueue(box, "crash after write")
-    path = record_path(f"decision-{id}")
+    path = record_path(f"declined-{id}")
     (root / path).parent.mkdir(parents=True)
-    (root / path).write_text(render_record(DecisionRecord(id=f"decision-{id}", kind="decision", link=id, reopen_after_days=8), "Recover me\n"))
+    (root / path).write_text(render_record(DecisionRecord(id=f"declined-{id}", kind="declined", link=id, reopen_after_days=8), "Recover me\n"))
     llm = FakeLLM([])
     assert run(root, monkeypatch, llm) == 0
     assert llm.requests == []
-    assert subjects(root)[0] == f"chupa(decisions): decision-{id}"
+    assert subjects(root)[0] == f"chupa(decisions): declined-{id}"
     assert git_out(root, "rev-parse", f"HEAD:{path}").strip()
     assert box.get(id).status == "resolved"
 
@@ -213,13 +213,13 @@ def test_uncommitted_record_is_committed_before_resolution(tmp_path, monkeypatch
 def test_uncommitted_registry_target_is_not_valid_tombstone_link(tmp_path, monkeypatch):
     root, box = root_with_box(tmp_path)
     id = enqueue(box, "new concern")
-    target = "decision-other"
+    target = "declined-other"
     path = record_path(target)
     (root / path).parent.mkdir(parents=True)
-    (root / path).write_text(render_record(DecisionRecord(id=target, kind="decision", link="other", reopen_after_days=8), "Uncommitted\n"))
+    (root / path).write_text(render_record(DecisionRecord(id=target, kind="declined", link="other", reopen_after_days=8), "Uncommitted\n"))
     llm = FakeLLM([reply("tombstone", link=target)])
     assert run(root, monkeypatch, llm) == 0
-    assert parse_record((root / record_path(f"decision-{id}")).read_text())[0].kind == "decision"
+    assert parse_record((root / record_path(f"declined-{id}")).read_text())[0].kind == "declined"
     assert box.get(id).status == "resolved"
 
 
@@ -253,7 +253,7 @@ def test_report_ingested_before_pending_scan(tmp_path, monkeypatch):
         assert "structured log" in request.rendered and "initial_state" in request.rendered
         assert "excerpt truncated" in request.rendered
         assert (box.root / message.report.custody.replay).read_bytes() == replay.read_bytes()
-        return reply("decision")
+        return reply("declined")
 
     llm = FakeLLM([classify])
     assert run(root, monkeypatch, llm) == 0
@@ -278,7 +278,7 @@ def test_report_author_failure_is_decision(tmp_path, monkeypatch):
     llm = FakeLLM([reply("author"), *[json.dumps({"stem": "broken", "ticket": "bad"})] * 4])
     assert run(root, monkeypatch, llm) == 0
     (message,) = box.messages()
-    assert message.resolution == Resolution(kind="decision", link=f"decision-{message.id}")
+    assert message.resolution == Resolution(kind="declined", link=f"declined-{message.id}")
     assert len([e for e in events(root) if e.body.get("signal") == "author_invoked"]) == 1
     assert len([r for r in llm.requests if r.surface == "author"]) == 4
     assert not (root / "tickets/broken").exists()
@@ -551,7 +551,7 @@ def test_escape_unattributed_reports(tmp_path):
             result = await triage.attribute_escape(c, writer.stages.driver, item)
             assert result["matches"] == [] and result["confidence_note"]
         before = len(attribution(c))
-        for kind in ("decision", "tombstone"):
+        for kind in ("declined", "tombstone"):
             id, _ = box.enqueue(message_class="bug_report", origin=kind, summary=kind, bug_origin="player", has_repro=False)
             box.resolve(id, Resolution(kind=kind, link=kind))
         id, _ = box.enqueue(message_class="suggestion", origin="non-bug", summary="non bug")
@@ -605,7 +605,7 @@ def test_suggestion_drops_ingest_and_retry(tmp_path, monkeypatch, report_inbox):
 def test_selected_triage_and_unknown_refusal(tmp_path, monkeypatch, capsys):
     root, box = root_with_box(tmp_path)
     first, second = enqueue(box, "first selection"), enqueue(box, "second selection")
-    llm = FakeLLM([reply("decision")])
+    llm = FakeLLM([reply("declined")])
     monkeypatch.setattr("chupa.__main__.ProviderLLM", lambda *args, **kwargs: llm)
     assert main(["triage", second], cwd=root, env=ENV, clock=Clock()) == 0
     assert box.get(first).status == "pending" and box.get(second).status == "resolved"  # A pass over all messages differs.
@@ -624,11 +624,11 @@ def test_dismiss_validates_and_commits_once(tmp_path, monkeypatch, capsys):
     assert main(["dismiss", ids[0], "unknown"], cwd=root, env=ENV, clock=Clock()) == 2
     assert box.get(ids[0]).status == "pending" and subjects(root) == before  # Validation must precede any write.
     assert main(["dismiss", *ids], cwd=root, env=ENV, clock=Clock()) == 0
-    assert subjects(root)[:2] == [f"chupa(decisions): decision-{id}" for id in reversed(ids)]  # Both records have separate commits.
+    assert subjects(root)[:2] == [f"chupa(decisions): declined-{id}" for id in reversed(ids)]  # Both records have separate commits.
     for id in ids:
-        record, body = parse_record((root / record_path(f"decision-{id}")).read_text())
-        assert (record.kind, record.link, record.reopen_after_days) == ("decision", id, 30) and "dismissed by the operator" in body.lower()
-        assert box.get(id).resolution == Resolution(kind="decision", link=f"decision-{id}")
+        record, body = parse_record((root / record_path(f"declined-{id}")).read_text())
+        assert (record.kind, record.link, record.reopen_after_days) == ("declined", id, 30) and "dismissed by the operator" in body.lower()
+        assert box.get(id).resolution == Resolution(kind="declined", link=f"declined-{id}")
     committed = subjects(root)
     assert main(["dismiss", ids[0]], cwd=root, env=ENV, clock=Clock()) == 0
-    assert f"{ids[0]}: already resolved -> decision-{ids[0]}" in capsys.readouterr().out and subjects(root) == committed  # Repeat does not commit again.
+    assert f"{ids[0]}: already resolved -> declined-{ids[0]}" in capsys.readouterr().out and subjects(root) == committed  # Repeat does not commit again.
