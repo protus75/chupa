@@ -562,3 +562,41 @@ def test_escape_unattributed_reports(tmp_path):
         assert "triage" not in __import__("chupa.drain", fromlist=["drain"]).drain.__code__.co_names
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("report_inbox", [False, True])
+def test_suggestion_drops_ingest_and_retry(tmp_path, monkeypatch, report_inbox):
+    from dataclasses import replace
+    from chupa import triage
+    from chupa.config import load_config
+    from tests.test_drain import pause_checkout
+
+    root, _ = root_with_box(tmp_path)
+    if report_inbox:
+        config = root / "config.yaml"
+        config.write_text(config.read_text() + "report_inbox: inbox\n")
+    c = pause_checkout(root)
+    c = replace(c, config=load_config(None, cwd=root))
+    drops = c.config.state_dir / "box/suggestions"
+    drops.mkdir(parents=True)
+    (drops / "a.json").write_text(json.dumps({"summary": "first unique idea"}))
+    (drops / "b.json").write_text(json.dumps({"summary": "second distinct idea"}))
+    (drops / "bad.json").write_text('{"summary": " ", "extra": 1}')
+    original = c.fs.replace
+
+    def crash(src, dst):
+        raise RuntimeError("crash before move")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(c.fs, "replace", crash)
+        with pytest.raises(RuntimeError):
+            triage.report_intake(c)
+    box = triage.report_intake(c)
+    assert [(m.message_class, m.origin, m.summary, m.status) for m in box.messages()] == [
+        ("suggestion", "session", "first unique idea", "pending"),
+        ("suggestion", "session", "second distinct idea", "pending"),
+    ]
+    assert sorted(p.name for p in (drops / "consumed").glob("*.json")) == ["a.json", "b.json"]
+    assert (drops / "bad.json").exists()
+    assert "suggestion_intake_refused" in (c.config.state_dir / "engine.log").read_text()
+    assert c.fs.replace == original

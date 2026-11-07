@@ -8,6 +8,7 @@
     ./dev.py review STEM...   review each ticket against merged code
     ./dev.py lint [STEM...]   validate tickets without running or writing anything
     ./dev.py covmap           build the coverage map
+    ./dev.py suggest SUMMARY  queue an idea for triage
     ./dev.py status           the engine's projected state
     ./dev.py stats [--window W] [--json]  journal health projection
     ./dev.py run STEM         run one ticket through every stage
@@ -51,6 +52,7 @@ def main() -> None:
     sub = parser.add_subparsers(dest="task")
     sub.add_parser("test", help="the suite, or the named tests").add_argument("args", nargs=argparse.REMAINDER)
     sub.add_parser("covmap", help="build the coverage map")
+    sub.add_parser("suggest", help="queue an idea for triage").add_argument("summary")
     sub.add_parser("status", help="the engine's projected state")
     stats = sub.add_parser("stats", help="journal health projection")
     stats.add_argument("--window", default="7d")
@@ -87,6 +89,8 @@ def main() -> None:
         chupa("order", args.stem, *(["--priority", args.priority] if args.priority is not None else []), *(["--runs-before", *args.runs_before] if args.runs_before is not None else []))
     elif args.task == "stats":
         chupa("stats", "--window", args.window, *(["--json"] if args.json else []))
+    elif args.task == "suggest":
+        chupa("suggest", args.summary)
     elif args.task == "run":
         chupa("run", args.stem)
     elif args.task == "lint":

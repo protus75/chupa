@@ -82,6 +82,8 @@ A human-present chat session is the one context the pipeline machinery does not 
   Why: a dropped thread is a silently lost decision.
 - **Announce unsolicited dives.** Name any investigation or authoring the user did not request in 1-2 sentences and get a now / after / skip decision before spending the time; the requested task always runs first. (Autonomous pipeline stages are exempt: they file same-turn via the Suggestion Box.)
   Why: unrequested work spends the user's time without consent.
+- **File ideas to the box.** File a potential idea, improvement, or second problem the user did not ask for with `./dev.py suggest "<summary>"`, rather than offering a loose ticket suggestion. Name what was filed in one line in the reply.
+  Why: a margin suggestion dies with the chat, while the box keeps it for triage.
 - **Supervising session.** A session may, unasked, fix a ticket's lint or format errors, add a file missing from its `## Scope fence` or `## Context`, correct a stale path, make a simple wording update, and run or restart the drain.
   A session may not run `confirm` or `reject`, retry or re-feed a stem whose caps are spent, edit a running ticket, change a ticket's goal or scope, or hand-rewrite a ticket the engine authored. Those decisions go to the user.
   Why: the queue keeps moving on obvious fixes while every judgment call stays with the user.

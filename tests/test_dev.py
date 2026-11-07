@@ -65,3 +65,11 @@ def test_publish_uploads_built_files(tmp_path, monkeypatch):
     assert build == (["uv", "build", "-o", str(directory)], tmp_path, False)  # Build into the temporary directory.
     assert publish == (["uv", "publish", str(directory / "chupa-0.1.1.tar.gz"), str(directory / "chupa-0.1.1.whl")], tmp_path, False)  # Upload both actual artifacts.
     assert project.read_bytes() == before  # Publishing must not bump the version.
+
+
+def test_suggest_forwards_summary(monkeypatch):
+    monkeypatch.setattr(dev.sys, "argv", ["dev.py", "suggest", "an idea"])
+    run = Mock()
+    monkeypatch.setattr(dev, "run", run)
+    dev.main()
+    run.assert_called_once_with(["uv", "run", "python", "-m", "chupa", "suggest", "an idea"])

@@ -27,6 +27,7 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | `kill` | Yes | Ask the running engine to stop at a safe point. |
 | `stop` | Yes | Finish active work and exit. |
 | `review` | No | Review a committed ticket. |
+| `suggest` | Yes | Queue an idea for Suggestion Box intake. |
 | `triage` | No | Make one pass over pending suggestions. |
 | `covmap` | Yes | Runs `review.coverage_map.argv` and writes `<state_dir>/coverage-map.json`; exits 0 on success or 2 on refusal. |
 | `covgate` | Yes | Run a unit command and check its coverage report. |

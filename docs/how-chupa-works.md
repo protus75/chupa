@@ -57,6 +57,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `drain` | yes | Runs every eligible ticket to quiescence (section 7.1). |
 | `serve` | yes | Runs the continuous daemon until `kill`, `stop`, or a signal (section 7.2). |
 | `retro` | yes | Forces a retro report (section 9.5). |
+| `suggest <summary>` | no | Queues an idea for Suggestion Box intake. |
 | `triage` | yes | One sequential pass over pending Suggestion Box messages (section 9.2). |
 | `pause` / `resume` / `kill` / `stop` | try | With a running engine, publish a control request to it (section 7.3). With none: `kill` and `stop` refuse (exit 2); `pause`/`resume` print "nothing running". |
 | `confirm <stem> [--yes]` | try | A person at a terminal answers `y` to keep (or uses `--yes` to skip the prompt): promotes a draft to confirmed, keeps a Reject-queue item (section 6.6). With serve running, publishes the verdict to serve. |
@@ -72,6 +73,7 @@ Each test has a 120-second hard limit.
 |---|---|
 | (none) | `uv run pytest -q` |
 | `test [args]` | pytest with those args |
+| `suggest SUMMARY` | `chupa suggest <summary>` |
 | `covmap` | `chupa covmap` |
 | `stats [--window W] [--json]` | `chupa stats` with the supplied options; a read-only projection |
 | `new STEM [--kind K]` | `chupa new <stem> --kind feature\|bug\|chore` (default `feature`) |
@@ -574,7 +576,7 @@ times; each call is spooled under `state_dir/spools/`.
 
 Problems found while working are filed, not fixed in the current diff. Classes: `suggestion`,
 `failure_report`, `override_report`, `retro_finding`, `bug_report`. Each message is a file in
-`state_dir/box/`. A repeat of the same signature is folded into the existing message.
+`state_dir/box/`. A repeat of the same signature is folded into the existing message. Sessions file `suggestion` messages with `suggest`; `triage` and serve's box intake ingest them from `state_dir/box/suggestions/`.
 
 ### 9.2 Triage
 

@@ -823,3 +823,25 @@ def test_core_and_gate_share_routed_paths(tmp_path, monkeypatch):
         assert finding.path == "CLAUDE.md" and "retain all project content" in finding.paved_road
 
     asyncio.run(refusal())
+
+
+def test_suggest_publishes_while_writer_lock_is_held(root, capsys):
+    import json
+
+    holder = Lockfile(root / ".chupa/state", instance_id="other", clock=Clock())
+    holder.acquire()
+    try:
+        assert cli(root, "suggest", "a distinct idea") == 0
+        drops = list((root / ".chupa/state/box/suggestions").glob("*.json"))
+        assert len(drops) == 1
+        assert json.loads(drops[0].read_text()) == {"summary": "a distinct idea"}
+        assert capsys.readouterr().out == f"suggest: queued {drops[0].name}\n"
+        assert journal(root).read() == []
+    finally:
+        holder.release()
+
+
+def test_suggest_refuses_blank(root, capsys):
+    assert cli(root, "suggest", "  ") == 2
+    assert capsys.readouterr().err == "chupa suggest: blank summary -- pass the idea as one quoted argument\n"
+    assert list((root / ".chupa/state/box/suggestions").glob("*.json")) == []

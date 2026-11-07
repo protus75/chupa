@@ -238,6 +238,7 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("kill", help="submit kill to the running engine; refuse when nothing is running")
     sub.add_parser("stop", help="finish the running ticket, admit nothing new, then exit")
     sub.add_parser("review", help="review a committed ticket under the lock").add_argument("stem")
+    sub.add_parser("suggest", help="queue an idea for triage").add_argument("summary")
     sub.add_parser("triage", help="make one sequential pass over pending suggestions under the lock")
     sub.add_parser("covmap", help="build the coverage map")
     covgate = sub.add_parser("covgate", help="check a coverage JSON report against thresholds")
@@ -335,6 +336,13 @@ def main(
             fs=LocalFileSystem(),
             clock=clock,
         )
+        if args.verb == "suggest":
+            if not args.summary.strip():
+                raise runner.Refusal("blank summary", "pass the idea as one quoted argument")
+            path = config.state_dir / "box" / "suggestions" / f"{uuid4().hex}.json"
+            checkout.fs.publish(path, json.dumps({"summary": args.summary}).encode())
+            print(f"suggest: queued {path.name}")
+            return 0
         if args.verb == "covmap":
             from chupa.covmap import build
 

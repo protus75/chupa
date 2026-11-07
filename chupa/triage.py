@@ -343,14 +343,30 @@ async def _settle_pass(checkout, driver, box, spec, history, pass_no):
 
 
 def report_intake(checkout: Checkout) -> Box:
-    if checkout.config.report_inbox is None:
-        return Box(checkout.config.state_dir / BOX_DIR, checkout.fs, rereport=RereportJournal(checkout.journal))
-    from chupa.daemon import storm_producer
     from chupa.enginelog import EngineLog
     from chupa.redact import Redactor
 
-    box = storm_producer(root=checkout.config.state_dir / BOX_DIR, fs=checkout.fs, journal=checkout.journal, clock=checkout.clock)
-    box.recover()
+    if checkout.config.report_inbox is None:
+        box = Box(checkout.config.state_dir / BOX_DIR, checkout.fs, rereport=RereportJournal(checkout.journal))
+    else:
+        from chupa.daemon import storm_producer
+
+        box = storm_producer(root=checkout.config.state_dir / BOX_DIR, fs=checkout.fs, journal=checkout.journal, clock=checkout.clock)
+        box.recover()
     log = EngineLog(checkout.config.state_dir / "engine.log", Redactor.from_config(checkout.config, checkout.env), checkout.clock)
-    ingest(box, root=checkout.repo, inbox=checkout.config.report_inbox, diagnostic=lambda error: log.event("report_intake_refused", error=error))
+    if checkout.config.report_inbox is not None:
+        ingest(box, root=checkout.repo, inbox=checkout.config.report_inbox, diagnostic=lambda error: log.event("report_intake_refused", error=error))
+    drops = checkout.config.state_dir / BOX_DIR / "suggestions"
+    for path in sorted(drops.glob("*.json")):
+        try:
+            data = json.loads(path.read_bytes())
+            if not isinstance(data, dict) or set(data) != {"summary"} or not isinstance(data["summary"], str) or not data["summary"].strip():
+                raise ValueError("expected an object with one nonblank string summary")
+        except (OSError, ValueError, UnicodeError) as exc:
+            log.event("suggestion_intake_refused", error=f"{path.name}: {exc}; repair this arrival and retry triage")
+            continue
+        box.enqueue(message_class="suggestion", origin="session", summary=data["summary"], occurrence_id=path.stem)
+        consumed = drops / "consumed"
+        consumed.mkdir(parents=True, exist_ok=True)
+        checkout.fs.replace(path, consumed / path.name)
     return box
