@@ -1,16 +1,16 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "9a5fdeaeddc86dfcf96c965590ea6177e632d087",
+  "produced_at_sha": "b5e8c922b6ce708dc7fa029f6671e96b752ad408",
   "stem": "requisition-coverage-dependents",
-  "attempt": 2,
+  "attempt": 3,
   "terminal": "gate_failed",
   "stage": "merge",
   "verdict": "abandon-human",
   "lessons": [
-    "Merge stopped on dirty_checkout: the main checkout has uncommitted edits to chupa/specs/requisition_review.md and tests/test_specs.py. A human must commit or revert them there before the squash can land.",
-    "Before clearing, a human should compare the main-checkout edits to the ticket's change: the 3.0 to 3.1 pin and the coverage_dependents block. Keep them only if they add something; otherwise revert them so the ticket's version lands.",
-    "Do not change the implementation on the next attempt. Implement, the full ./dev.py test run (3064 passed) and review all passed with no findings, so the code that already passed review should merge as-is once the checkout is clean."
+    "The implementation and review both passed (3064 tests, approve). Merge failed only because the main checkout has uncommitted edits to chupa/specs/requisition_review.md and tests/test_specs.py, and the squash would overwrite them.",
+    "A human must inspect the uncommitted edits to chupa/specs/requisition_review.md and tests/test_specs.py in the main checkout, then commit or revert them. That is the dirty_checkout paved road. After that the ticket re-runs through the normal retry path.",
+    "Do not change the implementation on the next attempt. The diff already meets every Scope-in item: coverage_map is a required keyword with no default, a missing or invalid declared map snags as coverage_map, and the spec is at 3.1 with the fenced-or-cleared rule."
   ],
   "mechanical": null,
   "spec_version": "1.2",
