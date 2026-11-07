@@ -2,11 +2,21 @@
 	"name": "vscode-chupa",
 	"displayName": "chupa tickets",
 	"description": "chupa's tickets as an SCM-style dependency graph: blocked, queued, running, merged.",
-	"version": "0.0.20",
+	"version": "0.0.22",
 	"publisher": "chunkydragon",
-	"extensionKind": ["workspace"],
-	"repository": {"type": "git", "url": "https://github.com/protus75/chupa.git"},
-	"files": ["extension.js", "media/**", "README.md", "LICENSE"],
+	"extensionKind": [
+		"workspace"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/protus75/chupa.git"
+	},
+	"files": [
+		"extension.js",
+		"media/**",
+		"README.md",
+		"LICENSE"
+	],
 	"license": "SEE LICENSE IN LICENSE",
 	"engines": {
 		"vscode": "^1.90.0"
@@ -65,7 +75,9 @@
 						"type": "string"
 					},
 					"scope": "resource",
-					"default": ["chupa"],
+					"default": [
+						"chupa"
+					],
 					"description": "Command and arguments used to run chupa in this workspace."
 				},
 				"chupa.statsWindow": {
@@ -213,7 +225,7 @@
 			},
 			{
 				"command": "chupa.engine",
-				"title": "Engine…",
+				"title": "Engine\u2026",
 				"icon": "$(server-process)"
 			},
 			{
