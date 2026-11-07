@@ -46,18 +46,27 @@ Serve does not follow the drain's re-offer rule (2026-11-07, `tickets/serve-reof
   - `tests/test_requisition_gate.py`: its `Scheduler(...)` construction passes `caps`.
   - `tests/test_daemon_composition.py`: the `reject-held` case near line 410 gets a spent cap, so it still tests a hold that needs a verdict.
   - `tests/test_serve.py`: a `gate_failed` run in serve is re-dispatched through the dispatch `finally` path (not a manual `update`) and journals one machine keep and one `retry` draw before `running`. A re-dispatch after `premise_failed` journals no `retry`.
+  - `tests/test_scheduler.py` and `tests/test_daemon_composition.py`: the `actor: machine` keep case is rewritten. A `reject-held` stem with a spent cap stays held after a machine keep; a Reject-queue stem with caps left dispatches with no keep at all.
   - New carried reproducer `tests/regress_serve_reoffer_dispatch.py`, in the style of `tests/regress_graph_lanes.py`. It builds a `Scheduler` over journal events for a `gate_failed` Reject-queue ticket with caps left and calls `dispatch_next`. It prints exactly one `{"regression_result": ...}` line: `pass` (exit 0) when that ticket is dispatched, `defect` (exit 1) when it is held or `Scheduler` takes no `caps`, and `error` (exit 2) for any other failure.
+- In: `eval/daemon_soak.py` and `eval/reliability_battery.py`: the soak's `semantic` member and the battery's fault stems get a spent `retry` cap (via the fixture config or seeded journal), so serve does not re-offer them and their single-attempt expectations (`daemon_soak.py:620`, `reliability_battery.py:315-332`, `test_daemon_soak_runner.py:84-85,150`) hold unchanged.
 - In: `docs/how-chupa-works.md`:
+  - section 6.4 cap table: `retry` is drawn by each drain or serve re-offer;
   - section 6.6 "Machine keep": both drain and serve re-offer a Reject-queue stem whose caps have budget;
-  - section 7.2 `serve`: serve draws `retry` on a re-offer and puts a failed ticket back for the rule to decide, as the drain does.
+  - section 7.2 `serve`: serve draws `retry` on a re-offer and puts a failed ticket back for the rule to decide, as the drain does;
+  - section 7.2 Dispatch hold list: only Reject-queue stems awaiting an operator are held.
 - Out:
   - the rule functions in `chupa/drain.py` and the snapshot (`serve-reoffer-rule`);
   - `chupa run`'s single-ticket dispatch (`chupa/runner.py`);
   - storm holds, provider droughts, quarantine;
   - changing which caps exist or their defaults.
-- Coverage: Other test files that build serve or the daemon core are unaffected unless they hold a Reject-queue stem with caps left or count journal events around a serve re-dispatch. The ones that do (`test_control_cli`, `test_reject_queue`, `test_storm_notification_activation`) are fenced in case a fixture needs a spent cap.
+- Coverage: Other test files that build serve or the daemon core are unaffected unless they hold a Reject-queue stem with caps left, end a serve run in a failed terminal with caps left, or count journal events around a serve re-dispatch. The ones that do (`test_control_cli`, `test_reject_queue`, `test_storm_notification_activation`, `test_daemon_soak`, `test_daemon_soak_runner`, `test_reliability_battery`) are fenced.
 
 ## Scope fence
+- eval/daemon_soak.py
+- eval/reliability_battery.py
+- tests/test_daemon_soak.py
+- tests/test_daemon_soak_runner.py
+- tests/test_reliability_battery.py
 - chupa/scheduler.py
 - chupa/serve.py
 - chupa/daemon.py
@@ -72,13 +81,13 @@ Serve does not follow the drain's re-offer rule (2026-11-07, `tickets/serve-reof
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
-1. `./dev.py test tests/test_scheduler.py tests/test_requisition_gate.py tests/test_daemon_composition.py tests/test_serve.py tests/test_control_cli.py tests/test_reject_queue.py tests/test_storm_notification_activation.py` exits 0, including every test listed in Scope in.
+1. `./dev.py test tests/test_scheduler.py tests/test_requisition_gate.py tests/test_daemon_composition.py tests/test_serve.py tests/test_control_cli.py tests/test_reject_queue.py tests/test_storm_notification_activation.py tests/test_daemon_soak.py tests/test_daemon_soak_runner.py tests/test_reliability_battery.py` exits 0, including every test listed in Scope in.
 2. `grep -n -e "reject_queue(" -e "caps.spent" -e "consume(" chupa/scheduler.py chupa/serve.py` prints nothing: they reach the rule only through `reofferable` and `record_reoffer`.
 3. `./dev.py test` exits 0.
 
 ## Verification
 ```
-./dev.py test tests/test_scheduler.py tests/test_requisition_gate.py tests/test_daemon_composition.py tests/test_serve.py tests/test_control_cli.py tests/test_reject_queue.py tests/test_storm_notification_activation.py
+./dev.py test tests/test_scheduler.py tests/test_requisition_gate.py tests/test_daemon_composition.py tests/test_serve.py tests/test_control_cli.py tests/test_reject_queue.py tests/test_storm_notification_activation.py tests/test_daemon_soak.py tests/test_daemon_soak_runner.py tests/test_reliability_battery.py
 ./dev.py test
 ```
 
