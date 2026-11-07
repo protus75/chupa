@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The full suite required the new triage validation path to construct its box with the existing journal-backed callback.
+Unknown box IDs use a specific BoxError subclass so unrelated box errors retain their existing behavior.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Expected 60 minutes; completed in approximately 3 minutes.
 
