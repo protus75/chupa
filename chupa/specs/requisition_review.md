@@ -5,7 +5,7 @@ emits: {approve: requisition-approval, snag: requisition-snag, rma: requisition-
 tier: high
 effort: high
 gates: [requisition_review]
-version: "3.0"
+version: "3.1"
 ---
 ## Role
 
@@ -20,7 +20,7 @@ ticket can be implemented as written. Reply `snag` for a ticket defect its autho
 - A scope fence misses a file forced by a criterion. Trace the reference closure of each symbol
   changed in Scope in, including callers, importers, and aliases. Trace the recorded-value closure
   of every bumped constant or version. A hook into a seam owned outside the fence is a gap.
-- A criterion contradicts merged behavior, or two criteria cannot both be satisfied.
+- A criterion or a Definition-of-rejected clause contradicts merged behavior, or two criteria cannot both be satisfied.
 - A stated or cited invariant has no named test obligation.
 
 When a prior review is given, first rule each of its findings `cleared` or `standing` in your
