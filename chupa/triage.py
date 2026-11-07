@@ -281,7 +281,7 @@ async def _settle_pass(checkout, driver, box, spec, history, pass_no):
                     "retro_report_key": message.retro_report_key,
                     "fixed_failure": message.fixed_failure,
                     "overcorrection_risk": message.overcorrection_risk,
-                    "proposed_spec_paths": message.proposed_spec_paths,
+                    "proposed_spec_paths": [f"chupa/{path}" for path in message.proposed_spec_paths],
                     "reopen": message.reopen,
                     "report": report_data(message.report, box.root) if message.report else None,
                 }

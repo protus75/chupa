@@ -189,7 +189,7 @@ def test_time_budget_stuck_must_exceed_expected(repo, stuck):
 @pytest.mark.parametrize(
     ("old", "new", "needle"),
     [
-        ("- chupa/thing.py\n\n## Goal", "- specs/review.md\n\n## Goal", "prompt spec"),
+        ("- chupa/thing.py\n\n## Goal", "- chupa/specs/review.md\n\n## Goal", "prompt spec"),
         ("- chupa/thing.py\n\n## Goal", "- chupa/later.py\n\n## Goal", "does not exist"),
         ("- chupa/thing.py\n\n## Goal", "- ../etc/passwd\n\n## Goal", "repo-relative"),
         ("## Depends on\nnone", "## Depends on\n- ghost", "does not resolve"),

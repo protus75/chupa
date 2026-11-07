@@ -145,7 +145,7 @@ def test_drain_closed_sets_and_constants():
     assert drain.reexec_argv(["drain"])[-1] == "drain"
     assert drain.RETIRED == frozenset({"rejected"})
     assert drain.SETTLED == frozenset({"already_satisfied", "merged"})
-    assert drain.UPGRADE_PREFIXES == ("chupa/", "specs/")
+    assert drain.UPGRADE_PREFIXES == ("chupa/",)
 
 
 def test_enginelog_closed_sets_and_constants():

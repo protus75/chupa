@@ -102,7 +102,7 @@ class SecondProblem(_Strict):
 
 
 class ImplementReply(_Strict):
-    """The implement surface's model-facing reply (specs/implement.md); the stage stamps provenance."""
+    """The implement surface's model-facing reply (chupa/specs/implement.md); the stage stamps provenance."""
 
     outcome: Literal["ok", "already_satisfied", "premise_failed"]
     summary: NonBlank
@@ -1441,7 +1441,7 @@ async def check(ctx: StageContext, ticket: Ticket, slip: PackingSlip, *, attempt
 
 
 def review_stage(ctx: StageContext, ticket_text: str, diff: str, prior_review: str) -> tuple[LlmStage, Spec]:
-    """specs/review.md wired UNCHANGED: the same spec and inputs the review baseline measured."""
+    """chupa/specs/review.md wired UNCHANGED: the same spec and inputs the review baseline measured."""
     spec = _spec(ctx, "review")
 
     def render_diff(_: object, findings: list[Finding]) -> str:

@@ -31,14 +31,15 @@ async def test_completed_retro_proposals_reach_prompt_spec_merge(tmp_path, monke
     root, box = root_with_box(tmp_path)
     c = pause_checkout(root)
     c = replace(c, config=load_config(None, cwd=root), control=build_control(c))
-    for path in PROPOSAL["proposed_spec_paths"]:
+    repo_paths = [f"chupa/{path}" for path in PROPOSAL["proposed_spec_paths"]]
+    for path in repo_paths:
         c.fs.write(root / path, b"fixture spec before\n")
-    await c.git.add(root, PROPOSAL["proposed_spec_paths"])
+    await c.git.add(root, repo_paths)
     await c.git.commit(root, "fixture specs")
     other = {**PROPOSAL, "proposed_spec_paths": list(reversed(PROPOSAL["proposed_spec_paths"]))}
     authored = json.loads(author_reply("repair-spec"))
-    authored["ticket"] = authored["ticket"].replace("`chupa/thing.py`", "`specs/review.md`").replace("## Scope fence\n- chupa/thing.py", "## Scope fence\n- specs/")
-    authored["ticket"] = authored["ticket"].replace("uv run pytest", "test -f specs/review.md")
+    authored["ticket"] = authored["ticket"].replace("`chupa/thing.py`", "`chupa/specs/review.md`").replace("## Scope fence\n- chupa/thing.py", "## Scope fence\n- chupa/specs/")
+    authored["ticket"] = authored["ticket"].replace("uv run pytest", "test -f chupa/specs/review.md")
     llm = FakeLLM([json.dumps({"proposals": [PROPOSAL, PROPOSAL, other]}), reply("author"), json.dumps(authored), requisition_reply("approve"), reply("decision")])
     writer = runner.bind(c, llm)
     hook = Retro(c, writer)
@@ -102,9 +103,9 @@ async def test_completed_retro_proposals_reach_prompt_spec_merge(tmp_path, monke
 
     async def scripted(request):
         if request.surface == "implement":
-            for path in PROPOSAL["proposed_spec_paths"]:
+            for path in repo_paths:
                 c.fs.write(request.worktree / path, b"fixture spec repaired\n")
-            await c.git.add(request.worktree, PROPOSAL["proposed_spec_paths"])
+            await c.git.add(request.worktree, repo_paths)
             await c.git.commit(request.worktree, "repair the observed prompt failure")
         return await call(request)
 
@@ -121,9 +122,9 @@ async def test_completed_retro_proposals_reach_prompt_spec_merge(tmp_path, monke
         "retro_report_key": "retro/1",
         "ticket_stem": ticket.stem,
         "squash_sha": sha,
-        "changed_spec_paths": sorted(PROPOSAL["proposed_spec_paths"]),
+        "changed_spec_paths": sorted(repo_paths),
     }
-    assert (await c.git._run(root, "show", "--name-only", "--format=", sha)).splitlines() == sorted(PROPOSAL["proposed_spec_paths"])
+    assert (await c.git._run(root, "show", "--name-only", "--format=", sha)).splitlines() == sorted(repo_paths)
     ctx = admitted.ctx
     ctx.driver.journal = Journal(c.config.state_dir, c.clock)
     ctx.driver.effects = Effects(ctx.driver.journal)

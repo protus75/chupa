@@ -325,6 +325,10 @@ def test_author_uses_baseline_resolution(tmp_path, monkeypatch, baseline, messag
     monkeypatch.setattr(module, "start_state", starting_state)
     llm = FakeLLM([reply("author"), author_reply("baseline-repair"), requisition_reply("approve")])
     assert _run(root, monkeypatch, llm) == 0
+    if message_class == "retro_finding":
+        assert box.get(message_id).proposed_spec_paths == ["specs/review.md"]
+        prompt = next(r.rendered for r in llm.requests if r.surface == "author")
+        assert '"proposed_spec_paths": ["chupa/specs/review.md"]' in prompt
     assert [r.state for r in resolutions] == [baseline]
     assert operands == [baseline == "GO"]
     state = expected if baseline == "GO" else "draft"

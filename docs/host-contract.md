@@ -42,7 +42,7 @@ merge:
   strategies: # choose paths suitable for your host
     - {paths: [uv.lock], strategy: regenerate, argv: [uv, lock]}
     - {paths: [CHANGELOG.md], strategy: union}
-engine_plane_safety_inventory: [config.yaml, specs/, chupa/gates.py]
+engine_plane_safety_inventory: [config.yaml, chupa/specs/, chupa/gates.py]
 # worktree_root: .chupa/worktrees
 # report_inbox: reports
 # notify: [notify-send, chupa]
@@ -344,7 +344,7 @@ executors are separate; abort targets the executor that spawned active work.
 
 ONE instance writes a host repo line. Stable is a PyPI release installed with `uv tool install chupa==<version>`; dev uses its own disposable checkout, worktree root and state dir,
 with checkpoint push disabled. Instances share only remotes. Upgrade or roll back by reinstalling the desired version and restarting. A git-checkout engine running `serve`
-restarts itself when its `chupa/` or `specs/` tree changes.
+restarts itself when its `chupa/` tree changes.
 `<state_dir>/chupa.lock` uses advisory flock before writes and records instance_id,
 pid, host, state_dir and started_at for diagnostics only. Kernel release on
 process death governs correctness, never stale-pid adoption. On LockHeld wait

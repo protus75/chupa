@@ -155,7 +155,7 @@ def test_the_carried_parked_set_rides_every_handoff_in_the_chain(tmp_path, order
     commit_ticket(root, "red", confirmed(priority="P0"))
     commit_ticket(root, "one", confirmed(priority="P1"))
     commit_ticket(root, "two", confirmed(priority="P2"))
-    script = Script({"red": ["gate_failed", "gate_failed"], "one": ["merged:chupa/a.py"], "two": ["merged:specs/b.md"]})
+    script = Script({"red": ["gate_failed", "gate_failed"], "one": ["merged:chupa/a.py"], "two": ["merged:chupa/specs/b.md"]})
 
     code, child = drain(root, script, order)
 

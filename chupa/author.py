@@ -205,7 +205,7 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
             "retro_report_key": message.retro_report_key,
             "fixed_failure": message.fixed_failure,
             "overcorrection_risk": message.overcorrection_risk,
-            "proposed_spec_paths": message.proposed_spec_paths,
+            "proposed_spec_paths": [f"chupa/{path}" for path in message.proposed_spec_paths],
             "reopen": message.reopen,
             "report": report,
         }

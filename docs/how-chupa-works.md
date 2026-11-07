@@ -17,7 +17,7 @@ Check runs mechanical gates, Review has a model judge the diff, and Merge squash
 
 Two planes meet in chupa:
 
-- **Engine plane** (chupa-owned): how work runs. Ticket grammar, prompt specs (`specs/`), gates,
+- **Engine plane** (chupa-owned): how work runs. Ticket grammar, prompt specs (`chupa/specs/`), gates,
   caps, git rules, the journal.
 - **Host plane** (repo-owned): what to build. The host's code, docs, config, and the ticket
   content. Host material enters prompts as data, never as instructions.
@@ -159,7 +159,7 @@ created at the merge base for base-red reruns and the bug gate, and removed afte
 
 ### 4.2 Implement
 
-The `implement` prompt (`specs/implement.md`) gets the ticket text, its `## Context` files plus
+The `implement` prompt (`chupa/specs/implement.md`) gets the ticket text, its `## Context` files plus
 `config.context_files`, and a "Prior attempts" block (last terminal, findings, diagnosis lessons,
 log tails) when this is a retry. The model works in the worktree with write access and replies:
 
@@ -199,7 +199,7 @@ continues. `already_satisfied` stops here: there is no diff to review.
 
 ### 4.4 Review
 
-The `review` prompt (`specs/review.md`) gets the ticket, the branch diff, and the previous review's
+The `review` prompt (`chupa/specs/review.md`) gets the ticket, the branch diff, and the previous review's
 findings when it snagged, in a read-only session. It reports every defect in one pass, listing each
 instance of a repeated flaw separately and marking findings that remain open. Verdicts: `approve`, `snag` (findings: `logic`, `acceptance`, `scope`, `leak`), or `rma`
 (the ticket itself is wrong). `review.md` records the verdict and the reviewed branch head
@@ -321,7 +321,7 @@ journaled and never blocks the terminal.
 
 ### 6.3 Diagnosis
 
-The `diagnose` prompt (`specs/diagnose.md`) reads the ticket, terminal, harvest, and run record
+The `diagnose` prompt (`chupa/specs/diagnose.md`) reads the ticket, terminal, harvest, and run record
 and replies with a verdict and 1-5 lessons:
 
 - `retry`: run again with these lessons.
@@ -364,7 +364,7 @@ the stem goes to the Reject queue.
 
 ### 6.5 Rework
 
-The `rework` prompt (`specs/rework.md`) proposes `update` (rewrite this ticket), `split` (two or
+The `rework` prompt (`chupa/specs/rework.md`) proposes `update` (rewrite this ticket), `split` (two or
 more new stems), or `escalate`. Each proposal is validated in a scratch worktree and reviewed by
 `requisition_review`. Accepted proposals are committed as `chupa(<stem>): rework`. A split
 journals `supersedes` and retires the original: its dependents wait on the successors.
@@ -431,7 +431,7 @@ Keep and kill normally require a person at an interactive terminal to answer `y`
 
 Bounds: `drain.max_runtime_hours` (default 12) halts it (exit 1).
 
-**Self-upgrade:** when draining the engine’s own source tree, a merge changing `chupa/` or `specs/` causes the drain to journal a handoff,
+**Self-upgrade:** when draining the engine’s own source tree, a merge changing `chupa/` causes the drain to journal a handoff,
 releases the lock, and re-executes itself so the new engine code runs the rest of the queue.
 A host repo or pip-installed engine never self-upgrades through drain; upgrade those by reinstalling.
 Both verbs use `uv run --project <engine checkout> python -m chupa` followed by their invocation arguments.
@@ -455,7 +455,7 @@ Maintenance on each loop: control requests, timers, orphan sweeps, heartbeat
 (`state_dir/heartbeat` mtime), notification replay, and checkpoint pushes. If any loop dies,
 `serve` stops.
 
-A git-checkout engine records its `chupa` and `specs` trees at startup and checks them before
+A git-checkout engine records its `chupa` tree at startup and checks it before
 admission and after merge passes. A change stops new admissions; after running tickets and
 pending or active merges finish, serve journals `serve_handoff`, cleans up, closes the journal,
 releases the lock, and spawns the new serve. A pending kill wins. An accepted stop waits for the same idle condition and exits without spawning. Non-git engines do not watch.
@@ -535,9 +535,9 @@ falls back to the `(tier, review)` row. The model is the candidate's `model` or 
 
 ### 8.4 Prompt specs and the driver
 
-`specs/ask/` holds operator prompt templates rendered by `prompt`, not driver specs.
+`chupa/specs/ask/` holds operator prompt templates rendered by `prompt`, not driver specs.
 
-Every model call goes through one driver (`chupa/driver.py`) using a prompt spec from `specs/`:
+Every model call goes through one driver (`chupa/driver.py`) using a prompt spec from `chupa/specs/`:
 
 | Spec | Used for | Replies |
 |---|---|---|
@@ -550,7 +550,7 @@ Every model call goes through one driver (`chupa/driver.py`) using a prompt spec
 | `triage.md` | settling a Suggestion Box message | author / tombstone / decision |
 | `retro.md` | proposing prompt-spec changes | proposals |
 
-Specs always load from the engine's `specs/`, never from the host. Host material is injected only
+Specs always load from the engine's `chupa/specs/`, never from the host. Host material is injected only
 inside `<<chupa-data:...>>` blocks; a rendered prompt over 400,000 characters is refused. The
 driver re-prompts with findings when a reply is invalid or fails a gate, up to `caps.retry`
 times; each call is spooled under `state_dir/spools/`.

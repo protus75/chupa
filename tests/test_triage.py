@@ -152,6 +152,16 @@ def test_three_verdicts_and_second_pass_and_stale_author(tmp_path, monkeypatch, 
     assert stale.kind == "decision" and "0.9" in body and "1.0" in body
 
 
+def test_retro_proposal_paths_in_triage_request(tmp_path, monkeypatch):
+    root, box = root_with_box(tmp_path)
+    box.enqueue(message_class="retro_finding", origin="retro", summary="broken behavior", retro_report_key="retro/1", fixed_failure="broken behavior", overcorrection_risk="useful inputs", proposed_spec_paths=["specs/review.md"])
+    assert box.messages()[0].proposed_spec_paths == ["specs/review.md"]
+    llm = FakeLLM([reply("decision")])
+    assert run(root, monkeypatch, llm) == 0
+    prompt = next(r.rendered for r in llm.requests if r.surface == "triage")
+    assert '"proposed_spec_paths": ["chupa/specs/review.md"]' in prompt
+
+
 def test_bad_tombstone_link_becomes_decision(tmp_path, monkeypatch):
     root, box = root_with_box(tmp_path)
     id = enqueue(box, "bad reference")

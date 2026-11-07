@@ -7,7 +7,7 @@ render folds the prior terminal's durable findings into criteria-position. Every
 the committed tickets dir and re-folds the journal, so a merge or a ticket-plane commit landed mid-invocation
 is visible to the very next pick. This is the eligibility sort's owner.
 
-In the engine's own source tree, an admission touching `chupa/**` or `specs/**` is a SELF-UPGRADE: before the next dispatch the drain hands off to
+In the engine's own source tree, an admission touching `chupa/**` (including `chupa/specs/**`) is a SELF-UPGRADE: before the next dispatch the drain hands off to
 a re-exec'd child running the upgraded checkout, carrying the invocation's parked set in
 argv. A `premise_failed` stem stays parked until its committed `ticket.md` changes.
 """
@@ -54,7 +54,7 @@ PRIORITY = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
 PREMISE = "premise_failed"
 HANDOFF_SIGNAL = "drain_handoff"
 # The engine plane the running process has loaded: admitting a change under either re-execs the drain.
-UPGRADE_PREFIXES = ("chupa/", "specs/")
+UPGRADE_PREFIXES = ("chupa/",)
 
 
 def reexec_argv(args: Iterable[str], *, engine: Path | None = None) -> list[str]:

@@ -327,7 +327,7 @@ async def write_squash(ctx: StageContext, ticket: Ticket, reviewed: str, *, atte
 
     commit = (await ctx.driver.effects.run(squash, key="/".join(("merge", stem, str(attempt))), ticket=stem))["commit"]
     if bridge is not None and commit is not None and (checked_tree is None or await ctx.git.rev_parse(ctx.repo, "main^{tree}") == checked_tree):
-        paths = sorted(p for p in (await ctx.git._run(ctx.repo, "diff-tree", "--no-commit-id", "--name-only", "-r", commit)).splitlines() if re.fullmatch(r"specs/[^/]+\.md", p))
+        paths = sorted(p for p in (await ctx.git._run(ctx.repo, "diff-tree", "--no-commit-id", "--name-only", "-r", commit)).splitlines() if re.fullmatch(r"chupa/specs/[^/]+\.md", p))
         if paths:
             body = {
                 "kind": "retro_prompt_spec_change_merged",

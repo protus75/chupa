@@ -648,10 +648,10 @@ async def test_retro_prompt_spec_merge_requires_unique_bridge(repo, monkeypatch,
     ctx = context(repo, [implement_reply(), verdict()])
     path = repo / f"tickets/{STEM}/ticket.md"
     source = "human" if case == "unrelated" else "box:retro_finding"
-    ctx.fs.write(path, path.read_text().replace("source: human", f"source: {source}").replace("## Scope fence\n- chupa/thing.py", "## Scope fence\n- chupa/thing.py\n- specs/").encode())
-    for rel in ("specs/z.md", "specs/a.md", "specs/readme.txt"):
+    ctx.fs.write(path, path.read_text().replace("source: human", f"source: {source}").replace("## Scope fence\n- chupa/thing.py", "## Scope fence\n- chupa/thing.py\n- chupa/specs/").encode())
+    for rel in ("chupa/specs/z.md", "chupa/specs/a.md", "chupa/specs/readme.txt"):
         ctx.fs.write(repo / rel, b"before\n")
-    await ctx.git.add(repo, [str(path.relative_to(repo)), "specs/z.md", "specs/a.md", "specs/readme.txt"])
+    await ctx.git.add(repo, [str(path.relative_to(repo)), "chupa/specs/z.md", "chupa/specs/a.md", "chupa/specs/readme.txt"])
     await ctx.git.commit(repo, "retro admission fixture")
     ticket = validate_ticket(STEM, path.read_text(), repo)
     call = ctx.driver.llm.call
@@ -660,7 +660,7 @@ async def test_retro_prompt_spec_merge_requires_unique_bridge(repo, monkeypatch,
         if request.surface == "implement":
             changes = {"chupa/thing.py": "ok\n"}
             if case != "no-spec":
-                changes.update({"specs/z.md": "fixed\n", "specs/a.md": "fixed\n", "specs/readme.txt": "fixed\n"})
+                changes.update({"chupa/specs/z.md": "fixed\n", "chupa/specs/a.md": "fixed\n", "chupa/specs/readme.txt": "fixed\n"})
             for rel, text in changes.items():
                 ctx.fs.write(request.worktree / rel, text.encode())
             await ctx.git.add(request.worktree, list(changes))
@@ -726,10 +726,10 @@ async def test_retro_prompt_spec_merge_requires_unique_bridge(repo, monkeypatch,
             "retro_report_key": "retro/1",
             "ticket_stem": STEM,
             "squash_sha": sha,
-            "changed_spec_paths": ["specs/a.md", "specs/z.md"],
+            "changed_spec_paths": ["chupa/specs/a.md", "chupa/specs/z.md"],
         }
         assert sha == await ctx.git.rev_parse(repo, "main")
-        assert (await ctx.git._run(repo, "diff-tree", "--no-commit-id", "--name-only", "-r", sha)).splitlines() == ["chupa/thing.py", "specs/a.md", "specs/readme.txt", "specs/z.md"]
+        assert (await ctx.git._run(repo, "diff-tree", "--no-commit-id", "--name-only", "-r", sha)).splitlines() == ["chupa/specs/a.md", "chupa/specs/readme.txt", "chupa/specs/z.md", "chupa/thing.py"]
         ctx.driver.effects = Effects(journal)
         before = journal.read()
         assert (await write_squash(ctx, ticket, reviewed_sha, attempt=run.attempt)).commit == sha
