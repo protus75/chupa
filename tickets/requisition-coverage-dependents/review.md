@@ -1,6 +1,6 @@
 # Review: approve
 
-The diff adds a required keyword `coverage_map` to `review_ticket`, with no default. Before any model call it computes the out-of-fence coverage dependents, or snags with code `coverage_map` when a declared map is missing or invalid. The dependents go to the spec as a `coverage_dependents` block with the fenced-or-cleared Task rule, the spec version moves to 3.1, every caller and test is updated, and the doc row is updated.
+The diff adds a required `coverage_map` keyword to `review_ticket`, computes out-of-fence coverage dependents before the first model call, snags mechanically with code `coverage_map` when a declared map is missing or invalid, adds the data block, Task rule and version bump to the spec, passes the map path from config in all four production callers, updates every test call site and the version pin, covers each case required by Scope in, and updates the docs row.
 
 ## Findings
 
@@ -12,10 +12,10 @@ none
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "3728cbfddc67bd633c37922bcf2e5cb310c9d838",
+  "produced_at_sha": "6bb5d2dd990ad4e31ead2cfe5077492a14497915",
   "stem": "requisition-coverage-dependents",
-  "reviewed_sha": "3728cbfddc67bd633c37922bcf2e5cb310c9d838",
-  "summary": "The diff adds a required keyword `coverage_map` to `review_ticket`, with no default. Before any model call it computes the out-of-fence coverage dependents, or snags with code `coverage_map` when a declared map is missing or invalid. The dependents go to the spec as a `coverage_dependents` block with the fenced-or-cleared Task rule, the spec version moves to 3.1, every caller and test is updated, and the doc row is updated.",
+  "reviewed_sha": "6bb5d2dd990ad4e31ead2cfe5077492a14497915",
+  "summary": "The diff adds a required `coverage_map` keyword to `review_ticket`, computes out-of-fence coverage dependents before the first model call, snags mechanically with code `coverage_map` when a declared map is missing or invalid, adds the data block, Task rule and version bump to the spec, passes the map path from config in all four production callers, updates every test call site and the version pin, covers each case required by Scope in, and updates the docs row.",
   "findings": [],
   "spec_version": "1.4",
   "provider": "claude",
