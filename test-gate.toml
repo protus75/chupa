@@ -1,0 +1,67 @@
+# Thresholds only rise; lowering one is a human ticket's decision.
+[coverage]
+default = 90
+repository = 15
+
+[coverage.files]
+"chupa/__main__.py" = 13
+"chupa/artifacts.py" = 36
+"chupa/ask.py" = 25
+"chupa/audit.py" = 0
+"chupa/author.py" = 13
+"chupa/baseline.py" = 18
+"chupa/box.py" = 19
+"chupa/caps.py" = 25
+"chupa/checkpoint.py" = 19
+"chupa/config.py" = 32
+"chupa/control.py" = 15
+"chupa/covgate.py" = 23
+"chupa/covmap.py" = 0
+"chupa/daemon.py" = 17
+"chupa/doctor.py" = 0
+"chupa/drain.py" = 10
+"chupa/driver.py" = 15
+"chupa/effects.py" = 21
+"chupa/enginelog.py" = 35
+"chupa/flake.py" = 17
+"chupa/gates.py" = 38
+"chupa/git.py" = 27
+"chupa/heartbeat.py" = 32
+"chupa/hostfiles.py" = 17
+"chupa/inbox.py" = 27
+"chupa/journal.py" = 20
+"chupa/llm.py" = 35
+"chupa/llmeffect.py" = 38
+"chupa/lockfile.py" = 27
+"chupa/merge.py" = 14
+"chupa/mergequeue.py" = 12
+"chupa/notify.py" = 15
+"chupa/observe.py" = 0
+"chupa/policy.py" = 28
+"chupa/providers.py" = 17
+"chupa/reconcile.py" = 12
+"chupa/redact.py" = 50
+"chupa/requisition.py" = 22
+"chupa/restart.py" = 17
+"chupa/retro.py" = 12
+"chupa/rework.py" = 18
+"chupa/runner.py" = 9
+"chupa/scheduler.py" = 19
+"chupa/scorecard.py" = 14
+"chupa/seams.py" = 0
+"chupa/serve.py" = 8
+"chupa/stages.py" = 12
+"chupa/stats.py" = 0
+"chupa/status.py" = 26
+"chupa/storm.py" = 17
+"chupa/testguard.py" = 29
+"chupa/testreport.py" = 13
+"chupa/thresh.py" = 0
+"chupa/tickets.py" = 11
+"chupa/timers.py" = 23
+"chupa/triage.py" = 10
+"chupa/watchdog.py" = 0
+"chupa/watcher.py" = 18
+
+[unit]
+budget_seconds = 60

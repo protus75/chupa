@@ -677,7 +677,8 @@ and notifications are Effects, so a crash never repeats one.
 ## 11. Config
 
 One `config.yaml`, validated strictly: unknown keys, explicit nulls, and bad values are refused
-with the fix. The full field inventory is in `docs/host-contract.md`.
+with the fix. The full field inventory is in `docs/host-contract.md`. This repo’s own
+`config.yaml` uses its Python host test setup.
 
 | Area | Controls |
 |---|---|
