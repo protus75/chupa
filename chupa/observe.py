@@ -294,7 +294,7 @@ def recent_steps(state: Path, log: list[dict], limit: int) -> list[dict]:
             name = STEP_NAMES.get(surface, surface)
             if surface == "triage" and "run_seq" in e:
                 name = f"{name} #{e['run_seq']}"
-            rows.append({"ts": e["ts"], "stem": e.get("stem"), "surface": surface, "text": f"{name} {verb}", "kind": f"{prefix}_{suffix}"})
+            rows.append({"ts": e["ts"], "stem": e.get("stem"), "surface": surface, "attempt": e.get("attempt"), "text": f"{name} {verb}", "kind": f"{prefix}_{suffix}"})
         elif event == "engine_start":
             rows.append({"ts": e["ts"], "stem": None, "text": f"{e['verb']} started (pid {e['pid']})", "kind": "engine_start"})
         elif event == "engine_stop":
@@ -575,15 +575,6 @@ def snapshot(ctx) -> dict:
         r["depends"] = [d for d in r["depends"] if d in shown]
     for row, graph in zip(rows, layout(rows)):
         row["graph"] = graph
-    steps = recent_steps(state, log, STEPS)
-    for step in steps:
-        surface = step.pop("surface", None)
-        if stem := step.get("stem"):
-            name = {"implement": "run.md", "check": "checks.json", "review": "review.md", "diagnose": "diagnosis.json"}.get(surface, "ticket.md")
-            path = Path("tickets") / stem / name
-            step["path"] = str(path if (ctx.root / path).is_file() else path.with_name("ticket.md"))
-        step["timeDisplay"] = clock(step["ts"])
-        step["dateDisplay"] = local(step["ts"]).strftime("%x, %X")
     from chupa.box import Box
     from chupa.seams import LocalFileSystem
     from chupa.status import project
@@ -625,6 +616,20 @@ def snapshot(ctx) -> dict:
                 "link": link,
             }
         )
+    steps = recent_steps(state, log, STEPS)
+    for step in steps:
+        surface = step.pop("surface", None)
+        attempt = step.pop("attempt", None)
+        if surface == "author":
+            message = next((row for row in box_rows if row["seq"] == attempt), None)
+            link = message["link"] if message and step["kind"] != "stage_start" else None
+            step["path"] = link if link and (ctx.root / link).is_file() else message["path"] if message else None
+        elif stem := step.get("stem"):
+            name = {"implement": "run.md", "check": "checks.json", "review": "review.md", "diagnose": "diagnosis.json"}.get(surface, "ticket.md")
+            path = Path("tickets") / stem / name
+            step["path"] = str(path if (ctx.root / path).is_file() else path.with_name("ticket.md"))
+        step["timeDisplay"] = clock(step["ts"])
+        step["dateDisplay"] = local(step["ts"]).strftime("%x, %X")
     box_counts = {
         kind: sum(m.status == "pending" if kind == "pending" else m.resolution is not None and m.resolution.kind == ("ticket" if kind == "author" else kind) for m in messages)
         for kind in ("pending", "author", "tombstone", "declined")

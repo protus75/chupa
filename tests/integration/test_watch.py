@@ -328,6 +328,48 @@ def test_snapshot_step_files_and_mechanical_kinds(tmp_path, monkeypatch):
     assert watch.current_step([dict(events[1], event="stage_end", outcome="ok")], "alpha")[0] == "Review"  # Check advances to Review.
 
 
+def test_snapshot_author_steps_open_box_ticket_or_decision(tmp_path, monkeypatch):
+    from chupa.box import Box, Resolution
+    from chupa.seams import LocalFileSystem
+
+    ctx = watch.Context(tmp_path, tmp_path / "state", tmp_path / "config.yaml", None, None, None)
+    monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: (set(), set()))
+    monkeypatch.setattr(watch, "committed_ticket_shas", lambda ctx: {})
+    monkeypatch.setattr(watch, "commits", lambda ctx: {})
+    box = Box(ctx.state / "box", LocalFileSystem())
+    ids = [box.enqueue(message_class="suggestion", origin="operator", summary=summary)[0] for summary in ("First", "Second", "Third")]
+    box.resolve(ids[0], Resolution(kind="ticket", link="alpha"))
+    box.resolve(ids[1], Resolution(kind="declined", link="declined-box-second"))
+    ticket = tmp_path / "tickets/alpha/ticket.md"
+    decision = tmp_path / "tickets/decisions/declined-box-second.md"
+    for path in (ticket, decision):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("record")
+    messages = box.messages()
+    events = []
+    for i, message in enumerate(messages):
+        for event, outcome in (("stage_start", None), ("stage_end", "ok" if i == 0 else "gate_failed")):
+            events.append({"event": event, "stem": "author", "surface": "author", "attempt": message.seq, "outcome": outcome, "ts": f"2026-01-01T00:00:0{len(events)}+00:00"})
+    events.append({"event": "stage_start", "stem": "author", "surface": "author", "attempt": 99, "ts": "2026-01-01T00:00:06+00:00"})
+    (ctx.state / "engine.log").write_text("".join(json.dumps(event) + "\n" for event in events))
+    steps = watch.snapshot(ctx)["steps"]
+    by_time = {row["ts"]: row for row in steps}
+    paths = [str(box.path(message).relative_to(tmp_path)) for message in messages]
+    assert [by_time[event["ts"]]["path"] for event in events] == [
+        paths[0],
+        str(ticket.relative_to(tmp_path)),
+        paths[1],
+        str(decision.relative_to(tmp_path)),
+        paths[2],
+        paths[2],
+        None,
+    ]  # Each attempt and outcome selects its own existing file.
+    assert all(row["path"] != "tickets/author/ticket.md" for row in steps)  # The synthetic Author stem is not a ticket.
+    assert all("attempt" not in row for row in steps)  # Internal lookup data must not reach the extension.
+    decision.unlink()
+    assert next(row for row in watch.snapshot(ctx)["steps"] if row["ts"] == events[3]["ts"])["path"] == paths[1]  # A missing resolution falls back to its message.
+
+
 def test_snapshot_box_messages(tmp_path, monkeypatch):
     from chupa.box import Box, Resolution
     from chupa.seams import LocalFileSystem
