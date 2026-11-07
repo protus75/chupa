@@ -13,12 +13,10 @@ none
 - chupa/scheduler.py
 - chupa/observe.py
 - chupa/status.py
-- chupa/__main__.py
 - tests/test_drain.py
 - tests/test_requisition_gate.py
 - tests/test_scheduler.py
 - tests/test_watch.py
-- tests/test_daemon_composition.py
 - docs/how-chupa-works.md
 
 ## Goal / Why
