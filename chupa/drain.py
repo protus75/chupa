@@ -23,10 +23,10 @@ from pathlib import Path
 
 from chupa import caps
 from chupa.enginelog import EngineLog
-from chupa.redact import Redactor
 from chupa.journal import TERMINAL_STATES, Event, EventType, render_ts
 from chupa.lockfile import Lockfile
 from chupa.reconcile import reconcile
+from chupa.redact import Redactor
 from chupa.runner import EXIT_MERGED, EXIT_TICKET, Checkout, Dispatch, Refusal, harvest_orphan
 from chupa.seams import ProcessExec
 from chupa.status import SETTLED, last_states, reject_queue
@@ -76,7 +76,6 @@ def parked_blob(events: Iterable[Event], stem: str) -> str | None:
     return None
 
 
-
 def awaiting_operator(events: Iterable[Event], stem: str, caps_config) -> bool:
     history = tuple(events)
     queued = reject_queue(history)
@@ -95,6 +94,7 @@ def record_reoffer(journal, events: Iterable[Event], stem: str, sha: str) -> Non
     body = next(e.body for e in reversed(history) if e.type == EventType.STATE_TRANSITION and e.ticket == stem and e.body.get("to") in TERMINAL_STATES)
     if body.get("to") != PREMISE and "provider_drought" not in body:
         caps.consume(journal, stem, "retry", sha, rung=body.get("rung"))
+
 
 def authored_at(events: Iterable[Event]) -> dict[str, str]:
     """Each stem's age anchor: the `ts` of its FIRST ticket-plane authoring-commit event."""

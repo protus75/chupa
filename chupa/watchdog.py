@@ -57,9 +57,7 @@ class ScopeObservation:
 
     def __call__(self) -> dict:
         files = self.snapshot()
-        observed = {
-            path: data for path, data in files.items() if any(path == prefix or path.startswith(prefix if prefix.endswith("/") else prefix + "/") for prefix in self.fence)
-        }
+        observed = {path: data for path, data in files.items() if any(path == prefix or path.startswith(prefix if prefix.endswith("/") else prefix + "/") for prefix in self.fence)}
         return observed
 
 

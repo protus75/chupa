@@ -464,14 +464,14 @@ def snapshot(ctx) -> dict:
         try:
             holder = json.loads((state / "chupa.lock").read_text())
             pid, started_at = holder["pid"], holder["started_at"]
-        except (OSError, ValueError, KeyError):
+        except OSError, ValueError, KeyError:
             pass
         else:
             args = next((args.split() for row_pid, _, args in processes(ctx) if row_pid == pid), [])
             verb = "chupa"
             for i in range(len(args) - 1):
-                if args[i:i + 2] == ["-m", "chupa"]:
-                    tokens = iter(args[i + 2:])
+                if args[i : i + 2] == ["-m", "chupa"]:
+                    tokens = iter(args[i + 2 :])
                     for token in tokens:
                         if token == "--config":
                             next(tokens, None)
@@ -612,13 +612,26 @@ def snapshot(ctx) -> dict:
         link = None
         if m.resolution:
             link = str(Path("tickets") / m.resolution.link / "ticket.md") if m.resolution.kind == "ticket" else str(Path("tickets/decisions") / (m.resolution.link + ".md"))
-        box_rows.append({"id": m.id, "seq": m.seq, "messageClass": cls, "state": m.status,
-                         "status": f"{cls} · {label}", "summary": summary, "fields": fields,
-                         "path": str(path.relative_to(ctx.root.resolve())) if path.is_relative_to(ctx.root.resolve()) else None, "link": link})
-    box_counts = {kind: sum(m.status == "pending" if kind == "pending" else m.resolution is not None and m.resolution.kind == ("ticket" if kind == "author" else kind) for m in messages) for kind in ("pending", "author", "tombstone", "declined")}
+        box_rows.append(
+            {
+                "id": m.id,
+                "seq": m.seq,
+                "messageClass": cls,
+                "state": m.status,
+                "status": f"{cls} · {label}",
+                "summary": summary,
+                "fields": fields,
+                "path": str(path.relative_to(ctx.root.resolve())) if path.is_relative_to(ctx.root.resolve()) else None,
+                "link": link,
+            }
+        )
+    box_counts = {
+        kind: sum(m.status == "pending" if kind == "pending" else m.resolution is not None and m.resolution.kind == ("ticket" if kind == "author" else kind) for m in messages)
+        for kind in ("pending", "author", "tombstone", "declined")
+    }
     counts = {section: sum(r["section"] == section for r in rows) for section in ("blocked", "queued", "running", "merged")}
     total = counts["queued"] + counts["running" if alive else "blocked"]
-    tooltip = f'{counts["running"]} running, {counts["queued"]} queued' if alive else f'engine stopped: {counts["blocked"]} blocked, {counts["queued"]} queued'
+    tooltip = f"{counts['running']} running, {counts['queued']} queued" if alive else f"engine stopped: {counts['blocked']} blocked, {counts['queued']} queued"
     badge = {"value": total, "tooltip": tooltip} if total else None
     return {
         "badge": badge,

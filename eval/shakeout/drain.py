@@ -68,6 +68,7 @@ async def _premise_park_release(bench: Bench) -> Observation:
     path.write_text(path.read_text().replace("Exercise the stage fixture", "Correct the stage fixture"))
     await _commit_tickets(bench, [f"tickets/{stem}/ticket.md"], "shakeout: correct premise fixture")
     from tests.approval import approve
+
     approve(bench.repo, stem, bench.clock)
     bench.script([lambda req: _commit(req, {"premise.txt": "ok\n"}), json.dumps({"verdict": "approve", "summary": "approved", "findings": []})])
     released = await bench.drain()

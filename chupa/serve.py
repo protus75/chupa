@@ -2,8 +2,8 @@
 
 import asyncio
 import os
-import sys
 import re
+import sys
 from collections.abc import Awaitable, Callable, Iterable
 from contextlib import asynccontextmanager
 from dataclasses import replace
@@ -161,7 +161,7 @@ class Serve:
         self.core = build_daemon_core(
             checkout,
             config_path=config_path,
-                read=read,
+            read=read,
             debounce=SERVE_POLL_S,
             quarantined=lambda: set(),
             drought_parked=lambda: set(),
@@ -341,12 +341,14 @@ class Serve:
         c = self.checkout
         events = c.journal.read()
         intents = [i for i, e in enumerate(events) if e.type == EventType.EFFECT_INTENT and e.key == key]
-        since = events[intents[0] + 1:] if intents else []
+        since = events[intents[0] + 1 :] if intents else []
         # A request-specific baseline is journaled before any ticket mutation.
         baseline_key = key + "/baseline"
         baselines = [e.body["result"] for e in events if e.type == EventType.EFFECT_COMPLETION and e.key == baseline_key]
+
         async def baseline():
             return await c.git.rev_parse(c.repo, "HEAD")
+
         base = baselines[0] if baselines else await Effects(c.journal).run(baseline, key=baseline_key, ticket=stem)
         signals = [e for e in since if e.ticket == stem]
         path = c.repo / ticket_path(stem)
@@ -628,7 +630,17 @@ class Serve:
                     finally:
                         try:
                             exc = sys.exception()
-                            outcome = f"error: {type(exc).__name__}" if exc else f"error: {failure_type}" if failure_type else "killed" if self.control.projection.kill_requested else "handoff" if handoff else "stopped"
+                            outcome = (
+                                f"error: {type(exc).__name__}"
+                                if exc
+                                else f"error: {failure_type}"
+                                if failure_type
+                                else "killed"
+                                if self.control.projection.kill_requested
+                                else "handoff"
+                                if handoff
+                                else "stopped"
+                            )
                             self.log.event("engine_stop", verb="serve", pid=pid, outcome=outcome)
                         finally:
                             lock.release()

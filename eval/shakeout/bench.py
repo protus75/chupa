@@ -116,6 +116,7 @@ class Bench:
     def add_ticket(self, stem: str, text: str) -> None:
         self.fs.write(self.repo / "tickets" / stem / "ticket.md", text.encode())
         from tests.approval import approve
+
         approve(self.repo, stem, self.clock)
 
     def script(self, items: list[ScriptItem]) -> None:

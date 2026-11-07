@@ -149,15 +149,31 @@ async def drive(ctx: StageContext, ticket: Ticket, *, admission=None, consume_ha
         ticket = replace(ticket, frontmatter=ticket.frontmatter.model_copy(update={"agent_tier": tier, "agent_effort": effort}))
         sha = await ctx.git.rev_parse(ctx.repo, f"HEAD:{ticket_path(ticket.stem)}")
         history = ctx.driver.journal.read()
-        approved = any(e.type == EventType.SIGNAL and e.ticket == ticket.stem and e.body.get("signal") == "requisition_verdict" and e.body.get("verdict") == "approve" and e.body.get("ticket_sha") == sha for e in history)
+        approved = any(
+            e.type == EventType.SIGNAL and e.ticket == ticket.stem and e.body.get("signal") == "requisition_verdict" and e.body.get("verdict") == "approve" and e.body.get("ticket_sha") == sha
+            for e in history
+        )
         if not approved:
-            from chupa.requisition import review_ticket
             from chupa.driver import ProviderDroughtResult
+            from chupa.requisition import review_ticket
 
             attempt = run_seq(history, ticket.stem)
             text = await ctx.git._run(ctx.repo, "show", f"HEAD:{ticket_path(ticket.stem)}")
             try:
-                review = await review_ticket(ctx.driver, repo=ctx.repo, stem=ticket.stem, text=text, specs_dir=ctx.specs_dir, coverage_map=ctx.config.state_dir / "coverage-map.json" if ctx.config.review.coverage_map is not None else None, tier=tier, stem_slot=ticket.stem, run_seq=attempt, attempt=attempt, call_seq=1, expected_budget=ticket.expected_minutes * 60)
+                review = await review_ticket(
+                    ctx.driver,
+                    repo=ctx.repo,
+                    stem=ticket.stem,
+                    text=text,
+                    specs_dir=ctx.specs_dir,
+                    coverage_map=ctx.config.state_dir / "coverage-map.json" if ctx.config.review.coverage_map is not None else None,
+                    tier=tier,
+                    stem_slot=ticket.stem,
+                    run_seq=attempt,
+                    attempt=attempt,
+                    call_seq=1,
+                    expected_budget=ticket.expected_minutes * 60,
+                )
             except ProviderDrought as exc:
                 result = ProviderDroughtResult(outcome="infra_error", artifact=None, findings=[], cost=Cost(), provider_drought=exc.record)
                 run = StagesRun(attempt=attempt, results={"implement": result}, ticket_sha=sha)
@@ -166,7 +182,11 @@ async def drive(ctx: StageContext, ticket: Ticket, *, admission=None, consume_ha
                 result = StageResult(outcome="infra_error", artifact=None, findings=findings, cost=Cost(attempts=1))
                 run = StagesRun(attempt=attempt, results={"implement": result}, ticket_sha=sha)
             else:
-                ctx.driver.journal.append(EventType.SIGNAL, {"signal": "requisition_verdict", "verdict": review.verdict, "ticket_sha": sha, "provider": review.provider, "model": review.model, "spec_version": review.spec_version}, ticket=ticket.stem)
+                ctx.driver.journal.append(
+                    EventType.SIGNAL,
+                    {"signal": "requisition_verdict", "verdict": review.verdict, "ticket_sha": sha, "provider": review.provider, "model": review.model, "spec_version": review.spec_version},
+                    ticket=ticket.stem,
+                )
                 if review.verdict != "approve" and not (review.verdict == "snag" and all(f.code == "render_feasibility" for f in review.findings)):
                     reason = "; ".join(f"[{f.code}] {f.message} ({f.paved_road})" for f in review.findings)
                     ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "premise_failed", "stage": "requisition", "reason": reason}, ticket=ticket.stem)

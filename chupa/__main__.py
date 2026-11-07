@@ -401,6 +401,7 @@ def main(
         if args.verb == "review":
             return asyncio.run(_review(checkout, args.stem))
         if args.verb == "migrate-box":
+
             async def migrate_box():
                 lock = Lockfile(config.state_dir, instance_id=await checkout.git.describe(repo), clock=clock)
                 lock.acquire()
@@ -413,16 +414,18 @@ def main(
                             continue
                         resolution["kind"] = "declined"
                         if resolution["link"].startswith("decision-"):
-                            resolution["link"] = "declined-" + resolution["link"][len("decision-"):]
+                            resolution["link"] = "declined-" + resolution["link"][len("decision-") :]
                         checkout.fs.write(path, json.dumps(data).encode())
                         print(f"{data['id']}: decision -> declined")
                         count += 1
                     print(f"migrate-box: {count} migrated")
                 finally:
                     lock.release()
+
             asyncio.run(migrate_box())
             return 0
         if args.verb == "dismiss":
+
             async def dismiss_messages():
                 lock = Lockfile(config.state_dir, instance_id=await checkout.git.describe(repo), clock=clock)
                 lock.acquire()
@@ -430,6 +433,7 @@ def main(
                     return await triage.dismiss(checkout, args.ids)
                 finally:
                     lock.release()
+
             print("\n".join(asyncio.run(dismiss_messages())))
             return 0
         if args.verb == "triage":

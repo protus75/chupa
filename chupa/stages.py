@@ -1189,11 +1189,7 @@ class ScopeFenceGate:
 
     def check(self, artifact: Evidence, workspace: Path) -> GateReport:
         outbox = f"{TICKETS_DIR}/{artifact.stem}/"
-        outside = [
-            p
-            for p in artifact.changed_files
-            if not _in_fence(p, artifact.scope_fence) and not (p.startswith(outbox) and p != outbox + TICKET_FILE)
-        ]
+        outside = [p for p in artifact.changed_files if not _in_fence(p, artifact.scope_fence) and not (p.startswith(outbox) and p != outbox + TICKET_FILE)]
         return _report(
             self.code,
             [
@@ -1206,6 +1202,7 @@ class ScopeFenceGate:
                 for p in outside
             ],
         )
+
 
 class VerificationGate:
     """The ticket's own `## Verification` commands, with base-red failures attributed to main.

@@ -63,13 +63,16 @@ def project(events: Iterable[Event], *, box=None, policy=None, window: Window | 
     intake = tuple((e.ticket, e.body["source"], e.body["state"], e.body["commit"]) for e in events if e.type == EventType.SIGNAL and e.body.get("signal") == INTAKE_SIGNAL and e.ticket is not None)
     spend = sum(e.body["cost"].get("usd", 0.0) for e in events if e.type == EventType.EFFECT_COMPLETION and isinstance(e.body.get("cost"), dict))
     messages = box.messages() if box is not None else []
+
     def row(m):
-        label = ("reopened" if m.reopen else "pending") if m.status == "pending" else (
-            f"author -> {m.resolution.link}" if m.resolution.kind == "ticket" else
-            f"tombstone -> {m.resolution.link}" if m.resolution.kind == "tombstone" else "declined"
+        label = (
+            ("reopened" if m.reopen else "pending")
+            if m.status == "pending"
+            else (f"author -> {m.resolution.link}" if m.resolution.kind == "ticket" else f"tombstone -> {m.resolution.link}" if m.resolution.kind == "tombstone" else "declined")
         )
         summary = m.summary.splitlines()[0]
         return (m.id, m.message_class, label, summary if len(summary) <= 120 else summary[:117] + "...")
+
     return Status(
         box=tuple(row(m) for m in messages),
         merged=tuple(sorted(s for s, to in last.items() if to == "merged")),
@@ -81,8 +84,11 @@ def project(events: Iterable[Event], *, box=None, policy=None, window: Window | 
         verdict_refusals=tuple(
             (e.ticket, e.body["result"]["refusal"])
             for e in events
-            if e.type == EventType.EFFECT_COMPLETION and (e.key or "").startswith("ticket-plane/")
-            and isinstance(e.body.get("result"), dict) and e.body["result"].get("refusal") and e.ticket is not None
+            if e.type == EventType.EFFECT_COMPLETION
+            and (e.key or "").startswith("ticket-plane/")
+            and isinstance(e.body.get("result"), dict)
+            and e.body["result"].get("refusal")
+            and e.ticket is not None
         ),
         tombstones=tuple((m.id, m.message_class, m.reports) for m in box.confirmed_tombstones(policy)) if box is not None else (),
         reopens=tuple(e.body for e in events if e.type == EventType.SIGNAL and e.body.get("kind") == "tombstone_auto_reopened"),
@@ -120,7 +126,10 @@ def render(status: Status) -> str:
                 block("intake", (f"{stem}: source: {source}, state: {state}, commit {commit[:12]}" for stem, source, state, commit in status.intake)),
                 f"spend:\n${status.spend_usd:.2f}",
                 block("Reject queue", (f"{stem}: {body['to']} at {body.get('stage', 'unknown')} -- confirm {stem} after editing, or reject {stem}" for stem, body in status.reject)),
-                block(f"Suggestion Box ({sum(row[2] in {'pending', 'reopened'} for row in status.box)} pending, {sum(row[2] not in {'pending', 'reopened'} for row in status.box)} resolved)", (f"{id}: {cls}: {label}: {summary}" for id, cls, label, summary in status.box)),
+                block(
+                    f"Suggestion Box ({sum(row[2] in {'pending', 'reopened'} for row in status.box)} pending, {sum(row[2] not in {'pending', 'reopened'} for row in status.box)} resolved)",
+                    (f"{id}: {cls}: {label}: {summary}" for id, cls, label, summary in status.box),
+                ),
                 block("Confirmed-class tombstones", (f"{id}: {cls}, {reports} re-reports" for id, cls, reports in status.tombstones)),
                 block("Tombstone reopens", (f"{body['box_id']}: reopened at {body['reports']} re-reports" for body in status.reopens)),
                 *((block("Verdict refusals", (f"{stem}: {reason}" for stem, reason in status.verdict_refusals)),) if status.verdict_refusals else ()),

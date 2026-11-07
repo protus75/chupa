@@ -47,7 +47,8 @@ dev = [
 
 [tool.ruff]
 line-length = 200
-extend-exclude = ["*.md"]
+# Ticket evidence scripts are frozen artifacts that Implement may never edit, so whole-repo ruff skips them.
+extend-exclude = ["*.md", "tickets"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

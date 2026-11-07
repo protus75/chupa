@@ -236,8 +236,13 @@ class ControlInbox:
                     matched = request.hold_id is None and self.known(request.stem)
                     body.update(
                         decision="accepted" if matched else "stale",
-                        reason=("matching admission" if matched else "name a journaled stem or an existing ticket.md"
-                                if request.hold_id is None else "read the current admission and publish a fresh matching request"),
+                        reason=(
+                            "matching admission"
+                            if matched
+                            else "name a journaled stem or an existing ticket.md"
+                            if request.hold_id is None
+                            else "read the current admission and publish a fresh matching request"
+                        ),
                     )
                 elif request.verb == "resume" and request.hold_id not in live_holds:
                     body.update(decision="stale", reason="read the current hold and submit a new request")
@@ -255,8 +260,10 @@ class ControlInbox:
             if body["decision"] != "accepted" or body["verb"] not in ("confirm", "reject") or body["hold_id"] is not None:
                 continue
             key = f"ticket-plane/{body['stem']}/{body['verb']}/{body['request_id']}"
+
             async def action():
                 return await verdict(body["stem"], body["verb"], key)
+
             await Effects(self.journal).run(action, key=key, ticket=body["stem"])
 
 

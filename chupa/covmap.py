@@ -11,10 +11,7 @@ from chupa.stages import coverage_contexts
 
 
 def reduce_map(report: dict) -> dict[str, list[str]]:
-    return {
-        name: sorted({context.split("|", 1)[0].split("::", 1)[0] for values in lines.values() for context in values if "|" in context})
-        for name, lines in coverage_contexts(report).items()
-    }
+    return {name: sorted({context.split("|", 1)[0].split("::", 1)[0] for values in lines.values() for context in values if "|" in context}) for name, lines in coverage_contexts(report).items()}
 
 
 async def build(*, repo: Path, config, exec_: ProcessExec, git: Git, fs: FileSystem, env) -> None:
@@ -29,7 +26,7 @@ async def build(*, repo: Path, config, exec_: ProcessExec, git: Git, fs: FileSys
             raise Refusal(f"coverage command exited {rc}", "fix review.coverage_map.argv and retry covmap")
         try:
             files = reduce_map(json.loads(report.read_text()))
-        except (OSError, UnicodeError, ValueError, KeyError, TypeError):
+        except OSError, UnicodeError, ValueError, KeyError, TypeError:
             raise Refusal("missing or invalid coverage report", "generate a coverage JSON report with test contexts and retry covmap") from None
         sha = await git.rev_parse(repo, "main")
         destination = config.state_dir / "coverage-map.json"

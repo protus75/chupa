@@ -261,7 +261,13 @@ async def dirty_overlap(ctx: StageContext, stem: str) -> list[Finding]:
     overlap = sorted(dirty.intersection(await ctx.git.diff_names(ctx.repo, MAIN, stem)))
     if not overlap:
         return []
-    return [Finding(code="dirty_checkout", message=f"main checkout has local changes to {', '.join(overlap)} that the squash would overwrite", paved_road="commit or revert those edits in the main checkout; the ticket re-runs through the normal retry path")]
+    return [
+        Finding(
+            code="dirty_checkout",
+            message=f"main checkout has local changes to {', '.join(overlap)} that the squash would overwrite",
+            paved_road="commit or revert those edits in the main checkout; the ticket re-runs through the normal retry path",
+        )
+    ]
 
 
 async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResult:

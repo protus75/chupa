@@ -119,7 +119,6 @@ async def triage_pass(checkout: Checkout, llm: LLM, ids=frozenset()) -> list[tup
     return lines
 
 
-
 def validate_ids(checkout: Checkout, ids):
     box = Box(checkout.config.state_dir / BOX_DIR, checkout.fs, rereport=RereportJournal(checkout.journal))
     for id in ids:
@@ -141,6 +140,7 @@ async def dismiss(checkout: Checkout, ids) -> list[str]:
         reply = TriageReply(verdict="declined", link=None, summary="Dismissed by the operator.", rationale="The operator dismissed this message.", evidence=[], reopen_after_days=30)
         lines.append(await _record(checkout, driver, box, id, "declined", id, reply, message.summary))
     return lines
+
 
 async def _passed_surfaces(checkout, candidate, history):
     """Pin Check and Review to the completed admission, including clean-rebase carry."""
