@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "8a7c568362accb3d89c3b18572db708d7409e59f",
+  "stem": "serve-reoffer-dispatch",
+  "attempt": 2,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "test_daemon_soak_runner.py:169 checks every receipt stem, semantic included, for zero retry draws. The ticket's claim that it covers only other stems and stays unchanged is false. Rewrite the ticket so the assertion excludes semantic or counts only draws after the seed.",
+    "Seeding a quota fault stem to its retry cap makes failure_terminal route its quota terminal to the Reject queue. The quota assertion at reliability_battery.py:343 requires no routed field, so it has to be rewritten to expect that routing.",
+    "Before re-filing, run the focused verification with only the eval seeds applied and list every assertion that breaks. Name each one in Scope in instead of declaring it unchanged.",
+    "Keep the core scheduler, serve and daemon changes as written. The harvest found no flaw in them, only in the soak and battery seed expectations."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
