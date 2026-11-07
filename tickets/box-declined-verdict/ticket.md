@@ -31,6 +31,8 @@ kind: feature
 - tests/test_flake.py
 - tests/test_serve.py
 - tests/test_retro_box.py
+- tests/test_storm_producer.py
+- tests/test_storm_notification_activation.py
 - eval/daemon_soak.py
 
 ## Goal / Why
@@ -57,7 +59,7 @@ The registry keeps its name: `tickets/decisions/` holds both declined and tombst
   - A second run changes no file and prints `migrate-box: 0 migrated`.
 - In: `dev.py` gains `migrate-box`, which runs `chupa migrate-box`.
 - In: tests:
-  - every existing assertion or fixture using the box `decision` value or `decision-` record id flips to `declined`;
+  - every existing assertion or fixture using the box `decision` value or `decision-` record id flips to `declined`, including the `Verdict`/`Resolution` fixtures in `tests/test_storm_producer.py` and `tests/test_storm_notification_activation.py`;
   - `tests/test_box.py`: migrating a box with one `decision` resolution, one `tombstone`, and one pending message rewrites only the first, so `Box.messages()` loads all three. A migration that leaves `decision`, rewrites the tombstone, or drops the link prefix fails;
   - `tests/test_box.py`: `Resolution(kind="decision", ...)` raises `ValidationError`, not accepted;
   - `tests/test_cli.py`: `migrate-box` exits 2 and changes no file while the lock is held; a second run reports `0 migrated`;
@@ -97,6 +99,8 @@ The registry keeps its name: `tickets/decisions/` holds both declined and tombst
 - tests/test_flake.py
 - tests/test_serve.py
 - tests/test_retro_box.py
+- tests/test_storm_producer.py
+- tests/test_storm_notification_activation.py
 
 ## Acceptance criteria
 1. `./dev.py test tests/test_box.py tests/test_triage.py tests/test_author.py tests/test_watch.py tests/test_status.py tests/test_cli.py tests/test_dev.py tests/test_flake.py tests/test_serve.py tests/test_retro_box.py` exits 0, including every new test in Scope in.
