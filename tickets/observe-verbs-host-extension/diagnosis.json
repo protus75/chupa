@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "89e06cf26ce2207f1025f6c5d40e5946940bfa57",
+  "stem": "observe-verbs-host-extension",
+  "attempt": 1,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Add docs/host-running.md to the scope fence. tests/test_host_running.py::test_verb_table_matches_parser requires its verb table to match the parser's subcommands exactly, so adding watch and snapshot forces that file to change.",
+    "Add rows for `watch` and `snapshot` to the docs/host-running.md command table, in the existing format, so the rows match the regex in tests/test_host_running.py.",
+    "Add docs/host-running.md to the Acceptance criteria 5 doc list and to Context, then run chupa review on the ticket until it approves.",
+    "The first attempt passed the focused tests in tests/test_watch.py and the node --check syntax check. Keep that approach. The only full-suite failure was the verb table in docs/host-running.md."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
