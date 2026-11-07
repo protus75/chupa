@@ -57,4 +57,4 @@ select = ["E", "F", "I"]
 "tests/*" = ["F401", "F811"]
 # The core template and its expected bytes are long by design.
 "chupa/hostfiles.py" = ["E501"]
-"tests/test_hostfiles.py" = ["E501"]
+"tests/**/test_hostfiles.py" = ["E501"]

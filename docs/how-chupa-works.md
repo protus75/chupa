@@ -70,6 +70,9 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 The repo's one dev command; standard library only, every task through `uv`.
 `./dev.py test` runs the suite in parallel on the available cores by default.
 Each test has a 120-second hard limit.
+Tests live in `tests/unit/` (no disk, network or process; run under `chupa.testguard`) and
+`tests/integration/`. Run one suite with `./dev.py test tests/unit` or
+`./dev.py test tests/integration`.
 
 | Subcommand | Runs |
 |---|---|

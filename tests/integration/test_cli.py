@@ -1,0 +1,847 @@
+import asyncio
+import os
+import subprocess
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+
+import pytest
+
+from chupa.__main__ import main
+from chupa.git import Git
+from chupa.journal import EventType, Journal
+from chupa.lockfile import Lockfile, LockHeld
+from chupa.runner import Refusal
+from chupa.seams import SubprocessExec
+from tests.integration.test_stages import adopt_conduct
+
+ENV = {
+    "PATH": "/usr/bin:/bin",
+    "HOME": "/nonexistent",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_AUTHOR_NAME": "t",
+    "GIT_AUTHOR_EMAIL": "t@t",
+    "GIT_COMMITTER_NAME": "t",
+    "GIT_COMMITTER_EMAIL": "t@t",
+}
+
+CONFIG = """schema_version: 1
+state_dir: .chupa/state
+providers:
+  - name: claude
+    kind: cli
+    package: test-cli
+    models_by_tier: {low: m, medium: m, high: m, max: m}
+    limits: {concurrency: 1}
+routing:
+  - {tier: medium, surface: implement, candidates: [{provider: claude}]}
+review: {}
+merge: {}
+engine_plane_safety_inventory: [config.yaml]
+"""
+
+PLAN = "# Plan\n\n## 11. Failure spine\n\nSpine.\n"
+
+TICKET = """---
+priority: P2
+kind: feature
+---
+
+## Depends on
+{depends}
+
+## Context
+- chupa/thing.py
+
+## Goal / Why
+`thing()` returns ok.
+
+## Scope in / Scope out
+In: thing. Out: the rest.
+
+## Scope fence
+- chupa/thing.py
+
+## Acceptance criteria
+1. `uv run pytest` exits 0.
+
+## Verification
+```
+uv run pytest
+```
+
+## Definition of rejected
+Needs a new dependency.
+
+## Time budget
+- expected: 10m
+- stuck: 20m
+"""
+
+
+def ticket(depends: str = "none") -> str:
+    return TICKET.format(depends=depends)
+
+
+class Clock:
+    def __call__(self) -> datetime:
+        return datetime(2026, 1, 1, tzinfo=UTC)
+
+
+def with_retro_driver(checkout, dispatch):
+    from chupa import runner
+    from chupa.llm import FakeLLM
+
+    dispatch.stages = runner.bind(checkout, FakeLLM(['{"proposals": []}'] * 10)).stages
+    return dispatch
+
+
+class Stages:
+    """Scripted fake for the stage-dispatch seam: records each dispatched ticket and the lock state."""
+
+    def __init__(self, terminal: str = "merged") -> None:
+        self.terminal = terminal
+        self.calls: list[str] = []
+        self.lock_held: list[bool] = []
+        self.checkout = None
+
+    def __call__(self, checkout):
+        self.checkout = checkout
+
+        async def dispatch(t):
+            self.calls.append(t.stem)
+            contender = Lockfile(checkout.config.state_dir, instance_id="contender", clock=Clock())
+            try:
+                contender.acquire()
+            except LockHeld:
+                self.lock_held.append(True)
+            else:
+                contender.release()
+                self.lock_held.append(False)
+            checkout.journal.append(EventType.STATE_TRANSITION, {"to": self.terminal}, ticket=t.stem)
+            return self.terminal
+
+        return with_retro_driver(checkout, dispatch)
+
+
+@pytest.fixture
+def root(tmp_path: Path) -> Path:
+    root = tmp_path / "repo"
+    (root / "chupa").mkdir(parents=True)
+    (root / "chupa" / "thing.py").write_text("")
+    (root / "CHUPA_PLAN.md").write_text(PLAN)
+    (root / "config.yaml").write_text(CONFIG)
+    (root / ".gitignore").write_text(".chupa/\n")
+    conduct = adopt_conduct(root)
+    g = Git(SubprocessExec(), env=ENV, timeout=30.0)
+
+    async def seed():
+        await g.init(root, branch="main")
+        await g.add(root, ["chupa", "CHUPA_PLAN.md", "config.yaml", ".gitignore", *conduct])
+        await g.commit(root, "base")
+
+    asyncio.run(seed())
+    return root
+
+
+def cli(root: Path, *argv: str, stages=None) -> int:
+    return main(list(argv), cwd=root, env=ENV, clock=Clock(), pipeline=stages or Stages())
+
+
+def journal(root: Path) -> Journal:
+    return Journal(root / ".chupa" / "state", Clock())
+
+
+def write(root: Path, stem: str, text: str) -> None:
+    path = root / "tickets" / stem / "ticket.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+
+
+def git_out(root: Path, *args: str) -> str:
+    return subprocess.run(["git", "-C", str(root), *args], env=ENV, capture_output=True, text=True, check=True).stdout
+
+
+# --- new ----------------------------------------------------------------------------------------
+
+
+def test_new_templates_a_ticket_and_lints_it(root, capsys):
+    assert cli(root, "new", "add-thing") == 0
+    path = root / "tickets" / "add-thing" / "ticket.md"
+    text = path.read_text()
+    assert "## Acceptance criteria" in text and "## Verification" in text
+    assert "kind: feature" in text and "## Regression" not in text
+    assert "<measurable outcome naming a check in backticks>" in text
+    out = capsys.readouterr().out
+    assert "tickets/add-thing/ticket.md" in out
+    assert "`## Context`" in out and "`## Time budget`" in out  # lint names what is left to fill
+    assert git_out(root, "status", "--porcelain", "--", "tickets").startswith("??")  # authored, not committed
+    assert not (root / ".chupa").exists()  # file authorship is outside the lock fence
+
+
+def test_new_kind_flag(root, capsys):
+    assert cli(root, "new", "fix-thing", "--kind", "bug") == 0
+    text = (root / "tickets/fix-thing/ticket.md").read_text()
+    assert "kind: bug" in text and "## Regression" in text
+    assert "regression_result" in text
+    assert "no evidence file" in capsys.readouterr().out
+    with pytest.raises(SystemExit) as exc:
+        cli(root, "new", "unknown-kind", "--kind", "unknown")
+    assert exc.value.code == 2
+    assert not (root / "tickets/unknown-kind").exists()
+
+
+def test_new_refuses_an_existing_stem(root, capsys):
+    write(root, "add-thing", "keep me\n")
+    assert cli(root, "new", "add-thing") == 2
+    assert (root / "tickets" / "add-thing" / "ticket.md").read_text() == "keep me\n"
+    assert "already exists" in capsys.readouterr().err
+
+
+def test_new_refuses_a_bad_stem(root, capsys):
+    assert cli(root, "new", "Bad_Stem") == 2
+    assert not (root / "tickets").exists()
+    assert "kebab-case" in capsys.readouterr().err
+
+
+# --- status -------------------------------------------------------------------------------------
+
+
+def order_ticket():
+    return ticket().replace("priority: P2", "state: confirmed\nsource: human\npriority: P2")
+
+
+def test_order_sets_priority(root, capsys):
+    original = order_ticket()
+    write(root, "first", original)
+    assert cli(root, "order", "first", "--priority", "P0") == 0
+    assert (root / "tickets/first/ticket.md").read_text() == original.replace("priority: P2", "priority: P0")
+    assert "priority: P0" in capsys.readouterr().out
+
+
+def test_order_sets_and_clears_runs_before(root):
+    original = order_ticket()
+    for stem in ("first", "second", "third"):
+        write(root, stem, original)
+    path = root / "tickets/first/ticket.md"
+    assert cli(root, "order", "first", "--runs-before", "second") == 0
+    assert path.read_text() == original.replace("## Context", "## Runs before\n- second\n\n## Context")
+    assert cli(root, "order", "first", "--runs-before", "third", "second") == 0
+    assert path.read_text() == original.replace("## Context", "## Runs before\n- third\n- second\n\n## Context")
+    assert cli(root, "order", "first", "--runs-before") == 0
+    assert path.read_text() == original
+
+
+def test_order_refuses_invalid_and_leaves_file(root, capsys):
+    original = order_ticket()
+    write(root, "first", original)
+    write(root, "second", original.replace("## Context", "## Runs before\n- first\n\n## Context"))
+    path = root / "tickets/first/ticket.md"
+    for target, message in (("second", "cycle"), ("first", "itself"), ("absent", "does not resolve")):
+        assert cli(root, "order", "first", "--runs-before", target) == 2
+        assert message in capsys.readouterr().err
+        assert path.read_text() == original
+
+
+@pytest.mark.parametrize("state", ["running", "merged", "already_satisfied", "rejected"])
+def test_order_refuses_running_settled_and_rejected(root, capsys, state):
+    original = order_ticket()
+    write(root, "first", original)
+    journal(root).append(EventType.STATE_TRANSITION, {"to": state}, ticket="first")
+    assert cli(root, "order", "first", "--priority", "P1") == 2
+    assert state in capsys.readouterr().err
+    assert (root / "tickets/first/ticket.md").read_text() == original
+
+
+def test_order_refuses_bad_stem_and_no_option(root, capsys):
+    original = order_ticket()
+    write(root, "first", original)
+    for args, message in ((("Bad_Stem", "--priority", "P1"), "kebab-case"), (("absent", "--priority", "P1"), "does not exist"), (("first",), "option")):
+        assert cli(root, "order", *args) == 2
+        assert message in capsys.readouterr().err
+        assert (root / "tickets/first/ticket.md").read_text() == original
+    assert not (root / ".chupa").exists()
+
+
+def test_order_takes_no_lock(root):
+    original = order_ticket()
+    write(root, "first", original)
+    head = git_out(root, "rev-parse", "HEAD")
+    assert cli(root, "order", "first", "--priority", "P3") == 0
+    assert (root / "tickets/first/ticket.md").read_text() == original.replace("priority: P2", "priority: P3")
+    assert not (root / ".chupa").exists()
+    assert git_out(root, "rev-parse", "HEAD") == head
+    assert git_out(root, "status", "--porcelain", "--", "tickets").startswith("??")
+
+
+def test_status_on_an_empty_journal(root, capsys):
+    assert cli(root, "status") == 0
+    out = capsys.readouterr().out
+    for heading in ("merged", "in flight", "blocked", "intake", "spend"):
+        assert heading in out
+    assert "current-window scorecard:\n- boundary: initial\n- merged tickets: 0\n- spend: $0.00" in out
+    assert "window provenance:" in out and "## Surface scorecard" in out
+    assert not (root / ".chupa").exists()  # write-free: no journal, no lockfile
+
+
+def test_status_projects_the_journal(root, capsys):
+    j = journal(root)
+    j.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket="a")
+    j.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="a")
+    j.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket="b")
+    j.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket="c")
+    j.append(EventType.STATE_TRANSITION, {"to": "gate_failed"}, ticket="c")
+    j.append(EventType.EFFECT_COMPLETION, {"result": {}, "cost": {"usd": 0.25}}, ticket="b", key="llm/b/0/x/1/1")
+    j.append(EventType.EFFECT_COMPLETION, {"result": {}, "cost": {"usd": 0.5}}, ticket="c", key="llm/c/0/x/1/1")
+    j.append(EventType.SIGNAL, {"signal": "ticket_intake", "source": "human", "state": "confirmed", "new": True, "commit": "abc123"}, ticket="d")
+    before = sorted(p.read_bytes() for p in (root / ".chupa").rglob("*") if p.is_file())
+
+    assert cli(root, "status") == 0
+    out = capsys.readouterr().out
+    section = dict(block.split("\n", 1) for block in out.strip().split("\n\n"))
+    assert "a" in section["merged:"] and "b" not in section["merged:"]
+    assert "b" in section["in flight:"]
+    assert "c: gate_failed" in section["blocked:"]
+    assert "d: source: human" in section["intake:"]
+    assert "$0.75" in section["spend:"]
+    assert "merged tickets: 1" in section["current-window scorecard:"]
+    assert "spend: $0.75" in section["current-window scorecard:"]
+    assert sorted(p.read_bytes() for p in (root / ".chupa").rglob("*") if p.is_file()) == before
+
+
+def test_status_is_deterministic(root, capsys):
+    j = journal(root)
+    for stem in ("z", "a", "m"):
+        j.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket=stem)
+    cli(root, "status")
+    first = capsys.readouterr().out
+    cli(root, "status")
+    assert capsys.readouterr().out == first
+    assert first.index("- a") < first.index("- m") < first.index("- z")
+    assert "- merged tickets: 3\n" in first
+
+
+def test_status_escape_projection(tmp_path, monkeypatch, capsys):
+    from chupa.__main__ import _status
+    from chupa.retro import RetroArtifact, production_evidence, project_window, render_report
+    from chupa.status import render
+    from tests.integration.test_triage import escape_report, escape_rig
+
+    async def setup():
+        c, _, _, _, admitted = await escape_rig(tmp_path)
+        c, _, _ = await escape_report(c, commit=admitted.commit)
+        status = await _status(c)
+        window = project_window(c.journal.read())
+        evidence = await production_evidence(window, c)
+        return c, status, window, evidence
+
+    c, status, window, evidence = asyncio.run(setup())
+    before = c.journal.read()
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("status escape rendering read or mutated state")
+
+    with monkeypatch.context() as patch:
+        for target, method in ((c.fs, "write"), (c.journal, "read"), (c.journal, "append"), (c.git, "_run"), (Path, "read_text"), (Path, "read_bytes")):
+            patch.setattr(target, method, forbidden)
+        text = render(status)
+        receipt = render_report(window, evidence, {}, [], RetroArtifact(proposals=[]))
+        assert text.split("| Surface |")[1] == receipt.split("| Surface |")[1]
+        assert "| review | 1 | 0 | 1 | 0 | 0.0000 | 1.0000 | false |" in text
+    assert c.journal.read() == before
+    assert main(["status"], cwd=c.repo, env=ENV, clock=c.clock) == 0
+    output = capsys.readouterr().out
+    assert output.split("| Surface |")[1] == text.split("| Surface |")[1]
+    assert c.journal.read() == before
+
+
+# --- run ----------------------------------------------------------------------------------------
+
+
+def test_run_dispatches_the_locked_validated_stem_to_the_stage_seam(root):
+    write(root, "add-thing", ticket())
+    stages = Stages()
+    assert cli(root, "run", "add-thing", stages=stages) == 0
+    assert stages.calls == ["add-thing"]
+    assert stages.lock_held == [True]  # the one process holding the lock is the one dispatching
+    assert git_out(root, "status", "--porcelain") == ""  # intake committed the ticket before dispatch
+    assert "chupa(add-thing): ticket" in git_out(root, "log", "--format=%s")
+    events = [(e.type, e.ticket, e.body.get("to")) for e in journal(root).read()]
+    assert (EventType.STATE_TRANSITION, "add-thing", "running") in events
+    assert events.index((EventType.STATE_TRANSITION, "add-thing", "running")) < events.index((EventType.STATE_TRANSITION, "add-thing", "merged"))
+    Lockfile(root / ".chupa" / "state", instance_id="after", clock=Clock()).acquire()  # released on exit
+
+
+def test_run_exits_1_on_a_non_ok_terminal(root):
+    write(root, "add-thing", ticket())
+    assert cli(root, "run", "add-thing", stages=Stages("gate_failed")) == 1
+    assert (root / "tickets" / "add-thing" / "ticket.md").is_file()
+
+
+def test_run_refused_when_the_lockfile_is_already_held(root, capsys):
+    write(root, "add-thing", ticket())
+    holder = Lockfile(root / ".chupa" / "state", instance_id="other", clock=Clock())
+    holder.acquire()
+    try:
+        stages = Stages()
+        assert cli(root, "run", "add-thing", stages=stages) == 2
+    finally:
+        holder.release()
+    assert stages.calls == []
+    assert "other" in capsys.readouterr().err  # the holder identity names who to wait for
+    assert git_out(root, "status", "--porcelain").startswith("??")  # intake never ran: nothing committed
+    assert journal(root).read() == []
+
+
+def test_run_refuses_an_invalid_ticket(root, capsys):
+    write(root, "add-thing", ticket().replace("## Verification", "## Verify"))
+    stages = Stages()
+    assert cli(root, "run", "add-thing", stages=stages) == 2
+    assert stages.calls == []
+    assert "ticket_schema" in capsys.readouterr().err
+    assert not any(e.type == EventType.STATE_TRANSITION for e in journal(root).read())
+
+
+def test_run_refuses_a_missing_stem(root, capsys):
+    stages = Stages()
+    assert cli(root, "run", "no-such", stages=stages) == 2
+    assert stages.calls == []
+    assert "new no-such" in capsys.readouterr().err
+
+
+def test_run_refuses_an_unmerged_dependency(root, capsys):
+    write(root, "first", ticket())
+    write(root, "second", ticket(depends="- first"))
+    stages = Stages()
+    assert cli(root, "run", "second", stages=stages) == 2
+    assert stages.calls == []
+    assert "run first" in capsys.readouterr().err
+    assert cli(root, "run", "first", stages=stages) == 0
+    assert cli(root, "run", "second", stages=stages) == 0
+    assert stages.calls == ["first", "second"]
+
+
+def test_run_refuses_a_merged_ticket(root, capsys):
+    write(root, "add-thing", ticket())
+    stages = Stages()
+    assert cli(root, "run", "add-thing", stages=stages) == 0
+    assert cli(root, "run", "add-thing", stages=stages) == 2
+    assert stages.calls == ["add-thing"]
+    assert "merged" in capsys.readouterr().err
+
+
+def test_run_refused_before_the_lock_when_the_pipeline_refuses(root, capsys):
+    def unbuilt(checkout):
+        raise Refusal("pipeline missing", "build it")
+
+    write(root, "add-thing", ticket())
+    assert main(["run", "add-thing"], cwd=root, env=ENV, clock=Clock(), pipeline=unbuilt) == 2
+    assert "pipeline missing -- build it" in capsys.readouterr().err
+    assert journal(root).read() == []
+
+
+def test_config_error_exits_2(root, capsys):
+    (root / "config.yaml").write_text("schema_version: 1\n")
+    assert cli(root, "status") == 2
+    assert "config.yaml" in capsys.readouterr().err
+
+
+# --- module entry -------------------------------------------------------------------------------
+
+
+def test_python_dash_m_chupa_is_the_entry(root):
+    env = {**ENV, "PYTHONPATH": str(Path(__file__).resolve().parents[2])}
+    proc = subprocess.run([sys.executable, "-m", "chupa", "status"], cwd=root, env=env, capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    assert "merged:" in proc.stdout
+    proc = subprocess.run([sys.executable, "-m", "chupa", "bogus"], cwd=root, env=env, capture_output=True, text=True)
+    assert proc.returncode == 2
+
+
+def test_project_declares_build_and_console_script():
+    import tomllib
+
+    pyproject = tomllib.loads((Path(__file__).resolve().parents[2] / "pyproject.toml").read_text())
+    assert pyproject["build-system"]["build-backend"] == "uv_build"  # A virtual project cannot build a wheel.
+    assert pyproject["project"]["scripts"]["chupa"] == "chupa.__main__:main"  # The installed command must invoke the CLI.
+
+
+def released(root):
+    lock = Lockfile(root / ".chupa/state", instance_id="after", clock=Clock())
+    lock.acquire()
+    lock.release()
+
+
+@pytest.mark.parametrize("completed_report", [False, True])
+def test_retro_no_merge(root, capsys, completed_report):
+    if completed_report:
+        journal(root).append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="one")
+        assert cli(root, "retro") == 0
+        capsys.readouterr()
+
+    def factory(c):
+        class Dispatch:
+            async def prepare(self):
+                pytest.fail("unselected pipeline prepared")
+
+            async def __call__(self, ticket):
+                pytest.fail("ticket dispatched")
+
+        return Dispatch()
+
+    head = git_out(root, "rev-parse", "HEAD")
+    assert cli(root, "retro", stages=factory) == 0
+    assert capsys.readouterr().out == "retro: no merge since the latest completed report\n"
+    assert git_out(root, "rev-parse", "HEAD") == head
+    assert (root / "tickets/retro").exists() == completed_report
+    released(root)
+
+
+def test_retro_success(root, capsys, monkeypatch):
+    import chupa.__main__ as module
+    from chupa import runner
+    from chupa.llm import FakeLLM
+    from chupa.retro import Retro, project_window
+
+    llm = FakeLLM(['{"proposals": []}'])
+    config = root / "config.yaml"
+    config.write_text(config.read_text().replace("review: {}", "  - {tier: medium, surface: retro, candidates: [{provider: claude}]}\nreview: {}"))
+    seen = []
+    from chupa.providers import ProviderLLM
+
+    async def preflight(self):
+        contender = Lockfile(self._config.state_dir, instance_id="other", clock=Clock())
+        with pytest.raises(LockHeld):
+            contender.acquire()
+        seen.append(self.session)
+        return []
+
+    async def call(self, request, served, **kwargs):
+        contender = Lockfile(self._config.state_dir, instance_id="model", clock=Clock())
+        with pytest.raises(LockHeld):
+            contender.acquire()
+        return await llm.call(request)
+
+    monkeypatch.setattr(ProviderLLM, "preflight", preflight)
+    monkeypatch.setattr(ProviderLLM, "_invoke", call)
+    original = Retro.__call__
+
+    async def invoke(self, *, forced=False):
+        assert forced
+        driver = self.driver()
+        assert isinstance(driver.llm, ProviderLLM)
+        assert driver.llm.session is self.checkout.control.providers is seen[0]
+        return await original(self, forced=forced)
+
+    monkeypatch.setattr(Retro, "__call__", invoke)
+    journal(root).append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="one")
+    assert module.main(["retro"], cwd=root, env=ENV, clock=Clock()) == 0
+    assert capsys.readouterr().out == "retro: committed tickets/retro/000001.md\n"
+    assert len(llm.requests) == 1
+    assert project_window(journal(root).read()).boundary == "retro/1"
+    completion = next(e for e in journal(root).read() if e.key == "retro/1" and e.type == EventType.EFFECT_COMPLETION)
+    assert completion.body == {"result": {"commit": git_out(root, "rev-parse", "HEAD").strip()}}
+    assert git_out(root, "show", "--format=", "--name-only", "HEAD").splitlines() == ["tickets/retro/000001.md"]
+    released(root)
+
+
+@pytest.mark.parametrize("suppressed, later_merge", [(False, False), (True, False), (True, True)])
+def test_retro_no_commit(root, capsys, monkeypatch, suppressed, later_merge):
+    from chupa import runner
+    from chupa.llm import FakeLLM
+
+    llm = FakeLLM([RuntimeError("failed")])
+    j = journal(root)
+    j.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="one")
+    if suppressed:
+        j.append(EventType.SIGNAL, {"kind": "retro_failed", "window_boundary": "initial"}, key="retro-failed/initial/forced")
+
+    def factory(c):
+        writer = runner.bind(c, llm)
+        writer.stages.driver.retry_cap = 0
+        return writer
+
+    prepared = []
+    if later_merge:
+        j.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="later")
+
+        async def prepare(c):
+            prepared.append(c)
+            return factory(c)
+
+        monkeypatch.setattr(runner, "prepare_pipeline", prepare)
+    head = git_out(root, "rev-parse", "HEAD")
+    if suppressed and not later_merge:
+
+        async def forbidden(c):
+            pytest.fail("suppressed retro prepared providers")
+
+        monkeypatch.setattr(runner, "prepare_pipeline", forbidden)
+        assert main(["retro"], cwd=root, env=ENV, clock=Clock()) == 1
+    elif later_merge:
+        assert main(["retro"], cwd=root, env=ENV, clock=Clock()) == 1
+        assert len(prepared) == 1
+    else:
+        assert cli(root, "retro", stages=factory) == 1
+    assert git_out(root, "rev-parse", "HEAD") == head
+    assert capsys.readouterr().out == "retro: no report committed; inspect status and the Suggestion Box\n"
+    assert len(llm.requests) == (0 if suppressed and not later_merge else 1)
+    assert not (root / "tickets/retro").exists()
+    released(root)
+
+
+@pytest.mark.parametrize("failure", ["lock", "config", "journal", "driver", "prepare"])
+def test_retro_refusals(root, capsys, failure):
+    j = journal(root)
+    j.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="one")
+    holder = Lockfile(root / ".chupa/state", instance_id="other", clock=Clock())
+    if failure == "lock":
+        holder.acquire()
+    elif failure == "config":
+        (root / "config.yaml").write_text("schema_version: 1\n")
+    elif failure == "journal":
+        next(j.dir.glob("*.jsonl")).write_bytes(b"bad\n")
+
+    def factory(c):
+        class Dispatch:
+            async def prepare(self):
+                if failure == "prepare":
+                    raise Refusal("preflight failed", "repair provider and retry")
+
+            async def __call__(self, ticket):
+                pytest.fail("dispatched")
+
+        return Dispatch()
+
+    try:
+        assert cli(root, "retro", stages=factory) == 2
+        err = capsys.readouterr().err
+        assert "Traceback" not in err
+        assert {"lock": "wait", "config": "repair", "journal": "never hand-edited", "driver": "construct the pipeline", "prepare": "repair provider"}[failure] in err
+    finally:
+        if holder.held:
+            holder.release()
+    released(root)
+
+
+def test_doctor_cli(root, capsys):
+    assert cli(root, "doctor", stages=lambda c: pytest.fail("pipeline constructed")) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == "doctor: ok"
+    assert [line.split(":", 1)[0] for line in lines[1:]] == [f"PASS {n}" for n in ("venv", "git", "config", "lock", "journal")]
+
+
+def core_config(root, routes):
+    import yaml
+
+    config = yaml.safe_load(CONFIG)
+    claude = config["providers"][0]
+    # Both providers are declared even when only one is routed.
+    config["providers"].append({**claude, "name": "codex", "package": "other-cli"})
+    config["routing"] = [{"tier": tier, "surface": surface, "candidates": [{"provider": name} for name in names]} for tier, surface, names in routes]
+    path = root / "config.yaml"
+    path.write_text(yaml.safe_dump(config))
+    return path
+
+
+@pytest.mark.parametrize(
+    "routes, expected",
+    [
+        ([("medium", "implement", ["claude"])], {"CLAUDE.md"}),
+        ([("medium", "implement", ["codex"])], {"AGENTS.md"}),
+        ([("medium", "implement", ["claude", "codex"])], {"CLAUDE.md", "AGENTS.md"}),
+        ([("medium", "implement", ["codex", "codex", "claude"]), ("high", "review", ["claude", "codex"])], {"CLAUDE.md", "AGENTS.md"}),
+    ],
+)
+def test_core_routed_conduct_files(tmp_path, monkeypatch, routes, expected):
+    import chupa.__main__ as module
+    from chupa import hostfiles
+    from tests.integration.test_hostfiles import RecordingFS
+
+    core_config(tmp_path, routes)
+    fs = RecordingFS()
+    monkeypatch.setattr(module, "LocalFileSystem", lambda: fs)
+    assert cli(tmp_path, "core") == 0
+    assert {p.name for p, _ in fs.writes} == expected
+    assert len(fs.writes) == len(expected)
+    for name in ("CLAUDE.md", "AGENTS.md"):
+        path = tmp_path / name
+        assert path.exists() == (name in expected)
+        if path.exists():
+            assert path.read_bytes() == hostfiles.render(b"")
+    assert cli(tmp_path, "core") == 0
+    assert len(fs.writes) == len(expected)
+    assert not (tmp_path / ".chupa").exists()
+
+
+def test_core_refusal_and_no_git(tmp_path, monkeypatch, capsys):
+    import chupa.__main__ as module
+    from chupa import gates, hostfiles
+    from chupa.seams import LocalFileSystem
+
+    config = core_config(tmp_path, [("medium", "implement", ["claude", "codex"])])
+    clean, corrupt = tmp_path / "CLAUDE.md", tmp_path / "AGENTS.md"
+    project = b"# Project\r\nkeep every byte"
+    clean.write_bytes(project)
+    corrupt.write_bytes(b"project\n<!-- chupa:core beg")
+    before = {p: p.read_bytes() for p in tmp_path.iterdir()}
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("core constructed git, journal, provider, pipeline, or gate work")
+
+    for name in ("Git", "Journal", "SubprocessExec", "ProviderLLM", "ProviderSession", "build_control"):
+        monkeypatch.setattr(module, name, forbidden)
+    monkeypatch.setattr(gates, "run_gates", forbidden)
+    replacements = []
+    original_replace = os.replace
+
+    def observe_replace(src, dst):
+        src, dst = Path(src), Path(dst)
+        assert src.parent == dst.parent
+        assert src.name == f".{dst.name}.tmp"
+        assert src.read_bytes() == hostfiles.render(before[dst])
+        assert dst.read_bytes() == before[dst]
+        replacements.append(dst)
+        original_replace(src, dst)
+
+    monkeypatch.setattr(os, "replace", observe_replace)
+    monkeypatch.setattr(module, "LocalFileSystem", LocalFileSystem)
+    assert main(["--config", str(config), "core"], cwd=tmp_path, env=ENV, pipeline=forbidden) == 2
+    assert replacements == []
+    assert {p: p.read_bytes() for p in tmp_path.iterdir()} == before
+    error = capsys.readouterr().err
+    assert "repair" in error and "retain all project content" in error and "retry core" in error
+    # The paved road escapes marker-like project text without deleting its content.
+    repaired = before[corrupt].replace(b"chupa:core", b"chupa&#58;core")
+    corrupt.write_bytes(repaired)
+    before[corrupt] = repaired
+    assert main(["core"], cwd=tmp_path, env=ENV, pipeline=forbidden) == 0
+    assert replacements == [clean, corrupt]
+    assert clean.read_bytes() == hostfiles.render(project)
+    assert corrupt.read_bytes() == hostfiles.render(repaired)
+    assert main(["core"], cwd=tmp_path, env=ENV, pipeline=forbidden) == 0
+    assert replacements == [clean, corrupt]
+    assert {p.name for p in tmp_path.iterdir()} == {"config.yaml", "CLAUDE.md", "AGENTS.md"}
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_migrate_config_before_load(tmp_path, monkeypatch, capsys, explicit):
+    import chupa.__main__ as module
+    from chupa.providers import ProviderLLM
+    from tests.integration.test_config import MigrationFS
+
+    directory = tmp_path / "elsewhere" if explicit else tmp_path
+    directory.mkdir(exist_ok=True)
+    path = directory / ("host.yaml" if explicit else "config.yaml")
+    original = CONFIG.replace("schema_version: 1", "schema_version: 0").encode()
+    path.write_bytes(original)
+    if explicit:
+        (tmp_path / "config.yaml").write_bytes(b"unselected invalid config")
+    fs = MigrationFS()
+    monkeypatch.setattr(module, "LocalFileSystem", lambda: fs)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("migration invoked git, process, provider, journal, or pipeline work")
+
+    for name in ("Git", "Journal", "SubprocessExec", "ProviderLLM", "ProviderSession", "build_control"):
+        monkeypatch.setattr(module, name, forbidden)
+    monkeypatch.setattr(ProviderLLM, "call", forbidden)
+    args = (["--config", str(path)] if explicit else []) + ["migrate-config"]
+    assert main(args, cwd=tmp_path, env=ENV, pipeline=forbidden) == 0
+    backup = path.with_name(path.name + ".bak")
+    expected = CONFIG.encode()
+    assert fs.writes == [(backup, original), (path, expected)]
+    assert path.read_bytes() == expected
+    assert backup.read_bytes() == original
+    assert main(args, cwd=tmp_path, env=ENV, pipeline=forbidden) == 0
+    assert len(fs.writes) == 2
+    assert path.read_bytes() == expected and backup.read_bytes() == original
+    path.write_bytes(original + b"caps: {retry: 7}\n")
+    before = path.read_bytes()
+    assert main(args, cwd=tmp_path, env=ENV, pipeline=forbidden) == 2
+    assert "caps.retry" in capsys.readouterr().err
+    assert len(fs.writes) == 2
+    assert path.read_bytes() == before and backup.read_bytes() == original
+    assert not (tmp_path / ".chupa").exists()
+    if explicit:
+        assert (tmp_path / "config.yaml").read_bytes() == b"unselected invalid config"
+
+
+def test_core_and_gate_share_routed_paths(tmp_path, monkeypatch):
+    from chupa import __main__ as module
+    from chupa import hostfiles, providers
+    from chupa.config import load_config
+    from tests.integration.test_hostfiles import RecordingFS
+    from tests.integration.test_stages import evidence
+
+    config_path = core_config(tmp_path, [("medium", "implement", ["codex", "claude", "codex"])])
+    config = load_config(config_path, cwd=tmp_path)
+    resolver = providers.routed_conduct_paths
+    calls = []
+
+    def resolved(config, root):
+        paths = resolver(config, root)
+        calls.append(paths)
+        return paths
+
+    monkeypatch.setattr(providers, "routed_conduct_paths", resolved)
+    monkeypatch.setattr(module, "routed_conduct_paths", resolved)
+    project = b"# project\r\nbytes\xff without newline"
+    for path in resolver(config, tmp_path):
+        path.write_bytes(project)
+    fs = RecordingFS()
+    monkeypatch.setattr(module, "LocalFileSystem", lambda: fs)
+    assert cli(tmp_path, "core") == 0
+    assert cli(tmp_path, "core") == 0
+    g = Git(SubprocessExec(), env=ENV, timeout=30)
+
+    async def check():
+        await g.init(tmp_path, branch="main")
+        await g.add(tmp_path, ["config.yaml", "CLAUDE.md", "AGENTS.md"])
+        await g.commit(tmp_path, "mechanical adoption")
+        gathered = await hostfiles.committed_core(tmp_path, config, g)
+        assert hostfiles.CoreDriftGate().check(evidence(**gathered), tmp_path).verdict == "pass"
+
+    asyncio.run(check())
+    assert calls == [resolver(config, tmp_path)] * 3
+    assert len(fs.writes) == 2
+    for path in resolver(config, tmp_path):
+        assert hostfiles.parse(path.read_bytes()) == (b"", b"\n\n" + project)
+    before = {p: p.read_bytes() for p in resolver(config, tmp_path)}
+    damaged = tmp_path / "CLAUDE.md"
+    damaged.write_bytes(before[damaged] + b"stray chupa:core")
+    corrupt = {p: p.read_bytes() for p in before}
+    assert cli(tmp_path, "core") == 2
+    assert {p: p.read_bytes() for p in before} == corrupt and len(fs.writes) == 2
+
+    async def refusal():
+        await g.add(tmp_path, ["CLAUDE.md"])
+        await g.commit(tmp_path, "committed marker refusal")
+        gathered = await hostfiles.committed_core(tmp_path, config, g)
+        report = hostfiles.CoreDriftGate().check(evidence(**gathered), tmp_path)
+        [finding] = report.findings
+        assert finding.path == "CLAUDE.md" and "retain all project content" in finding.paved_road
+
+    asyncio.run(refusal())
+
+
+def test_suggest_publishes_while_writer_lock_is_held(root, capsys):
+    import json
+
+    holder = Lockfile(root / ".chupa/state", instance_id="other", clock=Clock())
+    holder.acquire()
+    try:
+        assert cli(root, "suggest", "a distinct idea") == 0
+        drops = list((root / ".chupa/state/box/suggestions").glob("*.json"))
+        assert len(drops) == 1
+        assert json.loads(drops[0].read_text()) == {"summary": "a distinct idea"}
+        assert capsys.readouterr().out == f"suggest: queued {drops[0].name}\n"
+        assert journal(root).read() == []
+    finally:
+        holder.release()
+
+
+def test_suggest_refuses_blank(root, capsys):
+    assert cli(root, "suggest", "  ") == 2
+    assert capsys.readouterr().err == "chupa suggest: blank summary -- pass the idea as one quoted argument\n"
+    assert list((root / ".chupa/state/box/suggestions").glob("*.json")) == []
