@@ -10,10 +10,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import get_args
 
-from chupa.drain import RETIRED, authored_at, order_tickets, parked_blob
+from chupa.config import load_config
+from chupa.drain import RETIRED, authored_at, awaiting_operator, order_tickets, parked_blob
 from chupa.graph import layout
 from chupa.rework import settled_dependencies
-from chupa.status import SETTLED, reject_queue
+from chupa.status import SETTLED
 from chupa.tickets import Frontmatter, TicketInvalid, parse_ticket
 
 STEP_NAMES = {"implement": "Implement", "check": "Check", "merge": "Merge", "review": "Review", "diagnose": "Diagnose", "rework": "Rework", "retro": "Retro", "triage": "Triage", "author": "Author"}
@@ -220,16 +221,25 @@ def depends(path: Path) -> list[str]:
 
 
 def held(history, blobs) -> set[str]:
-    """Reject-queue stems and content parks matching a committed ticket."""
+    """Content parks matching a committed ticket."""
     stems = {e.ticket for e in history if e.ticket is not None}
-    return set(reject_queue(history)) | {s for s in stems if (blob := parked_blob(history, s)) is not None and blob == blobs.get(s)}
+    return {s for s in stems if (blob := parked_blob(history, s)) is not None and blob == blobs.get(s)}
+
+
+def operator_holds(ctx, history) -> set[str]:
+    stems = {e.ticket for e in history if e.ticket is not None}
+    if not stems:
+        return set()
+    caps_config = load_config(ctx.config, cwd=ctx.root).caps
+    return {s for s in stems if awaiting_operator(history, s, caps_config)}
 
 
 def queue(ctx, events: list[dict], last_state: dict[str, dict], running: set[str], held_stems: set[str]) -> list[tuple[str, str, str]]:
     """Every confirmed ticket not yet settled, rejected, or running: (priority, stem, why it is waiting)."""
     done = SETTLED | {"rejected"}
     history = [SimpleNamespace(type=e.get("type"), body=e.get("body", {}), ticket=e.get("ticket"), ts=e.get("ts")) for e in events]
-    waiting_on_person = set(reject_queue(history))
+    waiting_on_person = operator_holds(ctx, history)
+    held_stems = held_stems | waiting_on_person
     # A dependency is met when it, or every leaf of the split that superseded it, settled: the drain's own test.
     settled = settled_dependencies(SimpleNamespace(type=e.get("type"), body=e.get("body", {}), ticket=e.get("ticket"), ts=e.get("ts")) for e in events)
     rows = []
@@ -241,7 +251,7 @@ def queue(ctx, events: list[dict], last_state: dict[str, dict], running: set[str
         open_deps = [d for d in depends(path) if d not in settled]
         if stem in waiting_on_person:
             spent = next((e["body"].get("mechanical") for e in reversed(events) if e.get("ticket") == stem and e.get("body", {}).get("signal") == "diagnosis"), None)
-            why = f"NEEDS YOUR KEEP OR KILL ({spent})" if spent and "cap spent" in spent else "held; the drain retries it when new work runs out"
+            why = f"NEEDS YOUR KEEP OR KILL ({spent})" if spent and "cap spent" in spent else "NEEDS YOUR KEEP OR KILL"
         elif stem in held_stems:
             why = "held until the ticket changes"
         elif last == "running":
@@ -441,8 +451,8 @@ def snapshot(ctx) -> dict:
     # The drain's own test: a dependency is met when it, or every leaf of the split that superseded it, settled.
     settled = set(settled_dependencies(history))
     blobs = committed_ticket_shas(ctx)
-    held_stems = held(history, blobs)
-    reject_stems = set(reject_queue(history))
+    reject_stems = operator_holds(ctx, history)
+    held_stems = held(history, blobs) | reject_stems
 
     def to(stem: str) -> str | None:
         return last.get(stem, {}).get("to")

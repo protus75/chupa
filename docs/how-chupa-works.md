@@ -94,7 +94,7 @@ Each test has a 120-second hard limit.
 `vscode-chupa/` is an operator-only VS Code extension: an Activity Bar view of every ticket as an
 SCM-style graph (blocked, queued, running, merged) with a detail pane. Its Activity Bar badge shows the queued and running ticket count while the engine is alive and the count is nonzero. The Tickets view's `?`
 button opens `vscode-chupa/media/ticket-lifecycle.svg`, a hand-drawn diagram of ticket states.
-Recent Steps opens each step’s file. The Suggestion Box view lists messages, supports multi-selection and manual triage or dismissal, and shows message details alongside tickets. `chupa snapshot` builds its data read-only from the configured host state and `order_tickets`, holding tickets by the Reject queue and the drain's `parked_blob` rule; `chupa/graph.py` computes the graph layout for the extension to draw. The engine never runs the extension.
+Recent Steps opens each step’s file. The Suggestion Box view lists messages, supports multi-selection and manual triage or dismissal, and shows message details alongside tickets. `chupa snapshot` builds its data read-only from the configured host state and `order_tickets`, holding tickets awaiting an operator and those held by the drain's `parked_blob` rule; `chupa/graph.py` computes the graph layout for the extension to draw. The engine never runs the extension.
 
 ## 3. Tickets
 
@@ -394,8 +394,7 @@ terminal carries a Reject routing marker. `reject` refuses settled stems.
 - **`reject <stem>` (kill)** stamps `state: rejected`, commits it, and files one Suggestion Box
   `failure_report` per confirmed ticket that depended on it ("re-wire, re-scope, or reject it").
   Those dependents stay blocked.
-- **Machine keep:** at quiescence the drain re-offers a queued stem whose caps still have budget,
-  journaling `keep actor: machine` and drawing `retry`. A machine keep never resets caps.
+- **Machine keep:** the drain uses `awaiting_operator` and `reofferable` to hold queued stems with a spent cap or `ticket_changed` and re-offer others with budget. `record_reoffer` journals `keep actor: machine` for a queued stem, then draws `retry` unless the terminal is `premise_failed` or carries `provider_drought`. A machine keep never resets caps. The snapshot holds Reject-queue stems only when they await the operator (content parks remain separate).
 - `confirm` on a `draft` ticket promotes it to `confirmed` instead.
 
 Keep and kill normally require a person at an interactive terminal to answer `y` at the prompt before the verdict proceeds. `--yes` skips the terminal check and prompt.

@@ -3,7 +3,16 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 import chupa.observe as watch
+
+
+@pytest.fixture(autouse=True)
+def config_fixture(tmp_path):
+    from tests.test_config import VALID
+
+    (tmp_path / "config.yaml").write_text(VALID)
 
 
 def test_queue_projection_and_fallback(tmp_path, monkeypatch):
@@ -395,3 +404,30 @@ def test_queue_reports_content_hold(tmp_path):
     history = [SimpleNamespace(**e) for e in events]
     holds = watch.held(history, {"work": "B"})
     assert watch.queue(ctx, events, {"work": events[-1]["body"]}, set(), holds) == [("P1", "work", "held until the ticket changes")]  # A retry or ready label conceals the park.
+
+
+def test_snapshot_reject_queue_uses_configured_caps(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from tests.test_config import VALID
+
+    (tmp_path / "config.yaml").write_text(VALID + "caps: {retry: 1}\n")
+    ctx = watch.Context(tmp_path, tmp_path, tmp_path / "config.yaml", None, None, None)
+    tickets = {s: SimpleNamespace(stem=s, frontmatter=SimpleNamespace(priority="P1", state="confirmed"), depends=(), runs_before=(), sections={}) for s in ("retry", "spent")}
+    events = [{"type": "state_transition", "ticket": s, "body": {"to": "gate_failed", "routed": "reject_queue"}, "ts": "2026-01-01T00:00:00+00:00"} for s in tickets]
+    events.append({"type": "cap_consumed", "ticket": "spent", "body": {"cap": "retry"}, "ts": "2026-01-01T00:00:01+00:00"})
+    monkeypatch.setattr(watch, "load_tickets", lambda ctx, skip: (tickets, {}))
+    monkeypatch.setattr(watch, "journal", lambda *args, **kwargs: events)
+    monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: (set(), set()))
+    monkeypatch.setattr(watch, "committed_ticket_shas", lambda ctx: {})
+    monkeypatch.setattr(watch, "commits", lambda ctx: {})
+    rows = {r["stem"]: r for r in watch.snapshot(ctx)["rows"]}
+    assert (rows["retry"]["section"], rows["retry"]["held"], rows["retry"]["status"]) == ("queued", False, "retry pending (last: gate_failed)")  # Treating all Reject entries as held loses the retry.
+    assert (rows["spent"]["section"], rows["spent"]["held"], rows["spent"]["status"]) == ("blocked", True, "held (last: gate_failed)")  # Ignoring the configured retry limit queues spent work.
+    for stem in tickets:
+        path = tmp_path / "tickets" / stem / "ticket.md"
+        path.parent.mkdir(parents=True)
+        path.write_text("---\nstate: confirmed\npriority: P1\n---\n## Depends on\nnone\n")
+    last = {stem: {"to": "gate_failed"} for stem in tickets}
+    projected = {stem: why for _, stem, why in watch.queue(ctx, events, last, set(), set())}
+    assert projected == {"retry": "retry pending (last: gate_failed)", "spent": "NEEDS YOUR KEEP OR KILL"}  # Queue explanations must distinguish available and spent caps.

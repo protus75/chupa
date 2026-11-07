@@ -1559,3 +1559,45 @@ def test_lifecycle_log_precedes_lock_release(root, monkeypatch):
         ("engine_start", "drain", os.getpid(), None), ("engine_stop", "drain", os.getpid(), "quiescent")
     ]
     assert all("engine_start" not in str((e.type, e.body)) and "engine_stop" not in str((e.type, e.body)) for e in journal(root).read())
+
+
+def test_reoffer_rules_and_recording():
+    from types import SimpleNamespace
+
+    from chupa.config import Caps
+    from chupa.drain import awaiting_operator, record_reoffer, reofferable
+
+    def event(kind, body, stem="work"):
+        return SimpleNamespace(type=kind, ticket=stem, body=body)
+
+    limits = Caps(retry=2, attempts=4)
+    rung = {"tier": "high", "effort": "max"}
+    history = [event(EventType.STATE_TRANSITION, {"to": "gate_failed", "routed": "reject_queue", "rung": rung})]
+    spent = history + [event(EventType.CAP_CONSUMED, {"cap": "retry"}) for _ in range(2)]
+    changed = [event(EventType.STATE_TRANSITION, {"to": "gate_failed", "routed": "reject_queue", "reason": "verification,ticket_changed"})]
+    assert reofferable(history, "work", limits) and not awaiting_operator(history, "work", limits)  # Holding every Reject entry blocks a retry.
+    assert awaiting_operator(spent, "work", limits) and not reofferable(spent, "work", limits)  # Ignoring cap draws reoffers spent work.
+    assert awaiting_operator(changed, "work", limits) and not reofferable(changed, "work", limits)  # Budget alone cannot release ticket_changed.
+    assert not awaiting_operator(spent, "other", limits) and reofferable(spent, "other", limits)  # Another stem's history must not hold this one.
+
+    class JournalFake:
+        def __init__(self):
+            self.entries = []
+
+        def append(self, kind, body, *, ticket):
+            self.entries.append((kind, body, ticket))
+
+    journal_fake = JournalFake()
+    record_reoffer(journal_fake, history, "work", "new-sha")
+    assert journal_fake.entries == [
+        (EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}, "work"),
+        (EventType.CAP_CONSUMED, {"cap": "retry", "ticket_sha": "new-sha", "rung": rung}, "work"),
+    ]  # The keep precedes the draw, which carries the new SHA and terminal rung.
+    journal_fake.entries.clear()
+    premise = [event(EventType.STATE_TRANSITION, {"to": "premise_failed", "routed": "reject_queue"})]
+    record_reoffer(journal_fake, premise, "work", "new-sha")
+    assert journal_fake.entries == [(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}, "work")]  # A premise reoffer keeps but draws nothing.
+    journal_fake.entries.clear()
+    drought = [event(EventType.STATE_TRANSITION, {"to": "infra_error", "provider_drought": {"tier": "high"}})]
+    record_reoffer(journal_fake, drought, "work", "new-sha")
+    assert journal_fake.entries == []  # A drought neither draws retry nor invents a machine keep.

@@ -76,6 +76,26 @@ def parked_blob(events: Iterable[Event], stem: str) -> str | None:
     return None
 
 
+
+def awaiting_operator(events: Iterable[Event], stem: str, caps_config) -> bool:
+    history = tuple(events)
+    queued = reject_queue(history)
+    return stem in queued and ("ticket_changed" in queued[stem].get("reason", "").split(",") or caps.spent(caps_config, history, stem) is not None)
+
+
+def reofferable(events: Iterable[Event], stem: str, caps_config) -> bool:
+    history = tuple(events)
+    return not awaiting_operator(history, stem, caps_config) and caps.spent(caps_config, history, stem) is None
+
+
+def record_reoffer(journal, events: Iterable[Event], stem: str, sha: str) -> None:
+    history = tuple(events)
+    if stem in reject_queue(history):
+        journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}, ticket=stem)
+    body = next(e.body for e in reversed(history) if e.type == EventType.STATE_TRANSITION and e.ticket == stem and e.body.get("to") in TERMINAL_STATES)
+    if body.get("to") != PREMISE and "provider_drought" not in body:
+        caps.consume(journal, stem, "retry", sha, rung=body.get("rung"))
+
 def authored_at(events: Iterable[Event]) -> dict[str, str]:
     """Each stem's age anchor: the `ts` of its FIRST ticket-plane authoring-commit event."""
     first: dict[str, str] = {}
@@ -431,20 +451,17 @@ class _Drain:
         maps = supersedes_maps(events)
         authored = authored_at(events)
         ready = sorted((t for t in open_.values() if t.stem not in maps and set(t.depends) <= settled), key=lambda t: sort_key(t, authored))
-        awaiting = reject_queue(events)
         candidates = []
         storm_held = set(self.c.control.storm_holds().values()) if self.c.control is not None else set()
         self.storm_waiting = False
         self.provider_deadlines = []
         for t in ready:
-            if t.stem in awaiting and "ticket_changed" in awaiting[t.stem].get("reason", "").split(","):
+            if awaiting_operator(events, t.stem, self.c.config.caps):
                 continue
             budget = caps.spent(self.c.config.caps, events, t.stem) is None
             if t.stem in storm_held:
                 if t.stem not in self.over_budget and t.stuck_minutes <= self.c.config.drain.max_ticket_minutes and (last.get(t.stem) is None or (t.stem not in held and budget)):
                     self.storm_waiting = True
-                continue
-            if t.stem in awaiting and not budget:
                 continue
             if t.stem in self.over_budget:
                 continue
@@ -468,7 +485,7 @@ class _Drain:
                     continue
             if last.get(t.stem) is None:
                 candidates.append((t, False))
-            elif t.stem not in held and budget:
+            elif t.stem not in held and reofferable(events, t.stem, self.c.config.caps):
                 candidates.append((t, True))
         if candidates:
             ordered = order_tickets((t for t, _ in candidates), authored)
@@ -483,14 +500,7 @@ class _Drain:
         if hasattr(self.dispatch, "prepare"):
             await self.dispatch.prepare()
         if reoffer:
-            history = self.c.journal.read()
-            queued = reject_queue(history)
-            if stem in queued:
-                self.c.journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}, ticket=stem)
-            body = next(e.body for e in reversed(history) if e.type == EventType.STATE_TRANSITION and e.ticket == stem and e.body.get("to") in TERMINAL_STATES)
-            draw_retry = body.get("to") != PREMISE and "provider_drought" not in body
-            if draw_retry:
-                caps.consume(self.c.journal, stem, "retry", sha, rung=body.get("rung"))
+            record_reoffer(self.c.journal, self.c.journal.read(), stem, sha)
         # The `ticket.md` the run answers: a `premise_failed` verdict parks the stem until this changes.
         self.c.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": sha}, ticket=stem)
         self.last_dispatched = stem
