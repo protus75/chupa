@@ -1,10 +1,10 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The targeted verification passed (80 tests); the full suite failed one test and passed 3025. Changes remain uncommitted.
+Both verification commands passed: 83 focused tests and 3,041 full-suite tests.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 25 minutes; the scope conflict was found during full-suite verification.
+Expected 25 minutes; completed within the budget.
 
