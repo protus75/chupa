@@ -17,6 +17,7 @@ none
 - tests/integration/test_closed_sets.py
 - tests/integration/test_control_cli.py
 - tests/integration/test_drain.py
+- tests/integration/test_kill_signal_journal.py
 - docs/how-chupa-works.md
 
 ## Goal / Why
@@ -39,6 +40,7 @@ After this change, `chupa retro` run while an engine holds the lock sends a `ret
   - A stop or kill returns without running it.
   - A forced retro with no merge since the last report commits nothing (`select_trigger`). So a drain handoff that reuses the lifecycle and runs the same request again is harmless; no durable served marker is needed.
   - `retro.enabled: false` does not suppress a requested retro, just as it does not suppress `chupa retro`.
+- In: `tests/integration/test_kill_signal_journal.py`: its pinned `SHAPE` constant is updated to the new `_SHAPE` text.
 - In: `vscode-chupa/extension.js`: the picker item becomes label `Retro`, detail `Run a retro report now, or after the running ticket when an engine is running.`, still verb `retro`.
 - In: `docs/how-chupa-works.md`:
   - the `retro` row in section 2.1 notes that it queues on a running engine;
@@ -51,6 +53,7 @@ After this change, `chupa retro` run while an engine holds the lock sends a `ret
   - any new journal event kind, config key, or durable served marker;
   - `chupa/retro.py` behavior;
   - `vscode-chupa/package.json`.
+- Other coverage dependents of `chupa/control.py`, `chupa/drain.py`, and `chupa/__main__.py` need no change. A trailing defaulted `ControlProjection.retro_id` leaves positional and keyword construction and equality unchanged. The added `retro` verb leaves pause, resume, kill, stop, and verdict decisions unchanged. Serve only receives the extra projection field through its existing apply call.
 
 ## Scope fence
 - chupa/control.py
@@ -61,6 +64,7 @@ After this change, `chupa retro` run while an engine holds the lock sends a `ret
 - tests/integration/test_closed_sets.py
 - tests/integration/test_control_cli.py
 - tests/integration/test_drain.py
+- tests/integration/test_kill_signal_journal.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
