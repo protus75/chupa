@@ -1,0 +1,121 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "0faa6a9772c0de72ea018108df4fcee77a6300e5",
+  "stem": "serve-reoffer-dispatch",
+  "passed": true,
+  "changed_files": [
+    "chupa/daemon.py",
+    "chupa/scheduler.py",
+    "chupa/serve.py",
+    "docs/how-chupa-works.md",
+    "eval/daemon_soak.py",
+    "eval/reliability_battery.py",
+    "tests/integration/test_daemon_composition.py",
+    "tests/integration/test_daemon_soak_runner.py",
+    "tests/integration/test_reliability_battery.py",
+    "tests/integration/test_requisition_gate.py",
+    "tests/integration/test_scheduler.py",
+    "tests/integration/test_serve.py",
+    "tests/regress_serve_reoffer_dispatch.py"
+  ],
+  "inserted_lines": 199,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false,
+      "bug_evidence": {
+        "argv": [
+          "uv",
+          "run",
+          "python",
+          "tests/regress_serve_reoffer_dispatch.py"
+        ],
+        "head_sha": "0faa6a9772c0de72ea018108df4fcee77a6300e5",
+        "base_sha": "060c6b3b1b4690573dfbb7ae1c30fcf6110b9d4b",
+        "overlay_paths": [
+          "tests/regress_serve_reoffer_dispatch.py"
+        ],
+        "evidence_paths": [
+          "tickets/serve-reoffer-dispatch/evidence/divergence-2026-11-07.txt"
+        ],
+        "head": {
+          "rc": 0,
+          "regression_result": "pass",
+          "tail": "{\"regression_result\": \"pass\"}\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n"
+        },
+        "base": {
+          "rc": 1,
+          "regression_result": "defect",
+          "tail": "{\"regression_result\": \"defect\"}\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\nUsing CPython 3.14.6\nCreating virtual environment at: .venv\n   Building chupa @ file:///home/djp/source/chupa/.chupa/state/worktrees/.regression-base/serve-reoffer-dispatch\n      Built chupa @ file:///home/djp/source/chupa/.chupa/state/worktrees/.regression-base/serve-reoffer-dispatch\nInstalled 19 packages in 6ms\n"
+        }
+      }
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "./dev.py",
+        "test",
+        "tests/integration/test_scheduler.py",
+        "tests/integration/test_requisition_gate.py",
+        "tests/integration/test_daemon_composition.py",
+        "tests/integration/test_serve.py",
+        "tests/integration/test_control_cli.py",
+        "tests/integration/test_reject_queue.py",
+        "tests/integration/test_storm_notification_activation.py",
+        "tests/integration/test_daemon_soak.py",
+        "tests/integration/test_daemon_soak_runner.py",
+        "tests/integration/test_reliability_battery.py"
+      ],
+      "rc": 0,
+      "tail": "$ uv run pytest -q tests/integration/test_scheduler.py tests/integration/test_requisition_gate.py tests/integration/test_daemon_composition.py tests/integration/test_serve.py tests/integration/test_control_cli.py tests/integration/test_reject_queue.py tests/integration/test_storm_notification_activation.py tests/integration/test_daemon_soak.py tests/integration/test_daemon_soak_runner.py tests/integration/test_reliability_battery.py\nbringing up nodes...\nbringing up nodes...\n\n........................................................................ [ 16%]\n........................................................................ [ 32%]\n........................................................................ [ 49%]\n........................................................................ [ 65%]\n........................................................................ [ 82%]\n........................................................................ [ 98%]\n.....                                                                    [100%]\n=============================== warnings summary ===============================\ntests/integration/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/serve-reoffer-dispatch/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n437 passed, 1 warning in 29.84s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 32.858255
+    },
+    {
+      "argv": [
+        "./dev.py",
+        "test"
+      ],
+      "rc": 0,
+      "tail": "soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/serve-reoffer-dispatch/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/integration/test_testguard.py::test_guarded_calls_and_asyncio\ntests/integration/test_testguard.py::test_setup_and_teardown\ntests/integration/test_testguard.py::test_guards_are_phase_scoped\ntests/integration/test_testguard.py::test_budget_and_slowest\ntests/integration/test_testguard.py::test_budget_and_slowest\ntests/integration/test_testguard.py::test_xdist_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\n  /home/djp/source/chupa/.chupa/state/worktrees/serve-reoffer-dispatch/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3116 passed, 10 warnings in 57.82s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 60.902538
+    }
+  ]
+}
