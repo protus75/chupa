@@ -6,7 +6,7 @@ kind: feature
 ---
 
 ## Depends on
-- specs-in-package
+- specs-module-into-package
 
 ## Context
 - pyproject.toml
