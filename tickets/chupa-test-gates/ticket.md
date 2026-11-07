@@ -29,7 +29,7 @@ Chupa's own `config.yaml` declares no host checks (`review: {}`). Its tickets ar
 - `test-gate.toml` is in the safety inventory, so lowering a threshold goes through a human.
 
 ## Scope in / Scope out
-- In: `config.yaml`, copying the `python-host` block in `docs/host-contract.md` verbatim with package `chupa` (on any difference, the block wins):
+- In: `config.yaml`, copying the `review` section of the `python-host` block in `docs/host-contract.md` verbatim with package `chupa` (on any difference within `review`, the block wins); `merge` stays `{}`, and `engine_plane_safety_inventory` keeps its existing entries and appends `test-gate.toml`:
   - `review.autofix`: `ruff-fix` `[uv, run, ruff, check, --fix, --exit-zero]` and `ruff-format` `[uv, run, ruff, format]`, each with `files: ["*.py"]`.
   - `review.mechanical`, all `trigger: always`, `severity: hard`, in this order:
     - `unit`: `[uv, run, python, -m, chupa, covgate, --, python, -m, pytest, tests/unit, -p, chupa.testguard, -p, chupa.testreport, --chupa-results, .chupa/results/unit.json, --cov=chupa, --cov-branch, --cov-context=test, --cov-report=json:coverage.json, -n, auto]`, with `results: .chupa/results/unit.json` and `coverage: coverage.json`;
@@ -87,7 +87,7 @@ uv run pytest -q
 ```
 
 ## Definition of rejected
-A threshold is below the measured baseline or a file at 90% or above gets an entry; the unit budget is raised; a test moves or changes; engine code changes; the checks differ from the `python-host` block beyond the package name.
+A threshold is below the measured baseline or a file at 90% or above gets an entry; the unit budget is raised; a test moves or changes; engine code changes; the review checks differ from the `python-host` block's `review` section beyond the package name; `merge` changes; an existing safety-inventory entry is removed.
 
 ## Time budget
 - expected: 45m
