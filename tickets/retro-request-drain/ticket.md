@@ -12,9 +12,7 @@ none
 - chupa/control.py
 - chupa/__main__.py
 - chupa/drain.py
-- vscode-chupa/extension.js
 - tests/integration/test_control.py
-- tests/integration/test_closed_sets.py
 - tests/integration/test_control_cli.py
 - tests/integration/test_drain.py
 - tests/integration/test_kill_signal_journal.py
