@@ -552,7 +552,7 @@ Every model call goes through one driver (`chupa/driver.py`) using a prompt spec
 | `review.md` | judging the diff | approve / snag / rma |
 | `diagnose.md` | explaining a failure | retry / escalate / split / reject / abandon-human + lessons |
 | `rework.md` | rewriting or splitting a ticket | update / split / escalate |
-| `requisition_review.md` | checking an authored ticket is buildable | approve / snag / rma |
+| `requisition_review.md` | checking an authored ticket is buildable, including coverage dependents outside its fence; a missing or invalid configured map snags | approve / snag / rma |
 | `author.md` | writing a ticket from a Suggestion Box message | stem + ticket |
 | `triage.md` | settling a Suggestion Box message | author / tombstone / decision |
 | `retro.md` | proposing prompt-spec changes | proposals |

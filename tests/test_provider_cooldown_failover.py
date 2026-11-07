@@ -242,7 +242,7 @@ async def test_mid_run_drought_is_harvested_without_spine_draws(root, monkeypatc
                 repo=root,
                 stem="seed",
                 text=TICKET.replace("context.txt", "config.yaml"),
-                specs_dir=runner.SPECS_DIR,
+                specs_dir=runner.SPECS_DIR, coverage_map=None,
                 tier="medium",
                 stem_slot=ticket.stem,
                 run_seq=0,

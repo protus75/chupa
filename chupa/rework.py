@@ -145,6 +145,7 @@ async def rework(
                     stem=proposal.stem,
                     text=proposal.ticket,
                     specs_dir=ctx.specs_dir,
+                    coverage_map=ctx.config.state_dir / "coverage-map.json" if ctx.config.review.coverage_map is not None else None,
                     tier=tier,
                     stem_slot=ticket.stem,
                     run_seq=attempt,

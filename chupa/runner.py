@@ -157,7 +157,7 @@ async def drive(ctx: StageContext, ticket: Ticket, *, admission=None, consume_ha
             attempt = run_seq(history, ticket.stem)
             text = await ctx.git._run(ctx.repo, "show", f"HEAD:{ticket_path(ticket.stem)}")
             try:
-                review = await review_ticket(ctx.driver, repo=ctx.repo, stem=ticket.stem, text=text, specs_dir=ctx.specs_dir, tier=tier, stem_slot=ticket.stem, run_seq=attempt, attempt=attempt, call_seq=1, expected_budget=ticket.expected_minutes * 60)
+                review = await review_ticket(ctx.driver, repo=ctx.repo, stem=ticket.stem, text=text, specs_dir=ctx.specs_dir, coverage_map=ctx.config.state_dir / "coverage-map.json" if ctx.config.review.coverage_map is not None else None, tier=tier, stem_slot=ticket.stem, run_seq=attempt, attempt=attempt, call_seq=1, expected_budget=ticket.expected_minutes * 60)
             except ProviderDrought as exc:
                 result = ProviderDroughtResult(outcome="infra_error", artifact=None, findings=[], cost=Cost(), provider_drought=exc.record)
                 run = StagesRun(attempt=attempt, results={"implement": result}, ticket_sha=sha)

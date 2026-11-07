@@ -185,7 +185,7 @@ def test_split_reviews_after_pre_run_review_use_new_keys(ctx):
         ctx.driver.retry_cap = 0
         ctx.driver.llm = FakeLLM([requisition()])
         prior = await review_ticket(
-            ctx.driver, repo=ctx.repo, stem=ticket.stem, text=text, specs_dir=ctx.specs_dir,
+            ctx.driver, repo=ctx.repo, stem=ticket.stem, text=text, specs_dir=ctx.specs_dir, coverage_map=None,
             tier="max", stem_slot=ticket.stem, run_seq=attempt, attempt=attempt, call_seq=1,
             expected_budget=ticket.expected_minutes * 60.0,
         )

@@ -81,8 +81,8 @@ engine_plane_safety_inventory: [context.txt]
     return tmp_path, driver, llm
 
 
-def run(driver: Driver, repo: Path, text: str = TICKET, stem: str = "one-thing") -> RequisitionVerdict:
-    return asyncio.run(review_ticket(driver, repo=repo, stem=stem, text=text, specs_dir=SPECS, tier="high", stem_slot="s", run_seq=0, attempt=1, call_seq=1, expected_budget="surface"))
+def run(driver: Driver, repo: Path, text: str = TICKET, stem: str = "one-thing", coverage_map: Path | None = None) -> RequisitionVerdict:
+    return asyncio.run(review_ticket(driver, repo=repo, stem=stem, text=text, specs_dir=SPECS, coverage_map=coverage_map, tier="high", stem_slot="s", run_seq=0, attempt=1, call_seq=1, expected_budget="surface"))
 
 
 def reply(verdict: str, findings: list | None = None) -> str:
@@ -97,8 +97,10 @@ def test_spec_loads_and_names_finding_keys():
     assert lint_spec(source) == []
     spec = load_spec(source)
     assert spec.meta.llm_surface == "requisition_review"
-    assert spec.inputs == ("ticket", "context", "render", "prior_review", "retry_findings")
+    assert spec.inputs == ("ticket", "context", "render", "coverage_dependents", "prior_review", "retry_findings")
     assert all(key in source for key in ("`code`", "`message`", "`paved_road`"))
+    assert "in the fence or cleared in the summary" in source
+    assert "An unaccounted file is a `snag` finding naming it" in source
 
 
 @pytest.mark.parametrize("kind", [None, "authoring_error"])
@@ -121,7 +123,7 @@ def test_snag_and_invalid_reply(tmp_path):
     repo, driver, llm = setup(tmp_path, [reply("snag", [FINDING])] + [reply("wrong")] * 10)
     assert run(driver, repo).findings[0].paved_road == "add it to the fence"
     # A new call identity avoids replaying the first completion.
-    invalid = asyncio.run(review_ticket(driver, repo=repo, stem="one-thing", text=TICKET, specs_dir=SPECS, tier="high", stem_slot="s", run_seq=0, attempt=1, call_seq=2, expected_budget="surface"))
+    invalid = asyncio.run(review_ticket(driver, repo=repo, stem="one-thing", text=TICKET, specs_dir=SPECS, coverage_map=None, tier="high", stem_slot="s", run_seq=0, attempt=1, call_seq=2, expected_budget="surface"))
     assert invalid.verdict == "snag" and invalid.mechanical == "invalid reply"
     assert invalid.calls == 1 + driver.retry_cap
     assert len(llm.requests) == 2 + driver.retry_cap
@@ -221,3 +223,37 @@ def test_base_render_matches_implement_and_gate(tmp_path):
     gate = RequisitionGate()
     assert lint_gate(gate, [approved, snag], repo) == []
     assert gate.check(snag, repo).findings == snag.findings
+
+
+def test_coverage_dependents_in_prompt(tmp_path):
+    repo, driver, llm = setup(tmp_path, [reply("approve")])
+    map_path = repo / "map.json"
+    map_path.write_text(json.dumps({"files": {
+        "thing.py": ["tests/outside.py", "tests/in_fence/test_inside.py"],
+        "other.py": ["tests/unrelated.py"],
+    }}))
+    ticket = TICKET.replace("- thing.py\n\n## Acceptance", "- thing.py\n- tests/in_fence\n\n## Acceptance")
+    assert run(driver, repo, text=ticket, coverage_map=map_path).verdict == "approve"
+    prompt = llm.requests[0].rendered
+    block = prompt.split("<<chupa-data:begin coverage_dependents>>")[1].split("<<chupa-data:end coverage_dependents>>")[0]
+    assert block.strip() == "tests/outside.py: runs thing.py"
+
+
+@pytest.mark.parametrize("contents", [None, "not json", '{"files": []}'])
+def test_invalid_coverage_map_snags_before_model(tmp_path, contents):
+    repo, driver, llm = setup(tmp_path, [])
+    map_path = repo / "map.json"
+    if contents is not None:
+        map_path.write_text(contents)
+    verdict = run(driver, repo, coverage_map=map_path)
+    assert verdict.verdict == "snag"
+    assert verdict.findings[0].code == "coverage_map"
+    assert verdict.findings[0].paved_road == "run ./dev.py covmap"
+    assert verdict.calls == 0 and llm.requests == []
+
+
+def test_no_coverage_map_renders_notice(tmp_path):
+    repo, driver, llm = setup(tmp_path, [reply("approve")])
+    assert run(driver, repo).verdict == "approve"
+    block = llm.requests[0].rendered.split("<<chupa-data:begin coverage_dependents>>")[1].split("<<chupa-data:end coverage_dependents>>")[0]
+    assert block.strip() == "no coverage map configured"

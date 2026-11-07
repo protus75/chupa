@@ -497,6 +497,7 @@ async def _review(checkout: runner.Checkout, stem: str) -> int:
                 stem=stem,
                 text=text,
                 specs_dir=runner.SPECS_DIR,
+                coverage_map=checkout.config.state_dir / "coverage-map.json" if checkout.config.review.coverage_map is not None else None,
                 tier=checkout.config.routing_default_tier,
                 stem_slot=f"review-{stem}",
                 run_seq=len(history),

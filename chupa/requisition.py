@@ -1,6 +1,7 @@
 """Read-only authored-ticket feasibility review."""
 
 import hashlib
+import json
 import re
 from pathlib import Path
 from typing import Annotated, Literal
@@ -14,7 +15,7 @@ from chupa.llm import AgentTier, LLMRequest, LLMResult
 from chupa.llmeffect import llm_call
 from chupa.providers import ProviderCallError, ProviderDrought
 from chupa.specs import RENDER_BOUND_CHARS, REQ_RENDER_HEADROOM, RenderOverBound, load_spec, render
-from chupa.stages import implement_inputs
+from chupa.stages import _in_fence, implement_inputs
 from chupa.tickets import Ticket, validate_ticket
 
 REQUISITION_STUCK_S = 600.0
@@ -75,6 +76,7 @@ async def review_ticket(
     stem: str,
     text: str,
     specs_dir: Path,
+    coverage_map: Path | None,
     tier: AgentTier,
     stem_slot: str,
     run_seq: int,
@@ -106,10 +108,32 @@ async def review_ticket(
         return snag(f"base Implement render has {chars} characters, over authoring headroom", "render over headroom", "render_feasibility", "shrink or split the ticket at authoring")
     assert base is not None
 
+    coverage_dependents = "no coverage map configured"
+    if coverage_map is not None:
+        try:
+            data = json.loads(coverage_map.read_text())
+            files = data["files"]
+            if not isinstance(files, dict) or any(
+                not isinstance(path, str) or not isinstance(tests, list)
+                or any(not isinstance(test, str) for test in tests)
+                for path, tests in files.items()
+            ):
+                raise ValueError("invalid files mapping")
+        except (OSError, UnicodeError, ValueError, KeyError, TypeError):
+            return snag("missing or invalid coverage map", "invalid coverage map", "coverage_map", "run ./dev.py covmap")
+        dependents: dict[str, set[str]] = {}
+        for path in ticket.scope_fence:
+            for test in files.get(path, []):
+                if not _in_fence(test, ticket.scope_fence):
+                    dependents.setdefault(test, set()).add(path)
+        coverage_dependents = "\n".join(
+            f"{test}: runs {', '.join(sorted(paths))}" for test, paths in sorted(dependents.items())
+        ) or "none"
+
     retry_findings = "none"
     for current_seq in range(call_seq, call_seq + driver.retry_cap + 1):
         try:
-            prompt = render(spec, {"ticket": text, "context": "included in render", "render": base, "prior_review": prior, "retry_findings": retry_findings})
+            prompt = render(spec, {"ticket": text, "context": "included in render", "render": base, "prior_review": prior, "retry_findings": retry_findings, "coverage_dependents": coverage_dependents})
         except RenderOverBound as exc:
             return snag(str(exc), "review render over bound", road="shrink or split the ticket at authoring")
 

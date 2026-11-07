@@ -5,7 +5,7 @@ emits: {approve: requisition-approval, snag: requisition-snag, rma: requisition-
 tier: high
 effort: high
 gates: [requisition_review]
-version: "3.1"
+version: "3.2"
 ---
 ## Role
 
@@ -22,6 +22,7 @@ ticket can be implemented as written. Reply `snag` for a ticket defect its autho
   of every bumped constant or version. A hook into a seam owned outside the fence is a gap.
 - A criterion or a Definition-of-rejected clause contradicts merged behavior, or two criteria cannot both be satisfied.
 - A stated or cited invariant has no named test obligation.
+- Every listed coverage dependent test file must be in the fence or cleared in the summary with one sentence explaining why the change does not affect it. An unaccounted file is a `snag` finding naming it.
 
 When a prior review is given, first rule each of its findings `cleared` or `standing` in your
 summary. Raise a NEW finding only against text the diff shows changed since that review.
@@ -49,6 +50,12 @@ The base Implement render at max effort:
 <<chupa-data:begin render>>
 {{render}}
 <<chupa-data:end render>>
+
+Test files outside the fence that run fenced files:
+
+<<chupa-data:begin coverage_dependents>>
+{{coverage_dependents}}
+<<chupa-data:end coverage_dependents>>
 
 Your prior review of this ticket and the diff from the text it judged (`none` on a first review):
 
