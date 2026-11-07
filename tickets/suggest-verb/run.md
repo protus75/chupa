@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The full suite requires CLAUDE.md to match its committed bytes, so it passed after the required documentation change was committed.
+The full suite initially failed because a conduct check compares working files with committed bytes; it passed after the required commit.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 45 minutes; completed within the budget.
+Expected 45 minutes; completed in less than 45 minutes.
 
