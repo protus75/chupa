@@ -58,6 +58,7 @@ After this change one pure function owns the content-park rule, and every caller
       - an uncommitted ticket that the stub leaves out still builds a snapshot and is not held.
     - `queue` reports a premise-parked ticket as `held until the ticket changes`, not `ready`.
     - `test_queue_projection_and_fallback`, `test_queue_counts_a_split_dependency_met_by_its_successors`, and `test_recent_steps_merges_engine_and_stage_events` build a `Context` with `git=None`. They pass the new `queue` parameter or stub `committed_ticket_shas`.
+  - New carried reproducer `tests/regress_shared_hold_rule.py`, in the style of `tests/regress_graph_lanes.py`. It imports `parked_blob` from `chupa.drain` and `held` from `chupa.observe`, calls `held` with a history whose last run ended `premise_failed` against blob `B` and with `blobs={stem: B}`, and prints exactly one `{"regression_result": ...}` line: `pass` (exit 0) when the stem is held, `defect` (exit 1) when it is not or when `parked_blob` cannot be imported, and `error` (exit 2) for any other failure.
 - In: `docs/how-chupa-works.md`: the `chupa snapshot` paragraph (the line beginning "`chupa snapshot` builds its data read-only") says the snapshot holds tickets by the Reject queue and the drain's `parked_blob` rule.
 - Out:
   - Process-local holds (storm, provider drought, quarantine, the stuck-time ceiling). They live in a running engine's memory, not the journal, so the snapshot cannot see them.
@@ -74,6 +75,7 @@ After this change one pure function owns the content-park rule, and every caller
 - tests/test_requisition_gate.py
 - tests/test_scheduler.py
 - tests/test_watch.py
+- tests/regress_shared_hold_rule.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
@@ -90,9 +92,9 @@ After this change one pure function owns the content-park rule, and every caller
 
 ## Regression
 ```
-./dev.py test tests/test_watch.py -k test_snapshot_holds_a_parked_ticket
+uv run python tests/regress_shared_hold_rule.py
 ```
-- carries: tests/test_watch.py
+- carries: tests/regress_shared_hold_rule.py
 
 ## Definition of rejected
 Reject the branch if any of the following holds:
