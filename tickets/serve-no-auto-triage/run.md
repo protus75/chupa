@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The focused serve suite passed: 70 tests. The full suite reported 4 failures and 70 errors; the daemon soak and host loop harnesses depend on automatic triage.
+The host-loop harness needed a distinct control request ID for each serve lifecycle.
 
 ## Dead ends
 
-Implemented the scoped change and ran both verification commands, but did not commit because the full-suite gate requires changes outside the fence.
+The first full-suite run exposed reused control request IDs; the harness was corrected and verified.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Expected 30 minutes; completed within the expected budget.
 
