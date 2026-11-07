@@ -1,0 +1,115 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "d4653101c7de7c589aa396790cc0a02ee25c24a8",
+  "stem": "vscode-task-identity",
+  "passed": true,
+  "changed_files": [
+    "tests/regress_vscode_task_identity.py",
+    "tests/vscode_task_identity.js",
+    "vscode-chupa/extension.js"
+  ],
+  "inserted_lines": 75,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false,
+      "bug_evidence": {
+        "argv": [
+          "uv",
+          "run",
+          "python",
+          "tests/regress_vscode_task_identity.py"
+        ],
+        "head_sha": "d4653101c7de7c589aa396790cc0a02ee25c24a8",
+        "base_sha": "36e56df4a95e8f66f9d482802d072bd31801af2b",
+        "overlay_paths": [
+          "tests/regress_vscode_task_identity.py",
+          "tests/vscode_task_identity.js"
+        ],
+        "evidence_paths": [
+          "tickets/vscode-task-identity/evidence/kill-reached-no-inbox-2026-11-07.txt"
+        ],
+        "head": {
+          "rc": 0,
+          "regression_result": "pass",
+          "tail": "{\"regression_result\": \"pass\"}\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n"
+        },
+        "base": {
+          "rc": 1,
+          "regression_result": "defect",
+          "tail": "{\"regression_result\": \"defect\"}\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\nUsing CPython 3.14.6\nCreating virtual environment at: .venv\n   Building chupa @ file:///home/djp/source/chupa/.chupa/state/worktrees/.regression-base/vscode-task-identity\n      Built chupa @ file:///home/djp/source/chupa/.chupa/state/worktrees/.regression-base/vscode-task-identity\nInstalled 19 packages in 13ms\n"
+        }
+      }
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "node",
+        "--check",
+        "vscode-chupa/extension.js"
+      ],
+      "rc": 0,
+      "tail": "",
+      "base_red": false,
+      "seconds": 0.171231
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "tests/regress_vscode_task_identity.py"
+      ],
+      "rc": 0,
+      "tail": "{\"regression_result\": \"pass\"}\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 0.064182
+    },
+    {
+      "argv": [
+        "./dev.py",
+        "test"
+      ],
+      "rc": 0,
+      "tail": "%]\n=============================== warnings summary ===============================\ntests/test_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/vscode-task-identity/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/test_testguard.py::test_guards_are_phase_scoped\ntests/test_testguard.py::test_guarded_calls_and_asyncio\ntests/test_testguard.py::test_budget_and_slowest\ntests/test_testguard.py::test_budget_and_slowest\ntests/test_testguard.py::test_setup_and_teardown\ntests/test_testguard.py::test_xdist_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\ntests/test_testguard.py::test_default_and_invalid_budget\n  /home/djp/source/chupa/.chupa/state/worktrees/vscode-task-identity/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3107 passed, 10 warnings in 66.09s (0:01:06)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 70.080197
+    }
+  ]
+}
