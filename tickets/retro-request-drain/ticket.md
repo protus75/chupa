@@ -12,13 +12,11 @@ none
 - chupa/control.py
 - chupa/__main__.py
 - chupa/drain.py
-- chupa/retro.py
 - vscode-chupa/extension.js
 - tests/integration/test_control.py
 - tests/integration/test_closed_sets.py
 - tests/integration/test_control_cli.py
 - tests/integration/test_drain.py
-- tests/integration/test_cli.py
 - docs/how-chupa-works.md
 
 ## Goal / Why
@@ -63,7 +61,6 @@ After this change, `chupa retro` run while an engine holds the lock sends a `ret
 - tests/integration/test_closed_sets.py
 - tests/integration/test_control_cli.py
 - tests/integration/test_drain.py
-- tests/integration/test_cli.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
