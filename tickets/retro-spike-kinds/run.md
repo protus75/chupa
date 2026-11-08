@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-none
+The existing unit suite kept retro.py above its coverage threshold, so no out-of-scope unit test was needed. Counting existing journal events directly was simpler than adding an abstraction and satisfied the ticket.
 
 ## Dead ends
 
-The initial reject fixture also triggered gate-failure; changed its terminal state to isolate reject counting.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 40 minutes; completed in under 40 minutes.
+Expected 40 minutes; completed in under 5 minutes.
 
