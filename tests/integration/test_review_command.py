@@ -44,10 +44,21 @@ def test_review_snag_prints_findings_and_exits_1(tmp_path, monkeypatch, capsys):
 def test_review_refuses_without_a_model_call(tmp_path, monkeypatch):
     root = make_root(tmp_path)
     commit_ticket(root, "merged", confirmed())
-    commit_ticket(root, "dependency", confirmed())
-    commit_ticket(root, "candidate", confirmed("dependency"))
     Journal(root / ".chupa/state", Clock()).append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="merged")
     llm = FakeLLM([])
-    for stem in ("missing", "merged", "candidate"):
+    for stem in ("missing", "merged"):
         assert run(root, monkeypatch, llm, stem) == 2
     assert llm.requests == []
+
+
+def test_review_unmerged_dependency_is_provisional(tmp_path, monkeypatch, capsys):
+    root = make_root(tmp_path)
+    commit_ticket(root, "dependency", confirmed())
+    commit_ticket(root, "candidate", confirmed("- dependency"))
+    llm = FakeLLM([reply("approve")])
+    assert run(root, monkeypatch, llm, "candidate") == 0
+    output = capsys.readouterr().out
+    assert "review candidate: provisional, not recorded -- depends on unmerged dependency; the drain reviews it again before its first run" in output
+    assert "review candidate: approve" in output
+    assert len(llm.requests) == 1
+    assert verdicts(root) == []

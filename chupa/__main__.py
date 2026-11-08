@@ -528,8 +528,7 @@ async def _review(checkout: runner.Checkout, stem: str) -> int:
             ticket = validate_ticket(stem, text, checkout.repo)
         except TicketInvalid as exc:
             raise runner.Refusal(f"{ticket_path(stem)} is invalid: " + "; ".join(f.message for f in exc.findings), f"fix the ticket and retry `review {stem}`") from None
-        if unmerged := [dep for dep in ticket.depends if states.get(dep) != "merged"]:
-            raise runner.Refusal(f"{stem} depends on unmerged {', '.join(unmerged)}", f"review {stem} after {', '.join(unmerged)} merge")
+        unmerged = [dep for dep in ticket.depends if states.get(dep) != "merged"]
         session = build_control(checkout).providers
         try:
             llm = ProviderLLM(checkout.config, exec_=checkout.exec_, fs=checkout.fs, env=checkout.env, cwd=checkout.repo, timeout=runner.call_timeout(checkout.config), session=session)
@@ -557,11 +556,22 @@ async def _review(checkout: runner.Checkout, stem: str) -> int:
             )
         finally:
             await session.close()
-        checkout.journal.append(
-            EventType.SIGNAL,
-            {"signal": "requisition_verdict", "verdict": verdict.verdict, "ticket_sha": verdict.ticket_sha, "provider": verdict.provider, "model": verdict.model, "spec_version": verdict.spec_version},
-            ticket=stem,
-        )
+        if unmerged:
+            print(f"review {stem}: provisional, not recorded -- depends on unmerged {', '.join(unmerged)}; the drain reviews it again before its first run")
+        else:
+            # A journaled approval would let the drain skip its review.
+            checkout.journal.append(
+                EventType.SIGNAL,
+                {
+                    "signal": "requisition_verdict",
+                    "verdict": verdict.verdict,
+                    "ticket_sha": verdict.ticket_sha,
+                    "provider": verdict.provider,
+                    "model": verdict.model,
+                    "spec_version": verdict.spec_version,
+                },
+                ticket=stem,
+            )
         print(f"review {stem}: {verdict.verdict} -- {verdict.summary}")
         for finding in verdict.findings:
             location = f" {finding.path}:{finding.line}" if finding.path and finding.line is not None else f" {finding.path}" if finding.path else ""

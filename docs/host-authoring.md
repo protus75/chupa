@@ -19,7 +19,8 @@ what content its tickets carry, never the format. See the [host run guide](host-
    2 means a named ticket is missing or the tickets directory is unreadable.
 3. For a bug, add the evidence file (see Bug tickets) beside the ticket.
 4. Run `chupa review <stem>` (in this repo, `./dev.py review STEM`), repair every finding,
-   and repeat until it prints `approve`. Review tickets with unmerged dependencies after they merge.
+   and repeat until it prints `approve`. Reviews with unmerged dependencies are provisional and not
+   journaled; repair their findings, and the drain reviews again after the dependencies merge.
 5. A running `serve` picks up the new ticket; alternatively run `chupa drain`. Intake commits
    the ticket and its evidence together before running it.
 
