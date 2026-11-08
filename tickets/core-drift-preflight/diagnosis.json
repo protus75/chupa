@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "30595975e47bb38f9d99a40601962302af579e2b",
+  "stem": "core-drift-preflight",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "abandon-human",
+  "lessons": [
+    "A human should run `./dev.py lint` on base main: the run record says only 37 of 393 tickets validate there, so the ticket's required lint step fails before any change is made. The fault is in the base, not in this ticket.",
+    "The fix for the lint failure is outside this ticket's scope fence, which lists only hostfiles, __main__, doctor, four test files and the docs. Do not fold ticket-validation repairs into this diff. File them through the Suggestion Box as a separate problem.",
+    "The material does not include the lint output, so it does not show which validation rule the historical tickets break. A human must read that output to find the cause, such as a validator or schema change that older tickets do not meet.",
+    "Once base lint passes, retry this ticket unchanged. The run record says the implementation passed the full suite (3,161 tests) in under 30 minutes, so its approach and scope were sound.",
+    "On the retry, check `./dev.py lint` on the base commit first. If it still fails there, report premise_failed right away instead of finishing the implementation."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
