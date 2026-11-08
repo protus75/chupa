@@ -38,6 +38,7 @@ After this change, `serve`, `drain` and `run` refuse to start, before taking the
 - In: `chupa/doctor.py` `check`. When config loads, add one row named `core`. It passes with `routed conduct files are current` when `stale_core` returns nothing, and fails with the joined messages otherwise. When config fails, the `core` row fails with `state directory unavailable; repair the selected config and rerun doctor`, like `lock` and `journal`.
 - In: tests.
   - `tests/integration/test_hostfiles.py`: `stale_core` returns `[]` for an adopted repo. It returns one `drifted` message naming `CLAUDE.md` when the committed block's bytes differ from the template, and one `missing` message when the committed file has no block. A block fixed only in the working tree, uncommitted, still reports.
+  - `tests/integration/test_providers.py::test_cli_failure_classifier_is_active` runs `run` in a bare `tmp_path` with no git repo; it tests provider classification, not conduct, so monkeypatch `stale_core` (where `chupa/__main__.py` looks it up) to return `[]` in it.
   - `tests/integration/test_cli.py::test_doctor_cli`: the expected rows gain `PASS core` after `journal`.
   - `tests/integration/test_doctor.py`: the `core` row passes on an adopted repo and fails, naming `chupa core`, on a committed drifted block.
   - `tests/integration/test_drain.py`: with a committed drifted `CLAUDE.md` and a ready ticket, `drain` exits 2 and prints a message containing `chupa core`. The ticket is not dispatched (the fake pipeline records no call), and no lock holder is left.
@@ -52,13 +53,14 @@ After this change, `serve`, `drain` and `run` refuse to start, before taking the
 - tests/integration/test_doctor.py
 - tests/integration/test_drain.py
 - tests/integration/test_cli.py
+- tests/integration/test_providers.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
 1. `./dev.py test tests/integration/test_hostfiles.py` passes, including `stale_core` returning `[]` for an adopted repo and one message (not zero) for a committed `drifted` and a committed `missing` block, with the working-tree-only fix still reported.
 2. `./dev.py test tests/integration/test_doctor.py` passes, including a failing `core` row whose detail contains `chupa core` on a committed drifted block, not a passing one.
 3. `./dev.py test tests/integration/test_drain.py` passes, including `drain` exiting 2 on a committed drifted block, with zero tickets dispatched, not one.
-4. `./dev.py test` passes: every existing test repo is adopted, so no other verb test starts refusing.
+4. `./dev.py test` passes: every other existing test repo that runs `serve`, `drain` or `run` is adopted and committed, so no other verb test starts refusing.
 5. `docs/how-chupa-works.md` section 12 and the `doctor` row name the startup refusal and the `core` row.
 
 ## Verification
