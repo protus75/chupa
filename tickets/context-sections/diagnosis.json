@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "f8d44606a0265da1232e181760734746b4707ac6",
+  "produced_at_sha": "1106dc0fb55e72c5d20e93c50854952821596ee7",
   "stem": "context-sections",
-  "attempt": 2,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "reject",
+  "attempt": 3,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
   "lessons": [
-    "The ticket's Scope fence lists only tests/integration/* files, but the attempt reported chupa/tickets.py at 10.63% unit coverage, below its 11% threshold, with integration tests not counting. Amend the fence and Scope in to add a unit test file, e.g. tests/unit/test_tickets_context.py.",
-    "Once a unit test file is fenced, put unit tests on the one shared excerpt function the ticket requires. Cover a Python name, Class.method with a decorator, a Markdown heading through the next same-or-higher heading, and each of the four finding cases.",
-    "Keep the integration acceptance tests the ticket names (test_context_section_renders_only_the_section, test_context_section_findings, test_context_whole_file_unchanged). The attempt said both verification commands passed, so only the coverage shortfall blocked the merge.",
-    "After amending the ticket, run chupa review context-sections and fix every finding until it approves. The engine rules require this so every file the change forces, including the new unit test file, is fenced."
+    "Acceptance criterion 3 names tests/integration/test_tickets.py::test_context_whole_file_unchanged. Move that test out of test_requisition.py and into test_tickets.py so the node ID exists and passes. Render through chupa.stages.implement_inputs and assert the bare path's whole file under `### path`.",
+    "Scope-in says the unit tests cover each finding case, including a file listed both whole and by section. Add a disk-free test in tests/unit/test_tickets_context.py showing that `m.py` plus `m.py::B.run` gives one conflict and two section entries of one file give none.",
+    "To make that conflict unit-testable without disk, move the whole-versus-section check out of parse_ticket into a pure function in chupa/tickets.py that takes the parsed Context entries. Call it from parse_ticket so there is still one code path.",
+    "Review found the selector parse, the shared excerpt function, the render and the docs correct. Keep them as they are and change only the two test placements, so the diff stays inside the scope fence.",
+    "Before finishing, run the exact node IDs from the acceptance criteria and the ticket's ## Verification commands, then ./dev.py test. A node ID that reports 'not found' means the criterion is unmet."
   ],
   "mechanical": null,
   "spec_version": "1.2",
