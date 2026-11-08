@@ -12,6 +12,7 @@ kind: feature
 - chupa/tickets.py
 - tests/integration/test_tickets.py
 - tests/integration/test_requisition.py
+- tests/integration/test_author.py
 - docs/host-authoring.md
 
 ## On-demand
@@ -36,6 +37,7 @@ After this change a `## Context` entry may name one section of a file. A Python 
 - In: `chupa/specs/author.md`. The `## Context` sentence allows the section forms. Bump its `version` minor.
 - In: `docs/host-authoring.md` (the `Context` bullet) and `docs/how-chupa-works.md` section 4.2 describe the section forms.
 - In: tests in `tests/integration/test_tickets.py` and `tests/integration/test_requisition.py`.
+- In: `tests/integration/test_author.py`: its pin of the author spec version (line 23) and its assertion on the `## Context` sentence (line 33) follow the new `chupa/specs/author.md`.
 - Out:
   - `## On-demand`, `## Scope fence`, and `config.context_files` keep whole-path entries;
   - line-number or start/stop ranges;
@@ -48,6 +50,7 @@ After this change a `## Context` entry may name one section of a file. A Python 
 - chupa/specs/author.md
 - tests/integration/test_tickets.py
 - tests/integration/test_requisition.py
+- tests/integration/test_author.py
 - docs/host-authoring.md
 - docs/how-chupa-works.md
 
