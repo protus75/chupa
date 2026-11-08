@@ -47,3 +47,11 @@ def test_edges_to_rows_above_are_dropped():
     # A lane to t could never close, so it would run past the running and merged rows.
     assert graphs[1]["parents"] == []
     assert all(lane["id"] != "t" for graph in graphs[2:] for lane in graph["lanesIn"])
+
+
+def test_new_tip_joins_existing_parent_lane():
+    graphs = layout([row("m", "blocked", "t", "c"), row("s", "blocked", "t"), row("t", "blocked"), row("c", "blocked")])
+    # A second t lane would hook back into t two rows later; s joins the lane m already opened.
+    assert [lane["id"] for lane in graphs[1]["lanesOut"]] == ["c", "t"]
+    assert graphs[1]["parentLanes"] == [1]
+    assert graphs[0]["parentLanes"] == [0, 1]  # The first parent continues the node's own column.

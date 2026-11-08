@@ -49,7 +49,7 @@ function findLastIndex(nodes, id) {
 function renderGraph(graph, stem, dotColor, colors) {
 	const svg = document.createElementNS(SVG_NS, 'svg');
 	svg.classList.add('graph');
-	const { parents, lanesIn: inputSwimlanes, lanesOut: outputSwimlanes } = graph;
+	const { lanesIn: inputSwimlanes, lanesOut: outputSwimlanes } = graph;
 	const inputIndex = inputSwimlanes.findIndex(node => node.id === stem);
 	const circleIndex = inputIndex !== -1 ? inputIndex : inputSwimlanes.length;
 	const laneColor = circleIndex < outputSwimlanes.length ? colors[outputSwimlanes[circleIndex].section] :
@@ -93,32 +93,41 @@ function renderGraph(graph, stem, dotColor, colors) {
 		}
 	}
 
-	for (let i = 1; i < parents.length; i++) {
-		const parentOutputIndex = findLastIndex(outputSwimlanes, parents[i]);
-		if (parentOutputIndex === -1) {
-			continue;
+	// layout() places every parent edge in parentLanes: straight down, a branch to the right, or a join to the left.
+	const { parentLanes } = graph;
+	for (const laneIndex of parentLanes) {
+		const color = colors[outputSwimlanes[laneIndex].section];
+		if (laneIndex === circleIndex) {
+			svg.append(drawVerticalLine(SWIMLANE_WIDTH * (circleIndex + 1), SWIMLANE_HEIGHT / 2, SWIMLANE_HEIGHT, laneColor));
+		} else if (laneIndex > circleIndex) {
+			const path = createPath(color);
+			path.setAttribute('d', [
+				`M ${SWIMLANE_WIDTH * laneIndex} ${SWIMLANE_HEIGHT / 2}`,
+				`A ${SWIMLANE_WIDTH} ${SWIMLANE_WIDTH} 0 0 1 ${SWIMLANE_WIDTH * (laneIndex + 1)} ${SWIMLANE_HEIGHT}`,
+				`M ${SWIMLANE_WIDTH * laneIndex} ${SWIMLANE_HEIGHT / 2}`,
+				`H ${SWIMLANE_WIDTH * (circleIndex + 1)} `,
+			].join(' '));
+			svg.append(path);
+		} else {
+			const path = createPath(color);
+			path.setAttribute('d', [
+				`M ${SWIMLANE_WIDTH * (circleIndex + 1)} ${SWIMLANE_HEIGHT / 2}`,
+				`H ${(SWIMLANE_WIDTH * (laneIndex + 1)) + SWIMLANE_CURVE_RADIUS}`,
+				`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 0 ${SWIMLANE_WIDTH * (laneIndex + 1)} ${(SWIMLANE_HEIGHT / 2) + SWIMLANE_CURVE_RADIUS}`,
+				`V ${SWIMLANE_HEIGHT}`,
+			].join(' '));
+			svg.append(path);
 		}
-		const path = createPath(colors[outputSwimlanes[parentOutputIndex].section]);
-		path.setAttribute('d', [
-			`M ${SWIMLANE_WIDTH * parentOutputIndex} ${SWIMLANE_HEIGHT / 2}`,
-			`A ${SWIMLANE_WIDTH} ${SWIMLANE_WIDTH} 0 0 1 ${SWIMLANE_WIDTH * (parentOutputIndex + 1)} ${SWIMLANE_HEIGHT}`,
-			`M ${SWIMLANE_WIDTH * parentOutputIndex} ${SWIMLANE_HEIGHT / 2}`,
-			`H ${SWIMLANE_WIDTH * (circleIndex + 1)} `,
-		].join(' '));
-		svg.append(path);
 	}
 
 	if (inputIndex !== -1) {
 		svg.append(drawVerticalLine(SWIMLANE_WIDTH * (circleIndex + 1), 0, SWIMLANE_HEIGHT / 2, colors[inputSwimlanes[inputIndex].section]));
 	}
-	if (parents.length > 0) {
-		svg.append(drawVerticalLine(SWIMLANE_WIDTH * (circleIndex + 1), SWIMLANE_HEIGHT / 2, SWIMLANE_HEIGHT, laneColor));
-	}
 
 	if (graph.kind === 'head') {
 		svg.append(drawCircle(circleIndex, CIRCLE_RADIUS + 3, CIRCLE_STROKE_WIDTH, circleColor));
 		svg.append(drawCircle(circleIndex, CIRCLE_STROKE_WIDTH, CIRCLE_RADIUS));
-	} else if (parents.length > 1) {
+	} else if (graph.parents.length > 1) {
 		svg.append(drawCircle(circleIndex, CIRCLE_RADIUS + 2, CIRCLE_STROKE_WIDTH, circleColor));
 		svg.append(drawCircle(circleIndex, CIRCLE_RADIUS - 1, CIRCLE_STROKE_WIDTH, circleColor));
 	} else {

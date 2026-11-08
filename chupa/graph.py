@@ -37,24 +37,27 @@ def layout(rows: list[dict]) -> list[dict]:
 
         incoming = [lane.copy() for lane in outgoing]
         outgoing = []
-        first_added = False
+        parent_lanes = []
         for lane in incoming:
             if lane["id"] is None:
                 continue
             if lane["id"] == stem:
-                if not first_added and parents:
+                if not parent_lanes and parents:
+                    parent_lanes.append(len(outgoing))
                     outgoing.append({"id": parents[0], "section": section})
-                    first_added = True
                 else:
                     outgoing.append({"id": None, "section": None})
             else:
                 outgoing.append(lane.copy())
         while outgoing and outgoing[-1]["id"] is None:
             outgoing.pop()
-        for index in range(1 if first_added else 0, len(parents)):
-            parent = parents[index]
-            if index and any(lane["id"] == parent for lane in outgoing):
-                continue
-            outgoing.append({"id": parent, "section": section})
-        result.append({"kind": "head" if section == "running" else "node", "parents": parents, "lanesIn": incoming, "lanesOut": outgoing})
+        for parent in parents[len(parent_lanes) :]:
+            # A parent that already has a lane is joined there, as `git log --graph` draws `|/`, instead of a second lane.
+            existing = [index for index, lane in enumerate(outgoing) if lane["id"] == parent]
+            if existing:
+                parent_lanes.append(existing[-1])
+            else:
+                parent_lanes.append(len(outgoing))
+                outgoing.append({"id": parent, "section": section})
+        result.append({"kind": "head" if section == "running" else "node", "parents": parents, "parentLanes": parent_lanes, "lanesIn": incoming, "lanesOut": outgoing})
     return result
