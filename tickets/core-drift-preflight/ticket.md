@@ -38,6 +38,7 @@ After this change, `serve`, `drain` and `run` refuse to start, before taking the
 - In: `chupa/doctor.py` `check`. When config loads, add one row named `core`. It passes with `routed conduct files are current` when `stale_core` returns nothing, and fails with the joined messages otherwise. When config fails, the `core` row fails with `state directory unavailable; repair the selected config and rerun doctor`, like `lock` and `journal`.
 - In: tests.
   - `tests/integration/test_hostfiles.py`: `stale_core` returns `[]` for an adopted repo. It returns one `drifted` message naming `CLAUDE.md` when the committed block's bytes differ from the template, and one `missing` message when the committed file has no block. A block fixed only in the working tree, uncommitted, still reports.
+  - `tests/integration/test_cli.py::test_doctor_cli`: the expected rows gain `PASS core` after `journal`.
   - `tests/integration/test_doctor.py`: the `core` row passes on an adopted repo and fails, naming `chupa core`, on a committed drifted block.
   - `tests/integration/test_drain.py`: with a committed drifted `CLAUDE.md` and a ready ticket, `drain` exits 2 and prints a message containing `chupa core`. The ticket is not dispatched (the fake pipeline records no call), and no lock holder is left.
 - In: `docs/how-chupa-works.md` section 12: add a bullet saying `serve`, `drain` and `run` refuse to start on a committed stale block, and that `doctor` reports a `core` row. Also update the `doctor` row in the 2.1 Verbs table to list the core check.
@@ -50,6 +51,7 @@ After this change, `serve`, `drain` and `run` refuse to start, before taking the
 - tests/integration/test_hostfiles.py
 - tests/integration/test_doctor.py
 - tests/integration/test_drain.py
+- tests/integration/test_cli.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
