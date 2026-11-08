@@ -1,5 +1,5 @@
 ---
-state: confirmed
+state: rejected
 source: human
 priority: P3
 kind: chore
