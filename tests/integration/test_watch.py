@@ -231,7 +231,13 @@ def test_snapshot_display_fields(tmp_path, monkeypatch):
     monkeypatch.setattr(watch, "datetime", FixedDateTime)
 
     def ticket(stem):
-        return SimpleNamespace(stem=stem, frontmatter=SimpleNamespace(priority="P1", state="confirmed"), depends=(), runs_before=(), sections={"Goal / Why": "goal"})
+        return SimpleNamespace(
+            stem=stem,
+            frontmatter=SimpleNamespace(priority="P1", state="confirmed"),
+            depends=(),
+            runs_before=("waiting",) if stem == "live" else (),
+            sections={"Goal / Why": "goal" if stem == "live" else ""},
+        )
 
     monkeypatch.setattr(watch, "load_tickets", lambda ctx, skip: ({s: ticket(s) for s in ("live", "waiting")}, {}))
     events = [
@@ -243,14 +249,29 @@ def test_snapshot_display_fields(tmp_path, monkeypatch):
     monkeypatch.setattr(watch, "lock_holder", lambda state: None)
     monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: (set(), set()))
     monkeypatch.setattr(watch, "committed_ticket_shas", lambda ctx: {})
-    monkeypatch.setattr(watch, "commits", lambda ctx: {"abc": {"date": "2026-01-03T02:00:00+00:00", "subject": "change"}})
+    monkeypatch.setattr(watch, "commits", lambda ctx: {"abc": {"date": "2026-01-03T02:00:00+00:00", "subject": "change", "short": "abc", "author": "Ada"}})
     (tmp_path / "engine.log").write_text(json.dumps({"event": "stage_start", "stem": "live", "surface": "implement", "ts": ts}) + "\n")
     snap = watch.snapshot(ctx)
     rows = {r["stem"]: r for r in snap["rows"]}
+    assert snap["watch"] == [
+        {"base": str(tmp_path.resolve()), "glob": "tickets/*/ticket.md"},
+        {"base": str(tmp_path.resolve()), "glob": "{journal/*.jsonl,queue.json,engine.log,box/*.json}"},
+    ]  # Both locations must be watched.
+    assert len(snap["engineVerbs"]) == 6 and snap["engineVerbs"][0] == {
+        "label": "Drain",
+        "detail": "Run every eligible ticket to quiescence, then exit.",
+        "verb": "drain",
+    }  # The menu must not be empty or reordered.
+    assert rows["live"]["priorityChoices"] == [{"label": p, "description": "current" if p == "P1" else ""} for p in ("P0", "P1", "P2", "P3")]  # Only the actual priority is current.
+    assert {item["heading"] for item in rows["done"]["detail"]} == {None, "Commit"}  # Merged rows do not show open fields.
+    assert {"heading": None, "text": f"settled 2 days ago ({watch.local(ts).strftime('%x, %X')})"} in rows["done"]["detail"]  # Settlement uses its own timestamp.
+    assert {item["heading"] for item in rows["live"]["detail"]} == {None, "Goal / Why", "Runs before"}  # Open rows do not show a commit.
+    assert {"heading": "Goal / Why", "text": "(none)"} in rows["waiting"]["detail"]  # Empty goals have a visible placeholder.
+    assert {"heading": "Runs before", "text": "(none)"} in rows["waiting"]["detail"]  # Empty ordering has a visible placeholder.
     assert snap["priorities"] == ["P0", "P1", "P2", "P3"]  # A copied or missing priority vocabulary differs.
     assert snap["counts"] == {"blocked": 0, "queued": 1, "running": 1, "merged": 1}  # Counting only open rows loses the merged row.
-    assert rows["live"]["runsBeforeChoices"] == ["waiting"]  # The current and merged stems are excluded.
-    assert rows["waiting"]["runsBeforeChoices"] == ["live"]  # Choices are specific to each row.
+    assert rows["live"]["runsBeforeChoices"] == [{"label": "waiting", "picked": True}]  # The current and merged stems are excluded.
+    assert rows["waiting"]["runsBeforeChoices"] == [{"label": "live", "picked": False}]  # Choices are specific to each row.
     assert snap["runningStem"] == "live"  # A missing running fallback loses the active ticket.
     assert snap["verdictCommands"] == {"confirm": ["confirm", "--yes"], "reject": ["reject", "--yes"]}  # Both noninteractive verbs need their flag.
     assert rows["done"]["mergedAtAgo"] == "2 days ago"  # Settlement time differs from commit time.
@@ -547,3 +568,18 @@ def test_snapshot_reject_queue_uses_configured_caps(tmp_path, monkeypatch):
     last = {stem: {"to": "gate_failed"} for stem in tickets}
     projected = {stem: why for _, stem, why in watch.queue(ctx, events, last, set(), set())}
     assert projected == {"retry": "retry pending (last: gate_failed)", "spent": "NEEDS YOUR KEEP OR KILL"}  # Queue explanations must distinguish available and spent caps.
+
+
+def test_snapshot_watch_uses_configured_state(tmp_path, capsys):
+    from pathlib import Path
+
+    from chupa.__main__ import main
+
+    config = tmp_path / "host.yaml"
+    config.write_text(Path("config.yaml").read_text().replace("state_dir: .chupa/state", "state_dir: custom-state"))
+    assert main(["--config", str(config), "snapshot"]) == 0
+    snap = json.loads(capsys.readouterr().out)
+    assert snap["watch"] == [
+        {"base": str(Path.cwd().resolve()), "glob": "tickets/*/ticket.md"},
+        {"base": str((tmp_path / "custom-state").resolve()), "glob": "{journal/*.jsonl,queue.json,engine.log,box/*.json}"},
+    ]  # The state watcher must not use the repository base.

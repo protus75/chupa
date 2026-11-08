@@ -570,11 +570,34 @@ def snapshot(ctx) -> dict:
         rows.append(row)
     shown = {r["stem"] for r in rows}
     unmerged = [r["stem"] for r in rows if r["section"] != "merged"]
+    priorities = list(get_args(Frontmatter.model_fields["priority"].annotation))
     for r in rows:
+        r["priorityChoices"] = [{"label": p, "description": "current" if p == r["priority"] else ""} for p in priorities]
         r["priorityTag"] = r["priority"] if r["section"] in ("running", "queued") else ""
         if r["section"] != "merged":
-            r["runsBeforeChoices"] = [stem for stem in unmerged if stem != r["stem"]]
+            r["runsBeforeChoices"] = [{"label": stem, "picked": stem in r["runsBefore"]} for stem in unmerged if stem != r["stem"]]
         r["depends"] = [d for d in r["depends"] if d in shown]
+        detail = [{"heading": None, "text": r["status"] + (f" · {r['priority']}" if r["priority"] else "")}]
+        if r["review"]:
+            detail.append({"heading": None, "text": f"review: {r['review']}"})
+        if r["section"] == "merged":
+            if c := r["commit"]:
+                detail.append({"heading": "Commit", "text": c["subject"]})
+                detail.append({"heading": None, "text": f"{c['short']} · {c['author']} · {c['dateAgo']} ({c['dateDisplay']})"})
+            else:
+                detail.append({"heading": None, "text": "no commit on main"})
+            if r["mergedAt"]:
+                detail.append({"heading": None, "text": f"settled {r['mergedAtAgo']} ({r['mergedAtDisplay']})"})
+        else:
+            detail.extend(
+                [
+                    {"heading": "Goal / Why", "text": r["goal"] or "(none)"},
+                    {"heading": "Runs before", "text": ", ".join(r["runsBefore"]) or "(none)"},
+                ]
+            )
+        if r["depends"]:
+            detail.append({"heading": "Depends on", "text": ", ".join(r["depends"])})
+        r["detail"] = detail
     for row, graph in zip(rows, layout(rows)):
         row["graph"] = graph
     from chupa.box import Box
@@ -650,7 +673,16 @@ def snapshot(ctx) -> dict:
         "badge": badge,
         "box": box_rows,
         "boxCounts": box_counts,
-        "priorities": list(get_args(Frontmatter.model_fields["priority"].annotation)),
+        "priorities": priorities,
+        "watch": [{"base": str(ctx.root.resolve()), "glob": "tickets/*/ticket.md"}, {"base": str(state.resolve()), "glob": "{journal/*.jsonl,queue.json,engine.log,box/*.json}"}],
+        "engineVerbs": [
+            {"label": "Drain", "detail": "Run every eligible ticket to quiescence, then exit.", "verb": "drain"},
+            {"label": "Serve", "detail": "Run the continuous daemon until kill, stop, or a signal.", "verb": "serve"},
+            {"label": "Stop after the running ticket", "detail": "Finish the running ticket, admit nothing new, then exit.", "verb": "stop"},
+            {"label": "Kill (drain or serve)", "detail": "Hard-stop the running drain or serve.", "verb": "kill"},
+            {"label": "Status", "detail": "Print the journal projection.", "verb": "status"},
+            {"label": "Retro", "detail": "Run a retro report now, or after the running ticket when an engine is running.", "verb": "retro"},
+        ],
         "counts": counts,
         "runningStem": running[0] if running else None,
         "verdictCommands": {verb: [verb, "--yes"] for verb in ("confirm", "reject")},

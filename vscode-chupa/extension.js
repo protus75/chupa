@@ -43,12 +43,11 @@ async function orderTicket(ctx, snapshot, field) {
 	if (!root || !row) return;
 	let args;
 	if (field === 'priority') {
-		const choice = await vscode.window.showQuickPick(snapshot.snap.priorities.map(label => ({ label, description: label === row.priority ? 'current' : '' })), { placeHolder: 'Set priority' });
+		const choice = await vscode.window.showQuickPick(row.priorityChoices, { placeHolder: 'Set priority' });
 		if (!choice) return;
 		args = ['--priority', choice.label];
 	} else {
-		const choices = row.runsBeforeChoices.map(stem => ({ label: stem, picked: row.runsBefore.includes(stem) }));
-		const selected = await vscode.window.showQuickPick(choices, { canPickMany: true, placeHolder: 'Run before' });
+		const selected = await vscode.window.showQuickPick(row.runsBeforeChoices, { canPickMany: true, placeHolder: 'Run before' });
 		if (!selected) return;
 		args = ['--runs-before', ...selected.map(item => item.label)];
 	}
@@ -94,7 +93,7 @@ class Snapshot {
 		runData(root, ['snapshot'], { timeout: 30000, maxBuffer: 64 * 1024 * 1024 }, (err, stdout, stderr) => {
 			this.running = false;
 			if (err) {
-				this.publish(this.snap, (stderr || err.message).trim().split('\n').pop());
+				this.publish(this.snap, (stderr || err.message).trim());
 			} else {
 				this.publish(JSON.parse(stdout), undefined);
 			}
@@ -286,7 +285,7 @@ class StatsTree {
 		const window = vscode.workspace.getConfiguration('chupa', vscode.Uri.file(root)).get('statsWindow');
 		runData(root, ['stats', '--tree', '--window', window], { timeout: 30000 }, (err, stdout, stderr) => {
 			this.running = false;
-			this.rows = err ? [{ label: (stderr || err.message).trim().split('\n').pop(), description: '', children: [] }] : JSON.parse(stdout);
+			this.rows = err ? [{ label: (stderr || err.message).trim(), description: '', children: [] }] : JSON.parse(stdout);
 			this.changed.fire();
 			if (this.again) {
 				this.again = false;
@@ -351,14 +350,7 @@ function activate(context) {
 		vscode.commands.registerCommand('chupa.ticket.askDiagnose', ctx => askClaude(ctx, 'diagnose')),
 		vscode.commands.registerCommand('chupa.ticket.askReview', ctx => askClaude(ctx, 'review')),
 		vscode.commands.registerCommand('chupa.engine', async () => {
-			const choice = await vscode.window.showQuickPick([
-				{ label: 'Drain', detail: 'Run every eligible ticket to quiescence, then exit.', verb: 'drain' },
-				{ label: 'Serve', detail: 'Run the continuous daemon until kill, stop, or a signal.', verb: 'serve' },
-				{ label: 'Stop after the running ticket', detail: 'Finish the running ticket, admit nothing new, then exit.', verb: 'stop' },
-				{ label: 'Kill (drain or serve)', detail: 'Hard-stop the running drain or serve.', verb: 'kill' },
-				{ label: 'Status', detail: 'Print the journal projection.', verb: 'status' },
-				{ label: 'Retro', detail: 'Run a retro report now, or after the running ticket when an engine is running.', verb: 'retro' },
-			]);
+			const choice = await vscode.window.showQuickPick(snapshot.snap?.engineVerbs ?? []);
 			if (choice) devCommand(choice.verb);
 		}),
 		vscode.commands.registerCommand('chupa.playDrain', () => devCommand('drain')),
@@ -374,33 +366,27 @@ function activate(context) {
 		clearTimeout(timer);
 		timer = setTimeout(() => snapshot.refresh(), 700);
 	};
-	const root = chupaRoot();
-	if (root) {
-		const watch = (base, glob) => {
+	let watchers = [], watchList;
+	snapshot.listeners.push(() => {
+		const next = snapshot.snap?.watch;
+		if (!next || JSON.stringify(next) === watchList) return;
+		watchers.forEach(watcher => watcher.dispose());
+		watchList = JSON.stringify(next);
+		watchers = next.map(({ base, glob }) => {
 			const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(base, glob));
 			watcher.onDidChange(soon);
 			watcher.onDidCreate(soon);
 			watcher.onDidDelete(soon);
-			context.subscriptions.push(watcher);
 			return watcher;
-		};
-		watch(root, 'tickets/*/ticket.md');
-		let stateWatcher, stateDir;
-		snapshot.listeners.push(() => {
-			const next = snapshot.snap?.stateDir;
-			if (next && next !== stateDir) {
-				stateWatcher?.dispose();
-				stateDir = next;
-				stateWatcher = watch(next, '{journal/*.jsonl,queue.json,engine.log,box/*.json}');
-			}
 		});
-	}
+	});
+	context.subscriptions.push({ dispose: () => watchers.forEach(watcher => watcher.dispose()) });
 
 	// The running step's elapsed time moves without any file changing; 0 seconds leaves only file-change refreshes.
 	let tick;
 	const schedule = () => {
 		clearInterval(tick);
-		const seconds = vscode.workspace.getConfiguration('chupa').get('refreshSeconds', 15);
+		const seconds = vscode.workspace.getConfiguration('chupa').get('refreshSeconds');
 		tick = seconds > 0 ? setInterval(() => snapshot.refresh(), seconds * 1000) : undefined;
 	};
 	schedule();

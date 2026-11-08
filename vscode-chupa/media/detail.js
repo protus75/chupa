@@ -37,27 +37,8 @@ function content(row) {
 	const head = el('div', 'detail-title');
 	head.append(el('span', `badge ${row.section}`, row.section), el('span', 'detail-stem', ` ${row.stem}`));
 	box.append(head);
-	box.append(el('div', 'detail-meta', row.status + (row.priority ? ` · ${row.priority}` : '')));
-	if (row.review) {
-		box.append(el('div', 'detail-meta', `review: ${row.review}`));
-	}
-	if (row.section === 'merged') {
-		const c = row.commit;
-		if (c) {
-			box.append(section('Commit', el('div', 'detail-subject', c.subject)));
-			box.append(el('div', 'detail-meta', `${c.short} · ${c.author} · ${c.dateAgo} (${c.dateDisplay})`));
-		} else {
-			box.append(el('div', 'detail-meta', 'no commit on main'));
-		}
-		if (row.mergedAt) {
-			box.append(el('div', 'detail-meta', `settled ${row.mergedAtAgo} (${row.mergedAtDisplay})`));
-		}
-	} else {
-		box.append(section('Goal / Why', el('div', 'detail-text', row.goal || '(none)')));
-		box.append(section('Runs before', el('div', 'detail-text', row.runsBefore.length ? row.runsBefore.join(', ') : '(none)')));
-	}
-	if (row.depends.length) {
-		box.append(section('Depends on', el('div', 'detail-text', row.depends.join(', '))));
+	for (const { heading, text } of row.detail) {
+		box.append(heading === null ? el('div', 'detail-meta', text) : section(heading, el('div', 'detail-text', text)));
 	}
 	const links = el('div', 'detail-links');
 	links.append(openLink(row.path));
