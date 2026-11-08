@@ -289,12 +289,12 @@ def recent_steps(state: Path, log: list[dict], limit: int) -> list[dict]:
         if event in ("stage_start", "stage_end"):
             verb = "start" if event == "stage_start" else f"end ({e.get('outcome', '?')})"
             surface = e.get("surface")
-            prefix = surface if surface in ("implement", "check", "review", "diagnose", "merge", "triage") else "stage"
+            prefix = surface if surface in STEP_NAMES else "stage"
             suffix = "start" if event == "stage_start" else "ok" if e.get("outcome") == "ok" else "failed"
             name = STEP_NAMES.get(surface, surface)
             if surface == "triage" and "run_seq" in e:
                 name = f"{name} #{e['run_seq']}"
-            rows.append({"ts": e["ts"], "stem": e.get("stem"), "surface": surface, "attempt": e.get("attempt"), "text": f"{name} {verb}", "kind": f"{prefix}_{suffix}"})
+            rows.append({"ts": e["ts"], "stem": e.get("stem"), "surface": surface, "attempt": e.get("attempt"), "run_seq": e.get("run_seq"), "text": f"{name} {verb}", "kind": f"{prefix}_{suffix}"})
         elif event == "engine_start":
             rows.append({"ts": e["ts"], "stem": None, "text": f"{e['verb']} started (pid {e['pid']})", "kind": "engine_start"})
         elif event == "engine_stop":
@@ -622,10 +622,16 @@ def snapshot(ctx) -> dict:
     for step in steps:
         surface = step.pop("surface", None)
         attempt = step.pop("attempt", None)
-        if surface == "author":
-            message = next((row for row in box_rows if row["seq"] == attempt), None)
-            link = message["link"] if message and step["kind"] != "stage_start" else None
+        run_seq = step.pop("run_seq", None)
+        if surface in ("author", "triage"):
+            # Author keys its box message by attempt; triage by run_seq (its attempt is the pass number).
+            seq = attempt if surface == "author" else run_seq
+            message = next((row for row in box_rows if row["seq"] == seq), None)
+            link = message["link"] if message and not step["kind"].endswith("_start") else None
             step["path"] = link if link and (ctx.root / link).is_file() else message["path"] if message else None
+        elif surface == "retro":
+            path = f"tickets/retro/{run_seq:06d}.md" if run_seq is not None else None
+            step["path"] = path if path and (ctx.root / path).is_file() else None
         elif stem := step.get("stem"):
             name = {"implement": "run.md", "check": "checks.json", "review": "review.md", "diagnose": "diagnosis.json"}.get(surface, "ticket.md")
             path = Path("tickets") / stem / name

@@ -81,6 +81,15 @@ def test_queue_counts_a_split_dependency_met_by_its_successors(tmp_path, monkeyp
     assert watch.queue(ctx, events, last_state, set(), set()) == [("P1", "child", "ready, not run yet")]
 
 
+def test_recent_steps_rework_and_retro_kinds(tmp_path):
+    log = [
+        {"ts": f"2026-01-01T00:00:0{i}+00:00", "event": event, "stem": "alpha", "surface": surface, **({"outcome": outcome} if outcome else {})}
+        for i, (event, surface, outcome) in enumerate([("stage_start", "rework", None), ("stage_end", "rework", "ok"), ("stage_start", "retro", None), ("stage_end", "retro", "failed")])
+    ]
+    rows = watch.recent_steps(tmp_path, log, 20)
+    assert [r["kind"] for r in rows] == ["retro_failed", "retro_start", "rework_ok", "rework_start"]  # A generic stage kind loses the step's icon.
+
+
 def test_recent_steps_merges_engine_and_stage_events(tmp_path, monkeypatch):
     ctx = watch.Context(tmp_path, tmp_path / "state", tmp_path / "config.yaml", None, None, None)
     state = tmp_path / "state"
@@ -392,9 +401,41 @@ def test_snapshot_author_steps_open_box_ticket_or_decision(tmp_path, monkeypatch
         None,
     ]  # Each attempt and outcome selects its own existing file.
     assert all(row["path"] != "tickets/author/ticket.md" for row in steps)  # The synthetic Author stem is not a ticket.
-    assert all("attempt" not in row for row in steps)  # Internal lookup data must not reach the extension.
+    assert {row["kind"] for row in steps} == {"author_start", "author_ok", "author_failed"}  # Author has its own icon kind.
+    assert all("attempt" not in row and "run_seq" not in row for row in steps)  # Internal lookup data must not reach the extension.
     decision.unlink()
     assert next(row for row in watch.snapshot(ctx)["steps"] if row["ts"] == events[3]["ts"])["path"] == paths[1]  # A missing resolution falls back to its message.
+
+
+def test_snapshot_triage_and_retro_steps_open_their_files(tmp_path, monkeypatch):
+    from chupa.box import Box, Resolution
+    from chupa.seams import LocalFileSystem
+
+    ctx = watch.Context(tmp_path, tmp_path / "state", tmp_path / "config.yaml", None, None, None)
+    monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: (set(), set()))
+    monkeypatch.setattr(watch, "committed_ticket_shas", lambda ctx: {})
+    monkeypatch.setattr(watch, "commits", lambda ctx: {})
+    box = Box(ctx.state / "box", LocalFileSystem())
+    box.resolve(box.enqueue(message_class="suggestion", origin="operator", summary="First")[0], Resolution(kind="ticket", link="alpha"))
+    message = box.messages()[0]
+    for path in ("tickets/alpha/ticket.md", "tickets/retro/000007.md"):
+        (tmp_path / path).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / path).write_text("record")
+    events = [
+        {"event": "stage_start", "stem": "triage", "surface": "triage", "attempt": 3, "run_seq": message.seq},
+        {"event": "stage_end", "stem": "triage", "surface": "triage", "attempt": 3, "run_seq": message.seq, "outcome": "ok"},
+        {"event": "stage_start", "stem": "retro", "surface": "retro", "attempt": 1, "run_seq": 7},
+        {"event": "stage_start", "stem": "retro", "surface": "retro", "attempt": 1, "run_seq": 8},
+    ]
+    events = [dict(e, ts=f"2026-01-01T00:00:0{i}+00:00") for i, e in enumerate(events)]
+    (ctx.state / "engine.log").write_text("".join(json.dumps(event) + "\n" for event in events))
+    by_time = {row["ts"]: row for row in watch.snapshot(ctx)["steps"]}
+    assert [by_time[e["ts"]]["path"] for e in events] == [
+        str(box.path(message).relative_to(tmp_path)),
+        "tickets/alpha/ticket.md",
+        "tickets/retro/000007.md",
+        None,
+    ]  # Triage keys its message by run_seq; retro opens its report, never tickets/retro/ticket.md.
 
 
 def test_snapshot_box_messages(tmp_path, monkeypatch):
