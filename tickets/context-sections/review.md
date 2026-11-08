@@ -1,11 +1,11 @@
 # Review: snag
 
-Section selectors work for the tested cases, but the Markdown heading scan treats `#` lines inside fenced code blocks as headings, and a selector on a binary file crashes lint instead of producing a finding.
+The selector parse, the shared excerpt function, the render and the docs are correct, and both prior findings are fixed. Two problems remain: acceptance criterion 3's test is in the wrong file, and the new unit tests leave out one required finding case.
 
 ## Findings
 
-- [logic] chupa/tickets.py:254 The heading scan matches every line with `^ {0,3}#{1,6}[ \t]`, including lines inside fenced code blocks. In docs/host-contract.md, the fenced comment at line 46 (`# worktree_root: .chupa/worktrees`) counts as a level-1 heading. So `docs/host-contract.md#Copyable configuration` stops at line 46 and silently drops the rest of the section. A fenced `# Two` comment could also make `#Two` look like a duplicate heading. The ticket asks for a match on ATX headings, and a fenced line is not one. (do instead: Track fence state while scanning: toggle on lines that start with ``` or ~~~ (0-3 leading spaces), and skip heading matches while inside a fence. Add a test where a `#` comment inside a fenced block does not end the excerpt.)
-- [logic] chupa/tickets.py:223 context_excerpt reads the file with `(repo / path).read_text()` before it checks the selector's extension. For a selector on a non-UTF-8 file such as `assets/logo.png#x`, the read raises UnicodeDecodeError. parse_ticket catches only ValueError, so intake crashes instead of returning the required 'selector on another extension' finding. (do instead: Check the extension against the selector form before reading the file (`::` needs `.py`, `#` needs `.md`) and raise ValueError on a mismatch. Read the file only after that check passes.)
+- [acceptance] tests/integration/test_requisition.py:283 Acceptance criterion 3 requires `tests/integration/test_tickets.py::test_context_whole_file_unchanged` to pass. The diff adds `test_context_whole_file_unchanged` to tests/integration/test_requisition.py instead, and test_tickets.py has no function by that name. Running the criterion's node ID reports 'not found', so the criterion is unmet. (do instead: Move `test_context_whole_file_unchanged` into tests/integration/test_tickets.py, using that file's `repo` fixture and `validate_ticket`, and render through `chupa.stages.implement_inputs`. Remove it from test_requisition.py, so the node ID named in criterion 3 exists and passes.)
+- [acceptance] tests/unit/test_tickets_context.py:18 Scope-in requires the unit tests to cover each finding case, and that list includes 'a file listed both whole and by section'. `test_invalid_sections_raise` and `test_extension_checked_without_text` cover the wrong extension, a missing name or heading, and a duplicate heading, but no unit test covers mixing a whole file with its sections. That case is tested only in the disk-backed integration test. (do instead: Move the whole-versus-section conflict check into a pure function in chupa/tickets.py that takes the list of Context entries, and call it from parse_ticket. Add a unit test in tests/unit/test_tickets_context.py showing that `m.py` plus `m.py::B.run` yields the conflict and that two section entries of the same file do not.)
 
 ## Record
 
@@ -13,26 +13,26 @@ Section selectors work for the tested cases, but the Markdown heading scan treat
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "0f5cfbcd64f00038156ebeab351d8ed58eae7b69",
+  "produced_at_sha": "1106dc0fb55e72c5d20e93c50854952821596ee7",
   "stem": "context-sections",
-  "reviewed_sha": "0f5cfbcd64f00038156ebeab351d8ed58eae7b69",
-  "summary": "Section selectors work for the tested cases, but the Markdown heading scan treats `#` lines inside fenced code blocks as headings, and a selector on a binary file crashes lint instead of producing a finding.",
+  "reviewed_sha": "1106dc0fb55e72c5d20e93c50854952821596ee7",
+  "summary": "The selector parse, the shared excerpt function, the render and the docs are correct, and both prior findings are fixed. Two problems remain: acceptance criterion 3's test is in the wrong file, and the new unit tests leave out one required finding case.",
   "findings": [
     {
-      "code": "logic",
-      "path": "chupa/tickets.py",
-      "line": 254,
-      "message": "The heading scan matches every line with `^ {0,3}#{1,6}[ \\t]`, including lines inside fenced code blocks. In docs/host-contract.md, the fenced comment at line 46 (`# worktree_root: .chupa/worktrees`) counts as a level-1 heading. So `docs/host-contract.md#Copyable configuration` stops at line 46 and silently drops the rest of the section. A fenced `# Two` comment could also make `#Two` look like a duplicate heading. The ticket asks for a match on ATX headings, and a fenced line is not one.",
-      "paved_road": "Track fence state while scanning: toggle on lines that start with ``` or ~~~ (0-3 leading spaces), and skip heading matches while inside a fence. Add a test where a `#` comment inside a fenced block does not end the excerpt.",
+      "code": "acceptance",
+      "path": "tests/integration/test_requisition.py",
+      "line": 283,
+      "message": "Acceptance criterion 3 requires `tests/integration/test_tickets.py::test_context_whole_file_unchanged` to pass. The diff adds `test_context_whole_file_unchanged` to tests/integration/test_requisition.py instead, and test_tickets.py has no function by that name. Running the criterion's node ID reports 'not found', so the criterion is unmet.",
+      "paved_road": "Move `test_context_whole_file_unchanged` into tests/integration/test_tickets.py, using that file's `repo` fixture and `validate_ticket`, and render through `chupa.stages.implement_inputs`. Remove it from test_requisition.py, so the node ID named in criterion 3 exists and passes.",
       "kind": null,
       "unit": null
     },
     {
-      "code": "logic",
-      "path": "chupa/tickets.py",
-      "line": 223,
-      "message": "context_excerpt reads the file with `(repo / path).read_text()` before it checks the selector's extension. For a selector on a non-UTF-8 file such as `assets/logo.png#x`, the read raises UnicodeDecodeError. parse_ticket catches only ValueError, so intake crashes instead of returning the required 'selector on another extension' finding.",
-      "paved_road": "Check the extension against the selector form before reading the file (`::` needs `.py`, `#` needs `.md`) and raise ValueError on a mismatch. Read the file only after that check passes.",
+      "code": "acceptance",
+      "path": "tests/unit/test_tickets_context.py",
+      "line": 18,
+      "message": "Scope-in requires the unit tests to cover each finding case, and that list includes 'a file listed both whole and by section'. `test_invalid_sections_raise` and `test_extension_checked_without_text` cover the wrong extension, a missing name or heading, and a duplicate heading, but no unit test covers mixing a whole file with its sections. That case is tested only in the disk-backed integration test.",
+      "paved_road": "Move the whole-versus-section conflict check into a pure function in chupa/tickets.py that takes the list of Context entries, and call it from parse_ticket. Add a unit test in tests/unit/test_tickets_context.py showing that `m.py` plus `m.py::B.run` yields the conflict and that two section entries of the same file do not.",
       "kind": null,
       "unit": null
     }
