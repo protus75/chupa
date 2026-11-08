@@ -51,12 +51,12 @@ After this change, `layout` emits every drawable piece per row as lane indexes a
   - a `shift` after a lane closes to its left;
   - two incoming lanes for one stem (one `into`);
   - a `branch` to a new lane on the right;
-  - a `join` into an existing lane on the left (the `test_branch_parents_share_existing_lane` layout);
+  - a `join` into an existing lane on the left (the `test_new_tip_joins_existing_parent_lane` layout, row s: circle 2, join from 2 to 1);
   - a `head` dot;
   - a `merge` dot.
 
   Existing tests stay unchanged.
-- Out: `observe.py` (it attaches `layout` output unchanged), graph colours (`view.js` `COLOR`), `tests/regress_graph_lanes.py`, and every other extension file.
+- Out: `observe.py` (it attaches `layout` output unchanged), graph colours (`view.js` `COLOR`), `tests/regress_graph_lanes.py`, and every other extension file. `tests/integration/test_watch.py` runs layout through the snapshot but asserts no graph keys, and this change only adds keys.
 
 ## Scope fence
 - chupa/graph.py
