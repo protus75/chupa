@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "cc8358ddc430d90af117496021f16ebf658f38a9",
+  "stem": "split-test-serve",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "split",
+  "lessons": [
+    "Split into stems that each stay under the 1500-inserted-line budget. The pure move added 2384 lines in total: serve_rig 447, admission 567, lifecycle 430, kill 327, notify 209, dispatch 207, upgrade 185.",
+    "Stem 1: create tests/integration/serve_rig.py and point the 10 importer files at it. Leave the tests in test_serve.py and have it import its helpers from serve_rig. This is about 460 inserted lines.",
+    "Later stems each move one or two themed files out of test_serve.py, for example lifecycle+kill (~757 lines), then admission+notify (~776), then upgrade+dispatch (~392). The last stem deletes test_serve.py. Fence each stem to only the files it touches.",
+    "Rewrite acceptance criterion 2 for each stem to cover only the tests that stem moves. Note that the base test_serve.py has 50 test functions, not the 45 the ticket states."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
