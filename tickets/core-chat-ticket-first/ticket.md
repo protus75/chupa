@@ -19,7 +19,7 @@ kind: feature
 ## Goal / Why
 The managed block that `chupa core` writes into every host's `CLAUDE.md` and `AGENTS.md` carries only rules for ticket agents. It has no rule for interactive chat sessions. The owner wrote the rule "Always propose a ticket -- never hand-edit main from chat" in boardgameui. It never reached chupa or its hosts: fungo has a weaker "Plan first" rule in its own text, and chupa has neither. On 2026-11-08 a chat session in this repo was asked about a review feature and edited engine code, docs and tests while `serve` was running tickets, instead of authoring a ticket.
 
-After this change, the managed block carries a `## Chat session conduct` section holding that rule, ported word for word from boardgameui with only repo-specific names substituted. Every host gets it through `core`. `./dev.py core` exists so the refresh runs from this repo's command surface, and this repo's `CLAUDE.md` and `AGENTS.md` carry the refreshed block.
+After this change, the managed block carries a `## Chat session conduct` section holding that rule, ported word for word from boardgameui with only repo-specific names substituted, plus a fifth exception carrying this repo's "Supervising session" small-fix permission word for word (the owner kept it, 2026-11-08). Every host gets it through `core`. `./dev.py core` exists so the refresh runs from this repo's command surface, and this repo's `CLAUDE.md` and `AGENTS.md` carry the refreshed block.
 
 ## Scope in / Scope out
 - In: `chupa/hostfiles.py` `CORE_TEMPLATE`. Append the text inside the `markdown` code fence below (not the fence lines) after the last existing bullet, separated from it by one blank line. Copy it byte for byte. Keep the line breaks, the double hyphens and the backticks. Do not reword, reflow, shorten or summarize it. The existing heading, intro paragraph and seven bullets are unchanged.
@@ -54,6 +54,14 @@ The only times you may edit `main` directly from chat are:
    maintenance and does not require drafting a ticket-about-a-ticket first.
 4. Read-only inspection (grep, git status, git diff, git log, gh pr view) --
    never a write.
+5. Supervising session. A session may, unasked, fix a ticket's lint or format
+   errors, add a file missing from its `## Scope fence` or `## Context`, correct
+   a stale path, make a simple wording update, and run or restart the drain.
+   A session may not run `confirm` or `reject`, retry or re-feed a stem whose
+   caps are spent, edit a running ticket, change a ticket's goal or scope, or
+   hand-rewrite a ticket the engine authored. Those decisions go to the user.
+   Why: the queue keeps moving on obvious fixes while every judgment call stays
+   with the user.
 
 If you have already started editing or have edited main without an explicit
 override: stop immediately, tell the user you broke this rule, and ask whether
@@ -93,7 +101,6 @@ retro artifacts that make chupa debuggable.
 ## Verification
 ```
 ./dev.py test tests/integration/test_hostfiles.py tests/integration/test_dev.py tests/integration/test_merge.py tests/integration/test_fixture_host.py
-./dev.py lint
 ```
 
 ## Definition of rejected
