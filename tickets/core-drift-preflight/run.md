@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The full suite passed with 3,161 tests; lint reported 37 of 393 tickets valid on the base.
+The in-scope implementation passed all 3,161 tests, but Git output is decoded with replacement, so it cannot supply the original bytes for non-UTF-8 conduct files. I rejected re-encoding that text because it loses committed bytes.
 
 ## Dead ends
 
-Checked the lint failure in a detached worktree at the base commit; the same historical ticket findings occurred there.
+Using the existing text-returning Git seam passes the suite but does not meet the byte-exact contract.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-The ticket budget was 30 minutes expected and 75 minutes stuck; the work took less than 30 minutes.
+Expected 30 minutes; the full test suite completed in about one minute.
 
