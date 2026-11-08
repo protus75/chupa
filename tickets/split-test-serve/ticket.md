@@ -84,5 +84,5 @@ Reject the branch if any of the following holds:
 - a file outside `tests/integration/` changed.
 
 ## Time budget
-- expected: 60m
+- expected: 30m
 - stuck: 120m
