@@ -4,7 +4,8 @@
 def layout(rows: list[dict]) -> list[dict]:
     position = {row["stem"]: i for i, row in enumerate(rows)}
     sections = {row["stem"]: row["section"] for row in rows}
-    deps = {row["stem"]: [d for d in row["depends"] if d in sections and sections[d] != "merged"] for row in rows}
+    # A lane closes only at a later row: an edge to a row above would run past every row below, so it is dropped.
+    deps = {row["stem"]: [d for d in row["depends"] if d in sections and sections[d] != "merged" and position[d] > position[row["stem"]]] for row in rows}
 
     def descendants(stem):
         seen = set()

@@ -40,3 +40,10 @@ def test_held_gap_preserves_neighbor_until_next_row():
     # The two incoming d lanes merge; the trailing gap is trimmed.
     assert graphs[3]["lanesIn"] == [{"id": "d", "section": "queued"}, {"id": "d", "section": "queued"}]
     assert graphs[3]["lanesOut"] == [{"id": "e", "section": "running"}]
+
+
+def test_edges_to_rows_above_are_dropped():
+    graphs = layout([row("t", "blocked"), row("m", "blocked", "t"), row("run", "running"), row("x", "merged")])
+    # A lane to t could never close, so it would run past the running and merged rows.
+    assert graphs[1]["parents"] == []
+    assert all(lane["id"] != "t" for graph in graphs[2:] for lane in graph["lanesIn"])

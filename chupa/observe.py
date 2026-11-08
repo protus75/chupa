@@ -550,8 +550,9 @@ def snapshot(ctx) -> dict:
             "review": review(stem) if section != "merged" else "",
         }
 
-    rows = [base(t.stem, "blocked", why_blocked(t)) for t in reversed(blocked)]
-    rows += [{**base(stem, "blocked", "invalid: " + why), "goal": ""} for stem, why in sorted(invalid.items()) if to(stem) not in SETTLED | RETIRED and stem not in running]
+    # Invalid rows lead the blocked section: they usually depend on valid ones, and graph edges only point down.
+    rows = [{**base(stem, "blocked", "invalid: " + why), "goal": ""} for stem, why in sorted(invalid.items()) if to(stem) not in SETTLED | RETIRED and stem not in running]
+    rows += [base(t.stem, "blocked", why_blocked(t)) for t in reversed(blocked)]
     rows += [base(t.stem, "queued", why_queued(t)) for t in reversed(queued)]
     for stem in running:
         step, began, _ = current_step(log, stem)
