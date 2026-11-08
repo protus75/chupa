@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The first full-suite run failed because formatting changed a file during a snapshot test; the rerun passed with files stable.
+none
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Expected 90 minutes; completed within the budget.
 
