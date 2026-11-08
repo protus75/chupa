@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-A shared validation path was the minimum change; accepting schema 2 without validating seconds would violate the contract.
+Both verification commands passed, but the unit coverage gate failed: chupa/testreport.py reached 10.39% against its 13% floor. The implementation remains uncommitted.
 
 ## Dead ends
 
-none
+Integration tests cover the reader behavior but do not contribute to the unit coverage gate.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 20 minutes; completed in under 20 minutes.
+Expected 20 minutes; approximately 2 minutes elapsed.
 
