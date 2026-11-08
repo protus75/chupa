@@ -24,12 +24,12 @@ from chupa.redact import Redactor
 from chupa.seams import SubprocessExec
 from chupa.tickets import intake
 from chupa.timers import Timers
+from tests.integration.serve_rig import finish, graph, terminals, until
 from tests.integration.test_cli import root, write
 from tests.integration.test_daemon_composition import CoreRig
 from tests.integration.test_providers import CONFIG
 from tests.integration.test_restart_timers import held, repository
 from tests.integration.test_scheduler import text, turn
-from tests.integration.test_serve import finish, graph, terminals, until
 
 
 class Reply(BaseModel):

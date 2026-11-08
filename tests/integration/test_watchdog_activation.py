@@ -15,12 +15,12 @@ from chupa.journal import EventType
 from chupa.requisition import review_ticket
 from chupa.watchdog import EventConsumer
 from eval import diagnose, harness
+from tests.integration.serve_rig import finish, graph, terminals, until
 from tests.integration.test_cli import root, write
 from tests.integration.test_daemon_composition import CoreRig
 from tests.integration.test_providers import CONFIG, PythonProviderExec, claude_ok
 from tests.integration.test_requisition import TICKET
 from tests.integration.test_scheduler import text, turn
-from tests.integration.test_serve import finish, graph, terminals, until
 
 SPECS = Path(__file__).resolve().parents[2] / "chupa" / "specs"
 WATCH_CONFIG = CONFIG.replace(

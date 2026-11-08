@@ -82,8 +82,8 @@ class ScriptExec:
 async def test_production_watchdog_shares_active_executor(root, monkeypatch):
     from chupa.drain import drain
     from chupa.seams import SubprocessExec
+    from tests.integration.serve_rig import finish, terminals, until
     from tests.integration.test_restart_timers import repository
-    from tests.integration.test_serve import finish, terminals, until
 
     contexts = []
 
@@ -2081,7 +2081,7 @@ async def test_admission_control_binding_probe(root, tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_production_serve_graph_is_reachable(root, monkeypatch):
     from chupa.serve import Serve
-    from tests.integration.test_serve import finish, graph, until
+    from tests.integration.serve_rig import finish, graph, until
 
     rig = await graph(root, monkeypatch)
     before = asyncio.all_tasks()
@@ -2111,9 +2111,9 @@ async def test_production_boxes_receive_rereport_callback(admission_context, tmp
     from chupa.providers import ProviderCallError
     from chupa.retro import Retro
     from chupa.triage import triage_pass
+    from tests.integration.serve_rig import graph
     from tests.integration.test_drain_reentry import NoChild
     from tests.integration.test_retro_box import PROPOSAL
-    from tests.integration.test_serve import graph
     from tests.integration.test_storm_notification_activation import SITES, exercise_site
 
     source = admission_context

@@ -373,7 +373,7 @@ def test_background_consumers_are_dormant(root, monkeypatch, verb):
 
 @pytest.mark.asyncio
 async def test_background_consumers_are_active_in_serve(root, monkeypatch):
-    from tests.integration.test_serve import activated_graph
+    from tests.integration.serve_rig import activated_graph
 
     rig = await activated_graph(root, monkeypatch)
     assert len(rig.owner.workers) == 4 and rig.owner.tasks.tasks == ()

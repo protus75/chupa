@@ -388,7 +388,7 @@ def test_kill_worker_stop_is_dormant(root, tmp_path, monkeypatch, verb):
 
 @pytest.mark.asyncio
 async def test_worker_stop_is_active_in_serve(root, monkeypatch):
-    from tests.integration.test_serve import activated_graph
+    from tests.integration.serve_rig import activated_graph
 
     rig = await activated_graph(root, monkeypatch)
     assert rig.owner.stopper.workers == rig.owner.workers

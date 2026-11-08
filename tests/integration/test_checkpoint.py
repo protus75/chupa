@@ -592,7 +592,7 @@ async def test_push_failure_preserves_production_admission(root, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_checkpoint_is_active_in_serve(root, monkeypatch):
-    from tests.integration.test_serve import activated_graph
+    from tests.integration.serve_rig import activated_graph
 
     rig = await activated_graph(root, monkeypatch)
     assert rig.owner.checkpoint.timers is rig.owner.core.restart.timers

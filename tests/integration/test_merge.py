@@ -393,7 +393,7 @@ def test_outbox_only_admission_records_null_commit_and_retires(root, monkeypatch
     from chupa.effects import Effects
     from chupa.rework import settled_dependencies
     from chupa.stages import lift_outbox
-    from tests.integration.test_serve import admission_graph, admission_ticket, finish, request, start_admission, until
+    from tests.integration.serve_rig import admission_graph, admission_ticket, finish, request, start_admission, until
 
     original_writer = owner.write_squash
     admissions, trace = [], []

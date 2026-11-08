@@ -289,7 +289,7 @@ def test_heartbeat_is_dormant(root, tmp_path, monkeypatch, verb):
 
 @pytest.mark.asyncio
 async def test_heartbeat_is_active_in_serve(root, monkeypatch):
-    from tests.integration.test_serve import activated_graph
+    from tests.integration.serve_rig import activated_graph
 
     rig = await activated_graph(root, monkeypatch)
     assert rig.owner.heartbeat.heartbeat.path.read_bytes() == b""
