@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-The original file contained 50 test functions, rather than the 45 stated in the ticket.
+The source file is 99,937 characters, so no required destination file under 40,000 characters can qualify as a Git rename of it at the default similarity threshold.
 
 ## Dead ends
 
-The worktree initially had no local .venv; uv created it before the tests ran.
+Checked the diff-budget gate and Git diff wrapper; the previous attempt reported 2,384 inserted lines for this move.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60 minutes; completed in under 10 minutes.
+Expected 30 minutes; stopped after establishing that the required gate cannot pass.
 
