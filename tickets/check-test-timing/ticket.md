@@ -22,6 +22,7 @@ kind: feature
 - tests/integration/test_testreport.py
 - tests/integration/test_host_contract.py::test_host_contract_seam_inventory
 - tests/integration/test_host_mechanical.py
+- tests/integration/test_fixture_host.py::test_fixture_profile_loads
 - docs/how-chupa-works.md#5.4 Host checks
 
 ## On-demand
@@ -67,6 +68,7 @@ Check runs the host test suites but keeps only each test's outcome. How long a s
     - New `test_coverage_recorded_for_changed_files`: only changed files appear in `coverage.files`, and an unreadable coverage report leaves `coverage` unset with the report verdict unchanged.
   - `tests/integration/test_covgate.py`: `percentages` gives the weighted repository and per-file values that `test_aggregates_are_weighted` expects.
   - `tests/integration/test_host_contract.py::test_host_contract_seam_inventory`: its fake `driver` gains a `clock`.
+  - `tests/integration/test_fixture_host.py::test_fixture_profile_loads`: its exact `MechanicalCheck.model_dump()` assertion gains `"slow_test_seconds": 1.0` and `"slow_test_limit": 100`. Do not exclude the new fields from the dump to keep the old assertion.
 - In: docs.
   - `docs/how-chupa-works.md` section 5.4 describes the recorded timing and coverage and their bounds; the `chupa.testreport` bullet in section 12 describes schema 2.
   - `docs/host-contract.md`'s `results` paragraph names schema 2, the recorded timing and coverage, and the two keys. The `MechanicalCheck` row in `config-fields` gains `slow_test_seconds: 1.0` and `slow_test_limit: 100` defaults.
@@ -82,6 +84,7 @@ Check runs the host test suites but keeps only each test's outcome. How long a s
 - tests/integration/test_host_mechanical.py
 - tests/integration/test_covgate.py
 - tests/integration/test_host_contract.py
+- tests/integration/test_fixture_host.py
 - docs/how-chupa-works.md
 - docs/host-contract.md
 
