@@ -1,0 +1,17 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "d3cb8970406684111e7ff0e9f5b4de0c30ae4e5b",
+  "stem": "core-chat-ticket-first",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "retry",
+  "lessons": [
+    "The base-commit lint check is invalid. It ran in a fresh `git init` repo with no commits, so every ticket looked new and tripped rules like 'new stem claims `source: seed`'. Re-check on a real checkout of the base commit with its history, e.g. a `git worktree` of the base."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
