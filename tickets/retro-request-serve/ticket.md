@@ -73,4 +73,4 @@ Reject the branch if any of the following holds:
 
 ## Time budget
 - expected: 90m
-- stuck: 210m
+- stuck: 180m
