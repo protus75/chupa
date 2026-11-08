@@ -1,0 +1,153 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "128138368fd46a911555c0fb200d5c6048d97008",
+  "stem": "graph-dependency-edges-only",
+  "passed": true,
+  "changed_files": [
+    "chupa/graph.py",
+    "docs/how-chupa-works.md",
+    "tests/regress_graph_dependency_edges.py",
+    "tests/unit/test_graph.py"
+  ],
+  "inserted_lines": 57,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "ruff-fix",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "ruff-format",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false,
+      "bug_evidence": {
+        "argv": [
+          "uv",
+          "run",
+          "python",
+          "tests/regress_graph_dependency_edges.py"
+        ],
+        "head_sha": "128138368fd46a911555c0fb200d5c6048d97008",
+        "base_sha": "2a0ef60ee1301c72e68a7b4b63ddb2856d27c7f3",
+        "overlay_paths": [
+          "tests/regress_graph_dependency_edges.py"
+        ],
+        "evidence_paths": [
+          "tickets/graph-dependency-edges-only/evidence/parents.txt"
+        ],
+        "head": {
+          "rc": 0,
+          "regression_result": "pass",
+          "tail": "{\"regression_result\": \"pass\"}\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n"
+        },
+        "base": {
+          "rc": 1,
+          "regression_result": "defect",
+          "tail": "{\"regression_result\": \"defect\"}\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\nUsing CPython 3.14.6\nCreating virtual environment at: .venv\n   Building chupa @ file:///home/djp/source/chupa/.chupa/state/worktrees/.regression-base/graph-dependency-edges-only\n      Built chupa @ file:///home/djp/source/chupa/.chupa/state/worktrees/.regression-base/graph-dependency-edges-only\nInstalled 19 packages in 8ms\n"
+        }
+      }
+    },
+    {
+      "code": "unit",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "integration",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "lint",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "format",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "./dev.py",
+        "test",
+        "tests/unit/test_graph.py"
+      ],
+      "rc": 0,
+      "tail": "$ uv run pytest -q tests/unit/test_graph.py\nbringing up nodes...\nbringing up nodes...\n\n.........                                                                [100%]\n9 passed in 0.76s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 0.979029
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "tests/regress_graph_dependency_edges.py"
+      ],
+      "rc": 0,
+      "tail": "{\"regression_result\": \"pass\"}\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 0.05552
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "tests/regress_graph_lanes.py"
+      ],
+      "rc": 0,
+      "tail": "{\"regression_result\": \"pass\"}\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 0.228167
+    }
+  ]
+}
