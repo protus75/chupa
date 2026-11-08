@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-The unit coverage gate passed without changes outside the scope fence.
+The implemented change leaves chupa/tickets.py at 10.63% unit coverage, below its 11% threshold; no changes were committed.
 
 ## Dead ends
 
-none
+Integration tests do not contribute to the unit-only coverage gate.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 90 minutes; completed in less than 90 minutes.
+The ticket allowed 90 minutes expected and 180 minutes stuck; elapsed time was not measured.
 
