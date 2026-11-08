@@ -1,18 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "0f5cfbcd64f00038156ebeab351d8ed58eae7b69",
+  "produced_at_sha": "f8d44606a0265da1232e181760734746b4707ac6",
   "stem": "context-sections",
-  "attempt": 1,
-  "terminal": "gate_failed",
-  "stage": "review",
-  "verdict": "retry",
+  "attempt": 2,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
   "lessons": [
-    "Make the Markdown heading scan in chupa/tickets.py track fenced code blocks: a line starting with ``` or ~~~ after 0-3 spaces opens or closes a fence. Skip heading matches inside a fence, because the ticket requires an ATX heading match and a fenced `# ...` line is not one.",
-    "Fenced lines matter both for where an excerpt ends and for duplicate detection. A fenced `# Two` must not end the `#Two` excerpt or count as a second `Two` heading. Check against docs/host-contract.md#Copyable configuration, whose fenced `# worktree_root` comment cut the excerpt short.",
-    "In context_excerpt, check the selector form against the extension before reading any file: `::` requires `.py` and `#` requires `.md`. Raise ValueError on a mismatch so that parse_ticket returns the 'selector on another extension' finding instead of crashing on a binary file.",
-    "Add tests in tests/integration/test_tickets.py: a fenced `#` comment inside a `.md` section does not end the excerpt or create a duplicate, and a `#x` selector on a non-UTF-8 file such as a .png yields exactly one finding, not an exception.",
-    "Keep the other parts of the attempt that passed: one shared excerpt function for both lint and render, the scope-fenced files, and both verification commands, `./dev.py test tests/integration/test_tickets.py tests/integration/test_requisition.py` and `./dev.py test`."
+    "The ticket's Scope fence lists only tests/integration/* files, but the attempt reported chupa/tickets.py at 10.63% unit coverage, below its 11% threshold, with integration tests not counting. Amend the fence and Scope in to add a unit test file, e.g. tests/unit/test_tickets_context.py.",
+    "Once a unit test file is fenced, put unit tests on the one shared excerpt function the ticket requires. Cover a Python name, Class.method with a decorator, a Markdown heading through the next same-or-higher heading, and each of the four finding cases.",
+    "Keep the integration acceptance tests the ticket names (test_context_section_renders_only_the_section, test_context_section_findings, test_context_whole_file_unchanged). The attempt said both verification commands passed, so only the coverage shortfall blocked the merge.",
+    "After amending the ticket, run chupa review context-sections and fix every finding until it approves. The engine rules require this so every file the change forces, including the new unit test file, is fenced."
   ],
   "mechanical": null,
   "spec_version": "1.2",
