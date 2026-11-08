@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-none
+The ticket’s three verification commands passed, including the full suite with 3,161 tests; the separately configured mechanical unit coverage gate failed.
 
 ## Dead ends
 
-none
+Implemented the scoped change and ran the configured unit coverage command; it reported 22.29% for chupa/covgate.py against the 23% threshold. The main-branch results reader accepts only schema 1, so it also rejects results emitted by the required schema-2 plugin.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60 minutes; completed within the budget.
+Expected 60 minutes; actual time was not measured.
 
