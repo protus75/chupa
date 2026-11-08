@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "ab5f1aecd5cc2c7b6b67e1d6b3274819b24868f6",
+  "stem": "context-sections",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "reject",
+  "lessons": [
+    "The unit coverage check failed on chupa/tickets.py. test-gate.toml sets that file's minimum at 11%, and the check counts only tests/unit. The 73 new lines in tickets.py were tested only by integration tests, so the file's coverage fell below 11%.",
+    "The ticket cannot pass as written. Its Scope fence lists no tests/unit file, but the coverage check can only be met by unit tests. Revise the ticket to fence a new unit test file, for example tests/unit/test_tickets_context.py, and name it in Scope in.",
+    "With that file fenced, add unit tests that run the new section-resolution function directly on small temporary .py and .md files. Cover both the found and not-found cases, the duplicate heading, and a section listed alongside its whole file.",
+    "Do not lower the tickets.py or stages.py minimum in test-gate.toml. The gate file says only a human ticket may lower a threshold. Also check that the stages.py change does not drop that file below its 12% minimum.",
+    "Before reporting ok, run the same unit coverage command the check runs on tests/unit. Running only ./dev.py test hid this failure because those tests passed."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
