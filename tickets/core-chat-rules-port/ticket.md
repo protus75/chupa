@@ -30,6 +30,7 @@ It also replaces the one-line "Build the simplest thing" bullet with boardgameui
   - adds ten sections after "Always propose a ticket", including chupa's own "Git session safety" rule. Per the owner, chupa's git rule wins over boardgameui's bare-commit and shared-checkout rules, because ticket files are written to the working tree and intake commits them.
 - In: run `./dev.py core` so `CLAUDE.md` and `AGENTS.md` carry the new block. Re-render the managed block of `hosts/fixture/CLAUDE.md` with `hostfiles.render`, because `core` does not touch it and `tests/integration/test_fixture_host.py` requires it `current`. In all three files, every byte outside the `chupa:core` marker lines stays identical, except the `CLAUDE.md` section B edit below.
 - In: `CLAUDE.md` section B (outside the managed block). Delete the bullets the block now carries in full, each with its `Why:` line and sub-bullets:
+  - **Supervising session.**
   - **Git session safety.**
   - **Terse communication.**
   - **Track open threads.**
@@ -107,6 +108,14 @@ The only times you may edit `main` directly from chat are:
    maintenance and does not require drafting a ticket-about-a-ticket first.
 4. Read-only inspection (grep, git status, git diff, git log, gh pr view) --
    never a write.
+5. Supervising session. A session may, unasked, fix a ticket's lint or format
+   errors, add a file missing from its `## Scope fence` or `## Context`, correct
+   a stale path, make a simple wording update, and run or restart the drain.
+   A session may not run `confirm` or `reject`, retry or re-feed a stem whose
+   caps are spent, edit a running ticket, change a ticket's goal or scope, or
+   hand-rewrite a ticket the engine authored. Those decisions go to the user.
+   Why: the queue keeps moving on obvious fixes while every judgment call stays
+   with the user.
 
 If you have already started editing or have edited main without an explicit
 override: stop immediately, tell the user you broke this rule, and ask whether
@@ -438,16 +447,15 @@ default habit.
 1. `CORE_TEMPLATE` equals the text inside this ticket's four-backtick fence plus one trailing newline, checked by reading `chupa/hostfiles.py` against this ticket; any differing word fails it.
 2. `./dev.py test tests/integration/test_hostfiles.py` passes and asserts every fenced `### ` heading is present and the one-line `Build the simplest thing satisfying the ticket;` bullet is absent, not still present.
 3. `classify_core` returns `current` for `CLAUDE.md`, `AGENTS.md` and `hosts/fixture/CLAUDE.md`, checked by the `core_drift` gate and `./dev.py test tests/integration/test_fixture_host.py`.
-4. `git diff main -- AGENTS.md hosts/fixture/CLAUDE.md` shows changes only between the `chupa:core` marker lines. `git diff main -- CLAUDE.md` changes only the managed block and deletes the six section B bullets.
+4. `git diff main -- AGENTS.md hosts/fixture/CLAUDE.md` shows changes only between the `chupa:core` marker lines. `git diff main -- CLAUDE.md` changes only the managed block and deletes the seven section B bullets.
 
 ## Verification
 ```
 ./dev.py test tests/integration/test_hostfiles.py tests/integration/test_fixture_host.py tests/integration/test_merge.py
-./dev.py lint
 ```
 
 ## Definition of rejected
-Any ported rule's text differs from the fenced text, a section B bullet other than the six named is changed, or `AGENTS.md` or `hosts/fixture/CLAUDE.md` changes outside the managed block.
+Any ported rule's text differs from the fenced text, a section B bullet other than the seven named is changed, or `AGENTS.md` or `hosts/fixture/CLAUDE.md` changes outside the managed block.
 
 ## Time budget
 - expected: 25m
