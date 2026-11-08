@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-none
+The unit coverage gate passed without changes outside the scope fence.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 90 minutes; completed in under 10 minutes.
+Expected 90 minutes; completed in less than 90 minutes.
 
