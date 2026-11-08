@@ -1,9 +1,9 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "bd6c4ec9f80cb2853245606f611340511f32f418",
+  "produced_at_sha": "1a5a55884185e01fc4588fc057d69a53d02dbb89",
   "stem": "retro-spike-kinds",
-  "passed": false,
+  "passed": true,
   "changed_files": [
     "chupa/config.py",
     "chupa/retro.py",
@@ -14,7 +14,7 @@
     "tests/integration/test_scorecard.py",
     "tests/integration/test_status.py"
   ],
-  "inserted_lines": 37,
+  "inserted_lines": 33,
   "bypassed": [],
   "reports": [
     {
@@ -67,18 +67,8 @@
     },
     {
       "code": "unit",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "unit",
-          "path": null,
-          "line": null,
-          "message": "('uv', 'run', 'python', '-m', 'chupa', 'covgate', '--', 'python', '-m', 'pytest', 'tests/unit', '-p', 'chupa.testguard', '-p', 'chupa.testreport', '--chupa-results', '.chupa/results/unit.json', '--cov=chupa', '--cov-branch', '--cov-context=test', '--cov-report=json:coverage.json', '-n', 'auto') exited 1: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncreated: 20/20 workers\n20 workers [42 items]\n\n..........................................                               [100%]\n================================ tests coverage ================================\n_______________ coverage: platform linux, python 3.14.6-final-0 ________________\n\nCoverage JSON written to file coverage.json\n============================== 42 passed in 2.72s ==============================\nchupa/retro.py: 11.96% below 12% (coverage.files.chupa/retro.py); missing lines: [27, 54, 55, 56, 57, 58, 59, 60, 61, 66, 67, 68, 69, 70, 71, 72, 77, 78, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 119, 120, 121, 123, 135, 136, 137, 138, 139, 140, 141, 142, 143, 148, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 185, 195, 196, 198, 199, 205, 206, 207, 210, 217, 220, 221, 222, 223, 224, 227, 228, 229, 232, 233, 235, 238, 239, 240, 241, 242, 243, 244, 246, 247, 248, 252, 253, 254, 255, 256, 257, 259, 260, 261, 262, 263, 265, 266, 267, 268, 269, 270, 271, 276, 277, 278, 280, 282, 283, 284, 285, 286, 287, 288, 289, 290, 291, 294, 295, 296, 297, 298, 299, 300, 301, 304, 306, 307, 318, 319, 320, 321, 322, 324, 325, 326, 327, 328, 329, 330, 331, 332, 333, 334, 335, 336, 338, 339, 340, 341, 342, 344, 346, 347, 348, 349, 350, 351, 352, 353, 354, 355, 356, 357, 358, 360, 361, 374, 375, 376, 377, 378, 379, 380, 381, 382, 383, 384] -- add unit tests that execute the missing lines. Lowering a threshold in the gate file is a human ticket's decision.\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead",
-          "paved_road": "make the configured command exit 0 on the rebased candidate and retry",
-          "kind": null,
-          "unit": null
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false
     },
     {
@@ -109,9 +99,9 @@
         "tests/integration/test_retro.py"
       ],
       "rc": 0,
-      "tail": "$ uv run pytest -q tests/integration/test_retro.py\nbringing up nodes...\nbringing up nodes...\n\n............................                                             [100%]\n28 passed in 1.59s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "$ uv run pytest -q tests/integration/test_retro.py\nbringing up nodes...\nbringing up nodes...\n\n............................                                             [100%]\n28 passed in 1.58s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false,
-      "seconds": 1.87321
+      "seconds": 1.880487
     },
     {
       "argv": [
@@ -123,9 +113,9 @@
         "tests/integration/test_host_contract.py"
       ],
       "rc": 0,
-      "tail": "$ uv run pytest -q tests/integration/test_scorecard.py tests/integration/test_status.py tests/integration/test_config.py tests/integration/test_host_contract.py\nbringing up nodes...\nbringing up nodes...\n\n........................................................................ [ 59%]\n..................................................                       [100%]\n122 passed in 3.48s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "$ uv run pytest -q tests/integration/test_scorecard.py tests/integration/test_status.py tests/integration/test_config.py tests/integration/test_host_contract.py\nbringing up nodes...\nbringing up nodes...\n\n........................................................................ [ 59%]\n..................................................                       [100%]\n122 passed in 3.61s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false,
-      "seconds": 3.772509
+      "seconds": 3.875585
     },
     {
       "argv": [
@@ -133,9 +123,9 @@
         "test"
       ],
       "rc": 0,
-      "tail": "st_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/retro-spike-kinds/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/integration/test_testguard.py::test_guarded_calls_and_asyncio\ntests/integration/test_testguard.py::test_guards_are_phase_scoped\ntests/integration/test_testguard.py::test_setup_and_teardown\ntests/integration/test_testguard.py::test_budget_and_slowest\ntests/integration/test_testguard.py::test_budget_and_slowest\ntests/integration/test_testguard.py::test_xdist_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\n  /home/djp/source/chupa/.chupa/state/worktrees/retro-spike-kinds/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3162 passed, 10 warnings in 56.09s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "st_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/retro-spike-kinds/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_setup_and_teardown\ntests/integration/test_testguard.py::test_guards_are_phase_scoped\ntests/integration/test_testguard.py::test_budget_and_slowest\ntests/integration/test_testguard.py::test_budget_and_slowest\ntests/integration/test_testguard.py::test_xdist_budget\ntests/integration/test_testguard.py::test_guarded_calls_and_asyncio\n  /home/djp/source/chupa/.chupa/state/worktrees/retro-spike-kinds/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3166 passed, 10 warnings in 58.14s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false,
-      "seconds": 59.421027
+      "seconds": 60.317665
     }
   ]
 }
