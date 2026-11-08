@@ -1,18 +1,18 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-Running the base commit’s code against this worktree also reports only 35 of 390 tickets valid.
+Used the existing review flow with a conditional journal append; refusing unmerged dependencies was simpler but would not satisfy the ticket.
 
 ## Dead ends
 
-Ran lint using the base commit’s code to verify that the failure predates the change.
+none
 
 ## Second problems filed
 
-- box-000361-1e0f1d0a: Repository-wide ticket lint fails in this worktree because numerous existing tickets have invalid sections or reference missing paths.
+none
 
 ## Resolved engine/model
 
@@ -22,5 +22,5 @@ Ran lint using the base commit’s code to verify that the failure predates the 
 
 ## Predicted vs actual
 
-Expected 15 minutes; completed the investigation within that budget.
+none
 
