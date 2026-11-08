@@ -29,11 +29,10 @@ def layout(rows: list[dict]) -> list[dict]:
             dependencies = [d for d in dependencies if sections[d] == "blocked"]
         reduced = sorted((d for d in dependencies if not any(d != other and d in descendants(other) for other in dependencies)), key=lane_key)
         below = rows[i + 1]["stem"] if i + 1 < len(rows) else None
-        if section == "blocked":
-            parents = reduced
+        if section == "merged":
+            parents = [below] if below and sections[below] == "merged" else []
         else:
-            branches = [] if section == "merged" else [d for d in reduced if d != below]
-            parents = ([below] if below else []) + branches
+            parents = reduced
 
         incoming = [lane.copy() for lane in outgoing]
         outgoing = []
