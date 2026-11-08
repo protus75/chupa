@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "cc8358ddc430d90af117496021f16ebf658f38a9",
+  "produced_at_sha": "1b80092425262197e893f4157a0c81919c90d125",
   "stem": "split-test-serve",
-  "attempt": 0,
-  "terminal": "gate_failed",
-  "stage": "check",
+  "attempt": 1,
+  "terminal": "premise_failed",
+  "stage": "implement",
   "verdict": "split",
   "lessons": [
-    "Split into stems that each stay under the 1500-inserted-line budget. The pure move added 2384 lines in total: serve_rig 447, admission 567, lifecycle 430, kill 327, notify 209, dispatch 207, upgrade 185.",
-    "Stem 1: create tests/integration/serve_rig.py and point the 10 importer files at it. Leave the tests in test_serve.py and have it import its helpers from serve_rig. This is about 460 inserted lines.",
-    "Later stems each move one or two themed files out of test_serve.py, for example lifecycle+kill (~757 lines), then admission+notify (~776), then upgrade+dispatch (~392). The last stem deletes test_serve.py. Fence each stem to only the files it touches.",
-    "Rewrite acceptance criterion 2 for each stem to cover only the tests that stem moves. Note that the base test_serve.py has 50 test functions, not the 45 the ticket states."
+    "Size every child to the diff budget in chupa/stages.py:73-74 (DIFF_BUDGET_INSERTED = 1_500, DIFF_BUDGET_FILES = 30). Moving all 2,180 lines of test_serve.py in one ticket produced about 2,384 inserted lines, and every moved line counts as an insertion.",
+    "Don't count on git rename detection to shrink the count. The source file is 99,937 characters and each destination must be under 40,000, so no destination will register as a rename of the source.",
+    "Child 1: create serve_rig.py with the module-level helpers, fixtures, and classes unchanged. Delete them from test_serve.py, have test_serve.py import them from serve_rig, and repoint the ten importer files the ticket names to tests.integration.serve_rig.",
+    "Next children: move the themed test groups (lifecycle, kill, admission, notify, upgrade, dispatch) out of test_serve.py in batches of under 1,500 inserted lines each. Each child depends on the previous one because it needs that child's merged files. The last child deletes test_serve.py.",
+    "Each child carries forward the pure-move rule (no test body, parametrization, or assertion changes) and the under-40,000-character limit for its new files. Check that every test from the base file appears exactly once in the union of all the children."
   ],
   "mechanical": null,
   "spec_version": "1.2",
