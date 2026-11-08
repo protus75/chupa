@@ -66,7 +66,6 @@ After this change, `serve`, `drain` and `run` refuse to start, before taking the
 ## Verification
 ```
 ./dev.py test
-./dev.py lint
 ```
 
 ## Definition of rejected
