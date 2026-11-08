@@ -24,6 +24,7 @@ kind: feature
 - tests/integration/test_host_mechanical.py
 - tests/integration/test_fixture_host.py::test_fixture_profile_loads
 - docs/how-chupa-works.md#5.4 Host checks
+- test-gate.toml
 
 ## On-demand
 - tests/integration/test_covgate.py
@@ -96,10 +97,11 @@ Check runs the host test suites but keeps only each test's outcome. How long a s
 3. A `GateReport` without timing or coverage dumps the same JSON as before; `./dev.py test tests/integration/test_gates.py` exits 0.
 4. `docs/how-chupa-works.md` section 5.4 and `docs/host-contract.md` name `slow_test_seconds` and `slow_test_limit` with their defaults; `./dev.py test tests/integration/test_host_contract.py` exits 0.
 5. `./dev.py test` exits 0.
+6. `./dev.py test tests/unit/test_covgate.py` exits 0; it fails if `percentages` returns an unweighted mean of file percents instead of covered over total, or not 100.0 for an empty report.
 
 ## Verification
 ```
-./dev.py test tests/integration/test_testreport.py tests/integration/test_covgate.py
+./dev.py test tests/integration/test_testreport.py tests/integration/test_covgate.py tests/unit/test_covgate.py
 ./dev.py test tests/integration/test_host_mechanical.py tests/integration/test_gates.py tests/integration/test_host_contract.py
 ./dev.py test
 ```
