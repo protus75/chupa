@@ -1,18 +1,18 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The test verification passed with 522 tests; all three managed files classify as current and retain their outside-block bytes.
+none
 
 ## Dead ends
 
-Verified lint failure against an untouched archive of the base commit in a temporary Git repository; it also failed.
+none
 
 ## Second problems filed
 
-- box-000362-d7a3fe40: Repository-wide lint reports numerous existing ticket validation errors, including obsolete context paths and unrecognized sections.
+none
 
 ## Resolved engine/model
 
