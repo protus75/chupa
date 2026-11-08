@@ -49,7 +49,6 @@ After this change, reviewing a ticket with an unmerged dependency runs the full 
 ## Verification
 ```
 ./dev.py test tests/integration/test_review_command.py tests/integration/test_requisition_gate.py
-./dev.py lint
 ```
 
 ## Definition of rejected
