@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "3fe6f939294d9bbc0fa8e23da6fa654d565c7d48",
+  "stem": "review-unmerged-provisional",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "retry",
+  "lessons": [
+    "The premise finding is wrong: in the events tail, plain `./dev.py lint` in the worktree exited 0 (item_12). Only the hand-built `PYTHONPATH=/home/djp/source/chupa ./dev.py lint` run exited 1 with 35/390 valid. Judge lint only by the ticket's exact Verification command.",
+    "Never set PYTHONPATH to the main checkout or run any other hand-built variant of a verification command. It loads code from outside the worktree. If lint truly fails, check that it also fails unmodified on the base commit in the worktree before claiming premise_failed.",
+    "Redo the scoped change in chupa/__main__.py `_review`: collect `unmerged` depends, run the review, skip the `requisition_verdict` append when `unmerged` is non-empty, print the exact provisional line before the verdict line, and add the one-line why-comment.",
+    "Update tests/integration/test_review_command.py as the ticket specifies: drop `dependency`/`candidate` from the refusal test, and add the `confirmed(\"- dependency\")` test that asserts exit 0, the provisional line, `review candidate: approve`, and zero requisition_verdict events.",
+    "Edit the `review <stem>` row in section 2.1 of docs/how-chupa-works.md and Workflow step 4 in docs/host-authoring.md, then run both Verification commands exactly as written and finish with outcome success when they pass."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
