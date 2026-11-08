@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "2e05ed65bb10a31d1a2f439aff678e25110f6f86",
+  "stem": "retro-request-serve",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Automatic mode: with every_merges: 1 and a mocked Retro that commits no report, the window stays due after bb merges. Have the mock journal what a committed report would, or wait for idle and assert the exact call list.",
+    "Run the mock's assertion that bb is not running only on the first retro call. A second call while bb runs re-raises through serve and makes the test flaky.",
+    "Failed mode: after bb settles, wait for serve to idle (upgrade_idle() holds and several SERVE_POLL_S polls pass), then assert calls == [False] and not rig.owner.retro_pending(). The test must fail if the suppressing_failure check is removed.",
+    "Do not stop serve right after bb reaches a terminal state. bb's post-terminal check_retro must run first, or criterion 5 is never exercised.",
+    "The serve.py logic passed review. Change only the shared retro test helper in tests/integration/test_serve.py, then rerun ./dev.py test tests/integration/test_serve.py several times to check it is stable."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
