@@ -18,6 +18,9 @@ kind: feature
 - chupa/__main__.py::_verdict
 - chupa/runner.py::verdict
 - chupa/llm.py::FakeLLM
+- chupa/reconcile.py::orphans
+- chupa/llmeffect.py::llm_key
+- chupa/requisition.py
 - tests/integration/test_review_command.py
 - docs/how-chupa-works.md#2.1 Verbs
 
@@ -27,7 +30,9 @@ While `./dev.py review A` waits on its model call, `./dev.py confirm B` for a di
 ## Scope in / Scope out
 - In: `chupa/journal.py`. `Journal.append` holds an exclusive `flock` on `<state_dir>/journal.lock` across torn-tail repair, segment roll and the write. Every append repairs the tail under that lock, because a torn tail can now come from another process that died mid-write. This replaces the once-per-handle `_tail_repaired` flag.
 - In: `chupa/__main__.py::_review`. Acquire the checkout lock, run intake and the checks that read `main` and the journal, then release it before building the provider session. The model call and the `requisition_verdict` append run without the checkout lock.
-- In: `tests/integration/test_review_command.py`. A review whose FakeLLM reply is a callable that calls `Lockfile(state_dir, ...).acquire()` and then `release()` succeeds with the lock acquired, not with `LockHeld`.
+- In: `chupa/reconcile.py::orphans`. Ignore effect intents whose key belongs to the on-demand review slot (`llm/review-<stem>/...`, from `stem_slot=f"review-{stem}"` in `_review`). With the lock free, a drain, run or serve started during a review's model call must not count that call as an orphaned run and reap the ticket to `abandoned`.
+- In: `tests/integration/test_reconcile.py`. A journal holding an open `llm/review-<stem>/...` intent yields no orphan for that stem, and an open drain-slot intent for the same stem still does.
+- In: `tests/integration/test_review_command.py`. A review whose FakeLLM reply is a callable that calls `Lockfile(state_dir, ...).acquire()` and then `release()` succeeds with the lock acquired, not with `LockHeld`. While holding the lock, the callable also runs `reconcile.orphans` on the journal. The reviewed stem is not in the result, and after the review its last state is unchanged and its `requisition_verdict` is journaled.
 - In: `tests/integration/test_journal.py`. Two processes each append 200 events to the same state dir at the same time, and `Journal.read()` afterwards returns all 400 with none torn or lost.
 - In: `tests/integration/test_storm_producer.py`. The state-dir listing at line 279 now includes `journal.lock`.
 - In: `docs/how-chupa-works.md` section 2.1. The `review` row says the lock is held for intake only, and the doc states that journal appends take `journal.lock`.
@@ -36,19 +41,21 @@ While `./dev.py review A` waits on its model call, `./dev.py confirm B` for a di
 ## Scope fence
 - chupa/journal.py
 - chupa/__main__.py
+- chupa/reconcile.py
+- tests/integration/test_reconcile.py
 - tests/integration/test_review_command.py
 - tests/integration/test_journal.py
 - tests/integration/test_storm_producer.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
-1. `./dev.py test tests/integration/test_review_command.py` passes. It includes the lock probe inside the model call, which acquires the checkout lock rather than raising `LockHeld`, and the existing approve, snag, refusal and provisional cases still pass.
+1. `./dev.py test tests/integration/test_review_command.py` passes. It includes the lock probe inside the model call, which acquires the checkout lock rather than raising `LockHeld`, and the existing approve, snag, refusal and provisional cases still pass. The probe also shows that `orphans` leaves out the reviewed stem, which keeps its state.
 2. `./dev.py test tests/integration/test_journal.py tests/integration/test_journal_roll.py` passes. It includes the two-process append test, which reads exactly 400 events, not fewer and not a `JournalCorruption`.
-3. `./dev.py test tests/integration/test_lockfile.py tests/integration/test_drain.py` passes unchanged.
+3. `./dev.py test tests/integration/test_lockfile.py tests/integration/test_drain.py` passes unchanged, and `./dev.py test tests/integration/test_reconcile.py` passes with the review-slot case.
 
 ## Verification
 ```
-./dev.py test tests/integration/test_review_command.py tests/integration/test_journal.py tests/integration/test_journal_roll.py tests/integration/test_lockfile.py tests/integration/test_drain.py tests/integration/test_storm_producer.py
+./dev.py test tests/integration/test_review_command.py tests/integration/test_journal.py tests/integration/test_journal_roll.py tests/integration/test_lockfile.py tests/integration/test_drain.py tests/integration/test_storm_producer.py tests/integration/test_reconcile.py
 ```
 
 ## Definition of rejected
