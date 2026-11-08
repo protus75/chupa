@@ -111,6 +111,7 @@ def test_host_contract_schema_coverage(tmp_path):
     values = yaml.safe_load(block("config-values"))
     for name, annotation in (("tier", config.Tier), ("severity", config.Severity), ("start_state", config.StartState), ("box_row", config.BoxRow)):
         assert values[name] == list(get_args(annotation))
+    assert values["spike_kind"] == list(get_args(config.SpikeKind))
     assert values["kind"] == list(get_args(config.Provider.model_fields["kind"].annotation))
     assert values["strategy"] == ["regenerate", "union"]
     assert values["trigger"] == ["always", "path-prefix-list"]

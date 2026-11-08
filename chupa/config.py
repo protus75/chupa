@@ -9,7 +9,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, get_args
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, ValidationInfo, field_validator, model_validator
@@ -20,6 +20,7 @@ SCHEMA_VERSION = 1
 
 Tier = Literal["low", "medium", "high", "max"]
 Severity = Literal["hard", "soft"]
+SpikeKind = Literal["override", "rework", "gate-failure", "integration-red"]
 Trigger = Literal["always"] | list[str]
 BoxRow = Literal[
     "failure_report",
@@ -188,11 +189,27 @@ class Drain(_Strict):
     max_ticket_minutes: Count = 90
 
 
+class RetroMerges(_Strict):
+    enabled: bool = True
+    every: Count = 25
+
+
+class RetroDays(_Strict):
+    enabled: bool = True
+    every: Count = 7
+
+
+class RetroSpikes(_Strict):
+    enabled: bool = True
+    count: Count = 5
+    kinds: Annotated[list[SpikeKind], Field(min_length=1)] = Field(default_factory=lambda: list(get_args(SpikeKind)))
+
+
 class Retro(_Strict):
     enabled: bool = True
-    every_merges: Count = 25
-    every_days: Count = 7
-    spike_count: Count = 5
+    merges: RetroMerges = RetroMerges()
+    days: RetroDays = RetroDays()
+    spikes: RetroSpikes = RetroSpikes()
 
 
 class Config(_Strict):
@@ -413,6 +430,11 @@ def _from_validation(path: Path, e: ValidationError) -> ConfigError:
 
 
 def _check_references(path: Path, cfg: Config) -> None:
+    retro = cfg.retro
+    if retro.enabled and not (retro.merges.enabled or retro.days.enabled or retro.spikes.enabled):
+        raise ConfigError(path, "retro.enabled", "no automatic triggers are enabled; enable a trigger or set retro.enabled: false")
+    if len(retro.spikes.kinds) != len(set(retro.spikes.kinds)):
+        raise ConfigError(path, "retro.spikes.kinds", "duplicate spike kinds; list each kind once")
     for i, entry in enumerate(cfg.review.mechanical):
         if entry.coverage is not None and entry.results is None:
             raise ConfigError(path, f"review.mechanical.{i}.coverage", "coverage requires results on the same entry; declare results")

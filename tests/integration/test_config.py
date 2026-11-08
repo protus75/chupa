@@ -77,7 +77,12 @@ def test_valid_config_loads_from_cwd_with_shipped_defaults(tmp_path):
     assert cfg.circuit_breaker.cooldown_minutes == 10
     assert cfg.drain.max_runtime_hours == 12
     assert cfg.drain.max_ticket_minutes == 90
-    assert cfg.retro.model_dump() == {"enabled": True, "every_merges": 25, "every_days": 7, "spike_count": 5}
+    assert cfg.retro.model_dump() == {
+        "enabled": True,
+        "merges": {"enabled": True, "every": 25},
+        "days": {"enabled": True, "every": 7},
+        "spikes": {"enabled": True, "count": 5, "kinds": ["override", "rework", "gate-failure", "integration-red"]},
+    }
     assert cfg.box_policy == {
         "failure_report": "confirmed",
         "retro_finding": "confirmed",
@@ -394,8 +399,24 @@ def test_migrate_config_refuses_unsupported_inputs(tmp_path, text, cause, road, 
 
 
 def test_retro_yaml_values(tmp_path):
-    cfg = load_config(write(tmp_path, VALID + "retro: {enabled: false, every_merges: 3, every_days: 2, spike_count: 4}\n"), cwd=tmp_path)
-    assert cfg.retro.model_dump() == {"enabled": False, "every_merges": 3, "every_days": 2, "spike_count": 4}  # Defaults or ignored keys give different values.
+    cfg = load_config(write(tmp_path, VALID + "retro: {enabled: false, merges: {enabled: false, every: 3}, days: {every: 2}, spikes: {count: 4, kinds: [rework]}}\n"), cwd=tmp_path)
+    assert cfg.retro.model_dump() == {
+        "enabled": False,
+        "merges": {"enabled": False, "every": 3},
+        "days": {"enabled": True, "every": 2},
+        "spikes": {"enabled": True, "count": 4, "kinds": ["rework"]},
+    }  # Defaults or ignored keys give different values.
+
+
+def test_retro_contradictory_settings_refused(tmp_path):
+    err = refusal(tmp_path, VALID + "retro: {merges: {enabled: false}, days: {enabled: false}, spikes: {enabled: false}}\n")
+    assert err.key == "retro.enabled"  # Accepting all disabled triggers leaves automatic retro inert.
+    assert "retro.enabled: false" in str(err)
+    err = refusal(tmp_path, VALID + "retro: {spikes: {kinds: [rework, override, rework]}}\n")
+    assert err.key == "retro.spikes.kinds"  # A duplicate must identify the allowlist.
+    assert "list each kind once" in str(err)
+    err = refusal(tmp_path, VALID + "retro: {every_merges: 3}\n")
+    assert err.key == "retro.every_merges" and "unknown key" in str(err)
 
 
 def test_coverage_map_config(tmp_path):

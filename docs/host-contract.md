@@ -123,7 +123,7 @@ Config:
     caps: {diagnosis: 3, retry: 3, premise_bounce: 1, infra: 3, attempts: 5, quarantine: 5, poison: 2}
     circuit_breaker: {k: 3, cooldown_minutes: 10}
     drain: {max_runtime_hours: 12, max_ticket_minutes: 90}
-    retro: {enabled: true, every_merges: 25, every_days: 7, spike_count: 5}
+    retro: {enabled: true, merges: {enabled: true, every: 25}, days: {enabled: true, every: 7}, spikes: {enabled: true, count: 5, kinds: [override, rework, gate-failure, integration-red]}}
     box_policy: {failure_report: confirmed, retro_finding: confirmed, override_report: draft, suggestion: draft, bug_report_self_diagnosed: confirmed, bug_report_player_repro: confirmed, bug_report_player_no_repro: draft}
     notify: unset
     report_inbox: unset
@@ -183,10 +183,20 @@ Drain:
   defaults: {max_runtime_hours: 12, max_ticket_minutes: 90}
 Retro:
   required: []
-  defaults: {enabled: true, every_merges: 25, every_days: 7, spike_count: 5}
+  defaults: {enabled: true, merges: {enabled: true, every: 25}, days: {enabled: true, every: 7}, spikes: {enabled: true, count: 5, kinds: [override, rework, gate-failure, integration-red]}}
+RetroMerges:
+  required: []
+  defaults: {enabled: true, every: 25}
+RetroDays:
+  required: []
+  defaults: {enabled: true, every: 7}
+RetroSpikes:
+  required: []
+  defaults: {enabled: true, count: 5, kinds: [override, rework, gate-failure, integration-red]}
 ```
 
 ```yaml config-values
+spike_kind: [override, rework, gate-failure, integration-red]
 tier: [low, medium, high, max]
 severity: [hard, soft]
 kind: [api, cli]
@@ -205,7 +215,7 @@ environment variable, never a literal secret. Codex reports no cost and requires
 `est_cost_per_call_usd` at adapter setup; Claude can report actual cost. Estimates
 are nonnegative, count fields are integers at least 1, and retry must not exceed
 diagnosis. Providers, routing, route candidates, argv and strategy paths are
-nonempty lists where declared. Notify requires a nonblank executable and
+nonempty lists where declared. Retro uses nested `merges`, `days`, and `spikes` blocks, each with an `enabled` switch; their thresholds are `every`, `every`, and `count`. `spikes.kinds` is a nonempty allowlist with each kind listed once. If all triggers are disabled, set `retro.enabled: false` or enable a trigger. The master switch disables automatic retros without blocking a forced retro. Notify requires a nonblank executable and
 NUL-free strings.
 
 Candidates name declared providers and are ordered primary-until-pressure;

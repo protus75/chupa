@@ -408,14 +408,45 @@ def test_custom_trigger_settings_and_disabled_forcing():
     now = datetime(2026, 1, 10, tzinfo=timezone.utc)
     window = project_window([])
     facts = {"merged_count": 3, "spikes": {"rework": 4}}
-    settings = RetroSettings(every_merges=3, every_days=2, spike_count=4)
+    settings = RetroSettings(merges={"every": 3}, days={"every": 2}, spikes={"count": 4})
     assert select_trigger(window, facts, now, settings, forced=False) == "merges"  # Hard-coded 25 misses three merges.
     facts["merged_count"] = 2
     assert select_trigger(window, facts, now, settings, forced=False) == "rework"  # Hard-coded 5 misses four spikes.
     dated = replace(window, started_at=(now - timedelta(days=2)).isoformat())
     assert select_trigger(dated, facts, now, settings, forced=False) == "elapsed"  # Hard-coded 7 misses two days.
-    disabled = RetroSettings(enabled=False, every_merges=3, every_days=2, spike_count=4)
+    disabled = RetroSettings(enabled=False, merges={"every": 3}, days={"every": 2}, spikes={"count": 4})
     assert select_trigger(dated, facts, now, disabled, forced=False) is None  # Ignoring enabled selects elapsed.
     assert select_trigger(dated, facts, now, disabled, forced=True) == "forced"  # Disabling must not block force.
     facts["merged_count"] = 0
     assert select_trigger(dated, facts, now, disabled, forced=True) is None  # Force still requires a merge.
+
+
+@pytest.mark.parametrize(
+    "settings,facts,age",
+    [
+        ({"merges": {"enabled": False}}, {"merged_count": 25, "spikes": {}}, 0),
+        ({"days": {"enabled": False}}, {"merged_count": 0, "spikes": {}}, 8),
+        ({"spikes": {"enabled": False}}, {"merged_count": 0, "spikes": {"rework": 5}}, 0),
+    ],
+)
+def test_disabled_trigger_never_fires(settings, facts, age):
+    from datetime import datetime, timezone
+
+    now = datetime(2026, 1, 10, tzinfo=timezone.utc)
+    window = replace(project_window([]), started_at=(now - timedelta(days=age)).isoformat())
+    assert select_trigger(window, facts, now, RetroSettings(**settings), forced=False) is None  # Ignoring the disabled switch fires its threshold.
+
+
+def test_excluded_spike_kind_never_fires(tmp_path):
+    from datetime import datetime
+
+    from chupa.rework import REWORK_ORDER
+
+    c, _, _, _ = rig(tmp_path)
+    for n in range(5):
+        c.journal.append(EventType.SIGNAL, {"signal": REWORK_ORDER, "attempt": n}, ticket="example")
+    window = project_window(c.journal.read())
+    facts = measurements(window)
+    assert facts["spikes"]["rework"] == 5  # Filtering measurements would erase the excluded evidence.
+    settings = RetroSettings(spikes={"kinds": ["override"]})
+    assert select_trigger(window, facts, datetime.fromisoformat(window.started_at), settings, forced=False) is None  # Ignoring the allowlist fires rework.

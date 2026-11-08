@@ -5,13 +5,14 @@ import json
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
-from typing import Annotated
+from typing import Annotated, get_args
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from chupa.artifacts import NonBlank
 from chupa.box import BOX_DIR, Box, RereportJournal, read_registry
 from chupa.config import Retro as RetroSettings
+from chupa.config import SpikeKind
 from chupa.driver import LlmStage
 from chupa.git import GitError
 from chupa.journal import Event, EventType
@@ -77,7 +78,7 @@ def measurements(window: Window) -> dict:
     from chupa.rework import REWORK_ORDER
 
     merges, calls = [], []
-    spikes = {kind: set() for kind in ("override", "rework", "gate-failure", "integration-red")}
+    spikes = {kind: set() for kind in get_args(SpikeKind)}
     sequences, running, durations, completed_calls = {}, {}, {}, set()
     for event in window.events:
         body, stem = event.body, event.ticket
@@ -123,11 +124,11 @@ def select_trigger(window: Window, evidence: dict, now: datetime, settings: Retr
         return "forced" if evidence["merged_count"] else None
     if not settings.enabled:
         return None
-    if evidence["merged_count"] >= settings.every_merges:
+    if settings.merges.enabled and evidence["merged_count"] >= settings.merges.every:
         return "merges"
-    if window.started_at is not None and now - datetime.fromisoformat(window.started_at) >= timedelta(days=settings.every_days):
+    if settings.days.enabled and window.started_at is not None and now - datetime.fromisoformat(window.started_at) >= timedelta(days=settings.days.every):
         return "elapsed"
-    return next((kind for kind, count in evidence["spikes"].items() if count >= settings.spike_count), None)
+    return next((kind for kind, count in evidence["spikes"].items() if settings.spikes.enabled and kind in settings.spikes.kinds and count >= settings.spikes.count), None)
 
 
 async def production_evidence(window, checkout):

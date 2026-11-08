@@ -627,7 +627,7 @@ in custody for the authored bug ticket.
 ### 9.5 Retro
 
 The retro reads the journal since the last report. During a drain it runs between tickets, never
-between attempts of one ticket, when due at the `retro:` thresholds: by default 25 merges, 7 days, or 5 events of one spike kind. A requested retro runs at the drain’s next between-tickets point. Serve runs requested retros and automatic retros due after a ticket settles at its next idle point, then resumes admission. Set `retro.enabled: false` to disable automatic retros; run one on demand with `retro`. It commits `tickets/retro/NNNNNN.md` (measurements,
+between attempts of one ticket, when due at the `retro:` thresholds: by default 25 merges, 7 days, or 5 events of one spike kind. A requested retro runs at the drain’s next between-tickets point. Serve runs requested retros and automatic retros due after a ticket settles at its next idle point, then resumes admission. Each nested `retro.merges`, `retro.days`, and `retro.spikes` block has an `enabled` switch; their thresholds are `merges.every`, `days.every`, and `spikes.count`. The nonempty `spikes.kinds` allowlist selects which kinds can trigger; measurements still report every kind. The master `retro.enabled: false` disables automatic retros even if sub-triggers are enabled; run one on demand with `retro`. Config load refuses an enabled master with all three triggers disabled (enable a trigger or set `retro.enabled: false`) and duplicate spike kinds (list each kind once). It commits `tickets/retro/NNNNNN.md` (measurements,
 scorecard, proposals) and files each proposal as a `retro_finding`.
 
 ### 9.6 Scorecard and baseline
@@ -694,7 +694,7 @@ with the fix. The full field inventory is in `docs/host-contract.md`. This repo�
 | `review` | `coverage_map`, `gate_severity`, host `autofix` commands and `mechanical` checks; declared `surfaces` entries are refused at config load; `trigger_map` is accepted, unused |
 | `merge` | `safety_checks`, conflict `strategies` (serve only) |
 | `caps`, `circuit_breaker` | failure bounds (section 6.4, 8.3) |
-| `retro` | `enabled`, `every_merges`, `every_days`, `spike_count` control automatic reports (section 9.5) |
+| `retro` | `enabled`, `merges`, `days`, `spikes` control automatic reports (section 9.5) |
 | `scheduler`, `drain` | `max_unmerged`; `max_runtime_hours`, `max_ticket_minutes` |
 | `engine_plane_safety_inventory`, `box_policy` | Author starting state (section 9.3) |
 | `ask_notes` | Optional host guidance appended to operator prompts as a `host_notes` data block. |

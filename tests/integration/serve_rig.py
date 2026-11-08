@@ -368,7 +368,7 @@ async def retro_scenario(root, monkeypatch, mode):
 
     rig = await admission_graph(root, monkeypatch, {"aa": {"docs/a.txt": "a\n"}}, endings={"bb": "noop"}, settled=settled)
     config = root / "config.yaml"
-    config.write_text(config.read_text() + f"retro:\n  enabled: {'false' if mode == 'disabled' else 'true'}\n  every_merges: 1\n")
+    config.write_text(config.read_text() + f"retro:\n  enabled: {'false' if mode == 'disabled' else 'true'}\n  merges: {{every: 1}}\n")
     admission_ticket(root, "aa", paths=("docs/a.txt",), priority="P0")
     admission_ticket(root, "bb", paths=("docs/b.txt",), priority="P1")
     calls, aborted = [], []
