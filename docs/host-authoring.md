@@ -30,7 +30,10 @@ what content its tickets carry, never the format. See the [host run guide](host-
 - `Runs before`: stems this ticket runs ahead of when both are eligible. This soft order never
   blocks; use it, not `Depends on`, for any other ordering. Use `chupa order` to change it or priority.
 - `Context`: files the implementing agent reads before starting; they are embedded in its prompt.
-  They must already exist: a file the ticket creates belongs in `Scope fence` only.
+  They must already exist: a file the ticket creates belongs in `Scope fence` only. Select a Python
+  top-level definition, assignment, or class method with `path.py::Name` or `path.py::Class.method`;
+  select a Markdown heading with `path.md#Heading` (a heading beginning with that text and a space
+  also matches). A selection must resolve uniquely; list a file whole or by sections, not both.
 - `On-demand`: existing files the agent may need but that are too large to embed; it reads them
   from its worktree.
 - `Goal / Why`: what is true when the ticket is done that is not true now, and why it matters.

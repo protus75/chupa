@@ -20,7 +20,7 @@ from tests.integration.test_triage import author_reply, reply
 
 def test_author_spec_requires_criteria_to_name_wrong_results():
     spec = load_spec((Path(__file__).resolve().parents[2] / "chupa/specs/author.md").read_text())
-    assert spec.meta.version == "1.2"
+    assert spec.meta.version == "1.3"
     assert "a criterion checked by a test names the wrong result the test rules out" in spec.body
     assert "A test that also passes on the wrong result checks nothing." in spec.body
 
@@ -31,6 +31,7 @@ def test_author_spec_states_ticket_rules():
     assert body.count("gate_bypass") == 1 and "Never write `state`, `source`, or `gate_bypass`" in body
     assert "`priority` (P0-P3), `kind` (`feature`, `chore`, or `bug`), `agent_tier`, and `agent_effort`" in body
     assert "`## Context` and `## On-demand` item is an existing repo-relative file path" in body
+    assert "`path.py::Class.method`" in body and "`path.md#Heading`" in body
     assert "including tests, fixtures, and fake binaries that pin a changed name, value, argv, or version" in body
 
 

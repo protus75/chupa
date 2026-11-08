@@ -4,6 +4,7 @@ At invocation, intake lints every pending hand-authored
 `tickets/<stem>/ticket.md` and ticket-plane-commits the clean ones, one commit per stem.
 """
 
+import ast
 import re
 import shlex
 from collections.abc import Collection, Mapping, Sequence
@@ -212,6 +213,78 @@ def _repo_path(value: str, name: str, path: str) -> list[Finding]:
     return []
 
 
+def context_path(entry: str) -> str:
+    return re.split(r"::|#", entry, maxsplit=1)[0]
+
+
+def context_conflicts(entries: Sequence[str]) -> list[str]:
+    whole = {entry for entry in entries if context_path(entry) == entry}
+    return sorted(whole & {context_path(entry) for entry in entries if context_path(entry) != entry})
+
+
+def context_excerpt(entry: str, text: str | None) -> str:
+    """Resolve a Context entry against text; validate its extension before text is read."""
+    path = context_path(entry)
+    selector = entry[len(path) :]
+    if not selector:
+        return text or ""
+    if selector.startswith("::"):
+        if Path(path).suffix != ".py":
+            raise ValueError("Python selectors require a .py file")
+        name = selector[2:]
+        if text is None:
+            return ""
+        try:
+            tree = ast.parse(text)
+        except SyntaxError as exc:
+            raise ValueError(f"cannot parse Python file: {exc.msg}") from exc
+        parts = name.split(".")
+        nodes = tree.body
+        if len(parts) == 2:
+            cls = next((n for n in nodes if isinstance(n, ast.ClassDef) and n.name == parts[0]), None)
+            nodes = cls.body if cls else []
+        elif len(parts) != 1:
+            nodes = []
+        matches = [
+            n
+            for n in nodes
+            if (isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == parts[-1])
+            or (len(parts) == 1 and isinstance(n, ast.ClassDef) and n.name == name)
+            or (len(parts) == 1 and isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name) and n.targets[0].id == name)
+            or (len(parts) == 1 and isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name) and n.target.id == name)
+        ]
+        if len(matches) != 1:
+            raise ValueError(f"Python selector {name!r} must match exactly one definition")
+        node = matches[0]
+        start = min([node.lineno, *(d.lineno for d in getattr(node, "decorator_list", []))])
+        return "".join(text.splitlines(keepends=True)[start - 1 : node.end_lineno])
+    if Path(path).suffix != ".md":
+        raise ValueError("heading selectors require a .md file")
+    if text is None:
+        return ""
+    heading = selector[1:]
+    lines = text.splitlines(keepends=True)
+    headings = []
+    fence = None
+    for i, line in enumerate(lines):
+        marker = re.match(r"^ {0,3}(`{3,}|~{3,})", line)
+        if marker:
+            token = marker.group(1)
+            if fence is None:
+                fence = token
+            elif token[0] == fence[0] and len(token) >= len(fence) and not line[marker.end() :].strip():
+                fence = None
+            continue
+        if fence is None and (match := re.match(r"^ {0,3}(#{1,6})[ \t]+(.*?)[ \t]*#*[ \t]*(?:\r?\n)?$", line)):
+            headings.append((i, len(match[1]), match[2]))
+    matches = [(i, level) for i, level, title in headings if heading and (title == heading or title.startswith(heading + " "))]
+    if len(matches) != 1:
+        raise ValueError(f"heading {heading!r} must match exactly one heading")
+    start, level = matches[0]
+    end = next((i for i, depth, _ in headings if i > start and depth <= level), len(lines))
+    return "".join(lines[start:end])
+
+
 def _criteria(text: str) -> list[str]:
     items: list[str] = []
     for line in text.splitlines():
@@ -289,17 +362,27 @@ def parse_ticket(stem: str, text: str, repo: Path) -> Ticket:
     if text_ := sections.get("Context"):
         items, errs = _bullets(text_, "Context", path)
         findings += errs
+        for conflict in context_conflicts(items):
+            findings.append(_f(f"`## Context` lists {conflict!r} both whole and by section", "list the whole file or its sections, not both", path))
         for item in items:
-            if errs := _repo_path(item, "Context", path):
+            source = context_path(item)
+            if errs := _repo_path(source, "Context", path):
                 findings += errs
-            elif Path(item).parent == Path("chupa/specs") and item.endswith(".md"):
+            elif Path(source).parent == Path("chupa/specs") and source.endswith(".md"):
                 findings.append(_f(f"`## Context` cites the prompt spec {item}; prompt-spec files are never Context", "list the spec under `## On-demand` and fence it", path))
-            elif not (repo / item).exists():
+            elif not (repo / source).exists():
                 findings.append(
                     _f(f"`## Context` path {item!r} does not exist", "Context lists EXISTING read-first files; name a file this ticket creates in `## Scope fence` and `## Verification` only", path)
                 )
             else:
-                context.append(item)
+                try:
+                    context_excerpt(item, None)
+                    if source != item:
+                        context_excerpt(item, (repo / source).read_text())
+                except (ValueError, UnicodeError) as exc:
+                    findings.append(_f(f"`## Context` entry {item!r}: {exc}", "select an existing definition or unique heading in a matching file, or list the whole file", path))
+                else:
+                    context.append(item)
 
     fence: list[str] = []
     if text_ := sections.get("Scope fence"):
@@ -322,7 +405,7 @@ def parse_ticket(stem: str, text: str, repo: Path) -> Ticket:
                 findings.append(_f(f"`## On-demand` path {item!r} does not exist", "list only EXISTING files the implementer reads from the worktree", path))
             elif not any(item == f or item.startswith(f.rstrip("/") + "/") for f in fence):
                 findings.append(_f(f"`## On-demand` path {item!r} is not covered by `## Scope fence`", "fence it, or move a read-only reference to `## Context`", path))
-            elif item in context:
+            elif item in {context_path(entry) for entry in context}:
                 findings.append(_f(f"`## On-demand` path {item!r} is also in `## Context`", "keep it in exactly one of the two sections", path))
             else:
                 on_demand.append(item)

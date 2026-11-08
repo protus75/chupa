@@ -57,7 +57,7 @@ from chupa.providers import child_env
 from chupa.seams import ExecutableNotFound, FileSystem, ProcessExec
 from chupa.specs import RenderOverBound, Spec, load_spec, render
 from chupa.storm import arrival_id
-from chupa.tickets import _HEADING, TEST_FIXTURE_DIRS, TICKET_FILE, TICKETS_DIR, Ticket, ticket_path
+from chupa.tickets import _HEADING, TEST_FIXTURE_DIRS, TICKET_FILE, TICKETS_DIR, Ticket, context_excerpt, context_path, ticket_path
 from chupa.tickets import validate_ticket as validate_ticket
 
 MAIN = "main"
@@ -515,7 +515,7 @@ async def lift_outbox(ctx: StageContext, stem: str, kind: str, *, attempt: int, 
 def implement_inputs(repo: Path, ticket_text: str, ticket: Ticket, context_files: Sequence[Path]) -> dict[str, str]:
     """The production Implement inputs, also used to measure a ticket at authoring."""
     paths = list(dict.fromkeys([*ticket.context, *(str(p) for p in context_files)]))
-    context = "\n\n".join(f"### {p}\n{(repo / p).read_text()}" for p in paths) or "none"
+    context = "\n\n".join(f"### {p}\n{context_excerpt(p, (repo / context_path(p)).read_text()) if p in ticket.context else (repo / p).read_text()}" for p in paths) or "none"
     return {
         "ticket": ticket_text,
         "context": context,

@@ -183,7 +183,11 @@ created at the merge base for base-red reruns and the bug gate, and removed afte
 
 The `implement` prompt (`chupa/specs/implement.md`) gets the ticket text, its `## Context` files plus
 `config.context_files`, and a "Prior attempts" block (last terminal, findings, diagnosis lessons,
-log tails) when this is a retry. The model works in the worktree with write access and replies:
+log tails) when this is a retry. Context entries may select a Python top-level definition or
+assignment (`path.py::Name`), a class method (`path.py::Class.method`), or a Markdown heading
+(`path.md#Heading`), including its subheadings. Heading text may start with the selector followed
+by a space. Selectors must resolve uniquely, and a file cannot be listed both whole and by section.
+`config.context_files` remains whole-file. The model works in the worktree with write access and replies:
 
 - `ok`: it committed the change.
 - `already_satisfied`: every acceptance criterion already holds on `main`; Check must prove it

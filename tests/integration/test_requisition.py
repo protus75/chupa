@@ -267,3 +267,13 @@ def test_no_coverage_map_renders_notice(tmp_path):
     assert run(driver, repo).verdict == "approve"
     block = llm.requests[0].rendered.split("<<chupa-data:begin coverage_dependents>>")[1].split("<<chupa-data:end coverage_dependents>>")[0]
     assert block.strip() == "no coverage map configured"
+
+
+def test_context_section_renders_only_the_section(tmp_path):
+    repo, _, _ = setup(tmp_path, [])
+    (repo / "m.py").write_text("class B:\n    @mark\n    def run(self):\n        return 7\n\n    def other(self):\n        return 8\n")
+    (repo / "d.md").write_text("# One\none\n## Two\ntwo\n### Two-a\nchild\n## Three\nthree\n")
+    text = TICKET.replace("- context.txt", "- m.py::B.run\n- d.md#Two")
+    ticket = review_target(repo, "one-thing", text)
+    context = implement_inputs(repo, text, ticket, ())["context"]
+    assert context == "### m.py::B.run\n    @mark\n    def run(self):\n        return 7\n\n\n### d.md#Two\n## Two\ntwo\n### Two-a\nchild\n"  # excludes siblings and retains decorator and subheading

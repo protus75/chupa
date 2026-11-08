@@ -565,3 +565,33 @@ def test_plan_contract_section_is_unknown(repo):
     root, _, _ = repo
     text = VALID.replace("## Goal / Why", "## Plan contract\n- section 11\n\n## Goal / Why")
     assert "unknown body section" in messages(refusal(root, text))
+
+
+def test_context_section_findings(repo):
+    root, _, _ = repo
+    (root / "m.py").write_text("class B:\n    def run(self):\n        return 7\n")
+    (root / "d.md").write_text("## Two\na\n## Two\nb\n")
+    for entry in ("m.py::Missing", "m.py#Two", "d.md::B", "d.md#Nope", "d.md#Two", "m.py\n- m.py::B.run"):
+        [finding] = refusal(root, VALID.replace("chupa/thing.py\n\n## Goal", entry + "\n\n## Goal"))
+        assert finding.paved_road and "Context" in finding.message  # each bad entry is refused with a fix
+
+
+def test_context_binary_selector_and_fenced_heading(repo):
+    root, _, _ = repo
+    (root / "image.png").write_bytes(b"\xff")
+    [finding] = refusal(root, VALID.replace("chupa/thing.py\n\n## Goal", "image.png#x\n\n## Goal"))
+    assert ".md" in finding.message  # extension checked before decoding
+    (root / "d.md").write_text("## Two\n```\n# Two\n```\ntext\n## Three\n")
+    ticket = validate_ticket("t-one", complete(VALID.replace("chupa/thing.py\n\n## Goal", "d.md#Two\n\n## Goal")), root)
+    from chupa.stages import implement_inputs
+
+    assert implement_inputs(root, "", ticket, ())["context"] == "### d.md#Two\n## Two\n```\n# Two\n```\ntext\n"  # fence is not a heading
+
+
+def test_context_whole_file_unchanged(repo):
+    from chupa.stages import implement_inputs
+
+    root, _, _ = repo
+    (root / "chupa/thing.py").write_text("first = 1\nsecond = 2\n")
+    ticket = validate_ticket("t-one", complete(VALID), root)
+    assert implement_inputs(root, "", ticket, ())["context"] == "### chupa/thing.py\nfirst = 1\nsecond = 2\n"  # whole file, not an excerpt
