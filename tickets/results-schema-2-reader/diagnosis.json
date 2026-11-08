@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "ebbac88fec8ec805237c4e9407cca157bd68602a",
+  "stem": "results-schema-2-reader",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "reject",
+  "lessons": [
+    "Check failed on the unit coverage gate: chupa/testreport.py unit coverage fell to 10.96%, below its 13% floor. The new read_results lines only run in tests/integration/test_testreport.py, which tests/unit does not execute.",
+    "To clear the gate, unit tests under tests/unit must run read_results's schema 1 and 2 paths. No tests/unit file for testreport exists, and the Scope fence lists only tests/integration/test_testreport.py, so the ticket must add a tests/unit file to its fence.",
+    "Do not lower the coverage threshold in the gate file. The gate output says that is a human ticket's decision.",
+    "Do not squeeze statements out of testreport.py to recover the percentage. Cover the new validation lines with unit tests (valid schema 2; mismatched, negative, NaN or bool seconds; schema 3) in the fenced unit test file."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
