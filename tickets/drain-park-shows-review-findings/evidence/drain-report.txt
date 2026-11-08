@@ -1,0 +1,18 @@
+# .chupa/state/drain.out, last drain report, 2026-11-08 (two requisition parks: no findings listed under either)
+parked:
+- core-drift-preflight: premise_failed at implement; premise_bounce cap spent (2/2) -- edit tickets/core-drift-preflight/ticket.md, then uv run python -m chupa confirm core-drift-preflight; or retire it with uv run python -m chupa reject core-drift-preflight
+  - tickets/core-drift-preflight/attempts/0/harvest.json
+  - tickets/core-drift-preflight/attempts/1/harvest.json
+  - tickets/core-drift-preflight/diagnosis.json
+  - tickets/core-drift-preflight/run.md
+- results-schema-2-reader: premise_failed at implement; parked until its committed ticket.md changes -- edit tickets/results-schema-2-reader/ticket.md, then uv run python -m chupa confirm results-schema-2-reader; or retire it with uv run python -m chupa reject results-schema-2-reader
+  - tickets/results-schema-2-reader/attempts/0/harvest.json
+  - tickets/results-schema-2-reader/attempts/1/harvest.json
+  - tickets/results-schema-2-reader/checks.json
+  - tickets/results-schema-2-reader/diagnosis.json
+  - tickets/results-schema-2-reader/run.md
+- vscode-graph-segments: premise_failed at requisition; parked until its committed ticket.md changes -- answer the premise findings below by editing tickets/vscode-graph-segments/ticket.md and committing it -- the content change releases it
+- vscode-verdict-menu: premise_failed at requisition; parked until its committed ticket.md changes -- answer the premise findings below by editing tickets/vscode-verdict-menu/ticket.md and committing it -- the content change releases it
+
+# The verdict-menu park's reason exists only in the journal (.chupa/state/journal/000010-20261108.jsonl):
+{"v":1,"type":"state_transition","ts":"2026-11-08T18:07:49.179716+00:00","ticket":"vscode-verdict-menu","key":null,"body":{"to":"premise_failed","stage":"requisition","reason":"[untested-invariant] chupaConfirm/chupaReject are `on` only when the row is a draft or held AND (committed or engine not alive). The test case meant to cover the committed clause is 'an uncommitted new ticket while the engine is alive: chupaConfirm off'. A new ticket (stem in `new`) has draft=False and is not held, so it is `off` from the draft-or-held check alone. An implementation that ignores `committed`, or the engine-alive clause, would still pass. The committed/engine invariant has no test that could fail. (In t ...
