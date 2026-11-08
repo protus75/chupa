@@ -45,7 +45,7 @@ After this change, Python decides every ticket and box menu action. Each snapsho
 - In: `vscode-chupa/package.json`. For each action key `K` above, the `webview/context` entry's `when` is the view check plus `(K == 'on' || K == 'locked' && config.chupa.unavailableMenuItems != 'hide')`, and the command's `enablement` is `K == 'on'`. `chupa.ticket.open`, `chupa.box.open`, `chupa.box.link` and `chupa.box.discuss` keep their presence checks (`chupaStem`, `chupaPath`, `chupaLink`, `chupaIds`). The `view/title` entries are unchanged.
 - In: `tests/integration/test_watch.py`. A snapshot test asserts `menu` for each of these cases:
   - a held committed row while the engine is alive: `chupaConfirm` `on`, `chupaRun` `off`;
-  - an uncommitted new ticket while the engine is alive: `chupaConfirm` `off`;
+  - the same held row with an uncommitted edit (stem in `dirty`, not in `new`): with the engine alive, `chupaConfirm` and `chupaReject` `off`; with no engine, both `on`;
   - a queued runnable row with no engine (`chupaRun`/`chupaReview` `on`) and with an engine (`locked`);
   - an invalid row: `chupaReview` and `chupaPriority` `off`;
   - a merged row: `chupaLint` `off`;
@@ -60,7 +60,7 @@ After this change, Python decides every ticket and box menu action. Each snapsho
 - tests/integration/test_watch.py
 
 ## Acceptance criteria
-1. `./dev.py test tests/integration/test_watch.py` passes. It includes a held committed row whose `menu["chupaConfirm"]` is `on` while the engine is alive, not `off`, and an invalid row whose `menu["chupaReview"]` is `off`, not `on`.
+1. `./dev.py test tests/integration/test_watch.py` passes. It includes a held committed row whose `menu["chupaConfirm"]` is `on` while the engine is alive, not `off`, the same held row with an uncommitted edit whose `menu["chupaConfirm"]` is `off` while the engine is alive, not `on`, and an invalid row whose `menu["chupaReview"]` is `off`, not `on`.
 2. No `when` or `enablement` in `vscode-chupa/package.json` mentions `chupaSection`, `chupaHeld`, `chupaDraft`, `chupaRunnable`, `chupaCommitted`, `chupaEngine` or `chupaState`, checked by reading the file.
 3. `vscode-chupa/media/view.js` and `vscode-chupa/media/box.js` build `vscodeContext` by spreading the row's `menu`, with no condition, checked by reading the files.
 
