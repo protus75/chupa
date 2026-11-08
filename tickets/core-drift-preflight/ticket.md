@@ -31,7 +31,7 @@ After this change, `serve`, `drain` and `run` refuse to start, before taking the
 
 ## Scope in / Scope out
 - In: `chupa/hostfiles.py`. Add `async def stale_core(repo, config, git) -> list[str]`.
-  - For each path from `routed_conduct_paths(config, repo)`, it reads the bytes committed at `HEAD` through `git` (a file absent at `HEAD` reads as `None`). It classifies them with `classify_core` against the installed `CORE_TEMPLATE`.
+  - For each path from `routed_conduct_paths(config, repo)`, it reads the file committed at `HEAD` with `git._run(repo, "show", f"HEAD:{rel}")` and encodes the text as UTF-8, the same text read `committed_core` uses (a file absent at `HEAD`, where `git` raises `GitError`, reads as `None`). Conduct files are UTF-8; a byte-exact read of non-UTF-8 files is out of scope. It classifies them with `classify_core` against the installed `CORE_TEMPLATE`.
   - It returns one message per file whose state is not `current`: `<rel>: chupa core is <state>; <paved_road>`, using `classify_core`'s paved road. Order follows `routed_conduct_paths`.
   - An empty list means every routed file is current. `classify_core` and `CoreDriftGate` are unchanged.
 - In: `chupa/__main__.py`. Before `serve`, `drain` and `run` start (before the lock and before any dispatch), call `stale_core`. When it returns messages, raise `runner.Refusal` with the joined messages and the paved road `run chupa core, then commit the conduct files and retry <verb>`, so the verb exits `runner.EXIT_REFUSED` (2) through the existing refusal handler. A serve restart re-execs `main`, so it is covered too.
@@ -43,7 +43,7 @@ After this change, `serve`, `drain` and `run` refuse to start, before taking the
   - `tests/integration/test_doctor.py`: the `core` row passes on an adopted repo and fails, naming `chupa core`, on a committed drifted block.
   - `tests/integration/test_drain.py`: with a committed drifted `CLAUDE.md` and a ready ticket, `drain` exits 2 and prints a message containing `chupa core`. The ticket is not dispatched (the fake pipeline records no call), and no lock holder is left.
 - In: `docs/how-chupa-works.md` section 12: add a bullet saying `serve`, `drain` and `run` refuse to start on a committed stale block, and that `doctor` reports a `core` row. Also update the `doctor` row in the 2.1 Verbs table to list the core check.
-- Out: running `chupa core` automatically, any change to the `core_drift` gate or `classify_core`, and other verbs (`review`, `status`, `lint`, `triage`).
+- Out: running `chupa core` automatically, any change to the `core_drift` gate or `classify_core`, other verbs (`review`, `status`, `lint`, `triage`), and byte-exact reads of non-UTF-8 conduct files.
 
 ## Scope fence
 - chupa/hostfiles.py
