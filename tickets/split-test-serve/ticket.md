@@ -10,14 +10,18 @@ kind: chore
 
 ## Context
 - tests/integration/test_serve.py
-- tests/integration/test_watchdog_activation.py
-- tests/integration/test_kill_worker_stop.py
-- tests/integration/test_daemon_tasks.py
-- tests/integration/test_hostfiles.py
 
 ## On-demand
+- tests/integration/test_watchdog_activation.py
 - tests/integration/test_daemon_composition.py
+- tests/integration/test_kill_worker_stop.py
 - tests/integration/test_merge.py
+- tests/integration/test_daemon_tasks.py
+- tests/integration/test_hostfiles.py
+- tests/integration/test_heartbeat.py
+- tests/integration/test_provider_cooldown_failover.py
+- tests/integration/test_kill_failure_suppression.py
+- tests/integration/test_checkpoint.py
 
 ## Goal / Why
 `tests/integration/test_serve.py` is 95,421 characters and holds 45 tests because every serve ticket appends to it. A ticket that embeds it in `## Context` spends a third of the 300,000-character authoring headroom on one file: `retro-request-serve` rendered 328,574 characters and `chupa review` refused it (2026-11-08). After this change the serve tests live in themed files, each small enough to embed, and the shared rig lives in one helper module.
@@ -34,7 +38,7 @@ This is a pure move. No test's body, parameters, or assertions change.
   - `test_serve_upgrade.py`: self-upgrade tests and the stop-during-merge test.
   - `test_serve_dispatch.py`: re-offer, live keep, republish, and every other test.
 - In: delete `tests/integration/test_serve.py`.
-- In: change the `from tests.integration.test_serve import ...` lines in `test_watchdog_activation.py`, `test_daemon_composition.py`, `test_kill_worker_stop.py`, `test_merge.py`, `test_daemon_tasks.py`, and `test_hostfiles.py` to import from `tests.integration.serve_rig`.
+- In: change the `from tests.integration.test_serve import ...` lines in `test_watchdog_activation.py`, `test_daemon_composition.py`, `test_kill_worker_stop.py`, `test_merge.py`, `test_daemon_tasks.py`, `test_hostfiles.py`, `test_heartbeat.py`, `test_provider_cooldown_failover.py`, `test_kill_failure_suppression.py`, and `test_checkpoint.py` to import from `tests.integration.serve_rig`.
 - Out:
   - any change to a test body, parametrization, or helper behavior;
   - any `chupa/` source file;
@@ -55,6 +59,10 @@ This is a pure move. No test's body, parameters, or assertions change.
 - tests/integration/test_merge.py
 - tests/integration/test_daemon_tasks.py
 - tests/integration/test_hostfiles.py
+- tests/integration/test_heartbeat.py
+- tests/integration/test_provider_cooldown_failover.py
+- tests/integration/test_kill_failure_suppression.py
+- tests/integration/test_checkpoint.py
 
 ## Acceptance criteria
 1. `tests/integration/test_serve.py` does not exist.
