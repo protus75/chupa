@@ -87,6 +87,14 @@ def test_suggest_forwards_summary(monkeypatch):
     run.assert_called_once_with(["uv", "run", "python", "-m", "chupa", "suggest", "an idea"])
 
 
+def test_core_forwards_once(monkeypatch):
+    monkeypatch.setattr(dev.sys, "argv", ["dev.py", "core"])
+    run = Mock()
+    monkeypatch.setattr(dev, "run", run)
+    dev.main()
+    run.assert_called_once_with(["uv", "run", "python", "-m", "chupa", "core"])
+
+
 def test_test_passes_leading_options_to_pytest(monkeypatch):
     monkeypatch.setattr(dev.sys, "argv", ["dev.py", "test", "--durations=25", "-k", "foo"])
     run = Mock(return_value=Mock(returncode=0))

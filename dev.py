@@ -7,6 +7,7 @@
     ./dev.py order STEM [--priority P] [--runs-before [STEM ...]]  reorder a ticket
     ./dev.py review STEM...   review each ticket against merged code
     ./dev.py lint [STEM...]   validate tickets without running or writing anything
+    ./dev.py core             refresh the managed conduct block
     ./dev.py covmap           build the coverage map
     ./dev.py triage [ID ...]  triage pending messages
     ./dev.py migrate-box      migrate old box resolutions
@@ -59,6 +60,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="./dev.py", description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="task")
     sub.add_parser("test", help="the suite, or the named tests")
+    sub.add_parser("core", help="refresh the managed conduct block")
     sub.add_parser("covmap", help="build the coverage map")
     sub.add_parser("triage", help="triage pending messages").add_argument("ids", nargs="*")
     sub.add_parser("migrate-box", help="migrate old box resolutions")

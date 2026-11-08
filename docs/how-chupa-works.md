@@ -82,6 +82,7 @@ Tests live in `tests/unit/` (no disk, network or process; run under `chupa.testg
 | `migrate-box` | Migrate old Suggestion Box resolutions |
 | `triage [ID ...]`, `dismiss ID ...` | One matching chupa call with all supplied IDs |
 | `suggest SUMMARY` | `chupa suggest <summary>` |
+| `core` | `chupa core` |
 | `covmap` | `chupa covmap` |
 | `stats [--window W] [--json]` | `chupa stats` with the supplied options; a read-only projection |
 | `new STEM [--kind K]` | `chupa new <stem> --kind feature\|bug\|chore` (default `feature`) |
@@ -704,7 +705,7 @@ with the fix. The full field inventory is in `docs/host-contract.md`. This repoâ
 
 See the [host run guide](host-running.md) for invocation and operation.
 
-The block carries only process rules that hold for every host; codebase rules belong in the project-owned remainder.
+The block carries only process rules that hold for every host; codebase rules belong in the project-owned remainder. The block has two parts: `Engine conduct` is for ticket agents, and `Chat session conduct` is for interactive chat sessions in a host checkout.
 
 - `chupa core` writes the managed block between `<!-- chupa:core begin -->` and
   `<!-- chupa:core end -->` in `CLAUDE.md` (for `claude`) or `AGENTS.md` (other CLIs), for each
