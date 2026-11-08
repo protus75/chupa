@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The implemented change leaves chupa/tickets.py at 10.63% unit coverage, below its 11% threshold; no changes were committed.
+The first full-suite run failed because formatting changed a file during a snapshot test; the rerun passed with files stable.
 
 ## Dead ends
 
-Integration tests do not contribute to the unit-only coverage gate.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-The ticket allowed 90 minutes expected and 180 minutes stuck; elapsed time was not measured.
+none
 
