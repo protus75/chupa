@@ -81,7 +81,7 @@ def test_valid_config_loads_from_cwd_with_shipped_defaults(tmp_path):
         "enabled": True,
         "merges": {"enabled": True, "every": 25},
         "days": {"enabled": True, "every": 7},
-        "spikes": {"enabled": True, "count": 5, "kinds": ["override", "rework", "gate-failure", "integration-red"]},
+        "spikes": {"enabled": True, "count": 5, "kinds": ["override", "rework", "gate-failure", "integration-red", "reject", "premise-failed", "infra-error", "flake", "escape"]},
     }
     assert cfg.box_policy == {
         "failure_report": "confirmed",

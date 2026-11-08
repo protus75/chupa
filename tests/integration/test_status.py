@@ -110,7 +110,7 @@ def test_status_current_window_scorecard(tmp_path):
     assert status.spend_usd == 3.25 and card.spend_usd == 1.25
     assert card.tokens["input"] == {"known": 11, "unknown_calls": 26}
     assert card.tokens["output"] == {"known": 0, "unknown_calls": 27}
-    assert card.signal_counts == {"override": 1, "rework": 1, "gate-failure": 1, "integration-red": 1}
+    assert card.signal_counts == {"override": 1, "rework": 1, "gate-failure": 1, "integration-red": 1, "reject": 0, "premise-failed": 0, "infra-error": 0, "flake": 0, "escape": 0}
     assert card.gate_failure_count == 1
     result = rows(card)
     assert list(result) == sorted(result) and "unfinished" not in result

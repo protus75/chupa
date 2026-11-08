@@ -84,6 +84,10 @@ def measurements(window: Window) -> dict:
         body, stem = event.body, event.ticket
         identity = (stem, sequences.get(stem, 0))
         if event.type == EventType.STATE_TRANSITION:
+            if body.get("routed") == "reject_queue":
+                spikes["reject"].add(identity)
+            if body.get("to") in ("premise_failed", "infra_error"):
+                spikes[body["to"].replace("_", "-")].add(identity)
             if body.get("to") == "running":
                 sequences[stem] = sequences.get(stem, 0) + 1
                 running[stem] = event.ts
@@ -93,6 +97,10 @@ def measurements(window: Window) -> dict:
             elif body.get("to") == "gate_failed":
                 spikes["gate-failure"].add(identity)
         elif event.type == EventType.SIGNAL:
+            if body.get("signal") == "reject_arrival":
+                spikes["reject"].add(identity)
+            if body.get("kind") in ("flake_detected", "tombstone_auto_reopened"):
+                spikes["flake" if body["kind"] == "flake_detected" else "escape"].add(event.key)
             if body.get("signal") == REWORK_ORDER:
                 spikes["rework"].add((stem, body["attempt"]))
             if body.get("kind") == CONFLICT_FACTS and body.get("integration_red_paths"):

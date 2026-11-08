@@ -20,7 +20,7 @@ SCHEMA_VERSION = 1
 
 Tier = Literal["low", "medium", "high", "max"]
 Severity = Literal["hard", "soft"]
-SpikeKind = Literal["override", "rework", "gate-failure", "integration-red"]
+SpikeKind = Literal["override", "rework", "gate-failure", "integration-red", "reject", "premise-failed", "infra-error", "flake", "escape"]
 Trigger = Literal["always"] | list[str]
 BoxRow = Literal[
     "failure_report",

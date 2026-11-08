@@ -627,6 +627,11 @@ in custody for the authored bug ticket.
 
 ### 9.5 Retro
 
+Spike kinds count override invoices on merges, rework orders, gate-failure transitions,
+integration-red conflict facts, reject queue routed transitions or reject arrivals,
+premise-failed transitions, infra-error transitions (including provider drought), flake
+detection signals, and escape signals for automatically reopened tombstones.
+
 The retro reads the journal since the last report. During a drain it runs between tickets, never
 between attempts of one ticket, when due at the `retro:` thresholds: by default 25 merges, 7 days, or 5 events of one spike kind. A requested retro runs at the drain’s next between-tickets point. Serve runs requested retros and automatic retros due after a ticket settles at its next idle point, then resumes admission. Each nested `retro.merges`, `retro.days`, and `retro.spikes` block has an `enabled` switch; their thresholds are `merges.every`, `days.every`, and `spikes.count`. The nonempty `spikes.kinds` allowlist selects which kinds can trigger; measurements still report every kind. The master `retro.enabled: false` disables automatic retros even if sub-triggers are enabled; run one on demand with `retro`. Config load refuses an enabled master with all three triggers disabled (enable a trigger or set `retro.enabled: false`) and duplicate spike kinds (list each kind once). It commits `tickets/retro/NNNNNN.md` (measurements,
 scorecard, proposals) and files each proposal as a `retro_finding`.

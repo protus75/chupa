@@ -240,7 +240,7 @@ def test_scorecard_totals_and_rendering(tmp_path, monkeypatch):
     # Implement's real completed call has unknown usage in both directions.
     assert card.tokens["input"] == {"known": 11, "unknown_calls": 1}
     assert card.tokens["output"] == {"known": 0, "unknown_calls": 2}
-    assert card.signal_counts == {"override": 1, "rework": 1, "gate-failure": 1, "integration-red": 1}
+    assert card.signal_counts == {"override": 1, "rework": 1, "gate-failure": 1, "integration-red": 1, "reject": 0, "premise-failed": 0, "infra-error": 0, "flake": 0, "escape": 0}
     assert card.gate_failure_count == 1
     assert "| scope_fence | 1 | 0 | 0 | 1 | 0.0000 | 0.0000 | false |" in text
     empty = project_window([])

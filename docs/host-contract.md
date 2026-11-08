@@ -123,7 +123,7 @@ Config:
     caps: {diagnosis: 3, retry: 3, premise_bounce: 1, infra: 3, attempts: 5, quarantine: 5, poison: 2}
     circuit_breaker: {k: 3, cooldown_minutes: 10}
     drain: {max_runtime_hours: 12, max_ticket_minutes: 90}
-    retro: {enabled: true, merges: {enabled: true, every: 25}, days: {enabled: true, every: 7}, spikes: {enabled: true, count: 5, kinds: [override, rework, gate-failure, integration-red]}}
+    retro: {enabled: true, merges: {enabled: true, every: 25}, days: {enabled: true, every: 7}, spikes: {enabled: true, count: 5, kinds: [override, rework, gate-failure, integration-red, reject, premise-failed, infra-error, flake, escape]}}
     box_policy: {failure_report: confirmed, retro_finding: confirmed, override_report: draft, suggestion: draft, bug_report_self_diagnosed: confirmed, bug_report_player_repro: confirmed, bug_report_player_no_repro: draft}
     notify: unset
     report_inbox: unset
@@ -183,7 +183,7 @@ Drain:
   defaults: {max_runtime_hours: 12, max_ticket_minutes: 90}
 Retro:
   required: []
-  defaults: {enabled: true, merges: {enabled: true, every: 25}, days: {enabled: true, every: 7}, spikes: {enabled: true, count: 5, kinds: [override, rework, gate-failure, integration-red]}}
+  defaults: {enabled: true, merges: {enabled: true, every: 25}, days: {enabled: true, every: 7}, spikes: {enabled: true, count: 5, kinds: [override, rework, gate-failure, integration-red, reject, premise-failed, infra-error, flake, escape]}}
 RetroMerges:
   required: []
   defaults: {enabled: true, every: 25}
@@ -192,11 +192,11 @@ RetroDays:
   defaults: {enabled: true, every: 7}
 RetroSpikes:
   required: []
-  defaults: {enabled: true, count: 5, kinds: [override, rework, gate-failure, integration-red]}
+  defaults: {enabled: true, count: 5, kinds: [override, rework, gate-failure, integration-red, reject, premise-failed, infra-error, flake, escape]}
 ```
 
 ```yaml config-values
-spike_kind: [override, rework, gate-failure, integration-red]
+spike_kind: [override, rework, gate-failure, integration-red, reject, premise-failed, infra-error, flake, escape]
 tier: [low, medium, high, max]
 severity: [hard, soft]
 kind: [api, cli]

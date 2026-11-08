@@ -109,7 +109,7 @@ def test_window_over_headroom_is_read_on_demand(tmp_path, monkeypatch, size):
     assert asyncio.run(c.git._run(c.repo, "show", "--name-only", "--format=", result["commit"])).splitlines() == ["tickets/retro/000001.md"]
 
 
-@pytest.mark.parametrize("kind", ["merges", "elapsed", "override", "rework", "gate-failure", "integration-red"])
+@pytest.mark.parametrize("kind", ["merges", "elapsed", "override", "rework", "gate-failure", "integration-red", "reject", "premise-failed", "infra-error", "flake", "escape"])
 def test_retro_trigger_boundaries(tmp_path, kind):
     c, writer, hook, llm = rig(tmp_path)
     j = c.journal
@@ -133,6 +133,15 @@ def test_retro_trigger_boundaries(tmp_path, kind):
 
             ticket = validate_ticket(stem, confirmed(), c.repo)
             assert asyncio.run(runner.failure_terminal(writer.ctx, ticket, outcome="gate_failed", stage="check", findings=[], attempt=n)) == "gate_failed"
+        elif kind == "reject":
+            j.append(EventType.STATE_TRANSITION, {"to": "review_failed", "routed": "reject_queue"}, ticket=stem)
+            j.append(EventType.SIGNAL, {"signal": "reject_arrival"}, ticket=stem)
+        elif kind in {"premise-failed", "infra-error"}:
+            j.append(EventType.STATE_TRANSITION, {"to": kind.replace("-", "_"), "reason": "provider_drought"}, ticket=stem)
+        elif kind in {"flake", "escape"}:
+            signal = "flake_detected" if kind == "flake" else "tombstone_auto_reopened"
+            key = f"flake/{n}" if kind == "flake" else f"tombstone-reopen/{n}/2"
+            j.append(EventType.SIGNAL, {"kind": signal}, key=key)
         elif kind == "integration-red":
             writer.queue._facts(stem, set(), set(), red=["work/red.py"])
         elif kind == "override":
@@ -165,7 +174,7 @@ def test_retro_trigger_boundaries(tmp_path, kind):
             operand(n)
         assert due() is None
         # Duplicate records of one invocation never combine into another operand.
-        if kind in {"integration-red", "rework", "gate-failure"}:
+        if kind in {"integration-red", "rework", "gate-failure", "reject", "premise-failed", "infra-error", "flake", "escape"}:
             event = j.read()[-1]
             j.append(event.type, event.body, ticket=event.ticket, key=event.key)
             assert due() is None
@@ -183,7 +192,7 @@ def test_mixed_spikes_do_not_sum_and_new_invocations_do_count(tmp_path):
         j.append(EventType.STATE_TRANSITION, {"to": "gate_failed"}, ticket="same-stem")
     window = project_window(j.read())
     facts = measurements(window)
-    assert facts["spikes"] == {"override": 0, "rework": 4, "gate-failure": 4, "integration-red": 4}
+    assert facts["spikes"] == {"override": 0, "rework": 4, "gate-failure": 4, "integration-red": 4, "reject": 0, "premise-failed": 0, "infra-error": 0, "flake": 0, "escape": 0}
     assert select_trigger(window, facts, c.clock(), c.config.retro, forced=False) is None
 
 
