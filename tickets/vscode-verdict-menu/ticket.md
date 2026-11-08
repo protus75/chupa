@@ -6,48 +6,63 @@ kind: feature
 ---
 
 ## Depends on
-- none
+- review-unmerged-provisional
+
+## Runs before
+- vscode-snapshot-display
+- vscode-graph-segments
 
 ## Context
 - chupa/observe.py::snapshot
 - chupa/control.py::ControlInbox.consume
 - chupa/__main__.py::_verdict
+- chupa/__main__.py::_review
+- chupa/__main__.py::_order
 - tests/integration/test_watch.py::test_snapshot_display_fields
 - vscode-chupa/media/view.js
+- vscode-chupa/media/box.js
 - vscode-chupa/package.json
 
 ## Goal / Why
-With an engine running, the extension greys out or hides Confirm and Reject on a held ticket (`premise_failed`, Reject queue). The CLI does the same thing successfully: `chupa confirm`/`reject` hands the request to the running engine (`_verdict` in `chupa/__main__.py`), and the engine accepts a confirm or reject for any known stem (`ControlInbox.consume` in `chupa/control.py`). On 2026-11-08 the owner could not confirm `core-drift-preflight` from the tickets view while `serve` ran. The menu gate is also a policy choice made in `package.json` `when`/`enablement` clauses, which the thin-wrapper rule bans.
+The extension's right-click menus decide when each action shows, and whether it is greyed out, in `package.json` `when` and `enablement` clauses. Those clauses copy chupa's rules: the section regex `^(queued|blocked)$`, `!= 'merged'`, and which verbs need the writer lock (`!chupaEngine`). The thin-wrapper rule bans this, and the copies are wrong:
+- On 2026-11-08 the owner could not confirm a held ticket from the menu while `serve` ran. The engine accepts confirm and reject for any known stem (`ControlInbox.consume`), and `chupa confirm`/`reject` hands the request to the running engine (`_verdict`).
+- Review is offered on invalid rows, which `review` refuses at intake.
 
-After this change, each snapshot row carries `verdict`, true when the ticket can take a confirm or reject now. The extension shows Confirm and Reject, enabled, exactly when `verdict` is true, and never greys them out while an engine runs.
+After this change, Python decides every ticket and box menu action. Each snapshot row carries a `menu` object of context keys, each set to `on`, `locked` (possible but the writer lock is held) or `off`. The extension passes `menu` through unchanged, and `package.json` only maps those values and the `chupa.unavailableMenuItems` setting to show, grey or hide.
 
 ## Scope in / Scope out
-- In: `chupa/observe.py` `snapshot`. Each row gains `verdict: bool`, which is true when both of these hold:
-  - the row is a committed draft or held (`draft or held`);
-  - it is committed, or no engine is alive (`committed or not engine`).
-
-  An uncommitted ticket cannot reach a running engine's verdict. With no engine, the CLI takes the lock and runs intake itself.
-- In: `vscode-chupa/media/view.js`: add `chupaVerdict: r.verdict` to the row's `vscodeContext`.
-- In: `vscode-chupa/package.json`.
-  - The `chupa.tickets` context-menu entries for `chupa.ticket.confirm` and `chupa.ticket.reject` use `"when": "webviewId == 'chupa.tickets' && chupaVerdict"`.
-  - Both commands drop their `enablement` key, so they are never greyed.
-  - Remove `chupaEngine`, `chupaDraft`, `chupaHeld`, `chupaCommitted` and `config.chupa.unavailableMenuItems` from those two entries only.
-- In: `tests/integration/test_watch.py`: a snapshot test covering these cases:
-  - a held, committed row has `verdict` true both with and without a live engine;
-  - an uncommitted new ticket has `verdict` false with a live engine and true without one;
-  - a queued, not-held ticket has `verdict` false.
-- Out: every other menu item (Review and Run need the lock and stay gated), `chupa.unavailableMenuItems` for other items, and the CLI verbs.
+- In: `chupa/observe.py` `snapshot`. Every row in `rows` and every row in `box` gains `menu: dict[str, str]`, each value one of `on`, `locked`, `off`. "Engine alive" is the snapshot's existing `engine` value. A row is "invalid" when it is one of the `invalid:` rows. Ticket rows:
+  - `chupaReview`: `off` unless the section is `queued` or `blocked` and the row is not invalid; then `locked` when the engine is alive, else `on`. (This ticket depends on `review-unmerged-provisional`, so unmerged dependencies no longer block review.)
+  - `chupaLint`: `on` for every row whose section is not `merged`, else `off`.
+  - `chupaRun`: `off` unless `runnable`; then `locked` when the engine is alive, else `on`.
+  - `chupaConfirm` and `chupaReject`: `on` when the row is a draft or held, and is committed or the engine is not alive; else `off`. They are never `locked`: a running engine accepts them.
+  - `chupaAskDiagnose`: `on` when the section is not `merged`, else `off`. `chupaAskReview`: `on` for `queued` or `blocked` rows, else `off`.
+  - `chupaPriority` and `chupaRunsBefore`: `on` for `queued` or `blocked` rows that are not invalid, else `off`. `order` edits the working tree and takes no lock.
+- In: box rows. `chupaTriage` and `chupaDismiss` are `off` unless the message is pending; then `locked` when the engine is alive, else `on`.
+- In: `vscode-chupa/media/view.js` and `vscode-chupa/media/box.js`.
+  - The row's `vscodeContext` becomes `{...r.menu, chupaStem: r.stem, preventDefaultContextMenuItems: true}` in `view.js`, and `{...row.menu, chupaIds, chupaPath, chupaLink, preventDefaultContextMenuItems: true}` in `box.js`.
+  - Drop `chupaSection`, `chupaHeld`, `chupaDraft`, `chupaRunnable`, `chupaCommitted`, `chupaEngine` and `chupaState`.
+- In: `vscode-chupa/package.json`. For each action key `K` above, the `webview/context` entry's `when` is the view check plus `(K == 'on' || K == 'locked' && config.chupa.unavailableMenuItems != 'hide')`, and the command's `enablement` is `K == 'on'`. `chupa.ticket.open`, `chupa.box.open`, `chupa.box.link` and `chupa.box.discuss` keep their presence checks (`chupaStem`, `chupaPath`, `chupaLink`, `chupaIds`). The `view/title` entries are unchanged.
+- In: `tests/integration/test_watch.py`. A snapshot test asserts `menu` for each of these cases:
+  - a held committed row while the engine is alive: `chupaConfirm` `on`, `chupaRun` `off`;
+  - an uncommitted new ticket while the engine is alive: `chupaConfirm` `off`;
+  - a queued runnable row with no engine (`chupaRun`/`chupaReview` `on`) and with an engine (`locked`);
+  - an invalid row: `chupaReview` and `chupaPriority` `off`;
+  - a merged row: `chupaLint` `off`;
+  - a pending box message with an engine: `chupaTriage` `locked`.
+- Out: the `view/title` menu, the CLI verbs, the rest of the extension's JavaScript (`vscode-snapshot-display` and `vscode-graph-segments` cover it), and `chupa.unavailableMenuItems` itself.
 
 ## Scope fence
 - chupa/observe.py
 - vscode-chupa/media/view.js
+- vscode-chupa/media/box.js
 - vscode-chupa/package.json
 - tests/integration/test_watch.py
 
 ## Acceptance criteria
-1. `./dev.py test tests/integration/test_watch.py` passes, including a held committed row whose `verdict` is true while the engine is alive, not false.
-2. `vscode-chupa/package.json` has no `enablement` on `chupa.ticket.confirm` or `chupa.ticket.reject`, and both tickets-view menu entries are gated only by `chupaVerdict`, checked by reading the file.
-3. `vscode-chupa/media/view.js` passes `chupaVerdict: r.verdict` in the row context, checked by reading the file.
+1. `./dev.py test tests/integration/test_watch.py` passes. It includes a held committed row whose `menu["chupaConfirm"]` is `on` while the engine is alive, not `off`, and an invalid row whose `menu["chupaReview"]` is `off`, not `on`.
+2. No `when` or `enablement` in `vscode-chupa/package.json` mentions `chupaSection`, `chupaHeld`, `chupaDraft`, `chupaRunnable`, `chupaCommitted`, `chupaEngine` or `chupaState`, checked by reading the file.
+3. `vscode-chupa/media/view.js` and `vscode-chupa/media/box.js` build `vscodeContext` by spreading the row's `menu`, with no condition, checked by reading the files.
 
 ## Verification
 ```
@@ -55,8 +70,8 @@ After this change, each snapshot row carries `verdict`, true when the ticket can
 ```
 
 ## Definition of rejected
-JavaScript or `package.json` decides verdict availability from anything but the snapshot's `verdict`, or Confirm/Reject are shown for a ticket the engine would refuse.
+Any menu `when` or `enablement` decides availability from anything but a snapshot `menu` value and the `chupa.unavailableMenuItems` setting, or JavaScript computes a `menu` value.
 
 ## Time budget
-- expected: 20m
-- stuck: 50m
+- expected: 30m
+- stuck: 75m
