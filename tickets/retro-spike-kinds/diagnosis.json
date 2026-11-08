@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "bd6c4ec9f80cb2853245606f611340511f32f418",
+  "stem": "retro-spike-kinds",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "reject",
+  "lessons": [
+    "The unit coverage gate failed: chupa/retro.py has 11.96% unit-test coverage and test-gate.toml requires 12. The gate says to add unit tests, but the Scope fence names no tests/unit file and test-gate.toml is out of bounds. The ticket must fence a tests/unit test file before a retry can pass.",
+    "Once a tests/unit file is fenced, add a unit test that calls chupa/retro.py::measurements on journal events built in memory. It must cover the five new kind branches so retro.py's unit coverage stays at or above 12, without touching test-gate.toml.",
+    "Keep the rest of the earlier diff. The full ./dev.py test run passed with 3162 tests and all three verification commands passed. Only the unit covgate on the rebased candidate failed.",
+    "Keep the reject fixture's terminal state from also firing gate-failure, as the earlier dead end found. The Definition of rejected forbids changing an existing kind's count for the same journal."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
