@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-none
+The first full-suite run captured a source edit during its fixture snapshot; the rerun against unchanged files passed.
 
 ## Dead ends
 
