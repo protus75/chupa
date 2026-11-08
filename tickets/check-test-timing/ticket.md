@@ -6,7 +6,7 @@ kind: feature
 ---
 
 ## Depends on
-- none
+- results-schema-2-reader
 
 ## Context
 - chupa/testreport.py
@@ -66,6 +66,7 @@ Check runs the host test suites but keeps only each test's outcome. How long a s
     - New `test_slow_test_bounds_configured`: with `slow_test_seconds: 2.5` and `slow_test_limit: 1`, durations `{a: 2.0, b: 3.0, c: 4.0}` record only `{c: 4.0}`, not the default-bounded `{c, b, a}`.
     - `test_coverage_requires_results` gains cases: `slow_test_seconds` or `slow_test_limit` set without `results` raises `ConfigError` with key `review.mechanical.0.slow_test_seconds` / `review.mechanical.0.slow_test_limit`.
     - New `test_coverage_recorded_for_changed_files`: only changed files appear in `coverage.files`, and an unreadable coverage report leaves `coverage` unset with the report verdict unchanged.
+  - New `tests/unit/test_covgate.py`: unit tests for `percentages` and `evaluate` that keep `chupa/covgate.py` at or above its `test-gate.toml` floor under the configured `unit` check. Do not lower the floor.
   - `tests/integration/test_covgate.py`: `percentages` gives the weighted repository and per-file values that `test_aggregates_are_weighted` expects.
   - `tests/integration/test_host_contract.py::test_host_contract_seam_inventory`: its fake `driver` gains a `clock`.
   - `tests/integration/test_fixture_host.py::test_fixture_profile_loads`: its exact `MechanicalCheck.model_dump()` assertion gains `"slow_test_seconds": 1.0` and `"slow_test_limit": 100`. Do not exclude the new fields from the dump to keep the old assertion.
@@ -83,6 +84,7 @@ Check runs the host test suites but keeps only each test's outcome. How long a s
 - tests/integration/test_testreport.py
 - tests/integration/test_host_mechanical.py
 - tests/integration/test_covgate.py
+- tests/unit/test_covgate.py
 - tests/integration/test_host_contract.py
 - tests/integration/test_fixture_host.py
 - docs/how-chupa-works.md
