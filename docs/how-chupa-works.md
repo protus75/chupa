@@ -476,6 +476,9 @@ Maintenance on each loop: control requests, timers, orphan sweeps, heartbeat
 (`state_dir/heartbeat` mtime), notification replay, and checkpoint pushes. If any loop dies,
 `serve` stops.
 
+Requested retros and automatic retros due after a ticket settles stop new admission, wait for
+the next idle point, run, and then resume admission. A pending stop takes precedence.
+
 A git-checkout engine records its `chupa` tree at startup and checks it before
 admission and after merge passes. A change stops new admissions; after running tickets and
 pending or active merges finish, serve journals `serve_handoff`, cleans up, closes the journal,
@@ -620,7 +623,7 @@ in custody for the authored bug ticket.
 ### 9.5 Retro
 
 The retro reads the journal since the last report. During a drain it runs between tickets, never
-between attempts of one ticket, when due at the `retro:` thresholds: by default 25 merges, 7 days, or 5 events of one spike kind. A requested retro runs at the drain’s next between-tickets point; serve accepts requests but does not yet run them. Set `retro.enabled: false` to disable automatic retros; run one on demand with `retro`. It commits `tickets/retro/NNNNNN.md` (measurements,
+between attempts of one ticket, when due at the `retro:` thresholds: by default 25 merges, 7 days, or 5 events of one spike kind. A requested retro runs at the drain’s next between-tickets point. Serve runs requested retros and automatic retros due after a ticket settles at its next idle point, then resumes admission. Set `retro.enabled: false` to disable automatic retros; run one on demand with `retro`. It commits `tickets/retro/NNNNNN.md` (measurements,
 scorecard, proposals) and files each proposal as a `retro_finding`.
 
 ### 9.6 Scorecard and baseline

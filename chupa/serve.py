@@ -23,6 +23,7 @@ from chupa.merge import AdmissionBoundary
 from chupa.mergequeue import ConflictHandoff, regate_receipts
 from chupa.providers import ProviderSetupError
 from chupa.redact import Redactor
+from chupa.retro import Retro, production_evidence, project_window, select_trigger, suppressing_failure
 from chupa.seams import ExecutableNotFound, SubprocessExec
 from chupa.stages import ticket_blob
 from chupa.storm import StormLedger
@@ -100,6 +101,10 @@ class Serve:
         self.published: dict[str, tuple[Ticket, str]] = {}
         self.queue = None
         self.stopping = False
+        self.served_retro_id = None
+        self.retro_due = False
+        self.retro = None
+        self.retro_task = None
         self.wake = asyncio.Event()
         self.ready = asyncio.Event()
         self.workers: tuple[asyncio.Task, ...] = ()
@@ -151,6 +156,8 @@ class Serve:
                     return await callback(ticket)
                 finally:
                     latest = next((e.body for e in reversed(local.journal.read()) if e.type == EventType.STATE_TRANSITION and e.ticket == ticket.stem), {})
+                    if latest.get("to") in TERMINAL_STATES:
+                        await self.check_retro()
                     if latest.get("to") in TERMINAL_STATES - SETTLED - {"rejected"}:
                         self.core.scheduler.update(ticket)
                     if not callback.continuations and not any(context is callback.ctx and stem in callback.queue.pending.keys() for stem, context in callback.queue.contexts.items()):
@@ -245,7 +252,7 @@ class Serve:
                 return False
         return (
             not self.stopping
-            and (self.upgrade is None and not projection.stop_requested or ticket.stem in self.writers)
+            and (self.upgrade is None and not projection.stop_requested and not self.retro_pending() or ticket.stem in self.writers)
             and projection.pause_id is None
             and (self.control.admission is None or self.control.admission in projection.released_hold_ids)
             and not any(target["emitting_origin"] == ticket.stem and target["emitting_stage"] == stage for target in self.storm.held_stages().values())
@@ -325,6 +332,33 @@ class Serve:
             and not any(w.active or w.continuations for w in self.writers.values())
             and (self.queue is None or not self.queue.pending and self.queue.active is None)
         )
+
+    def retro_pending(self):
+        request_id = self.control.projection.retro_id
+        return self.retro_due or request_id is not None and request_id != self.served_retro_id
+
+    async def check_retro(self):
+        c = replace(self.checkout, config=snapshot_config(self.control.load_config()))
+        window = project_window(c.journal.read())
+        if suppressing_failure(window) is None:
+            evidence = await production_evidence(window, c)
+            if select_trigger(window, evidence, c.clock(), c.config.retro, forced=False) is not None:
+                self.retro_due = True
+
+    async def run_retro(self, request_id):
+        async with self.mutations():
+            self.control.poll()
+            if self.stopping or self.control.projection.stop_requested or self.control.projection.kill_requested:
+                return
+            c = replace(self.checkout, config=snapshot_config(self.control.load_config()))
+            pipeline = await self.prepare(c)
+            self.retro = Retro(c, pipeline)
+            try:
+                await self.retro(forced=request_id is not None)
+                self.served_retro_id = request_id if request_id is not None else self.served_retro_id
+                self.retro_due = False
+            finally:
+                self.retro = None
 
     async def dispatch(self) -> None:
         response = self.responses[0]
@@ -412,6 +446,8 @@ class Serve:
                     self.writers[ticket.stem] = owner
                     await owner.consume_result(ticket, result, attempt=attempt)
                     latest = next((e.body.get("to") for e in reversed(self.checkout.journal.read()) if e.type == EventType.STATE_TRANSITION and e.ticket == ticket.stem), None)
+                    if latest in TERMINAL_STATES:
+                        await self.check_retro()
                     if latest in TERMINAL_STATES - SETTLED - {"rejected"}:
                         self.core.scheduler.update(ticket)
                     if ticket.stem not in self.queue.pending:
@@ -442,6 +478,8 @@ class Serve:
     async def abort(self) -> None:
         operations = {task for task in (self.core.admission.task, self.mutating) if task is not None}
         aborts = [writer.abort_current for writer in tuple(self.writers.values())]
+        if self.retro is not None:
+            aborts.append(self.retro.abort_current)
         errors = []
         for abort in aborts:
             try:
@@ -573,6 +611,14 @@ class Serve:
                             upgrade_stop = not self.control.projection.stop_requested
                             self.stop()
                             break
+                    if self.retro_task is not None and self.retro_task.done():
+                        self.retro_task.result()
+                        self.retro_task = None
+                    if self.retro_task is None and self.retro_pending() and self.upgrade is None and not self.control.projection.stop_requested and self.upgrade_idle():
+                        request_id = self.control.projection.retro_id
+                        if request_id == self.served_retro_id:
+                            request_id = None
+                        self.retro_task = asyncio.create_task(self.run_retro(request_id))
                     for response in self.responses:
                         response.ask()
                     done = [task for task in self.workers if task.done()]
