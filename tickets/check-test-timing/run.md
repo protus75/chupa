@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The existing test passes on the untouched branch. Adding the two specified fields changes MechanicalCheck.model_dump() to include both defaults, contradicting its exact assertion.
+none
 
 ## Dead ends
 
-Checked repository consumers and verified the serialized output with the specified fields; suppressing the new fields would add an unrequested compatibility path.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Expected 60 minutes; completed within the budget.
 
