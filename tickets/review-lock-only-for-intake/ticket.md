@@ -29,6 +29,7 @@ While `./dev.py review A` waits on its model call, `./dev.py confirm B` for a di
 - In: `chupa/__main__.py::_review`. Acquire the checkout lock, run intake and the checks that read `main` and the journal, then release it before building the provider session. The model call and the `requisition_verdict` append run without the checkout lock.
 - In: `tests/integration/test_review_command.py`. A review whose FakeLLM reply is a callable that calls `Lockfile(state_dir, ...).acquire()` and then `release()` succeeds with the lock acquired, not with `LockHeld`.
 - In: `tests/integration/test_journal.py`. Two processes each append 200 events to the same state dir at the same time, and `Journal.read()` afterwards returns all 400 with none torn or lost.
+- In: `tests/integration/test_storm_producer.py`. The state-dir listing at line 279 now includes `journal.lock`.
 - In: `docs/how-chupa-works.md` section 2.1. The `review` row says the lock is held for intake only, and the doc states that journal appends take `journal.lock`.
 - Out: `triage`, which also holds the lock across a model call; drain and serve lock lifetimes; `confirm`'s control-request fallback and the `control/active.json` lifecycle; `review` while a drain holds the lock (ticket `review-alongside-drain`).
 
@@ -37,6 +38,7 @@ While `./dev.py review A` waits on its model call, `./dev.py confirm B` for a di
 - chupa/__main__.py
 - tests/integration/test_review_command.py
 - tests/integration/test_journal.py
+- tests/integration/test_storm_producer.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
@@ -46,7 +48,7 @@ While `./dev.py review A` waits on its model call, `./dev.py confirm B` for a di
 
 ## Verification
 ```
-./dev.py test tests/integration/test_review_command.py tests/integration/test_journal.py tests/integration/test_journal_roll.py tests/integration/test_lockfile.py tests/integration/test_drain.py
+./dev.py test tests/integration/test_review_command.py tests/integration/test_journal.py tests/integration/test_journal_roll.py tests/integration/test_lockfile.py tests/integration/test_drain.py tests/integration/test_storm_producer.py
 ```
 
 ## Definition of rejected
