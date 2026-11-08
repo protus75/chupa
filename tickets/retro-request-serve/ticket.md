@@ -15,8 +15,10 @@ kind: feature
 - chupa/drain.py
 - chupa/__main__.py
 - chupa/runner.py
-- tests/integration/test_serve.py
 - docs/how-chupa-works.md
+
+## On-demand
+- tests/integration/test_serve.py
 
 ## Goal / Why
 After `retro-request-drain`, `chupa retro` with an engine running sends a `retro` control request, and a drain runs it between tickets. Serve accepts the request but never runs it. Serve also never runs automatic retros: only the drain branch of `chupa/__main__.py` wires a `Retro`, so under serve the `retro:` thresholds (`every_merges`, `every_days`, `spike_count`) are never checked. The operator starts serve from the extension, wants Retro to queue there too, and expects the same periodic retros a drain gives (2026-11-07).
