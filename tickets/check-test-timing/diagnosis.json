@@ -1,17 +1,15 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "06d07846af94edccdbc7681c8cafe6bac7d9d7e2",
+  "produced_at_sha": "15a400f221f094616900a87a5e2846913cbbce8d",
   "stem": "check-test-timing",
-  "attempt": 1,
-  "terminal": "gate_failed",
-  "stage": "check",
-  "verdict": "reject",
-  "lessons": [
-    "Integration finding is a bootstrap contradiction: the candidate plugin wrote schema 2 to .chupa/results/integration.json, but the check is read by main's chupa/testreport.py read_results, which accepts only schema_version 1. A ticket that refuses schema 1 can never pass check on this self-host."
-  ],
-  "mechanical": null,
+  "attempt": 2,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "abandon-human",
+  "lessons": [],
+  "mechanical": "premise_bounce cap spent",
   "spec_version": "1.2",
-  "provider": "claude",
-  "model": "claude-opus-5-5"
+  "provider": null,
+  "model": null
 }
