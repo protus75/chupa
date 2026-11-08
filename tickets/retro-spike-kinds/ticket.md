@@ -39,10 +39,10 @@ The spike trigger counts four kinds: `override`, `rework`, `gate-failure` and `i
   - `escape`: a signal with `kind: tombstone_auto_reopened`; its identity is the event key `tombstone-reopen/<box_id>/<reports>`.
   - A duplicated event with the same identity never counts twice, as for the existing kinds.
 - In: tests.
-  - `tests/integration/test_retro.py::test_retro_trigger_boundaries` parametrizes all nine kinds. Each new kind appends its journal events directly and fires at exactly `count`, not at `count - 1`; a duplicated record does not advance the count.
+  - `tests/integration/test_retro.py::test_retro_trigger_boundaries` parametrizes all nine kinds. Each new kind appends its journal events directly and fires at exactly `count`, not at `count - 1`; a duplicated record does not advance the count. The `[reject]` operand appends both a `routed: reject_queue` terminal and a `reject_arrival` signal for the same run, and still does not fire at `count - 1`. The `[infra-error]` operand's transitions use `reason: provider_drought`.
   - `tests/integration/test_retro.py::test_mixed_spikes_do_not_sum_and_new_invocations_do_count` and the signal-count assertions in `tests/integration/test_scorecard.py` and `tests/integration/test_status.py` expect the five new keys at 0.
   - `tests/integration/test_config.py`: the `retro` defaults assertion lists all nine kinds.
-- In: docs. `docs/host-contract.md` `config-values` `spike_kind` and the `RetroSpikes` `kinds` default list all nine kinds. `docs/how-chupa-works.md` section 9.5 names each kind and the event it counts.
+- In: docs. Every default kinds list in `docs/host-contract.md` (both retro defaults, the `RetroSpikes` default and the `config-values` `spike_kind`) lists all nine kinds. `docs/how-chupa-works.md` section 9.5 names each kind and the event it counts.
 - Out: trigger switches, per-kind thresholds, timeout or storm-breaker kinds, test timing and coverage, and the retro prompt.
 
 ## Scope fence
@@ -57,7 +57,7 @@ The spike trigger counts four kinds: `override`, `rework`, `gate-failure` and `i
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
-1. `./dev.py test tests/integration/test_retro.py` exits 0. `test_retro_trigger_boundaries[reject]`, `[premise-failed]`, `[infra-error]`, `[flake]` and `[escape]` each fail if the kind is not counted, or if a duplicated record is counted twice.
+1. `./dev.py test tests/integration/test_retro.py` exits 0. `test_retro_trigger_boundaries[reject]`, `[premise-failed]`, `[infra-error]`, `[flake]` and `[escape]` each fail if the kind is not counted, or if a duplicated record is counted twice. `[reject]` fails if a run's `reject_arrival` and its routed terminal count as two; `[infra-error]` fails if `provider_drought` transitions are not counted.
 2. `./dev.py test tests/integration/test_scorecard.py tests/integration/test_status.py tests/integration/test_config.py tests/integration/test_host_contract.py` exits 0.
 3. `docs/how-chupa-works.md` section 9.5 lists all nine spike kinds.
 4. `./dev.py test` exits 0.
