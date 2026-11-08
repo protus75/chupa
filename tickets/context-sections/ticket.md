@@ -38,6 +38,8 @@ After this change a `## Context` entry may name one section of a file. A Python 
 - In: `docs/host-authoring.md` (the `Context` bullet) and `docs/how-chupa-works.md` section 4.2 describe the section forms.
 - In: tests in `tests/integration/test_tickets.py` and `tests/integration/test_requisition.py`.
 - In: `tests/integration/test_author.py`: its pin of the author spec version (line 23) and its assertion on the `## Context` sentence (line 33) follow the new `chupa/specs/author.md`.
+- In: `tests/unit/test_tickets_context.py` (new). The shared excerpt function takes the file's text, not a path, so unit tests need no disk. Unit tests cover a Python name, a decorated `Class.method`, a Markdown heading through the next same-or-higher heading, each finding case, and a `#` line inside a fenced code block that neither ends an excerpt nor counts as a duplicate heading.
+- In: the extension check runs before the file is read, so a selector on a non-`.py`/`.md` file (including a binary one) is a finding, never a crash.
 - Out:
   - `## On-demand`, `## Scope fence`, and `config.context_files` keep whole-path entries;
   - line-number or start/stop ranges;
@@ -51,6 +53,7 @@ After this change a `## Context` entry may name one section of a file. A Python 
 - tests/integration/test_tickets.py
 - tests/integration/test_requisition.py
 - tests/integration/test_author.py
+- tests/unit/test_tickets_context.py
 - docs/host-authoring.md
 - docs/how-chupa-works.md
 
@@ -61,11 +64,12 @@ After this change a `## Context` entry may name one section of a file. A Python 
    It rules out embedding the whole file, dropping the decorator, and stopping the Markdown excerpt at the subheading.
 2. `tests/integration/test_tickets.py::test_context_section_findings` passes. Each of these yields exactly one finding: `m.py::Missing`; `m.py#Two`; `d.md::B`; `d.md#Nope`; a file with two `## Two` headings selected by `#Two`; and `m.py` listed both whole and as `m.py::B.run`. It rules out silently embedding nothing or the whole file for an unresolved selector.
 3. `tests/integration/test_tickets.py::test_context_whole_file_unchanged` passes: a bare-path Context entry renders the whole file under `### path`, exactly as before.
-4. `./dev.py test` exits 0.
+4. `tests/unit/test_tickets_context.py` passes, and the unit coverage gate holds `chupa/tickets.py` at or above its threshold.
+5. `./dev.py test` exits 0.
 
 ## Verification
 ```
-./dev.py test tests/integration/test_tickets.py tests/integration/test_requisition.py
+./dev.py test tests/unit/test_tickets_context.py tests/integration/test_tickets.py tests/integration/test_requisition.py
 ./dev.py test
 ```
 
