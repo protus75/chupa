@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The simplest approach is to pass through the existing callback; wrapping it only for ENOENT is necessary to supply the requested message and empty stderr. Both verification commands passed, as did the task-identity harness.
+The full suite passed with 3,290 tests; the existing task harness printed three definitions. Wrapping the existing callback was the minimum change; changing each error call site would duplicate the handling.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 25 minutes; completed in under 5 minutes.
+Expected 25 minutes; completed in approximately 2 minutes.
 
