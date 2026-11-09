@@ -24,14 +24,14 @@ Check reads a candidate's `results` file with the running engine's `read_results
   - A valid schema-2 document returns its `tests` dict.
   - `{"schema_version": 2, "tests": {}}` moves from the invalid cases to a schema-2-without-`seconds` refusal.
   - Schema 2 refusals: `seconds` keys differ from `tests` keys, a negative value, `NaN`, a bool, and `schema_version: 3`.
-- In: `tests/unit/test_testreport.py` unit-tests every `read_results` branch: valid schema 1, valid schema 2, schema 2 without `seconds`, `seconds` keys that differ from `tests` keys, negative, `NaN` and bool values, and `schema_version` 3. The writer stays on schema 1.
+- In: `tests/unit/test_testreport_reader.py` unit-tests every `read_results` branch: valid schema 1, valid schema 2, schema 2 without `seconds`, `seconds` keys that differ from `tests` keys, negative, `NaN` and bool values, and `schema_version` 3. The writer stays on schema 1.
 - In: `docs/how-chupa-works.md` section 12 `chupa.testreport` bullet and `docs/host-contract.md` `results` paragraph say the reader accepts schema 1 and 2, and that the plugin writes schema 1.
 - Out: the writer (`pytest_sessionfinish`), the `read_results` return type, every caller in `chupa/stages.py`, timing and coverage recording (all `check-test-timing`).
 
 ## Scope fence
 - chupa/testreport.py
 - tests/integration/test_testreport.py
-- tests/unit/test_testreport.py
+- tests/unit/test_testreport_reader.py
 - docs/how-chupa-works.md
 - docs/host-contract.md
 
@@ -43,7 +43,7 @@ Check reads a candidate's `results` file with the running engine's `read_results
 ## Verification
 ```
 ./dev.py test tests/integration/test_testreport.py
-./dev.py test tests/unit/test_testreport.py
+./dev.py test tests/unit/test_testreport_reader.py
 ./dev.py test
 ```
 
