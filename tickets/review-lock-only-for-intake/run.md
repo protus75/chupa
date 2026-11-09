@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Used the existing orphan-filter expression to avoid adding branches that would lower unit coverage; this is the minimum change and preserves drain-intent recovery.
+Used the existing orphan filter to exclude review-slot intents, avoiding an additional branch that would lower unit coverage; a once-per-handle tail repair was insufficient because another writer can leave a torn tail.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+The ticket budget was 45 minutes; the work completed within that budget.
 
