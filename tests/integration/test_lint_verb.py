@@ -116,6 +116,21 @@ def test_lint_skips_settled_tickets(root, capsys):
     assert "tickets/merged/ticket.md:" in capsys.readouterr().out
 
 
+def test_lint_in_worktree_skips_main_settled_tickets(root, capsys):
+    write(root, "merged", "old invalid grammar\n")
+    write(root, "active", ticket().replace("priority: P2", "state: confirmed\nsource: human\npriority: P2"))
+    git(root, "add", "--", "tickets")
+    git(root, "commit", "-m", "tickets")
+    journal(root).append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="merged")
+    worktree = root.parent / "worktree"
+    git(root, "worktree", "add", "--detach", str(worktree))
+    before = snapshot(root)
+    assert lint(worktree) == 0
+    assert capsys.readouterr().out == "lint: 1/1 tickets valid\n"
+    assert not (worktree / ".chupa").exists()
+    assert snapshot(root) == before
+
+
 def test_lint_named_stems_and_missing_stem(root, capsys):
     write(root, "valid", ticket())
     write(root, "broken", "invalid\n")

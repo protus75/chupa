@@ -635,7 +635,13 @@ async def _lint(checkout: runner.Checkout, stems: Sequence[str]) -> int:
     try:
         entries = list(root.iterdir())  # Unlike glob, unreadable directories must refuse.
         selected = list(dict.fromkeys(stems)) if stems else sorted(p.name for p in entries if (p / "ticket.md").is_file())
-        states = last_states(checkout.journal.read())
+        common_dir = await checkout.git.git_common_dir(checkout.repo)
+        repo = checkout.repo.resolve()
+        state_dir = checkout.config.state_dir.resolve()
+        journal = checkout.journal
+        if common_dir.parent != repo and state_dir.is_relative_to(repo):
+            journal = Journal(common_dir.parent / state_dir.relative_to(repo), checkout.clock)
+        states = last_states(journal.read())
         pending = _pending(checkout.repo, _porcelain(await checkout.git.status_porcelain(checkout.repo)))
         for stem in selected:
             rel = ticket_path(stem)
