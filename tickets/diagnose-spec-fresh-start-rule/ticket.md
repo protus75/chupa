@@ -22,8 +22,8 @@ state: draft
 After this change the diagnose spec states that a retry starts from the merge base. Lessons must not tell the next attempt to keep, build on, or change only part of a previous diff. They restate the work that has to be redone, and may still say which parts of an earlier approach review found sound, as guidance for redoing them.
 
 ## Scope in / Scope out
-- In: `chupa/specs/diagnose.md`. In `## Task`, after the paragraph beginning "Write concrete lessons", add a sentence containing the exact phrase "Every attempt starts from the merge base". The sentence says no earlier diff survives, so a lesson never says to keep or build on a previous diff and instead restates the work to redo. It also says a lesson may name which parts of an earlier approach review found sound. Bump `version` from `1.2` to `1.3`. The spec stays within the 200-line `SPEC_MAX_LINES`.
-- In: `tests/unit/test_specs.py`: the pinned `diagnose` version becomes `1.3`, and the file gains a test asserting the exact phrase is in `chupa/specs/diagnose.md`.
+- In: `chupa/specs/diagnose.md`. In `## Task`, after the paragraph beginning "Write concrete lessons", add a sentence containing the exact phrase "Every attempt starts from the merge base". The sentence says no earlier diff survives, so a lesson never says to keep or build on a previous diff and instead restates the work to redo. It also says a lesson may name which parts of an earlier approach review found sound. Bump `version` to the next minor above its value at the base commit (`1.2` when drafted; sibling spec tickets may have bumped it since). The spec stays within the 200-line `SPEC_MAX_LINES`.
+- In: `tests/unit/test_specs.py`: the pinned `diagnose` version moves to that new version, and the file gains a test asserting the exact phrase is in `chupa/specs/diagnose.md`.
 - Out: any change to `chupa/stages.py`, the verdict list, the Output format and On-failure sections, the 5-lesson and 300-character limits, and `eval/` fixtures.
 
 ## Scope fence
@@ -31,9 +31,9 @@ After this change the diagnose spec states that a retry starts from the merge ba
 - tests/unit/test_specs.py
 
 ## Acceptance criteria
-1. `chupa/specs/diagnose.md` contains `Every attempt starts from the merge base` and `version: "1.3"`, not `1.2`.
+1. `chupa/specs/diagnose.md` contains `Every attempt starts from the merge base` and a `version` one minor above its value at the base commit.
 2. `tests/unit/test_specs.py` has a test that asserts the phrase and passes under `./dev.py test tests/unit/test_specs.py`; it fails on a spec that lacks the phrase, so a spec still silent about the attempt's starting state is ruled out.
-3. `tests/unit/test_specs.py` pins `1.3` as the `diagnose` version, so a spec left at `1.2` fails it.
+3. `tests/unit/test_specs.py` pins the new `diagnose` version, so a spec left at its base-commit version fails it.
 4. `./dev.py test` passes.
 
 ## Verification
