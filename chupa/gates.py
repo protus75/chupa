@@ -56,6 +56,23 @@ class BugEvidence(BaseModel):
     base: RegressionRun | None = None
 
 
+class TestTiming(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+
+    seconds: float
+    passed: int
+    failed: int
+    skipped: int
+    slow: dict[str, float]
+
+
+class TestCoverage(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+
+    percent: float
+    files: dict[str, float]
+
+
 class GateReport(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
 
@@ -64,6 +81,8 @@ class GateReport(BaseModel):
     findings: list[Finding] = []
     autofix_applied: bool = False
     bug_evidence: BugEvidence | None = Field(default=None, exclude_if=lambda v: v is None)
+    timing: TestTiming | None = Field(default=None, exclude_if=lambda v: v is None)
+    coverage: TestCoverage | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 class Gate(Protocol):

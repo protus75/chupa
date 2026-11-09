@@ -316,7 +316,7 @@ An entry may declare a worktree-relative `results` file written by `chupa.testre
 clears it before each run and reruns a failing command with failed tests once. Edited flakes
 block; unedited flakes are quarantined unless the cap is full. Quarantined unedited failures
 do not block, and a passing quarantined test is released when its resolved fix has merged.
-Missing or invalid results after a successful run or rerun fail the entry. With a declared coverage.py JSON report, a flake also counts as edited when its test context covers a changed line or a line adjacent to a pure deletion. The host must run with `--cov-context=test`, `[tool.coverage.json] show_contexts = true` and `[tool.coverage.run] core = "ctrace"`; missing or invalid contexts fail classification.
+Missing or invalid results after a successful run or rerun fail the entry. Check records command wall time, outcome counts and slow tests from the first run, bounded by `slow_test_seconds` (default 1.0) and `slow_test_limit` (default 100). Readable coverage records the repository percentage and percentages for changed files. With a declared coverage.py JSON report, a flake also counts as edited when its test context covers a changed line or a line adjacent to a pure deletion. The host must run with `--cov-context=test`, `[tool.coverage.json] show_contexts = true` and `[tool.coverage.run] core = "ctrace"`; missing or invalid contexts fail classification.
 
 Config load refuses a declared `review.surfaces` entry (host review prompts); remove
 the entries because host review surfaces are not supported yet.
@@ -728,8 +728,8 @@ The block carries only process rules that hold for every host; codebase rules be
 - `serve`, `drain` and `run` refuse to start when a committed routed conduct block is stale; `doctor` reports this as a `core` row.
 - `doctor` checks a host's setup without changing anything.
 - The `chupa.testreport` pytest plugin accepts `--chupa-results PATH` and writes JSON with
-  `schema_version: 1` and a `tests` map from pytest node IDs to `passed`, `failed`, or `skipped`.
-  The results reader accepts schemas 1 and 2; schema 2 also contains a matching `seconds` map of finite nonnegative floats.
+  `schema_version: 2`, a `tests` map from pytest node IDs to `passed`, `failed`, or `skipped`,
+  and a matching `seconds` map of finite nonnegative floats. The reader accepts only schema 2 and refuses schema 1.
 - The `chupa.testguard` unit-run pytest plugin blocks process and network IO during test phases
   and enforces the `test-gate.toml` unit time budget (60 seconds by default).
 - A host provides `config.yaml`, its conduct files, and its tickets. `docs/host-contract.md` is

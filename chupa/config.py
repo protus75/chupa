@@ -108,6 +108,8 @@ class MechanicalCheck(_Strict):
     severity: Severity
     results: str | None = None
     coverage: str | None = None
+    slow_test_seconds: Annotated[float, Field(gt=0)] = 1.0
+    slow_test_limit: Count = 100
 
     @field_validator("results", "coverage")
     @classmethod
@@ -436,6 +438,9 @@ def _check_references(path: Path, cfg: Config) -> None:
     if len(retro.spikes.kinds) != len(set(retro.spikes.kinds)):
         raise ConfigError(path, "retro.spikes.kinds", "duplicate spike kinds; list each kind once")
     for i, entry in enumerate(cfg.review.mechanical):
+        for field in ("slow_test_seconds", "slow_test_limit"):
+            if field in entry.model_fields_set and entry.results is None:
+                raise ConfigError(path, f"review.mechanical.{i}.{field}", f"{field} requires results on the same entry; declare results")
         if entry.coverage is not None and entry.results is None:
             raise ConfigError(path, f"review.mechanical.{i}.coverage", "coverage requires results on the same entry; declare results")
     kinds = {p.name: p.kind for p in cfg.providers}

@@ -5,7 +5,7 @@ import sys
 import pytest
 
 from chupa.__main__ import main
-from chupa.covgate import GateInvalid, evaluate, parse_gate, run_gate
+from chupa.covgate import GateInvalid, evaluate, parse_gate, percentages, run_gate
 
 
 def report(**files):
@@ -27,7 +27,9 @@ def test_precedence_and_longest_package():
 
 def test_aggregates_are_weighted():
     gate = parse_gate('[coverage]\ndefault=0\nrepository=50\n[coverage.packages]\npkg=50\n[coverage.files]\n"pkg/b.py"=0')
-    lines = evaluate(gate, report(**{"pkg/a.py": file(10, 10), "pkg/b.py": file(0, 90)}))
+    data = report(**{"pkg/a.py": file(10, 10), "pkg/b.py": file(0, 90)})
+    assert percentages(data) == (10.0, {"pkg/a.py": 100.0, "pkg/b.py": 0.0})
+    lines = evaluate(gate, data)
     # Best-file and unweighted means would both pass at 50%.
     assert len(lines) == 2
     assert lines[0].startswith("repository: 10.00% below 50% (coverage.repository)")

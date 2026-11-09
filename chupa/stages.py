@@ -695,6 +695,7 @@ class CommandResult(_Strict):
 
 async def run_host_command(ctx, ticket, attempt, argv, code, name, *, cwd=None):
     road = "make the configured command exit 0 on the rebased candidate and retry"
+    started = ctx.driver.clock()
     try:
         rc, out, err = await ctx.exec_.run(argv, cwd=cwd or ctx.worktree(ticket.stem), env=child_env(ctx.env, ctx.config), timeout=ticket.stuck_minutes * 60.0)
     except TimeoutError:
@@ -703,9 +704,10 @@ async def run_host_command(ctx, ticket, attempt, argv, code, name, *, cwd=None):
     except ExecutableNotFound as exc:
         rc, out, err = None, "", str(exc)
         road = "install the executable or correct argv/PATH in the child environment and retry"
+    seconds = (ctx.driver.clock() - started).total_seconds()
     ctx.driver.spool.write(ticket.stem, attempt, name, f"$ {' '.join(argv)}\n[exit {rc}]\n--- stdout\n{out}\n--- stderr\n{err}")
     tail = ctx.driver.redactor.scrub((out + err)[-OUTPUT_TAIL_CHARS:])
-    result = CommandResult(argv=list(argv), rc=rc, tail=tail, base_red=False)
+    result = CommandResult(argv=list(argv), rc=rc, tail=tail, base_red=False, seconds=seconds)
     findings = [] if rc == 0 else [Finding(message=ctx.driver.redactor.scrub(f"{argv!r} exited {rc}: {tail.strip() or '(no output)'}"), paved_road=road, code=code)]
     return result, GateReport(code=code, verdict="fail" if findings else "pass", findings=findings)
 
@@ -1040,9 +1042,11 @@ def coverage_contexts(report: dict) -> dict[str, dict[str, list[str]]]:
 
 
 async def _check_host_results(ctx, ticket, entry, n, attempt, changed_files):
+    from chupa.covgate import percentages
     from chupa.daemon import flake_detection, storm_producer
     from chupa.flake import GreenRerunEvidence, RerunEvidence
-    from chupa.testreport import ResultsInvalid, read_results
+    from chupa.gates import TestCoverage, TestTiming
+    from chupa.testreport import ResultsInvalid, read_results, slow_tests
 
     root = ctx.worktree(ticket.stem)
     path = root / entry.results
@@ -1075,11 +1079,31 @@ async def _check_host_results(ctx, ticket, entry, n, attempt, changed_files):
     result, report, first = await run(f"check/host-{n:02d}.txt")
     if first is None:
         return invalid() if result.rc == 0 else report
+    timing = TestTiming(
+        seconds=result.seconds,
+        passed=list(first.tests.values()).count("passed"),
+        failed=list(first.tests.values()).count("failed"),
+        skipped=list(first.tests.values()).count("skipped"),
+        slow=slow_tests(first.seconds, entry.slow_test_seconds, entry.slow_test_limit),
+    )
+    coverage = None
+    if entry.coverage is not None:
+        try:
+            percent, files = percentages(json.loads((root / entry.coverage).read_text()))
+            coverage = TestCoverage(percent=percent, files={path: value for path, value in files.items() if path in changed_files})
+        except OSError, UnicodeError, ValueError:
+            pass
+
+    def recorded(report):
+        return report.model_copy(update={"timing": timing, "coverage": coverage})
+
+    first = first.tests
     last = first
     if result.rc != 0 and "failed" in first.values():
         result, report, last = await run(f"check/host-{n:02d}-rerun.txt")
         if last is None:
             return invalid()
+        last = last.tests
         projection = flake.quarantine()
         findings = []
         flaky = {test for test, outcome in first.items() if outcome == "failed" and last.get(test) == "passed"}
@@ -1088,16 +1112,18 @@ async def _check_host_results(ctx, ticket, entry, n, attempt, changed_files):
             try:
                 contexts = coverage_contexts(json.loads((root / entry.coverage).read_text()))
             except OSError, UnicodeError, ValueError, KeyError, TypeError:
-                return _report(
-                    entry.code,
-                    [
-                        Finding(
-                            code=entry.code,
-                            path=entry.coverage,
-                            message=f"Missing or invalid coverage contexts: {entry.coverage}",
-                            paved_road='run with --cov-context=test, and set [tool.coverage.json] show_contexts = true and [tool.coverage.run] core = "ctrace"',
-                        )
-                    ],
+                return recorded(
+                    _report(
+                        entry.code,
+                        [
+                            Finding(
+                                code=entry.code,
+                                path=entry.coverage,
+                                message=f"Missing or invalid coverage contexts: {entry.coverage}",
+                                paved_road='run with --cov-context=test, and set [tool.coverage.json] show_contexts = true and [tool.coverage.run] core = "ctrace"',
+                            )
+                        ],
+                    )
                 )
             changed = _changed_lines(await ctx.git.diff(ctx.repo, MAIN, ticket.stem))
             covered = {context.split("|", 1)[0] for name, numbers in changed.items() for number in numbers for context in contexts.get(name, {}).get(str(number), []) if "|" in context}
@@ -1132,7 +1158,7 @@ async def _check_host_results(ctx, ticket, entry, n, attempt, changed_files):
         fix = resolution.link if message.status == "resolved" and resolution is not None and resolution.kind == "ticket" else None
         if fix and any(event.type == EventType.STATE_TRANSITION and event.ticket == fix and event.body.get("to") == "merged" for event in events):
             flake.release(box_id=identity.box_id, evidence=GreenRerunEvidence(identity.test_id, fix, ctx.driver.clock(), "pass", True, True, True))
-    return report
+    return recorded(report)
 
 
 async def check_hosts(ctx, ticket, changed_files, attempt):

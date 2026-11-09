@@ -44,16 +44,16 @@ def test_reports_all_phases_and_nodeids(inner_tests, workers):
     result = inner_tests.runpytest_subprocess("-p", "chupa.testreport", "--chupa-results", "r.json", "-n", workers)
     assert result.ret == 1
     data = json.loads((inner_tests.path / "r.json").read_text())
-    assert data == {
-        "schema_version": 1,
-        "tests": {
-            "test_a.py::TestC::test_m": "passed",
-            "test_a.py::test_fail": "failed",
-            "test_a.py::test_skip": "skipped",
-            "test_a.py::test_teardown": "failed",
-        },
+    assert data["schema_version"] == 2
+    assert data["tests"] == {
+        "test_a.py::TestC::test_m": "passed",
+        "test_a.py::test_fail": "failed",
+        "test_a.py::test_skip": "skipped",
+        "test_a.py::test_teardown": "failed",
     }
-    assert read_results(json.dumps(data)) == data["tests"]
+    assert data["seconds"].keys() == data["tests"].keys()
+    result = read_results(json.dumps(data))
+    assert result.tests == data["tests"] and result.seconds == data["seconds"]
 
 
 def test_no_option_writes_no_file(inner_tests):
@@ -71,7 +71,8 @@ def test_worker_does_not_write(tmp_path):
 
 def test_read_schema_2():
     data = {"schema_version": 2, "tests": {"test_a": "failed"}, "seconds": {"test_a": 1.5}}
-    assert read_results(json.dumps(data)) == {"test_a": "failed"}
+    assert read_results(json.dumps(data)).tests == {"test_a": "failed"}
+    assert read_results(json.dumps(data)).seconds == {"test_a": 1.5}
 
 
 @pytest.mark.parametrize(
@@ -85,6 +86,7 @@ def test_read_schema_2():
         {"schema_version": 3, "tests": {}, "seconds": {}},
         {"schema_version": "1", "tests": {}},
         {"schema_version": True, "tests": {}},
+        {"schema_version": 1, "tests": {"test_a": "passed"}},
         {"schema_version": 1, "tests": {"test_a": "error"}},
         {"schema_version": 1, "tests": {"  ": "passed"}},
         {"schema_version": 1, "tests": {}, "extra": 1},

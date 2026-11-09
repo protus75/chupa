@@ -72,8 +72,8 @@ def parse_gate(text: str) -> Gate:
     )
 
 
-def evaluate(gate: Gate, report: dict) -> list[str]:
-    """Return failures; reject reports that cannot provide the required counts."""
+def percentages(report: dict) -> tuple[float, dict[str, float]]:
+    """Return weighted repository and file coverage, validating the report."""
     try:
         if not isinstance(report, dict) or report["meta"]["format"] != 3 or not isinstance(report["files"], dict):
             raise ValueError("expected coverage.py JSON format 3")
@@ -100,21 +100,28 @@ def evaluate(gate: Gate, report: dict) -> list[str]:
         total = sum(counts[p][1] + counts[p][3] for p in paths)
         return 100 * covered / total if total else 100.0
 
+    return percent(counts), {path: percent([path]) for path in counts}
+
+
+def evaluate(gate: Gate, report: dict) -> list[str]:
+    """Return failures; reject reports that cannot provide the required counts."""
+    repository, per_file = percentages(report)
+    files = report["files"]
+
     def matches(path, package):
         return path == package or path.startswith(package + "/")
 
     failures = []
     road = "add unit tests that execute the missing lines. Lowering a threshold in the gate file is a human ticket's decision."
 
-    def check(name, paths, minimum, source, missing=None):
-        value = percent(paths)
+    def check(name, value, minimum, source, missing=None):
         if value < minimum:
             lines = f"; missing lines: {missing}" if missing is not None else ""
             failures.append(f"{name}: {value:.2f}% below {minimum}% ({source}){lines} -- {road}")
 
-    check("repository", files, gate.repository, "coverage.repository" if gate.repository_explicit else "coverage.default")
+    check("repository", repository, gate.repository, "coverage.repository" if gate.repository_explicit else "coverage.default")
     for package, minimum in gate.packages.items():
-        check(package, [p for p in files if matches(p, package)], minimum, f"coverage.packages.{package}")
+        check(package, percentages({"meta": report["meta"], "files": {p: files[p] for p in files if matches(p, package)}})[0], minimum, f"coverage.packages.{package}")
     for path, entry in files.items():
         packages = [p for p in gate.packages if matches(path, p)]
         if path in gate.files:
@@ -124,7 +131,7 @@ def evaluate(gate: Gate, report: dict) -> list[str]:
             minimum, source = gate.packages[package], f"coverage.packages.{package}"
         else:
             minimum, source = gate.default, "coverage.default"
-        check(path, [path], minimum, source, entry["missing_lines"])
+        check(path, per_file[path], minimum, source, entry["missing_lines"])
     return failures
 
 

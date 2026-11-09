@@ -320,7 +320,7 @@ def results_script(ctx, monkeypatch, runs):
         calls.append(kw["cwd"])
         rc, outcomes = runs.pop(0)
         if outcomes is not None:
-            (kw["cwd"] / "results.json").write_text(json.dumps({"schema_version": 1, "tests": outcomes}))
+            (kw["cwd"] / "results.json").write_text(json.dumps({"schema_version": 2, "tests": outcomes, "seconds": {key: 0.0 for key in outcomes}}))
         return rc, "", ""
 
     monkeypatch.setattr(ctx.exec_, "run", execute)
@@ -451,7 +451,7 @@ def test_coverage_changed_lines(ctx, monkeypatch, deletion, covered, expected):
                 return await original(argv, **kw)
             calls += 1
             outcomes = {test: "failed" if calls == 1 else "passed"}
-            (kw["cwd"] / "results.json").write_text(json.dumps({"schema_version": 1, "tests": outcomes}))
+            (kw["cwd"] / "results.json").write_text(json.dumps({"schema_version": 2, "tests": outcomes, "seconds": {key: 0.0 for key in outcomes}}))
             (kw["cwd"] / "coverage.json").write_text(json.dumps({"files": {"pkg/m.py": {"contexts": {str(covered): [test + "|run"]}}}}))
             return (1 if calls == 1 else 0), "", ""
 
@@ -482,7 +482,7 @@ def test_coverage_fail_closed(ctx, monkeypatch, coverage, flaky, expected):
             if argv[0] != "host":
                 return await original(argv, **kw)
             calls += 1
-            (kw["cwd"] / "results.json").write_text(json.dumps({"schema_version": 1, "tests": {test: "failed" if flaky and calls == 1 else "passed"}}))
+            (kw["cwd"] / "results.json").write_text(json.dumps({"schema_version": 2, "tests": {test: "failed" if flaky and calls == 1 else "passed"}, "seconds": {test: 0.0}}))
             if coverage is not None:
                 (kw["cwd"] / "coverage.json").write_text(json.dumps(coverage))
             return (1 if flaky and calls == 1 else 0), "", ""
@@ -509,3 +509,84 @@ def test_coverage_requires_results(ctx, tmp_path):
     with pytest.raises(ConfigError) as exc:
         load_config(path, cwd=tmp_path)
     assert exc.value.key == "review.mechanical.0.coverage"
+
+
+def timing_run(ctx, monkeypatch, durations, outcomes, **options):
+    import json
+
+    async def run():
+        ticket = await ready(ctx, changes={"changed.py": "changed"}, fence=("changed.py",))
+        ctx.config.review.mechanical = [host("tests").model_copy(update={"results": "results.json", **options})]
+        original = ctx.exec_.run
+
+        async def execute(argv, **kw):
+            if argv[0] != "host":
+                return await original(argv, **kw)
+            (kw["cwd"] / "results.json").write_text(json.dumps({"schema_version": 2, "tests": outcomes, "seconds": durations}))
+            return 0, "", ""
+
+        monkeypatch.setattr(ctx.exec_, "run", execute)
+        return (await checked(ctx, ticket)).artifact.reports[-1]
+
+    return asyncio.run(run())
+
+
+def test_results_record_timing(ctx, monkeypatch):
+    report = timing_run(ctx, monkeypatch, {"a": 0.5, "b": 3.0, "c": 1.0}, {"a": "passed", "b": "failed", "c": "skipped"})
+    assert list(report.timing.slow.items()) == [("b", 3.0), ("c", 1.0)]
+    assert (report.timing.passed, report.timing.failed, report.timing.skipped) == (1, 1, 1)
+
+
+def test_slow_tests_capped(ctx, monkeypatch):
+    durations = {f"test_{n:03}": 2.0 for n in range(150)}
+    report = timing_run(ctx, monkeypatch, durations, dict.fromkeys(durations, "passed"))
+    assert list(report.timing.slow) == list(durations)[:100]
+
+
+def test_slow_test_bounds_configured(ctx, monkeypatch):
+    durations = {"a": 2.0, "b": 3.0, "c": 4.0}
+    report = timing_run(ctx, monkeypatch, durations, dict.fromkeys(durations, "passed"), slow_test_seconds=2.5, slow_test_limit=1)
+    assert report.timing.slow == {"c": 4.0}
+
+
+@pytest.mark.parametrize("field,value", [("slow_test_seconds", 2.5), ("slow_test_limit", 1)])
+def test_slow_bounds_require_results(ctx, tmp_path, field, value):
+    import yaml
+
+    from chupa.config import ConfigError, load_config
+
+    raw = yaml.safe_load((ctx.repo / "config.yaml").read_text())
+    raw["review"]["mechanical"] = [{"code": "tests", "argv": ["pytest"], "trigger": "always", "severity": "hard", field: value}]
+    path = tmp_path / "config.yaml"
+    path.write_text(yaml.safe_dump(raw))
+    with pytest.raises(ConfigError) as exc:
+        load_config(path, cwd=tmp_path)
+    assert exc.value.key == f"review.mechanical.0.{field}"
+
+
+@pytest.mark.parametrize("valid", [True, False])
+def test_coverage_recorded_for_changed_files(ctx, monkeypatch, valid):
+    import json
+
+    async def run():
+        ticket = await ready(ctx, changes={"changed.py": "changed"}, fence=("changed.py",))
+        ctx.config.review.mechanical = [host("tests").model_copy(update={"results": "results.json", "coverage": "coverage.json"})]
+        original = ctx.exec_.run
+
+        async def execute(argv, **kw):
+            if argv[0] != "host":
+                return await original(argv, **kw)
+            (kw["cwd"] / "results.json").write_text(json.dumps({"schema_version": 2, "tests": {"a": "passed"}, "seconds": {"a": 2.0}}))
+
+            def entry(covered):
+                return {"summary": {"covered_lines": covered, "num_statements": 4}, "missing_lines": []}
+
+            (kw["cwd"] / "coverage.json").write_text(json.dumps({"meta": {"format": 3}, "files": {"changed.py": entry(2), "other.py": entry(4)}}) if valid else "invalid")
+            return 0, "", ""
+
+        monkeypatch.setattr(ctx.exec_, "run", execute)
+        report = (await checked(ctx, ticket)).artifact.reports[-1]
+        assert report.verdict == "pass"
+        assert (report.coverage.model_dump() if report.coverage else None) == ({"percent": 75.0, "files": {"changed.py": 50.0}} if valid else None)
+
+    asyncio.run(run())

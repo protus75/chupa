@@ -263,6 +263,7 @@ def test_host_contract_seam_inventory(tmp_path):
         exec_=exec_,
         worktree=lambda stem: tmp_path,
         driver=SimpleNamespace(
+            clock=lambda: __import__("datetime").datetime(2020, 1, 1),
             redactor=SimpleNamespace(scrub=lambda text: text.replace("SECRET", "[redacted]")),
             spool=SimpleNamespace(write=lambda *args: captured.append(args)),
         ),
