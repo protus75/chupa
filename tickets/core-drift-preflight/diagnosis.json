@@ -1,15 +1,20 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "a67889d2eb986f70665ad8c36e4a9b0df585073f",
+  "produced_at_sha": "f7c3553895092fe220deb7f14b0510fdb6c53688",
   "stem": "core-drift-preflight",
-  "attempt": 1,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "premise_bounce cap spent",
+  "attempt": 2,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "reject",
+  "lessons": [
+    "Check failed at the unit coverage gate, not in the integration suite: unit tests put chupa/hostfiles.py at 16.39%, below its 17% floor in test-gate.toml. The new stale_core lines run only in tests/integration, so they count as missed lines.",
+    "The ticket's Scope fence has no tests/unit file, so no attempt can add a unit test that runs stale_core. Before rerunning, a human should add a unit test file to the fence (for example tests/unit/test_hostfiles.py) and to Scope in.",
+    "The gate's paved road says lowering the threshold in test-gate.toml is a human ticket's decision. Do not edit it, and do not pad hostfiles.py to game the percentage.",
+    "Once the fence holds a unit test file, cover stale_core there with a fake git that answers `show HEAD:<rel>` (current, drifted, and GitError-as-None paths). Then run ./dev.py test, including tests/unit with coverage, before committing."
+  ],
+  "mechanical": null,
   "spec_version": "1.2",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
