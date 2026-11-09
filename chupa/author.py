@@ -114,7 +114,7 @@ async def _open_tickets(checkout: Checkout) -> str:
     lines = []
     for name in await checkout.git.ls_files(checkout.repo):
         path = Path(name)
-        if len(path.parts) == 3 and path.parts[0] == "tickets" and path.name == "ticket.md":
+        if len(path.parts) == 3 and path.parts[0] == "tickets" and path.name == "ticket.md" and (checkout.repo / path).exists():
             stem = path.parts[1]
             if states.get(stem) != "merged":
                 lines.append(f"{stem}: {_goal((checkout.repo / path).read_text())}")
