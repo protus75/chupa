@@ -1,15 +1,21 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "15a400f221f094616900a87a5e2846913cbbce8d",
+  "produced_at_sha": "8c62e23faa5e9e76e92529521d57b61c5e37db9d",
   "stem": "check-test-timing",
-  "attempt": 2,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "premise_bounce cap spent",
+  "attempt": 4,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Add an otherwise-valid schema-1 case, e.g. {\"schema_version\": 1, \"tests\": {\"test_a\": \"passed\"}}, to the refused cases in tests/integration/test_testreport.py test_invalid_results (acceptance 1), so the test fails if schema 1 is still accepted.",
+    "Add the same otherwise-valid schema-1 document to the refused cases in tests/unit/test_testreport_reader.py test_invalid_results, as the ticket's 'a schema-1 document joins the refused cases' requires.",
+    "In chupa/covgate.py evaluate, do not branch on the check name ('repository'). Pass the repository percent from percentages() into the repository check directly, and take file values from percentages()' per-file map. Do not keep a second local covered/total formula.",
+    "Update the docs/how-chupa-works.md section 12 chupa.testreport bullet to say the reader accepts only schema 2 and refuses schema 1. Remove the 'accepts schemas 1 and 2' sentence.",
+    "Keep the rest of the diff, which review accepted. After these fixes, rerun all Verification commands, including ./dev.py test tests/unit/test_covgate.py, and confirm covgate evaluate results are unchanged."
+  ],
+  "mechanical": null,
   "spec_version": "1.2",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
