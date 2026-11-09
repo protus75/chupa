@@ -443,7 +443,7 @@ class ClaudeAdapter(CliAdapter):
 
     def argv(self, model: str, effort: AgentEffort, writes: bool) -> list[str]:
         # No effort flag: effort is recorded in provenance only. stream-json under -p requires --verbose.
-        grant = ["--permission-mode", "bypassPermissions"] if writes else ["--allowedTools", "Read", "Grep", "Glob", "LS"]
+        grant = ["--permission-mode", "bypassPermissions"] if writes else ["--tools", "Read", "Grep", "Glob", "LS", "--permission-mode", "dontAsk"]
         return [self.binary, "-p", "--output-format", "stream-json", "--verbose", "--model", model, *grant]
 
     def parse(self, out: str) -> Parsed:

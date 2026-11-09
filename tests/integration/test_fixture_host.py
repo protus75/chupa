@@ -337,7 +337,7 @@ def test_fixture_cli_adapter_roundtrip(host):
                     assert "bypassPermissions" in argv
                     assert json.loads((host / "settings.json").read_text()) == {**json.loads(base_settings), **scaffold.scenario(host, name)["edits"]["settings.json"]}
                 else:
-                    assert "--allowedTools" in argv and (host / "settings.json").read_bytes() == before
+                    assert "--tools" in argv and (host / "settings.json").read_bytes() == before
         env.update(CHUPA_FIXTURE_SCENARIO="unknown", CHUPA_FIXTURE_SURFACE="review")
         with pytest.raises(ProviderCallError, match="select a declared scenario"):
             await llm.call(LLMRequest("review", "unknown", "medium", "low", None, None))

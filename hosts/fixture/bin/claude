@@ -20,7 +20,7 @@ try:
     prefix = ["-p", "--output-format", "stream-json", "--verbose", "--model", "fixture"]
     grant = argv[len(prefix):]
     if argv[:len(prefix)] != prefix or grant not in (
-        ["--permission-mode", "bypassPermissions"], ["--allowedTools", "Read", "Grep", "Glob", "LS"],
+        ["--permission-mode", "bypassPermissions"], ["--tools", "Read", "Grep", "Glob", "LS", "--permission-mode", "dontAsk"],
     ):
         raise ValueError("unknown argv; invoke the fixture through the existing Claude adapter")
     if prompt == "Reply with the single word ok.":
@@ -44,7 +44,7 @@ try:
         if surface != "implement" and Path.cwd().resolve() != root:
             raise ValueError("wrong host cwd; select the disposable host root")
         if surface == "requisition_review":
-            if grant != ["--allowedTools", "Read", "Grep", "Glob", "LS"]:
+            if grant != ["--tools", "Read", "Grep", "Glob", "LS", "--permission-mode", "dontAsk"]:
                 raise ValueError("requisition review is read only")
             result = json.dumps({"verdict": "approve", "summary": "Declared fixture ticket inspected.", "findings": []})
         else:

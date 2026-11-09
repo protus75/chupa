@@ -275,7 +275,8 @@ def test_claude_read_only_surface_gets_the_read_tool_allowlist_and_no_grant(tmp_
     exec_ = FakeExec((0, claude_ok(), ""))
     call(cfg, exec_, tmp_path, req("review", worktree=tmp_path / "wt"))
     inv = exec_.calls[0]
-    assert inv["argv"][-5:] == ["--allowedTools", "Read", "Grep", "Glob", "LS"]
+    assert inv["argv"][-7:] == ["--tools", "Read", "Grep", "Glob", "LS", "--permission-mode", "dontAsk"]
+    assert "--allowedTools" not in inv["argv"]
     assert "bypassPermissions" not in inv["argv"]
     assert inv["cwd"] == tmp_path / "checkout"
 
