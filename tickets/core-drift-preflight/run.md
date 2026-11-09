@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-A shared test fixture changes routes after its base commit, so it now commits both conduct files; the full suite passes with 3,180 tests.
+The startup preflight implementation reproduced the prior coverage failure: hostfiles.py measured 16.39% against the 17% floor. The full suite also exposed fixture updates needed for the new preflight.
 
 ## Dead ends
 
-Rejected checking working-tree files because an uncommitted repair must not conceal committed drift; the existing Git text read is the minimum specified approach for UTF-8 conduct files.
+The configured unit gate failed because the new stale_core code is exercised only by integration tests; lowering the threshold or padding production code would not be an appropriate fix.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-The 30-minute expected budget was sufficient; the full suite took about one minute.
+Expected 30 minutes; stopped early after confirming the scope blocker.
 
