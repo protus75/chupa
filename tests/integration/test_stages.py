@@ -889,3 +889,53 @@ def test_verification_records_each_command_seconds(repo, monkeypatch):
     run(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
     invoice = Invoice.model_validate_json((repo / "tickets" / STEM / "checks.json").read_text())
     assert [result.seconds for result in invoice.verification] == [13.0, 29.0]
+
+
+@pytest.mark.asyncio
+async def test_outbox_lift_ignores_stray_file(repo):
+    from chupa.stages import lift_outbox
+    from tests.integration.test_merge import context
+
+    author(repo)
+    ctx = context(repo, [])
+    await ctx.git.worktree_add(repo, ctx.worktree(STEM), STEM, "main")
+    outbox = ctx.worktree(STEM) / "tickets" / STEM
+    (outbox / "run.md").write_text("run record\n")
+    (outbox / "notes.txt").write_text("stray notes\n")
+    commit = await lift_outbox(ctx, STEM, "run-record", attempt=0)
+    assert git(repo, "show", "--format=", "--name-only", commit).split() == [f"tickets/{STEM}/run.md"]
+    assert not (repo / "tickets" / STEM / "notes.txt").exists()
+
+
+@pytest.mark.asyncio
+async def test_outbox_lift_skips_symlink(repo, tmp_path):
+    from chupa.stages import lift_outbox
+    from tests.integration.test_merge import context
+
+    author(repo)
+    ctx = context(repo, [])
+    await ctx.git.worktree_add(repo, ctx.worktree(STEM), STEM, "main")
+    target = tmp_path / "secret"
+    target.write_text("unique-provider-secret-for-lift\n")
+    (ctx.worktree(STEM) / "tickets" / STEM / "run.md").symlink_to(target)
+    head = git(repo, "rev-parse", "main")
+    assert await lift_outbox(ctx, STEM, "run-record", attempt=0) is None
+    assert git(repo, "rev-parse", "main") == head
+    assert subprocess.run(["git", "-C", str(repo), "grep", "-F", "unique-provider-secret-for-lift", "main"], env=ENV, capture_output=True).returncode == 1
+    assert not (repo / "tickets" / STEM / "run.md").exists()
+
+
+@pytest.mark.asyncio
+async def test_outbox_lift_rejects_oversize(repo):
+    from chupa.stages import LIFT_MAX_BYTES, ArtifactInvalid, lift_outbox
+    from tests.integration.test_merge import context
+
+    author(repo)
+    ctx = context(repo, [])
+    await ctx.git.worktree_add(repo, ctx.worktree(STEM), STEM, "main")
+    (ctx.worktree(STEM) / "tickets" / STEM / "run.md").write_bytes(b"x" * (LIFT_MAX_BYTES + 1))
+    head = git(repo, "rev-parse", "main")
+    with pytest.raises(ArtifactInvalid, match=f"artifact is {LIFT_MAX_BYTES + 1} bytes, over the {LIFT_MAX_BYTES}-byte lift limit"):
+        await lift_outbox(ctx, STEM, "run-record", attempt=0)
+    assert git(repo, "rev-parse", "main") == head
+    assert not (repo / "tickets" / STEM / "run.md").exists()

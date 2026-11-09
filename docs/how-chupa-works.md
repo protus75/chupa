@@ -157,9 +157,10 @@ Engine artifacts such as `run.md` and `checks.json` do not affect this identity.
 ### 3.3 What the engine writes back
 
 Stages write into an outbox in the ticket's worktree (`tickets/<stem>/` inside it). The lift
-copies each new or changed file to the main checkout's `tickets/<stem>/` and commits it on `main`
+copies each selected new or changed artifact to the main checkout's `tickets/<stem>/` and commits it on `main`
 as `chupa(<stem>): <kind>`, once per attempt (an Effect, section 10.2). `ticket.md` is never
-lifted from a worktree: the agent cannot edit its own ticket.
+lifted from a worktree: the agent cannot edit its own ticket. Each lift takes only its named artifact,
+refuses symlinks, and refuses a file over 256 KB.
 
 | Lift kind | File |
 |---|---|

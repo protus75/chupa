@@ -61,6 +61,7 @@ from chupa.tickets import _HEADING, TEST_FIXTURE_DIRS, TICKET_FILE, TICKETS_DIR,
 from chupa.tickets import validate_ticket as validate_ticket
 
 MAIN = "main"
+LIFT_MAX_BYTES = 256 * 1024
 KNOWN_ARTIFACTS: Mapping[str, type[BaseModel]] = {
     SHAKEOUT_REPORT: ShakeoutReport,
     DAEMON_SOAK_REPORT: DaemonSoakReport,
@@ -339,18 +340,35 @@ def _registered_files(outbox: Path) -> list[Path]:
     return [p for p in outbox.rglob("*") if p.is_file() and p.name in KNOWN_ARTIFACTS]
 
 
+def _lift_decision(kind: str, only: str | None, rel: str, is_symlink: bool, size: int) -> Literal["skip", "lift", "too_large"]:
+    if is_symlink:
+        return "skip"
+    if only is not None:
+        selected = rel == only
+    else:
+        selected = (kind == "run-record" and rel == "run.md") or (kind == "review" and rel == "review.md") or (kind == "checks" and (rel == "checks.json" or Path(rel).name in KNOWN_ARTIFACTS))
+    if not selected:
+        return "skip"
+    return "too_large" if size > LIFT_MAX_BYTES else "lift"
+
+
 def _lift_files(ctx: StageContext, stem: str, kind: str, only: str | None = None) -> list[Path]:
     outbox = ctx.worktree(stem) / TICKETS_DIR / stem
     canonical = ctx.repo / TICKETS_DIR / stem
-    return sorted(
-        p
-        for p in outbox.rglob("*")
-        if p.is_file()
-        and p.relative_to(outbox) != Path(TICKET_FILE)
-        and (only is None or p.relative_to(outbox).as_posix() == only)
-        and (p.name not in KNOWN_ARTIFACTS or kind == "checks")
-        and not ((c := canonical / p.relative_to(outbox)).is_file() and c.read_bytes() == p.read_bytes())
-    )
+    files = []
+    for p in outbox.rglob("*"):
+        if not (p.is_symlink() or p.is_file()):
+            continue
+        rel = p.relative_to(outbox)
+        if rel == Path(TICKET_FILE):
+            continue
+        size = p.lstat().st_size
+        decision = _lift_decision(kind, only, rel.as_posix(), p.is_symlink(), size)
+        if decision == "too_large":
+            raise ArtifactInvalid(p, ValueError(f"artifact is {size} bytes, over the {LIFT_MAX_BYTES}-byte lift limit"))
+        if decision == "lift" and not ((c := canonical / rel).is_file() and c.read_bytes() == p.read_bytes()):
+            files.append(p)
+    return sorted(files)
 
 
 def _validate_reports(paths: Sequence[Path]) -> None:
