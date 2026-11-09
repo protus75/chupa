@@ -89,3 +89,36 @@ def test_review_releases_checkout_lock_during_call(tmp_path, monkeypatch):
     assert observed == [(True, [], "confirmed")]
     assert last_states(journal.read())["candidate"] == "confirmed"
     assert [event.body["verdict"] for event in verdicts(root)] == ["approve"]
+
+
+def test_review_committed_ticket_while_checkout_locked(tmp_path, monkeypatch):
+    root = make_root(tmp_path)
+    commit_ticket(root, "candidate", confirmed())
+    lock = Lockfile(root / ".chupa/state", instance_id="engine", clock=Clock())
+    lock.acquire()
+    try:
+        llm = FakeLLM([reply("approve")])
+        assert run(root, monkeypatch, llm, "candidate") == 0
+        [event] = verdicts(root)
+        assert event.body["verdict"] == "approve"
+        assert event.body["ticket_sha"] == git_out(root, "rev-parse", "main:tickets/candidate/ticket.md").strip()
+        assert len(llm.requests) == 1
+    finally:
+        lock.release()
+
+
+def test_review_changed_ticket_refuses_while_checkout_locked(tmp_path, monkeypatch, capsys):
+    root = make_root(tmp_path)
+    commit_ticket(root, "candidate", confirmed())
+    path = root / "tickets/candidate/ticket.md"
+    path.write_text(path.read_text() + "\nPending edit\n")
+    lock = Lockfile(root / ".chupa/state", instance_id="engine", clock=Clock())
+    lock.acquire()
+    try:
+        llm = FakeLLM([])
+        assert run(root, monkeypatch, llm, "candidate") == 2
+        assert llm.requests == []
+        assert verdicts(root) == []
+        assert "wait for the running engine to commit the ticket through intake, or stop it, then retry `review candidate`" in capsys.readouterr().err
+    finally:
+        lock.release()

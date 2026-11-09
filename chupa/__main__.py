@@ -510,27 +510,31 @@ async def _review(checkout: runner.Checkout, stem: str) -> int:
 
     if findings := stem_findings(stem):
         raise runner.Refusal(findings[0].message, findings[0].paved_road)
-    lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
-    lock.acquire()
-    try:
-        result = await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
-        if refused := result.refused.get(stem):
-            raise runner.Refusal(f"{ticket_path(stem)} failed intake: " + "; ".join(f.message for f in refused), f"fix the ticket and retry `review {stem}`")
-        path = checkout.repo / ticket_path(stem)
-        if not path.is_file():
-            raise runner.Refusal(f"{ticket_path(stem)} does not exist", f"author the ticket before `review {stem}`")
-        history = checkout.journal.read()
-        states = last_states(history)
-        if states.get(stem) in SETTLED | {"rejected"}:
-            raise runner.Refusal(f"{stem} is settled or rejected", "author follow-up work as a new ticket")
-        text = await checkout.git._run(checkout.repo, "show", f"main:{ticket_path(stem)}")
+    if await checkout.git.status_porcelain(checkout.repo, "--untracked-files=all", "--", f"tickets/{stem}/"):
+        lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
         try:
-            ticket = validate_ticket(stem, text, checkout.repo)
-        except TicketInvalid as exc:
-            raise runner.Refusal(f"{ticket_path(stem)} is invalid: " + "; ".join(f.message for f in exc.findings), f"fix the ticket and retry `review {stem}`") from None
-        unmerged = [dep for dep in ticket.depends if states.get(dep) != "merged"]
-    finally:
-        lock.release()
+            lock.acquire()
+        except LockHeld as exc:
+            raise runner.Refusal(str(exc), f"wait for the running engine to commit the ticket through intake, or stop it, then retry `review {stem}`") from None
+        try:
+            result = await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
+            if refused := result.refused.get(stem):
+                raise runner.Refusal(f"{ticket_path(stem)} failed intake: " + "; ".join(f.message for f in refused), f"fix the ticket and retry `review {stem}`")
+        finally:
+            lock.release()
+    path = checkout.repo / ticket_path(stem)
+    if not path.is_file():
+        raise runner.Refusal(f"{ticket_path(stem)} does not exist", f"author the ticket before `review {stem}`")
+    history = checkout.journal.read()
+    states = last_states(history)
+    if states.get(stem) in SETTLED | {"rejected"}:
+        raise runner.Refusal(f"{stem} is settled or rejected", "author follow-up work as a new ticket")
+    text = await checkout.git._run(checkout.repo, "show", f"main:{ticket_path(stem)}")
+    try:
+        ticket = validate_ticket(stem, text, checkout.repo)
+    except TicketInvalid as exc:
+        raise runner.Refusal(f"{ticket_path(stem)} is invalid: " + "; ".join(f.message for f in exc.findings), f"fix the ticket and retry `review {stem}`") from None
+    unmerged = [dep for dep in ticket.depends if states.get(dep) != "merged"]
     session = build_control(checkout).providers
     try:
         llm = ProviderLLM(checkout.config, exec_=checkout.exec_, fs=checkout.fs, env=checkout.env, cwd=checkout.repo, timeout=runner.call_timeout(checkout.config), session=session)
