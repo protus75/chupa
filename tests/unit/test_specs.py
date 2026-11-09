@@ -22,10 +22,28 @@ from chupa.specs import (
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parents[2] / "chupa" / "specs"
-    for name, version in (("implement", "2.4"), ("requisition_review", "3.4"), ("diagnose", "1.3")):
+    for name, version in (("implement", "2.4"), ("requisition_review", "3.5"), ("diagnose", "1.3")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
+
+
+def test_requisition_review_spec_snags_non_protocol_regression():
+    text = (Path(__file__).resolve().parents[2] / "chupa/specs/requisition_review.md").read_text()
+    spec = load_spec(text)
+    rendered = render(spec, {name: f"fixture {name}" for name in spec.inputs})
+    task = " ".join(rendered.split("## Task\n", 1)[1].split("## Inputs\n", 1)[0].split())
+    for phrase in (
+        "If the ticket has `## Regression`",
+        "`- carries:` path prefix (a test or fixture path)",
+        "`## Scope fence` prefix",
+        "only one JSON object with exactly the `regression_result` key",
+        "`pass` with exit 0 at head",
+        "`defect` with nonzero exit on the base overlaid with the carried files",
+        "using only code that exists at base",
+        "runner output on stdout (such as from `./dev.py test` or pytest) is a snag",
+    ):
+        assert phrase in task
 
 
 def test_diagnose_spec_states_attempt_starting_point():
