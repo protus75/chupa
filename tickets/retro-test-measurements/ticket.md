@@ -37,9 +37,14 @@ After `check-test-timing`, every `checks.json` holds per-entry test timing and c
   - When a switch is false, its key is absent from the evidence, not present and empty.
   - `render_report` needs no change: both keys appear inside `measurements`.
 - In: tests in `tests/integration/test_retro.py`, publishing Check invoices the way `test_retro_trigger_boundaries` does for `override`:
-  - `test_test_timing_aggregates_invoices`: two invoices list `tests/a.py::t` at 2.0s and 5.0s, so `slow` reports `max_seconds: 5.0` and `runs: 2`, not the last value or a sum. `runs` has one row per invoice.
-  - `test_coverage_aggregates_invoices`: a file at 80.0 and then 60.0 reports `latest: 60.0` and `min: 60.0`, and `percent` is the later invoice's.
+  - `test_test_timing_aggregates_invoices`: two invoices list `tests/a.py::t` at 5.0s and then 2.0s, so `slow` reports `max_seconds: 5.0` and `runs: 2`, not the last value (2.0) or a sum (7.0). `runs` has one row per invoice.
+  - `test_coverage_aggregates_invoices`: a file at 60.0 and then 80.0 reports `latest: 80.0`, `min: 60.0` and `runs: 2`. The two invoices carry different repository percents, and `percent` equals the later invoice's.
   - `test_measurement_switches`: with `test_timing: false` and `coverage: false`, neither `tests` nor `coverage` is in the evidence.
+- In: a new unit test file `tests/unit/test_retro_measurements.py` that runs the new aggregation branches in `chupa/retro.py` and the new `Retro` fields in `chupa/config.py` with a fake checkout and in-memory `Invoice` objects (no disk or process access):
+  - `test_measurements_aggregate_in_memory`: two invoices with timing and coverage produce the `tests` and `coverage` summaries;
+  - `test_measurements_switches_off`: with both switches false, neither key is present;
+  - `test_measurements_skip_invoice_without_data`: an invoice with no `timing` or `coverage` is skipped without error;
+  - `test_retro_default_switches`: `Retro()` has `test_timing` and `coverage` both true.
 - In: `tests/integration/test_config.py`: the `retro` defaults include both switches, and a YAML value of `false` for each loads.
 - In: docs.
   - `docs/host-contract.md`: the `Retro` row and the `Config.defaults.retro` object gain both switches.
@@ -51,19 +56,22 @@ After `check-test-timing`, every `checks.json` holds per-entry test timing and c
 - chupa/retro.py
 - tests/integration/test_retro.py
 - tests/integration/test_config.py
+- tests/unit/test_retro_measurements.py
 - docs/host-contract.md
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
 1. `./dev.py test tests/integration/test_retro.py` exits 0, including `test_test_timing_aggregates_invoices`, `test_coverage_aggregates_invoices` and `test_measurement_switches`. These rule out a last-value or summed `max_seconds`, a `min` that ignores earlier invoices, and an empty key left present when a switch is off.
 2. `./dev.py test tests/integration/test_config.py tests/integration/test_host_contract.py` exits 0.
-3. `docs/how-chupa-works.md` section 9.5 names `test_timing` and `coverage`.
-4. `./dev.py test` exits 0.
+3. `./dev.py test tests/unit/test_retro_measurements.py` exits 0, including the four named tests, so the new lines in `chupa/retro.py` and `chupa/config.py` run under a unit test.
+4. `docs/how-chupa-works.md` section 9.5 names `test_timing` and `coverage`.
+5. `./dev.py test` exits 0.
 
 ## Verification
 ```
 ./dev.py test tests/integration/test_retro.py
 ./dev.py test tests/integration/test_config.py tests/integration/test_host_contract.py
+./dev.py test tests/unit/test_retro_measurements.py
 ./dev.py test
 ```
 
