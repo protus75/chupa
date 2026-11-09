@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The minimum change was to extend the existing spec rules and assertions; no additional machinery was needed.
+The minimum change extends the existing spec wording and assertions; changing attribution code was unnecessary. Both verification commands and Ruff checks passed.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 20 minutes; completed in less than 20 minutes.
+Expected 20 minutes; completed in under 20 minutes.
 
