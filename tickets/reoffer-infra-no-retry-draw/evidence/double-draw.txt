@@ -1,0 +1,11 @@
+$ sed -n 90,96p chupa/drain.py   # retry drawn for every terminal but premise/drought, incl. infra_error and timeout
+def record_reoffer(journal, events: Iterable[Event], stem: str, sha: str) -> None:
+    history = tuple(events)
+    if stem in reject_queue(history):
+        journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}, ticket=stem)
+    body = next(e.body for e in reversed(history) if e.type == EventType.STATE_TRANSITION and e.ticket == stem and e.body.get("to") in TERMINAL_STATES)
+    if body.get("to") != PREMISE and "provider_drought" not in body:
+        caps.consume(journal, stem, "retry", sha, rung=body.get("rung"))
+
+$ grep -n "infra" chupa/runner.py
+231:        consume(ctx.driver.journal, ticket.stem, "infra", ticket_sha)

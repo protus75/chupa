@@ -24,7 +24,7 @@ state: confirmed
 
 ## Scope in / Scope out
 
-In: `record_reoffer` skips the `retry` draw when the last terminal is `infra_error` or `timeout`. A drain test covers which `cap_consumed` events each terminal class produces. `docs/how-chupa-works.md` is updated where it describes the retry draw exclusions.
+In: `record_reoffer` skips the `retry` draw when the last terminal is `infra_error` or `timeout`. A new unit test file `tests/unit/test_drain_reoffer.py` calls `record_reoffer` with a fake journal (an object whose `append` records its calls) and in-memory `Event` histories, one per terminal, and asserts which `cap_consumed` events each terminal class produces; no disk or process access. `docs/how-chupa-works.md` is updated where it describes the retry draw exclusions.
 
 Out: `abandoned` reaps. The runner draws no `infra` unit for them, so skipping the retry draw would leave them undrawn. Changes to `runner.py` or caps config. Changes to the machine keep signal.
 
@@ -32,18 +32,22 @@ Out: `abandoned` reaps. The runner draws no `infra` unit for them, so skipping t
 
 - chupa/drain.py
 - tests/integration/test_drain.py
+- tests/unit/test_drain_reoffer.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
 
-- `record_reoffer` on an `infra_error` terminal appends only the machine keep and no `retry` `cap_consumed`, checked by `./dev.py test tests/integration/test_drain.py -k reoffer`. The test fails if a `retry` draw is still appended.
-- `record_reoffer` on a `timeout` terminal appends no `retry` draw. The test fails if a `retry` draw is still appended.
-- `record_reoffer` on a `gate_failed` terminal still appends the `retry` draw. The test fails if the draw is dropped for it.
+- `record_reoffer` on an `infra_error` terminal appends no `retry` `cap_consumed`, checked by `./dev.py test tests/unit/test_drain_reoffer.py`. The test fails if a `retry` draw is still appended.
+- `record_reoffer` on a `timeout` terminal appends no `retry` draw, checked by `./dev.py test tests/unit/test_drain_reoffer.py`. The test fails if a `retry` draw is still appended.
+- `record_reoffer` on a `gate_failed` terminal still appends the `retry` draw, checked by `./dev.py test tests/unit/test_drain_reoffer.py`. The test fails if the draw is dropped for it.
+- `record_reoffer` on an `abandoned` terminal still appends the `retry` `cap_consumed`, checked by `./dev.py test tests/unit/test_drain_reoffer.py`. The test fails if the draw is dropped for it.
+- `./dev.py test tests/integration/test_drain.py -k reoffer` exits 0.
 - `docs/how-chupa-works.md` names `infra_error` and `timeout` among the terminals that draw no `retry` on re-offer; check with `tests/integration/test_drain.py` and a review of that doc line.
 
 ## Verification
 
 ```
+./dev.py test tests/unit/test_drain_reoffer.py
 ./dev.py test tests/integration/test_drain.py -k reoffer
 ```
 
