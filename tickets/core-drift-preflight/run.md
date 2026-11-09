@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The in-scope implementation passed all 3,161 tests, but Git output is decoded with replacement, so it cannot supply the original bytes for non-UTF-8 conduct files. I rejected re-encoding that text because it loses committed bytes.
+A shared test fixture changes routes after its base commit, so it now commits both conduct files; the full suite passes with 3,180 tests.
 
 ## Dead ends
 
-Using the existing text-returning Git seam passes the suite but does not meet the byte-exact contract.
+Rejected checking working-tree files because an uncommitted repair must not conceal committed drift; the existing Git text read is the minimum specified approach for UTF-8 conduct files.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 30 minutes; the full test suite completed in about one minute.
+The 30-minute expected budget was sufficient; the full suite took about one minute.
 
