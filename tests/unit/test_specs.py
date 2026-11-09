@@ -22,10 +22,15 @@ from chupa.specs import (
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parents[2] / "chupa" / "specs"
-    for name, version in (("implement", "2.3"), ("requisition_review", "3.4"), ("diagnose", "1.2")):
+    for name, version in (("implement", "2.3"), ("requisition_review", "3.4"), ("diagnose", "1.3")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
+
+
+def test_diagnose_spec_states_attempt_starting_point():
+    text = (Path(__file__).resolve().parents[2] / "chupa/specs/diagnose.md").read_text()
+    assert "Every attempt starts from the merge base" in text
 
 
 def test_implement_spec_consumer_read():
