@@ -24,6 +24,8 @@ Triage's own open-ticket list (`chupa/triage.py`, the `open_tickets` loop in `_s
   - Returns exactly `"live: live goal"`: prints `{"regression_result": "pass"}` and exits 0.
   - Raises `FileNotFoundError`: prints `{"regression_result": "defect"}` and exits 1.
   - Anything else (import failure, another exception, a different string): the traceback or value goes to stderr, and it prints `{"regression_result": "error"}` and exits 2.
+- Coverage: the skip is one extra condition on the existing `if` line in `_open_tickets`, adding no line, so the `chupa/author.py` floor is unchanged and no `tests/unit` file is needed; a unit test could not create the missing-versus-present files anyway, since unit tests touch no disk and the `FileSystem` seam has no read.
+- Unaffected tests: `tests/integration/test_author.py`, `test_box.py`, `test_cli.py`, `test_inbox.py`, `test_retro.py`, `test_retro_box.py` and `test_triage.py` only exercise ticket files present both in the index and on disk, so a skip limited to absent paths leaves their results unchanged.
 - Out: triage's own `open_tickets` loop; the other `ls_files` callers in `chupa/author.py` and `chupa/daemon.py`; merging the author and triage open-ticket lists into one helper.
 
 ## Scope fence
