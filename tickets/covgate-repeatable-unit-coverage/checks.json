@@ -1,0 +1,185 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "ebe6a4edac9b13e99e4dc28e8b0a95ac3d170f85",
+  "stem": "covgate-repeatable-unit-coverage",
+  "passed": true,
+  "changed_files": [],
+  "inserted_lines": 0,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "unit",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "integration",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "lint",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "format",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "chupa",
+        "covgate",
+        "--",
+        "python",
+        "-m",
+        "pytest",
+        "tests/unit",
+        "-p",
+        "chupa.testguard",
+        "-p",
+        "chupa.testreport",
+        "--chupa-results",
+        ".chupa/results/unit.json",
+        "--cov=chupa",
+        "--cov-branch",
+        "--cov-context=test",
+        "--cov-report=json:coverage.json",
+        "-n",
+        "auto"
+      ],
+      "rc": 0,
+      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/covgate-repeatable-unit-coverage\nconfigfile: pyproject.toml\nplugins: xdist-3.8.0, timeout-2.5.0, asyncio-1.4.0, cov-7.1.0\ntimeout: 120.0s\ntimeout method: thread\ntimeout func_only: False\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncreated: 20/20 workers\n20 workers [94 items]\n\n........................................................................ [ 76%]\n......................                                                   [100%]\n================================ tests coverage ================================\n_______________ coverage: platform linux, python 3.14.6-final-0 ________________\n\nCoverage JSON written to file coverage.json\n============================== 94 passed in 2.76s ==============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 3.217305
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "-c",
+        "import shutil; shutil.copy('coverage.json', '.chupa/first-coverage.json')"
+      ],
+      "rc": 0,
+      "tail": "warning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 0.044453
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "chupa",
+        "covgate",
+        "--",
+        "python",
+        "-m",
+        "pytest",
+        "tests/unit",
+        "-p",
+        "chupa.testguard",
+        "-p",
+        "chupa.testreport",
+        "--chupa-results",
+        ".chupa/results/unit.json",
+        "--cov=chupa",
+        "--cov-branch",
+        "--cov-context=test",
+        "--cov-report=json:coverage.json",
+        "-n",
+        "auto"
+      ],
+      "rc": 0,
+      "tail": "============================= test session starts ==============================\nplatform linux -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0\nrootdir: /home/djp/source/chupa/.chupa/state/worktrees/covgate-repeatable-unit-coverage\nconfigfile: pyproject.toml\nplugins: xdist-3.8.0, timeout-2.5.0, asyncio-1.4.0, cov-7.1.0\ntimeout: 120.0s\ntimeout method: thread\ntimeout func_only: False\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncreated: 20/20 workers\n20 workers [94 items]\n\n........................................................................ [ 76%]\n......................                                                   [100%]\n================================ tests coverage ================================\n_______________ coverage: platform linux, python 3.14.6-final-0 ________________\n\nCoverage JSON written to file coverage.json\n============================== 94 passed in 2.67s ==============================\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 3.166799
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "python",
+        "-c",
+        "import json; f=lambda p:{k:v['summary']['covered_lines'] for k,v in json.load(open(p))['files'].items()}; assert f('coverage.json')==f('.chupa/first-coverage.json')"
+      ],
+      "rc": 0,
+      "tail": "warning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 0.309701
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--exit-code",
+        "config.yaml"
+      ],
+      "rc": 0,
+      "tail": "",
+      "base_red": false,
+      "seconds": 0.001758
+    },
+    {
+      "argv": [
+        "./dev.py",
+        "test"
+      ],
+      "rc": 0,
+      "tail": "er_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/covgate-repeatable-unit-coverage/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/integration/test_testguard.py::test_guarded_calls_and_asyncio\ntests/integration/test_testguard.py::test_setup_and_teardown\ntests/integration/test_testguard.py::test_guards_are_phase_scoped\ntests/integration/test_testguard.py::test_budget_and_slowest\ntests/integration/test_testguard.py::test_budget_and_slowest\ntests/integration/test_testguard.py::test_xdist_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\n  /home/djp/source/chupa/.chupa/state/worktrees/covgate-repeatable-unit-coverage/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3246 passed, 10 warnings in 62.39s (0:01:02)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 66.464893
+    }
+  ]
+}
