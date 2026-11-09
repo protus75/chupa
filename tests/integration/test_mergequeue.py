@@ -117,6 +117,23 @@ def test_queue_refuses_dirty_overlap_instead_of_raising(ctx, overlap):
     run(exercise())
 
 
+def test_queue_refuses_staged_path_outside_diff(ctx):
+    from chupa.mergequeue import regate_receipts
+
+    async def exercise():
+        ticket = await ready(ctx)
+        ctx.fs.write(ctx.repo / "chupa/other.py", b"staged operator edit\n")
+        await ctx.git.add(ctx.repo, ["chupa/other.py"])
+        before = await ctx.git.rev_parse(ctx.repo, "main")
+        result = await admission(ctx, ticket)
+        await unchanged(ctx, ticket, before, result, "dirty_checkout")
+        assert any("chupa/other.py" in f.message for f in result.findings)
+        assert "M  chupa/other.py" in (await ctx.git.status_porcelain(ctx.repo)).splitlines()
+        assert not regate_receipts(ctx.driver.journal.read())
+
+    run(exercise())
+
+
 def test_green_candidate_merges_without_baseline_or_confirm(ctx):
     from chupa.mergequeue import regate_receipts
 

@@ -250,24 +250,36 @@ async def main_code_unchanged(ctx: StageContext, reviewed: str) -> bool:
 
 async def dirty_overlap(ctx: StageContext, stem: str) -> list[Finding]:
     records = iter((await ctx.git.status_porcelain(ctx.repo, "-z")).split("\0"))
-    dirty = set()
+    dirty, staged = set(), set()
     for record in records:
         if not record:
             continue
         if record[:2] != "??":
-            dirty.add(record[3:])
+            paths = {record[3:]}
             if "R" in record[:2] or "C" in record[:2]:
-                dirty.add(next(records))
+                paths.add(next(records))
+            dirty.update(paths)
+            if record[0] not in " ?":
+                staged.update(paths)
     overlap = sorted(dirty.intersection(await ctx.git.diff_names(ctx.repo, MAIN, stem)))
-    if not overlap:
-        return []
-    return [
-        Finding(
-            code="dirty_checkout",
-            message=f"main checkout has local changes to {', '.join(overlap)} that the squash would overwrite",
-            paved_road="commit or revert those edits in the main checkout; the ticket re-runs through the normal retry path",
+    findings = []
+    if overlap:
+        findings.append(
+            Finding(
+                code="dirty_checkout",
+                message=f"main checkout has local changes to {', '.join(overlap)} that the squash would overwrite",
+                paved_road="commit or revert those edits in the main checkout; the ticket re-runs through the normal retry path",
+            )
         )
-    ]
+    if staged:
+        findings.append(
+            Finding(
+                code="dirty_checkout",
+                message=f"main checkout has staged changes to {', '.join(sorted(staged))} that the squash commit would sweep in",
+                paved_road="commit or unstage those changes in the main checkout; the ticket re-runs through the normal retry path",
+            )
+        )
+    return findings
 
 
 async def merge(ctx: StageContext, ticket: Ticket, *, attempt: int) -> StageResult:

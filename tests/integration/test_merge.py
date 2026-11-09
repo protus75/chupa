@@ -101,6 +101,19 @@ def test_merge_refuses_dirty_overlap_instead_of_raising(repo, overlap):
     assert f" M {rel}" in git(repo, "status", "--porcelain").splitlines()
 
 
+def test_merge_refuses_staged_path_outside_diff(repo):
+    ctx, ticket, attempt = reviewed(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
+    (repo / "chupa/other.py").write_text("staged operator edit\n")
+    git(repo, "add", "chupa/other.py")
+    before = git(repo, "rev-parse", "main").strip()
+
+    result = admit(ctx, ticket, attempt)
+
+    refused_untouched(ctx, result, before, "dirty_checkout")
+    assert any("chupa/other.py" in f.message for f in result.findings)
+    assert "M  chupa/other.py" in git(repo, "status", "--porcelain").splitlines()
+
+
 def test_a_passing_ticket_squash_merges_with_trailers_and_journals_merged(repo):
     ctx, ticket, attempt = reviewed(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
     head = git(repo, "rev-parse", STEM).strip()

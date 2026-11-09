@@ -253,7 +253,7 @@ Inline merge:
 
 Inline merge does not run merge strategies or the conflict ladder; a rebase
 conflict is simply refused.
-- Before squash, `dirty_checkout` refuses tracked main-checkout edits overlapping the branch; commit or revert them and retry.
+- Before squash, `dirty_checkout` refuses tracked main-checkout edits overlapping the branch and staged changes outside the branch; commit or revert overlapping edits, or commit or unstage staged changes, and retry.
 
 ## 5. Checks
 
@@ -510,7 +510,7 @@ For each candidate, in pick order:
    with the advertised hold releases it.
 5. Squash-merge as in section 4.5, and verify `main`'s tree equals the checked tree.
 
-- Before the admission receipt, `dirty_checkout` refuses tracked main-checkout edits overlapping the branch; commit or revert them and retry.
+- Before the admission receipt, `dirty_checkout` refuses tracked main-checkout edits overlapping the branch and staged changes outside the branch; commit or revert overlapping edits, or commit or unstage staged changes, and retry.
 
 ### 7.3 Control
 
