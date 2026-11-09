@@ -199,6 +199,7 @@ by a space. Selectors must resolve uniquely, and a file cannot be listed both wh
 - `premise_failed`: the ticket cannot be done as written; findings say why and name every forced
   file outside the scope fence separately.
 
+Implement runs each Verification command whole and in sequence and reports that final result.
 Failures reproduced on the base commit are reported as second problems rather than `premise_failed`.
 
 The Implement prompt separates unit and integration suites. Unit tests use fakes for clock,

@@ -22,7 +22,7 @@ from chupa.specs import (
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parents[2] / "chupa" / "specs"
-    for name, version in (("implement", "2.5"), ("requisition_review", "3.5"), ("diagnose", "1.4")):
+    for name, version in (("implement", "2.6"), ("requisition_review", "3.5"), ("diagnose", "1.4")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
@@ -65,7 +65,7 @@ def test_implement_spec_consumer_read():
     assert lint_spec(text) == []
     assert len(text.splitlines()) <= SPEC_MAX_LINES
     spec = load_spec(text)
-    assert spec.meta.version == "2.5"
+    assert spec.meta.version == "2.6"
     assert spec.meta.model_dump(exclude={"version"}) == {
         "llm_surface": "implement",
         "consumes": "ticket",
@@ -78,6 +78,16 @@ def test_implement_spec_consumer_read():
     assert tuple(line[3:] for line in spec.body.splitlines() if line.startswith("## ")) == SPEC_SECTIONS
     rendered = render(spec, {name: f"fixture {name}" for name in spec.inputs})
     task = " ".join(rendered.split("## Task\n", 1)[1].split("## Inputs\n", 1)[0].split())
+    # The old spec omitted sequential execution, permitted overlap, and did not route timing failures.
+    for rule in (
+        "whole command",
+        "one after another",
+        "no other test process",
+        "inside a single command",
+        "one final sequential pass",
+        "A timing failure that appears only when test runs overlap is verified on the base commit and reported in `second_problems`",
+    ):
+        assert rule in task
     assert (
         "When a command still fails after your work, rerun the ticket's `## Verification` command exactly as written once "
         "in a base-commit git worktree with full history, no environment overrides (such as `PYTHONPATH`), and no synthetic "

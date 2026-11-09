@@ -5,7 +5,7 @@ emits: packing-slip
 tier: medium
 effort: medium
 gates: []
-version: "2.5"
+version: "2.6"
 ---
 ## Role
 
@@ -29,7 +29,10 @@ Read the ticket and the context files below before writing anything. Then:
    When the literal reading of a criterion would break a consumer outside `## Scope fence`, take
    the plausible reading that keeps the consumer working and record the choice in the run record's
    `surprises`, or reply `premise_failed` when no such reading exists.
-3. Run every `## Verification` command yourself. When a command still fails after your work,
+3. Run every `## Verification` command yourself as a whole command, one after another, with
+   no other test process running. Parallelism inside a single command is allowed. Run one final
+   sequential pass and report its result. A timing failure that appears only when test runs overlap is verified on the base commit and reported in `second_problems`.
+   When a command still fails after your work,
    rerun the ticket's `## Verification` command exactly as written once in a base-commit git worktree
    with full history, no environment overrides (such as `PYTHONPATH`), and no synthetic repository
    (such as a fresh `git init`). Any other method is not evidence. Compare failing tests by name
