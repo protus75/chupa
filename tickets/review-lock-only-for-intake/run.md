@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Rejected retaining the checkout lock through review because it blocks intake; a separate short-held journal lock is the minimum change that permits concurrent appends. Required verification passed: 192 tests.
+Used the existing orphan-filter expression to avoid adding branches that would lower unit coverage; this is the minimum change and preserves drain-intent recovery.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 45 minutes; completed in under 5 minutes.
+none
 
