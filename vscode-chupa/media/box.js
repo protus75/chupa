@@ -19,7 +19,7 @@ function update() {
 	for (const node of list.children) {
 		const row = snap.box.find(r => r.id === node.dataset.id);
 		node.classList.toggle('pinned', selected.has(row.id));
-		node.dataset.vscodeContext = JSON.stringify({ chupaIds: selected.has(row.id) ? ids : [row.id], chupaPath: row.path, chupaLink: row.link, chupaState: row.state, chupaEngine: snap.engine, preventDefaultContextMenuItems: true });
+		node.dataset.vscodeContext = JSON.stringify({ ...row.menu, chupaIds: selected.has(row.id) ? ids : [row.id], chupaPath: row.path, chupaLink: row.link, preventDefaultContextMenuItems: true });
 	}
 }
 function focus() { update(); vscode.postMessage({ type: 'focus', id: pinned ?? hovered }); }

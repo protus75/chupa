@@ -571,7 +571,25 @@ def snapshot(ctx) -> dict:
     shown = {r["stem"] for r in rows}
     unmerged = [r["stem"] for r in rows if r["section"] != "merged"]
     priorities = list(get_args(Frontmatter.model_fields["priority"].annotation))
+
+    def available(possible: bool) -> str:
+        return "locked" if possible and alive else "on" if possible else "off"
+
     for r in rows:
+        open_section = r["section"] in ("queued", "blocked")
+        valid = r["stem"] not in invalid
+        verdict = (r["draft"] or r["held"]) and (r["committed"] or not alive)
+        r["menu"] = {
+            "chupaReview": available(open_section and valid),
+            "chupaLint": "on" if r["section"] != "merged" else "off",
+            "chupaRun": available(r["runnable"]),
+            "chupaConfirm": "on" if verdict else "off",
+            "chupaReject": "on" if verdict else "off",
+            "chupaAskDiagnose": "on" if r["section"] != "merged" else "off",
+            "chupaAskReview": "on" if open_section else "off",
+            "chupaPriority": "on" if open_section and valid else "off",
+            "chupaRunsBefore": "on" if open_section and valid else "off",
+        }
         r["priorityChoices"] = [{"label": p, "description": "current" if p == r["priority"] else ""} for p in priorities]
         r["priorityTag"] = r["priority"] if r["section"] in ("running", "queued") else ""
         if r["section"] != "merged":
@@ -634,6 +652,7 @@ def snapshot(ctx) -> dict:
                 "seq": m.seq,
                 "messageClass": cls,
                 "state": m.status,
+                "menu": {"chupaTriage": available(m.status == "pending"), "chupaDismiss": available(m.status == "pending")},
                 "status": f"{cls} · {label}",
                 "summary": summary,
                 "fields": fields,

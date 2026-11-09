@@ -285,6 +285,58 @@ def test_snapshot_display_fields(tmp_path, monkeypatch):
     assert watch.snapshot(ctx)["runningStem"] is None  # A previous running stem must not persist.
 
 
+def test_snapshot_menu_availability(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from chupa.box import Box, Resolution
+    from chupa.seams import LocalFileSystem
+
+    ctx = watch.Context(tmp_path, tmp_path / "state", tmp_path / "config.yaml", None, None, None)
+    tickets = {
+        stem: SimpleNamespace(stem=stem, frontmatter=SimpleNamespace(priority="P1", state="confirmed"), depends=deps, runs_before=(), sections={})
+        for stem, deps in (("held", ("missing",)), ("ready", ()), ("held-ready", ()))
+    }
+    events = [{"type": "state_transition", "ticket": "done", "body": {"to": "merged"}, "ts": "2026-01-01T00:00:00+00:00"}]
+    monkeypatch.setattr(watch, "load_tickets", lambda ctx, skip: (tickets, {"invalid": "bad ticket"}))
+    monkeypatch.setattr(watch, "journal", lambda *args, **kwargs: events)
+    monkeypatch.setattr(watch, "held", lambda history, blobs: {"held", "held-ready"})
+    monkeypatch.setattr(watch, "operator_holds", lambda ctx, history: set())
+    monkeypatch.setattr(watch, "running_stems", lambda *args: [])
+    monkeypatch.setattr(watch, "committed_ticket_shas", lambda ctx: {stem: "sha" for stem in tickets})
+    monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: (set(), set()))
+    monkeypatch.setattr(watch, "commits", lambda ctx: {})
+    box = Box(ctx.state / "box", LocalFileSystem())
+    pending, _ = box.enqueue(message_class="suggestion", origin="operator", summary="Pending")
+    resolved, _ = box.enqueue(message_class="suggestion", origin="operator", summary="Resolved")
+    box.resolve(resolved, Resolution(kind="ticket", link="done"))
+
+    monkeypatch.setattr(watch, "lock_holder", lambda state: object())
+    snap = watch.snapshot(ctx)
+    rows = {row["stem"]: row for row in snap["rows"]}
+    assert (rows["held"]["menu"]["chupaConfirm"], rows["held"]["menu"]["chupaRun"]) == ("on", "off")  # The lock does not block a committed verdict; unmet dependencies block Run.
+    assert (rows["held-ready"]["menu"]["chupaRun"], rows["ready"]["menu"]["chupaRun"], rows["ready"]["menu"]["chupaReview"]) == (
+        "locked",
+        "locked",
+        "locked",
+    )  # A hold does not override runnable, and the lock applies to both actions.
+    assert (rows["invalid"]["menu"]["chupaReview"], rows["invalid"]["menu"]["chupaPriority"]) == ("off", "off")  # Invalid blocked rows cannot be reviewed or ordered.
+    assert rows["done"]["menu"]["chupaLint"] == "off"  # Merged rows cannot be linted.
+    box_rows = {row["id"]: row for row in snap["box"]}
+    assert box_rows[pending]["menu"] == {"chupaTriage": "locked", "chupaDismiss": "locked"}  # Pending actions require the lock.
+    assert box_rows[resolved]["menu"] == {"chupaTriage": "off", "chupaDismiss": "off"}  # Resolved actions are unavailable even when locked.
+
+    monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: ({"held"}, set()))
+    dirty = {row["stem"]: row for row in watch.snapshot(ctx)["rows"]}
+    assert (dirty["held"]["menu"]["chupaConfirm"], dirty["held"]["menu"]["chupaReject"]) == ("off", "off")  # The engine cannot admit dirty ticket content.
+    monkeypatch.setattr(watch, "lock_holder", lambda state: None)
+    snap = watch.snapshot(ctx)
+    stopped = {row["stem"]: row for row in snap["rows"]}
+    assert (stopped["held"]["menu"]["chupaConfirm"], stopped["held"]["menu"]["chupaReject"]) == ("on", "on")  # Without the engine dirty verdicts are allowed.
+    assert (stopped["ready"]["menu"]["chupaRun"], stopped["ready"]["menu"]["chupaReview"]) == ("on", "on")  # Runnable and reviewable work is unlocked.
+    assert stopped["held-ready"]["menu"]["chupaRun"] == "on"  # A held runnable ticket remains runnable without the lock.
+    assert next(row for row in snap["box"] if row["id"] == pending)["menu"] == {"chupaTriage": "on", "chupaDismiss": "on"}  # Pending actions unlock when the engine stops.
+
+
 def test_snapshot_priority_tag_on_running_and_queued(tmp_path, monkeypatch):
     from types import SimpleNamespace
 

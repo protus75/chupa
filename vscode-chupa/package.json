@@ -135,40 +135,43 @@
 				"command": "chupa.ticket.review",
 				"title": "Review",
 				"category": "chupa",
-				"enablement": "!chupaEngine"
+				"enablement": "chupaReview == 'on'"
 			},
 			{
 				"command": "chupa.ticket.lint",
 				"title": "Lint",
-				"category": "chupa"
+				"category": "chupa",
+				"enablement": "chupaLint == 'on'"
 			},
 			{
 				"command": "chupa.ticket.run",
 				"title": "Run now",
 				"category": "chupa",
-				"enablement": "chupaRunnable && !chupaEngine"
+				"enablement": "chupaRun == 'on'"
 			},
 			{
 				"command": "chupa.ticket.confirm",
 				"title": "Confirm (keep)",
 				"category": "chupa",
-				"enablement": "!chupaEngine || chupaDraft && chupaCommitted"
+				"enablement": "chupaConfirm == 'on'"
 			},
 			{
 				"command": "chupa.ticket.reject",
 				"title": "Reject (kill)",
 				"category": "chupa",
-				"enablement": "!chupaEngine"
+				"enablement": "chupaReject == 'on'"
 			},
 			{
 				"command": "chupa.ticket.askDiagnose",
 				"title": "Ask Claude: diagnose",
-				"category": "chupa"
+				"category": "chupa",
+				"enablement": "chupaAskDiagnose == 'on'"
 			},
 			{
 				"command": "chupa.ticket.askReview",
 				"title": "Ask Claude: review",
-				"category": "chupa"
+				"category": "chupa",
+				"enablement": "chupaAskReview == 'on'"
 			},
 			{
 				"command": "chupa.openSettings",
@@ -184,12 +187,14 @@
 			{
 				"command": "chupa.ticket.priority",
 				"title": "Set priority\u2026",
-				"category": "chupa"
+				"category": "chupa",
+				"enablement": "chupaPriority == 'on'"
 			},
 			{
 				"command": "chupa.ticket.runsBefore",
 				"title": "Run before\u2026",
-				"category": "chupa"
+				"category": "chupa",
+				"enablement": "chupaRunsBefore == 'on'"
 			},
 			{
 				"command": "chupa.box.open",
@@ -205,13 +210,13 @@
 				"command": "chupa.box.triage",
 				"title": "Triage",
 				"category": "chupa",
-				"enablement": "!chupaEngine"
+				"enablement": "chupaTriage == 'on'"
 			},
 			{
 				"command": "chupa.box.dismiss",
 				"title": "Dismiss",
 				"category": "chupa",
-				"enablement": "!chupaEngine"
+				"enablement": "chupaDismiss == 'on'"
 			},
 			{
 				"command": "chupa.box.discuss",
@@ -258,47 +263,47 @@
 				},
 				{
 					"command": "chupa.ticket.review",
-					"when": "webviewId == 'chupa.tickets' && chupaSection =~ /^(queued|blocked)$/ && (config.chupa.unavailableMenuItems != 'hide' || !chupaEngine)",
+					"when": "webviewId == 'chupa.tickets' && (chupaReview == 'on' || chupaReview == 'locked' && config.chupa.unavailableMenuItems != 'hide')",
 					"group": "2_engine@1"
 				},
 				{
 					"command": "chupa.ticket.lint",
-					"when": "webviewId == 'chupa.tickets' && chupaSection =~ /^(queued|blocked)$/",
+					"when": "webviewId == 'chupa.tickets' && (chupaLint == 'on' || chupaLint == 'locked' && config.chupa.unavailableMenuItems != 'hide')",
 					"group": "2_engine@2"
 				},
 				{
 					"command": "chupa.ticket.run",
-					"when": "webviewId == 'chupa.tickets' && chupaSection =~ /^(queued|blocked)$/ && (config.chupa.unavailableMenuItems != 'hide' || chupaRunnable && !chupaEngine)",
+					"when": "webviewId == 'chupa.tickets' && (chupaRun == 'on' || chupaRun == 'locked' && config.chupa.unavailableMenuItems != 'hide')",
 					"group": "2_engine@3"
 				},
 				{
 					"command": "chupa.ticket.confirm",
-					"when": "webviewId == 'chupa.tickets' && (chupaDraft || chupaHeld) && (config.chupa.unavailableMenuItems != 'hide' || !chupaEngine || chupaDraft && chupaCommitted)",
+					"when": "webviewId == 'chupa.tickets' && (chupaConfirm == 'on' || chupaConfirm == 'locked' && config.chupa.unavailableMenuItems != 'hide')",
 					"group": "3_verdict@1"
 				},
 				{
 					"command": "chupa.ticket.reject",
-					"when": "webviewId == 'chupa.tickets' && (chupaDraft || chupaHeld) && (config.chupa.unavailableMenuItems != 'hide' || !chupaEngine)",
+					"when": "webviewId == 'chupa.tickets' && (chupaReject == 'on' || chupaReject == 'locked' && config.chupa.unavailableMenuItems != 'hide')",
 					"group": "3_verdict@2"
 				},
 				{
 					"command": "chupa.ticket.askDiagnose",
-					"when": "webviewId == 'chupa.tickets' && chupaSection != 'merged' && chupaStem",
+					"when": "webviewId == 'chupa.tickets' && (chupaAskDiagnose == 'on' || chupaAskDiagnose == 'locked' && config.chupa.unavailableMenuItems != 'hide')",
 					"group": "4_claude@1"
 				},
 				{
 					"command": "chupa.ticket.askReview",
-					"when": "webviewId == 'chupa.tickets' && chupaSection =~ /^(queued|blocked)$/",
+					"when": "webviewId == 'chupa.tickets' && (chupaAskReview == 'on' || chupaAskReview == 'locked' && config.chupa.unavailableMenuItems != 'hide')",
 					"group": "4_claude@2"
 				},
 				{
 					"command": "chupa.ticket.priority",
-					"when": "webviewId == 'chupa.tickets' && chupaSection =~ /^(queued|blocked)$/",
+					"when": "webviewId == 'chupa.tickets' && (chupaPriority == 'on' || chupaPriority == 'locked' && config.chupa.unavailableMenuItems != 'hide')",
 					"group": "2_engine"
 				},
 				{
 					"command": "chupa.ticket.runsBefore",
-					"when": "webviewId == 'chupa.tickets' && chupaSection =~ /^(queued|blocked)$/",
+					"when": "webviewId == 'chupa.tickets' && (chupaRunsBefore == 'on' || chupaRunsBefore == 'locked' && config.chupa.unavailableMenuItems != 'hide')",
 					"group": "2_engine"
 				},
 				{
@@ -313,12 +318,12 @@
 				},
 				{
 					"command": "chupa.box.triage",
-					"when": "webviewId == 'chupa.box' && chupaState == 'pending' && (config.chupa.unavailableMenuItems != 'hide' || !chupaEngine)",
+					"when": "webviewId == 'chupa.box' && (chupaTriage == 'on' || chupaTriage == 'locked' && config.chupa.unavailableMenuItems != 'hide')",
 					"group": "box@12"
 				},
 				{
 					"command": "chupa.box.dismiss",
-					"when": "webviewId == 'chupa.box' && chupaState == 'pending' && (config.chupa.unavailableMenuItems != 'hide' || !chupaEngine)",
+					"when": "webviewId == 'chupa.box' && (chupaDismiss == 'on' || chupaDismiss == 'locked' && config.chupa.unavailableMenuItems != 'hide')",
 					"group": "box@13"
 				},
 				{
