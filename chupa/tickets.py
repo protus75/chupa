@@ -665,7 +665,9 @@ async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem) -> Inta
                 "unstage them; a ticket-plane commit carries only `tickets/<stem>/ticket.md` and regular, non-symlink evidence files for that pending stem",
             )
         )
-    states = {e.ticket: e.body["to"] for e in journal.read() if e.type == EventType.STATE_TRANSITION and e.ticket is not None and "to" in e.body}
+    from chupa.status import last_states
+
+    states = last_states(journal.read())
     committed: list[str] = []
     refused: dict[str, list[Finding]] = {}
     for stem in sorted(pending):
