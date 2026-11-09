@@ -1,0 +1,5 @@
+$ grep -n "self.deadline =" chupa/drain.py
+314:        self.deadline = checkout.clock() + timedelta(hours=checkout.config.drain.max_runtime_hours)
+
+$ sed -n 299p chupa/drain.py   # handoff argv carries --parked and --stop-lifecycle, no deadline
+        reexec_argv([*argv, *(a for stem in carried for a in ("--parked", stem)), *(["--stop-lifecycle", consumer.inbox.lifecycle_id] if consumer.projection.stop_requested else [])]),
