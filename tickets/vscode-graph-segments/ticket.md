@@ -41,7 +41,7 @@ After this change, `layout` emits every drawable piece per row as lane indexes a
 
     The last two carry `lanesOut[p]`'s section. When the stem is in `lanesIn`, `{"kind": "top", "lane": circle}` comes last, with that incoming lane's section.
   - `layout` stays pure: lane indexes and sections only, no colours or pixels.
-- In: `vscode-chupa/media/graph.js` `renderGraph(graph, colors)`.
+- In: `vscode-chupa/media/graph.js` `renderGraph(graph, dotColor, colors)`.
   - It draws `graph.segments` in order. Each kind maps to the SVG path it draws today, with the same geometry constants, coloured by `colors[segment.section]`.
   - It then draws `graph.dot` at `graph.circle`, coloured by the row's section colour passed in, and sizes the SVG from `graph.width`.
   - Remove `findLastIndex`, the `stem` parameter, and every `findIndex`, id comparison and lane-matching loop.
