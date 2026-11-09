@@ -49,6 +49,8 @@ After `check-test-timing`, every `checks.json` holds per-entry test timing and c
 - In: docs.
   - `docs/host-contract.md`: the `Retro` row and the `Config.defaults.retro` object gain both switches.
   - `docs/how-chupa-works.md` section 9.5 describes both summaries and their switches; section 11's `retro` row names them.
+- In: `tests/integration/test_status.py` `test_status_production_provenance`: its expected evidence gains `"tests": {}` and `"coverage": {}`, since its config takes the default switches (both true) and its window has no invoice with timing or coverage.
+- The other coverage-dependent test files (for example `tests/integration/test_scorecard.py`, `test_retro_box.py`, `test_audit.py`, `test_drain.py`, `test_daemon_composition.py`) only round-trip `measurements`, read `check_observations`, or build config with defaults that gain two fields, so this change does not affect them.
 - Out: the retro prompt, proposal shape, Check recording, spike kinds, triggers.
 
 ## Scope fence
@@ -56,6 +58,7 @@ After `check-test-timing`, every `checks.json` holds per-entry test timing and c
 - chupa/retro.py
 - tests/integration/test_retro.py
 - tests/integration/test_config.py
+- tests/integration/test_status.py
 - tests/unit/test_retro_measurements.py
 - docs/host-contract.md
 - docs/how-chupa-works.md
