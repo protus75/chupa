@@ -32,6 +32,8 @@ at the checkout root). In this repo, use `./dev.py` (section 2.2).
 
 ### 2.1 Verbs
 
+Journal appends take a short-held exclusive `journal.lock` for tail repair, segment roll, and the write.
+
 Exit codes are one contract for every verb: **0** success or quiescence, **1** a non-ok ticket
 outcome or a halted/killed run, **2** an engine refusal (bad config, lock held, invalid intake,
 journal corruption, provider setup, missing executable, corrupt conduct markers). A refusal
@@ -52,7 +54,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `migrate-config` | no | Migrates a `schema_version: 0` config to the current schema. |
 | `new <stem> --kind feature\|bug\|chore` | no | Writes `tickets/<stem>/ticket.md` with section placeholders for the selected kind (default `feature`) and lints it. Bugs include `## Regression` and a missing-evidence finding; no evidence files are created. Refuses a bad, reserved, or existing stem, or unknown kind (exit 2); successful authorship exits 0. |
 | `order <stem> [--priority P0\|P1\|P2\|P3] [--runs-before [stem ...]]` | no | Validates and edits priority and/or runs-before ordering in the working tree; a bare `--runs-before` removes the section. Refuses running, settled, rejected, missing or invalid tickets. Intake commits the edit. |
-| `review <stem>` | yes | Runs intake, then reviews the committed ticket against merged code and journals its verdict and ticket blob SHA. A ticket with an unmerged dependency gets a provisional review that is printed but not journaled, so the drain reviews it again before its first run. Refuses missing, intake-failed, settled, or rejected tickets without a model call. Prints findings and exits 0 on approve, 1 on snag or rma. |
+| `review <stem>` | intake only | Runs intake, then reviews the committed ticket against merged code and journals its verdict and ticket blob SHA. A ticket with an unmerged dependency gets a provisional review that is printed but not journaled, so the drain reviews it again before its first run. Refuses missing, intake-failed, settled, or rejected tickets without a model call. Prints findings and exits 0 on approve, 1 on snag or rma. |
 | `run <stem>` | yes | Reconciles orphans, runs intake, then drives the one named ticket through every stage. Refuses a stem that failed intake, is missing, invalid, merged, not `confirmed`, or has unmerged dependencies. |
 | `drain` | yes | Runs every eligible ticket to quiescence (section 7.1). |
 | `serve` | yes | Runs the continuous daemon until `kill`, `stop`, or a signal (section 7.2). |
@@ -657,7 +659,8 @@ Everything lives under `state_dir` (this repo: `.chupa/state`).
 | `engine.log` | Diagnostics including `engine_start`, `engine_stop`, and stage start/end events for every stage, including Check and merge; redacted, rotated, and never authoritative. |
 | `queue.json` | Derived pick order, timestamp, and `Runs before` hints for watch. |
 | `spools/` | Per-attempt prompts, outputs, and command output; `spools/providers/` holds raw CLI captures. |
-| `chupa.lock` | The single-writer lock. Its JSON identity is informational; the kernel frees the lock when the holder dies. |
+| `chupa.lock` | Guards the checkout and git writes to main. Its JSON identity is informational; the kernel frees the lock when the holder dies. |
+| `journal.lock` | Short-held exclusive lock for every journal append, covering tail repair, segment roll, and the write. |
 | `worktrees/` | Ticket worktrees. |
 | `box/` | Suggestion Box messages and report custody. |
 | `control/` | `active.json` and the control request inbox. |

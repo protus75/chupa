@@ -1,4 +1,5 @@
 import json
+import multiprocessing
 from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
@@ -253,3 +254,37 @@ def test_run_sequence_counts_mid_run_drought_but_not_runless_parks(tmp_path):
     journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket="work")
     journal.append(EventType.STATE_TRANSITION, {"to": "abandoned"}, ticket="work")
     assert run_seq(journal.read(), "work") == 2
+
+
+def _append_concurrently(state_dir, barrier, writer):
+    journal = Journal(state_dir, FakeClock(T0))
+    barrier.wait(timeout=30)
+    for n in range(200):
+        journal.append("effect_intent", {"writer": writer, "n": n})
+
+
+def test_concurrent_processes_keep_every_append(tmp_path):
+    ctx = multiprocessing.get_context("spawn")
+    barrier = ctx.Barrier(2)
+    processes = [ctx.Process(target=_append_concurrently, args=(tmp_path, barrier, writer)) for writer in ("first", "second")]
+    for process in processes:
+        process.start()
+    for process in processes:
+        process.join(timeout=60)
+        if process.is_alive():
+            process.terminate()
+            process.join()
+        assert process.exitcode == 0
+    events = Journal(tmp_path, FakeClock(T0)).read()
+    assert len(events) == 400
+    assert {(event.body["writer"], event.body["n"]) for event in events} == {(writer, n) for writer in ("first", "second") for n in range(200)}
+
+
+def test_same_handle_repairs_a_later_torn_tail(tmp_path):
+    journal = Journal(tmp_path, FakeClock(T0))
+    journal.append("effect_intent", {"n": 1})
+    segment = tmp_path / "journal" / "000001-20260804.jsonl"
+    with segment.open("ab") as stream:
+        stream.write(b'{"partial":')
+    journal.append("effect_intent", {"n": 2})
+    assert [event.body["n"] for event in journal.read()] == [1, 2]

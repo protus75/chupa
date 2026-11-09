@@ -529,56 +529,56 @@ async def _review(checkout: runner.Checkout, stem: str) -> int:
         except TicketInvalid as exc:
             raise runner.Refusal(f"{ticket_path(stem)} is invalid: " + "; ".join(f.message for f in exc.findings), f"fix the ticket and retry `review {stem}`") from None
         unmerged = [dep for dep in ticket.depends if states.get(dep) != "merged"]
-        session = build_control(checkout).providers
-        try:
-            llm = ProviderLLM(checkout.config, exec_=checkout.exec_, fs=checkout.fs, env=checkout.env, cwd=checkout.repo, timeout=runner.call_timeout(checkout.config), session=session)
-            session.timers.reconstruct()
-            session.timers.fire_due()
-            problems = await llm.preflight() if session.active else []
-            if problems:
-                raise ProviderSetupError("; ".join(problems))
-            driver = Driver.from_config(checkout.config, llm=llm, env=checkout.env, clock=checkout.clock, sleep=checkout.sleep, fs=checkout.fs)
-            driver.journal = checkout.journal
-            driver.effects = Effects(checkout.journal)
-            verdict = await requisition.review_ticket(
-                driver,
-                repo=checkout.repo,
-                stem=stem,
-                text=text,
-                specs_dir=runner.SPECS_DIR,
-                coverage_map=checkout.config.state_dir / "coverage-map.json" if checkout.config.review.coverage_map is not None else None,
-                tier=checkout.config.routing_default_tier,
-                stem_slot=f"review-{stem}",
-                run_seq=len(history),
-                attempt=0,
-                call_seq=1,
-                expected_budget="surface",
-            )
-        finally:
-            await session.close()
-        if unmerged:
-            print(f"review {stem}: provisional, not recorded -- depends on unmerged {', '.join(unmerged)}; the drain reviews it again before its first run")
-        else:
-            # A journaled approval would let the drain skip its review.
-            checkout.journal.append(
-                EventType.SIGNAL,
-                {
-                    "signal": "requisition_verdict",
-                    "verdict": verdict.verdict,
-                    "ticket_sha": verdict.ticket_sha,
-                    "provider": verdict.provider,
-                    "model": verdict.model,
-                    "spec_version": verdict.spec_version,
-                },
-                ticket=stem,
-            )
-        print(f"review {stem}: {verdict.verdict} -- {verdict.summary}")
-        for finding in verdict.findings:
-            location = f" {finding.path}:{finding.line}" if finding.path and finding.line is not None else f" {finding.path}" if finding.path else ""
-            print(f"- [{finding.code}]{location} {finding.message} ({finding.paved_road})")
-        return 0 if verdict.verdict == "approve" else 1
     finally:
         lock.release()
+    session = build_control(checkout).providers
+    try:
+        llm = ProviderLLM(checkout.config, exec_=checkout.exec_, fs=checkout.fs, env=checkout.env, cwd=checkout.repo, timeout=runner.call_timeout(checkout.config), session=session)
+        session.timers.reconstruct()
+        session.timers.fire_due()
+        problems = await llm.preflight() if session.active else []
+        if problems:
+            raise ProviderSetupError("; ".join(problems))
+        driver = Driver.from_config(checkout.config, llm=llm, env=checkout.env, clock=checkout.clock, sleep=checkout.sleep, fs=checkout.fs)
+        driver.journal = checkout.journal
+        driver.effects = Effects(checkout.journal)
+        verdict = await requisition.review_ticket(
+            driver,
+            repo=checkout.repo,
+            stem=stem,
+            text=text,
+            specs_dir=runner.SPECS_DIR,
+            coverage_map=checkout.config.state_dir / "coverage-map.json" if checkout.config.review.coverage_map is not None else None,
+            tier=checkout.config.routing_default_tier,
+            stem_slot=f"review-{stem}",
+            run_seq=len(history),
+            attempt=0,
+            call_seq=1,
+            expected_budget="surface",
+        )
+    finally:
+        await session.close()
+    if unmerged:
+        print(f"review {stem}: provisional, not recorded -- depends on unmerged {', '.join(unmerged)}; the drain reviews it again before its first run")
+    else:
+        # A journaled approval would let the drain skip its review.
+        checkout.journal.append(
+            EventType.SIGNAL,
+            {
+                "signal": "requisition_verdict",
+                "verdict": verdict.verdict,
+                "ticket_sha": verdict.ticket_sha,
+                "provider": verdict.provider,
+                "model": verdict.model,
+                "spec_version": verdict.spec_version,
+            },
+            ticket=stem,
+        )
+    print(f"review {stem}: {verdict.verdict} -- {verdict.summary}")
+    for finding in verdict.findings:
+        location = f" {finding.path}:{finding.line}" if finding.path and finding.line is not None else f" {finding.path}" if finding.path else ""
+        print(f"- [{finding.code}]{location} {finding.message} ({finding.paved_road})")
+    return 0 if verdict.verdict == "approve" else 1
 
 
 async def _retro(checkout, pipeline, *, config_path=None):

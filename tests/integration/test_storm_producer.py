@@ -276,4 +276,4 @@ def test_storm_producer_hook_is_active(tmp_path, monkeypatch, admission_context,
     assert len(box.messages()) == 2 and StormLedger(journal=journal, clock=clock).count(SIG) == 12
     assert len([e for e in journal.read() if e.body.get("kind") == "storm_breaker_trip"]) == 1
     assert len([e for e in journal.read() if e.body.get("kind") == "storm_occurrence"]) == 13
-    assert set(p.name for p in (tmp_path / "direct").iterdir()) == {"box", "journal"}
+    assert set(p.name for p in (tmp_path / "direct").iterdir()) == {"box", "journal", "journal.lock"}

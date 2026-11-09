@@ -5,6 +5,9 @@ import json
 from chupa.__main__ import main
 from chupa.journal import EventType, Journal
 from chupa.llm import FakeLLM
+from chupa.lockfile import Lockfile
+from chupa.reconcile import orphans
+from chupa.status import last_states
 from tests.integration.test_cli import ENV, git_out, ticket, write
 from tests.integration.test_drain import Clock, commit_ticket, confirmed, make_root
 
@@ -62,3 +65,27 @@ def test_review_unmerged_dependency_is_provisional(tmp_path, monkeypatch, capsys
     assert "review candidate: approve" in output
     assert len(llm.requests) == 1
     assert verdicts(root) == []
+
+
+def test_review_releases_checkout_lock_during_call(tmp_path, monkeypatch):
+    root = make_root(tmp_path)
+    write(root, "candidate", ticket())
+    state_dir = root / ".chupa/state"
+    journal = Journal(state_dir, Clock())
+    journal.append(EventType.STATE_TRANSITION, {"to": "confirmed"}, ticket="candidate")
+    observed = []
+
+    def probe(request):
+        lock = Lockfile(state_dir, instance_id="probe", clock=Clock())
+        lock.acquire()
+        try:
+            events = journal.read()
+            observed.append((lock.held, orphans(events), last_states(events)["candidate"]))
+        finally:
+            lock.release()
+        return reply("approve")
+
+    assert run(root, monkeypatch, FakeLLM([probe]), "candidate") == 0
+    assert observed == [(True, [], "confirmed")]
+    assert last_states(journal.read())["candidate"] == "confirmed"
+    assert [event.body["verdict"] for event in verdicts(root)] == ["approve"]

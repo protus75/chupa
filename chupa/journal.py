@@ -3,6 +3,7 @@
 The newest segment rolls synchronously on append at the size or age boundary.
 """
 
+import fcntl
 import json
 import os
 import re
@@ -146,7 +147,6 @@ class Journal:
         self.dir = Path(state_dir) / "journal"
         self._clock = clock
         self._fs = LocalFileSystem()
-        self._tail_repaired = False
         self._closed = False
 
     def close(self) -> None:
@@ -172,20 +172,24 @@ class Journal:
         event = Event(EVENT_VERSIONS[type], type, render_ts(self._clock()), ticket, key, body)
         data = (json.dumps(asdict(event), separators=(",", ":")) + "\n").encode()
 
-        now = datetime.fromisoformat(event.ts)
-        segment = self._active_segment(now)
-        if not self._tail_repaired:
-            _truncate_torn_tail(segment)
-            self._tail_repaired = True
-        records = _parse_segment(segment, active=True)
-        if segment.stat().st_size >= ROLL_BYTES or (records and now - datetime.fromisoformat(records[0].ts) >= ROLL_AGE):
-            segment = self._create_segment(int(segment.name[:6]) + 1, now)
-        fd = os.open(segment, os.O_WRONLY | os.O_APPEND)
+        self.dir.parent.mkdir(parents=True, exist_ok=True)
+        lock_fd = os.open(self.dir.parent / "journal.lock", os.O_RDWR | os.O_CREAT, 0o644)
         try:
-            os.write(fd, data)
-            os.fsync(fd)
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            now = datetime.fromisoformat(event.ts)
+            segment = self._active_segment(now)
+            _truncate_torn_tail(segment)
+            records = _parse_segment(segment, active=True)
+            if segment.stat().st_size >= ROLL_BYTES or (records and now - datetime.fromisoformat(records[0].ts) >= ROLL_AGE):
+                segment = self._create_segment(int(segment.name[:6]) + 1, now)
+            fd = os.open(segment, os.O_WRONLY | os.O_APPEND)
+            try:
+                os.write(fd, data)
+                os.fsync(fd)
+            finally:
+                os.close(fd)
         finally:
-            os.close(fd)
+            os.close(lock_fd)
         return event
 
     def read_segments(self) -> Iterator[tuple[Event, ...]]:

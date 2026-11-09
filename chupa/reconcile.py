@@ -35,7 +35,7 @@ def orphans(events: Iterable[Event]) -> list[str]:
             intents.setdefault(e.ticket, set()).add(e.key)
         elif e.type == EventType.EFFECT_COMPLETION:
             intents.get(e.ticket, set()).discard(e.key)
-    return sorted((running | {stem for stem, keys in intents.items() if keys}) - retained)
+    return sorted((running | {stem for stem, keys in intents.items() if any(not (key or "").startswith(f"llm/review-{stem}/") for key in keys)}) - retained)
 
 
 async def reconcile(journal: Journal, git: Git, repo: Path, worktree_root: Path, harvest: OrphanHarvest) -> list[str]:

@@ -67,6 +67,14 @@ def test_an_open_effect_intent_is_an_orphan(root):
     assert not path.exists()
 
 
+def test_review_slot_intent_is_not_an_orphan_but_drain_slot_is(root):
+    j = journal(root)
+    j.append(EventType.EFFECT_INTENT, {}, ticket="candidate", key="llm/review-candidate/0/requisition_review/0/1")
+    assert orphans(j.read()) == []
+    j.append(EventType.EFFECT_INTENT, {}, ticket="candidate", key="llm/candidate/0/requisition_review/0/1")
+    assert orphans(j.read()) == ["candidate"]
+
+
 def test_reconcile_is_idempotent(root):
     j = journal(root)
     j.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket="dead-run")
