@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "e65c2b032aa140cf71324135d55428de7911dde1",
+  "stem": "spec-base-measurement-method",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "retry",
+  "lessons": [
+    "Check failed on lint only: `uv run ruff check .` reported E501 at tests/unit/test_specs.py:86 (344 > 200). Both Verification commands passed. Redo the same four-file change and keep every source line within 200 characters.",
+    "In tests/unit/test_specs.py, split the new implement rule text into several adjacent string literals inside the existing parenthesized assert, each line under 200 chars. Python joins them, so the asserted text does not change.",
+    "Review found the earlier approach sound: implement.md version 2.4 -> 2.5 with the base-worktree method, including 'once'; diagnose.md bumped one minor with the retry and validly-measured-stays-base-failure clauses; test_stages.py pin updated. Redo it from the merge base.",
+    "Before replying ok, run `uv run ruff check .` and `uv run ruff format --check .` along with both `./dev.py test` Verification commands. The check gate runs ruff on the rebased candidate, and it must exit 0."
+  ],
+  "mechanical": null,
+  "spec_version": "1.3",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
