@@ -8,6 +8,6 @@ Built for [chupa 0.1.2](https://pypi.org/project/chupa/0.1.2/).
 
 Open a repository containing `tickets/` and [install chupa](https://github.com/protus75/chupa/blob/main/docs/host-contract.md#install).
 
-The `chupa.command` setting is the command and arguments used to run the engine. The default is `[".venv/bin/chupa"]`, resolved from the workspace folder. Override it when the executable is elsewhere, including on native Windows.
+The `chupa.command` setting is the command and arguments used to run the engine. The default is `[".venv/bin/chupa"]`, resolved from the workspace folder. Override it when the executable is elsewhere, including on native Windows. A missing command shows a `chupa command not found` message naming the `chupa.command` setting.
 
 On WSL or Remote-SSH, the extension runs on the remote side, where the repository and chupa command are available.

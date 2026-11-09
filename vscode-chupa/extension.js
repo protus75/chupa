@@ -25,7 +25,11 @@ function command(root) {
 
 function runData(root, args, options, callback) {
 	const [binary, ...prefix] = command(root);
-	execFile(binary, [...prefix, ...args], { cwd: root, ...options }, callback);
+	execFile(binary, [...prefix, ...args], { cwd: root, ...options }, (err, stdout, stderr) => {
+		if (err?.code === 'ENOENT') {
+			callback(new Error(`chupa command not found: ${binary} (run from ${root}). Set chupa.command in settings.`), stdout, '');
+		} else callback(err, stdout, stderr);
+	});
 }
 
 function devCommand(...args) {
