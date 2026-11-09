@@ -170,6 +170,25 @@ def test_already_satisfied_settles_without_diagnosis(rework_repo):
     assert not writers[0].ctx.worktree(STEM).exists()
 
 
+def test_requisition_park_reports_full_reason_under_park_line(root, capsys):
+    from chupa import runner
+    from chupa.llm import FakeLLM
+    from tests.integration.test_rework import SNAG, requisition
+
+    commit_ticket(root, "review-park", confirmed())
+    artifact = root / "tickets/review-park/review.md"
+    artifact.write_text("existing detail")
+    llm = FakeLLM([requisition("snag")])
+    assert main(["drain"], cwd=root, env=ENV, clock=Clock(), pipeline=lambda c: runner.bind(c, llm)) == 0
+    output = capsys.readouterr().out
+    terminal = [e.body for e in journal(root).read() if e.type == EventType.STATE_TRANSITION and e.ticket == "review-park"][-1]
+    reason = terminal["reason"]
+    assert SNAG.message in reason  # A different or empty review result cannot satisfy the report check.
+    assert "parked:\n- review-park: premise_failed at requisition;" in output
+    assert f"\n  - {reason}\n  - tickets/review-park/review.md" in output  # Preserve the journal text before ticket-plane paths.
+    assert [r.surface for r in llm.requests] == ["requisition_review"]
+
+
 # --- ordering -----------------------------------------------------------------------------------
 
 

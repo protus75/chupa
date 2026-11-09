@@ -641,7 +641,10 @@ class _Drain:
                         road = f"review the change to {ticket_path(stem)}, then keep (./dev.py confirm {stem}) or kill (./dev.py reject {stem})"
                     elif not (stem in held and to == "gate_failed" and spent_cap is None):
                         road = f"edit {ticket_path(stem)}, then uv run python -m chupa confirm {stem}; or retire it with uv run python -m chupa reject {stem}"
-                self.report.parked.append(Parked(stem, why, road, self._findings(stem)))
+                findings = self._findings(stem)
+                if to == PREMISE and body.get("stage") == "requisition":
+                    findings = (body["reason"], *findings)
+                self.report.parked.append(Parked(stem, why, road, findings))
         self.report.invalid = sorted(scan.invalid.items())
         self.report.drafts = list(scan.drafts)
 
