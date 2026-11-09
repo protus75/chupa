@@ -1,16 +1,16 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "e65c2b032aa140cf71324135d55428de7911dde1",
+  "produced_at_sha": "894ffa0eccea3ae2037db0f9e415da5019a377e8",
   "stem": "spec-base-measurement-method",
-  "passed": false,
+  "passed": true,
   "changed_files": [
     "chupa/specs/diagnose.md",
     "chupa/specs/implement.md",
     "tests/integration/test_stages.py",
     "tests/unit/test_specs.py"
   ],
-  "inserted_lines": 23,
+  "inserted_lines": 22,
   "bypassed": [],
   "reports": [
     {
@@ -75,18 +75,8 @@
     },
     {
       "code": "lint",
-      "verdict": "fail",
-      "findings": [
-        {
-          "code": "lint",
-          "path": null,
-          "line": null,
-          "message": "('uv', 'run', 'ruff', 'check', '.') exited 1: E501 Line too long (344 > 200)\n  --> tests/unit/test_specs.py:86:201\n   |\n84 | …\n85 | …\n86 | …ONPATH), and no synthetic repository (such as a fresh git init). Any other method is not evidence. Compare failing tests by name with the base run. \"\n   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n87 | …\n88 | …\n   |\n\nFound 1 error.\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead",
-          "paved_road": "make the configured command exit 0 on the rebased candidate and retry",
-          "kind": null,
-          "unit": null
-        }
-      ],
+      "verdict": "pass",
+      "findings": [],
       "autofix_applied": false
     },
     {
@@ -105,9 +95,9 @@
         "tests/unit/test_specs.py"
       ],
       "rc": 0,
-      "tail": "$ uv run pytest -q tests/unit/test_specs.py\nbringing up nodes...\nbringing up nodes...\n\n..........................                                               [100%]\n26 passed in 2.39s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "$ uv run pytest -q tests/unit/test_specs.py\nbringing up nodes...\nbringing up nodes...\n\n.........................                                                [100%]\n25 passed in 2.41s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false,
-      "seconds": 2.807796
+      "seconds": 2.844931
     },
     {
       "argv": [
@@ -116,9 +106,9 @@
         "tests/integration/test_stages.py"
       ],
       "rc": 0,
-      "tail": "$ uv run pytest -q tests/integration/test_stages.py\nbringing up nodes...\nbringing up nodes...\n\n..............................................................           [100%]\n62 passed in 1.79s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "$ uv run pytest -q tests/integration/test_stages.py\nbringing up nodes...\nbringing up nodes...\n\n..............................................................           [100%]\n62 passed in 1.83s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false,
-      "seconds": 1.992645
+      "seconds": 2.209342
     }
   ]
 }
