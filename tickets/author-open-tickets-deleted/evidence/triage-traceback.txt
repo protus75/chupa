@@ -1,0 +1,10 @@
+$ uv run chupa triage box-000062-ecdf3225
+(working tree: ` D tickets/authoring-reading-specs/ticket.md`, deletion not committed)
+  File "/home/djp/source/chupa/chupa/triage.py", line 283, in _settle_pass
+    outcome = ... await author(checkout, driver, box, message, pass_no)
+  File "/home/djp/source/chupa/chupa/author.py", line 224, in author
+    open_tickets = await _open_tickets(checkout)
+  File "/home/djp/source/chupa/chupa/author.py", line 120, in _open_tickets
+    lines.append(f"{stem}: {_goal((checkout.repo / path).read_text())}")
+FileNotFoundError: [Errno 2] No such file or directory: '/home/djp/source/chupa/tickets/authoring-reading-specs/ticket.md'
+exit code 1
