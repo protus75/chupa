@@ -47,6 +47,14 @@ After this change, the extension sends `confirm <stem> --extension`. That keep i
     - Route it to the Reject queue again with `ticket.md` unchanged. A second `confirm --yes` exits 2 with `already kept at this ticket content`.
     - `confirm --extension` then exits 0, and the journal holds two operator `keep` signals with the same `ticket_sha`, not one.
   - `tests/integration/test_control_cli.py`, the same repeat with serve live: a request published with `--extension` journals a second keep, and one published with `--yes` is refused with `already kept at this ticket content`.
+  - `tests/unit/test_verdict_extension.py` (new; no disk, network or process). It covers the new lines in `runner.py`, `control.py`, `serve.py` and `__main__.py` so each file stays at or above its `test-gate.toml` floor; no floor is lowered. Cases:
+    - `validate_request` accepts actor `extension` and still rejects an unknown actor.
+    - `settle_admissions`, with a fake journal holding one accepted confirm decision, passes `body["actor"]` to a fake verdict callback.
+    - `verdict_locked`, with `runner.intake` monkeypatched to refuse nothing, a fake journal holding a prior operator keep at the current `ticket_sha` and a Reject-queue terminal, and a fake `git.rev_parse` returning that sha:
+      - `extension=True` journals a keep.
+      - `extension=False` raises `Refusal` naming `already kept at this ticket content`.
+    - `Serve.apply_verdict`, where it can run with fakes, passes `extension=True` only for actor `extension`.
+    - The `__main__` argument parser accepts `confirm <stem> --extension`.
 - In: `docs/how-chupa-works.md`:
   - Section 6.6: the same-content refusal binds command-line `confirm` and not the extension's `--extension`.
   - Section 2.1, `confirm` row: name `--extension`.
@@ -60,17 +68,19 @@ After this change, the extension sends `confirm <stem> --extension`. That keep i
 - chupa/observe.py
 - tests/integration/test_control_cli.py
 - tests/integration/test_watch.py
+- tests/unit/test_verdict_extension.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
 1. `./dev.py test tests/integration/test_control_cli.py` passes, including the new tests. In them, a repeat `confirm --extension` at unchanged ticket content journals a second operator keep (not exit 2), and a repeat `confirm --yes` still exits 2 with `already kept at this ticket content` (not exit 0), both with and without a live serve.
 2. `./dev.py test tests/integration/test_watch.py` passes with `verdictCommands` equal to `{"confirm": ["confirm", "--extension"], "reject": ["reject", "--extension"]}`.
 3. `docs/how-chupa-works.md` section 6.6 and the `confirm` row in section 2.1 name `--extension` and say the same-content refusal binds the command line only.
-4. `./dev.py test` passes.
+4. `./dev.py test tests/unit/test_verdict_extension.py` passes, and the unit coverage gate measures `chupa/runner.py`, `chupa/control.py`, `chupa/serve.py` and `chupa/__main__.py` at or above their `test-gate.toml` floors without lowering any floor.
+5. `./dev.py test` passes.
 
 ## Verification
 ```
-./dev.py test tests/integration/test_control_cli.py tests/integration/test_watch.py
+./dev.py test tests/integration/test_control_cli.py tests/integration/test_watch.py tests/unit/test_verdict_extension.py
 ./dev.py test
 ```
 
