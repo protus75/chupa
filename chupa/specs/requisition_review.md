@@ -24,6 +24,7 @@ ticket can be implemented as written. Reply `snag` for a ticket defect its autho
 - Two statements anywhere in the ticket cannot both hold, for example a declared signature and a call to it, or a named fixture and the result a criterion expects from it.
 - A stated or cited invariant has no named test obligation.
 - Every listed coverage dependent test file must be in the fence or cleared in the summary with one sentence explaining why the change does not affect it. An unaccounted file is a `snag` finding naming it.
+- When Scope in adds statements or branches to a file listed with a floor above 0 under `[coverage.files]` in the repo's `test-gate.toml`, the fence must hold a `tests/unit` file whose named tests run the new lines. A missing one is a `snag` finding naming the file and its floor.
 
 Report every finding in this one reply; never stop at the first.
 

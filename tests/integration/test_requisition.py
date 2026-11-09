@@ -102,6 +102,7 @@ def test_spec_loads_and_names_finding_keys():
     assert spec.inputs == ("ticket", "context", "render", "coverage_dependents", "prior_review", "retry_findings")
     assert all(key in source for key in ("`code`", "`message`", "`paved_road`"))
     assert "in the fence or cleared in the summary" in source
+    assert "the fence must hold a `tests/unit` file" in source
     assert "An unaccounted file is a `snag` finding naming it" in source
     assert "Two statements anywhere in the ticket cannot both hold, for example a declared signature and a call to it, or a named fixture and the result a criterion expects from it." in source
     assert "Report every finding in this one reply; never stop at the first." in source
