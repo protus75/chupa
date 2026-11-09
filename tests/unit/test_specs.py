@@ -22,7 +22,7 @@ from chupa.specs import (
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parents[2] / "chupa" / "specs"
-    for name, version in (("implement", "2.7"), ("requisition_review", "3.7"), ("diagnose", "1.4")):
+    for name, version in (("implement", "2.8"), ("requisition_review", "3.7"), ("diagnose", "1.4")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
@@ -68,7 +68,7 @@ def test_implement_spec_consumer_read():
     assert lint_spec(text) == []
     assert len(text.splitlines()) <= SPEC_MAX_LINES
     spec = load_spec(text)
-    assert spec.meta.version == "2.7"
+    assert spec.meta.version == "2.8"
     assert spec.meta.model_dump(exclude={"version"}) == {
         "llm_surface": "implement",
         "consumes": "ticket",
@@ -88,6 +88,15 @@ def test_implement_spec_consumer_read():
         "README.md",
         "makes false",
         "A stale statement in a file outside `## Scope fence` is reported in `second_problems`, not edited.",
+    ):
+        assert rule in task
+    # The old spec omitted coverage gates, their applicability, and the fenced floor-miss remedy.
+    for rule in (
+        "hard coverage gate",
+        "once after your last edit",
+        "touches no file that gate measures",
+        "not after every edit",
+        "A coverage floor miss is fixed with a test inside `## Scope fence`, or reported as `premise_failed` naming the file and its floor; never restructure production code to avoid coverage.",
     ):
         assert rule in task
     # The old spec omitted sequential execution, permitted overlap, and did not route timing failures.

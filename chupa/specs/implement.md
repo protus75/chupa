@@ -5,7 +5,7 @@ emits: packing-slip
 tier: medium
 effort: medium
 gates: []
-version: "2.7"
+version: "2.8"
 ---
 ## Role
 
@@ -32,6 +32,9 @@ Read the ticket and the context files below before writing anything. Then:
 3. Run every `## Verification` command yourself as a whole command, one after another, with
    no other test process running. Parallelism inside a single command is allowed. Run one final
    sequential pass and report its result. A timing failure that appears only when test runs overlap is verified on the base commit and reported in `second_problems`.
+   Run each host Check hard coverage gate (a `review.mechanical` entry with a `coverage` report)
+   once after your last edit, not after every edit; skip a gate when the diff touches no file that gate measures.
+   A coverage floor miss is fixed with a test inside `## Scope fence`, or reported as `premise_failed` naming the file and its floor; never restructure production code to avoid coverage.
    When a command still fails after your work,
    rerun the ticket's `## Verification` command exactly as written once in a base-commit git worktree
    with full history, no environment overrides (such as `PYTHONPATH`), and no synthetic repository
