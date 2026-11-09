@@ -23,8 +23,8 @@ The `## Task` rule in `chupa/specs/requisition_review.md` says "Raise a NEW find
 After this change the `## Task` rule says that when the prior review is invalid (its finding reads "invalid requisition review reply"), that review clears nothing and judges nothing. The reviewer then reviews the whole ticket again, including the transitive import and composition closure of the fence. The new-finding-only-against-the-diff limit still applies to every other prior review, so approved seeds are not re-reviewed each round. The success measure for later retro windows: no `approve` requisition_verdict directly follows a schema-invalid requisition_verdict on an unchanged ticket unless the whole ticket was reviewed again.
 
 ## Scope in / Scope out
-- In: `chupa/specs/requisition_review.md`. In `## Task`, directly after the sentence ending "Raise a NEW finding only against text the diff shows changed since that review.", add a sentence containing the exact phrase "A prior review reporting an invalid requisition review reply clears nothing". That sentence says such a review has no findings to rule on, so review the whole ticket again, including the transitive import and composition closure of the fence, and the changed-text limit does not apply. Bump `version` to the next minor above the version on `main` when this runs (`3.4` after the dependency merges, so `3.5`). The spec stays within the 200-line `SPEC_MAX_LINES`.
-- In: `tests/unit/test_specs.py`: the pinned `requisition_review` version becomes `3.5`.
+- In: `chupa/specs/requisition_review.md`. In `## Task`, directly after the sentence ending "Raise a NEW finding only against text the diff shows changed since that review.", add a sentence containing the exact phrase "A prior review reporting an invalid requisition review reply clears nothing". That sentence says such a review has no findings to rule on, so review the whole ticket again, including the transitive import and composition closure of the fence, and the changed-text limit does not apply. Bump `version` to the next minor above the version on `main` when this runs (`3.7` today, so `3.8`). The spec stays within the 200-line `SPEC_MAX_LINES`.
+- In: `tests/unit/test_specs.py`: the pinned `requisition_review` version becomes `3.8`.
 - In: `tests/integration/test_requisition.py::test_spec_loads_and_names_finding_keys`: also assert the exact phrase above is in the spec source.
 - Out: any change to `chupa/requisition.py` (reply parser, schema, retry loop), the other `## Task` rules, the Output format and On-failure sections, and how `prior_review` is built.
 
@@ -34,9 +34,9 @@ After this change the `## Task` rule says that when the prior review is invalid 
 - tests/integration/test_requisition.py
 
 ## Acceptance criteria
-1. `chupa/specs/requisition_review.md` contains `A prior review reporting an invalid requisition review reply clears nothing` and `version: "3.5"`, not `3.4`.
+1. `chupa/specs/requisition_review.md` contains `A prior review reporting an invalid requisition review reply clears nothing` and `version: "3.8"`, not `3.7`.
 2. `tests/integration/test_requisition.py` asserts the phrase, and `./dev.py test tests/unit/test_specs.py tests/integration/test_requisition.py` passes; the asserting test fails on a spec lacking the phrase, so a spec still carrying only the changed-text-limit rule is ruled out.
-3. `tests/unit/test_specs.py` pins `3.5` as the `requisition_review` version, so a spec left at `3.4` fails it.
+3. `tests/unit/test_specs.py` pins `3.8` as the `requisition_review` version, so a spec left at `3.7` fails it.
 4. `./dev.py test` passes.
 
 ## Verification
