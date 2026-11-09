@@ -104,6 +104,14 @@ def test_spec_loads_and_names_finding_keys():
     assert "in the fence or cleared in the summary" in source
     assert "the fence must hold a `tests/unit` file" in source
     assert "An unaccounted file is a `snag` finding naming it" in source
+    # A stale-path rule must exempt paths created by the ticket or written only as outputs.
+    for phrase in (
+        "does not exist at the review commit",
+        "does not say the ticket creates",
+        "a path the ticket creates is not a hit",
+        "a path that is only an output of a command is not a hit",
+    ):
+        assert phrase in source
     assert "Two statements anywhere in the ticket cannot both hold, for example a declared signature and a call to it, or a named fixture and the result a criterion expects from it." in source
     assert "Report every finding in this one reply; never stop at the first." in source
     assert "The first character of your reply is `{` and the last is `}`" in source

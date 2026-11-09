@@ -22,7 +22,7 @@ from chupa.specs import (
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parents[2] / "chupa" / "specs"
-    for name, version in (("implement", "2.7"), ("requisition_review", "3.6"), ("diagnose", "1.4")):
+    for name, version in (("implement", "2.7"), ("requisition_review", "3.7"), ("diagnose", "1.4")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
