@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "6eb6889a4a89da7c246a012ccd10ef027113e9f3",
+  "stem": "reoffer-infra-no-retry-draw",
+  "attempt": 3,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "reject",
+  "lessons": [
+    "The fence is missing a file the change forces. The stuck-budget member in eval/shakeout/driver.py hangs Implement until a timeout terminal, and its scripted replies assume the old retry draw. Without that draw the re-offers change and test_shakeout fails.",
+    "Before rerunning, add eval/shakeout/driver.py and tests/integration/test_shakeout.py to the Scope fence and Context. Then fix the _stuck_budget_kill script and asserts for the timeout re-offer that no longer draws retry, and check the follow-up still merges.",
+    "The rest of attempt 3 was sound: the rung-preserving skip in record_reoffer, the unit tests, the reproducer (defect on base, pass when fixed) and the doc edits. Redo all of it from the merge base, because no earlier diff survives.",
+    "Before claiming the fix is done, run ./dev.py test tests/integration/test_shakeout.py -k stuck_budget along with the ticket's Verification commands. Check also passes on reruns of the integration tests, not just the fenced ones."
+  ],
+  "mechanical": null,
+  "spec_version": "1.3",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
