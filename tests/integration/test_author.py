@@ -14,7 +14,7 @@ from chupa.seams import LocalFileSystem
 from chupa.specs import load_spec
 from chupa.tickets import validate_ticket
 from tests.integration.test_cli import ENV, git_out
-from tests.integration.test_drain import Clock, commit_ticket, confirmed, make_root
+from tests.integration.test_drain import Clock, commit_ticket, confirmed, make_root, pause_checkout
 from tests.integration.test_triage import author_reply, reply
 
 
@@ -544,3 +544,18 @@ def test_test_proposal_request(tmp_path, monkeypatch):
     prompt = next(r.rendered for r in llm.requests if r.surface == "author")
     assert '"test_issue": "slow"' in prompt
     assert '"proposed_paths": ["tests/unit/test_x.py"]' in prompt
+
+
+def test_list_open_tickets_requires_disk_commit_and_not_merged(tmp_path):
+    from chupa.author import list_open_tickets
+
+    root = make_root(tmp_path)
+    for stem in ("live", "gone", "done"):
+        commit_ticket(root, stem, f"## Goal / Why\n{stem} goal\n")
+    (root / "tickets/gone/ticket.md").unlink()
+    draft = root / "tickets/draft/ticket.md"
+    draft.parent.mkdir(parents=True)
+    draft.write_text("## Goal / Why\ndraft goal\n")
+    checkout = pause_checkout(root)
+    checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="done")
+    assert asyncio.run(list_open_tickets(checkout)) == "live: live goal"

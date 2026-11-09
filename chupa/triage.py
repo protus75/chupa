@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from chupa.author import author, failure_declined, recover_retro_ticket
+from chupa.author import author, commit_record, committed, failure_declined, list_open_tickets, recover_retro_ticket
 from chupa.box import BOX_DIR, Box, DecisionRecord, RereportJournal, Resolution, Verdict, read_registry, record_path, render_record
 from chupa.driver import Driver, LlmStage
 from chupa.effects import Effects
@@ -48,24 +48,6 @@ class TriageReply(BaseModel):
         return self
 
 
-async def _committed(checkout: Checkout, path: Path) -> bool:
-    try:
-        await checkout.git.rev_parse(checkout.repo, f"HEAD:{path}")
-    except GitError:
-        return False
-    return True
-
-
-async def _commit_record(checkout: Checkout, driver: Driver, record_id: str) -> None:
-    path = record_path(record_id)
-
-    async def commit() -> None:
-        await checkout.git.add(checkout.repo, [str(path)])
-        await checkout.git.commit(checkout.repo, f"chupa(decisions): {record_id}", only=[str(path)])
-
-    await driver.effects.run(commit, key=f"ticket-plane/decisions/{record_id}", ticket=None)
-
-
 def _body(reply: TriageReply, message_id: str, raw_summary: str) -> str:
     lines = [reply.summary, "", reply.rationale, ""]
     lines.extend(f"- {item}" for item in reply.evidence)
@@ -87,14 +69,9 @@ async def _record(
     assert reply.reopen_after_days is not None
     record = DecisionRecord(id=record_id, kind=kind, link=link, reopen_after_days=reply.reopen_after_days)
     checkout.fs.write(checkout.repo / record_path(record_id), render_record(record, _body(reply, message_id, raw_summary)).encode())
-    await _commit_record(checkout, driver, record_id)
+    await commit_record(checkout, driver, record_id)
     box.resolve(message_id, Resolution(kind=kind, link=record_id))
     return f"{message_id}: {kind} -> {record_id}"
-
-
-def _goal(text: str) -> str:
-    after = text.partition("## Goal / Why\n")[2]
-    return next((line.strip() for line in after.splitlines() if line.strip()), "")
 
 
 async def triage_pass(checkout: Checkout, llm: LLM, ids=frozenset()) -> list[tuple[str, str]]:
@@ -261,8 +238,8 @@ async def _settle_pass(checkout, driver, box, spec, history, pass_no, ids):
             registry = [(r, body) for r, body in registry if r.id != f"tombstone-{message.id}"]
         existing = next((r for r, _ in registry if r.id in {f"declined-{message.id}", f"tombstone-{message.id}"}), None)
         if existing is not None:
-            if not await _committed(checkout, record_path(existing.id)):
-                await _commit_record(checkout, driver, existing.id)
+            if not await committed(checkout, record_path(existing.id)):
+                await commit_record(checkout, driver, existing.id)
             box.resolve(message.id, Resolution(kind=existing.kind, link=existing.id))
             lines.append((message.id, f"{message.id}: {existing.kind} -> {existing.id}"))
             continue
@@ -285,11 +262,7 @@ async def _settle_pass(checkout, driver, box, spec, history, pass_no, ids):
             lines.append((message.id, line))
             continue
 
-        open_tickets = []
-        for path in sorted((checkout.repo / "tickets").glob("*/ticket.md")):
-            stem = path.parent.name
-            if stem not in merged and await _committed(checkout, path.relative_to(checkout.repo)):
-                open_tickets.append(f"{stem}: {_goal(path.read_text())}")
+        open_tickets = await list_open_tickets(checkout)
         inputs = {
             "message": json.dumps(
                 {
@@ -308,7 +281,7 @@ async def _settle_pass(checkout, driver, box, spec, history, pass_no, ids):
                     "report": report_data(message.report, box.root) if message.report else None,
                 }
             ),
-            "open_tickets": "\n".join(open_tickets),
+            "open_tickets": open_tickets,
             "merged": "\n".join(merged),
             "decisions": "\n".join(f"{r.id}: {r.kind}, link={r.link}, {body.splitlines()[0] if body else ''}" for r, body in registry),
         }
@@ -346,10 +319,10 @@ async def _settle_pass(checkout, driver, box, spec, history, pass_no, ids):
                 kind = reply.verdict
                 if kind == "tombstone":
                     assert reply.link is not None
-                    target = reply.link in merged or await _committed(checkout, Path("tickets") / reply.link / "ticket.md")
+                    target = reply.link in merged or await committed(checkout, Path("tickets") / reply.link / "ticket.md")
                     if not target:
                         for record, _ in registry:
-                            if record.id == reply.link and await _committed(checkout, record_path(record.id)):
+                            if record.id == reply.link and await committed(checkout, record_path(record.id)):
                                 target = True
                                 break
                     if not target:

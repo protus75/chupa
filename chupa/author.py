@@ -21,6 +21,7 @@ from chupa.requisition import RequisitionVerdict, review_ticket
 from chupa.runner import SPECS_DIR, Checkout
 from chupa.specs import Spec, load_spec, render
 from chupa.stages import findings_text
+from chupa.status import last_states
 from chupa.tickets import TicketInvalid, split_frontmatter, stamp, stem_findings, ticket_path, validate_ticket
 
 AUTHOR_STUCK_S = 900.0
@@ -104,24 +105,30 @@ class AuthorOutcome:
     declined: str | None = None
 
 
-def _goal(text: str) -> str:
+def goal(text: str) -> str:
     after = text.partition("## Goal / Why\n")[2]
     return next((line.strip() for line in after.splitlines() if line.strip()), "")
 
 
-async def _open_tickets(checkout: Checkout) -> str:
-    states = {event.ticket: event.body.get("to") for event in checkout.journal.read() if event.type == EventType.STATE_TRANSITION and event.ticket is not None}
+async def committed(checkout: Checkout, path: Path) -> bool:
+    try:
+        await checkout.git.rev_parse(checkout.repo, f"HEAD:{path}")
+    except GitError:
+        return False
+    return True
+
+
+async def list_open_tickets(checkout: Checkout) -> str:
+    states = last_states(checkout.journal.read())
     lines = []
-    for name in await checkout.git.ls_files(checkout.repo):
-        path = Path(name)
-        if len(path.parts) == 3 and path.parts[0] == "tickets" and path.name == "ticket.md" and (checkout.repo / path).exists():
-            stem = path.parts[1]
-            if states.get(stem) != "merged":
-                lines.append(f"{stem}: {_goal((checkout.repo / path).read_text())}")
-    return "\n".join(sorted(lines))
+    for path in sorted((checkout.repo / "tickets").glob("*/ticket.md")):
+        stem = path.parent.name
+        if states.get(stem) != "merged" and await committed(checkout, path.relative_to(checkout.repo)):
+            lines.append(f"{stem}: {goal(path.read_text())}")
+    return "\n".join(lines)
 
 
-async def _commit_record(checkout: Checkout, driver: Driver, record_id: str) -> None:
+async def commit_record(checkout: Checkout, driver: Driver, record_id: str) -> None:
     path = record_path(record_id)
 
     async def commit() -> None:
@@ -136,7 +143,7 @@ async def failure_declined(checkout: Checkout, driver: Driver, box: Box, message
     record = DecisionRecord(id=record_id, kind="declined", link=message.id, reopen_after_days=30)
     body = f"Author could not produce a ticket.\n\nEvidence: {evidence}\n"
     checkout.fs.write(checkout.repo / record_path(record_id), render_record(record, body).encode())
-    await _commit_record(checkout, driver, record_id)
+    await commit_record(checkout, driver, record_id)
     box.resolve(message.id, Resolution(kind="declined", link=record_id))
     return AuthorOutcome(declined=record_id)
 
@@ -223,7 +230,7 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
         }
         return render(spec, inputs)
 
-    open_tickets = await _open_tickets(checkout)
+    open_tickets = await list_open_tickets(checkout)
     previous_reply: str | None = None
     next_unused = 1
     reviewed: RequisitionVerdict | None = None

@@ -17,14 +17,17 @@ def main() -> int:
         async def ls_files(repo):
             return ["tickets/gone/ticket.md", "tickets/live/ticket.md"]
 
+        async def rev_parse(repo, ref):
+            return "sha"
+
         with tempfile.TemporaryDirectory() as directory:
             repo = Path(directory)
             live = repo / "tickets/live/ticket.md"
             live.parent.mkdir(parents=True)
             live.write_text("## Goal / Why\nlive goal\n")
-            checkout = SimpleNamespace(repo=repo, git=SimpleNamespace(ls_files=ls_files), journal=SimpleNamespace(read=lambda: []))
+            checkout = SimpleNamespace(repo=repo, git=SimpleNamespace(ls_files=ls_files, rev_parse=rev_parse), journal=SimpleNamespace(read=lambda: []))
             try:
-                value = asyncio.run(author._open_tickets(checkout))
+                value = asyncio.run(author.list_open_tickets(checkout))
             except FileNotFoundError:
                 print(json.dumps({"regression_result": "defect"}))
                 return 1
