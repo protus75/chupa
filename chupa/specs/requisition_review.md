@@ -5,7 +5,7 @@ emits: {approve: requisition-approval, snag: requisition-snag, rma: requisition-
 tier: high
 effort: high
 gates: [requisition_review]
-version: "3.3"
+version: "3.4"
 ---
 ## Role
 
@@ -76,6 +76,7 @@ Findings against your previous reply (`none` on the first call):
 ## Output format
 
 Reply with ONLY one JSON object, no prose before or after:
+The first character of your reply is `{` and the last is `}`; no prose, markdown or code fence surrounds the object, and reasoning goes in `summary`.
 
 {"verdict": "approve" | "snag" | "rma",
  "summary": "<non-blank sentence>",
@@ -88,6 +89,8 @@ respectively a string or null and an integer >= 1 or null. No other keys are all
 `findings` is empty exactly for `approve`; `snag` and `rma` each need at least one finding.
 
 ## On-failure
+
+When `retry_findings` reports an invalid reply schema, re-emit the same verdict as bare JSON with the same verdict and findings unchanged.
 
 If evidence is insufficient to judge buildability, reply `snag`, name the missing evidence in a
 finding, and give the author a paved road to supply it. If no edit of this ticket can make it
