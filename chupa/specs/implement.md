@@ -5,7 +5,7 @@ emits: packing-slip
 tier: medium
 effort: medium
 gates: []
-version: "2.4"
+version: "2.5"
 ---
 ## Role
 
@@ -30,7 +30,10 @@ Read the ticket and the context files below before writing anything. Then:
    the plausible reading that keeps the consumer working and record the choice in the run record's
    `surprises`, or reply `premise_failed` when no such reading exists.
 3. Run every `## Verification` command yourself. When a command still fails after your work,
-   rerun it on the base commit and compare failing tests by name with the base run. Never label a
+   rerun the ticket's `## Verification` command exactly as written once in a base-commit git worktree
+   with full history, no environment overrides (such as `PYTHONPATH`), and no synthetic repository
+   (such as a fresh `git init`). Any other method is not evidence. Compare failing tests by name
+   with the base run. Never label a
    failure base-red without running it on the base commit. Fix every failure not on the base list.
    For each failure also on the base list, commit, reply `ok`, and report it in `second_problems`
    and `surprises`. A failure that passes on the base commit and requires an edit outside

@@ -22,7 +22,7 @@ from chupa.specs import (
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parents[2] / "chupa" / "specs"
-    for name, version in (("implement", "2.4"), ("requisition_review", "3.5"), ("diagnose", "1.3")):
+    for name, version in (("implement", "2.5"), ("requisition_review", "3.5"), ("diagnose", "1.4")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
@@ -49,6 +49,15 @@ def test_requisition_review_spec_snags_non_protocol_regression():
 def test_diagnose_spec_states_attempt_starting_point():
     text = (Path(__file__).resolve().parents[2] / "chupa/specs/diagnose.md").read_text()
     assert "Every attempt starts from the merge base" in text
+    spec = load_spec(text)
+    rendered = render(spec, {name: f"fixture {name}" for name in spec.inputs})
+    task = " ".join(rendered.split("## Task\n", 1)[1].split("## Inputs\n", 1)[0].split())
+    assert (
+        "When the terminal or run record claims a failure already exists on the base commit, check how it was measured. "
+        "If it was not the plain `## Verification` command as written, run once in a base-commit git worktree with full history "
+        "and no environment overrides or synthetic repository, the claim is unproven: choose `retry` and give a lesson to re-measure that way. "
+        "A validly measured base failure remains a base failure and keeps its other verdicts."
+    ) in task
 
 
 def test_implement_spec_consumer_read():
@@ -56,7 +65,7 @@ def test_implement_spec_consumer_read():
     assert lint_spec(text) == []
     assert len(text.splitlines()) <= SPEC_MAX_LINES
     spec = load_spec(text)
-    assert spec.meta.version == "2.4"
+    assert spec.meta.version == "2.5"
     assert spec.meta.model_dump(exclude={"version"}) == {
         "llm_surface": "implement",
         "consumes": "ticket",
@@ -70,7 +79,9 @@ def test_implement_spec_consumer_read():
     rendered = render(spec, {name: f"fixture {name}" for name in spec.inputs})
     task = " ".join(rendered.split("## Task\n", 1)[1].split("## Inputs\n", 1)[0].split())
     assert (
-        "When a command still fails after your work, rerun it on the base commit and compare failing tests by name with the base run. "
+        "When a command still fails after your work, rerun the ticket's `## Verification` command exactly as written once "
+        "in a base-commit git worktree with full history, no environment overrides (such as `PYTHONPATH`), and no synthetic "
+        "repository (such as a fresh `git init`). Any other method is not evidence. Compare failing tests by name with the base run. "
         "Never label a failure base-red without running it on the base commit. Fix every failure not on the base list. "
         "For each failure also on the base list, commit, reply `ok`, and report it in `second_problems` and `surprises`. "
         "A failure that passes on the base commit and requires an edit outside `## Scope fence` remains a `premise_failed` finding."
