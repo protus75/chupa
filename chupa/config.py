@@ -209,6 +209,8 @@ class RetroSpikes(_Strict):
 
 class Retro(_Strict):
     enabled: bool = True
+    test_timing: bool = True
+    coverage: bool = True
     merges: RetroMerges = RetroMerges()
     days: RetroDays = RetroDays()
     spikes: RetroSpikes = RetroSpikes()

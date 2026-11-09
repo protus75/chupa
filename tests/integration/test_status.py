@@ -151,7 +151,7 @@ def test_status_production_provenance(tmp_path, monkeypatch, capsys):
 
     def capture(events, **kwargs):
         assert kwargs["provenance"] == expected
-        assert kwargs["window"].evidence == {**measurements(project_window(events)), "check_observations": []}
+        assert kwargs["window"].evidence == {**measurements(project_window(events)), "check_observations": [], "tests": {}, "coverage": {}}
         result = project(events, **kwargs)
         projected.append(result)
         return result

@@ -79,6 +79,8 @@ def test_valid_config_loads_from_cwd_with_shipped_defaults(tmp_path):
     assert cfg.drain.max_ticket_minutes == 90
     assert cfg.retro.model_dump() == {
         "enabled": True,
+        "test_timing": True,
+        "coverage": True,
         "merges": {"enabled": True, "every": 25},
         "days": {"enabled": True, "every": 7},
         "spikes": {"enabled": True, "count": 5, "kinds": ["override", "rework", "gate-failure", "integration-red", "reject", "premise-failed", "infra-error", "flake", "escape"]},
@@ -399,9 +401,14 @@ def test_migrate_config_refuses_unsupported_inputs(tmp_path, text, cause, road, 
 
 
 def test_retro_yaml_values(tmp_path):
-    cfg = load_config(write(tmp_path, VALID + "retro: {enabled: false, merges: {enabled: false, every: 3}, days: {every: 2}, spikes: {count: 4, kinds: [rework]}}\n"), cwd=tmp_path)
+    cfg = load_config(
+        write(tmp_path, VALID + "retro: {enabled: false, test_timing: false, coverage: false, merges: {enabled: false, every: 3}, days: {every: 2}, spikes: {count: 4, kinds: [rework]}}\n"),
+        cwd=tmp_path,
+    )
     assert cfg.retro.model_dump() == {
         "enabled": False,
+        "test_timing": False,
+        "coverage": False,
         "merges": {"enabled": False, "every": 3},
         "days": {"enabled": True, "every": 2},
         "spikes": {"enabled": True, "count": 4, "kinds": ["rework"]},

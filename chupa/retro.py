@@ -144,6 +144,10 @@ async def production_evidence(window, checkout):
     from chupa.stages import Invoice
 
     evidence = measurements(window)
+    if checkout.config.retro.test_timing:
+        evidence["tests"] = {}
+    if checkout.config.retro.coverage:
+        evidence["coverage"] = {}
     checks, counted, invoices, observations = {}, set(), {}, []
     for event in window.events:
         stem = event.ticket
@@ -155,6 +159,24 @@ async def production_evidence(window, checkout):
                 invoice = Invoice.model_validate_json(text)
                 invoices[event.key] = invoice
                 observations.extend((invoice.stem, report.code, report.verdict, report.code in invoice.bypassed) for report in invoice.reports)
+                for report in invoice.reports:
+                    if checkout.config.retro.test_timing and report.timing is not None:
+                        timing = report.timing
+                        summary = evidence["tests"].setdefault(report.code, {"runs": [], "slow": {}})
+                        summary["runs"].append({"ticket": invoice.stem, "seconds": timing.seconds, "passed": timing.passed, "failed": timing.failed, "skipped": timing.skipped})
+                        for nodeid, seconds in timing.slow.items():
+                            row = summary["slow"].setdefault(nodeid, {"max_seconds": seconds, "runs": 0})
+                            row["max_seconds"] = max(row["max_seconds"], seconds)
+                            row["runs"] += 1
+                    if checkout.config.retro.coverage and report.coverage is not None:
+                        coverage = report.coverage
+                        summary = evidence["coverage"].setdefault(report.code, {"percent": coverage.percent, "files": {}})
+                        summary["percent"] = coverage.percent
+                        for path, percent in coverage.files.items():
+                            row = summary["files"].setdefault(path, {"latest": percent, "min": percent, "runs": 0})
+                            row["latest"] = percent
+                            row["min"] = min(row["min"], percent)
+                            row["runs"] += 1
         if event.type != EventType.STATE_TRANSITION or event.body.get("to") != "merged":
             continue
         check = checks.pop(stem, None)

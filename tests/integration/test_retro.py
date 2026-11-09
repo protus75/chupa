@@ -459,3 +459,46 @@ def test_excluded_spike_kind_never_fires(tmp_path):
     assert facts["spikes"]["rework"] == 5  # Filtering measurements would erase the excluded evidence.
     settings = RetroSettings(spikes={"kinds": ["override"]})
     assert select_trigger(window, facts, datetime.fromisoformat(window.started_at), settings, forced=False) is None  # Ignoring the allowlist fires rework.
+
+
+def measurement_invoices(tmp_path, *, switches=True):
+    from chupa.gates import GateReport, TestCoverage, TestTiming
+    from chupa.stages import Invoice
+
+    c, writer, _, _ = rig(tmp_path)
+    if not switches:
+        c.config.retro.test_timing = False
+        c.config.retro.coverage = False
+    for stem, seconds, percent in (("first", 5.0, 60.0), ("second", 2.0, 80.0)):
+        report = GateReport(
+            code="unit",
+            verdict="pass",
+            timing=TestTiming(seconds=seconds + 1, passed=3, failed=1, skipped=2, slow={"tests/a.py::t": seconds}),
+            coverage=TestCoverage(percent=percent + 3, files={"a.py": percent}),
+        )
+        invoice = Invoice(produced_by_spec_version=1, produced_at_sha="branch", stem=stem, passed=True, changed_files=[], inserted_lines=0, bypassed=[], reports=[report])
+        path = f"tickets/{stem}/checks.json"
+
+        async def publish():
+            c.fs.write(c.repo / path, invoice.model_dump_json().encode())
+            await c.git.add(c.repo, [path])
+            await c.git.commit(c.repo, "checks", only=[path])
+            return {"commit": await c.git.rev_parse(c.repo, "HEAD")}
+
+        asyncio.run(writer.stages.driver.effects.run(publish, key=f"ticket-plane/{stem}/0/checks", ticket=stem))
+    return asyncio.run(production_evidence(project_window(c.journal.read()), c))
+
+
+def test_test_timing_aggregates_invoices(tmp_path):
+    result = measurement_invoices(tmp_path)["tests"]["unit"]
+    assert result["runs"] == [{"ticket": "first", "seconds": 6.0, "passed": 3, "failed": 1, "skipped": 2}, {"ticket": "second", "seconds": 3.0, "passed": 3, "failed": 1, "skipped": 2}]
+    assert result["slow"] == {"tests/a.py::t": {"max_seconds": 5.0, "runs": 2}}
+
+
+def test_coverage_aggregates_invoices(tmp_path):
+    assert measurement_invoices(tmp_path)["coverage"] == {"unit": {"percent": 83.0, "files": {"a.py": {"latest": 80.0, "min": 60.0, "runs": 2}}}}
+
+
+def test_measurement_switches(tmp_path):
+    result = measurement_invoices(tmp_path, switches=False)
+    assert "tests" not in result and "coverage" not in result
