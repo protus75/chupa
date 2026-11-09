@@ -20,6 +20,7 @@ kind: feature
 - chupa/stages.py::check_hosts
 - chupa/stages.py::Invoice
 - tests/integration/test_testreport.py
+- tests/unit/test_testreport_reader.py
 - tests/integration/test_host_contract.py::test_host_contract_seam_inventory
 - tests/integration/test_host_mechanical.py
 - tests/integration/test_fixture_host.py::test_fixture_profile_loads
@@ -43,6 +44,7 @@ Check runs the host test suites but keeps only each test's outcome. How long a s
   - The results document becomes `{"schema_version": 2, "tests": {nodeid: outcome}, "seconds": {nodeid: float}}`. A test's seconds is the sum of its setup, call and teardown `report.duration`.
   - `read_results` accepts only schema 2, requires the `seconds` keys to equal the `tests` keys and each value to be a finite float `>= 0`, and returns a frozen `Results(tests, seconds)` dataclass. Schema 1 is refused like any other version.
   - Every caller in `chupa/stages.py` reads `.tests` where it used the old dict.
+  - Add `slow_tests(seconds: dict[str, float], floor: float, limit: int) -> dict[str, float]`: tests with seconds `>= floor`, highest first, ties by node ID, at most `limit`. `_check_host_results` calls it; it does not reimplement the selection.
 - In: `chupa/covgate.py`.
   - Extract `percentages(report) -> tuple[float, dict[str, float]]`, the repository percent and per-file percent using the formula `evaluate` uses today: covered lines plus covered branches over statements plus branches; 100.0 when the total is 0.
   - It raises `ValueError` on the same invalid reports. `evaluate` calls it, so its results are unchanged.
@@ -67,6 +69,8 @@ Check runs the host test suites but keeps only each test's outcome. How long a s
     - New `test_slow_test_bounds_configured`: with `slow_test_seconds: 2.5` and `slow_test_limit: 1`, durations `{a: 2.0, b: 3.0, c: 4.0}` record only `{c: 4.0}`, not the default-bounded `{c, b, a}`.
     - `test_coverage_requires_results` gains cases: `slow_test_seconds` or `slow_test_limit` set without `results` raises `ConfigError` with key `review.mechanical.0.slow_test_seconds` / `review.mechanical.0.slow_test_limit`.
     - New `test_coverage_recorded_for_changed_files`: only changed files appear in `coverage.files`, and an unreadable coverage report leaves `coverage` unset with the report verdict unchanged.
+  - `tests/unit/test_testreport_reader.py`: `test_valid_results` covers schema 2 only and asserts `.tests` and `.seconds`; a schema-1 document joins the refused cases.
+  - New `tests/unit/test_check_timing.py`: `slow_tests` floor, cap, descending order and node-ID tie-break; the schema-2 writer sums setup, call and teardown durations; `slow_test_seconds` / `slow_test_limit` without `results` raise `ConfigError`; a `GateReport` with and without `timing`/`coverage` dumps as specified; `run_host_command` sets `CommandResult.seconds` from a fake clock. Keep `chupa/testreport.py`, `chupa/config.py`, `chupa/gates.py` and `chupa/stages.py` at or above their `test-gate.toml` floors under the configured `unit` check. Do not lower a floor.
   - New `tests/unit/test_covgate.py`: unit tests for `percentages` and `evaluate` that keep `chupa/covgate.py` at or above its `test-gate.toml` floor under the configured `unit` check. Do not lower the floor.
   - `tests/integration/test_covgate.py`: `percentages` gives the weighted repository and per-file values that `test_aggregates_are_weighted` expects.
   - `tests/integration/test_host_contract.py::test_host_contract_seam_inventory`: its fake `driver` gains a `clock`.
@@ -86,6 +90,8 @@ Check runs the host test suites but keeps only each test's outcome. How long a s
 - tests/integration/test_host_mechanical.py
 - tests/integration/test_covgate.py
 - tests/unit/test_covgate.py
+- tests/unit/test_testreport_reader.py
+- tests/unit/test_check_timing.py
 - tests/integration/test_host_contract.py
 - tests/integration/test_fixture_host.py
 - docs/how-chupa-works.md
@@ -101,6 +107,7 @@ Check runs the host test suites but keeps only each test's outcome. How long a s
 
 ## Verification
 ```
+./dev.py test tests/unit
 ./dev.py test tests/integration/test_testreport.py tests/integration/test_covgate.py tests/unit/test_covgate.py
 ./dev.py test tests/integration/test_host_mechanical.py tests/integration/test_gates.py tests/integration/test_host_contract.py
 ./dev.py test
