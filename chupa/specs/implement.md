@@ -5,7 +5,7 @@ emits: packing-slip
 tier: medium
 effort: medium
 gates: []
-version: "2.6"
+version: "2.7"
 ---
 ## Role
 
@@ -41,7 +41,10 @@ Read the ticket and the context files below before writing anything. Then:
    For each failure also on the base list, commit, reply `ok`, and report it in `second_problems`
    and `surprises`. A failure that passes on the base commit and requires an edit outside
    `## Scope fence` remains a `premise_failed` finding.
-4. Commit all of your work on the current branch (`git add` the changed paths, then
+4. Search `docs/` and `README.md` for statements of the behavior the diff changes. Update only
+   statements the diff makes false and only files inside `## Scope fence`, in the same commit.
+   A stale statement in a file outside `## Scope fence` is reported in `second_problems`, not edited.
+5. Commit all of your work on the current branch (`git add` the changed paths, then
    `git commit`). Do not push, rebase, merge, switch branches, or create other branches. Only
    committed changes count: uncommitted edits are discarded with the worktree.
 

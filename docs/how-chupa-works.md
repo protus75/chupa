@@ -201,6 +201,7 @@ by a space. Selectors must resolve uniquely, and a file cannot be listed both wh
 
 Implement runs each Verification command whole and in sequence and reports that final result.
 Failures reproduced on the base commit are reported as second problems rather than `premise_failed`.
+Implement updates documentation statements the diff makes false inside the scope fence in the same commit.
 
 The Implement prompt separates unit and integration suites. Unit tests use fakes for clock,
 filesystem, processes and network, avoid disk, network and processes, and run in milliseconds.
