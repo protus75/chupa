@@ -37,6 +37,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -130,6 +131,19 @@ def main() -> None:
             run(["uv", "build", "-o", tmp])
             run(["uv", "publish", *(str(path) for path in sorted(Path(tmp).iterdir()))])
     elif args.task == "vscode-package":
+        with (ROOT / "pyproject.toml").open("rb") as stream:
+            version = tomllib.load(stream)["project"]["version"]
+        readme = ROOT / "vscode-chupa" / "README.md"
+        text, count = re.subn(
+            r"^Built for \[chupa [^\]]*\]\(https://pypi\.org/project/chupa/[^/)]*/\)\.$",
+            f"Built for [chupa {version}](https://pypi.org/project/chupa/{version}/).",
+            readme.read_text(),
+            flags=re.MULTILINE,
+        )
+        if count != 1:
+            sys.exit("dev: expected one Built for line in vscode-chupa/README.md")
+        readme.write_text(text)
+        print(f"dev: built for chupa {version}")
         package = json.loads((ROOT / "vscode-chupa" / "package.json").read_text())
         output = ROOT / "dist" / f"vscode-chupa-{package['version']}.vsix"
         output.parent.mkdir(parents=True, exist_ok=True)

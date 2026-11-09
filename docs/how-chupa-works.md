@@ -98,11 +98,11 @@ A unit test file may share its name with an integration test file.
 | `confirm STEM... [--yes]`, `reject STEM... [--yes]` | `chupa confirm` or `chupa reject` once per stem; a person at a terminal answers `y` for each stem unless `--yes` is passed |
 | `watch [--once]` | `chupa watch` through `uv`: a read-only live view of the engine and queue |
 | `publish` | with `UV_PUBLISH_TOKEN` set, bumps the patch version, then builds and uploads; the operator commits `pyproject.toml` and `uv.lock` |
-| `vscode-package` | packages the current manifest version into `dist/vscode-chupa-<version>.vsix` and prints the Marketplace upload page; under WSL also prints the Windows path to paste into the upload dialog |
+| `vscode-package` | writes the `pyproject.toml` chupa version into the `Built for` line of `vscode-chupa/README.md`, then packages the current manifest version into `dist/vscode-chupa-<version>.vsix` and prints the Marketplace upload page; under WSL also prints the Windows path to paste into the upload dialog |
 | `vscode` | bumps the patch version in `vscode-chupa/package.json` (VS Code keeps an extension's old icon until its version changes), packages it with `npx @vscode/vsce`, and installs it with `code --install-extension --force`; reload the window to load it |
 
 To release the extension, bump `version` in `vscode-chupa/package.json`, run
-`./dev.py vscode-package`, and upload the printed VSIX on the [chunkydragon management page](https://marketplace.visualstudio.com/manage/publishers/chunkydragon).
+`./dev.py vscode-package` to write the `pyproject.toml` chupa version into the `Built for` line of `vscode-chupa/README.md`, commit that README change, and upload the printed VSIX on the [chunkydragon management page](https://marketplace.visualstudio.com/manage/publishers/chunkydragon).
 Under WSL, paste the printed Windows path into the upload dialog.
 Choose New extension for the first release and the extension's Update action for subsequent releases.
 The Marketplace refuses a version it already holds.

@@ -133,6 +133,8 @@ def test_migrate_box_forwards(monkeypatch):
 def vscode_package(tmp_path, monkeypatch):
     extension = tmp_path / "vscode-chupa"
     extension.mkdir()
+    (tmp_path / "pyproject.toml").write_text('[project]\nversion = "9.8.7"\n')
+    (extension / "README.md").write_text("# chupa tickets\n\nBuilt for [chupa 0.0.1](https://pypi.org/project/chupa/0.0.1/).\n\ntail\n")
     (extension / "package.json").write_text('{"version": "1.2.3"}')
     monkeypatch.setattr(dev, "ROOT", tmp_path)
     monkeypatch.setattr(dev.sys, "argv", ["dev.py", "vscode-package"])
@@ -177,3 +179,34 @@ def test_vscode_package_stops_when_wslpath_fails(vscode_package, monkeypatch, ca
     assert "wslpath" in str(error.value.code)  # Identify the failing translation command.
     assert "Windows path" not in capsys.readouterr().out  # Never print failed output as a path.
     assert run.call_args.args[0] == ["wslpath", "-w", str(vscode_package)]  # The failure must come from translating the packaged VSIX.
+
+
+def test_vscode_package_stamps_chupa_version(vscode_package, monkeypatch, capsys):
+    monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
+    readme = dev.ROOT / "vscode-chupa" / "README.md"
+    packaged = []
+
+    def fake_run(argv, *, cwd, check):
+        if argv[0] == "npx":
+            packaged.append(readme.read_text())
+        return Mock(returncode=0)
+
+    monkeypatch.setattr(dev.subprocess, "run", fake_run)
+    dev.main()
+    expected = "# chupa tickets\n\nBuilt for [chupa 9.8.7](https://pypi.org/project/chupa/9.8.7/).\n\ntail\n"
+    assert packaged == [expected]  # The package must see the engine version and intact surrounding text.
+    assert readme.read_text() == expected  # The stamped README must remain for the operator.
+    assert "dev: built for chupa 9.8.7" in capsys.readouterr().out  # Report the engine version, not the extension version.
+
+
+def test_vscode_package_stops_without_built_for_line(vscode_package, monkeypatch):
+    readme = dev.ROOT / "vscode-chupa" / "README.md"
+    original = "# chupa tickets\n\ntail\n"
+    readme.write_text(original)
+    run = Mock()
+    monkeypatch.setattr(dev.subprocess, "run", run)
+    with pytest.raises(SystemExit) as error:
+        dev.main()
+    assert str(error.value.code).startswith("dev:") and "Built for" in str(error.value.code)  # Explain the missing marker.
+    run.assert_not_called()  # Do not package without a version marker.
+    assert readme.read_text() == original  # Do not silently append a marker.
