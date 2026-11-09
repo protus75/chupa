@@ -20,7 +20,7 @@ from tests.integration.test_triage import author_reply, reply
 
 def test_author_spec_requires_criteria_to_name_wrong_results():
     spec = load_spec((Path(__file__).resolve().parents[2] / "chupa/specs/author.md").read_text())
-    assert spec.meta.version == "1.3"
+    assert spec.meta.version == "1.4"
     assert "a criterion checked by a test names the wrong result the test rules out" in spec.body
     assert "A test that also passes on the wrong result checks nothing." in spec.body
 
@@ -28,6 +28,9 @@ def test_author_spec_requires_criteria_to_name_wrong_results():
 def test_author_spec_states_ticket_rules():
     spec = load_spec((Path(__file__).resolve().parents[2] / "chupa/specs/author.md").read_text())
     body = spec.body
+    # The old spec omitted set membership; an unlimited grep would fence loose mentions.
+    assert "adds, removes, renames, or moves a member of a set" in body
+    assert "asserts against the changed set or hardcodes the moved path" in body
     assert body.count("gate_bypass") == 1 and "Never write `state`, `source`, or `gate_bypass`" in body
     assert "`priority` (P0-P3), `kind` (`feature`, `chore`, or `bug`), `agent_tier`, and `agent_effort`" in body
     assert "`## Context` and `## On-demand` item is an existing repo-relative file path" in body

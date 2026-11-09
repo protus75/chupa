@@ -22,7 +22,7 @@ from chupa.specs import (
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parents[2] / "chupa" / "specs"
-    for name, version in (("implement", "2.7"), ("requisition_review", "3.5"), ("diagnose", "1.4")):
+    for name, version in (("implement", "2.7"), ("requisition_review", "3.6"), ("diagnose", "1.4")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
@@ -33,6 +33,9 @@ def test_requisition_review_spec_snags_non_protocol_regression():
     spec = load_spec(text)
     rendered = render(spec, {name: f"fixture {name}" for name in spec.inputs})
     task = " ".join(rendered.split("## Task\n", 1)[1].split("## Inputs\n", 1)[0].split())
+    # The old spec omitted set membership; an unlimited grep would fence loose mentions.
+    assert "adds, removes, renames, or moves a member of a set" in task
+    assert "asserts against the changed set or hardcodes the moved path" in task
     for phrase in (
         "If the ticket has `## Regression`",
         "`- carries:` path prefix (a test or fixture path)",

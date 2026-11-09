@@ -5,7 +5,7 @@ emits: {approve: requisition-approval, snag: requisition-snag, rma: requisition-
 tier: high
 effort: high
 gates: [requisition_review]
-version: "3.5"
+version: "3.6"
 ---
 ## Role
 
@@ -20,6 +20,7 @@ ticket can be implemented as written. Reply `snag` for a ticket defect its autho
 - A scope fence misses a file forced by a criterion. Trace the reference closure of each symbol
   changed in Scope in, including callers, importers, and aliases. Trace the recorded-value closure
   of every bumped constant or version. A hook into a seam owned outside the fence is a gap.
+- When Scope in adds, removes, renames, or moves a member of a set (CLI subcommand, file or directory path, spec name), grep `tests/` and `docs/` for files that list that set or hardcode the old path, and fence every hit that asserts against the changed set or hardcodes the moved path. A mere textual mention, a path built under `tmp_path`, or a historical form the ticket keeps valid is not a hit.
 - A criterion or a Definition-of-rejected clause contradicts merged behavior, or two criteria cannot both be satisfied.
 - Two statements anywhere in the ticket cannot both hold, for example a declared signature and a call to it, or a named fixture and the result a criterion expects from it.
 - A stated or cited invariant has no named test obligation.
