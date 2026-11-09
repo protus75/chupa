@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The focused integration and unit verification commands passed, but full-suite collection reported an import file mismatch. The reader, documentation, and tests are implemented but uncommitted. A simpler in-scope fix would require changing a mandated test filename, so it would violate the ticket.
+Schema 2 requires float values exactly as specified. The smaller alternative of accepting only schema 1 would block the next writer change.
 
 ## Dead ends
 
-The two focused test commands passed independently, but running them together through ./dev.py test exposed the module-name collision.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-The ticket budget was 20 minutes expected and 60 minutes stuck; work stopped before the expected budget.
+Completed within the 20-minute expected budget.
 
