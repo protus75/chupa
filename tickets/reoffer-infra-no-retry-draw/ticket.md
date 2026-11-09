@@ -28,11 +28,14 @@ In: `record_reoffer` skips the `retry` draw when the last terminal is `infra_err
 
 Out: `abandoned` reaps. The runner draws no `infra` unit for them, so skipping the retry draw would leave them undrawn. Changes to `runner.py` or caps config. Changes to the machine keep signal.
 
+- In: a carried reproducer `tests/regress_reoffer_infra_retry.py`, shaped like `tests/regress_dev_test_args.py`. It runs `pytest.main(["tests/unit/test_drain_reoffer.py", "-k", "infra_error", "-q", "-p", "no:cacheprovider"])` in-process with stdout redirected to stderr, then prints exactly one JSON object: `{"regression_result": "pass"}` with exit 0 when pytest returns 0, `{"regression_result": "defect"}` with exit 1 when pytest returns 1 (the test failed), and `{"regression_result": "error"}` with exit 2 otherwise (including no test collected) or on any exception. It uses only code present at the base commit; on the base overlaid with the carried files the named test fails, so it prints `defect`.
+
 ## Scope fence
 
 - chupa/drain.py
 - tests/integration/test_drain.py
 - tests/unit/test_drain_reoffer.py
+- tests/regress_reoffer_infra_retry.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
@@ -43,6 +46,7 @@ Out: `abandoned` reaps. The runner draws no `infra` unit for them, so skipping t
 - `record_reoffer` on an `abandoned` terminal still appends the `retry` `cap_consumed`, checked by `./dev.py test tests/unit/test_drain_reoffer.py`. The test fails if the draw is dropped for it.
 - `./dev.py test tests/integration/test_drain.py -k reoffer` exits 0.
 - `docs/how-chupa-works.md` names `infra_error` and `timeout` among the terminals that draw no `retry` on re-offer; check with `tests/integration/test_drain.py` and a review of that doc line.
+- `uv run python tests/regress_reoffer_infra_retry.py` prints only `{"regression_result": "pass"}` and exits 0 on the fixed code, and prints only `{"regression_result": "defect"}` with a nonzero exit on the unfixed code, which rules out a reproducer whose stdout carries pytest output or whose verdict ignores the test result.
 
 ## Verification
 
@@ -54,10 +58,11 @@ Out: `abandoned` reaps. The runner draws no `infra` unit for them, so skipping t
 ## Regression
 
 ```
-./dev.py test tests/integration/test_drain.py -k reoffer_rules_and_recording
+uv run python tests/regress_reoffer_infra_retry.py
 ```
 
-- carries: tests/integration/test_drain.py
+- carries: tests/unit/test_drain_reoffer.py
+- carries: tests/regress_reoffer_infra_retry.py
 
 ## Definition of rejected
 
