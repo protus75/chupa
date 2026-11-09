@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "f1e771a27f74dd487417fa702ed0cfc343d4aa7c",
+  "stem": "vscode-verdict-menu",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "In chupa/observe.py compute chupaRun as available(r[\"runnable\"]) exactly as the ticket's Scope in states: off unless runnable, then locked when the engine is alive, else on. Do not add `and not r[\"held\"]`; the ticket gives no held condition for chupaRun.",
+    "The ticket's test case 'held committed row while engine alive: chupaRun off' must hold because of runnable. In test_snapshot_menu_availability give the held row a depends on an unmerged stem so runnable is false, rather than relying on a held exclusion.",
+    "If you believe held tickets should not be runnable from the menu, file that with `chupa suggest` as a second problem instead of encoding it in this diff.",
+    "Keep the rest of the diff (view.js/box.js menu spread, package.json when/enablement mapping, other menu keys); review found only the chupaRun condition out of spec."
+  ],
+  "mechanical": null,
+  "spec_version": "1.2",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
