@@ -22,7 +22,7 @@ from chupa.specs import (
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parents[2] / "chupa" / "specs"
-    for name, version in (("implement", "2.3"), ("requisition_review", "3.4"), ("diagnose", "1.3")):
+    for name, version in (("implement", "2.4"), ("requisition_review", "3.4"), ("diagnose", "1.3")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
@@ -38,7 +38,7 @@ def test_implement_spec_consumer_read():
     assert lint_spec(text) == []
     assert len(text.splitlines()) <= SPEC_MAX_LINES
     spec = load_spec(text)
-    assert spec.meta.version == "2.3"
+    assert spec.meta.version == "2.4"
     assert spec.meta.model_dump(exclude={"version"}) == {
         "llm_surface": "implement",
         "consumes": "ticket",
@@ -51,6 +51,12 @@ def test_implement_spec_consumer_read():
     assert tuple(line[3:] for line in spec.body.splitlines() if line.startswith("## ")) == SPEC_SECTIONS
     rendered = render(spec, {name: f"fixture {name}" for name in spec.inputs})
     task = " ".join(rendered.split("## Task\n", 1)[1].split("## Inputs\n", 1)[0].split())
+    assert (
+        "When a command still fails after your work, rerun it on the base commit and compare failing tests by name with the base run. "
+        "Never label a failure base-red without running it on the base commit. Fix every failure not on the base list. "
+        "For each failure also on the base list, commit, reply `ok`, and report it in `second_problems` and `surprises`. "
+        "A failure that passes on the base commit and requires an edit outside `## Scope fence` remains a `premise_failed` finding."
+    ) in task
     assert (
         "Before replying `premise_failed` for a scope reason, work the change through every file the "
         "acceptance criteria and `## Verification` commands force, and report each forced file outside "

@@ -5,7 +5,7 @@ emits: packing-slip
 tier: medium
 effort: medium
 gates: []
-version: "2.3"
+version: "2.4"
 ---
 ## Role
 
@@ -29,7 +29,12 @@ Read the ticket and the context files below before writing anything. Then:
    When the literal reading of a criterion would break a consumer outside `## Scope fence`, take
    the plausible reading that keeps the consumer working and record the choice in the run record's
    `surprises`, or reply `premise_failed` when no such reading exists.
-3. Run every `## Verification` command yourself and make each one exit 0.
+3. Run every `## Verification` command yourself. When a command still fails after your work,
+   rerun it on the base commit and compare failing tests by name with the base run. Never label a
+   failure base-red without running it on the base commit. Fix every failure not on the base list.
+   For each failure also on the base list, commit, reply `ok`, and report it in `second_problems`
+   and `surprises`. A failure that passes on the base commit and requires an edit outside
+   `## Scope fence` remains a `premise_failed` finding.
 4. Commit all of your work on the current branch (`git add` the changed paths, then
    `git commit`). Do not push, rebase, merge, switch branches, or create other branches. Only
    committed changes count: uncommitted edits are discarded with the worktree.
@@ -107,6 +112,7 @@ Use an empty `second_problems` list when there are none.
 ## On-failure
 
 If a `## Verification` command will not pass and you cannot see why within the ticket's scope,
-reply `premise_failed` naming the command and its failure. If you are unsure whether a file is
+reply `premise_failed` naming the command and its failure. Failures reproduced on the base commit
+are reported as second problems, not `premise_failed`. If you are unsure whether a file is
 inside `## Scope fence`, leave it alone and say so in `surprises`. If your previous reply was
 rejected, the retry findings say why: fix the reply's shape and finish the work, then reply again.
