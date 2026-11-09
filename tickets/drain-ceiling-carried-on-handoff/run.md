@@ -1,14 +1,14 @@
 ## Outcome
 
-ok
+premise_failed
 
 ## Surprises / judgment calls
 
-The regression fails on the untouched base because the child dispatches the remaining ticket; the full suite passed with 3,235 tests.
+The simpler pytest regression command prints a command prefix and pytest output, while the bug-evidence gate requires stdout to contain exactly one JSON result object.
 
 ## Dead ends
 
-none
+Changing the scoped test cannot remove the command prefix printed by dev.py before pytest starts.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 25 minutes; completed in approximately 3 minutes.
+none
 
