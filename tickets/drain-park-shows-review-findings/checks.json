@@ -1,0 +1,140 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "ad5992de187611129edaa5937aa4d2363235ef62",
+  "stem": "drain-park-shows-review-findings",
+  "passed": true,
+  "changed_files": [
+    "chupa/drain.py",
+    "docs/how-chupa-works.md",
+    "tests/integration/test_drain.py",
+    "tests/regress_drain_park_findings.py"
+  ],
+  "inserted_lines": 68,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "ruff-fix",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "ruff-format",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false,
+      "bug_evidence": {
+        "argv": [
+          "uv",
+          "run",
+          "python",
+          "tests/regress_drain_park_findings.py"
+        ],
+        "head_sha": "ad5992de187611129edaa5937aa4d2363235ef62",
+        "base_sha": "1e258c942a558e2cdff3184d58c85c6b9b4db000",
+        "overlay_paths": [
+          "tests/regress_drain_park_findings.py"
+        ],
+        "evidence_paths": [
+          "tickets/drain-park-shows-review-findings/evidence/drain-report.txt"
+        ],
+        "head": {
+          "rc": 0,
+          "regression_result": "pass",
+          "tail": "{\"regression_result\": \"pass\"}\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n"
+        },
+        "base": {
+          "rc": 1,
+          "regression_result": "defect",
+          "tail": "{\"regression_result\": \"defect\"}\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\nUsing CPython 3.14.6\nCreating virtual environment at: .venv\n   Building chupa @ file:///home/djp/source/chupa/.chupa/state/worktrees/.regression-base/drain-park-shows-review-findings\n      Built chupa @ file:///home/djp/source/chupa/.chupa/state/worktrees/.regression-base/drain-park-shows-review-findings\nInstalled 19 packages in 7ms\n"
+        }
+      }
+    },
+    {
+      "code": "unit",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "integration",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "lint",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "format",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "./dev.py",
+        "test",
+        "tests/integration/test_drain.py"
+      ],
+      "rc": 0,
+      "tail": "$ uv run pytest -q tests/integration/test_drain.py\nbringing up nodes...\nbringing up nodes...\n\n........................................................................ [ 91%]\n.......                                                                  [100%]\n79 passed in 4.85s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 5.129672
+    },
+    {
+      "argv": [
+        "./dev.py",
+        "test",
+        "tests/integration/test_drain_upgrade.py"
+      ],
+      "rc": 0,
+      "tail": "$ uv run pytest -q tests/integration/test_drain_upgrade.py\nbringing up nodes...\nbringing up nodes...\n\n.........                                                                [100%]\n9 passed in 1.35s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 1.630994
+    }
+  ]
+}
