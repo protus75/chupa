@@ -1,20 +1,15 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "1c6d52b8ef559ee023c3fd4d5adf55e43ebac734",
+  "produced_at_sha": "6012e1c8b7c2892e5042b56ded2f503e6b3f1c85",
   "stem": "results-schema-2-reader",
-  "attempt": 1,
+  "attempt": 2,
   "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "reject",
-  "lessons": [
-    "The ticket cannot pass as written. The unit coverage gate failed (chupa/testreport.py at 10.39% against its 13% floor), and only unit tests count toward it, yet the scope fence lists no unit test file. Add tests/unit/test_testreport.py to both ## Scope fence and ## Context.",
-    "Change ## Scope in so it requires unit tests in tests/unit/test_testreport.py. They must cover every read_results branch: valid schema 1, valid schema 2, schema 2 without seconds, seconds keys that differ from the tests keys, negative, NaN and bool values, and schema_version 3.",
-    "Keep the integration cases in tests/integration/test_testreport.py as the ticket specifies. The run showed that they do not count toward the unit coverage gate, so they cannot be the only tests for the new validation code.",
-    "Leave the writer (pytest_sessionfinish) on schema_version 1 and leave test_reports_all_phases_and_nodeids unchanged. The attempt passed both verification commands; the coverage gate was the only failure."
-  ],
-  "mechanical": null,
+  "verdict": "abandon-human",
+  "lessons": [],
+  "mechanical": "premise_bounce cap spent",
   "spec_version": "1.2",
-  "provider": "claude",
-  "model": "claude-opus-5-5"
+  "provider": null,
+  "model": null
 }
