@@ -25,6 +25,25 @@ OUTCOMES: frozenset[str] = frozenset(get_args(Outcome))
 NonBlank = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
+def _check_producing_run(value: str) -> None:
+    from chupa.tickets import stem_findings
+
+    stem, separator, sequence = value.rpartition("/")
+    if not separator or not re.fullmatch(r"[0-9]+", sequence) or stem_findings(stem):
+        raise ValueError("producing_run must be <ticket stem>/<nonnegative run sequence>")
+
+
+def _check_integer_version(value, message):
+    if type(value) is not int:
+        raise ValueError(message)
+    return value
+
+
+def _check_ordered_members(entries, expected):
+    if tuple(entry.member for entry in entries) != expected:
+        raise ValueError(f"entries must contain exactly {expected}, in order")
+
+
 class _Strict(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
 
@@ -156,11 +175,7 @@ class DaemonSoakEntry(_Strict):
 
     @model_validator(mode="after")
     def _consistent(self) -> "DaemonSoakEntry":
-        from chupa.tickets import stem_findings
-
-        stem, separator, sequence = self.producing_run.rpartition("/")
-        if not separator or not re.fullmatch(r"[0-9]+", sequence) or stem_findings(stem):
-            raise ValueError("producing_run must be <ticket stem>/<nonnegative run sequence>")
+        _check_producing_run(self.producing_run)
         if (self.expected, self.disposition) != _DAEMON_SOAK_EXPECTED[self.member]:
             raise ValueError(f"{self.member} requires expected/disposition {_DAEMON_SOAK_EXPECTED[self.member]}")
         if self.green != (self.observed == self.expected and not self.auditor):
@@ -173,8 +188,7 @@ class DaemonSoakReport(Artifact):
 
     @model_validator(mode="after")
     def _ordered_members(self) -> "DaemonSoakReport":
-        if tuple(entry.member for entry in self.entries) != DAEMON_SOAK_MEMBERS:
-            raise ValueError(f"entries must contain exactly {DAEMON_SOAK_MEMBERS}, in order")
+        _check_ordered_members(self.entries, DAEMON_SOAK_MEMBERS)
         return self
 
 
@@ -203,11 +217,7 @@ class ReliabilityBatteryEntry(_Strict):
 
     @model_validator(mode="after")
     def _consistent(self) -> "ReliabilityBatteryEntry":
-        from chupa.tickets import stem_findings
-
-        stem, separator, sequence = self.producing_run.rpartition("/")
-        if not separator or not re.fullmatch(r"[0-9]+", sequence) or stem_findings(stem):
-            raise ValueError("producing_run must be <ticket stem>/<nonnegative run sequence>")
+        _check_producing_run(self.producing_run)
         if self.expected != _RELIABILITY_BATTERY_EXPECTED[RELIABILITY_BATTERY_MEMBERS.index(self.member)]:
             raise ValueError(f"{self.member} requires its fixed expected observation")
         if self.green != (self.observed == self.expected and not self.auditor):
@@ -220,8 +230,7 @@ class ReliabilityBatteryReport(Artifact):
 
     @model_validator(mode="after")
     def _ordered_members(self) -> "ReliabilityBatteryReport":
-        if tuple(entry.member for entry in self.entries) != RELIABILITY_BATTERY_MEMBERS:
-            raise ValueError(f"entries must contain exactly {RELIABILITY_BATTERY_MEMBERS}, in order")
+        _check_ordered_members(self.entries, RELIABILITY_BATTERY_MEMBERS)
         return self
 
 
@@ -457,9 +466,7 @@ class BaselineSignal(_Strict):
     @field_validator("v", mode="before")
     @classmethod
     def _integer_version(cls, value):
-        if type(value) is not int:
-            raise ValueError("signal v must be the integer 1")
-        return value
+        return _check_integer_version(value, "signal v must be the integer 1")
 
     @field_validator("ts")
     @classmethod
@@ -486,9 +493,7 @@ class ReviewBaselineReport(_Strict):
     @field_validator("schema_version", mode="before")
     @classmethod
     def _integer_version(cls, value):
-        if type(value) is not int:
-            raise ValueError("schema_version must be the integer 1")
-        return value
+        return _check_integer_version(value, "schema_version must be the integer 1")
 
     @model_validator(mode="after")
     def _consistent(self):
@@ -534,11 +539,7 @@ class HostLoopEntry(_Strict):
 
     @model_validator(mode="after")
     def _consistent(self):
-        from chupa.tickets import stem_findings
-
-        stem, separator, sequence = self.producing_run.rpartition("/")
-        if not separator or not re.fullmatch(r"[0-9]+", sequence) or stem_findings(stem):
-            raise ValueError("producing_run must be <ticket stem>/<nonnegative run sequence>")
+        _check_producing_run(self.producing_run)
         if self.expected != HOST_LOOP_EXPECTED[self.member]:
             raise ValueError("use the member's fixed expected observation")
         if self.green != (self.observed == self.expected and not self.engine_plane_edits and not self.auditor):
@@ -553,9 +554,7 @@ class HostLoopReport(_Strict):
     @field_validator("schema_version", mode="before")
     @classmethod
     def _integer_version(cls, value):
-        if type(value) is not int:
-            raise ValueError("schema_version must be integer 1")
-        return value
+        return _check_integer_version(value, "schema_version must be integer 1")
 
     @model_validator(mode="after")
     def _ordered(self):
@@ -587,6 +586,4 @@ class ExitReceipt(_Strict):
     @field_validator("schema_version", mode="before")
     @classmethod
     def _integer_version(cls, value):
-        if type(value) is not int:
-            raise ValueError("schema_version must be integer 1")
-        return value
+        return _check_integer_version(value, "schema_version must be integer 1")
