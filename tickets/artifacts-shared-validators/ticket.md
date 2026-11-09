@@ -33,20 +33,28 @@ After this change each check's body exists once, as a module-level private funct
   - an integer checker taking the value and the full error message, returning the value. It takes the whole message, not a field name, because the current messages differ beyond the field name: `signal v must be the integer 1` and `schema_version must be the integer 1` versus `schema_version must be integer 1` (in `HostLoopReport` and `ExitReceipt`), and they stay byte-identical;
   - an ordered-members checker taking the entries and the expected members tuple, raising `entries must contain exactly {expected}, in order`.
 - In: each of the nine validators named in Goal / Why calls its checker in place of the inline body. Each model keeps its own `@model_validator` / `@field_validator` method; the rest of every `_consistent` body (expected/disposition, green) is unchanged.
-- Existing tests that already reject each check, and keep passing unchanged: `tests/integration/test_daemon_soak.py` (bad `producing_run` values, reordered/missing entries), `tests/integration/test_reliability_battery.py::test_reliability_battery_schema_is_closed` (bad `producing_run`, reordered/missing entries), `tests/integration/test_host_loop.py::test_host_loop_closed_schema` (`producing_run="invalid/negative"`, `schema_version: True`), `tests/integration/test_host_loop.py::test_host_loop_report_regression_and_escape` (`ExitReceipt` `schema_version: True`), `tests/integration/test_go_grade.py::test_review_baseline_report_closed_schema` (`schema_version=True`, `verdict_signal` `v=True`). No test pins the message text, so the byte-identity criterion is checked by grep, and every check already has rejection coverage, so no test is added.
+- Existing tests that already reject each check, and keep passing unchanged: `tests/integration/test_daemon_soak.py` (bad `producing_run` values, reordered/missing entries), `tests/integration/test_reliability_battery.py::test_reliability_battery_schema_is_closed` (bad `producing_run`, reordered/missing entries), `tests/integration/test_host_loop.py::test_host_loop_closed_schema` (`producing_run="invalid/negative"`, `schema_version: True`), `tests/integration/test_host_loop.py::test_host_loop_report_regression_and_escape` (`ExitReceipt` `schema_version: True`), `tests/integration/test_go_grade.py::test_review_baseline_report_closed_schema` (`schema_version=True`, `verdict_signal` `v=True`). No test pins the message text today.
+- In: new `tests/unit/test_artifacts.py`, building the models in memory with no disk access, with these named tests:
+  - `test_producing_run_check`: `HostLoopEntry` with `producing_run` `member-0/0` validates; `nosep`, `member/x1` and `Upper/0` each raise `ValidationError` whose text contains `producing_run must be <ticket stem>/<nonnegative run sequence>`. Rules out accepting a run with no separator, a non-digit sequence, or an invalid stem.
+  - `test_integer_version_check`: `BaselineSignal` `v=True` raises with `signal v must be the integer 1`; `ReviewBaselineReport` `schema_version=True` raises with `schema_version must be the integer 1`; `HostLoopReport` and `ExitReceipt` `schema_version=True` raise with `schema_version must be integer 1`. Rules out accepting `True` as version 1, and any reworded message. Where a full valid model is costly to build, the test may call the integer checker directly with the same value and messages.
+  - `test_ordered_members_check`: `DaemonSoakReport` and `ReliabilityBatteryReport` with reversed entries raise with `entries must contain exactly {members}, in order`, and in-order entries validate. Rules out accepting reordered members.
+- Every other coverage dependent of `chupa/artifacts.py` (for example `tests/integration/test_ask.py`, `test_audit.py`, `test_author.py`, `test_shakeout.py`, `test_stages.py`, `tests/unit/test_specs.py`) is unaffected: the refactor keeps every model's fields, accepted inputs and error messages byte-identical and leaves `ShakeoutEntry` and `HostLoopReport._ordered` untouched, so no other test that builds or loads these artifacts sees a change.
 - Out: `ShakeoutEntry._consistent` (a different regex and message, `<bench stem>/<run seq>`); `HostLoopReport._ordered` (a different rule); the `, in order` paved road in `chupa/stages.py`; metaclasses, mixins, base-class validators or decorator factories; any change to a model's fields, accepted inputs or messages; `test-gate.toml`.
 
 ## Scope fence
 - chupa/artifacts.py
+- tests/unit/test_artifacts.py
 
 ## Acceptance criteria
 1. `grep -c 'producing_run must be <ticket stem>/<nonnegative run sequence>' chupa/artifacts.py` prints `1`, not `3`; `grep -c 'rpartition("/")' chupa/artifacts.py` prints `1`.
 2. `grep -c 'type(value) is not int' chupa/artifacts.py` prints `1`, not `4`; `grep -c 'must be the integer 1' chupa/artifacts.py` prints `2` and `grep -c 'must be integer 1' chupa/artifacts.py` prints `2`, so no message was reworded.
 3. `grep -c 'in order' chupa/artifacts.py` prints `1`, not `2`.
-4. `./dev.py test` exits 0, including the existing rejection tests named in Scope in / Scope out, which fail if a model accepts a bad `producing_run`, a `True` version, or reordered entries.
+4. `./dev.py test tests/unit/test_artifacts.py` exits 0 with the three named tests in Scope in / Scope out passing; they fail if a checker accepts `nosep`, `member/x1`, `Upper/0`, a `True` version or reversed members, or if any message text differs.
+5. `./dev.py test` exits 0, including the existing rejection tests named in Scope in / Scope out, which fail if a model accepts a bad `producing_run`, a `True` version, or reordered entries.
 
 ## Verification
 ```
+./dev.py test tests/unit/test_artifacts.py
 ./dev.py test
 ```
 
@@ -55,7 +63,7 @@ Reject the branch if any of the following holds:
 - any validator error message changes by even one byte;
 - a model accepts or rejects an input it did not before;
 - a validator is removed from a model or replaced by a mixin, metaclass, shared base-class validator, or decorator factory;
-- `ShakeoutEntry`, `HostLoopReport._ordered`, or a file other than `chupa/artifacts.py` changes.
+- `ShakeoutEntry`, `HostLoopReport._ordered`, or a file other than `chupa/artifacts.py` and `tests/unit/test_artifacts.py` changes.
 
 ## Time budget
 - expected: 15m
