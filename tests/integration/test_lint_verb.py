@@ -207,3 +207,14 @@ def test_lint_unreadable_ticket(root, capsys):
     (root / "tickets/invalid-encoding/ticket.md").write_bytes(b"\xff")
     assert lint(root) == 2
     assert "restore" in capsys.readouterr().out
+
+
+def test_lint_flags_stuck_over_drain_ceiling(root, capsys):
+    write(root, "budget", ticket().replace("- stuck: 20m", "- stuck: 91m"))
+    assert lint(root, "budget") == 1
+    out = capsys.readouterr().out
+    assert "stuck 91m exceeds drain.max_ticket_minutes (90m)" in out
+    assert "lower `- stuck:`" in out and "split" in out
+    write(root, "budget", ticket().replace("- stuck: 20m", "- stuck: 90m"))
+    assert lint(root, "budget") == 0
+    assert capsys.readouterr().out == "lint: 1/1 tickets valid\n"

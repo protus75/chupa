@@ -639,6 +639,12 @@ async def _retro(checkout, pipeline, *, config_path=None):
             lock.release()
 
 
+def stuck_ceiling_finding(stuck_minutes: int, ceiling: int) -> str | None:
+    if stuck_minutes > ceiling:
+        return f"`## Time budget` stuck {stuck_minutes}m exceeds drain.max_ticket_minutes ({ceiling}m); lower `- stuck:` to at most {ceiling}m or split the ticket"
+    return None
+
+
 async def _lint(checkout: runner.Checkout, stems: Sequence[str]) -> int:
     root = checkout.repo / "tickets"
     valid = total = 0
@@ -668,10 +674,12 @@ async def _lint(checkout: runner.Checkout, stems: Sequence[str]) -> int:
                 continue
             total += 1
             text, findings = _intake_claims(stem, path.read_text(), pending.get(stem, False))
+            ceiling_finding = None
             try:
                 if findings:
                     raise TicketInvalid(findings)
                 ticket = validate_ticket(stem, text, checkout.repo)
+                ceiling_finding = stuck_ceiling_finding(ticket.stuck_minutes, checkout.config.drain.max_ticket_minutes)
                 paths = await checkout.git._run(checkout.repo, "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", f"tickets/{stem}/evidence/")
                 findings = evidence_findings(ticket, checkout.repo, paths=paths.split("\0"))
             except TicketInvalid as exc:
@@ -680,7 +688,9 @@ async def _lint(checkout: runner.Checkout, stems: Sequence[str]) -> int:
                 message = " ".join(finding.message.splitlines())
                 road = " ".join(finding.paved_road.splitlines())
                 print(f"{finding.path or rel}: {message} ({road})")
-            if findings:
+            if ceiling_finding:
+                print(f"{rel}: {ceiling_finding}")
+            if findings or ceiling_finding:
                 exit_code = max(exit_code, 1)
             else:
                 valid += 1
