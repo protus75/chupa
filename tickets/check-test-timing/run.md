@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The simpler approach of recording every test duration in the gate report would violate the configured bounds, so the report stores only the selected slow tests. Two full-suite runs failed because source files changed while a fixture was checking a snapshot; the stable-tree rerun passed.
+The first full-suite run failed because I formatted a source file while a fixture was comparing it; the repeat passed all 3264 tests. The configured unit coverage gate also passed.
 
 ## Dead ends
 
@@ -18,9 +18,9 @@ none
 
 - provider: codex
 - model: gpt-6.1-terra
-- spec: implement 2.3
+- spec: implement 2.5
 
 ## Predicted vs actual
 
-Expected 60 minutes; completed within the ticket budget.
+none
 
