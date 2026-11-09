@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-A blanket exclusion for infrastructure terminals would lose escalation rungs, so the change preserves their retry draws. Both verification commands passed, and the reproducer returned defect before the fix and pass afterward.
+Used a single conditional rather than a broader cap refactor; the carried reproducer reports defect on the base and pass on the fix. All verification commands passed.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 20 minutes; completed within budget.
+20 minutes expected; actual time not measured.
 
