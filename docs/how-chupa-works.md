@@ -76,6 +76,7 @@ Each test has a 120-second hard limit.
 Tests live in `tests/unit/` (no disk, network or process; run under `chupa.testguard`) and
 `tests/integration/`. Run one suite with `./dev.py test tests/unit` or
 `./dev.py test tests/integration`.
+A unit test file may share its name with an integration test file.
 
 | Subcommand | Runs |
 |---|---|
