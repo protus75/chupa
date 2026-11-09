@@ -370,9 +370,13 @@ def parse_ticket(stem: str, text: str, repo: Path) -> Ticket:
                 findings += errs
             elif Path(source).parent == Path("chupa/specs") and source.endswith(".md"):
                 findings.append(_f(f"`## Context` cites the prompt spec {item}; prompt-spec files are never Context", "list the spec under `## On-demand` and fence it", path))
-            elif not (repo / source).exists():
+            elif not (repo / source).is_file():
                 findings.append(
-                    _f(f"`## Context` path {item!r} does not exist", "Context lists EXISTING read-first files; name a file this ticket creates in `## Scope fence` and `## Verification` only", path)
+                    _f(
+                        f"`## Context` path {item!r} does not exist as a file",
+                        "Context lists EXISTING read-first files; name a file this ticket creates in `## Scope fence` and `## Verification` only",
+                        path,
+                    )
                 )
             else:
                 try:

@@ -576,6 +576,14 @@ def test_context_section_findings(repo):
         assert finding.paved_road and "Context" in finding.message  # each bad entry is refused with a fix
 
 
+def test_context_directory_is_refused(repo):
+    root, _, _ = repo
+    text = complete(VALID.replace("chupa/thing.py\n\n## Goal", "chupa\n\n## Goal"))
+    with pytest.raises(TicketInvalid) as exc:
+        validate_ticket("t-one", text, root)
+    assert any("Context" in finding.message and "file" in finding.message for finding in exc.value.findings)
+
+
 def test_context_binary_selector_and_fenced_heading(repo):
     root, _, _ = repo
     (root / "image.png").write_bytes(b"\xff")
