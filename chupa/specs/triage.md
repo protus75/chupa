@@ -58,8 +58,8 @@ Findings against the previous reply:
 
 ## Output format
 
-Reply with ONLY one JSON object with fields `verdict` (`author`, `tombstone`, or `declined`), `link` (string for tombstone, null otherwise), `summary` (your own non-blank summary), `rationale` (non-blank), `evidence` (list of strings), and `reopen_after_days` (integer at least 1 for tombstone or declined, null for author). Add no other keys.
+Reply with ONLY one JSON object with fields `verdict` (`author`, `tombstone`, or `declined`), `link` (string for tombstone, null otherwise), `summary` (your own non-blank summary), `rationale` (non-blank), `evidence` (list of strings), and `reopen_after_days` (integer at least 1 for tombstone or declined, null for author). Add no other keys. Nothing may appear before or after the object, including prose and code fences.
 
 ## On-failure
 
-If evidence cannot meet the admission bar, choose `declined` and explain what evidence would reopen it. If your reply is invalid, use the retry findings to correct its shape.
+If evidence cannot meet the admission bar, choose `declined` and put the reopen condition inside `rationale`. If your reply is invalid, use the retry findings to correct its shape.

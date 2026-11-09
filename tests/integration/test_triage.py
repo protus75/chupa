@@ -16,6 +16,12 @@ from tests.integration.test_cli import ENV, git_out
 from tests.integration.test_drain import Clock, commit_ticket, confirmed, make_root
 
 
+def test_triage_spec_places_reopen_condition_in_json():
+    spec = (Path(__file__).resolve().parents[2] / "chupa/specs/triage.md").read_text()
+    assert "Nothing may appear before or after the object, including prose and code fences" in spec
+    assert "put the reopen condition inside `rationale`" in spec
+
+
 def root_with_box(tmp_path: Path) -> tuple[Path, Box]:
     root = make_root(tmp_path)
     config = root.joinpath("config.yaml")
