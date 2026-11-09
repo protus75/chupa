@@ -481,6 +481,16 @@ async def prepare_worktree(ctx: StageContext, stem: str) -> Path:
     return path
 
 
+async def _base_worktree(ctx: StageContext, kind: str, stem: str, base: str) -> Path:
+    assert ctx.config.worktree_root is not None  # resolved at config load
+    path = ctx.config.worktree_root / kind / stem
+    if path.exists():
+        await ctx.git.worktree_remove(ctx.repo, path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    await ctx.git.worktree_add_detached(ctx.repo, path, base)
+    return path
+
+
 async def lift_outbox(ctx: StageContext, stem: str, kind: str, *, attempt: int, only: str | None = None) -> str | None:
     """Move the worktree outbox into the canonical ticket dir as ONE ticket-plane commit; None if empty.
 
@@ -813,12 +823,7 @@ async def _gather_bug(ctx: StageContext, ticket: Ticket, evidence: Evidence, *, 
         return RegressionRun(rc=rc, regression_result=decoded, tail=ctx.driver.redactor.scrub(out + err)[-OUTPUT_TAIL_CHARS:])
 
     head = await execute(worktree, "head")
-    assert ctx.config.worktree_root is not None
-    base_worktree = ctx.config.worktree_root / ".regression-base" / ticket.stem
-    if base_worktree.exists():
-        await ctx.git.worktree_remove(ctx.repo, base_worktree)
-    base_worktree.parent.mkdir(parents=True, exist_ok=True)
-    await ctx.git.worktree_add_detached(ctx.repo, base_worktree, base)
+    base_worktree = await _base_worktree(ctx, ".regression-base", ticket.stem, base)
     try:
         # Restore committed blobs (including executable mode), never dirty checkout copies.
         for rel in overlay:
@@ -870,12 +875,7 @@ async def gather_evidence(
             red.append((n, list(argv)))
     if red:
         base = await ctx.git.merge_base(ctx.repo, MAIN, stem)
-        assert ctx.config.worktree_root is not None
-        base_worktree = ctx.config.worktree_root / ".base" / stem
-        if base_worktree.exists():
-            await ctx.git.worktree_remove(ctx.repo, base_worktree)
-        base_worktree.parent.mkdir(parents=True, exist_ok=True)
-        await ctx.git.worktree_add_detached(ctx.repo, base_worktree, base)
+        base_worktree = await _base_worktree(ctx, ".base", stem, base)
         try:
             from chupa.daemon import storm_producer
 
@@ -1170,11 +1170,7 @@ async def check_hosts(ctx, ticket, changed_files, attempt):
             report = await _check_host_results(ctx, ticket, entry, n, attempt, changed_files)
         if report.verdict == "fail":
             base = await ctx.git.merge_base(ctx.repo, MAIN, ticket.stem)
-            base_worktree = ctx.config.worktree_root / ".base" / ticket.stem
-            if base_worktree.exists():
-                await ctx.git.worktree_remove(ctx.repo, base_worktree)
-            base_worktree.parent.mkdir(parents=True, exist_ok=True)
-            await ctx.git.worktree_add_detached(ctx.repo, base_worktree, base)
+            base_worktree = await _base_worktree(ctx, ".base", ticket.stem, base)
             try:
                 if entry.results is not None:
                     (base_worktree / entry.results).unlink(missing_ok=True)

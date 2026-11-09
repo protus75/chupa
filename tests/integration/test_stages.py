@@ -556,6 +556,33 @@ def test_gather_safety_evidence_runs_no_verification(repo, monkeypatch):
     asyncio.run(scenario())
 
 
+def test_base_worktree_clears_a_stale_worktree(repo):
+    from chupa import stages
+    from tests.integration.test_merge import context
+
+    ctx = context(repo, [])
+
+    async def scenario():
+        first_sha = await ctx.git.rev_parse(repo, "HEAD")
+        path = ctx.config.worktree_root / ".base" / STEM
+        path.parent.mkdir(parents=True, exist_ok=True)
+        await ctx.git.worktree_add_detached(repo, path, first_sha)
+        (path / "stale.txt").write_text("stale\n")
+        (repo / "chupa/thing.py").write_text("second commit\n")
+        await ctx.git.add(repo, ["chupa/thing.py"])
+        await ctx.git.commit(repo, "second commit")
+        second_sha = await ctx.git.rev_parse(repo, "HEAD")
+        result = await stages._base_worktree(ctx, ".base", STEM, second_sha)
+        try:
+            assert result == path
+            assert not (result / "stale.txt").exists()
+            assert await ctx.git.rev_parse(result, "HEAD") == second_sha
+        finally:
+            await ctx.git.worktree_remove(repo, path)
+
+    asyncio.run(scenario())
+
+
 def test_full_gather_evidence_reuses_safety_gatherer(repo, monkeypatch):
     from chupa import stages
     from tests.integration.test_merge import context
