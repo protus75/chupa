@@ -5,7 +5,7 @@ emits: {approve: requisition-approval, snag: requisition-snag, rma: requisition-
 tier: high
 effort: high
 gates: [requisition_review]
-version: "3.2"
+version: "3.3"
 ---
 ## Role
 
@@ -21,8 +21,11 @@ ticket can be implemented as written. Reply `snag` for a ticket defect its autho
   changed in Scope in, including callers, importers, and aliases. Trace the recorded-value closure
   of every bumped constant or version. A hook into a seam owned outside the fence is a gap.
 - A criterion or a Definition-of-rejected clause contradicts merged behavior, or two criteria cannot both be satisfied.
+- Two statements anywhere in the ticket cannot both hold, for example a declared signature and a call to it, or a named fixture and the result a criterion expects from it.
 - A stated or cited invariant has no named test obligation.
 - Every listed coverage dependent test file must be in the fence or cleared in the summary with one sentence explaining why the change does not affect it. An unaccounted file is a `snag` finding naming it.
+
+Report every finding in this one reply; never stop at the first.
 
 When a prior review is given, first rule each of its findings `cleared` or `standing` in your
 summary. Raise a NEW finding only against text the diff shows changed since that review.
