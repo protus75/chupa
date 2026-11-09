@@ -1,0 +1,142 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "18dd1e44b2276e7f88026f290a6a3fc29f98b5aa",
+  "stem": "merge-guard-staged-outside-branch",
+  "passed": true,
+  "changed_files": [
+    "chupa/merge.py",
+    "docs/how-chupa-works.md",
+    "tests/integration/test_merge.py",
+    "tests/integration/test_mergequeue.py",
+    "tests/unit/test_merge_dirty.py"
+  ],
+  "inserted_lines": 87,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "ruff-fix",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "ruff-format",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "unit",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "integration",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "lint",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "format",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "./dev.py",
+        "test",
+        "tests/unit/test_merge_dirty.py"
+      ],
+      "rc": 0,
+      "tail": "$ uv run pytest -q tests/unit/test_merge_dirty.py\nbringing up nodes...\nbringing up nodes...\n\n....                                                                     [100%]\n4 passed in 0.93s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 1.129708
+    },
+    {
+      "argv": [
+        "./dev.py",
+        "test",
+        "tests/integration/test_merge.py",
+        "-k",
+        "staged_path_outside_diff"
+      ],
+      "rc": 0,
+      "tail": "$ uv run pytest -q tests/integration/test_merge.py -k staged_path_outside_diff\nbringing up nodes...\nbringing up nodes...\n\n.                                                                        [100%]\n1 passed in 1.17s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 1.484788
+    },
+    {
+      "argv": [
+        "./dev.py",
+        "test",
+        "tests/integration/test_mergequeue.py",
+        "-k",
+        "staged_path_outside_diff"
+      ],
+      "rc": 0,
+      "tail": "$ uv run pytest -q tests/integration/test_mergequeue.py -k staged_path_outside_diff\nbringing up nodes...\nbringing up nodes...\n\n.                                                                        [100%]\n1 passed in 1.26s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 1.516373
+    },
+    {
+      "argv": [
+        "./dev.py",
+        "test",
+        "tests/integration/test_merge.py",
+        "tests/integration/test_mergequeue.py"
+      ],
+      "rc": 0,
+      "tail": "$ uv run pytest -q tests/integration/test_merge.py tests/integration/test_mergequeue.py\nbringing up nodes...\nbringing up nodes...\n\n........................................................................ [ 44%]\n........................................................................ [ 88%]\n...................                                                      [100%]\n163 passed in 4.12s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 4.329077
+    }
+  ]
+}
