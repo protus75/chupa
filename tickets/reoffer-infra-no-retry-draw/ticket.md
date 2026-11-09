@@ -24,7 +24,7 @@ state: confirmed
 
 ## Scope in / Scope out
 
-In: `record_reoffer` skips the `retry` draw when the last terminal is `infra_error` or `timeout`. A new unit test file `tests/unit/test_drain_reoffer.py` calls `record_reoffer` with a fake journal (an object whose `append` records its calls) and in-memory `Event` histories, one per terminal, and asserts which `cap_consumed` events each terminal class produces; no disk or process access. `docs/how-chupa-works.md` is updated where it describes the retry draw exclusions.
+In: `record_reoffer` skips the `retry` draw when the last terminal is `infra_error` or `timeout`. A new unit test file `tests/unit/test_drain_reoffer.py` calls `record_reoffer` with a fake journal (an object whose `append` records its calls) and in-memory `Event` histories, one per terminal, and asserts which `cap_consumed` events each terminal class produces; no disk or process access. `docs/how-chupa-works.md` is updated in four places: the section 6.6 machine-keep exclusion list adds `infra_error` and `timeout`; the section 6.4 cap table `retry` row reads "each drain or serve re-offer, except after `premise_failed`, `infra_error`, `timeout`, or a provider drought"; section 7.1 step 4 ("drawing `retry`") and section 7.2 ("draws `retry` on re-offer as drain does") each point to the section 6.6 exclusions.
 
 Out: `abandoned` reaps. The runner draws no `infra` unit for them, so skipping the retry draw would leave them undrawn. Changes to `runner.py` or caps config. Changes to the machine keep signal.
 
@@ -40,12 +40,12 @@ Out: `abandoned` reaps. The runner draws no `infra` unit for them, so skipping t
 
 ## Acceptance criteria
 
-- `record_reoffer` on an `infra_error` terminal appends no `retry` `cap_consumed`, checked by `./dev.py test tests/unit/test_drain_reoffer.py`. The test fails if a `retry` draw is still appended.
+- `record_reoffer` on an `infra_error` terminal appends no `retry` `cap_consumed`, checked by `./dev.py test tests/unit/test_drain_reoffer.py`. The test's node ID contains `infra_error` (for example `test_infra_error_reoffer_draws_no_retry`), and every test that `-k infra_error` selects fails while the `retry` draw remains. The test fails if a `retry` draw is still appended.
 - `record_reoffer` on a `timeout` terminal appends no `retry` draw, checked by `./dev.py test tests/unit/test_drain_reoffer.py`. The test fails if a `retry` draw is still appended.
 - `record_reoffer` on a `gate_failed` terminal still appends the `retry` draw, checked by `./dev.py test tests/unit/test_drain_reoffer.py`. The test fails if the draw is dropped for it.
 - `record_reoffer` on an `abandoned` terminal still appends the `retry` `cap_consumed`, checked by `./dev.py test tests/unit/test_drain_reoffer.py`. The test fails if the draw is dropped for it.
 - `./dev.py test tests/integration/test_drain.py -k reoffer` exits 0.
-- `docs/how-chupa-works.md` names `infra_error` and `timeout` among the terminals that draw no `retry` on re-offer; check with `tests/integration/test_drain.py` and a review of that doc line.
+- `docs/how-chupa-works.md` names `infra_error` and `timeout` among the terminals that draw no `retry` on re-offer in the section 6.6 machine-keep line and the section 6.4 `retry` row, and sections 7.1 step 4 and 7.2 point to the section 6.6 exclusions; checked by Review.
 - `uv run python tests/regress_reoffer_infra_retry.py` prints only `{"regression_result": "pass"}` and exits 0 on the fixed code, and prints only `{"regression_result": "defect"}` with a nonzero exit on the unfixed code, which rules out a reproducer whose stdout carries pytest output or whose verdict ignores the test result.
 
 ## Verification
