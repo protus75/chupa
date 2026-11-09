@@ -21,7 +21,7 @@ _SHAPE = (
     "match request_id to the filename; pause/kill/retro/stop require null hold_id; "
     "for resume read the current hold and submit its exact nonempty identity"
 )
-_ADMISSION_SHAPE = "publish a fresh verdict request with exactly {request_id, lifecycle_id, verb, stem, hold_id, actor}; actor is operator | machine and hold_id is null"
+_ADMISSION_SHAPE = "publish a fresh verdict request with exactly {request_id, lifecycle_id, verb, stem, hold_id, actor}; actor is operator | machine | extension and hold_id is null"
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,7 @@ class AdmissionRequest:
     verb: Literal["confirm", "reject"]
     stem: str
     hold_id: str | None
-    actor: Literal["operator", "machine"]
+    actor: Literal["operator", "machine", "extension"]
 
 
 def validate_request(value: object, filename: str) -> ControlRequest | AdmissionRequest:
@@ -54,7 +54,7 @@ def validate_request(value: object, filename: str) -> ControlRequest | Admission
             or not value["lifecycle_id"]
             or not isinstance(value.get("stem"), str)
             or stem_findings(value["stem"])
-            or value.get("actor") not in ("operator", "machine")
+            or value.get("actor") not in ("operator", "machine", "extension")
             or (value.get("hold_id") is not None and (not isinstance(value["hold_id"], str) or not value["hold_id"]))
         ):
             raise ValueError(road)
@@ -266,7 +266,7 @@ class ControlInbox:
             key = f"ticket-plane/{body['stem']}/{body['verb']}/{body['request_id']}"
 
             async def action():
-                return await verdict(body["stem"], body["verb"], key)
+                return await verdict(body["stem"], body["verb"], key, body["actor"])
 
             await Effects(self.journal).run(action, key=key, ticket=body["stem"])
 

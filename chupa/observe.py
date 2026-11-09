@@ -708,7 +708,7 @@ def snapshot(ctx) -> dict:
         ],
         "counts": counts,
         "runningStem": running[0] if running else None,
-        "verdictCommands": {verb: [verb, "--yes"] for verb in ("confirm", "reject")},
+        "verdictCommands": {verb: [verb, "--extension"] for verb in ("confirm", "reject")},
         "stateDir": str(state.resolve()),
         "configPath": str(ctx.config.resolve()),
         "at": now.isoformat(),

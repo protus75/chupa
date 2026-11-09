@@ -262,6 +262,7 @@ def _parser() -> argparse.ArgumentParser:
         verdict = sub.add_parser(verb, help=f"{verb} a draft or Reject item; publish the verdict to a running serve holding the lock")
         verdict.add_argument("stem")
         verdict.add_argument("--yes", action="store_true")
+        verdict.add_argument("--extension", action="store_true")
     dr = sub.add_parser("drain", help="run every eligible ticket to quiescence under the lock")
     dr.add_argument("--parked", action="append", default=[], metavar="STEM", help="a stem the handing-off parent drain parked (set by the self-upgrade re-exec)")
     dr.add_argument("--stop-lifecycle", help=argparse.SUPPRESS)
@@ -286,7 +287,7 @@ def main(
     try:
         if args.verb in {"confirm", "reject"}:
             isatty, read_input = terminal if terminal is not None else (sys.stdin.isatty, input)
-            if not args.yes and not isatty():
+            if not (args.yes or args.extension) and not isatty():
                 raise runner.Refusal("verdict requires an interactive terminal", "a human runs this in a terminal: ./dev.py confirm|reject <stem>")
         if args.verb == "migrate-config":
             migrate_config(args.config, cwd=repo, fs=LocalFileSystem())
@@ -397,7 +398,7 @@ def main(
         if args.verb in {"pause", "resume", "kill", "stop"}:
             return asyncio.run(_control(checkout, args.verb))
         if args.verb in {"confirm", "reject"}:
-            return asyncio.run(_verdict(checkout, args.stem, args.verb, read_input, args.yes))
+            return asyncio.run(_verdict(checkout, args.stem, args.verb, read_input, args.yes, args.extension))
         if args.verb == "review":
             return asyncio.run(_review(checkout, args.stem))
         if args.verb == "migrate-box":
@@ -762,7 +763,7 @@ async def _control(checkout: runner.Checkout, verb: str) -> int:
     return 0
 
 
-async def _verdict(checkout, stem, verb, read_input, yes):
+async def _verdict(checkout, stem, verb, read_input, yes, extension):
     if findings := stem_findings(stem):
         raise runner.Refusal(findings[0].message, findings[0].paved_road)
     history = checkout.journal.read()
@@ -780,21 +781,21 @@ async def _verdict(checkout, stem, verb, read_input, yes):
         preview = "no ticket file"
     print(f"{stem}: {preview}")
     try:
-        answer = "y" if yes else read_input(f"{verb} {stem}? [y/N] ")
+        answer = "y" if yes or extension else read_input(f"{verb} {stem}? [y/N] ")
     except EOFError:
         answer = ""
     if answer.strip().lower() not in {"y", "yes"}:
         print("verdict aborted")
         return 1
     try:
-        return await runner.verdict(stem, checkout, kill=verb == "reject")
+        return await runner.verdict(stem, checkout, kill=verb == "reject", extension=extension)
     except LockHeld:
         pass
     try:
         lifecycle, _ = control.read_active(checkout.config.state_dir, Path.read_bytes)
     except ValueError as exc:
         raise runner.Refusal("current control identity unavailable", str(exc)) from exc
-    request = control.AdmissionRequest(uuid4().hex, lifecycle, verb, stem, None, "operator")
+    request = control.AdmissionRequest(uuid4().hex, lifecycle, verb, stem, None, "extension" if extension else "operator")
     control.publish_request(checkout.config.state_dir, request, checkout.fs)
     print(f"{verb} submitted: {request.request_id} -- ./dev.py status shows the outcome")
     return 0

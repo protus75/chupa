@@ -279,7 +279,7 @@ def test_snapshot_display_fields(tmp_path, monkeypatch):
     assert rows["live"]["runsBeforeChoices"] == [{"label": "waiting", "picked": True}]  # The current and merged stems are excluded.
     assert rows["waiting"]["runsBeforeChoices"] == [{"label": "live", "picked": False}]  # Choices are specific to each row.
     assert snap["runningStem"] == "live"  # A missing running fallback loses the active ticket.
-    assert snap["verdictCommands"] == {"confirm": ["confirm", "--yes"], "reject": ["reject", "--yes"]}  # Both noninteractive verbs need their flag.
+    assert snap["verdictCommands"] == {"confirm": ["confirm", "--extension"], "reject": ["reject", "--extension"]}  # Both noninteractive verbs need their flag.
     assert rows["done"]["mergedAtAgo"] == "2 days ago"  # Settlement time differs from commit time.
     assert rows["done"]["commit"]["dateAgo"] == "1 hr ago"  # Commit time must not reuse settlement time.
     assert rows["done"]["mergedAtDisplay"] == watch.local(ts).strftime("%x, %X")  # Settlement date uses its own timestamp.

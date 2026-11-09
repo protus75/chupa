@@ -363,8 +363,8 @@ def test_live_verdict_recovery_and_refusal(tmp_path, monkeypatch, capsys, kind):
             inbox.consume()
             original = owner.apply_verdict
 
-            async def crash_after(stem, verb, key):
-                await original(stem, verb, key)
+            async def crash_after(stem, verb, key, actor):
+                await original(stem, verb, key, actor)
                 raise RuntimeError("crash after mutation")
 
             with pytest.raises(RuntimeError, match="crash after mutation"):
@@ -477,3 +477,63 @@ def test_retro_publishes_when_live(root, capsys):
         assert f"retro submitted: {request['request_id']}" in capsys.readouterr().out
     finally:
         lock.release()
+
+
+@pytest.mark.parametrize("live", [False, True])
+def test_extension_repeat_keep(tmp_path, capsys, live):
+    import asyncio
+
+    from chupa import runner
+    from chupa.journal import EventType
+    from chupa.status import project, render
+    from tests.integration.test_mergequeue import admission_control, ready
+    from tests.integration.test_mergequeue import ctx as context_fixture
+
+    ctx = context_fixture.__wrapped__(tmp_path)
+
+    async def exercise():
+        ticket = await ready(ctx)
+        stem = ticket.stem
+        journal = ctx.driver.journal
+        checkout = runner.Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git, journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
+        inbox = admission_control(ctx).inbox
+        inbox.known = lambda name: name == stem
+        owner = entry.build_serve(checkout)
+        lock = Lockfile(ctx.config.state_dir, instance_id="live", clock=ctx.driver.clock)
+        if live:
+            lock.acquire()
+            control.write_active(ctx.config.state_dir, control.ControlProjection(inbox.lifecycle_id), ctx.fs, hold_id=None)
+
+        async def invoke(flag):
+            result = await asyncio.to_thread(
+                entry.main, ["confirm", stem, flag], cwd=ctx.repo, env=ctx.env, clock=ctx.driver.clock, terminal=(lambda: False, lambda _: pytest.fail("unexpected prompt"))
+            )
+            output = capsys.readouterr()
+            if live:
+                assert result == 0 and "confirm submitted:" in output.out
+                inbox.consume()
+                await inbox.settle_admissions(owner.apply_verdict)
+            return result, output
+
+        def keeps():
+            return [e.body for e in journal.read() if e.ticket == stem and e.body.get("signal") == "reject_verdict" and e.body.get("verdict") == "keep"]
+
+        try:
+            journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "routed": "reject_queue"}, ticket=stem)
+            assert (await invoke("--yes"))[0] == 0
+            assert len(keeps()) == 1
+            journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "routed": "reject_queue"}, ticket=stem)
+            result, output = await invoke("--yes")
+            assert result == (0 if live else 2)
+            assert "already kept at this ticket content" in (render(project(journal.read())) if live else output.err)
+            assert len(keeps()) == 1
+            assert (await invoke("--extension"))[0] == 0
+            records = keeps()
+            assert len(records) == 2
+            assert records[0]["ticket_sha"] is not None
+            assert records[0] == records[1] and records[1]["actor"] == "operator"
+        finally:
+            if live:
+                lock.release()
+
+    asyncio.run(exercise())

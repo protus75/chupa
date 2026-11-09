@@ -517,19 +517,19 @@ async def run_ticket(stem: str, checkout: Checkout, dispatch: Dispatch) -> int:
                 lock.release()
 
 
-async def verdict(stem: str, checkout: Checkout, *, kill: bool) -> int:
+async def verdict(stem: str, checkout: Checkout, *, kill: bool, extension: bool = False) -> int:
     """Resolve a draft or Reject item while holding the same writer lock as run and drain."""
     if findings := stem_findings(stem):
         raise Refusal(findings[0].message, findings[0].paved_road)
     lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
     lock.acquire()
     try:
-        return await verdict_locked(stem, checkout, kill=kill)
+        return await verdict_locked(stem, checkout, kill=kill, extension=extension)
     finally:
         lock.release()
 
 
-async def verdict_locked(stem: str, checkout: Checkout, *, kill: bool) -> int:
+async def verdict_locked(stem: str, checkout: Checkout, *, kill: bool, extension: bool = False) -> int:
     """Apply verdict rules with the writer lock already held."""
     intake_result = await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
     if refused := intake_result.refused.get(stem):
@@ -565,7 +565,7 @@ async def verdict_locked(stem: str, checkout: Checkout, *, kill: bool) -> int:
         ),
         None,
     )
-    if prior_keep is not None and prior_keep.body.get("ticket_sha") == ticket_sha:
+    if not extension and prior_keep is not None and prior_keep.body.get("ticket_sha") == ticket_sha:
         raise Refusal(f"{stem} was already kept at this ticket content", "edit the ticket before re-enqueueing")
     if stem not in reject_queue(history):
         raise Refusal(f"{stem} is neither a draft nor in the Reject queue", "run `status` to list the Reject queue")

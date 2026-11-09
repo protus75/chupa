@@ -371,7 +371,7 @@ class Serve:
                 await response.wait(self.core.scheduler.dispatch_next())
             await response.wait(self.checkout.sleep(SERVE_POLL_S))
 
-    async def apply_verdict(self, stem, verb, key):
+    async def apply_verdict(self, stem, verb, key, actor):
         c = self.checkout
         events = c.journal.read()
         intents = [i for i, e in enumerate(events) if e.type == EventType.EFFECT_INTENT and e.key == key]
@@ -415,7 +415,7 @@ class Serve:
         refusal = None
         if not applied:
             try:
-                await runner.verdict_locked(stem, c, kill=verb == "reject")
+                await runner.verdict_locked(stem, c, kill=verb == "reject", extension=actor == "extension")
             except runner.Refusal as exc:
                 refusal = str(exc)
                 self.log.event("verdict_refused", stem=stem, verb=verb, reason=refusal)

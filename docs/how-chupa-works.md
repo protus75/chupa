@@ -65,7 +65,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `dismiss <id> ...` | yes | Dismiss named messages without a model call. |
 | `prompt box <id> ...` | no | Print a prompt for discussing named box messages. |
 | `pause` / `resume` / `kill` / `stop` | try | With a running engine, publish a control request to it (section 7.3). With none: `kill` and `stop` refuse (exit 2); `pause`/`resume` print "nothing running". |
-| `confirm <stem> [--yes]` | try | A person at a terminal answers `y` to keep (or uses `--yes` to skip the prompt): promotes a draft to confirmed, keeps a Reject-queue item (section 6.6). With serve running, publishes the verdict to serve. |
+| `confirm <stem> [--yes|--extension]` | try | A person at a terminal answers `y` to keep (or uses `--yes` to skip the prompt): promotes a draft to confirmed, keeps a Reject-queue item (section 6.6). Same-content repeat keeps are refused for command-line confirms; the extension uses `--extension` to allow them. With serve running, publishes the verdict to serve. |
 | `reject <stem> [--yes]` | try | A person at a terminal answers `y` to kill (or uses `--yes` to skip the prompt): stamps the ticket `rejected` (section 6.6). Refuses settled stems. With serve running, publishes the verdict to serve. |
 
 ### 2.2 `./dev.py`
@@ -409,15 +409,15 @@ Settled stems (`merged` and `already_satisfied`) never await a verdict, even whe
 terminal carries a Reject routing marker. `reject` refuses settled stems.
 
 - **`confirm <stem>` (keep)** journals `reject_verdict keep actor: operator`. That resets the
-  lineage, so every cap starts over. A second keep at the same ticket content is refused: edit the
-  ticket first.
+  lineage, so every cap starts over. A second command-line keep at the same ticket content is refused: edit the
+  ticket first. The extension uses `--extension` to keep unchanged content.
 - **`reject <stem>` (kill)** stamps `state: rejected`, commits it, and files one Suggestion Box
   `failure_report` per confirmed ticket that depended on it ("re-wire, re-scope, or reject it").
   Those dependents stay blocked.
 - **Machine keep:** drain and serve use `awaiting_operator` and `reofferable` to hold queued stems with a spent cap or `ticket_changed` and re-offer others with budget. `record_reoffer` journals `keep actor: machine` for a queued stem, then draws `retry` unless the terminal is `premise_failed` or carries `provider_drought`. A machine keep never resets caps. The snapshot holds Reject-queue stems only when they await the operator (content parks remain separate).
 - `confirm` on a `draft` ticket promotes it to `confirmed` instead.
 
-Keep and kill normally require a person at an interactive terminal to answer `y` at the prompt before the verdict proceeds. `--yes` skips the terminal check and prompt.
+Keep and kill normally require a person at an interactive terminal to answer `y` at the prompt before the verdict proceeds. `--yes` and `--extension` skip the terminal check and prompt.
 
 ### 6.7 Other holds
 
