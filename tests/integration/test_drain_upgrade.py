@@ -7,6 +7,7 @@ seam is faked to run the child drain in-process, so the whole chain shares one j
 import asyncio
 import os
 import sys
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -132,7 +133,7 @@ def test_a_self_upgrading_admission_hands_off_before_the_next_dispatch(tmp_path,
     # The parent spends the retry before the upgrade; `after` runs in the child.
     assert script.calls == [("parent", "red"), ("parent", "red"), ("parent", "upgrade"), ("child1", "after")]
     (spawn,) = child.spawns
-    assert spawn["argv"] == ["uv", "run", "--project", str(root.resolve()), "python", "-m", "chupa", "drain", "--parked", "red"]
+    assert spawn["argv"] == ["uv", "run", "--project", str(root.resolve()), "python", "-m", "chupa", "drain", "--parked", "red", "--deadline", "2026-01-01T12:00:00+00:00"]
     assert spawn["timeout"] is None and spawn["stdin_path"] is None
     assert spawn["cwd"] == root and spawn["env"] == ENV
     assert spawn["lock_free"]
@@ -160,10 +161,37 @@ def test_the_carried_parked_set_rides_every_handoff_in_the_chain(tmp_path, order
     code, child = drain(root, script, order)
 
     assert code == 0
-    assert [s["argv"][8:] for s in child.spawns] == [["--parked", "red"], ["--parked", "red"]]
+    assert [s["argv"][8:] for s in child.spawns] == [["--parked", "red", "--deadline", "2026-01-01T12:00:00+00:00"]] * 2
     assert script.calls == [("parent", "red"), ("parent", "red"), ("parent", "one"), ("child1", "two")]
     # One awaiting parent per self-upgrading admission; each exits with its child's code.
     assert order.count("spawn") == 2 and order[-2:] == ["exit 0", "exit 0"]
+
+
+def test_deadline_is_carried_across_the_upgrade_handoff(tmp_path, order, monkeypatch):
+    root = make_root(tmp_path, caps="drain: {max_runtime_hours: 2}\n")
+    monkeypatch.setattr(drain_mod, "ENGINE", root.resolve())
+    commit_ticket(root, "upgrade", confirmed(priority="P0"))
+    commit_ticket(root, "after", confirmed(priority="P1"))
+    clock = Clock()
+
+    class SlowUpgrade(Script):
+        def __call__(self, checkout):
+            dispatch = super().__call__(checkout)
+
+            async def advance(ticket):
+                result = await dispatch(ticket)
+                if ticket.stem == "upgrade":
+                    clock.now += timedelta(hours=3)
+                return result
+
+            return advance
+
+    script = SlowUpgrade({"upgrade": ["merged:chupa/thing.py"]})
+    code, child = drain(root, script, order, clock)
+
+    assert code == 1  # A fresh child deadline would allow the queue to finish.
+    assert script.calls == [("parent", "upgrade")]  # A fresh deadline dispatches after in child1.
+    assert len(child.spawns) == 1  # The upgrade must actually hand off.
 
 
 def test_an_admission_outside_the_engine_plane_does_not_re_exec(root, order, monkeypatch):

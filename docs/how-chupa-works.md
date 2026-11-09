@@ -461,7 +461,7 @@ Keep and kill normally require a person at an interactive terminal to answer `y`
    invalid tickets excluding those settled or rejected in the journal, drafts awaiting confirm. A requisition
    park lists its review findings under the parked line.
 
-Bounds: `drain.max_runtime_hours` (default 12) halts it (exit 1).
+Bounds: `drain.max_runtime_hours` (default 12) halts it (exit 1). The ceiling is carried across a self-upgrade handoff.
 
 **Self-upgrade:** when draining the engine’s own source tree, a merge changing `chupa/` causes the drain to journal a handoff,
 releases the lock, and re-executes itself so the new engine code runs the rest of the queue.

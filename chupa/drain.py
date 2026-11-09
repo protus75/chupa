@@ -18,7 +18,7 @@ import os
 import sys
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from chupa import caps
@@ -201,6 +201,7 @@ async def drain(
     *,
     reexec: ProcessExec,
     parked: Iterable[str] = (),
+    deadline: datetime | None = None,
     argv: Iterable[str] = ("drain",),
     before_dispatch: Callable[[], Awaitable[None]] | None = None,
     stop_lifecycle: str | None = None,
@@ -261,7 +262,7 @@ async def drain(
         if hasattr(dispatch, "prepare"):
             await dispatch.prepare()
         await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
-        run = _Drain(checkout, dispatch, frozenset(parked), before_dispatch=checkpoint)
+        run = _Drain(checkout, dispatch, frozenset(parked), before_dispatch=checkpoint, deadline=deadline)
         run.retro = getattr(dispatch, "_retro", None)
         report = await run.run()
         # A pending self-upgrade is still an offer boundary, never permission to
@@ -296,7 +297,15 @@ async def drain(
     # The fixed HANDOFF order: journaled, journal closed, lock free -- the child is the only writer,
     # and the parent does nothing after the spawn but exit with its code.
     report.handoff, _, _ = await reexec.run(
-        reexec_argv([*argv, *(a for stem in carried for a in ("--parked", stem)), *(["--stop-lifecycle", consumer.inbox.lifecycle_id] if consumer.projection.stop_requested else [])]),
+        reexec_argv(
+            [
+                *argv,
+                *(a for stem in carried for a in ("--parked", stem)),
+                "--deadline",
+                render_ts(run.deadline),
+                *(["--stop-lifecycle", consumer.inbox.lifecycle_id] if consumer.projection.stop_requested else []),
+            ]
+        ),
         cwd=checkout.repo,
         env=checkout.env,
         timeout=None,
@@ -305,13 +314,13 @@ async def drain(
 
 
 class _Drain:
-    def __init__(self, checkout: Checkout, dispatch: Dispatch, carried: frozenset[str], *, before_dispatch: Callable[[], Awaitable[None]] | None = None) -> None:
+    def __init__(self, checkout: Checkout, dispatch: Dispatch, carried: frozenset[str], *, before_dispatch: Callable[[], Awaitable[None]] | None = None, deadline: datetime | None = None) -> None:
         self.c = checkout
         self.dispatch = dispatch
         self.before_dispatch = before_dispatch
         self.carried = carried  # parked earlier in this invocation, by a parent that handed off
         self.upgrade: tuple[str, str] | None = None  # (stem, commit) of a self-upgrading admission
-        self.deadline = checkout.clock() + timedelta(hours=checkout.config.drain.max_runtime_hours)
+        self.deadline = deadline if deadline is not None else checkout.clock() + timedelta(hours=checkout.config.drain.max_runtime_hours)
         self.over_budget: dict[str, Parked] = {}  # parked at dispatch by the per-ticket ceiling
         self.storm_waiting = False
         self.provider_deadlines = []

@@ -265,6 +265,7 @@ def _parser() -> argparse.ArgumentParser:
         verdict.add_argument("--extension", action="store_true")
     dr = sub.add_parser("drain", help="run every eligible ticket to quiescence under the lock")
     dr.add_argument("--parked", action="append", default=[], metavar="STEM", help="a stem the handing-off parent drain parked (set by the self-upgrade re-exec)")
+    dr.add_argument("--deadline", type=datetime.fromisoformat, default=None)
     dr.add_argument("--stop-lifecycle", help=argparse.SUPPRESS)
     sub.add_parser("serve", help="run the foreground daemon until kill, stop, or a signal stops it")
     return ap
@@ -491,6 +492,7 @@ def main(
                     DrainDispatch(),
                     reexec=reexec or SubprocessExec(),
                     parked=args.parked,
+                    deadline=args.deadline,
                     stop_lifecycle=args.stop_lifecycle,
                     argv=(["--config", str(args.config)] if args.config else []) + ["drain"],
                 )
