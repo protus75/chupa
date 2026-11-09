@@ -1,7 +1,7 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "5a8fa2522cdbef5be09889216240fe1e0e98eb9a",
+  "produced_at_sha": "97baeabbce71accf2d793c1b62a99d3a9a626f8c",
   "stem": "review-lock-only-for-intake",
   "passed": true,
   "changed_files": [
@@ -14,7 +14,7 @@
     "tests/integration/test_review_command.py",
     "tests/integration/test_storm_producer.py"
   ],
-  "inserted_lines": 149,
+  "inserted_lines": 142,
   "bypassed": [],
   "reports": [
     {
@@ -105,9 +105,9 @@
         "tests/integration/test_reconcile.py"
       ],
       "rc": 0,
-      "tail": "$ uv run pytest -q tests/integration/test_review_command.py tests/integration/test_journal.py tests/integration/test_journal_roll.py tests/integration/test_lockfile.py tests/integration/test_drain.py tests/integration/test_storm_producer.py tests/integration/test_reconcile.py\nbringing up nodes...\nbringing up nodes...\n\n........................................................................ [ 37%]\n........................................................................ [ 75%]\n................................................                         [100%]\n192 passed in 5.83s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "$ uv run pytest -q tests/integration/test_review_command.py tests/integration/test_journal.py tests/integration/test_journal_roll.py tests/integration/test_lockfile.py tests/integration/test_drain.py tests/integration/test_storm_producer.py tests/integration/test_reconcile.py\nbringing up nodes...\nbringing up nodes...\n\n........................................................................ [ 37%]\n........................................................................ [ 75%]\n................................................                         [100%]\n192 passed in 4.00s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false,
-      "seconds": 6.132466
+      "seconds": 4.179031
     }
   ]
 }
