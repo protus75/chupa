@@ -1,0 +1,152 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "a8eba92f848251b7f1b456cc2b29872a72638bb1",
+  "stem": "lint-stuck-exceeds-drain-ceiling",
+  "passed": true,
+  "changed_files": [
+    "chupa/__main__.py",
+    "docs/how-chupa-works.md",
+    "tests/integration/test_lint_verb.py",
+    "tests/regress_lint_stuck_ceiling.py",
+    "tests/unit/test_lint_ceiling.py"
+  ],
+  "inserted_lines": 56,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "ruff-fix",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "ruff-format",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false,
+      "bug_evidence": {
+        "argv": [
+          "uv",
+          "run",
+          "python",
+          "tests/regress_lint_stuck_ceiling.py"
+        ],
+        "head_sha": "a8eba92f848251b7f1b456cc2b29872a72638bb1",
+        "base_sha": "80c1b482e76967c8a966cc3d91cbdce524ce9f21",
+        "overlay_paths": [
+          "tests/integration/test_lint_verb.py",
+          "tests/regress_lint_stuck_ceiling.py"
+        ],
+        "evidence_paths": [
+          "tickets/lint-stuck-exceeds-drain-ceiling/evidence/over-ceiling-passes-lint.txt"
+        ],
+        "head": {
+          "rc": 0,
+          "regression_result": "pass",
+          "tail": "{\"regression_result\": \"pass\"}\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\nbringing up nodes...\nbringing up nodes...\n\n.                                                                        [100%]\n1 passed in 1.01s\n"
+        },
+        "base": {
+          "rc": 1,
+          "regression_result": "defect",
+          "tail": "{\"regression_result\": \"defect\"}\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\nUsing CPython 3.14.6\nCreating virtual environment at: .venv\n   Building chupa @ file:///home/djp/source/chupa/.chupa/state/worktrees/.regression-base/lint-stuck-exceeds-drain-ceiling\n      Built chupa @ file:///home/djp/source/chupa/.chupa/state/worktrees/.regression-base/lint-stuck-exceeds-drain-ceiling\nInstalled 19 packages in 6ms\nbringing up nodes...\nbringing up nodes...\n\nF                                                                        [100%]\n=================================== FAILURES ===================================\n___________________ test_lint_flags_stuck_over_drain_ceiling ___________________\n[gw0] linux -- Python 3.14.6 /home/djp/source/chupa/.chupa/state/worktrees/.regression-base/lint-stuck-exceeds-drain-ceiling/.venv/bin/python\n\nroot = PosixPath('/tmp/pytest-of-djp/pytest-673/popen-gw0/test_lint_flags_stuck_over_dra0/repo')\ncapsys = <_pytest.capture.CaptureFixture object at 0x768051869fd0>\n\n    def test_lint_flags_stuck_over_drain_ceiling(root, capsys):\n        write(root, \"budget\", ticket().replace(\"- stuck: 20m\", \"- stuck: 91m\"))\n>       assert lint(root, \"budget\") == 1\nE       AssertionError: assert 0 == 1\nE        +  where 0 = lint(PosixPath('/tmp/pytest-of-djp/pytest-673/popen-gw0/test_lint_flags_stuck_over_dra0/repo'), 'budget')\n\ntests/integration/test_lint_verb.py:214: AssertionError\n----------------------------- Captured stdout call -----------------------------\nlint: 1/1 tickets valid\n=========================== short test summary info ============================\nFAILED tests/integration/test_lint_verb.py::test_lint_flags_stuck_over_drain_ceiling\n1 failed in 1.09s\n"
+        }
+      }
+    },
+    {
+      "code": "unit",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "integration",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "lint",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "format",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "./dev.py",
+        "test",
+        "tests/unit/test_lint_ceiling.py"
+      ],
+      "rc": 0,
+      "tail": "$ uv run pytest -q tests/unit/test_lint_ceiling.py\nbringing up nodes...\nbringing up nodes...\n\n.                                                                        [100%]\n1 passed in 0.90s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 1.112557
+    },
+    {
+      "argv": [
+        "./dev.py",
+        "test",
+        "tests/integration/test_lint_verb.py"
+      ],
+      "rc": 0,
+      "tail": "$ uv run pytest -q tests/integration/test_lint_verb.py\nbringing up nodes...\nbringing up nodes...\n\n....................                                                     [100%]\n20 passed in 2.83s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 3.269478
+    },
+    {
+      "argv": [
+        "./dev.py",
+        "test"
+      ],
+      "rc": 0,
+      "tail": "er_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/lint-stuck-exceeds-drain-ceiling/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_guarded_calls_and_asyncio\ntests/integration/test_testguard.py::test_setup_and_teardown\ntests/integration/test_testguard.py::test_guards_are_phase_scoped\ntests/integration/test_testguard.py::test_budget_and_slowest\ntests/integration/test_testguard.py::test_budget_and_slowest\ntests/integration/test_testguard.py::test_xdist_budget\n  /home/djp/source/chupa/.chupa/state/worktrees/lint-stuck-exceeds-drain-ceiling/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3248 passed, 10 warnings in 65.12s (0:01:05)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 69.505094
+    }
+  ]
+}
