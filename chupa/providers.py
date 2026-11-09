@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 
 # Closed allowlist of tree-writing surfaces: every other surface is called read-only.
 WRITING_SURFACES = frozenset({"implement"})
+CODEX_EFFORT = {"low": "low", "medium": "medium", "high": "high", "max": "high"}
 
 # The value prompt 1 authors when the operator stated none; it must never reach a model.
 PLACEHOLDER = "OPERATOR-SETS-THIS"
@@ -471,7 +472,7 @@ class CodexAdapter(CliAdapter):
     def argv(self, model: str, effort: AgentEffort, writes: bool) -> list[str]:
         grant = ["--dangerously-bypass-approvals-and-sandbox"] if writes else ["--sandbox", "read-only", "-c", "approval_policy=never"]
         # Trailing `-`: the prompt is read from stdin.
-        return [self.binary, "exec", "--json", "-m", model, "-c", f"model_reasoning_effort={effort}", *grant, "-"]
+        return [self.binary, "exec", "--json", "-m", model, "-c", f"model_reasoning_effort={CODEX_EFFORT[effort]}", *grant, "-"]
 
     def parse(self, out: str) -> Parsed:
         text = None
