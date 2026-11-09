@@ -358,6 +358,18 @@ def test_status_escape_projection(tmp_path, monkeypatch, capsys):
 # --- run ----------------------------------------------------------------------------------------
 
 
+def test_run_logs_lifecycle_on_merge(root):
+    import json
+
+    write(root, "add-thing", ticket())
+    assert cli(root, "run", "add-thing", stages=Stages()) == 0
+    events = [json.loads(line) for line in (root / ".chupa/state/engine.log").read_text().splitlines()]
+    assert [(e["event"], e["verb"], e["pid"], e.get("outcome")) for e in events if e["event"] in {"engine_start", "engine_stop"}] == [
+        ("engine_start", "run", os.getpid(), None),
+        ("engine_stop", "run", os.getpid(), "merged"),
+    ]
+
+
 def test_run_dispatches_the_locked_validated_stem_to_the_stage_seam(root):
     write(root, "add-thing", ticket())
     stages = Stages()

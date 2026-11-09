@@ -301,7 +301,11 @@ def recent_steps(state: Path, log: list[dict], limit: int) -> list[dict]:
             rows.append({"ts": e["ts"], "stem": None, "text": f"{e['verb']} stopped ({e['outcome']})", "kind": "engine_stop"})
     if lifecycle:
         latest = max(enumerate(lifecycle), key=lambda pair: (pair[1]["ts"], pair[0]))[1]
-        if latest["event"] == "engine_start" and lock_holder(state) is None:
+        try:
+            holder_pid = json.loads((state / "chupa.lock").read_text()).get("pid") if lock_holder(state) is not None else None
+        except OSError, ValueError:
+            holder_pid = None
+        if latest["event"] == "engine_start" and holder_pid != latest["pid"]:
             rows.append({"ts": latest["ts"], "stem": None, "text": f"{latest['verb']} ended without a stop record (killed?)", "kind": "engine_lost"})
     return sorted(rows, key=lambda row: row["ts"], reverse=True)[:limit]
 

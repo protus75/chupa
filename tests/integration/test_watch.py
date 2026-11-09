@@ -124,8 +124,14 @@ def test_recent_steps_merges_engine_and_stage_events(tmp_path, monkeypatch):
     monkeypatch.setattr(watch, "committed_ticket_shas", lambda ctx: {})
     lines = watch.text_snapshot(ctx).split("Recent steps:\n", 1)[1].splitlines()
     assert lines == [f"  {watch.clock(r['ts'])}  " + (f"{r['stem']}  " if r["stem"] else "") + r["text"] for r in rows]
-    monkeypatch.setattr(watch, "lock_holder", lambda state: object())
-    assert len(watch.recent_steps(state, log, 20)) == 6
+    monkeypatch.setattr(watch.os, "kill", lambda pid, signal: None)
+    (state / "chupa.lock").write_text(json.dumps({"pid": 42, "started_at": log[-1]["ts"]}))
+    matching = watch.recent_steps(state, log, 20)
+    assert len(matching) == 6 and all(r["kind"] != "engine_lost" for r in matching)
+    (state / "chupa.lock").write_text(json.dumps({"pid": 43, "started_at": log[-1]["ts"]}))
+    different = watch.recent_steps(state, log, 20)
+    assert len(different) == 7
+    assert [(r["stem"], r["text"]) for r in different if r["kind"] == "engine_lost"] == [(None, "serve ended without a stop record (killed?)")]
 
 
 def test_recent_steps_triage_message_number():

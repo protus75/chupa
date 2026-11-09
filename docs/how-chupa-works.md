@@ -656,7 +656,7 @@ Everything lives under `state_dir` (this repo: `.chupa/state`).
 | Path | Holds |
 |---|---|
 | `journal/NNNNNN-YYYYMMDD.jsonl` | The journal (section 10.2). |
-| `engine.log` | Diagnostics including `engine_start`, `engine_stop`, and stage start/end events for every stage, including Check and merge; redacted, rotated, and never authoritative. |
+| `engine.log` | Diagnostics including `engine_start` and `engine_stop` for drain, serve and run, and stage start/end events for every stage, including Check and merge; redacted, rotated, and never authoritative. |
 | `queue.json` | Derived pick order, timestamp, and `Runs before` hints for watch. |
 | `spools/` | Per-attempt prompts, outputs, and command output; `spools/providers/` holds raw CLI captures. |
 | `chupa.lock` | Guards the checkout and git writes to main. Its JSON identity is informational; the kernel frees the lock when the holder dies. |

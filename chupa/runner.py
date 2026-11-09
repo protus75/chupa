@@ -5,6 +5,7 @@ Exit codes: 0 merged, 1 a non-ok ticket terminal, 2 an engine-plane refusal.
 """
 
 import asyncio
+import os
 import sys
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, replace
@@ -22,6 +23,7 @@ from chupa.caps import capability, consume, next_rung, spent, spent_reason
 from chupa.config import Config, ConfigSnapshot, snapshot_config
 from chupa.driver import Driver
 from chupa.effects import Effects
+from chupa.enginelog import EngineLog
 from chupa.git import Git
 from chupa.journal import TERMINAL_STATES, Event, EventType, Journal, dispatch_of, run_seq
 from chupa.journal import Dispatch as JournalDispatch
@@ -30,6 +32,7 @@ from chupa.lockfile import Lockfile
 from chupa.merge import compose_pipeline, merge
 from chupa.providers import ProviderCallError, ProviderDrought, ProviderLLM
 from chupa.reconcile import reconcile
+from chupa.redact import Redactor
 from chupa.seams import Clock, FileSystem, GroupExec, Sleep
 from chupa.stages import DiagnosisMaterial, StageContext, StagesRun, diagnose, lift_outbox, run_stages, ticket_change_findings, write_diagnosis
 from chupa.status import SETTLED, last_states, reject_queue
@@ -472,8 +475,12 @@ async def run_ticket(stem: str, checkout: Checkout, dispatch: Dispatch) -> int:
     if findings := stem_findings(stem):
         raise Refusal(findings[0].message, findings[0].paved_road)
     lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
+    log = EngineLog(checkout.config.state_dir / "engine.log", Redactor.from_config(checkout.config, checkout.env), checkout.clock)
+    pid = os.getpid()
     lock.acquire()
+    outcome = "parked"
     try:
+        log.event("engine_start", verb="run", pid=pid)
         assert checkout.config.worktree_root is not None  # resolved at config load
         await reconcile(checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root, lambda orphan, attempt: harvest_orphan(checkout, orphan, attempt))
         if checkout.control is not None:
@@ -496,13 +503,18 @@ async def run_ticket(stem: str, checkout: Checkout, dispatch: Dispatch) -> int:
         terminal = await dispatch(ticket)
         if terminal not in TERMINAL_STATES:
             raise ValueError(f"stage seam returned {terminal!r}, not a terminal state {sorted(TERMINAL_STATES)}")
+        outcome = terminal
         return EXIT_MERGED if terminal == "merged" else EXIT_TICKET
     finally:
         try:
             if checkout.control is not None:
                 await checkout.control.providers.close()
         finally:
-            lock.release()
+            try:
+                exc = sys.exception()
+                log.event("engine_stop", verb="run", pid=pid, outcome=f"error: {type(exc).__name__}" if exc else outcome)
+            finally:
+                lock.release()
 
 
 async def verdict(stem: str, checkout: Checkout, *, kill: bool) -> int:
