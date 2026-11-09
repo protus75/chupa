@@ -1,7 +1,7 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "8c62e23faa5e9e76e92529521d57b61c5e37db9d",
+  "produced_at_sha": "75e75d9f029f4fb475fd8c3e3e114ecb8a32aea4",
   "stem": "check-test-timing",
   "passed": true,
   "changed_files": [
@@ -21,7 +21,7 @@
     "tests/unit/test_covgate.py",
     "tests/unit/test_testreport_reader.py"
   ],
-  "inserted_lines": 270,
+  "inserted_lines": 309,
   "bypassed": [],
   "reports": [
     {
@@ -106,9 +106,9 @@
         "tests/unit"
       ],
       "rc": 0,
-      "tail": "$ uv run pytest -q tests/unit\nbringing up nodes...\nbringing up nodes...\n\n........................................................................ [ 88%]\n.........                                                                [100%]\n81 passed in 2.79s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "$ uv run pytest -q tests/unit\nbringing up nodes...\nbringing up nodes...\n\n........................................................................ [ 69%]\n...............................                                          [100%]\n103 passed in 0.97s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false,
-      "seconds": 2.988966
+      "seconds": 1.402455
     },
     {
       "argv": [
@@ -119,9 +119,9 @@
         "tests/unit/test_covgate.py"
       ],
       "rc": 0,
-      "tail": "$ uv run pytest -q tests/integration/test_testreport.py tests/integration/test_covgate.py tests/unit/test_covgate.py\nbringing up nodes...\nbringing up nodes...\n\n.....................................                                    [100%]\n37 passed in 1.39s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "$ uv run pytest -q tests/integration/test_testreport.py tests/integration/test_covgate.py tests/unit/test_covgate.py\nbringing up nodes...\nbringing up nodes...\n\n.......................................                                  [100%]\n39 passed in 1.37s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false,
-      "seconds": 1.588721
+      "seconds": 1.573465
     },
     {
       "argv": [
@@ -132,9 +132,9 @@
         "tests/integration/test_host_contract.py"
       ],
       "rc": 0,
-      "tail": "$ uv run pytest -q tests/integration/test_host_mechanical.py tests/integration/test_gates.py tests/integration/test_host_contract.py\nbringing up nodes...\nbringing up nodes...\n\n........................................................................ [ 94%]\n....                                                                     [100%]\n76 passed in 3.42s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "$ uv run pytest -q tests/integration/test_host_mechanical.py tests/integration/test_gates.py tests/integration/test_host_contract.py\nbringing up nodes...\nbringing up nodes...\n\n........................................................................ [ 91%]\n.......                                                                  [100%]\n79 passed in 3.18s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false,
-      "seconds": 3.717803
+      "seconds": 3.38002
     },
     {
       "argv": [
@@ -142,9 +142,9 @@
         "test"
       ],
       "rc": 0,
-      "tail": "st_daemon_soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/check-test-timing/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/integration/test_testguard.py::test_setup_and_teardown\ntests/integration/test_testguard.py::test_guards_are_phase_scoped\ntests/integration/test_testguard.py::test_budget_and_slowest\ntests/integration/test_testguard.py::test_budget_and_slowest\ntests/integration/test_testguard.py::test_guarded_calls_and_asyncio\ntests/integration/test_testguard.py::test_xdist_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\n  /home/djp/source/chupa/.chupa/state/worktrees/check-test-timing/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3233 passed, 10 warnings in 59.99s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "soak.py::test_daemon_soak_writer_validates_before_write\n  /home/djp/source/chupa/.chupa/state/worktrees/check-test-timing/.venv/lib/python3.14/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:\n    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='green', input_value=1, input_type=int])\n    return self.__pydantic_serializer__.to_python(\n\ntests/integration/test_testguard.py::test_guarded_calls_and_asyncio\ntests/integration/test_testguard.py::test_setup_and_teardown\ntests/integration/test_testguard.py::test_guards_are_phase_scoped\ntests/integration/test_testguard.py::test_budget_and_slowest\ntests/integration/test_testguard.py::test_budget_and_slowest\ntests/integration/test_testguard.py::test_xdist_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\ntests/integration/test_testguard.py::test_default_and_invalid_budget\n  /home/djp/source/chupa/.chupa/state/worktrees/check-test-timing/.venv/lib/python3.14/site-packages/pytest_asyncio/plugin.py:299: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\n  The event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n  \n    warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3264 passed, 10 warnings in 61.45s (0:01:01)\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false,
-      "seconds": 64.950734
+      "seconds": 65.19009
     }
   ]
 }
