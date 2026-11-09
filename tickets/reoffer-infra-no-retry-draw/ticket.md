@@ -26,6 +26,8 @@ state: confirmed
 
 In: `record_reoffer` skips the `retry` draw when the last terminal is `infra_error` or `timeout` and its body carries no `rung`. A terminal carrying a `rung` (a diagnose `escalate` verdict or the identical-reason streak) keeps its `retry` draw with that rung, because the `retry` draw is the only place an escalation rung is persisted (`caps.capability` reads it from there). A new unit test file `tests/unit/test_drain_reoffer.py` calls `record_reoffer` with a fake journal (an object whose `append` records its calls) and in-memory `Event` histories, one per terminal, and asserts which `cap_consumed` events each terminal class produces; no disk or process access. `docs/how-chupa-works.md` is updated in four places: the section 6.6 machine-keep exclusion list adds `infra_error` and `timeout` terminals that carry no `rung`; the section 6.4 cap table `retry` row reads "each drain or serve re-offer, except after `premise_failed`, a provider drought, or an `infra_error` or `timeout` that carries no escalation rung"; section 7.1 step 4 ("drawing `retry`") and section 7.2 ("draws `retry` on re-offer as drain does") each point to the section 6.6 exclusions.
 
+In: `eval/shakeout/driver.py`'s `_stuck_budget_kill` member scripts its LLM replies on the assumption that the `timeout` re-offer draws `retry`; with that draw gone the stuck stem is re-offered, consumes the scripted replies, and `stuck-followup` never merges (`tests/integration/test_shakeout.py::test_stuck_budget_kill_member_observes_abort_harvest_and_followup_merge` fails at driver.py:80). Update that member's script or its bench caps so it still observes the timeout harvest, one `infra` draw, and the follow-up merge; its observation name and the test stay unchanged.
+
 Out: `abandoned` reaps. The runner draws no `infra` unit for them, so skipping the retry draw would leave them undrawn. Changes to `runner.py` or caps config. Changes to the machine keep signal.
 
 - In: a carried reproducer `tests/regress_reoffer_infra_retry.py`, shaped like `tests/regress_dev_test_args.py`. It runs `pytest.main(["tests/unit/test_drain_reoffer.py", "-k", "infra_error", "-q", "-p", "no:cacheprovider"])` in-process with stdout redirected to stderr, then prints exactly one JSON object: `{"regression_result": "pass"}` with exit 0 when pytest returns 0, `{"regression_result": "defect"}` with exit 1 when pytest returns 1 (the test failed), and `{"regression_result": "error"}` with exit 2 otherwise (including no test collected) or on any exception. It uses only code present at the base commit; on the base overlaid with the carried files the named test fails, so it prints `defect`.
@@ -35,6 +37,7 @@ Out: `abandoned` reaps. The runner draws no `infra` unit for them, so skipping t
 - chupa/drain.py
 - tests/integration/test_drain.py
 - tests/unit/test_drain_reoffer.py
+- eval/shakeout/driver.py
 - tests/regress_reoffer_infra_retry.py
 - docs/how-chupa-works.md
 
@@ -46,6 +49,7 @@ Out: `abandoned` reaps. The runner draws no `infra` unit for them, so skipping t
 - `record_reoffer` on a `gate_failed` terminal still appends the `retry` draw, checked by `./dev.py test tests/unit/test_drain_reoffer.py`. The test fails if the draw is dropped for it.
 - `record_reoffer` on an `abandoned` terminal still appends the `retry` `cap_consumed`, checked by `./dev.py test tests/unit/test_drain_reoffer.py`. The test fails if the draw is dropped for it.
 - `./dev.py test tests/integration/test_drain.py -k reoffer` exits 0.
+- `./dev.py test tests/integration/test_shakeout.py` exits 0, including `test_stuck_budget_kill_member_observes_abort_harvest_and_followup_merge`.
 - `docs/how-chupa-works.md` names `infra_error` and `timeout` terminals without an escalation rung among those that draw no `retry` on re-offer in the section 6.6 machine-keep line and the section 6.4 `retry` row, and sections 7.1 step 4 and 7.2 point to the section 6.6 exclusions; checked by Review.
 - `uv run python tests/regress_reoffer_infra_retry.py` prints only `{"regression_result": "pass"}` and exits 0 on the fixed code, and prints only `{"regression_result": "defect"}` with a nonzero exit on the unfixed code, which rules out a reproducer whose stdout carries pytest output or whose verdict ignores the test result.
 
@@ -54,6 +58,7 @@ Out: `abandoned` reaps. The runner draws no `infra` unit for them, so skipping t
 ```
 ./dev.py test tests/unit/test_drain_reoffer.py
 ./dev.py test tests/integration/test_drain.py -k reoffer
+./dev.py test tests/integration/test_shakeout.py
 ```
 
 ## Regression
