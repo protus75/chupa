@@ -58,5 +58,42 @@ def layout(rows: list[dict]) -> list[dict]:
             else:
                 parent_lanes.append(len(outgoing))
                 outgoing.append({"id": parent, "section": section})
-        result.append({"kind": "head" if section == "running" else "node", "parents": parents, "parentLanes": parent_lanes, "lanesIn": incoming, "lanesOut": outgoing})
+        kind = "head" if section == "running" else "node"
+        circle = next((index for index, lane in enumerate(incoming) if lane["id"] == stem), len(incoming))
+        segments = []
+        slot = 0
+        for index, lane in enumerate(incoming):
+            if lane["id"] is None:
+                continue
+            if lane["id"] == stem:
+                if index != circle:
+                    segments.append({"kind": "into", "from": index, "to": circle, "section": lane["section"]})
+                slot += 1
+            elif slot < len(outgoing) and lane["id"] == outgoing[slot]["id"]:
+                if index == slot:
+                    segments.append({"kind": "straight", "lane": index, "section": lane["section"]})
+                else:
+                    segments.append({"kind": "shift", "from": index, "to": slot, "section": lane["section"]})
+                slot += 1
+        for parent in parent_lanes:
+            if parent == circle:
+                node_section = outgoing[circle]["section"] if circle < len(outgoing) else incoming[circle]["section"] if circle < len(incoming) else section
+                segments.append({"kind": "down", "lane": circle, "section": node_section})
+            else:
+                segments.append({"kind": "branch" if parent > circle else "join", "from": circle, "to": parent, "section": outgoing[parent]["section"]})
+        if circle < len(incoming):
+            segments.append({"kind": "top", "lane": circle, "section": incoming[circle]["section"]})
+        result.append(
+            {
+                "kind": kind,
+                "parents": parents,
+                "parentLanes": parent_lanes,
+                "lanesIn": incoming,
+                "lanesOut": outgoing,
+                "circle": circle,
+                "dot": "head" if kind == "head" else "merge" if len(parents) > 1 else "node",
+                "width": max(len(incoming), len(outgoing), circle + 1) + 1,
+                "segments": segments,
+            }
+        )
     return result

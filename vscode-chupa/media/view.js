@@ -51,7 +51,7 @@ function render(snap) {
 		row.dataset.stem = r.stem;
 		// Context keys for the right-click menu's `when` clauses in package.json; the command receives this object.
 		row.dataset.vscodeContext = JSON.stringify({ ...r.menu, chupaStem: r.stem, preventDefaultContextMenuItems: true });
-		row.append(renderGraph(r.graph, r.stem, COLOR[r.section], COLOR));
+		row.append(renderGraph(r.graph, COLOR[r.section], COLOR));
 		if (r.priorityTag) {
 			row.append(el('span', 'priority', r.priorityTag));
 		}
