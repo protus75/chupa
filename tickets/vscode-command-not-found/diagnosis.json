@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "1250bd585a0f4786dd535ca5b8f25f3a4bde1932",
+  "stem": "vscode-command-not-found",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "retry",
+  "lessons": [
+    "Redo the work from the merge base: in runData, wrap the execFile callback so err.code === 'ENOENT' passes new Error(`chupa command not found: ${binary} (run from ${root}). Set chupa.command in settings.`) with empty stderr. Review found this approach sound.",
+    "Recreate tests/vscode_command_not_found.js, tests/integration/test_vscode_command_not_found.py (ENOENT test plus a `false` binary test), and the one README sentence, as the ticket's Scope in describes.",
+    "The gate failure was tests/integration/test_daemon_soak_runner.py::test_daemon_soak_runs_production_serve ('serve cleanup exited 1'). The diff only touches vscode-chupa and new tests, and the agent's own full run passed 3290 tests, so the failure looks flaky or pre-existing.",
+    "Before committing, run the plain `./dev.py test` several times. If the daemon soak test fails, run it once in a base-commit git worktree with full history and no env overrides. If it also fails there, file it with chupa suggest and do not fix it in this diff."
+  ],
+  "mechanical": null,
+  "spec_version": "1.4",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
