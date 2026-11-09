@@ -16,7 +16,7 @@ state: confirmed
 - tests/regress_lint_worktree_journal.py
 
 ## Goal / Why
-`validate_ticket` in `chupa/tickets.py` checks each `## Context` path with `(repo / source).exists()`, while `## On-demand` uses `.is_file()`. A Context entry that names a directory (box-declined-verdict listed `tickets/decisions`) therefore passes lint and intake. Implement's input render (`implement_inputs`) later reads that path as a file and raises `IsADirectoryError`, which crashes the drain. After this change a Context path that is not a file is refused at lint with a finding, the same rule On-demand already applies.
+`validate_ticket` in `chupa/tickets.py` checks each `## Context` path with `(repo / source).exists()`, while `## On-demand` uses `.is_file()`. A Context entry that names a directory (box-declined-verdict listed `tickets/decisions`) therefore passes lint and intake. Implement's input render (`implement_inputs`) later reads that path as a file and raises `IsADirectoryError`, which crashes the drain. After this change a Context path that is not a file is refused at lint with a finding, the same rule On-demand already applies. The observed failure is recorded in `evidence/context-directory-passes-lint.txt`.
 
 ## Scope in / Scope out
 - In: in `chupa/tickets.py`, change the Context existence check from `.exists()` to `.is_file()`. Keep the existing "does not exist" finding and its paved road, and make its text say the path must be an existing file. Add a regression test and a carried reproducer.

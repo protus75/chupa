@@ -1,0 +1,4 @@
+$ grep -n "exists()" chupa/tickets.py   # Context path checked with .exists(), so a directory passes
+373:            elif not (repo / source).exists():
+
+Observed: box-declined-verdict listed `tickets/decisions` (a directory) in ## Context; lint accepted it and implement_inputs raised IsADirectoryError, crashing the drain.
