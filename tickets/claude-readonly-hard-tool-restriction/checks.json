@@ -1,0 +1,114 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "5364be55a83f9964265d18ea1d6214fe0aeb2774",
+  "stem": "claude-readonly-hard-tool-restriction",
+  "passed": true,
+  "changed_files": [
+    "chupa/providers.py",
+    "hosts/fixture/bin/claude",
+    "tests/integration/test_fixture_host.py",
+    "tests/integration/test_providers.py"
+  ],
+  "inserted_lines": 6,
+  "bypassed": [],
+  "reports": [
+    {
+      "code": "ruff-fix",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "ruff-format",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "scope_fence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "verification",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "run_record",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "diff_budget",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "core_drift",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "bug_evidence",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "unit",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "integration",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "lint",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    },
+    {
+      "code": "format",
+      "verdict": "pass",
+      "findings": [],
+      "autofix_applied": false
+    }
+  ],
+  "seeds": [],
+  "verification": [
+    {
+      "argv": [
+        "./dev.py",
+        "test",
+        "tests/integration/test_providers.py"
+      ],
+      "rc": 0,
+      "tail": "$ uv run pytest -q tests/integration/test_providers.py\nbringing up nodes...\nbringing up nodes...\n\n..............................................................           [100%]\n62 passed in 3.33s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 3.524893
+    },
+    {
+      "argv": [
+        "./dev.py",
+        "test",
+        "tests/integration/test_fixture_host.py"
+      ],
+      "rc": 0,
+      "tail": "$ uv run pytest -q tests/integration/test_fixture_host.py\nbringing up nodes...\nbringing up nodes...\n\n........                                                                 [100%]\n8 passed in 2.16s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "base_red": false,
+      "seconds": 2.60679
+    }
+  ]
+}
