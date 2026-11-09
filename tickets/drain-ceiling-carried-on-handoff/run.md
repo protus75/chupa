@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The simpler pytest regression command prints a command prefix and pytest output, while the bug-evidence gate requires stdout to contain exactly one JSON result object.
+The carried reproducer reported defect on the base commit and pass on the fixed code.
 
 ## Dead ends
 
-Changing the scoped test cannot remove the command prefix printed by dev.py before pytest starts.
+A journal-derived start time was rejected because carrying the deadline on argv is simpler and avoids a second authority.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Expected 25 minutes; completed in less than 25 minutes.
 
