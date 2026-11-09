@@ -1,17 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "2cea79f4d1045f11138f3130d661766863a49259",
+  "produced_at_sha": "5a8fa2522cdbef5be09889216240fe1e0e98eb9a",
   "stem": "review-lock-only-for-intake",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "gate_failed",
-  "stage": "check",
+  "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "The integration tests passed, but the unit coverage gate failed: chupa/reconcile.py unit coverage fell to 11.76%, below its 12% floor. The new `if` in the EFFECT_INTENT branch added a statement and branches that no unit test runs. Nothing under tests/unit is in the fence.",
-    "Change reconcile.orphans so it adds no statement and no branch. Example: leave the EFFECT_INTENT line as it is and filter keys in the existing return expression, e.g. `any(not (k or '').startswith(f'llm/review-{stem}/') for k in keys)`. Lowering the gate threshold is a human ticket's decision.",
-    "Before you report ok, run the full check suite, including the unit covgate step, not just the ticket's Verification command. That command passed while the unit gate failed.",
-    "Keep the passing parts as they are: the journal.lock flock in Journal.append, the narrowed lock in _review, the docs edit, and the tests in test_reconcile, test_review_command, test_journal and test_storm_producer. Only the shape of the reconcile.py change has to differ."
+    "In docs/how-chupa-works.md section 10.1 'Files' table, add a `journal.lock` row: short-held exclusive flock taken by every Journal.append, covering torn-tail repair, segment roll and the write.",
+    "In the same section 10.1 table, reword the `chupa.lock` row so it no longer says 'The single-writer lock'; say it guards the checkout and git writes to main, not journal appends.",
+    "Keep the code, tests and section 2.1 edits from attempt 1: review found they meet the acceptance criteria and all 192 verification tests passed. Change only the docs.",
+    "Before finishing, grep docs/how-chupa-works.md for other passages that call chupa.lock the single-writer lock or say it guards journal writes, and update them to match the new two-lock split."
   ],
   "mechanical": null,
   "spec_version": "1.2",
