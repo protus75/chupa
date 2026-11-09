@@ -4,7 +4,7 @@ kind: feature
 agent_tier: medium
 agent_effort: medium
 source: box:retro_finding
-state: draft
+state: rejected
 ---
 
 ## Depends on
