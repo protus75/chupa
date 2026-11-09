@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "799819e0f11c8b716de45e27042923315ef84867",
+  "produced_at_sha": "a9137b1f277ccefff53c020adfd02434877b2033",
   "stem": "drain-ceiling-carried-on-handoff",
-  "attempt": 1,
-  "terminal": "gate_failed",
-  "stage": "check",
+  "attempt": 2,
+  "terminal": "premise_failed",
+  "stage": "implement",
   "verdict": "reject",
   "lessons": [
-    "The Regression command `./dev.py test tests/integration/test_drain_upgrade.py -k deadline` prints pytest output. chupa/stages.py::regression_result only accepts a stdout that is exactly one JSON object `{\"regression_result\": ...}`, so head and base both decode to None.",
-    "Ticket fix: make the Regression command a carried reproducer that prints `{\"regression_result\":\"pass\"}` and exits 0 on fixed code, or prints `defect` and exits >0 when the child dispatches `after`. Name it in `carries` and in the Scope fence.",
-    "The implementation the agent reported is sound and must be redone from the merge base: `--deadline` in the `drain` parser, a `deadline` kwarg on drain()/_Drain, the pair placed before `--stop-lifecycle`, the unit tests and the doc sentence. The full suite passed with 3235 tests.",
-    "Follow the reproducer shape of tickets/graph-lane-cleanup or tickets/context-rejects-directory (`uv run python tests/regress_*.py`). Running the deadline handoff test in-process, it must emit only the JSON line on stdout."
+    "The Regression command `./dev.py test ... -k deadline` can never pass the gate. chupa/stages.py::regression_result needs stdout to be exactly one JSON object `{\"regression_result\": ...}`, and dev.py prints a `$` prefix plus pytest output. The ticket must be rewritten before any retry.",
+    "Rewrite `## Regression` to run one argv command: a carried reproducer under tests/ that prints only {\"regression_result\":\"pass\"} with exit 0 on fixed code, and {\"regression_result\":\"defect\"} with a positive exit on base (the child dispatches `after`).",
+    "List that reproducer path in both `- carries:` and `## Scope fence`. The last attempt said it was blocked because tests/regress_drain_deadline.py was outside the fence, and stages.py rejects carries paths that are not changed test or fixture files.",
+    "Leave the implementation plan alone. The `--deadline` option on the drain subparser, the `deadline` keyword on drain()/_Drain, the reexec_argv insertion before `--stop-lifecycle`, the unit tests and the docs sentence were never challenged. Redo all of it from the merge base.",
+    "After the rewrite, run `chupa lint drain-ceiling-carried-on-handoff` and `chupa review drain-ceiling-carried-on-handoff`. Fix every finding before the ticket is confirmed again."
   ],
   "mechanical": null,
   "spec_version": "1.3",
