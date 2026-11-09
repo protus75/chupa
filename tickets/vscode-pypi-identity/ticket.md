@@ -1,12 +1,12 @@
 ---
-state: confirmed
+state: draft
 source: human
 priority: P2
 kind: chore
 ---
 
 ## Depends on
-none
+- none
 
 ## Context
 - dev.py
@@ -42,9 +42,9 @@ After this change, the Marketplace description and README name the extension as 
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
-1. `tests/integration/test_dev.py::test_vscode_package_stamps_chupa_version` passes: with the fixture's `pyproject.toml` at `9.8.7` and a README holding `Built for [chupa 0.0.1](https://pypi.org/project/chupa/0.0.1/).`, after `dev.main()` the README contains `Built for [chupa 9.8.7](https://pypi.org/project/chupa/9.8.7/).`, no longer contains `0.0.1`, keeps its other lines unchanged, and the README was rewritten before the `vsce` call (the fake `subprocess.run` reads the README when it sees the `npx` argv). It rules out stamping the `package.json` version `1.2.3`, stamping after packaging, and dropping other README lines.
+1. `tests/integration/test_dev.py::test_vscode_package_stamps_chupa_version` passes: with the fixture's `pyproject.toml` at `9.8.7` and a README holding `Built for [chupa 0.0.1](https://pypi.org/project/chupa/0.0.1/).`, after `dev.main()` the README contains `Built for [chupa 9.8.7](https://pypi.org/project/chupa/9.8.7/).`, no longer contains `0.0.1`, keeps its other lines unchanged, stdout contains `dev: built for chupa 9.8.7`, and the README was rewritten before the `vsce` call (the fake `subprocess.run` reads the README when it sees the `npx` argv). It rules out stamping the `package.json` version `1.2.3`, stamping after packaging, and dropping other README lines.
 2. `tests/integration/test_dev.py::test_vscode_package_stops_without_built_for_line` passes: with a README lacking the `Built for` line, `dev.main()` raises `SystemExit` whose message contains `Built for`, and the fake `subprocess.run` is never called. It rules out packaging a VSIX with no chupa version and silently appending a line.
-3. The existing three `test_vscode_package_*` tests pass unchanged in their assertions.
+3. The existing `tests/integration/test_dev.py` tests `test_vscode_package_prints_windows_path_under_wsl`, `test_vscode_package_skips_wslpath_outside_wsl`, and `test_vscode_package_stops_when_wslpath_fails` pass with their assertions unchanged; only the shared fixture gains the `pyproject.toml` and README files.
 4. `vscode-chupa/package.json` `description` contains `https://pypi.org/project/chupa/`, and `vscode-chupa/README.md` contains `https://pypi.org/project/chupa/` in its first paragraph and one `Built for [chupa` line naming the current `pyproject.toml` version.
 5. The `vscode-package` row and release paragraph in `docs/how-chupa-works.md` section 2.2 mention stamping the chupa version into the README.
 6. `./dev.py test` exits 0.
