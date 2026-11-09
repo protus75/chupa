@@ -21,8 +21,8 @@ After this change, every `runData` failure with `err.code === 'ENOENT'` reports 
 
 ## Scope in / Scope out
 - In: `vscode-chupa/extension.js` `runData`: when the `execFile` callback's error has `code === 'ENOENT'`, pass the callback an error whose `message` is the text above, and empty `stderr`, so the existing `(stderr || err.message)` call sites show it unchanged. This maps a closed Node error code to a message; it is not a policy choice and needs no snapshot field.
-- In: new `tests/vscode_command_not_found.js` harness in the style of `tests/vscode_task_identity.js` (stub `vscode` module, real `child_process`), with `chupa.command` set to `['.venv/bin/chupa-missing']` and the workspace folder set to a temp directory. It triggers one snapshot refresh and prints the resulting snapshot error as JSON.
-- In: new `tests/unit/test_vscode_command_not_found.py`: runs `node tests/vscode_command_not_found.js` with `subprocess.run` (argv list) and asserts on its output.
+- In: new `tests/vscode_command_not_found.js` harness in the style of `tests/vscode_task_identity.js` (stub `vscode` module, real `child_process`). Usage: `node tests/vscode_command_not_found.js <root> <binary>`. It uses `<root>` as `workspaceFolders[0]` and returns `[<binary>]` for `chupa.command`. It activates the extension, captures the provider passed to `registerWebviewViewProvider('chupa.tickets', ...)`, and calls `resolveWebviewView` with a stub view. The stub's `webview` supplies `cspSource`, `asWebviewUri`, `options`, an `onDidReceiveMessage` whose handler the harness keeps, and a `postMessage` that records messages; the stub `vscode.Uri` adds `joinPath`. The harness then sends that handler `{type: 'ready'}`, which triggers a snapshot refresh. When `postMessage` receives `{type: 'error', message}`, it prints `JSON.stringify(message)` and exits 0. `extension.js` exports stay unchanged.
+- In: new `tests/integration/test_vscode_command_not_found.py`. Each test creates `tmp_path / "tickets"` (so `chupaRoot()` picks `tmp_path`), runs `node tests/vscode_command_not_found.js <tmp_path> <binary>` with `subprocess.run` (argv list, `check=True`, a timeout), and parses stdout as JSON.
 - In: `vscode-chupa/README.md`: one sentence saying a missing command shows a `chupa command not found` message naming the `chupa.command` setting.
 - Out:
   - `ProcessExecution` tasks (`devCommand`); VS Code's task terminal already reports a missing executable;
@@ -34,18 +34,18 @@ After this change, every `runData` failure with `err.code === 'ENOENT'` reports 
 - vscode-chupa/extension.js
 - vscode-chupa/README.md
 - tests/vscode_command_not_found.js
-- tests/unit/test_vscode_command_not_found.py
+- tests/integration/test_vscode_command_not_found.py
 
 ## Acceptance criteria
-1. `./dev.py test tests/unit/test_vscode_command_not_found.py` passes. Its test asserts the snapshot error equals `chupa command not found: .venv/bin/chupa-missing (run from <tmp>). Set chupa.command in settings.` with the temp directory in place of `<tmp>`. That rules out the raw `spawn .venv/bin/chupa-missing ENOENT` text and a message that omits the binary or the setting name.
-2. The same test file has a second test with `chupa.command` set to `['false']` (exists, exits 1, no stderr) and asserts the snapshot error does not contain `chupa command not found`, so non-ENOENT failures keep their existing text.
+1. `./dev.py test tests/integration/test_vscode_command_not_found.py` passes. Its test with binary `.venv/bin/chupa-missing` asserts the printed error equals `chupa command not found: .venv/bin/chupa-missing (run from <tmp>). Set chupa.command in settings.` with `str(tmp_path)` in place of `<tmp>`. That rules out the raw `spawn .venv/bin/chupa-missing ENOENT` text and a message that omits the binary or the setting name.
+2. The same file has a second test with binary `false` (exists, exits 1, no stderr) that asserts the printed error does not contain `chupa command not found`, so non-ENOENT failures keep their existing text.
 3. `node tests/vscode_task_identity.js` still prints three task definitions (the harness is unchanged and `extension.js` still activates under it).
 4. `vscode-chupa/README.md` contains `chupa command not found` and `chupa.command`.
 5. `./dev.py test` exits 0.
 
 ## Verification
 ```
-./dev.py test tests/unit/test_vscode_command_not_found.py
+./dev.py test tests/integration/test_vscode_command_not_found.py
 ./dev.py test
 ```
 
