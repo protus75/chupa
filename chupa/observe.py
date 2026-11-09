@@ -646,6 +646,10 @@ def snapshot(ctx) -> dict:
                 fields.append([title, value])
         if m.proposed_spec_paths:
             fields.append(["Proposed specs", "\n".join(m.proposed_spec_paths)])
+        if m.test_issue:
+            fields.append(["Test issue", m.test_issue])
+        if m.proposed_paths:
+            fields.append(["Proposed paths", "\n".join(m.proposed_paths)])
         path = box.path(m).resolve()
         link = None
         if m.resolution:

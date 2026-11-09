@@ -7,10 +7,10 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 from typing import Annotated, get_args
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from chupa.artifacts import NonBlank
-from chupa.box import BOX_DIR, Box, RereportJournal, read_registry
+from chupa.box import BOX_DIR, Box, RepoPath, RereportJournal, TestIssue, read_registry
 from chupa.config import Retro as RetroSettings
 from chupa.config import SpikeKind
 from chupa.driver import LlmStage
@@ -31,7 +31,15 @@ class RetroProposal(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
     fixed_failure: NonBlank
     overcorrection_risk: NonBlank
-    proposed_spec_paths: list[Annotated[str, Field(pattern=r"^specs/[a-z0-9_-]+\.md$")]] = Field(min_length=1)
+    proposed_spec_paths: list[Annotated[str, Field(pattern=r"^specs/[a-z0-9_-]+\.md$")]] = []
+    test_issue: TestIssue | None = None
+    proposed_paths: list[RepoPath] = []
+
+    @model_validator(mode="after")
+    def _coherent(self) -> "RetroProposal":
+        if bool(self.proposed_spec_paths) == bool(self.proposed_paths) or (self.test_issue is not None) != bool(self.proposed_paths):
+            raise ValueError("choose spec paths or test paths with a test issue")
+        return self
 
 
 class RetroArtifact(BaseModel):
@@ -208,7 +216,7 @@ def render_report(window: Window, evidence: dict, provenance: dict, tombstones: 
         "measurements": evidence,
         "calibration_divergence": evidence["elapsed_seconds"],
         "tombstone_digest": tombstones,
-        "proposals": artifact.model_dump()["proposals"],
+        "proposals": artifact.model_dump(exclude_defaults=True)["proposals"],
     }
     record["tombstone_reopens"] = [e.body for e in window.events if e.type == EventType.SIGNAL and e.body.get("kind") == "tombstone_auto_reopened"]
     from chupa.scorecard import project_scorecard
@@ -282,7 +290,7 @@ class Retro:
 
         box = storm_producer(root=c.config.state_dir / BOX_DIR, fs=c.fs, journal=c.journal, clock=c.clock)
         for proposal in artifact.proposals:
-            fields = proposal.model_dump()
+            fields = proposal.model_dump(exclude_defaults=True)
             canonical = json.dumps(fields, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
             proposal_id = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
             origin = f"retro-proposal/{report_key}/{proposal_id}"

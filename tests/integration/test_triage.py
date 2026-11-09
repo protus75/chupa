@@ -641,3 +641,22 @@ def test_dismiss_validates_and_commits_once(tmp_path, monkeypatch, capsys):
     committed = subjects(root)
     assert main(["dismiss", ids[0]], cwd=root, env=ENV, clock=Clock()) == 0
     assert f"{ids[0]}: already resolved -> declined-{ids[0]}" in capsys.readouterr().out and subjects(root) == committed  # Repeat does not commit again.
+
+
+def test_test_proposal_request(tmp_path, monkeypatch):
+    root, box = root_with_box(tmp_path)
+    box.enqueue(
+        message_class="retro_finding",
+        origin="retro",
+        summary="slow test",
+        retro_report_key="retro/1",
+        fixed_failure="slow test",
+        overcorrection_risk="lost coverage",
+        test_issue="slow",
+        proposed_paths=["tests/unit/test_x.py"],
+    )
+    llm = FakeLLM([reply("author"), author_reply("test-repair"), requisition_reply("approve")])
+    assert run(root, monkeypatch, llm) == 0
+    prompt = next(r.rendered for r in llm.requests if r.surface == "triage")
+    assert '"test_issue": "slow"' in prompt
+    assert '"proposed_paths": ["tests/unit/test_x.py"]' in prompt

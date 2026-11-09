@@ -133,3 +133,28 @@ async def test_completed_retro_proposals_reach_prompt_spec_merge(tmp_path, monke
     replay = await write_squash(ctx, ticket, reviewed, attempt=0)
     assert replay.commit == sha and await c.git.rev_parse(root, "main") == sha
     assert ctx.driver.journal.read() == history
+
+
+@pytest.mark.asyncio
+async def test_test_proposal_reaches_box(tmp_path):
+    root, box = root_with_box(tmp_path)
+    c = pause_checkout(root)
+    c = replace(c, config=load_config(None, cwd=root), control=build_control(c))
+    proposal = {"fixed_failure": "Slow suite", "overcorrection_risk": "Lost coverage", "test_issue": "slow", "proposed_paths": ["tests/unit/test_example.py"]}
+    hook = Retro(c, runner.bind(c, FakeLLM([json.dumps({"proposals": [proposal]})])))
+    c.journal.append(EventType.STATE_TRANSITION, {"to": "merged", "commit": None}, ticket="history")
+    await hook(forced=True)
+    (message,) = box.messages()
+    assert (message.message_class, message.test_issue, message.proposed_paths) == ("retro_finding", "slow", ["tests/unit/test_example.py"])
+
+
+@pytest.mark.asyncio
+async def test_spec_proposal_id_unchanged(tmp_path):
+    root, box = root_with_box(tmp_path)
+    c = pause_checkout(root)
+    c = replace(c, config=load_config(None, cwd=root), control=build_control(c))
+    hook = Retro(c, runner.bind(c, FakeLLM([json.dumps({"proposals": [PROPOSAL]})])))
+    c.journal.append(EventType.STATE_TRANSITION, {"to": "merged", "commit": None}, ticket="history")
+    await hook(forced=True)
+    pid = hashlib.sha256(json.dumps(PROPOSAL, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()[:16]
+    assert box.messages()[0].origin == f"retro-proposal/retro/1/{pid}"

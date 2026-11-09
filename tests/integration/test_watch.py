@@ -529,7 +529,21 @@ def test_snapshot_box_messages(tmp_path, monkeypatch):
     first, _ = box.enqueue(message_class="suggestion", origin="operator", summary="First message")
     second, _ = box.enqueue(message_class="failure_report", origin="engine", summary="Second message\nMore detail", stage="check", outcome="failed")
     box.resolve(first, Resolution(kind="ticket", link="fixed"))
+    third, _ = box.enqueue(
+        message_class="retro_finding",
+        origin="retro",
+        summary="Slow",
+        retro_report_key="retro/1",
+        fixed_failure="Slow",
+        overcorrection_risk="Coverage",
+        test_issue="slow",
+        proposed_paths=["tests/unit/test_x.py"],
+    )
     snap = watch.snapshot(ctx)
+    assert ["Test issue", "slow"] in snap["box"][0]["fields"]
+    assert ["Proposed paths", "tests/unit/test_x.py"] in snap["box"][0]["fields"]
+    snap["box"].pop(0)
+    snap["boxCounts"]["pending"] -= 1
     assert [row["id"] for row in snap["box"]] == [second, first]  # Arrival order would reverse these.
     resolved = snap["box"][1]
     assert (resolved["state"], resolved["status"], resolved["link"]) == ("resolved", "suggestion · author -> fixed", "tickets/fixed/ticket.md")  # Pending or a decision path loses the resolution.

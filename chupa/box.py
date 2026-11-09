@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Annotated, Literal, get_args
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from chupa.inbox import CAPS, EvidencePaths, ReportDescriptor, SelfReport, bounded
 from chupa.journal import EventType, Journal
@@ -16,6 +16,16 @@ from chupa.seams import FileSystem
 
 BOX_DIR = "box"
 MessageClass = Literal["suggestion", "failure_report", "override_report", "retro_finding", "bug_report"]
+TestIssue = Literal["unit-io", "slow", "drift", "flaky", "coverage-hard", "over-mocking", "weak-assertion", "shared-state", "duplicate", "skip-rot"]
+
+
+def _repo_path(value: str) -> str:
+    if not value.strip() or value.startswith("/") or ".." in value.split("/"):
+        raise ValueError("path must be nonblank and repository-relative without .. segments")
+    return value
+
+
+RepoPath = Annotated[str, AfterValidator(_repo_path)]
 MESSAGE_CLASSES = get_args(MessageClass)
 DECISIONS_DIR = "tickets/decisions"
 
@@ -78,6 +88,8 @@ class Message(_Strict):
     fixed_failure: NonBlank | None = None
     overcorrection_risk: NonBlank | None = None
     proposed_spec_paths: list[Annotated[str, Field(pattern=r"^specs/[a-z0-9_-]+\.md$")]] = []
+    test_issue: TestIssue | None = None
+    proposed_paths: list[RepoPath] = []
     reports: Annotated[int, Field(ge=0)] = 0
     reopen: bool = False
     report: ReportDescriptor | None = None
@@ -97,11 +109,11 @@ class Message(_Strict):
             raise ValueError("resolution is required exactly when resolved")
         evidence = (self.retro_report_key, self.fixed_failure, self.overcorrection_risk)
         if self.message_class == "retro_finding":
-            if any(value is None for value in evidence) or not self.proposed_spec_paths:
+            if any(value is None for value in evidence) or bool(self.proposed_spec_paths) == bool(self.proposed_paths) or (self.test_issue is not None) != bool(self.proposed_paths):
                 raise ValueError("retro_finding requires completed report and proposal evidence")
             if re.fullmatch(r"retro/[0-9]+", self.retro_report_key) is None:
                 raise ValueError("retro_report_key must name a completed retro/<seq> effect")
-        elif any(value is not None for value in evidence) or self.proposed_spec_paths:
+        elif any(value is not None for value in evidence) or self.proposed_spec_paths or self.test_issue is not None or self.proposed_paths:
             raise ValueError("proposal evidence is allowed only for retro_finding")
         return self
 
@@ -197,6 +209,8 @@ class Box:
         fixed_failure: str | None = None,
         overcorrection_risk: str | None = None,
         proposed_spec_paths: Sequence[str] = (),
+        test_issue: TestIssue | None = None,
+        proposed_paths: Sequence[str] = (),
     ) -> tuple[str, bool]:
         if self._arrival is not None and (not isinstance(occurrence_id, str) or not occurrence_id.strip()):
             raise BoxError("occurrence_id must be a nonblank producer-supplied string; supply a fresh id for a distinct arrival and reuse it on retry")
@@ -223,6 +237,8 @@ class Box:
                 fixed_failure=fixed_failure,
                 overcorrection_risk=overcorrection_risk,
                 proposed_spec_paths=list(proposed_spec_paths),
+                test_issue=test_issue,
+                proposed_paths=list(proposed_paths),
             )
         except ValidationError as exc:
             raise BoxError(f"invalid box message: {exc}") from exc

@@ -520,3 +520,24 @@ def test_retro_author_bridge_and_resolution_recover_without_another_call(tmp_pat
     bridges = [e for e in _events(root) if e.body.get("kind") == "retro_ticket_authored"]
     assert len(bridges) == 1 and bridges[0].key == "retro-ticket/durable-repair"
     assert len(llm.requests) == 3
+
+
+def test_test_proposal_request(tmp_path, monkeypatch):
+    root = make_root(tmp_path)
+    _routes(root)
+    box = _box(root)
+    box.enqueue(
+        message_class="retro_finding",
+        origin="retro",
+        summary="slow test",
+        retro_report_key="retro/1",
+        fixed_failure="slow test",
+        overcorrection_risk="lost coverage",
+        test_issue="slow",
+        proposed_paths=["tests/unit/test_x.py"],
+    )
+    llm = FakeLLM([reply("author"), author_reply("test-repair"), requisition_reply("approve")])
+    assert _run(root, monkeypatch, llm) == 0
+    prompt = next(r.rendered for r in llm.requests if r.surface == "author")
+    assert '"test_issue": "slow"' in prompt
+    assert '"proposed_paths": ["tests/unit/test_x.py"]' in prompt

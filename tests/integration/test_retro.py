@@ -295,7 +295,20 @@ def test_failed_retro_suppresses_window_until_completion(tmp_path):
 
 
 def test_artifact_is_closed_and_proposals_pair_the_risks():
+    valid = {"fixed_failure": "slow", "overcorrection_risk": "coverage", "test_issue": "slow", "proposed_paths": ["tests/unit/test_x.py"]}
+    assert RetroArtifact.model_validate({"proposals": [valid]}).proposals[0].proposed_paths == ["tests/unit/test_x.py"]
     for raw in (
+        *(
+            {"proposals": [proposal]}
+            for proposal in (
+                valid | {"proposed_spec_paths": ["specs/review.md"]},
+                {"fixed_failure": "x", "overcorrection_risk": "y"},
+                valid | {"proposed_paths": []},
+                valid | {"test_issue": "unknown"},
+                valid | {"proposed_paths": ["../x"]},
+                valid | {"proposed_paths": ["/abs"]},
+            )
+        ),
         {"proposals": [], "merged_count": 999},
         {"proposals": [{"fixed_failure": "failure"}]},
         {"proposals": [{"fixed_failure": "failure", "overcorrection_risk": "risk", "proposed_spec_paths": ["../x.md"]}]},
@@ -323,7 +336,7 @@ def test_receipt_uses_engine_provenance_usage_calibration_and_tombstones(tmp_pat
     assert asyncio.run(hook(forced=True))["commit"] != head
     report = (c.repo / "tickets/retro/000001.md").read_text()
     data = json.loads(report.split("```json\n")[1].split("\n```")[0])
-    assert data["provenance"] == {"head": head, "spec_version": "1.2", "at": c.clock().isoformat()}
+    assert data["provenance"] == {"head": head, "spec_version": "1.3", "at": c.clock().isoformat()}
     assert data["measurements"]["usd"] == 2.3 and data["measurements"]["merged_count"] == 1
     assert data["measurements"]["input_tokens"] == {"known": 0, "unknown_calls": 1}
     assert data["measurements"]["output_tokens"] == {"known": 7, "unknown_calls": 0}
