@@ -1,21 +1,15 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "53f0fbdcbb34a1ddd36697ef9c40f36682556560",
+  "produced_at_sha": "4630a0fc52a7f8a7ad66a4a242dbbabf0748b234",
   "stem": "core-drift-preflight",
-  "attempt": 3,
+  "attempt": 4,
   "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "reject",
-  "lessons": [
-    "The ticket's Scope fence omits tests/unit/test_hostfiles.py. stale_core in chupa/hostfiles.py is covered only by integration tests, so hostfiles.py measured 16.39% against the 17% unit coverage floor. No retry can pass while the fence stays as written.",
-    "The ticket owner should add tests/unit/test_hostfiles.py to the Scope fence and to the In-scope tests. Specify fake-git unit tests for stale_core covering current, drifted and missing committed files, plus a file absent at HEAD (GitError reads as None).",
-    "Do not lower the coverage threshold, and do not pad production code to raise the percentage. The attempt rejected both as dead ends, and neither is in the ticket's scope.",
-    "The full suite needed fixture updates for the new preflight, because other repos that run serve, drain or run must be adopted and committed. Before re-confirming, check that every fixture file this forces is inside the Scope fence (criterion 4).",
-    "This is the third attempt to fail the same way on the coverage gate. Do not retry unchanged. Re-run chupa review on the amended ticket until it approves, then re-confirm."
-  ],
-  "mechanical": null,
+  "verdict": "abandon-human",
+  "lessons": [],
+  "mechanical": "premise_bounce cap spent",
   "spec_version": "1.2",
-  "provider": "claude",
-  "model": "claude-opus-5-5"
+  "provider": null,
+  "model": null
 }
