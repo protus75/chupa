@@ -26,6 +26,17 @@ class Exec:
         return 0, "git version fixture\n", ""
 
 
+@pytest.fixture(autouse=True)
+def fake_core_for_existing_tests(monkeypatch, request):
+    if request.node.name.startswith("test_doctor_core_committed"):
+        return
+
+    async def current(*args):
+        return []
+
+    monkeypatch.setattr(doctor, "stale_core", current)
+
+
 def checks(root, *, venv=True, git_failure=False):
     executor = Exec(git_failure)
     results = asyncio.run(doctor.check(repo=root, config_path=None, env=ENV, exec_=executor, clock=Clock(), in_venv=venv))
@@ -63,8 +74,8 @@ def test_doctor_check_order(root, monkeypatch):
     monkeypatch.setattr(doctor.Journal, "read", journal_check)
     results = checks(root, venv=False)
     assert order == ["git", "config", "lock", "journal"]
-    assert [r.name for r in results] == ["venv", "git", "config", "lock", "journal"]
-    assert [r.passed for r in results] == [False, True, True, True, True]
+    assert [r.name for r in results] == ["venv", "git", "config", "lock", "journal", "core"]
+    assert [r.passed for r in results] == [False, True, True, True, True, True]
     assert doctor.render(results) == (
         "doctor: failed\n"
         "FAIL venv: no active Python venv; run `uv run python -m chupa doctor`\n"
@@ -72,6 +83,7 @@ def test_doctor_check_order(root, monkeypatch):
         "PASS config: config schema is valid\n"
         "PASS lock: no writer lock exists\n"
         "PASS journal: readable history (0 events)\n"
+        "PASS core: routed conduct files are current\n"
     )
     assert not (root / ".chupa").exists()
 
@@ -98,9 +110,9 @@ def test_doctor_failures(root, capsys, monkeypatch, failure):
         output = capsys.readouterr()
         assert output.err == "" and "Traceback" not in output.out
         lines = output.out.splitlines()
-        assert len(lines) == 6 and lines[0] == "doctor: failed"
-        assert [line.split()[1].rstrip(":") for line in lines[1:]] == ["venv", "git", "config", "lock", "journal"]
-        assert lines[["venv", "git", "config", "lock", "journal"].index(failure) + 1].startswith("FAIL")
+        assert len(lines) == 7 and lines[0] == "doctor: failed"
+        assert [line.split()[1].rstrip(":") for line in lines[1:]] == ["venv", "git", "config", "lock", "journal", "core"]
+        assert lines[["venv", "git", "config", "lock", "journal", "core"].index(failure) + 1].startswith("FAIL")
         if failure == "config":
             assert all("FAIL" in line and "repair the selected config" in line for line in lines[3:])
         elif failure == "lock":
@@ -149,3 +161,33 @@ def test_doctor_is_read_only(root, monkeypatch, capsys, history):
     finally:
         if holder.held:
             holder.release()
+
+
+@pytest.mark.parametrize("drifted", [False, True])
+def test_doctor_core_committed(root, drifted):
+    from chupa.seams import SubprocessExec
+    from tests.integration.test_cli import git_out
+
+    if drifted:
+        path = root / "CLAUDE.md"
+        path.write_bytes(path.read_bytes().replace(b"## Engine conduct", b"## Old conduct", 1))
+        git_out(root, "add", "CLAUDE.md")
+        git_out(root, "commit", "-m", "drift conduct")
+    results = asyncio.run(doctor.check(repo=root, config_path=None, env=ENV, exec_=SubprocessExec(), clock=Clock(), in_venv=True))
+    core = results[-1]
+    assert core.name == "core"
+    assert core.passed is not drifted
+    assert ("chupa core" in core.detail) is drifted
+    if not drifted:
+        assert core.detail == "routed conduct files are current"
+
+
+def test_doctor_core_exception_is_reported(root, monkeypatch):
+    async def broken(*args):
+        raise RuntimeError("git probe failed")
+
+    monkeypatch.setattr(doctor, "stale_core", broken)
+    results = checks(root)
+    assert [r.name for r in results] == ["venv", "git", "config", "lock", "journal", "core"]
+    assert not results[-1].passed
+    assert results[-1].detail == "git probe failed; install git or fix PATH, then rerun doctor"

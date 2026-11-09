@@ -439,3 +439,27 @@ async def test_committed_core_template_extraction_refuses(repo, source):
     [finding] = report.findings
     assert finding.path == "chupa/hostfiles.py" and finding.code == "core_drift"
     assert finding.paved_road == "define CORE_TEMPLATE as one literal bytes assignment"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("state", ["current", "drifted", "missing"])
+async def test_stale_core_reads_head(root, state):
+    from chupa.config import load_config
+    from chupa.git import Git
+    from chupa.seams import SubprocessExec
+    from tests.integration.test_cli import ENV, git_out
+
+    path = root / "CLAUDE.md"
+    current = path.read_bytes()
+    if state != "current":
+        path.write_bytes(current.replace(b"## Engine conduct", b"## Old conduct", 1) if state == "drifted" else b"project rules\n")
+        git_out(root, "add", "CLAUDE.md")
+        git_out(root, "commit", "-m", "change conduct")
+        path.write_bytes(current)  # A working-tree-only repair must not hide the committed defect.
+    messages = await hostfiles.stale_core(root, load_config(None, cwd=root), Git(SubprocessExec(), env=ENV, timeout=30.0))
+    if state == "current":
+        assert messages == []
+    else:
+        assert len(messages) == 1
+        assert f"CLAUDE.md: chupa core is {state}" in messages[0]
+        assert "run `chupa core`" in messages[0]

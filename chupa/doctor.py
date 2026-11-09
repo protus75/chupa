@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from chupa.config import load_config
 from chupa.git import Git
+from chupa.hostfiles import stale_core
 from chupa.journal import Journal
 from chupa.lockfile import LockHeld, _read_holder
 
@@ -38,8 +39,9 @@ async def check(*, repo, config_path, env, exec_, clock, in_venv):
         results.append(Check(name, passed, " ".join(str(detail).split())))
 
     row("venv", in_venv, "active Python venv" if in_venv else "no active Python venv; run `uv run python -m chupa doctor`")
+    git = Git(exec_, env={"PATH": env.get("PATH", "")}, timeout=30.0)
     try:
-        out = await Git(exec_, env={"PATH": env.get("PATH", "")}, timeout=30.0)._run(repo, "--version")
+        out = await git._run(repo, "--version")
         row("git", True, out.strip())
     except Exception as exc:
         row("git", False, f"{exc}; install git or fix PATH")
@@ -58,6 +60,14 @@ async def check(*, repo, config_path, env, exec_, clock, in_venv):
             row(name, True, detail)
         except Exception as exc:
             row(name, False, f"{exc}; " + ("restore journal readability from backup and rerun doctor" if name == "journal" else "wait for the writer to exit or stop it; never delete the lockfile"))
+    if config is None:
+        row("core", False, "state directory unavailable; repair the selected config and rerun doctor")
+    else:
+        try:
+            messages = await stale_core(repo, config, git)
+            row("core", not messages, "; ".join(messages) if messages else "routed conduct files are current")
+        except Exception as exc:
+            row("core", False, f"{exc}; install git or fix PATH, then rerun doctor")
     return results
 
 

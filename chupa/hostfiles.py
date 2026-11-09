@@ -488,6 +488,24 @@ def refresh(paths: Sequence[Path], fs: FileSystem) -> None:
         fs.write(path, fresh)
 
 
+async def stale_core(repo, config, git) -> list[str]:
+    """Report routed conduct blocks at HEAD that need adoption or refresh."""
+    from chupa.git import GitError
+    from chupa.providers import routed_conduct_paths
+
+    messages = []
+    for path in routed_conduct_paths(config, repo):
+        rel = path.relative_to(repo).as_posix()
+        try:
+            data = (await git._run(repo, "show", f"HEAD:{rel}")).encode("utf-8")
+        except GitError:
+            data = None
+        result = classify_core(data)
+        if result.state != "current":
+            messages.append(f"{rel}: chupa core is {result.state}; {result.paved_road}")
+    return messages
+
+
 async def committed_core(workspace, config, git):
     """Gather raw candidate bytes only when their blob identities match HEAD."""
     from chupa.artifacts import Finding

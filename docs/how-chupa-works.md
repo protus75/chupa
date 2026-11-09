@@ -48,7 +48,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `lint [stem ...]` | no | Validates ticket grammar, intake claims, and committable bug evidence without running tickets or writing files, journal events, or git state. With no stems, checks every ticket except those settled or rejected in the journal; with no journal, checks all tickets. Prints each finding and its fix, then `lint: <valid>/<total> tickets valid`. Exits 0 when valid, 1 for findings, or 2 for a missing named ticket or unreadable tickets directory. |
 | `covmap` | no | Runs `review.coverage_map.argv` and writes `<state_dir>/coverage-map.json`; exits 0 on success or 2 on refusal. |
 | `covgate [--gate PATH] [--report PATH] -- <argv>` | no | Runs the unit-test command, then checks its fresh coverage report against `test-gate.toml` (default report `coverage.json`; paths relative to the invocation directory). Returns the command’s nonzero exit code, or 0 on coverage pass, 1 on threshold failures, or 2 for a refusal. |
-| `doctor` | no | Checks venv, git, config load, lock probe, journal readability. Exit 2 on any failure. |
+| `doctor` | no | Checks venv, git, config load, lock probe, journal readability, and core check. Exit 2 on any failure. |
 | `prompt <diagnose\|running\|review> <stem>` | no | Prints an operator prompt for an existing ticket without writing state; `diagnose` selects the running prompt for a live running ticket. |
 | `core` | no | Rewrites the managed `chupa:core` block in each routed agent's conduct file (section 12). |
 | `migrate-config` | no | Migrates a `schema_version: 0` config to the current schema. |
@@ -723,6 +723,7 @@ The block carries only process rules that hold for every host; codebase rules be
   the block is replaced. Project text outside the block is the host's, but a paragraph that
   tells chupa how to run (for example "chupa must ...") is refused.
 - The `core_drift` gate fails a ticket when a routed conduct file's block is not current.
+- `serve`, `drain` and `run` refuse to start when a committed routed conduct block is stale; `doctor` reports this as a `core` row.
 - `doctor` checks a host's setup without changing anything.
 - The `chupa.testreport` pytest plugin accepts `--chupa-results PATH` and writes JSON with
   `schema_version: 1` and a `tests` map from pytest node IDs to `passed`, `failed`, or `skipped`.

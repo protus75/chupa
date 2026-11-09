@@ -133,6 +133,11 @@ def root(tmp_path: Path) -> Path:
     (root / "config.yaml").write_text(CONFIG)
     (root / ".gitignore").write_text(".chupa/\n")
     conduct = adopt_conduct(root)
+    # Some consumers replace the fixture's routing with a Codex configuration.
+    from chupa.hostfiles import render
+
+    (root / "AGENTS.md").write_bytes(render(b""))
+    conduct.append("AGENTS.md")
     g = Git(SubprocessExec(), env=ENV, timeout=30.0)
 
     async def seed():
@@ -642,7 +647,7 @@ def test_doctor_cli(root, capsys):
     assert cli(root, "doctor", stages=lambda c: pytest.fail("pipeline constructed")) == 0
     lines = capsys.readouterr().out.splitlines()
     assert lines[0] == "doctor: ok"
-    assert [line.split(":", 1)[0] for line in lines[1:]] == [f"PASS {n}" for n in ("venv", "git", "config", "lock", "journal")]
+    assert [line.split(":", 1)[0] for line in lines[1:]] == [f"PASS {n}" for n in ("venv", "git", "config", "lock", "journal", "core")]
 
 
 def core_config(root, routes):

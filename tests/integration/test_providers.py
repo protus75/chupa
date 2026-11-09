@@ -623,6 +623,10 @@ def test_cli_failure_classifier_is_active(tmp_path, monkeypatch):
     from chupa.driver import LlmStage
     from chupa.tickets import validate_ticket
 
+    async def current(*args):
+        return []
+
+    monkeypatch.setattr(__main__.hostfiles, "stale_core", current)
     config(tmp_path)
     hits, results = [], []
     original = CliAdapter.classify_failure

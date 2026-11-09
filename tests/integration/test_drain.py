@@ -1684,3 +1684,18 @@ async def test_requested_retro_skipped_on_stop(root):
     report, trace = await requested_retro_scenario(root, stop=True)
     assert report.stopped and report.merged == ["aa"]
     assert trace == ["aa"]  # Stop takes precedence over the pending retro.
+
+
+def test_drain_refuses_committed_core_drift_before_dispatch(root, capsys):
+    commit_ticket(root, "work", confirmed())
+    path = root / "CLAUDE.md"
+    path.write_bytes(path.read_bytes().replace(b"## Engine conduct", b"## Old conduct", 1))
+    git_out(root, "add", "CLAUDE.md")
+    git_out(root, "commit", "-m", "drift conduct")
+    script = Script()
+    assert drain(root, script) == 2
+    assert "CLAUDE.md: chupa core is drifted" in capsys.readouterr().err
+    assert script.calls == []
+    lock = Lockfile(root / ".chupa/state", instance_id="contender", clock=Clock())
+    lock.acquire()
+    lock.release()

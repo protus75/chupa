@@ -347,6 +347,10 @@ def main(
             fs=LocalFileSystem(),
             clock=clock,
         )
+        if args.verb in {"serve", "drain", "run"}:
+            messages = asyncio.run(hostfiles.stale_core(repo, config, checkout.git))
+            if messages:
+                raise runner.Refusal("; ".join(messages), f"run chupa core, then commit the conduct files and retry {args.verb}")
         if args.verb == "suggest":
             if not args.summary.strip():
                 raise runner.Refusal("blank summary", "pass the idea as one quoted argument")
