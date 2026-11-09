@@ -375,7 +375,7 @@ which counts failed terminal `state_transition` events directly and journals no 
 |---|---|---|
 | `attempts` | 5 | total failed attempts per lineage |
 | `diagnosis` | 3 | each diagnosis call |
-| `retry` | 3 (never above `diagnosis`) | each drain or serve re-offer |
+| `retry` | 3 (never above `diagnosis`) | each drain or serve re-offer, except after `premise_failed`, a provider drought, or an `infra_error` or `timeout` that carries no escalation rung |
 | `infra` | 3 | each `infra_error` or `timeout` (not droughts) |
 | `premise_bounce` | 1 | each `premise_failed` (not over-bound renders or `requisition` snags) |
 | `quarantine` | 5 | flake quarantine size |
@@ -416,7 +416,7 @@ terminal carries a Reject routing marker. `reject` refuses settled stems.
 - **`reject <stem>` (kill)** stamps `state: rejected`, commits it, and files one Suggestion Box
   `failure_report` per confirmed ticket that depended on it ("re-wire, re-scope, or reject it").
   Those dependents stay blocked.
-- **Machine keep:** drain and serve use `awaiting_operator` and `reofferable` to hold queued stems with a spent cap or `ticket_changed` and re-offer others with budget. `record_reoffer` journals `keep actor: machine` for a queued stem, then draws `retry` unless the terminal is `premise_failed` or carries `provider_drought`. A machine keep never resets caps. The snapshot holds Reject-queue stems only when they await the operator (content parks remain separate).
+- **Machine keep:** drain and serve use `awaiting_operator` and `reofferable` to hold queued stems with a spent cap or `ticket_changed` and re-offer others with budget. `record_reoffer` journals `keep actor: machine` for a queued stem, then draws `retry` unless the terminal is `premise_failed`, carries `provider_drought`, or is `infra_error` or `timeout` without an escalation rung. A machine keep never resets caps. The snapshot holds Reject-queue stems only when they await the operator (content parks remain separate).
 - `confirm` on a `draft` ticket promotes it to `confirmed` instead.
 
 Keep and kill normally require a person at an interactive terminal to answer `y` at the prompt before the verdict proceeds. `--yes` and `--extension` skip the terminal check and prompt.
@@ -456,7 +456,7 @@ Keep and kill normally require a person at an interactive terminal to answer `y`
    whose `stuck` exceeds `drain.max_ticket_minutes` (default 90).
    Each pick records this order and its hints in `queue.json`; `watch` displays it.
 4. **Quiescence:** when nothing is eligible, it re-offers parked stems with budget (drawing
-   `retry`), and stops when nothing changes.
+   `retry`, subject to the exclusions in section 6.6), and stops when nothing changes.
 5. **Report:** merged, parked (with reasons and the command to continue), blocked on depends,
    invalid tickets excluding those settled or rejected in the journal, drafts awaiting confirm. A requisition
    park lists its review findings under the parked line.
@@ -477,7 +477,7 @@ publishes `state_dir/control/active.json`, and runs four loops (every 0.1s):
   its last good version.
 - **Dispatch:** the scheduler runs one ticket at a time. It waits while
   `scheduler.max_unmerged` (default 2) finished tickets are waiting to merge, while paused, or
-  while a stem is held (Reject queue awaiting an operator, storm, drought, or a premise or diff-budget park at unchanged ticket content). After a failed terminal, serve puts the ticket back for the re-offer rule and draws `retry` on re-offer as drain does. Each fresh dispatch reviews committed content without an existing approval before Implement. Among eligible tickets,
+  while a stem is held (Reject queue awaiting an operator, storm, drought, or a premise or diff-budget park at unchanged ticket content). After a failed terminal, serve puts the ticket back for the re-offer rule and draws `retry` on re-offer as drain does, subject to the exclusions in section 6.6. Each fresh dispatch reviews committed content without an existing approval before Implement. Among eligible tickets,
   `## Runs before` orders named stems after the ticket naming them; priority, authored age,
   and stem break ties. Edges to ineligible stems never block dispatch.
 - **Merge queue:** serial admission (section 7.2.1).

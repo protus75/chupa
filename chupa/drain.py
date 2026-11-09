@@ -92,7 +92,7 @@ def record_reoffer(journal, events: Iterable[Event], stem: str, sha: str) -> Non
     if stem in reject_queue(history):
         journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}, ticket=stem)
     body = next(e.body for e in reversed(history) if e.type == EventType.STATE_TRANSITION and e.ticket == stem and e.body.get("to") in TERMINAL_STATES)
-    if body.get("to") != PREMISE and "provider_drought" not in body:
+    if body.get("to") != PREMISE and "provider_drought" not in body and not (body.get("to") in {"infra_error", "timeout"} and "rung" not in body):
         caps.consume(journal, stem, "retry", sha, rung=body.get("rung"))
 
 

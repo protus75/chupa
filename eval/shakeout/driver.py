@@ -57,13 +57,10 @@ async def _stuck_budget_kill(bench: Bench) -> Observation:
     bench.add_ticket(stem, _ticket(stem, "stuck.txt", "true"))
     bench.add_ticket(next_stem, _ticket(next_stem, "followup.txt", "test -f followup.txt"))
     _configure_diagnosis(bench)
+    bench.configure(bench.config.model_copy(update={"caps": bench.config.caps.model_copy(update={"infra": 1})}))
     bench.script(
         [
             lambda _req: (bench.advance_sleep(), HANG)[1],
-            _diagnosis("reject"),
-            "not JSON",
-            "not JSON",
-            _diagnosis("reject"),
             lambda req: _commit(req, {"followup.txt": "ok\n"}),
             json.dumps({"verdict": "approve", "summary": "approved", "findings": []}),
         ]
