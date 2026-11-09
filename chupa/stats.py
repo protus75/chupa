@@ -12,6 +12,14 @@ SETTLED = {"merged", "already_satisfied", "rejected"}
 SURFACES = {"requisition_review", "implement", "review", "diagnose", "rework", "retro"}
 
 
+def _latest_settled(events, now):
+    latest = {}
+    for event in events:
+        if event.type == EventType.STATE_TRANSITION and event.ticket and event.body.get("to") in SETTLED and datetime.fromisoformat(event.ts) <= now:
+            latest[event.ticket] = event
+    return latest
+
+
 def window_start(events, now, window):
     match = re.fullmatch(r"([1-9][0-9]*)([hdt])", window)
     if not match:
@@ -19,10 +27,7 @@ def window_start(events, now, window):
     number, unit = int(match[1]), match[2]
     if unit != "t":
         return now - timedelta(**{"hours" if unit == "h" else "days": number})
-    latest = {}
-    for event in events:
-        if event.type == EventType.STATE_TRANSITION and event.ticket and event.body.get("to") in SETTLED and datetime.fromisoformat(event.ts) <= now:
-            latest[event.ticket] = datetime.fromisoformat(event.ts)
+    latest = {stem: datetime.fromisoformat(event.ts) for stem, event in _latest_settled(events, now).items()}
     times = sorted(latest.values(), reverse=True)
     return times[number - 1] if len(times) >= number else datetime.fromisoformat(events[0].ts) if events else now
 
@@ -47,10 +52,7 @@ def project_stats(events, kinds, checks, *, now, window):
         return start <= datetime.fromisoformat(event.ts) <= now
 
     selected = [e for e in events if inside(e)]
-    settled = {}
-    for e in events:
-        if e.type == EventType.STATE_TRANSITION and e.ticket and e.body.get("to") in SETTLED and datetime.fromisoformat(e.ts) <= now:
-            settled[e.ticket] = e
+    settled = _latest_settled(events, now)
     settled = {stem: e for stem, e in settled.items() if inside(e)}
     states = Counter(e.body["to"] for e in settled.values())
     durations, groups, attempts, intake = defaultdict(list), {}, {}, {}
