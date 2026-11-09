@@ -69,10 +69,20 @@ def test_worker_does_not_write(tmp_path):
     assert not path.exists()
 
 
+def test_read_schema_2():
+    data = {"schema_version": 2, "tests": {"test_a": "failed"}, "seconds": {"test_a": 1.5}}
+    assert read_results(json.dumps(data)) == {"test_a": "failed"}
+
+
 @pytest.mark.parametrize(
     "data",
     [
         {"schema_version": 2, "tests": {}},
+        {"schema_version": 2, "tests": {"test_a": "passed"}, "seconds": {"test_b": 1.0}},
+        {"schema_version": 2, "tests": {"test_a": "passed"}, "seconds": {"test_a": -1.0}},
+        {"schema_version": 2, "tests": {"test_a": "passed"}, "seconds": {"test_a": float("nan")}},
+        {"schema_version": 2, "tests": {"test_a": "passed"}, "seconds": {"test_a": True}},
+        {"schema_version": 3, "tests": {}, "seconds": {}},
         {"schema_version": "1", "tests": {}},
         {"schema_version": True, "tests": {}},
         {"schema_version": 1, "tests": {"test_a": "error"}},

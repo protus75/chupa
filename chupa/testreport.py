@@ -1,6 +1,7 @@
 """Pytest per-test results and their strict reader."""
 
 import json
+import math
 from pathlib import Path
 
 from chupa.seams import LocalFileSystem
@@ -45,13 +46,23 @@ def read_results(text: str) -> dict[str, str]:
         data = json.loads(text)
     except (ValueError, TypeError) as exc:
         raise ResultsInvalid(f"invalid JSON: {exc}") from exc
-    if not isinstance(data, dict) or set(data) != {"schema_version", "tests"}:
-        raise ResultsInvalid("expected only schema_version and tests keys")
-    if type(data["schema_version"]) is not int or data["schema_version"] != 1:
-        raise ResultsInvalid("schema_version must be integer 1")
+    if not isinstance(data, dict):
+        raise ResultsInvalid("results must be an object")
+    version = data.get("schema_version")
+    if type(version) is not int or version not in {1, 2}:
+        raise ResultsInvalid("schema_version must be integer 1 or 2")
+    expected = {"schema_version", "tests"} if version == 1 else {"schema_version", "tests", "seconds"}
+    if set(data) != expected:
+        raise ResultsInvalid("unexpected results keys")
     tests = data["tests"]
     if not isinstance(tests, dict):
         raise ResultsInvalid("tests must be an object")
+    if version == 2:
+        seconds = data["seconds"]
+        if not isinstance(seconds, dict) or seconds.keys() != tests.keys():
+            raise ResultsInvalid("seconds keys must match tests keys")
+        if any(type(value) is not float or not math.isfinite(value) or value < 0 for value in seconds.values()):
+            raise ResultsInvalid("seconds values must be finite nonnegative floats")
     for nodeid, outcome in tests.items():
         if not isinstance(nodeid, str) or not nodeid.strip():
             raise ResultsInvalid("test node ID must be a nonblank string")
