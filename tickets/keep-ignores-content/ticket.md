@@ -46,13 +46,13 @@ After this change, the extension sends `confirm <stem> --extension`. That keep i
     - Ready one stem and route it to the Reject queue, then `confirm --yes` it.
     - Route it to the Reject queue again with `ticket.md` unchanged. A second `confirm --yes` exits 2 with `already kept at this ticket content`.
     - `confirm --extension` then exits 0, and the journal holds two operator `keep` signals with the same `ticket_sha`, not one.
-  - `tests/integration/test_control_cli.py`, the same repeat with serve live. Both CLI calls exit 0 (`submitted`); the outcome shows only after `settle_admissions`:
+  - `tests/integration/test_control_cli.py`, the same repeat with serve live. After the first keep settles, the test appends a second `state_transition` with `routed: reject_queue` for the stem, leaving `ticket.md` unchanged, and then submits the `--yes` and `--extension` requests. Both CLI calls exit 0 (`submitted`); the outcome shows only after `settle_admissions`:
     - For a `--yes` request, the `status` render contains `already kept at this ticket content` and the journal still has exactly one keep.
     - For an `--extension` request, a second keep is journaled with `actor: operator` and the same `ticket_sha`.
   - `tests/unit/test_verdict_extension.py` (new; no disk, network or process). It covers the new lines in `runner.py`, `control.py`, `serve.py` and `__main__.py` so each file stays at or above its `test-gate.toml` floor; no floor is lowered. Cases:
     - `validate_request` accepts actor `extension` and still rejects an unknown actor.
     - `settle_admissions`, with a fake journal holding one accepted confirm decision, passes `body["actor"]` to a fake verdict callback.
-    - `verdict_locked`, with `runner.intake` monkeypatched to refuse nothing, no ticket file (the stem is known only from the journal, so `ticket_sha` is `None`), and a fake journal holding a Reject-queue terminal and a prior operator keep with `ticket_sha: None`:
+    - `verdict_locked`, with `runner.intake` monkeypatched to refuse nothing, no ticket file (the stem is known only from the journal, so `ticket_sha` is `None`), and a fake journal holding, in order, a Reject-queue terminal, an operator keep with `ticket_sha: None`, and a second `state_transition` with `routed: reject_queue`:
       - `extension=True` journals a keep.
       - `extension=False` raises `Refusal` naming `already kept at this ticket content`.
     - `Serve.apply_verdict`, where it can run with fakes, passes `extension=True` only for actor `extension`.
