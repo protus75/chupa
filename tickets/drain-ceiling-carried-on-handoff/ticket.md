@@ -29,12 +29,14 @@ Simplest approach: one new `drain` CLI option and one new keyword on `drain()`/`
 - In: add `--deadline` to the `drain` subparser in `chupa/__main__.py` (parsed with `datetime.fromisoformat`, default none) and pass it to `drain.drain` as a new keyword `deadline`. `drain()` forwards it to `_Drain`; `_Drain.__init__` uses it when given and computes `clock() + max_runtime_hours` otherwise. In the handoff's `reexec_argv([...])` list in `chupa/drain.py`, insert `--deadline` and `render_ts(run.deadline)` after the `--parked` pairs and before the conditional `--stop-lifecycle` pair, so `--stop-lifecycle <id>` stays last. Update the two argv assertions in `tests/integration/test_drain_upgrade.py` and add the regression test. Add a new unit test file `tests/unit/test_drain_deadline.py` with three tests. `test_drain_uses_the_carried_deadline` and `test_drain_computes_its_deadline_when_none_is_carried` each build `_Drain` from a fake checkout (a `SimpleNamespace` with a fixed `clock` and `config.drain.max_runtime_hours`, no disk or process access): the first passes a deadline that differs from `clock() + hours` and asserts `run.deadline` equals the passed value; the second passes none and asserts `run.deadline == clock() + hours`. `test_drain_parser_reads_a_carried_deadline` calls `chupa.__main__._parser().parse_args(["drain", "--deadline", "2026-01-01T02:00:00+00:00"])` and asserts `args.deadline == datetime(2026, 1, 1, 2, tzinfo=UTC)`, and asserts `args.deadline is None` when the option is omitted. Add one sentence to `docs/how-chupa-works.md` section 7.1 saying the ceiling is carried across a self-upgrade handoff.
 - Other callers are unaffected: the new `deadline` keyword on `drain()`/`_Drain` defaults to None and keeps today's computed deadline, and `--deadline` is optional with default None, so existing direct `_Drain(...)` and `main(["drain"])` callers and every argv assertion outside `tests/integration/test_drain_upgrade.py` are unaffected (`test_drain_upgrade.py` asserts the full handoff argv; `tests/integration/test_drain.py`'s stop-upgrade test checks only `argv[-2:] == ["--stop-lifecycle", <id>]`, which stays true because `--deadline` goes before that pair; `tests/integration/test_closed_sets.py` checks only `reexec_argv`'s last element). No other test file needs a change.
 - Out: `serve` (its handoff does not use `max_runtime_hours`); the `drain_halted` signal body; `reexec_argv`'s signature; `CHUPA_PLAN.md` (frozen).
+- In: a carried reproducer `tests/regress_drain_deadline.py`, shaped like `tests/regress_dev_test_args.py`. It runs `pytest.main(["tests/integration/test_drain_upgrade.py", "-k", "deadline", "-q", "-p", "no:cacheprovider"])` in-process with stdout redirected to stderr, then prints exactly one JSON object: `{"regression_result": "pass"}` with exit 0 when pytest returns 0, `{"regression_result": "defect"}` with exit 1 when pytest returns 1 (the test failed), and `{"regression_result": "error"}` with exit 2 otherwise (including no test collected) or on any exception. It uses only code present at the base commit; on the base overlaid with the carried files the named test fails, so it prints `defect`.
 
 ## Scope fence
 - chupa/drain.py
 - chupa/__main__.py
 - tests/integration/test_drain_upgrade.py
 - tests/unit/test_drain_deadline.py
+- tests/regress_drain_deadline.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
@@ -43,12 +45,14 @@ Simplest approach: one new `drain` CLI option and one new keyword on `drain()`/`
 3. `./dev.py test tests/unit/test_drain_deadline.py` exits 0: `test_drain_uses_the_carried_deadline` passes a deadline different from `clock() + hours` and asserts `run.deadline` equals it, ruling out a `_Drain` that ignores the passed value and recomputes; `test_drain_computes_its_deadline_when_none_is_carried` asserts the computed value when none is passed; `test_drain_parser_reads_a_carried_deadline` asserts `args.deadline == datetime(2026, 1, 1, 2, tzinfo=UTC)` for the given option and `args.deadline is None` when omitted, ruling out a parser that drops the option.
 4. `chupa/drain.py` contains `"--deadline"` in the handoff argv.
 5. `./dev.py test` exits 0.
+6. `uv run python tests/regress_drain_deadline.py` prints only `{"regression_result": "pass"}` and exits 0 on the fixed code, and prints only `{"regression_result": "defect"}` with a nonzero exit on the unfixed code, which rules out a reproducer whose stdout carries pytest output or whose verdict ignores the test result.
 
 ## Regression
 ```
-./dev.py test tests/integration/test_drain_upgrade.py -k deadline
+uv run python tests/regress_drain_deadline.py
 ```
 - carries: tests/integration/test_drain_upgrade.py
+- carries: tests/regress_drain_deadline.py
 
 ## Verification
 ```
