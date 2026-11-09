@@ -25,6 +25,22 @@ def reply(verdict, findings=None):
     return json.dumps({"verdict": verdict, "summary": "reviewed", "findings": findings or []})
 
 
+def test_review_preflight_failure_refuses(tmp_path, monkeypatch, capsys):
+    root = make_root(tmp_path)
+    write(root, "candidate", ticket())
+
+    async def preflight(self):
+        return ["probe refused"]
+
+    monkeypatch.setattr("chupa.providers.ProviderLLM.preflight", preflight)
+    assert main(["review", "candidate"], cwd=root, env=ENV, clock=Clock()) == 2
+    assert "chupa review: probe refused" in capsys.readouterr().err
+    assert verdicts(root) == []
+    lock = Lockfile(root / ".chupa/state", instance_id="probe", clock=Clock())
+    lock.acquire()
+    lock.release()
+
+
 def test_review_approve_journals_verdict_for_committed_blob(tmp_path, monkeypatch):
     root = make_root(tmp_path)
     write(root, "candidate", ticket())

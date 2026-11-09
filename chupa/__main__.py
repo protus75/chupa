@@ -60,6 +60,16 @@ def _clock() -> datetime:
     return datetime.now(UTC)
 
 
+async def _preflighted_llm(checkout: runner.Checkout, session: ProviderSession) -> ProviderLLM:
+    llm = ProviderLLM(checkout.config, exec_=checkout.exec_, fs=checkout.fs, env=checkout.env, cwd=checkout.repo, timeout=runner.call_timeout(checkout.config), session=session)
+    session.timers.reconstruct()
+    session.timers.fire_due()
+    problems = await llm.preflight() if session.active else []
+    if problems:
+        raise ProviderSetupError("; ".join(problems))
+    return llm
+
+
 def build_control(checkout: runner.Checkout) -> PauseConsumer:
     """Compose without reading requests, publishing discovery, or starting tasks."""
     from chupa.daemon import storm_producer
@@ -450,12 +460,7 @@ def main(
                 session = build_control(checkout).providers
                 try:
                     triage.validate_ids(checkout, args.ids)
-                    llm = ProviderLLM(config, exec_=exec_, fs=checkout.fs, env=env, cwd=repo, timeout=runner.call_timeout(config), session=session)
-                    session.timers.reconstruct()
-                    session.timers.fire_due()
-                    problems = await llm.preflight() if session.active else []
-                    if problems:
-                        raise ProviderSetupError("; ".join(problems))
+                    llm = await _preflighted_llm(checkout, session)
                     return await triage.triage_pass(checkout, llm, frozenset(args.ids))
                 finally:
                     try:
@@ -544,12 +549,7 @@ async def _review(checkout: runner.Checkout, stem: str) -> int:
     unmerged = [dep for dep in ticket.depends if states.get(dep) != "merged"]
     session = build_control(checkout).providers
     try:
-        llm = ProviderLLM(checkout.config, exec_=checkout.exec_, fs=checkout.fs, env=checkout.env, cwd=checkout.repo, timeout=runner.call_timeout(checkout.config), session=session)
-        session.timers.reconstruct()
-        session.timers.fire_due()
-        problems = await llm.preflight() if session.active else []
-        if problems:
-            raise ProviderSetupError("; ".join(problems))
+        llm = await _preflighted_llm(checkout, session)
         driver = Driver.from_config(checkout.config, llm=llm, env=checkout.env, clock=checkout.clock, sleep=checkout.sleep, fs=checkout.fs)
         driver.journal = checkout.journal
         driver.effects = Effects(checkout.journal)

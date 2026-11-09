@@ -100,6 +100,20 @@ def run(root: Path, monkeypatch, llm: FakeLLM) -> int:
     return main(["triage"], cwd=root, env=ENV, clock=Clock())
 
 
+def test_triage_preflight_failure_refuses(tmp_path, monkeypatch, capsys):
+    root, _ = root_with_box(tmp_path)
+
+    async def preflight(self):
+        return ["probe refused"]
+
+    monkeypatch.setattr("chupa.providers.ProviderLLM.preflight", preflight)
+    assert main(["triage"], cwd=root, env=ENV, clock=Clock()) == 2
+    assert "chupa triage: probe refused" in capsys.readouterr().err
+    lock = Lockfile(root / ".chupa/state", instance_id="probe", clock=Clock())
+    lock.acquire()
+    lock.release()
+
+
 def subjects(root: Path) -> list[str]:
     return git_out(root, "log", "--format=%s").splitlines()
 
