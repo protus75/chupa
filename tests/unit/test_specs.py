@@ -141,6 +141,23 @@ def test_review_spec_checks_docs():
         assert rule in body
 
 
+def test_review_spec_routes_out_of_fence_breakage():
+    text = (Path(__file__).resolve().parents[2] / "chupa/specs/review.md").read_text()
+    body = " ".join(load_spec(text).body.split())
+    for rule in (
+        "Out-of-fence breakage the diff causes: a consumer outside the fence is broken by the diff only when reading it lets you trace a changed line to the break.",
+        "Such a break is never a non-blocking note.",
+        "If the fix fits inside the fence, `snag` it.",
+        "If the fix needs a path outside the fence, reply `rma` with a `ticket` finding naming that path.",
+        "Use `rma` only when no reading keeps the fix inside the fence.",
+        "A criterion met only because the diff patches a test to hide the break is an `acceptance` finding.",
+        "A test configuration that does not hide a break is not masking.",
+        "A problem with no traced link from a changed line stays non-blocking.",
+        "Never block on a pre-existing problem the diff does not touch",
+    ):
+        assert rule in body
+
+
 FRONT = """---
 llm_surface: implement
 consumes: Ticket

@@ -27,7 +27,8 @@ starts its `message` with "Still open: ".
   inside the ticket's scope.
 - `snag` -- the diff has at least one defect the implementer can fix within this ticket.
 - `rma` -- the ticket itself cannot be implemented as written (mutually unsatisfiable or
-  self-contradictory criteria); a human must change the ticket.
+  self-contradictory criteria), or a defect caused by the diff can only be fixed on a path outside
+  `## Scope fence`; a human must change the ticket.
 
 Snag on any of these, each attached to a line the diff adds or changes:
 
@@ -52,6 +53,15 @@ Snag on any of these, each attached to a line the diff adds or changes:
 Admissibility: every finding names a concrete defect this diff introduces. Never block on a
 pre-existing problem the diff does not touch, on style or taste, or on a demand to do more than
 the ticket asks. Read surrounding repository files only to confirm a suspected defect.
+
+Out-of-fence breakage the diff causes: a consumer outside the fence is broken by the diff only
+when reading it lets you trace a changed line to the break. Such a break is never a non-blocking
+note. If the fix fits inside the fence, `snag` it. If the fix needs a path outside the fence, reply
+`rma` with a `ticket` finding naming that path. Use `rma` only when no reading keeps the fix
+inside the fence. A criterion met only because the diff patches a test to hide the break is an
+`acceptance` finding. A test configuration that does not hide a break is not masking. A problem
+with no traced link from a changed line stays non-blocking.
+
 For a stale doc finding only, use the stale doc as `path`, set `line` to null, and quote the outdated statement in `message`;
 every other finding must attach to a line the diff adds or changes.
 
