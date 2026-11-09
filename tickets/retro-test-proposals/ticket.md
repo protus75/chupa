@@ -61,7 +61,8 @@ A retro proposal may name only `specs/<name>.md` prompt specs. After `retro-test
     - one with neither;
     - `test_issue` without `proposed_paths`;
     - an unknown issue;
-    - a `..` path.
+    - a `..` path;
+    - a path with a leading `/`.
 
     A valid test proposal parses.
   - `tests/integration/test_retro_box.py`:
@@ -69,6 +70,14 @@ A retro proposal may name only `specs/<name>.md` prompt specs. After `retro-test
     - `test_spec_proposal_id_unchanged`: the existing `PROPOSAL`'s `proposal_id` equals `sha256(json.dumps(PROPOSAL, sort_keys=True, separators=(",", ":"), ensure_ascii=False))[:16]`, which rules out re-filing old proposals.
   - `tests/integration/test_triage.py` and `tests/integration/test_author.py`: a test proposal's request carries `"test_issue"` and unprefixed `"proposed_paths"`.
   - `tests/integration/test_watch.py::test_snapshot_box_messages` shows the two new rows for a test proposal.
+- In: `tests/integration/test_status.py::test_status_production_provenance` replaces whatever `version:` line `chupa/specs/retro.md` has (for example with `re.sub(r'version: "[^"]+"', 'version: "7.3"', ...)`), so the test no longer pins the spec version.
+- In: a new unit test file `tests/unit/test_retro_proposal.py` (in-memory, no disk or process access) runs the new validator branches:
+  - `test_message_test_proposal_coherent`: a `retro_finding` `Message` with `test_issue` and `proposed_paths` validates; one with both path lists, neither, or `test_issue` without `proposed_paths` is refused; a non-retro class with `test_issue` or `proposed_paths` is refused.
+  - `test_message_refuses_bad_paths`: `Message` refuses `proposed_paths` of `/abs` and `../x`.
+  - `test_message_loads_pre_change_retro_finding`: a pre-change `retro_finding` dict with no `test_issue` or `proposed_paths` keys validates with `test_issue is None` and `proposed_paths == []`.
+  - `test_retro_proposal_exactly_one`: `RetroProposal` accepts a spec proposal and a test proposal, and refuses both lists, neither, or an unknown issue.
+  The `chupa/author.py` and `chupa/triage.py` changes only add keys to an existing request dict literal, which adds no new statements, so they need no unit test.
+- The other coverage-dependent test files under `tests/integration/` (test_ask through test_watchdog_activation) build Box messages only through `enqueue`, or retro proposals with `proposed_spec_paths`. The new fields default to `None`/`[]` and spec-proposal ids are unchanged, so their expectations do not move; `tests/integration/test_box.py::test_tombstone_visibility_uses_message_class` splats `PROPOSAL` into `enqueue` and still passes.
 - In: `docs/how-chupa-works.md` section 9.5 describes the two proposal kinds and the test issue list.
 - Out: new message classes, `box_policy` rows, merge-time retro signals, retro measurements, Check recording, and the VS Code extension's JavaScript.
 
@@ -84,18 +93,22 @@ A retro proposal may name only `specs/<name>.md` prompt specs. After `retro-test
 - tests/integration/test_triage.py
 - tests/integration/test_author.py
 - tests/integration/test_watch.py
+- tests/integration/test_status.py
+- tests/unit/test_retro_proposal.py
 - docs/how-chupa-works.md
 
 ## Acceptance criteria
 1. `./dev.py test tests/integration/test_retro.py tests/integration/test_retro_box.py` exits 0, including `test_test_proposal_reaches_box` and `test_spec_proposal_id_unchanged`. The second rules out a changed id for an existing spec proposal.
 2. `./dev.py test tests/integration/test_triage.py tests/integration/test_author.py tests/integration/test_watch.py` exits 0.
-3. `chupa/specs/retro.md` has version `"1.3"` and names every `TestIssue` value.
-4. `./dev.py test` exits 0.
+3. `./dev.py test tests/unit/test_retro_proposal.py tests/integration/test_status.py` exits 0, including the four named unit tests; `test_message_loads_pre_change_retro_finding` rules out a change that breaks existing box files, and `test_message_refuses_bad_paths` rules out an absolute or escaping path.
+4. `chupa/specs/retro.md` has version `"1.3"` and names every `TestIssue` value.
+5. `./dev.py test` exits 0.
 
 ## Verification
 ```
 ./dev.py test tests/integration/test_retro.py tests/integration/test_retro_box.py
 ./dev.py test tests/integration/test_triage.py tests/integration/test_author.py tests/integration/test_watch.py
+./dev.py test tests/unit/test_retro_proposal.py tests/integration/test_status.py
 ./dev.py test
 ```
 
