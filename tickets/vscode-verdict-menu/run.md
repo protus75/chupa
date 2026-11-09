@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Held tickets can have runnable=true in the existing snapshot, so the menu excludes held tickets without changing that field. Reusing runnable alone was simpler but would violate the held-row requirement.
+Run follows runnable even for held tickets; the held test row has an unmet dependency so Run is off. Centralizing menu policy in the snapshot prevents the extension from duplicating these rules.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 30 minutes; completed in less than 30 minutes.
+Expected 30 minutes; completed within the budget.
 
