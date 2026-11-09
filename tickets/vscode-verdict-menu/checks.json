@@ -1,7 +1,7 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "f1e771a27f74dd487417fa702ed0cfc343d4aa7c",
+  "produced_at_sha": "9e28488e3fa0b32f41c3c83ea65c439669cbaa21",
   "stem": "vscode-verdict-menu",
   "passed": true,
   "changed_files": [
@@ -11,7 +11,7 @@
     "vscode-chupa/media/view.js",
     "vscode-chupa/package.json"
   ],
-  "inserted_lines": 94,
+  "inserted_lines": 100,
   "bypassed": [],
   "reports": [
     {
@@ -96,9 +96,9 @@
         "tests/integration/test_watch.py"
       ],
       "rc": 0,
-      "tail": "$ uv run pytest -q tests/integration/test_watch.py\nbringing up nodes...\nbringing up nodes...\n\n........................                                                 [100%]\n24 passed in 1.59s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
+      "tail": "$ uv run pytest -q tests/integration/test_watch.py\nbringing up nodes...\nbringing up nodes...\n\n........................                                                 [100%]\n24 passed in 3.27s\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\n",
       "base_red": false,
-      "seconds": 1.866372
+      "seconds": 3.661999
     }
   ]
 }
