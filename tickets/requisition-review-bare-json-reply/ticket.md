@@ -23,8 +23,8 @@ The requisition reviewer sometimes wraps its verdict JSON in a prose paragraph a
 After this change the Output format and On-failure sections state concretely that the first character of the reply is `{` and the last is `}`, with no prose, markdown or code fence around it, that reasoning belongs in `summary`, and that a schema error reported in `retry_findings` is fixed by re-emitting the same verdict as bare JSON. The success measure is a lower share of `requisition_verdict` events carrying the 'invalid requisition review reply' finding in later retro windows.
 
 ## Scope in / Scope out
-- In: `chupa/specs/requisition_review.md`. In `## Output format`, after the first line, add a sentence containing the exact phrase "The first character of your reply is `{` and the last is `}`" and stating that no prose, markdown or code fence surrounds the object and that the reasoning goes in `summary`. In `## On-failure`, add a sentence containing the exact phrase "re-emit the same verdict as bare JSON" saying that when `retry_findings` reports an invalid reply schema, the reply repeats the same verdict and findings without changing them. Bump `version` from `3.3` to `3.4`. The spec stays within the 200-line `SPEC_MAX_LINES`.
-- In: `tests/unit/test_specs.py`: the pinned `requisition_review` version becomes `3.4`.
+- In: `chupa/specs/requisition_review.md`. In `## Output format`, after the first line, add a sentence containing the exact phrase "The first character of your reply is `{` and the last is `}`" and stating that no prose, markdown or code fence surrounds the object and that the reasoning goes in `summary`. In `## On-failure`, add a sentence containing the exact phrase "re-emit the same verdict as bare JSON" saying that when `retry_findings` reports an invalid reply schema, the reply repeats the same verdict and findings without changing them. Bump `version` to the next minor above its value at the base commit (`3.3` when drafted; sibling spec tickets may have bumped it since). The spec stays within the 200-line `SPEC_MAX_LINES`.
+- In: `tests/unit/test_specs.py`: the pinned `requisition_review` version moves to that new version.
 - In: `tests/integration/test_requisition.py::test_spec_loads_and_names_finding_keys`: also assert both exact phrases are in the spec source.
 - Out: any change to the engine reply parser or schema in `chupa/requisition.py` (it must not be loosened to accept fenced replies), the allowed verdicts and finding fields, the `## Task` rules, and the routing of tool-failure snags (ticket `requisition-tool-failure-retries`).
 
@@ -34,9 +34,9 @@ After this change the Output format and On-failure sections state concretely tha
 - tests/integration/test_requisition.py
 
 ## Acceptance criteria
-1. `chupa/specs/requisition_review.md` contains both new phrases and `version: "3.4"`, not `3.3`.
-2. `tests/integration/test_requisition.py` asserts both phrases, and `./dev.py test tests/unit/test_specs.py tests/integration/test_requisition.py` passes; the asserting test fails on the unchanged spec, which lacks the phrases and carries version 3.3.
-3. `tests/unit/test_specs.py` pins `4` as the minor of the `requisition_review` version (`3.4`), so a spec left at `3.3` fails it.
+1. `chupa/specs/requisition_review.md` contains both new phrases and a `version` one minor above its value at the base commit.
+2. `tests/integration/test_requisition.py` asserts both phrases, and `./dev.py test tests/unit/test_specs.py tests/integration/test_requisition.py` passes; the asserting test fails on the unchanged spec, which lacks the phrases.
+3. `tests/unit/test_specs.py` pins the new `requisition_review` version, so a spec left at its base-commit version fails it.
 4. `./dev.py test` passes.
 
 ## Verification
