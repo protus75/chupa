@@ -6,6 +6,13 @@ This document describes the merged configuration and interfaces.
 Report intake and cutover below are pending Phase 6 consumer contracts, not an
 activation instruction. Foreign process-state adoption is excluded.
 
+## Install
+
+Add chupa to the host project as a dev dependency with `uv add --dev chupa`.
+For a specific release, pin it as `chupa==<version>`. Run `uv sync`; the
+executable is `.venv/bin/chupa`. Run verbs as `uv run chupa <verb>`. Native
+Windows uses `.venv\Scripts\chupa.exe`; set `chupa.command` explicitly there.
+
 ## Copyable configuration
 
 Copy this YAML to `config.yaml` at the host checkout root and edit the models,
@@ -51,7 +58,7 @@ engine_plane_safety_inventory: [config.yaml, chupa/specs/, chupa/gates.py]
 
 ## VS Code extension
 
-Install chupa with `uv tool install chupa`, and install `vscode-chupa` from the VS Code Marketplace (in Cursor and VSCodium, use Install from VSIX). The `vscode-chupa` extension activates in a workspace containing `tickets/` and uses the first such folder. Set the resource-scoped `chupa.command` array to the host invocation, for example `["scripts/chupa"]`; its default is `["chupa"]`. The extension calls `snapshot` for its read-only view and watches the returned state directory. `chupa watch [--once]` provides the same host observation as text. Both verbs work while the engine holds its lock.
+[Install chupa](#install), and install `vscode-chupa` from the VS Code Marketplace (in Cursor and VSCodium, use Install from VSIX). The `vscode-chupa` extension activates in a workspace containing `tickets/` and uses the first such folder. Set the resource-scoped `chupa.command` array to the host invocation, for example `["scripts/chupa"]`; its default is `[".venv/bin/chupa"]`, resolved relative to the workspace folder. The extension calls `snapshot` for its read-only view and watches the returned state directory. `chupa watch [--once]` provides the same host observation as text. Both verbs work while the engine holds its lock.
 
 ## Python host test setup
 
@@ -360,8 +367,8 @@ executors are separate; abort targets the executor that spawned active work.
 
 ## Instance custody
 
-ONE instance writes a host repo line. Stable is a PyPI release installed with `uv tool install chupa==<version>`; dev uses its own disposable checkout, worktree root and state dir,
-with checkpoint push disabled. Instances share only remotes. Upgrade or roll back by reinstalling the desired version and restarting. A git-checkout engine running `serve`
+ONE instance writes a host repo line. Stable is a PyPI release pinned as a host dev dependency (see [Install](#install)); dev uses its own disposable checkout, worktree root and state dir,
+with checkpoint push disabled. Instances share only remotes. Upgrade or roll back by changing the pin, running `uv sync`, and restarting. A git-checkout engine running `serve`
 restarts itself when its `chupa/` tree changes.
 `<state_dir>/chupa.lock` uses advisory flock before writes and records instance_id,
 pid, host, state_dir and started_at for diagnostics only. Kernel release on

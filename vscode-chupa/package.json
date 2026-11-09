@@ -76,9 +76,9 @@
 					},
 					"scope": "resource",
 					"default": [
-						"chupa"
+						".venv/bin/chupa"
 					],
-					"description": "Command and arguments used to run chupa in this workspace."
+					"description": "Command and arguments used to run chupa in this workspace. The default is the host’s .venv/bin/chupa, resolved from the workspace folder."
 				},
 				"chupa.statsWindow": {
 					"type": "string",

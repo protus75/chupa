@@ -26,7 +26,7 @@ chupa develops itself: this repo is both the engine and its own first host.
 
 ## 2. Commands
 
-Install with `uv tool install chupa` and run `chupa <verb>`; from a checkout, run
+[Install chupa](host-contract.md#install) and run `uv run chupa <verb>`; from a checkout, run
 `uv run python -m chupa <verb>` (global flag `--config PATH`, default `config.yaml`
 at the checkout root). In this repo, use `./dev.py` (section 2.2).
 

@@ -5,7 +5,7 @@ mechanical gates, Review has a model judge the diff, and Merge squashes it onto 
 are harvested, diagnosed, retried within caps, or held for a human. chupa develops itself: this
 repo is both the engine and its first host.
 
-Install with `uv tool install chupa`, then run `chupa <verb>`.
+[Install chupa](docs/host-contract.md#install), then run `uv run chupa <verb>`.
 
 ## Docs
 

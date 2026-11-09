@@ -1,11 +1,10 @@
 # Running chupa on a host
 
-From the host checkout root, with `config.yaml` set up as in the [host contract](host-contract.md), point `CHUPA_CHECKOUT` at the absolute path to a chupa checkout and run:
+From the host checkout root, with chupa [installed](host-contract.md#install) and `config.yaml` set up as in the [host contract](host-contract.md), run:
 
 ```sh
-CHUPA_CHECKOUT=/absolute/path/to/chupa
-PYTHONPATH="$CHUPA_CHECKOUT" uv run --project "$CHUPA_CHECKOUT" python -m chupa doctor
-PYTHONPATH="$CHUPA_CHECKOUT" uv run --project "$CHUPA_CHECKOUT" python -m chupa serve
+uv run chupa doctor
+uv run chupa serve
 ```
 
 Use the same prefix for the other verbs below. The host checkout remains the working directory; `--config PATH` before the verb selects a different config. `serve` is the normal mode: it runs until `kill`, `stop`, or Ctrl-C. `drain` is a finite run to quiescence. A running serve picks up config edits and new ticket files live. Drafts written by Author wait for `confirm`.
