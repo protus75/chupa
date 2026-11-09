@@ -5,7 +5,7 @@ emits: {approve: requisition-approval, snag: requisition-snag, rma: requisition-
 tier: high
 effort: high
 gates: [requisition_review]
-version: "3.7"
+version: "3.8"
 ---
 ## Role
 
@@ -33,6 +33,7 @@ Report every finding in this one reply; never stop at the first.
 
 When a prior review is given, first rule each of its findings `cleared` or `standing` in your
 summary. Raise a NEW finding only against text the diff shows changed since that review.
+A prior review reporting an invalid requisition review reply clears nothing and has no findings to rule on, so review the whole ticket again, including the transitive import and composition closure of the fence, without the changed-text limit.
 
 Reserve `rma` for a ticket no edit can make buildable: its target problem does not exist in merged
 code, or its goal contradicts merged behavior it may not change. Give every finding a concrete repair path.

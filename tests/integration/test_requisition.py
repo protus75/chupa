@@ -114,6 +114,8 @@ def test_spec_loads_and_names_finding_keys():
         assert phrase in source
     assert "Two statements anywhere in the ticket cannot both hold, for example a declared signature and a call to it, or a named fixture and the result a criterion expects from it." in source
     assert "Report every finding in this one reply; never stop at the first." in source
+    # The changed-text-only rule must not apply after a schema-invalid review.
+    assert "A prior review reporting an invalid requisition review reply clears nothing" in source
     assert "The first character of your reply is `{` and the last is `}`" in source
     assert "re-emit the same verdict as bare JSON" in source
 
