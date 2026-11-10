@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from chupa.artifacts import ARTIFACT_SCHEMA_VERSION, Artifact
 from chupa.git import Git
 from chupa.seams import SubprocessExec
-from eval.daemon_soak import DAEMON_SOAK_MEMBERS, DAEMON_SOAK_SPEC_VERSION, DaemonSoakEntry, DaemonSoakReport
+from tests.harness.daemon_soak import DAEMON_SOAK_MEMBERS, DAEMON_SOAK_SPEC_VERSION, DaemonSoakEntry, DaemonSoakReport
 from tests.integration.test_cli import ENV, root
 
 MEMBERS = (

@@ -20,8 +20,8 @@ from chupa.seams import SubprocessExec
 from chupa.serve import Serve
 from chupa.stages import read_review
 from chupa.tickets import parse_ticket, ticket_path
-from eval import daemon_soak as soak
-from eval.daemon_soak import DAEMON_SOAK_MEMBERS
+from tests.harness import daemon_soak as soak
+from tests.harness.daemon_soak import DAEMON_SOAK_MEMBERS
 
 
 @pytest.mark.asyncio

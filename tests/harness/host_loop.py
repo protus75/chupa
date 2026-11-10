@@ -19,7 +19,7 @@ from chupa.journal import TERMINAL_STATES, EventType, Journal
 from chupa.stages import Invoice, read_review
 from hosts.fixture import scaffold
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 ROAD = "repair the producing machinery and rerun the harness through Check"
 
 

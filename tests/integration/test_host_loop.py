@@ -10,8 +10,8 @@ from pydantic import ValidationError
 
 from chupa.audit import Violation
 from chupa.seams import LocalFileSystem, SubprocessExec
-from eval import host_loop
-from eval.host_loop import HOST_LOOP_EXPECTED, HOST_LOOP_MEMBERS, HostLoopReport
+from tests.harness import host_loop
+from tests.harness.host_loop import HOST_LOOP_EXPECTED, HOST_LOOP_MEMBERS, HostLoopReport
 
 
 def loop_report():

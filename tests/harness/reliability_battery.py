@@ -24,7 +24,7 @@ from chupa.lockfile import Lockfile
 from chupa.providers import PROBE_PROMPT, routed_conduct_paths
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.tickets import intake, validate_ticket
-from eval.daemon_soak import _Time, _turn
+from tests.harness.daemon_soak import _Time, _turn
 
 RELIABILITY_BATTERY_SPEC_VERSION = 1
 RELIABILITY_BATTERY_MEMBERS = (

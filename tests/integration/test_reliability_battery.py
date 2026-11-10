@@ -17,7 +17,7 @@ from chupa.git import Git
 from chupa.journal import EventType
 from chupa.seams import SubprocessExec
 from chupa.specs import load_spec
-from eval import reliability_battery as battery
+from tests.harness import reliability_battery as battery
 
 MEMBERS = battery.RELIABILITY_BATTERY_MEMBERS
 EXPECTED = battery._RELIABILITY_BATTERY_EXPECTED
