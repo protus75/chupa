@@ -84,7 +84,8 @@ Routing the provider in this repo's `config.yaml` is an operator edit and is not
   - `chupa/docs/host-contract.md`:
     - the `Provider` row of the schema-defaults block gains `base_url: unset`;
     - the sentence "Shipped runtime adapters are `claude` and `codex`" lists `claude`, `codex`, and `qwen`, and points to `host-qwen.md`;
-    - the following sentence also gives `qwen` the codex no-cost rule, and adds that `base_url` is required for `qwen` and refused for the other adapters.
+    - the following sentence also gives `qwen` the codex no-cost rule, and adds that `base_url` is required for `qwen` and refused for the other adapters;
+    - the Managed conduct sentence "Routed candidates select CLAUDE.md for provider name `claude`, AGENTS.md otherwise, deduplicated;" becomes "Routed candidates select CLAUDE.md for provider names `claude` and `qwen`, AGENTS.md otherwise, deduplicated;". Keep the following line with `unrouted` unchanged; `tests/integration/test_host_contract.py` checks that word.
 
     Leave the rest of the file unchanged.
   - `docs/how-chupa-works.md` §8.1:
@@ -92,7 +93,8 @@ Routing the provider in this repo's `config.yaml` is an operator edit and is not
     - the write-access bullet adds `qwen --approval-mode yolo`;
     - add one sentence: `claude` and `qwen` read `CLAUDE.md`, and `codex` reads `AGENTS.md`. chupa points qwen at `CLAUDE.md` through its packaged `qwen-settings.json`.
 
-    Leave the rest of the section unchanged. Also add a `probe` row to the command table and a `probe [PROVIDER...]` row to the `./dev.py` subcommand table.
+    Leave the rest of the section unchanged. Also add a `probe` row to the command table and a `probe [PROVIDER...]` row to the `./dev.py` subcommand table. In §12 Host projects, "`CLAUDE.md` (for `claude`) or `AGENTS.md` (other CLIs)" becomes "`CLAUDE.md` (for `claude` and `qwen`) or `AGENTS.md` (other CLIs)".
+  - `README.md` line 22: "into `CLAUDE.md` for Claude or `AGENTS.md` for other CLIs" becomes "into `CLAUDE.md` for Claude and Qwen Code or `AGENTS.md` for other CLIs". Change nothing else; `tests/unit/test_readme.py` forbids a `./dev.py` mention before `## Developing chupa`.
   - `chupa/docs/host-qwen.md` (new), the host setup guide. It never tells the operator to edit a file in their home directory. Sections, in this order:
     1. **What it is**: Ollama serves `qwen3-coder:30b`, and Qwen Code (`qwen`) is the agent loop. Route it to `implement`. chupa passes the endpoint from `base_url` and points qwen at `CLAUDE.md` itself, so no qwen configuration file is needed.
     2. **Run the Ollama server**, in two variants:
@@ -147,10 +149,11 @@ Routing the provider in this repo's `config.yaml` is an operator edit and is not
 - chupa/docs/host-qwen.md
 - chupa/docs/host-contract.md
 - docs/how-chupa-works.md
+- README.md
 
 ## Acceptance criteria
 1. `tests/unit/test_qwen_adapter.py` asserts that, for a provider with `base_url="http://h:11434/v1"`, `argv("qwen3-coder:30b", "low", False)` equals `["qwen", "--auth-type", "openai", "--openai-base-url", "http://h:11434/v1", "--openai-api-key", "ollama", "-m", "qwen3-coder:30b", "-o", "stream-json", "--approval-mode", "plan", "--chat-recording", "false"]`. It also asserts that `writes=True` differs only in `yolo` in place of `plan`. Ruled out: `yolo` on a read-only surface, a missing base URL, and a positional prompt argument.
-2. The same file asserts that `call_env()` maps `QWEN_CODE_SYSTEM_SETTINGS_PATH` to an absolute path of an existing file whose JSON is `{"context": {"fileName": "CLAUDE.md"}}`. Ruled out: a relative path, or a path under the home directory.
+2. The same file asserts that `call_env()` maps `QWEN_CODE_SYSTEM_SETTINGS_PATH` to an absolute path of an existing file whose JSON is `{"context": {"fileName": "CLAUDE.md"}}`. Ruled out: a relative path, or any path other than `Path(chupa.__file__).parent / "qwen-settings.json"`.
 3. The same file asserts that `parse` over the recorded qwen stream returns the `result` text with `usd is None` and the summed input tokens. Ruled out: a `ValueError`, or a zero cost.
 4. The same file asserts two refusals: constructing `QwenAdapter` for a provider without `base_url` raises `ProviderSetupError`, and constructing `ClaudeAdapter` for a provider with `base_url` raises `ProviderSetupError`.
 5. The same file asserts that `providers.ADAPTERS["qwen"] is QwenAdapter` and that `QwenAdapter.reports_cost is False`. It also asserts that `routed_conduct_paths` returns `(checkout / "CLAUDE.md",)` for a config routing only `qwen`, not `AGENTS.md`.
@@ -180,7 +183,7 @@ Reject the branch if any of the following holds:
 - the argv or parse of `ClaudeAdapter` or `CodexAdapter` changes;
 - `QwenAdapter` overrides `parse`;
 - a read-only surface runs qwen with `--approval-mode yolo`;
-- any setup step or code path reads or writes a file in the user's home directory.
+- `chupa/docs/host-qwen.md` tells the operator to create or edit a file in their home directory, or chupa code writes a file under `$HOME/.qwen`.
 
 ## Time budget
 - expected: 60m
