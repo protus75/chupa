@@ -29,7 +29,6 @@ the Records contract, without a future inbox dependency.
 The profile's config and conduct file cover the engine safety inventory.
 Disposable repository constructors render `CLAUDE.md` with the installed core
 renderer and commit it before later production checks. This scaffold does not
-start serve, confirm tickets, write journal events, record GO, produce exit
-reports or refresh committed fixture inputs. The merged eval/host_loop.py machinery owns those actions and runtime report
+start serve, confirm tickets, write journal events, record GO or refresh committed fixture inputs. The merged eval/host_loop.py machinery owns those actions and runtime
 production. Its scripted Implement commits only the declared host edits through
 the existing Git wrapper, in that scenario’s disposable worktree.

@@ -69,12 +69,6 @@ def test_artifacts_closed_sets_and_constants():
     assert artifacts.DIAGNOSIS_MAX_LESSONS == 5
     assert artifacts.DIAGNOSIS_VERDICTS == ("retry", "escalate", "split", "reject", "abandon-human")
     assert set(get_args_deep(artifacts.DiagnosisVerdictName)) == {"abandon-human", "escalate", "reject", "retry", "split"}
-    assert dict(artifacts.HOST_LOOP_EXPECTED) == {
-        "escape_attribution": "escape_attributed_by_squash_trailers",
-        "machine_ticket_merge": "machine_ticket_merged",
-        "report_to_regression_bug_loop": "report_replayed_regression_bug_merged",
-    }
-    assert artifacts.HOST_LOOP_MEMBERS == ("machine_ticket_merge", "report_to_regression_bug_loop", "escape_attribution")
     assert artifacts.OUTCOMES == frozenset({"already_satisfied", "budget_exceeded", "gate_failed", "infra_error", "invalid_artifact", "ok", "premise_failed", "timeout"})
     assert set(get_args_deep(artifacts.Outcome)) == {"already_satisfied", "budget_exceeded", "gate_failed", "infra_error", "invalid_artifact", "ok", "premise_failed", "timeout"}
     assert artifacts.RELIABILITY_BATTERY_MEMBERS == ("classified_quota_exhaustion", "all_candidates_cooling_recovery", "unclassified_failure_preservation")
@@ -295,8 +289,6 @@ def test_stages_closed_sets_and_constants():
     assert {k: ident(x) for k, x in stages.EMITS_BY_VERDICT.items()} == {"approve": "ApprovedInvoice", "rma": "Rma", "snag": "SnagList"}
     assert {k: ident(x) for k, x in stages.KNOWN_ARTIFACTS.items()} == {
         "daemon-soak-report.json": "DaemonSoakReport",
-        "exit-receipt.json": "ExitReceipt",
-        "host-loop-report.json": "HostLoopReport",
         "reliability-battery-report.json": "ReliabilityBatteryReport",
         "review-baseline-report.json": "ReviewBaselineReport",
         "shakeout-report.json": "ShakeoutReport",

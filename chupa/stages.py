@@ -23,8 +23,6 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 from chupa.artifacts import (
     DAEMON_SOAK_REPORT,
-    EXIT_RECEIPT,
-    HOST_LOOP_REPORT,
     OUTCOMES,
     RELIABILITY_BATTERY_REPORT,
     REVIEW_BASELINE_REPORT,
@@ -34,10 +32,8 @@ from chupa.artifacts import (
     DaemonSoakReport,
     Diagnosis,
     DiagnosisReply,
-    ExitReceipt,
     Finding,
     Harvest,
-    HostLoopReport,
     NonBlank,
     Outcome,
     ReliabilityBatteryReport,
@@ -67,8 +63,6 @@ KNOWN_ARTIFACTS: Mapping[str, type[BaseModel]] = {
     DAEMON_SOAK_REPORT: DaemonSoakReport,
     RELIABILITY_BATTERY_REPORT: ReliabilityBatteryReport,
     REVIEW_BASELINE_REPORT: ReviewBaselineReport,
-    HOST_LOOP_REPORT: HostLoopReport,
-    EXIT_RECEIPT: ExitReceipt,
 }
 # Diff budget: sized so every rendered review prompt fits the serving provider's bound.
 DIFF_BUDGET_FILES = 30

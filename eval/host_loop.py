@@ -1,22 +1,21 @@
-"""Supervised disposable host evidence and canonical receipt writers."""
+"""Supervised disposable host evidence."""
 
-import argparse
 import asyncio
-import hashlib
 import json
 import sys
-import tempfile
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
+from typing import Literal
 
-from chupa.artifacts import HOST_LOOP_EXPECTED, HOST_LOOP_MEMBERS, ExitReceipt, HostLoopEntry, HostLoopReport, ReviewBaselineReport
+from pydantic import field_validator, model_validator
+
+from chupa.artifacts import NonBlank, _check_integer_version, _check_producing_run, _Strict
 from chupa.audit import audit_journal
 from chupa.box import Box
 from chupa.config import load_config
 from chupa.control import AdmissionRequest, ControlRequest, decisions, publish_request, read_active
-from chupa.git import Git, GitError
+from chupa.git import Git
 from chupa.journal import TERMINAL_STATES, EventType, Journal
-from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.stages import Invoice, read_review
 from hosts.fixture import scaffold
 
@@ -24,49 +23,55 @@ ROOT = Path(__file__).resolve().parents[1]
 ROAD = "repair the producing machinery and rerun the harness through Check"
 
 
+HOST_LOOP_MEMBERS = ("machine_ticket_merge", "report_to_regression_bug_loop", "escape_attribution")
+HOST_LOOP_EXPECTED = dict(zip(HOST_LOOP_MEMBERS, ("machine_ticket_merged", "report_replayed_regression_bug_merged", "escape_attributed_by_squash_trailers")))
+
+
+class HostLoopEntry(_Strict):
+    member: Literal["machine_ticket_merge", "report_to_regression_bug_loop", "escape_attribution"]
+    producing_run: NonBlank
+    expected: NonBlank
+    observed: NonBlank
+    engine_plane_edits: list[NonBlank]
+    auditor: list[NonBlank]
+    green: bool
+
+    @model_validator(mode="after")
+    def _consistent(self):
+        _check_producing_run(self.producing_run)
+        if self.expected != HOST_LOOP_EXPECTED[self.member]:
+            raise ValueError("use the member's fixed expected observation")
+        if self.green != (self.observed == self.expected and not self.engine_plane_edits and not self.auditor):
+            raise ValueError("green requires matching observation, no engine edits and no auditor findings")
+        return self
+
+
+class HostLoopReport(_Strict):
+    schema_version: Literal[1]
+    entries: list[HostLoopEntry]
+
+    @field_validator("schema_version", mode="before")
+    @classmethod
+    def _integer_version(cls, value):
+        return _check_integer_version(value, "schema_version must be integer 1")
+
+    @model_validator(mode="after")
+    def _ordered(self):
+        merges = self.entries[:-2]
+        if (
+            len(merges) < 3
+            or any(e.member != HOST_LOOP_MEMBERS[0] for e in merges)
+            or tuple(e.member for e in self.entries[-2:]) != HOST_LOOP_MEMBERS[1:]
+            or len({e.producing_run for e in merges}) != len(merges)
+        ):
+            raise ValueError("use three distinct merge runs followed by regression and escape members")
+        return self
+
+
 class LoopRefused(ValueError):
     def __init__(self, member, detail):
         read = HOST_LOOP_MEMBERS[1] if member == "regression" else HOST_LOOP_MEMBERS[2] if member == "escape" else HOST_LOOP_MEMBERS[0] if member.startswith("merge-") else member
         super().__init__(f"{read} ({member}): {detail}; {ROAD}")
-
-
-def canonical(record):
-    return (json.dumps(record.model_dump(mode="json"), indent=2, ensure_ascii=False) + "\n").encode()
-
-
-def write_report(path, report, *, fs):
-    validated = HostLoopReport.model_validate(report.model_dump())
-    fs.write(path, canonical(validated))
-
-
-def regenerate(loop_bytes, baseline_bytes):
-    """Only these validated input bytes supply receipt identity and digests."""
-    loop = HostLoopReport.model_validate_json(loop_bytes)
-    baseline = ReviewBaselineReport.model_validate_json(baseline_bytes)
-    reads = {name: "pass" if all(e.green for e in loop.entries if e.member == name) else "fail" for name in HOST_LOOP_MEMBERS}
-    reads["go_grade_report"] = "pass"
-    return ExitReceipt(
-        schema_version=1,
-        reads=reads,
-        host_loop_digest=hashlib.sha256(loop_bytes).hexdigest(),
-        baseline_report_digest=hashlib.sha256(baseline_bytes).hexdigest(),
-        verdict_signal=baseline.verdict_signal,
-    )
-
-
-def write_receipt(path, loop_bytes, baseline_bytes, *, fs):
-    receipt = regenerate(loop_bytes, baseline_bytes)
-    fs.write(path, canonical(receipt))
-    return receipt
-
-
-async def committed_bytes(git, repo, path):
-    rel = path.resolve().relative_to(repo.resolve()).as_posix()
-    # cat-file's decoded return is exact for validated UTF-8 JSON, including whitespace.
-    data = (await git._run(repo, "show", f"HEAD:{rel}")).encode()
-    if path.read_bytes() != data:
-        raise LoopRefused("go_grade_report", "input differs from its committed bytes")
-    return data
 
 
 class FixtureLoop:
@@ -312,39 +317,3 @@ async def produce(root, *, exec_, fs, clock, sleep, notifications, timeout=60):
         loop = FixtureLoop(root / name, name, exec_=exec_, fs=fs, clock=clock, sleep=sleep, notifications=notifications, timeout=timeout)
         entries.append(await _run_member(loop))
     return HostLoopReport(schema_version=1, entries=entries)
-
-
-async def _main(argv=None):
-    parser = argparse.ArgumentParser(prog="python -m eval.host_loop")
-    parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--receipt", type=Path, required=True)
-    parser.add_argument("--baseline", type=Path, required=True)
-    args = parser.parse_args(argv)
-    fs, exec_ = LocalFileSystem(), SubprocessExec()
-
-    def clock():
-        return datetime.now(UTC)
-
-    git = Git(exec_, env={"PATH": "/usr/bin:/bin"}, timeout=10)
-    try:
-        try:
-            baseline_bytes = await committed_bytes(git, Path.cwd(), args.baseline)
-            ReviewBaselineReport.model_validate_json(baseline_bytes)
-        except (ValueError, OSError, GitError) as exc:
-            raise LoopRefused("go_grade_report", str(exc)) from exc
-        with tempfile.TemporaryDirectory(prefix="chupa-host-loop-") as directory:
-            report = await produce(Path(directory), exec_=exec_, fs=fs, clock=clock, sleep=asyncio.sleep, notifications=None)
-        write_report(args.out, report, fs=fs)
-        write_receipt(args.receipt, canonical(report), baseline_bytes, fs=fs)
-    except (ValueError, OSError, GitError) as exc:
-        print(str(exc), file=sys.stderr)
-        return 1
-    return 0
-
-
-def main(argv=None):
-    return asyncio.run(_main(argv))
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

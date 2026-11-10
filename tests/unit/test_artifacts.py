@@ -3,34 +3,26 @@ from pydantic import ValidationError
 
 from chupa.artifacts import (
     DAEMON_SOAK_MEMBERS,
-    HOST_LOOP_EXPECTED,
     RELIABILITY_BATTERY_MEMBERS,
     BaselineSignal,
     DaemonSoakReport,
-    ExitReceipt,
-    HostLoopEntry,
-    HostLoopReport,
     ReliabilityBatteryReport,
     ReviewBaselineReport,
+    _check_producing_run,
 )
 
 
 def test_producing_run_check():
-    expected = HOST_LOOP_EXPECTED["machine_ticket_merge"]
-    data = dict(member="machine_ticket_merge", producing_run="member-0/0", expected=expected, observed=expected, engine_plane_edits=[], auditor=[], green=True)
-    assert HostLoopEntry(**data).producing_run == "member-0/0"
+    assert _check_producing_run("member-0/0") is None
     for invalid in ("nosep", "member/x1", "Upper/0"):
-        with pytest.raises(ValidationError) as exc:
-            HostLoopEntry(**(data | {"producing_run": invalid}))
-        assert "producing_run must be <ticket stem>/<nonnegative run sequence>" in str(exc.value)
+        with pytest.raises(ValueError, match="producing_run must be <ticket stem>/<nonnegative run sequence>"):
+            _check_producing_run(invalid)
 
 
 def test_integer_version_check():
     for model, field, message in (
         (BaselineSignal, "v", "signal v must be the integer 1"),
         (ReviewBaselineReport, "schema_version", "schema_version must be the integer 1"),
-        (HostLoopReport, "schema_version", "schema_version must be integer 1"),
-        (ExitReceipt, "schema_version", "schema_version must be integer 1"),
     ):
         with pytest.raises(ValidationError) as exc:
             model.model_validate({field: True})

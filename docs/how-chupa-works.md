@@ -742,4 +742,4 @@ The block carries only process rules that hold for every host; codebase rules be
 
 ## 13. Eval report artifacts
 
-- **Eval report artifacts:** shakeout, soak, reliability battery, host loop, exit receipt.
+- **Eval report artifacts:** shakeout, soak, reliability battery.

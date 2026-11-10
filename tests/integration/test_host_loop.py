@@ -2,21 +2,16 @@
 
 import asyncio
 import copy
-import hashlib
 import json
 from datetime import UTC, datetime
-from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
-from chupa.artifacts import HOST_LOOP_EXPECTED, HOST_LOOP_MEMBERS, ExitReceipt, HostLoopReport, ReviewBaselineReport
 from chupa.audit import Violation
 from chupa.seams import LocalFileSystem, SubprocessExec
 from eval import host_loop
-from tests.integration.test_eval_harness import corpus_results, report_fixture
-
-ROOT = Path(__file__).resolve().parents[2]
+from eval.host_loop import HOST_LOOP_EXPECTED, HOST_LOOP_MEMBERS, HostLoopReport
 
 
 def loop_report():
@@ -159,104 +154,3 @@ def test_host_loop_requires_member_auditor_green(production, monkeypatch):
         patch.setattr(member.journal, "read", lambda: [e for e in read() if e.key != "ticket-plane/merge-add/0/checks"])
         with pytest.raises(host_loop.LoopRefused, match="missing unique production evidence"):
             asyncio.run(member.observe())
-
-
-def test_exit_receipt_closed_schema_and_baseline_identity(tmp_path):
-    loop = host_loop.canonical(loop_report())
-    report, _, _ = report_fixture(tmp_path)
-    for verdict in ("NO_GO", "GO"):
-        raw = report.model_dump()
-        raw["verdict_signal"]["body"]["verdict"] = verdict
-        baseline = ReviewBaselineReport.model_validate(raw)
-        receipt = host_loop.regenerate(loop, host_loop.canonical(baseline))
-        assert receipt.verdict_signal == baseline.verdict_signal
-        assert set(receipt.reads.model_dump().values()) == {"pass"}
-    (tmp_path / "partial").mkdir()
-    partial, _, _ = report_fixture(tmp_path / "partial", corpus_results(18, 4, 18, 0), graph=False)
-    receipt = host_loop.regenerate(loop, host_loop.canonical(partial))
-    assert receipt.verdict_signal == partial.verdict_signal
-    assert receipt.verdict_signal.body.verdict == "NO_GO"
-    raw = partial.model_dump()
-    raw["verdict_signal"]["body"]["verdict"] = "GO"
-    with pytest.raises(ValidationError, match="GO requires complete"):
-        host_loop.regenerate(loop, json.dumps(raw).encode())
-    raw = receipt.model_dump()
-    for read in raw["reads"]:
-        failed = copy.deepcopy(raw)
-        failed["reads"][read] = "fail"
-        assert ExitReceipt.model_validate(failed).reads.model_dump()[read] == "fail"
-        failed["reads"][read] = "unknown"
-        with pytest.raises(ValidationError):
-            ExitReceipt.model_validate(failed)
-    for field in ("host_loop_digest", "baseline_report_digest"):
-        for value in ("a" * 63, "A" * 64, "z" * 64):
-            with pytest.raises(ValidationError):
-                ExitReceipt.model_validate({**raw, field: value})
-    for invalid in ({**raw, "unknown": 1}, {**raw, "schema_version": True}, {**raw, "reads": {**raw["reads"], "unknown": "pass"}}):
-        with pytest.raises(ValidationError):
-            ExitReceipt.model_validate(invalid)
-    altered = report.model_dump()
-    altered["verdict_signal"]["body"]["identity"]["review"]["rows"].pop("low")
-    with pytest.raises(ValidationError):
-        host_loop.regenerate(loop, json.dumps(altered).encode())
-    for member in HOST_LOOP_MEMBERS:
-        red = loop_report().model_dump()
-        next(e for e in red["entries"] if e["member"] == member).update(green=False, observed="failed")
-        receipt = host_loop.regenerate(json.dumps(red).encode(), host_loop.canonical(partial))
-        assert receipt.reads.model_dump()[member] == "fail"
-
-
-def test_exit_receipt_regenerates_from_committed_bytes(tmp_path, monkeypatch):
-    from chupa.git import Git
-
-    (tmp_path / "baseline").mkdir()
-    report, _, _ = report_fixture(tmp_path / "baseline")
-    root = tmp_path / "committed"
-    root.mkdir()
-    loop_bytes = json.dumps(loop_report().model_dump(), separators=(",", ":")).encode() + b"\n\n"
-    baseline_bytes = host_loop.canonical(report)
-    (root / "host-loop-report.json").write_bytes(loop_bytes)
-    (root / "review-baseline-report.json").write_bytes(baseline_bytes)
-    env = {"PATH": "/usr/bin:/bin", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
-    git = Git(SubprocessExec(), env=env, timeout=10)
-
-    async def committed():
-        await git.init(root, branch="main")
-        await git.add(root, ["host-loop-report.json", "review-baseline-report.json"])
-        await git.commit(root, "disposable input reports")
-        return [await host_loop.committed_bytes(git, root, root / name) for name in ("host-loop-report.json", "review-baseline-report.json")]
-
-    inputs = asyncio.run(committed())
-    assert inputs == [loop_bytes, baseline_bytes]
-    assert not (root / ".chupa").exists()
-    monkeypatch.setattr(JournalForbidden, "read", lambda *a: pytest.fail("live state read"))
-    monkeypatch.setattr(host_loop.Journal, "read", JournalForbidden.read)
-    first = root / "first.json"
-    second = root / "second.json"
-    receipt = host_loop.write_receipt(first, *inputs, fs=LocalFileSystem())
-    host_loop.write_receipt(second, *inputs, fs=LocalFileSystem())
-    assert first.read_bytes() == second.read_bytes()
-    assert receipt.host_loop_digest == hashlib.sha256(loop_bytes).hexdigest()
-    assert receipt.baseline_report_digest == hashlib.sha256(baseline_bytes).hexdigest()
-    assert receipt.verdict_signal == report.verdict_signal
-    (root / "host-loop-report.json").write_bytes(loop_bytes + b" ")
-    with pytest.raises(host_loop.LoopRefused, match="committed bytes"):
-        asyncio.run(host_loop.committed_bytes(git, root, root / "host-loop-report.json"))
-    # Invalid committed baseline bytes refuse before any live fixture process or output write.
-    (root / "review-baseline-report.json").write_bytes(b"{}")
-
-    async def commit_invalid():
-        await git.add(root, ["review-baseline-report.json"])
-        await git.commit(root, "invalid disposable baseline")
-
-    asyncio.run(commit_invalid())
-    monkeypatch.chdir(root)
-    monkeypatch.setattr(host_loop, "produce", lambda *a, **kw: pytest.fail("invalid baseline spawned work"))
-    assert asyncio.run(host_loop._main(["--out", "unwritten-loop.json", "--receipt", "unwritten-receipt.json", "--baseline", "review-baseline-report.json"])) == 1
-    assert not (root / "unwritten-loop.json").exists()
-    assert not (root / "unwritten-receipt.json").exists()
-
-
-class JournalForbidden:
-    def read(self):
-        pytest.fail("live state access")
