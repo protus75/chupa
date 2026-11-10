@@ -2,7 +2,7 @@
 	"name": "vscode-chupa",
 	"displayName": "chupa tickets",
 	"description": "VS Code extension for the chupa ticket system (https://pypi.org/project/chupa/): tickets as an SCM-style dependency graph: blocked, queued, running, merged.",
-	"version": "0.0.29",
+	"version": "0.0.30",
 	"publisher": "chunkydragon",
 	"extensionKind": [
 		"workspace"
@@ -78,7 +78,7 @@
 					"default": [
 						".venv/bin/chupa"
 					],
-					"description": "Command and arguments used to run chupa in this workspace. The default is the host’s .venv/bin/chupa, resolved from the workspace folder."
+					"description": "Command and arguments used to run chupa in this workspace. The default is the host\u2019s .venv/bin/chupa, resolved from the workspace folder."
 				},
 				"chupa.statsWindow": {
 					"type": "string",
