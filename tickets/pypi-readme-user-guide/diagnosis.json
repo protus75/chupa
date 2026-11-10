@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "465ace76546de2f71c3ac8834547e121a7e3497c",
+  "stem": "pypi-readme-user-guide",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "merge",
+  "verdict": "retry",
+  "lessons": [
+    "The merge gate failed only tests/integration/test_daemon_soak_runner.py::test_daemon_soak_runs_production_serve. That test builds its own repo under tmp_path and never reads README.md or docs/, and the same suite passed 3311/3311 at checks. The docs-only diff did not cause it.",
+    "Redo the same work from the merge base: rewrite README.md with the eight sections in the ticket's order, all links absolute https://, and ./dev.py only under ## Developing chupa. Change only the first sentence of section 1 in docs/how-chupa-works.md. Review approved this approach with no findings.",
+    "If the soak test fails again, run the plain ./dev.py test once in a base-commit git worktree with full history and no env overrides before calling it pre-existing. If it fails there too, file it with chupa suggest as a flaky test. Do not edit the test or anything else outside the ticket's fence.",
+    "Do not touch tests/, chupa/, or pyproject.toml to make the gate pass. The scope fence allows only README.md and docs/how-chupa-works.md."
+  ],
+  "mechanical": null,
+  "spec_version": "1.4",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
