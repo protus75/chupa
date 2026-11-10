@@ -21,6 +21,7 @@ kind: feature
 - docs/how-chupa-works.md#8.1 Providers
 - chupa/docs/host-contract.md
 - chupa/docs/host-running.md
+- README.md
 
 ## Goal / Why
 chupa can route calls only to the `claude` and `codex` CLIs. A provider named `qwen` is refused at setup with `no shipped cli adapter`. The operator wants a local implementation provider: the `qwen3-coder:30b` model served by Ollama, driven by Qwen's own agent CLI, Qwen Code (`qwen`, pnpm package `@qwen-code/qwen-code`).
@@ -54,7 +55,7 @@ Routing the provider in this repo's `config.yaml` is an operator edit and is not
       - `reports_cost = False`;
       - `uses_base_url = True`;
       - `AUTH_MARKERS = ()`;
-      - `LOGIN_ROAD` to a paved road naming `chupa/docs/host-qwen.md` and `./dev.py drain`;
+      - `LOGIN_ROAD` to a paved road naming `chupa/docs/host-qwen.md` and `chupa drain`;
       - `argv(model, effort, writes)` to return `["qwen", "--auth-type", "openai", "--openai-base-url", self.provider.base_url, "--openai-api-key", "ollama", "-m", model, "-o", "stream-json", "--approval-mode", "yolo" if writes else "plan", "--chat-recording", "false"]`. There is no effort flag;
       - `call_env()` to return the base result plus `QWEN_CODE_SYSTEM_SETTINGS_PATH` set to the absolute path of the installed `chupa/qwen-settings.json`, located from `Path(__file__).parent`.
 
@@ -63,9 +64,11 @@ Routing the provider in this repo's `config.yaml` is an operator edit and is not
   - `chupa/__main__.py`:
     - the `docs` verb's tuple gains a fourth entry, `("qwen", "local qwen provider setup")`, after `contract`.
     - a new `probe` verb: `chupa probe [PROVIDER ...]`. It loads the config, takes no lock, and writes no journal event. For each named provider, or every declared provider when none is named, it does the following for each distinct model in that provider's `models_by_tier`:
-      - build that provider's `ADAPTERS` adapter the way `ProviderLLM.__init__` does, with `capture_dir` set to `config.state_dir / "spools" / "probe"`, `exec_=SubprocessExec()`, `fs=LocalFileSystem()`, `redactor=Redactor.from_config(config, os.environ)`, `env=os.environ`, `cwd` the repo, and `timeout=PREFLIGHT_TIMEOUT_S`;
+      - build that provider's `ADAPTERS` adapter the way `ProviderLLM.__init__` does, with `capture_dir` set to `config.state_dir / "spools" / "probe"`, `exec_=SubprocessExec()`, `fs=LocalFileSystem()`, `redactor=Redactor.from_config(config, env)`, `env=env` (the `env` that `main` receives), `cwd` the repo, and `timeout=PREFLIGHT_TIMEOUT_S`;
       - send `LLMRequest(surface="preflight", rendered=PROBE_PROMPT, tier=<that tier>, effort="low", ticket=None, worktree=None)` through `invoke`;
       - print `<provider> <model>: ok`, or `<provider> <model>: <error>` followed by the error's paved road when it has one.
+
+      A provider whose adapter cannot be built (no shipped adapter, or a setup refusal such as a missing `base_url`) prints `<provider>: <error>` and counts as a failed probe.
 
       It exits 0 when every probe answered and 1 otherwise. A name that is not a declared provider is refused with exit 2, naming the declared providers.
   - `chupa/observe.py` `live_call`: `./dev.py watch` shows the model working on the running ticket, but it names only claude and codex calls, so a qwen call shows blank. pnpm's `qwen` shim execs `node <dir>/@qwen-code/qwen-code/cli-entry.js <args>`, so that is the process the watch sees. Add one branch, after the claude branch: a process whose first argument after `node` ends with `@qwen-code/qwen-code/cli-entry.js` returns `qwen <model>`, with the model read after `-m` (`?` when absent). Leave the claude and codex branches unchanged.
@@ -116,7 +119,7 @@ Routing the provider in this repo's `config.yaml` is an operator edit and is not
        models_by_tier: {low: qwen3-coder:30b, medium: qwen3-coder:30b, high: qwen3-coder:30b, max: qwen3-coder:30b}
        limits: {concurrency: 1, est_cost_per_call_usd: 0}
        ```
-    6. **Probe it**: `chupa probe qwen` (`./dev.py probe qwen` in the chupa repo). `qwen qwen3-coder:30b: ok` means Ollama, Qwen Code, and `base_url` all work. Otherwise it prints the error and its fix. The first call loads the model, which takes about a minute.
+    6. **Probe it**: `chupa probe qwen` (`./dev.py probe qwen` in the chupa repo). `qwen qwen3-coder:30b: ok` means Ollama, Qwen Code, and `base_url` all work. Otherwise it prints the error. `error_during_execution` usually means qwen could not reach Ollama at `base_url`: check that Ollama is running, the URL, and on Windows the firewall rule and `OLLAMA_HOST`. The first call loads the model, which takes about a minute.
     7. **Route it**: an example fallback routing row, `{tier: low, surface: implement, candidates: [{provider: codex}, {provider: qwen}]}`. Add one sentence: preflight probes every routed model at drain start, so Ollama must be up whenever `qwen` is routed.
     8. **Limits**: a short paragraph.
        - Ollama truncates a prompt longer than `OLLAMA_CONTEXT_LENGTH` without an error.
