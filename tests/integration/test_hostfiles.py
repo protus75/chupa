@@ -27,6 +27,25 @@ class RecordingFS(LocalFileSystem):
         super().write(path, data)
 
 
+def test_core_template_order_and_budget():
+    assert hostfiles.CORE_TEMPLATE.startswith(b"## Ticket authoring"), "Keep ticket authoring rules in the first section and add new rules after it"
+    assert len(hostfiles.CORE_TEMPLATE) <= 8192, "Template too large: compress existing rules or move host-specific ones to the project's own rules outside the managed block"
+
+
+def test_core_template_order_and_budget_rejects_regressions(monkeypatch):
+    monkeypatch.setattr(hostfiles, "CORE_TEMPLATE", b"## Engine conduct\n")
+    with pytest.raises(AssertionError, match="first section"):
+        test_core_template_order_and_budget()
+
+    opening = b"## Ticket authoring -- read before writing any ticket"
+    monkeypatch.setattr(hostfiles, "CORE_TEMPLATE", opening + b"x" * (8193 - len(opening)))
+    with pytest.raises(AssertionError, match="compress"):
+        test_core_template_order_and_budget()
+
+    monkeypatch.setattr(hostfiles, "CORE_TEMPLATE", opening + b"x" * (8192 - len(opening)))
+    test_core_template_order_and_budget()
+
+
 def test_core_template_is_host_neutral():
     for term in (b"git.py", b"Pure Python", b"seams", b"journal", b"shell=True", b"chupa:core"):
         assert term not in hostfiles.CORE_TEMPLATE
