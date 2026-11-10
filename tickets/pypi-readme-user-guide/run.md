@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The simplest change was a documentation-only rewrite; no code or test changes were needed. The full test suite and all hard host checks passed.
+The full suite passed 3311 tests; the integration check passed 3185 tests, and lint and format passed. The coverage gate was skipped because neither changed file is measured by it. The minimum change was to rewrite the existing README rather than add a separate PyPI description.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 25 minutes; completed in approximately 4 minutes.
+Expected 25 minutes; completed within the budget.
 
