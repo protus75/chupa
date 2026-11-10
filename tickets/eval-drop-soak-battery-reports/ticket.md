@@ -8,9 +8,6 @@ kind: chore
 ## Depends on
 - none
 
-## Runs before
-- eval-drop-shakeout-report
-
 ## Context
 - chupa/artifacts.py::DaemonSoakEntry
 - chupa/artifacts.py::DaemonSoakReport
