@@ -6,7 +6,7 @@ A VS Code extension for the [chupa](https://pypi.org/project/chupa/) ticket syst
 
 ![chupa ticket lifecycle](https://github.com/protus75/chupa/raw/HEAD/vscode-chupa/images/Lifecycle.png)
 
-Built for [chupa 0.1.3](https://pypi.org/project/chupa/0.1.3/).
+Built for [chupa 0.1.4](https://pypi.org/project/chupa/0.1.4/).
 
 ## Prerequisites
 
