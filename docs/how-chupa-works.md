@@ -11,7 +11,7 @@ Related documents: `docs/host-contract.md` (full config schema and host-facing c
 
 ## 1. What chupa is
 
-chupa runs tickets against a git repository (the host): Implement writes the change on a branch,
+chupa (CLI Harness for Unattended Pipeline Agents) runs tickets against a git repository (the host): Implement writes the change on a branch,
 Check runs mechanical gates, Review has a model judge the diff, and Merge squashes the branch onto
 `main`. Failures are harvested, diagnosed, retried within caps, or held for a human.
 
