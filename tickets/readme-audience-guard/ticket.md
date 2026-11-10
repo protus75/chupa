@@ -21,7 +21,7 @@ kind: chore
   - `test_links_are_absolute`: every markdown link or image target (`](...)`) starts with `https://`.
   - `test_dev_commands_only_in_developer_section`: `## Developing chupa` occurs exactly once, and every occurrence of `./dev.py` comes after it.
   - `test_links_github_project`: the README contains a link whose target is exactly `https://github.com/protus75/chupa`.
-  - `test_chupa_verbs_exist`: every word following `uv run chupa ` in the README (ignoring the `<verb>` placeholder) is a subcommand choice of `_parser()`.
+  - `test_chupa_verbs_exist`: every word following `uv run chupa ` in the README (ignoring the `<verb>` placeholder and tokens starting with `-`, such as `--help`) is a subcommand choice of `_parser()`.
 - Out: `README.md` itself, other docs, `chupa/` code, and `pyproject.toml`. If a test fails on the merged README, report it as a second problem; do not edit the README.
 
 ## Scope fence
