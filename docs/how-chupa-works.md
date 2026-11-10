@@ -724,7 +724,7 @@ with the fix. The full field inventory is in `chupa/docs/host-contract.md`. This
 
 See the [host run guide](../chupa/docs/host-running.md) for invocation and operation.
 
-The block carries only process rules that hold for every host; codebase rules belong in the project-owned remainder. The block has two parts: `Engine conduct` is for ticket agents, and `Chat session conduct` is for interactive chat sessions in a host checkout.
+The block carries only process rules that hold for every host; codebase rules belong in the project-owned remainder. The block has four sections: `Ticket authoring` is for sessions writing tickets, `Diagnosis` is for sessions addressing failures, `Chat session conduct` is for interactive chat sessions, and `Engine conduct` is for ticket agents.
 
 - `chupa core` writes the managed block between `<!-- chupa:core begin -->` and
   `<!-- chupa:core end -->` in `CLAUDE.md` (for `claude`) or `AGENTS.md` (other CLIs), for each
