@@ -10,7 +10,6 @@ import pytest
 import pytest_asyncio
 
 from chupa import __main__ as cli
-from chupa.artifacts import DAEMON_SOAK_MEMBERS
 from chupa.audit import audit_journal
 from chupa.git import Git
 from chupa.journal import EventType
@@ -22,6 +21,7 @@ from chupa.serve import Serve
 from chupa.stages import read_review
 from chupa.tickets import parse_ticket, ticket_path
 from eval import daemon_soak as soak
+from eval.daemon_soak import DAEMON_SOAK_MEMBERS
 
 
 @pytest.mark.asyncio

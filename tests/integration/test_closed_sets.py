@@ -63,16 +63,12 @@ def get_args_deep(t):
 
 def test_artifacts_closed_sets_and_constants():
     assert artifacts.ARTIFACT_SCHEMA_VERSION == 1
-    assert artifacts.DAEMON_SOAK_MEMBERS == ("worker_killed_mid_run", "conflict_resolution_rungs", "semantic_conflict_integration_red")
-    assert artifacts.DAEMON_SOAK_SPEC_VERSION == 1
     assert artifacts.DIAGNOSIS_LESSON_CHARS == 300
     assert artifacts.DIAGNOSIS_MAX_LESSONS == 5
     assert artifacts.DIAGNOSIS_VERDICTS == ("retry", "escalate", "split", "reject", "abandon-human")
     assert set(get_args_deep(artifacts.DiagnosisVerdictName)) == {"abandon-human", "escalate", "reject", "retry", "split"}
     assert artifacts.OUTCOMES == frozenset({"already_satisfied", "budget_exceeded", "gate_failed", "infra_error", "invalid_artifact", "ok", "premise_failed", "timeout"})
     assert set(get_args_deep(artifacts.Outcome)) == {"already_satisfied", "budget_exceeded", "gate_failed", "infra_error", "invalid_artifact", "ok", "premise_failed", "timeout"}
-    assert artifacts.RELIABILITY_BATTERY_MEMBERS == ("classified_quota_exhaustion", "all_candidates_cooling_recovery", "unclassified_failure_preservation")
-    assert artifacts.RELIABILITY_BATTERY_SPEC_VERSION == 1
     assert artifacts.REVIEW_SNAG_CODES == frozenset({"acceptance", "leak", "logic", "scope"})
     assert set(get_args_deep(artifacts.ReviewVerdictName)) == {"approve", "rma", "snag"}
     assert artifacts.SHAKEOUT_SPEC_VERSION == 1
@@ -288,8 +284,6 @@ def test_stages_closed_sets_and_constants():
     assert stages.DIFF_BUDGET_INSERTED == 1500
     assert {k: ident(x) for k, x in stages.EMITS_BY_VERDICT.items()} == {"approve": "ApprovedInvoice", "rma": "Rma", "snag": "SnagList"}
     assert {k: ident(x) for k, x in stages.KNOWN_ARTIFACTS.items()} == {
-        "daemon-soak-report.json": "DaemonSoakReport",
-        "reliability-battery-report.json": "ReliabilityBatteryReport",
         "review-baseline-report.json": "ReviewBaselineReport",
         "shakeout-report.json": "ShakeoutReport",
     }

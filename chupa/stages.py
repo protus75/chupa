@@ -22,21 +22,17 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 from chupa.artifacts import (
-    DAEMON_SOAK_REPORT,
     OUTCOMES,
-    RELIABILITY_BATTERY_REPORT,
     REVIEW_BASELINE_REPORT,
     SHAKEOUT_REPORT,
     Artifact,
     Cost,
-    DaemonSoakReport,
     Diagnosis,
     DiagnosisReply,
     Finding,
     Harvest,
     NonBlank,
     Outcome,
-    ReliabilityBatteryReport,
     ReviewBaselineReport,
     ReviewVerdict,
     ShakeoutReport,
@@ -60,8 +56,6 @@ MAIN = "main"
 LIFT_MAX_BYTES = 256 * 1024
 KNOWN_ARTIFACTS: Mapping[str, type[BaseModel]] = {
     SHAKEOUT_REPORT: ShakeoutReport,
-    DAEMON_SOAK_REPORT: DaemonSoakReport,
-    RELIABILITY_BATTERY_REPORT: ReliabilityBatteryReport,
     REVIEW_BASELINE_REPORT: ReviewBaselineReport,
 }
 # Diff budget: sized so every rendered review prompt fits the serving provider's bound.

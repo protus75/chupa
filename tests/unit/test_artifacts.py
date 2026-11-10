@@ -1,13 +1,12 @@
+from types import SimpleNamespace
+
 import pytest
 from pydantic import ValidationError
 
 from chupa.artifacts import (
-    DAEMON_SOAK_MEMBERS,
-    RELIABILITY_BATTERY_MEMBERS,
     BaselineSignal,
-    DaemonSoakReport,
-    ReliabilityBatteryReport,
     ReviewBaselineReport,
+    _check_ordered_members,
     _check_producing_run,
 )
 
@@ -30,26 +29,9 @@ def test_integer_version_check():
 
 
 def test_ordered_members_check():
-    daemon_expected = (
-        ("abandoned_alerted_then_merged", "alert"),
-        ("mechanical_and_rework_main_green", "resolved"),
-        ("integration_red_main_green", "refused"),
-    )
-    daemon = [
-        dict(member=member, planted_fault="fault", expected=expected, observed=expected, disposition=disposition, producing_run="member-0/0", auditor=[], green=True)
-        for member, (expected, disposition) in zip(DAEMON_SOAK_MEMBERS, daemon_expected)
-    ]
-    battery_expected = ("quota_classified_cooldown_persisted", "all_cooling_held_timer_fired_recovered", "unknown_failure_unclassified")
-    battery = [
-        dict(member=member, planted_fault="fault", expected=expected, observed=expected, producing_run="member-0/0", auditor=[], green=True)
-        for member, expected in zip(RELIABILITY_BATTERY_MEMBERS, battery_expected)
-    ]
-    for model, members, entries in (
-        (DaemonSoakReport, DAEMON_SOAK_MEMBERS, daemon),
-        (ReliabilityBatteryReport, RELIABILITY_BATTERY_MEMBERS, battery),
-    ):
-        data = dict(produced_by_spec_version=1, produced_at_sha="abc", entries=entries)
-        assert tuple(entry.member for entry in model(**data).entries) == members
-        with pytest.raises(ValidationError) as exc:
-            model(**(data | {"entries": list(reversed(entries))}))
-        assert f"entries must contain exactly {members}, in order" in str(exc.value)
+    members = ("first", "second", "third")
+    entries = [SimpleNamespace(member=member) for member in members]
+    assert _check_ordered_members(entries, members) is None
+    with pytest.raises(ValueError) as exc:
+        _check_ordered_members(list(reversed(entries)), members)
+    assert str(exc.value) == f"entries must contain exactly {members}, in order"

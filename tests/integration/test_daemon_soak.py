@@ -4,36 +4,17 @@ All observations here are synthetic construction values in disposable repositori
 never the phase exit artifact.
 """
 
-import asyncio
-import importlib
 import json
-import os
 from copy import deepcopy
-from datetime import UTC, datetime
-from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
-from chupa import serve, stages
-from chupa.artifacts import (
-    ARTIFACT_SCHEMA_VERSION,
-    DAEMON_SOAK_MEMBERS,
-    DAEMON_SOAK_REPORT,
-    DAEMON_SOAK_SPEC_VERSION,
-    Artifact,
-    DaemonSoakEntry,
-    DaemonSoakReport,
-)
+from chupa.artifacts import ARTIFACT_SCHEMA_VERSION, Artifact
 from chupa.git import Git
-from chupa.journal import EventType, Journal
-from chupa.seams import LocalFileSystem, SubprocessExec
-from chupa.tickets import validate_ticket
-from eval import daemon_soak
+from chupa.seams import SubprocessExec
+from eval.daemon_soak import DAEMON_SOAK_MEMBERS, DAEMON_SOAK_SPEC_VERSION, DaemonSoakEntry, DaemonSoakReport
 from tests.integration.test_cli import ENV, root
-from tests.integration.test_merge import context
-from tests.integration.test_restart_timers import repository
-from tests.integration.test_stages import CONFIG, STEM, TICKET
 
 MEMBERS = (
     "worker_killed_mid_run",
@@ -79,7 +60,6 @@ def rejects(payload):
 async def test_daemon_soak_schema_is_closed(root):
     valid = await report(root)
     data = valid.model_dump()
-    assert DAEMON_SOAK_REPORT == "daemon-soak-report.json"
     assert DAEMON_SOAK_SPEC_VERSION == 1
     assert DAEMON_SOAK_MEMBERS == MEMBERS
     assert isinstance(valid, Artifact)
@@ -192,230 +172,3 @@ async def test_daemon_soak_green_matches_observation_and_auditor(root):
                     DaemonSoakEntry.model_validate(changed | {"green": not green})
                 with pytest.raises(ValidationError):
                     DaemonSoakEntry.model_validate_json(json.dumps(changed | {"green": not green}))
-
-
-class RecordingFS:
-    def __init__(self):
-        self.calls = []
-
-    def write(self, path, data):
-        self.calls.append((path, data))
-        LocalFileSystem().write(path, data)
-
-    def publish(self, path, data):
-        pytest.fail("report writer must use FileSystem.write")
-
-    def replace(self, src, dst):
-        pytest.fail("report writer must use FileSystem.write")
-
-
-@pytest.mark.asyncio
-async def test_daemon_soak_writer_validates_before_write(root, monkeypatch):
-    valid = await report(root)
-    git = Git(SubprocessExec(), env=ENV, timeout=30.0)
-    head, status = await git.rev_parse(root, "HEAD"), await git.status_porcelain(root)
-    journal = Journal(root / ".chupa/state", lambda: datetime(2026, 10, 5, tzinfo=UTC))
-    before = journal.read()
-    fs = RecordingFS()
-    path = root / ".chupa/construction" / DAEMON_SOAK_REPORT
-    LocalFileSystem().write(path, b"keep existing bytes\n")
-    expected = (json.dumps(valid.model_dump(), indent=2, ensure_ascii=False) + "\n").encode("utf-8")
-
-    def forbidden(*args, **kwargs):
-        pytest.fail("report writer must not mutate Git or Journal")
-
-    with monkeypatch.context() as patch:
-        patch.setattr(Git, "_call", forbidden)
-        patch.setattr(Journal, "append", forbidden)
-        invalid = [
-            valid.model_copy(update={"produced_at_sha": ""}),
-            DaemonSoakReport.model_construct(**(valid.model_dump() | {"entries": []})),
-            valid.model_copy(update={"entries": list(reversed(valid.entries))}),
-        ]
-        for index, entry in enumerate(valid.entries):
-            for changes in (
-                {"observed": "unexpected", "green": False},
-                {"auditor": ["violation"], "green": False},
-                {"observed": "unexpected"},
-                {"auditor": ["violation"]},
-                {"green": 1},
-                {"expected": "invented"},
-            ):
-                entries = list(valid.entries)
-                entries[index] = entry.model_copy(update=changes)
-                invalid.append(valid.model_copy(update={"entries": entries}))
-        mutated = valid.model_copy(deep=True)
-        mutated.entries.pop()
-        invalid.append(mutated)
-        for candidate in invalid:
-            for destination in (path, path.parent / "absent" / DAEMON_SOAK_REPORT):
-                with pytest.raises(ValueError):
-                    daemon_soak.write_report(destination, candidate, fs)
-                assert fs.calls == []
-                assert path.read_bytes() == b"keep existing bytes\n"
-                assert not (path.parent / "absent").exists()
-        daemon_soak.write_report(path, valid, fs)
-        assert fs.calls == [(path, expected)]
-        assert path.read_bytes() == expected
-    assert await git.rev_parse(root, "HEAD") == head
-    assert await git.status_porcelain(root) == status
-    assert journal.read() == before
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("case", ["green", "invalid", "false-green", "stale", "missing", "equal-copy", "startup"])
-async def test_daemon_soak_uses_registered_checks_lift(root, monkeypatch, case):
-    assert stages.KNOWN_ARTIFACTS[DAEMON_SOAK_REPORT] is DaemonSoakReport
-    if case == "startup":
-        rig = await repository(root, monkeypatch)
-
-        def forbidden(*args, **kwargs):
-            pytest.fail("machinery import/startup must not produce a soak report or prepare host work")
-
-        with monkeypatch.context() as patch:
-            patch.setattr(rig.fs, "write", lambda path, data: forbidden() if path.name == DAEMON_SOAK_REPORT else LocalFileSystem().write(path, data))
-            importlib.reload(daemon_soak)
-            patch.setattr(daemon_soak, "write_report", forbidden)
-            assert await serve.serve(rig.checkout, read=lambda stem: None, stems=lambda: (), prepare=forbidden, signals=lambda stop: (stop(), lambda: None)[1]) == 0
-        assert not list(root.rglob(DAEMON_SOAK_REPORT))
-        assert not any(path.endswith("/" + DAEMON_SOAK_REPORT) for path in await rig.checkout.git.ls_files(root))
-        return
-
-    fs = LocalFileSystem()
-    fs.write(root / "config.yaml", CONFIG.encode())
-    from tests.integration.test_stages import adopt_conduct
-
-    conduct = adopt_conduct(root)
-    ctx = context(root, [])
-    rel = f"tickets/{STEM}/{DAEMON_SOAK_REPORT}"
-    raw = TICKET.format(bypass="").replace("grep -q ok chupa/thing.py\nenv", f"soak-fixture --out={rel}")
-    fs.write(root / f"tickets/{STEM}/ticket.md", raw.encode())
-    await ctx.git.add(root, ["config.yaml", f"tickets/{STEM}/ticket.md", *conduct])
-    await ctx.git.commit(root, "synthetic report-lane fixture")
-    inherited = await report(root)
-    if case == "equal-copy":
-        daemon_soak.write_report(root / rel, inherited, fs)
-        await ctx.git.add(root, [rel])
-        await ctx.git.commit(root, "inherited synthetic construction report")
-    await stages.prepare_worktree(ctx, STEM)
-    worktree = ctx.worktree(STEM)
-    ticket = validate_ticket(STEM, raw, root)
-    source = await report(worktree)
-    outbox = worktree / rel
-    daemon_soak.write_report(outbox, source, fs)
-    nested_stale = outbox.parent / "nested" / DAEMON_SOAK_REPORT
-    if case == "stale":
-        fs.write(nested_stale, b'{"invalid": true}')
-    await stages.lift_outbox(ctx, STEM, "run-record", attempt=0)
-    await stages.lift_outbox(ctx, STEM, "review", attempt=0)
-    assert outbox.is_file()
-    if case != "equal-copy":
-        assert not (root / rel).exists()
-    record = "".join(f"## {name}\n\n{'ok' if name == 'Outcome' else 'none'}\n\n" for name in stages.RUN_RECORD_SECTIONS)
-    fs.write(root / f"tickets/{STEM}/run.md", record.encode())
-    original_exec = ctx.exec_.run
-    verified = []
-
-    async def execute(argv, **kwargs):
-        if argv[0] != "soak-fixture":
-            return await original_exec(argv, **kwargs)
-        assert kwargs["cwd"] == worktree
-        assert not outbox.exists()  # Implement/inherited bytes are purged before Verification.
-        assert not nested_stale.exists()
-        verified.append(list(argv))
-        if case == "green":
-            daemon_soak.write_report(outbox, source, fs)
-        elif case in {"invalid", "false-green"}:
-            data = source.model_dump()
-            if case == "invalid":
-                data["entries"].reverse()
-            else:
-                data["entries"][0]["observed"] = "unexpected"
-            fs.write(outbox, json.dumps(data).encode())
-        elif case == "equal-copy":
-            fs.write(outbox, (root / rel).read_bytes())
-        return 0, "", ""
-
-    monkeypatch.setattr(ctx.exec_, "run", execute)
-    slip = stages.PackingSlip(
-        produced_by_spec_version=1, produced_at_sha=source.produced_at_sha, stem=STEM, branch=STEM, outcome="ok", summary="construction fixture", run_record=f"tickets/{STEM}/run.md"
-    )
-    head = await ctx.git.rev_parse(root, "HEAD")
-    result = await stages.check(ctx, ticket, slip, attempt=0)
-    assert verified == [["soak-fixture", f"--out={rel}"]]
-    completions = [e for e in ctx.driver.journal.read() if e.type == EventType.EFFECT_COMPLETION]
-    checks = [e for e in completions if e.key == f"ticket-plane/{STEM}/0/checks"]
-    if case == "green":
-        assert result.outcome == "ok" and result.artifact.passed
-        assert len(checks) == 1
-        lifted = checks[0].body["result"]
-        assert lifted["kind"] == "checks"
-        assert lifted["paths"] == [f"tickets/{STEM}/checks.json", rel]
-        committed = await ctx.git._run(root, "show", f"{lifted['commit']}:{rel}")
-        assert DaemonSoakReport.model_validate_json(committed) == source
-        assert (root / rel).read_bytes() == (source.model_dump_json(indent=2) + "\n").encode("utf-8")
-        assert not outbox.exists()
-        assert all(rel not in e.body["result"].get("paths", []) for e in completions if e is not checks[0])
-    else:
-        assert result.outcome == "gate_failed" and not result.artifact.passed
-        assert result.findings and all(f.code == "verification" and f.paved_road for f in result.findings)
-        if case in {"invalid", "false-green"}:
-            assert checks == []
-            assert await ctx.git.rev_parse(root, "HEAD") == head
-            assert not (root / f"tickets/{STEM}/checks.json").exists()
-            assert not (root / rel).exists()
-        else:
-            assert all(rel not in e.body["result"].get("paths", []) for e in completions)
-    assert await ctx.git.diff_names(root, "main", STEM) == []
-    assert not (root / "tickets/soak-run" / DAEMON_SOAK_REPORT).exists()
-    await ctx.git.worktree_remove(root, worktree)
-
-
-def test_daemon_soak_command_writes_report_only_on_green(tmp_path, monkeypatch, capsys):
-    destination = tmp_path / DAEMON_SOAK_REPORT
-    calls = []
-    writer = daemon_soak.write_report
-
-    def written(path, report, fs):
-        calls.append((path, report))
-        writer(path, report, fs)
-
-    monkeypatch.setattr(daemon_soak, "write_report", written)
-    git = Git(SubprocessExec(), env=os.environ, timeout=30)
-    before = asyncio.run(git.rev_parse(Path.cwd(), "HEAD"))
-    assert daemon_soak.main(["--out", str(destination)]) == 0
-    [(path, produced)] = calls
-    assert path == destination and all(e.green for e in produced.entries)
-    assert destination.read_bytes() == (produced.model_dump_json(indent=2) + "\n").encode()
-    original_bytes = destination.read_bytes()
-    observe = daemon_soak._observe
-
-    async def missing(member):
-        if member.name == "conflict_resolution_rungs":
-            # Remove a required report from the member's own Box, after genuine production runs.
-            message = next(m for m in member.owner.box.messages() if m.origin == "unresolved")
-            member.owner.box.path(message).unlink()
-        return await observe(member)
-
-    monkeypatch.setattr(daemon_soak, "_observe", missing)
-    for output in (destination, tmp_path / "absent" / DAEMON_SOAK_REPORT):
-        assert daemon_soak.main(["--out", str(output)]) != 0
-        error = capsys.readouterr().err
-        assert "conflict_resolution_rungs" in error and "repair" in error and "--out <path>" in error
-        assert len(calls) == 1
-    assert destination.read_bytes() == original_bytes
-    assert not (tmp_path / "absent").exists()
-    monkeypatch.setattr(daemon_soak, "_observe", observe)
-    command_out = tmp_path / "command" / DAEMON_SOAK_REPORT
-    rc, out, err = asyncio.run(SubprocessExec().run(["uv", "run", "python", "-m", "eval.daemon_soak", "--out", str(command_out)], cwd=Path.cwd(), env=os.environ, timeout=120))
-    assert rc == 0, out + err
-    after = asyncio.run(git.rev_parse(Path.cwd(), "HEAD"))
-    command_bytes = command_out.read_bytes()
-    command_report = DaemonSoakReport.model_validate_json(command_bytes)
-    for sha in (produced.produced_at_sha, command_report.produced_at_sha):
-        assert asyncio.run(git.merge_base(Path.cwd(), before, sha)) == before
-        assert asyncio.run(git.merge_base(Path.cwd(), sha, after)) == sha
-    assert asyncio.run(git.merge_base(Path.cwd(), produced.produced_at_sha, command_report.produced_at_sha)) == produced.produced_at_sha
-    command_sha_field = f'"produced_at_sha": "{command_report.produced_at_sha}"'.encode()
-    produced_sha_field = f'"produced_at_sha": "{produced.produced_at_sha}"'.encode()
-    assert command_bytes.replace(command_sha_field, produced_sha_field, 1) == original_bytes

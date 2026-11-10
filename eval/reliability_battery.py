@@ -1,20 +1,20 @@
 """Closed, disposable production provider battery."""
 
-import argparse
 import asyncio
 import json
 import os
 import sys
-import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Literal
 
 import yaml
+from pydantic import model_validator
 
 from chupa import __main__ as cli
 from chupa import caps, runner
-from chupa.artifacts import _RELIABILITY_BATTERY_EXPECTED, RELIABILITY_BATTERY_MEMBERS, RELIABILITY_BATTERY_SPEC_VERSION, Harvest, ReliabilityBatteryEntry, ReliabilityBatteryReport
+from chupa.artifacts import Artifact, Harvest, NonBlank, _check_ordered_members, _check_producing_run, _Strict
 from chupa.audit import audit_journal
 from chupa.config import load_config
 from chupa.git import Git
@@ -22,22 +22,54 @@ from chupa.hostfiles import render
 from chupa.journal import EventType, Journal, render_ts, run_terminals
 from chupa.lockfile import Lockfile
 from chupa.providers import PROBE_PROMPT, routed_conduct_paths
-from chupa.seams import FileSystem, LocalFileSystem, SubprocessExec
+from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.tickets import intake, validate_ticket
 from eval.daemon_soak import _Time, _turn
+
+RELIABILITY_BATTERY_SPEC_VERSION = 1
+RELIABILITY_BATTERY_MEMBERS = (
+    "classified_quota_exhaustion",
+    "all_candidates_cooling_recovery",
+    "unclassified_failure_preservation",
+)
+_RELIABILITY_BATTERY_EXPECTED = (
+    "quota_classified_cooldown_persisted",
+    "all_cooling_held_timer_fired_recovered",
+    "unknown_failure_unclassified",
+)
+
+
+class ReliabilityBatteryEntry(_Strict):
+    member: Literal["classified_quota_exhaustion", "all_candidates_cooling_recovery", "unclassified_failure_preservation"]
+    planted_fault: NonBlank
+    expected: NonBlank
+    observed: NonBlank
+    producing_run: str
+    auditor: list[NonBlank]
+    green: bool
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "ReliabilityBatteryEntry":
+        _check_producing_run(self.producing_run)
+        if self.expected != _RELIABILITY_BATTERY_EXPECTED[RELIABILITY_BATTERY_MEMBERS.index(self.member)]:
+            raise ValueError(f"{self.member} requires its fixed expected observation")
+        if self.green != (self.observed == self.expected and not self.auditor):
+            raise ValueError("green must match the observation and empty auditor")
+        return self
+
+
+class ReliabilityBatteryReport(Artifact):
+    entries: list[ReliabilityBatteryEntry]
+
+    @model_validator(mode="after")
+    def _ordered_members(self) -> "ReliabilityBatteryReport":
+        _check_ordered_members(self.entries, RELIABILITY_BATTERY_MEMBERS)
+        return self
 
 
 class BatteryRefused(ValueError):
     def __init__(self, member, detail):
-        super().__init__(f"{member}: {detail}; repair this member's production evidence and rerun uv run python -m eval.reliability_battery --out <path>")
-
-
-def write_report(path: Path, report: ReliabilityBatteryReport, fs: FileSystem) -> None:
-    validated = ReliabilityBatteryReport.model_validate(report.model_dump())
-    for entry in validated.entries:
-        if not entry.green:
-            raise BatteryRefused(entry.member, f"red observation {entry.observed}; auditor {entry.auditor}")
-    fs.write(path, (validated.model_dump_json(indent=2) + "\n").encode("utf-8"))
+        super().__init__(f"{member}: {detail}; repair this member's production evidence and rerun the battery tests")
 
 
 class _Exec:
@@ -447,29 +479,3 @@ async def produce(root: Path) -> ReliabilityBatteryReport:
     sha = await Git(SubprocessExec(), env=os.environ, timeout=30).rev_parse(Path.cwd(), "HEAD")
     entries = [await _run_member(root, name) for name in RELIABILITY_BATTERY_MEMBERS]
     return ReliabilityBatteryReport(produced_by_spec_version=RELIABILITY_BATTERY_SPEC_VERSION, produced_at_sha=sha, entries=entries)
-
-
-async def _main(argv=None):
-    parser = argparse.ArgumentParser(prog="python -m eval.reliability_battery")
-    parser.add_argument("--out", type=Path, required=True)
-    args = parser.parse_args(argv)
-    try:
-        with tempfile.TemporaryDirectory(prefix="chupa-reliability-battery-") as directory:
-            report = await produce(Path(directory))
-        report = ReliabilityBatteryReport.model_validate(report.model_dump())
-        for entry in report.entries:
-            if not entry.green:
-                raise BatteryRefused(entry.member, f"red observation {entry.observed}; auditor {entry.auditor}")
-        write_report(args.out, report, LocalFileSystem())
-    except ValueError as exc:
-        print(str(exc), file=sys.stderr)
-        return 1
-    return 0
-
-
-def main(argv=None):
-    return asyncio.run(_main(argv))
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

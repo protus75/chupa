@@ -1,19 +1,19 @@
-"""Deterministic production soak and canonical report writer."""
+"""Deterministic production soak harness."""
 
-import argparse
 import asyncio
 import json
 import os
 import sys
-import tempfile
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Literal
 
 import yaml
+from pydantic import model_validator
 
 from chupa import caps, runner, serve
-from chupa.artifacts import DAEMON_SOAK_MEMBERS, DAEMON_SOAK_SPEC_VERSION, DaemonSoakEntry, DaemonSoakReport, Harvest
+from chupa.artifacts import Artifact, Harvest, NonBlank, _check_ordered_members, _check_producing_run, _Strict
 from chupa.audit import audit_journal
 from chupa.config import load_config
 from chupa.git import Git
@@ -23,21 +23,56 @@ from chupa.llm import HANG, FakeLLM
 from chupa.mergequeue import CONFLICT_FACTS, MERGE_REGATE, ConflictHandoff
 from chupa.providers import routed_conduct_paths
 from chupa.reconcile import RECOVERY_ALERT
-from chupa.seams import FileSystem, LocalFileSystem, SubprocessExec
+from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.stages import Invoice, read_review
 
+DAEMON_SOAK_SPEC_VERSION = 1
+DAEMON_SOAK_MEMBERS = (
+    "worker_killed_mid_run",
+    "conflict_resolution_rungs",
+    "semantic_conflict_integration_red",
+)
+_DAEMON_SOAK_EXPECTED = {
+    "worker_killed_mid_run": ("abandoned_alerted_then_merged", "alert"),
+    "conflict_resolution_rungs": ("mechanical_and_rework_main_green", "resolved"),
+    "semantic_conflict_integration_red": ("integration_red_main_green", "refused"),
+}
 
-def write_report(path: Path, report: DaemonSoakReport, fs: FileSystem) -> None:
-    # Revalidate nested lists and values that model_construct/model_copy can bypass.
-    validated = DaemonSoakReport.model_validate(report.model_dump())
-    if any(not entry.green for entry in validated.entries):
-        raise ValueError("refusing a red daemon soak report; resolve observations and auditor violations first")
-    fs.write(path, (validated.model_dump_json(indent=2) + "\n").encode("utf-8"))
+
+class DaemonSoakEntry(_Strict):
+    """One closed member's observation."""
+
+    member: Literal["worker_killed_mid_run", "conflict_resolution_rungs", "semantic_conflict_integration_red"]
+    planted_fault: NonBlank
+    expected: NonBlank
+    observed: NonBlank
+    disposition: Literal["alert", "resolved", "refused"]
+    producing_run: str
+    auditor: list[NonBlank]
+    green: bool
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "DaemonSoakEntry":
+        _check_producing_run(self.producing_run)
+        if (self.expected, self.disposition) != _DAEMON_SOAK_EXPECTED[self.member]:
+            raise ValueError(f"{self.member} requires expected/disposition {_DAEMON_SOAK_EXPECTED[self.member]}")
+        if self.green != (self.observed == self.expected and not self.auditor):
+            raise ValueError("green must match the observation and empty auditor")
+        return self
+
+
+class DaemonSoakReport(Artifact):
+    entries: list[DaemonSoakEntry]
+
+    @model_validator(mode="after")
+    def _ordered_members(self) -> "DaemonSoakReport":
+        _check_ordered_members(self.entries, DAEMON_SOAK_MEMBERS)
+        return self
 
 
 class SoakRefused(Exception):
     def __init__(self, member: str, detail: str):
-        super().__init__(f"{member}: {detail}; repair this member's production behavior/evidence and rerun uv run python -m eval.daemon_soak --out <path>")
+        super().__init__(f"{member}: {detail}; repair this member's production behavior/evidence and rerun the soak tests")
 
 
 async def _turn() -> None:
@@ -697,25 +732,3 @@ async def produce(root: Path) -> DaemonSoakReport:
     sha = await git.rev_parse(Path.cwd(), "HEAD")
     entries = [await _run_member(root, name) for name in DAEMON_SOAK_MEMBERS]
     return DaemonSoakReport(produced_by_spec_version=DAEMON_SOAK_SPEC_VERSION, produced_at_sha=sha, entries=entries)
-
-
-async def _main(argv=None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m eval.daemon_soak")
-    parser.add_argument("--out", type=Path, required=True)
-    args = parser.parse_args(argv)
-    try:
-        with tempfile.TemporaryDirectory(prefix="chupa-daemon-soak-") as directory:
-            report = await produce(Path(directory))
-        write_report(args.out, report, LocalFileSystem())
-    except (SoakRefused, ValueError) as exc:
-        print(str(exc), file=sys.stderr)
-        return 1
-    return 0
-
-
-def main(argv=None) -> int:
-    return asyncio.run(_main(argv))
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

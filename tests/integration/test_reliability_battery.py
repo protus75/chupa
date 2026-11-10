@@ -19,26 +19,25 @@ from chupa.seams import SubprocessExec
 from chupa.specs import load_spec
 from eval import reliability_battery as battery
 
-MEMBERS = artifacts.RELIABILITY_BATTERY_MEMBERS
-EXPECTED = artifacts._RELIABILITY_BATTERY_EXPECTED
+MEMBERS = battery.RELIABILITY_BATTERY_MEMBERS
+EXPECTED = battery._RELIABILITY_BATTERY_EXPECTED
 
 
 def report():
-    return artifacts.ReliabilityBatteryReport(
+    return battery.ReliabilityBatteryReport(
         produced_by_spec_version=1,
         produced_at_sha="source",
         entries=[
-            artifacts.ReliabilityBatteryEntry(member=m, planted_fault="fixture fault", expected=e, observed=e, producing_run=f"fixture-{i}/0", auditor=[], green=True)
+            battery.ReliabilityBatteryEntry(member=m, planted_fault="fixture fault", expected=e, observed=e, producing_run=f"fixture-{i}/0", auditor=[], green=True)
             for i, (m, e) in enumerate(zip(MEMBERS, EXPECTED))
         ],
     )
 
 
 def test_reliability_battery_schema_is_closed():
-    assert artifacts.RELIABILITY_BATTERY_REPORT == "reliability-battery-report.json"
-    assert artifacts.RELIABILITY_BATTERY_SPEC_VERSION == 1
-    assert set(artifacts.ReliabilityBatteryEntry.model_fields) == {"member", "planted_fault", "expected", "observed", "producing_run", "auditor", "green"}
-    assert set(artifacts.ReliabilityBatteryReport.model_fields) == {"artifact_schema_version", "produced_by_spec_version", "produced_at_sha", "entries"}
+    assert battery.RELIABILITY_BATTERY_SPEC_VERSION == 1
+    assert set(battery.ReliabilityBatteryEntry.model_fields) == {"member", "planted_fault", "expected", "observed", "producing_run", "auditor", "green"}
+    assert set(battery.ReliabilityBatteryReport.model_fields) == {"artifact_schema_version", "produced_by_spec_version", "produced_at_sha", "entries"}
     data = report().model_dump()
     invalid = []
     for field, value in [
@@ -68,46 +67,20 @@ def test_reliability_battery_schema_is_closed():
         invalid.append({**data, field: value})
     for d in invalid:
         with pytest.raises(ValidationError):
-            artifacts.ReliabilityBatteryReport.model_validate(d)
+            battery.ReliabilityBatteryReport.model_validate(d)
     for version in (0, 1):
-        assert artifacts.ReliabilityBatteryReport.model_validate({**data, "artifact_schema_version": version}).artifact_schema_version == version
+        assert battery.ReliabilityBatteryReport.model_validate({**data, "artifact_schema_version": version}).artifact_schema_version == version
 
 
 def test_reliability_battery_green_requires_observation_and_auditor():
     data = report().entries[0].model_dump()
     for observed, auditor in [("missing", []), (EXPECTED[0], ["declared_cap: -: unknown cap"])]:
-        entry = artifacts.ReliabilityBatteryEntry.model_validate({**data, "observed": observed, "auditor": auditor, "green": False})
+        entry = battery.ReliabilityBatteryEntry.model_validate({**data, "observed": observed, "auditor": auditor, "green": False})
         assert not entry.green
         with pytest.raises(ValidationError):
-            artifacts.ReliabilityBatteryEntry.model_validate({**entry.model_dump(), "green": True})
+            battery.ReliabilityBatteryEntry.model_validate({**entry.model_dump(), "green": True})
     with pytest.raises(ValidationError):
-        artifacts.ReliabilityBatteryEntry.model_validate({**data, "green": False})
-
-
-class FS:
-    def __init__(self):
-        self.writes = []
-
-    def write(self, path, data):
-        self.writes.append((path, data))
-
-
-def test_reliability_battery_writer_validates_before_write(tmp_path):
-    fs = FS()
-    path = tmp_path / "report.json"
-    good = report()
-    battery.write_report(path, good, fs)
-    assert fs.writes == [(path, (good.model_dump_json(indent=2) + "\n").encode("utf-8"))]
-    assert not path.exists()
-    for bad in [
-        good.model_copy(update={"entries": []}),
-        good.model_copy(update={"entries": [good.entries[0].model_copy(update={"green": False}), *good.entries[1:]]}),
-        good.model_copy(update={"entries": [good.entries[0].model_copy(update={"observed": "missing", "green": False}), *good.entries[1:]]}),
-    ]:
-        fs.writes.clear()
-        with pytest.raises(ValueError):
-            battery.write_report(path, bad, fs)
-        assert not fs.writes
+        battery.ReliabilityBatteryEntry.model_validate({**data, "green": False})
 
 
 async def member(tmp_path, index):
@@ -128,7 +101,6 @@ async def test_classified_quota_exhaustion(tmp_path):
     assert entry.observed == EXPECTED[0] and entry.producing_run == "quota-fault/0"
     assert m.exec.calls == [("codex", "codex-inherited", "implement", (17, "", "usage limit reached"))]
     assert len(m.session.timers.pending) == 1
-    assert not list(tmp_path.rglob(artifacts.RELIABILITY_BATTERY_REPORT))
 
 
 @pytest.mark.asyncio
@@ -304,97 +276,3 @@ async def test_reliability_battery_cleans_up_owned_lifetimes(tmp_path, monkeypat
     assert m.core.admission.task is None and all(w.ctx.driver._active is None for w in m.writers)
     trees = await m.git._run(m.root, "worktree", "list", "--porcelain")
     assert sum(line.startswith("worktree ") for line in trees.splitlines()) == 1
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("case", ["current", "invalid", "missing", "stale", "inherited", "equal-copy"])
-async def test_reliability_battery_uses_registered_checks_lift(tmp_path, case):
-    assert stages.KNOWN_ARTIFACTS[artifacts.RELIABILITY_BATTERY_REPORT] is artifacts.ReliabilityBatteryReport
-    m = battery._Member(tmp_path / "custody", MEMBERS[0])
-    await m.initialize()
-    name = artifacts.RELIABILITY_BATTERY_REPORT
-    rel = f"tickets/producer/{name}"
-    try:
-        ticket = await m.add("producer")
-        source = b'{"invalid": true}' if case == "invalid" else (report().model_dump_json() + "\n").encode()
-        m.fs.write(m.root / "source.json", source)
-        if case in {"inherited", "equal-copy"}:
-            m.fs.write(m.root / rel, source)
-        await m.git.add(m.root, ["source.json", *([rel] if case in {"inherited", "equal-copy"} else [])])
-        await m.git.commit(m.root, "custody source")
-        code = f"from pathlib import Path; Path({rel!r}).write_bytes(Path('source.json').read_bytes())"
-        command = (sys.executable, "-c", code) if case in {"current", "invalid", "equal-copy"} else (sys.executable, "-c", "pass", "--out", rel)
-        ticket = replace(ticket, verification=(command,))
-        writer = await runner.prepare_pipeline(m.checkout)
-        m.writers.append(writer)
-        ctx = writer.ctx
-        worktree = await stages.prepare_worktree(ctx, "producer")
-        reply = stages.ImplementReply(outcome="ok", summary="fixture", surprises="none", dead_ends="none", predicted_vs_actual="none", findings=[])
-        spec = load_spec((ctx.specs_dir / "implement.md").read_text())
-        m.fs.write(m.root / "tickets/producer/run.md", stages.run_record(reply, artifacts.Cost(), spec, []).encode())
-        if case == "stale":
-            m.fs.write(worktree / rel, source)
-            assert await stages.lift_outbox(ctx, "producer", "run-record", attempt=0) is None
-            assert not (m.root / rel).exists()
-        if case == "equal-copy":
-            assert await stages.lift_outbox(ctx, "producer", "checks", attempt=0) is None
-        slip = stages.PackingSlip(produced_by_spec_version=1, produced_at_sha="fixture", stem="producer", branch="producer", outcome="ok", summary="fixture", run_record="tickets/producer/run.md")
-        result = await stages.check(ctx, ticket, slip, attempt=0)
-        assert result.outcome == ("ok" if case == "current" else "gate_failed")
-        lifts = [e for e in m.journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key == "ticket-plane/producer/0/checks"]
-        if case == "current":
-            assert lifts[0].body["result"]["paths"] == ["tickets/producer/checks.json", rel]
-            assert artifacts.ReliabilityBatteryReport.model_validate_json((m.root / rel).read_bytes()) == report()
-        if case == "invalid":
-            assert not lifts and not (m.root / "tickets/producer/checks.json").exists()
-        if case in {"stale", "inherited"}:
-            assert not (worktree / rel).exists()
-    finally:
-        await m.stop()
-
-
-@pytest.mark.asyncio
-async def test_reliability_battery_command_writes_only_on_green(tmp_path, monkeypatch, capsys):
-    target = tmp_path / "report.json"
-    git = Git(SubprocessExec(), env=os.environ, timeout=30)
-    before = await git.rev_parse(Path.cwd(), "HEAD")
-    rc, out, err = await SubprocessExec().run(["uv", "run", "python", "-m", "eval.reliability_battery", "--out", str(target)], cwd=Path.cwd(), env=os.environ, timeout=60)
-    assert rc == 0, err
-    produced = artifacts.ReliabilityBatteryReport.model_validate_json(target.read_bytes())
-    after = await git.rev_parse(Path.cwd(), "HEAD")
-    assert await git.merge_base(Path.cwd(), before, produced.produced_at_sha) == before
-    assert await git.merge_base(Path.cwd(), produced.produced_at_sha, after) == produced.produced_at_sha
-    assert produced.produced_by_spec_version == 1
-    assert all(e.green for e in produced.entries)
-    target.unlink()
-
-    async def red(_):
-        r = report()
-        entry = r.entries[1].model_copy(update={"observed": "missing", "green": False})
-        return r.model_copy(update={"entries": [r.entries[0], entry, r.entries[2]]})
-
-    monkeypatch.setattr(battery, "write_report", lambda *_: pytest.fail("writer called for incomplete/red battery"))
-    monkeypatch.setattr(battery, "produce", red)
-    assert await battery._main(["--out", str(target)]) == 1 and not target.exists()
-    message = capsys.readouterr().err
-    assert MEMBERS[1] in message and "repair" in message and "uv run python -m eval.reliability_battery --out <path>" in message
-
-    async def refused(_):
-        raise battery.BatteryRefused(MEMBERS[2], "missing error evidence")
-
-    monkeypatch.setattr(battery, "produce", refused)
-    assert await battery._main(["--out", str(target)]) == 1 and not target.exists()
-    message = capsys.readouterr().err
-    assert MEMBERS[2] in message and "missing error evidence" in message and "rerun" in message
-    # The production import graph has no battery call or import; both import idioms are examined.
-    import ast
-
-    for path in Path("chupa").glob("*.py"):
-        tree = ast.parse(path.read_text())
-        assert not any(
-            isinstance(n, ast.Import)
-            and any("reliability_battery" in a.name for a in n.names)
-            or isinstance(n, ast.ImportFrom)
-            and ("reliability_battery" in (n.module or "") or any(a.name == "reliability_battery" for a in n.names))
-            for n in ast.walk(tree)
-        )
