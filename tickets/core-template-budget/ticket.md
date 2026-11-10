@@ -26,7 +26,10 @@ The managed block grew to 22 KB because rules were ported word for word and noth
 
 ## Acceptance criteria
 1. `./dev.py test tests/integration/test_hostfiles.py` passes on the template `core-authoring-first` leaves.
-2. The new test fails, not passes, when `CORE_TEMPLATE` is monkeypatched to start with `## Engine conduct`, and fails when it is monkeypatched to 8193 bytes; both cases are covered in `tests/integration/test_hostfiles.py`.
+2. `tests/integration/test_hostfiles.py` covers three monkeypatched values of `hostfiles.CORE_TEMPLATE`, each run against the new test:
+   - a value under 8192 bytes that starts with `## Engine conduct` makes it raise `AssertionError` whose message contains `first section`;
+   - a value of exactly 8193 bytes that starts with `## Ticket authoring -- read before writing any ticket` makes it raise `AssertionError` whose message contains `compress`;
+   - a value of exactly 8192 bytes with that same opening makes it pass.
 
 ## Verification
 ```
