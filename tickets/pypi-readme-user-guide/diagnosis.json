@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "465ace76546de2f71c3ac8834547e121a7e3497c",
+  "produced_at_sha": "c3da758ca70492b2e4a292d9d42174622199c9a9",
   "stem": "pypi-readme-user-guide",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "gate_failed",
-  "stage": "merge",
+  "stage": "check",
   "verdict": "retry",
   "lessons": [
-    "The merge gate failed only tests/integration/test_daemon_soak_runner.py::test_daemon_soak_runs_production_serve. That test builds its own repo under tmp_path and never reads README.md or docs/, and the same suite passed 3311/3311 at checks. The docs-only diff did not cause it.",
-    "Redo the same work from the merge base: rewrite README.md with the eight sections in the ticket's order, all links absolute https://, and ./dev.py only under ## Developing chupa. Change only the first sentence of section 1 in docs/how-chupa-works.md. Review approved this approach with no findings.",
-    "If the soak test fails again, run the plain ./dev.py test once in a base-commit git worktree with full history and no env overrides before calling it pre-existing. If it fails there too, file it with chupa suggest as a flaky test. Do not edit the test or anything else outside the ticket's fence.",
-    "Do not touch tests/, chupa/, or pyproject.toml to make the gate pass. The scope fence allows only README.md and docs/how-chupa-works.md."
+    "Redo the README.md rewrite from the merge base: sections 1-8 in the ticket's order, every link an absolute https:// URL, ./dev.py only under ## Developing chupa. Change only the first sentence of section 1 in docs/how-chupa-works.md.",
+    "The one failure, tests/integration/test_daemon_soak_runner.py::test_daemon_soak_runs_production_serve, runs a synthetic repo built in eval/daemon_soak.py. It never reads README.md or docs/, so the docs diff did not cause it.",
+    "The implementer's own suite passed (3185 tests) but the check run failed (3310 tests), so the soak test may be flaky. Run ./dev.py test as written. Do not edit eval/ or tests/; both are outside the scope fence.",
+    "If the soak test fails again, run the plain ./dev.py test once in a base-commit git worktree with no environment overrides. If it also fails there, file it with chupa suggest and report it as a base failure. Do not widen the diff.",
+    "Before committing, check acceptance criteria 1-8 with the ticket's grep commands. Check that every verb and comment in ## Commands matches uv run chupa --help and docs/host-running.md."
   ],
   "mechanical": null,
   "spec_version": "1.4",
