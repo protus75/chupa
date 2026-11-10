@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "chupa"
-version = "0.1.3"
+version = "0.1.4"
 description = "Continuously running orchestration engine that authors and runs tickets against host repos."
 readme = "README.md"
 license = "LicenseRef-Proprietary"
