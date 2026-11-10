@@ -1,21 +1,15 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "408e2c791fbc91ce010875bbe18258a816591ef8",
+  "produced_at_sha": "72655718c5f3b1f7bdeb1d642f047c17d809e253",
   "stem": "soak-serve-stops-early-under-load",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "retry",
-  "lessons": [
-    "The ticket asks you to reproduce the stop under load, not to recover old logs. Loop the test under real CPU contention (e.g. `./dev.py test` with `-n auto` and `--count`) and read the member's .chupa/state/engine.log and journal at the moment `until` raises.",
-    "Match the exact signature: `until` raising 'serve stopped early (1)' (eval/daemon_soak.py:317). The git-add injection gave 'serve cleanup exited 1', a different path, so it is not evidence. Inject only at a call that ends in the :317 refusal.",
-    "Check the real subprocess calls made inside the scripted Model callback in eval/daemon_soak.py (git add/commit at :269-285, verify at :252). If a TimeoutError there becomes worker_failure, fix how the fixture runs that work, not the timeout value.",
-    "Return premise_failed only if the reproduced engine.log line shows the cause is in chupa/ code. Quote that line and name the file. Missing historical logs is not a false premise, because the ticket allows reproduction to produce the evidence.",
-    "Redo all the deliverables from the merge base: the test named test_conflict_rungs_member_survives_slow_subprocess, which injects through `_Exec`/ProcessExec and fails on base, and tests/regress_soak_slow_subprocess.py with pass/defect/error JSON and exit codes 0/1/2."
-  ],
-  "mechanical": null,
+  "verdict": "abandon-human",
+  "lessons": [],
+  "mechanical": "premise_bounce cap spent",
   "spec_version": "1.4",
-  "provider": "claude",
-  "model": "claude-opus-5-5"
+  "provider": null,
+  "model": null
 }
