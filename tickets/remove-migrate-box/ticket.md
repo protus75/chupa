@@ -14,7 +14,7 @@ none
 - tests/integration/test_cli.py::test_migrate_box_lock_and_repeat
 - tests/integration/test_box.py::test_migrate_box_preserves_other_messages
 - tests/unit/test_host_running.py
-- docs/host-running.md
+- chupa/docs/host-running.md
 
 ## On-demand
 - chupa/__main__.py
@@ -27,7 +27,7 @@ none
 - In: `chupa/__main__.py`: delete the `migrate-box` subparser and the `if args.verb == "migrate-box":` branch with its `migrate_box` coroutine. Delete any import left unused by that deletion.
 - In: `dev.py`: delete the `migrate-box` docstring line and its `sub.add_parser("migrate-box", ...)` line.
 - In: tests: delete `test_migrate_box_lock_and_repeat` (test_cli.py), `test_migrate_box_preserves_other_messages` (test_box.py), and `test_migrate_box_forwards` (test_dev.py). Delete any import left unused in those files.
-- In: `docs/host-running.md`: delete the `migrate-box` verb-table row, and drop `migrate-box` from the "Stop serve before ..." list, so `tests/unit/test_host_running.py::test_verb_table_matches_parser` passes.
+- In: `chupa/docs/host-running.md`: delete the `migrate-box` verb-table row, and drop `migrate-box` from the "Stop serve before ..." list, so `tests/unit/test_host_running.py::test_verb_table_matches_parser` passes.
 - In: `docs/how-chupa-works.md`: delete the `migrate-box` rows from the section 2.1 verb table and the section 2.2 `./dev.py` table.
 - Out:
   - the `declined` verdict, `Resolution`, `Verdict`, `DecisionRecord`, and every other box model;
@@ -37,7 +37,7 @@ none
 ## Scope fence
 - chupa/__main__.py
 - dev.py
-- docs/host-running.md
+- chupa/docs/host-running.md
 - docs/how-chupa-works.md
 - tests/integration/test_cli.py
 - tests/integration/test_box.py
