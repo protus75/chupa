@@ -1,0 +1,17 @@
+# test_daemon_soak_runs_production_serve failed in the full parallel suite, passed in isolation (3/3 on main, 2026-11-09)
+
+## .chupa/state/spools/retro-request-serve/1/check/host-02.txt
+89:>               raise SoakRefused(self.name, f"serve stopped early ({self.task.result()})")
+90:E               eval.daemon_soak.SoakRefused: conflict_resolution_rungs: serve stopped early (1); repair this member's production behavior/evidence and rerun uv run python -m eval.daemon_soak --out <path>
+92:eval/daemon_soak.py:317: SoakRefused
+171:>           raise SoakRefused(self.name, f"serve cleanup exited {result}")
+172:E           eval.daemon_soak.SoakRefused: conflict_resolution_rungs: serve cleanup exited 1; repair this member's production behavior/evidence and rerun uv run python -m eval.daemon_soak --out <path>
+174:eval/daemon_soak.py:365: SoakRefused
+
+## .chupa/state/spools/vscode-command-not-found/0/check/verify-02.txt
+83:>               raise SoakRefused(self.name, f"serve stopped early ({self.task.result()})")
+84:E               eval.daemon_soak.SoakRefused: conflict_resolution_rungs: serve stopped early (1); repair this member's production behavior/evidence and rerun uv run python -m eval.daemon_soak --out <path>
+86:eval/daemon_soak.py:317: SoakRefused
+165:>           raise SoakRefused(self.name, f"serve cleanup exited {result}")
+166:E           eval.daemon_soak.SoakRefused: conflict_resolution_rungs: serve cleanup exited 1; repair this member's production behavior/evidence and rerun uv run python -m eval.daemon_soak --out <path>
+168:eval/daemon_soak.py:365: SoakRefused
