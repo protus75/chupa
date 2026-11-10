@@ -30,12 +30,16 @@ Suspects to test first, not conclusions: the member's real-subprocess `Git(..., 
 - In: fix the cause in `eval/daemon_soak.py` or `tests/integration/test_daemon_soak_runner.py`, whichever owns it.
 - In: a deterministic test in `tests/integration/test_daemon_soak_runner.py` named `test_conflict_rungs_member_survives_slow_subprocess` that forces the identified condition through an injected seam (no reliance on real machine load) and fails on the base commit.
 - In: a carried reproducer `tests/regress_soak_slow_subprocess.py`, shaped like `tests/regress_dev_test_args.py`. It runs `pytest.main(["tests/integration/test_daemon_soak_runner.py", "-k", "test_conflict_rungs_member_survives_slow_subprocess", "-q", "-p", "no:cacheprovider"])` in-process with stdout redirected to stderr, then prints exactly one JSON object: `{"regression_result": "pass"}` with exit 0 when pytest returns 0, `{"regression_result": "defect"}` with exit 1 when pytest returns 1, and `{"regression_result": "error"}` with exit 2 otherwise (including no test collected) or on any exception. It uses only code present at the base commit.
+- In: `eval/reliability_battery.py` imports `_Time` and `_turn` from `eval/daemon_soak.py`, and `tests/integration/test_daemon_soak.py` calls `write_report`, `main` and `_observe`; if the fix changes any of those, update the importer and its test in the same change, otherwise leave them untouched.
 - Out: raising a timeout, retrying the member, or marking the test flaky/skipped as the fix (each hides the cause); changing `chupa/` production code. If the cause is in `chupa/serve.py` or another `chupa/` module, reply `premise_failed` naming the file and the cause.
 - Out: other soak members, unless the same named cause affects them; then list them in the run record only.
 
 ## Scope fence
 - eval/daemon_soak.py
+- eval/reliability_battery.py
 - tests/integration/test_daemon_soak_runner.py
+- tests/integration/test_daemon_soak.py
+- tests/integration/test_reliability_battery.py
 - tests/regress_soak_slow_subprocess.py
 
 ## Acceptance criteria
