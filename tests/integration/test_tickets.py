@@ -603,3 +603,17 @@ def test_context_whole_file_unchanged(repo):
     (root / "chupa/thing.py").write_text("first = 1\nsecond = 2\n")
     ticket = validate_ticket("t-one", complete(VALID), root)
     assert implement_inputs(root, "", ticket, ())["context"] == "### chupa/thing.py\nfirst = 1\nsecond = 2\n"  # whole file, not an excerpt
+
+
+def test_new_names_installed_authoring_guide(repo, capsys):
+    import chupa
+    from chupa import __main__ as cli
+    from chupa.runner import Refusal
+
+    root, _, _ = repo
+    guide = Path(chupa.__file__).parent / "docs" / "host-authoring.md"
+    assert cli._new(root, "new-guide") == 0
+    assert f"read the ticket authoring guide before filling sections: {guide}" in capsys.readouterr().out.splitlines()
+    with pytest.raises(Refusal) as error:
+        cli._new(root, "new-guide")
+    assert f"read {guide}, then edit it in place, or pick a new stem" in str(error.value)

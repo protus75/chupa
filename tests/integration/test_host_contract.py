@@ -19,7 +19,7 @@ from chupa.lockfile import Lockfile, LockHeld
 from chupa.mergequeue import MergeQueue
 
 ROOT = Path(__file__).resolve().parents[2]
-DOC = (ROOT / "docs/host-contract.md").read_text()
+DOC = (ROOT / "chupa/docs/host-contract.md").read_text()
 
 
 def block(name):

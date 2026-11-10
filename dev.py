@@ -12,6 +12,7 @@
     ./dev.py triage [ID ...]  triage pending messages
     ./dev.py migrate-box      migrate old box resolutions
     ./dev.py dismiss ID ...   dismiss messages
+    ./dev.py docs             print installed host guide paths
     ./dev.py suggest SUMMARY  queue an idea for triage
     ./dev.py status           the engine's projected state
     ./dev.py stats [--window W] [--json]  journal health projection
@@ -66,6 +67,7 @@ def main() -> None:
     sub.add_parser("triage", help="triage pending messages").add_argument("ids", nargs="*")
     sub.add_parser("migrate-box", help="migrate old box resolutions")
     sub.add_parser("dismiss", help="dismiss messages").add_argument("ids", nargs="+")
+    sub.add_parser("docs", help="print installed host guide paths")
     sub.add_parser("suggest", help="queue an idea for triage").add_argument("summary")
     sub.add_parser("status", help="the engine's projected state")
     stats = sub.add_parser("stats", help="journal health projection")

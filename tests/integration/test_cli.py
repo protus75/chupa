@@ -894,3 +894,19 @@ def test_migrate_box_lock_and_repeat(root, capsys):
     assert main(["migrate-box"], cwd=root, env=ENV, clock=Clock()) == 0
     assert capsys.readouterr().out == "migrate-box: 0 migrated\n"
     assert path.read_bytes() == migrated
+
+
+def test_docs_reports_installed_guides(root, capsys):
+    import chupa
+
+    assert cli(root, "docs") == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert len(lines) == 3
+    package = Path(chupa.__file__).parent
+    for line, name in zip(lines, ("authoring", "running", "contract"), strict=True):
+        path_text, purpose = line.split("  ")
+        path = Path(path_text)
+        assert path == package / "docs" / f"host-{name}.md"
+        assert path.is_absolute() and path.is_file()
+        assert path.is_relative_to(package) and not path.is_relative_to(root)
+        assert "://" not in path_text and purpose

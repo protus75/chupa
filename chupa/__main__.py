@@ -20,6 +20,7 @@ from uuid import uuid4
 
 import yaml
 
+import chupa
 from chupa import ask, control, drain, hostfiles, requisition, runner, serve, triage
 from chupa.box import UnknownBoxId
 from chupa.config import ConfigError, ConfigSnapshot, load_config, migrate_config
@@ -227,7 +228,7 @@ def watchdog_notifications(config, env, effects, log, *, redactor, cwd, **contex
 
 
 def _parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(prog="python -m chupa", description="Host run guide: docs/host-running.md")
+    ap = argparse.ArgumentParser(prog="python -m chupa", description="Host guides: chupa docs")
     ap.add_argument("--config", type=Path, help="config path (default: config.yaml at the checkout root)")
     sub = ap.add_subparsers(dest="verb", required=True)
     sub.add_parser("watch", help="read-only live engine view").add_argument("--once", action="store_true")
@@ -244,6 +245,7 @@ def _parser() -> argparse.ArgumentParser:
     prompt = sub.add_parser("prompt", help="render an operator prompt for a ticket")
     prompt.add_argument("kind", choices=ask.KINDS)
     prompt.add_argument("stems", nargs="+")
+    sub.add_parser("docs", help="print installed host guide paths")
     sub.add_parser("migrate-config", help="validate and migrate schema_version: 0 to the current config schema")
     for verb in ("pause", "resume"):
         sub.add_parser(verb, help=f"submit {verb} to the running engine, or do nothing under the idle lock")
@@ -300,6 +302,10 @@ def main(
             isatty, read_input = terminal if terminal is not None else (sys.stdin.isatty, input)
             if not (args.yes or args.extension) and not isatty():
                 raise runner.Refusal("verdict requires an interactive terminal", "a human runs this in a terminal: ./dev.py confirm|reject <stem>")
+        if args.verb == "docs":
+            for name, purpose in (("authoring", "ticket authoring"), ("running", "host operation"), ("contract", "host contract")):
+                print(f"{Path(chupa.__file__).parent / 'docs' / f'host-{name}.md'}  {purpose}")
+            return 0
         if args.verb == "migrate-config":
             migrate_config(args.config, cwd=repo, fs=LocalFileSystem())
             return 0
@@ -854,11 +860,13 @@ def _new(repo: Path, stem: str, kind: str = "feature") -> int:
     if findings := stem_findings(stem):
         raise runner.Refusal(findings[0].message, findings[0].paved_road)
     rel = ticket_path(stem)
+    guide = Path(chupa.__file__).parent / "docs" / "host-authoring.md"
     if (repo / rel).exists():
-        raise runner.Refusal(f"{rel} already exists", "edit it in place, or pick a new stem")
+        raise runner.Refusal(f"{rel} already exists", f"read {guide}, then edit it in place, or pick a new stem")
     text = template(kind)
     LocalFileSystem().write(repo / rel, text.encode())
     print(f"authored {rel}")
+    print(f"read the ticket authoring guide before filling sections: {guide}")
     findings = []
     try:
         ticket = validate_ticket(stem, text, repo)

@@ -6,8 +6,8 @@ section headings. `CHUPA_PLAN.md` is the frozen bootstrap design record; it is h
 reference for current behavior. Where this document and the code disagree, the code wins and
 this document is fixed.
 
-Related documents: `docs/host-contract.md` (full config schema and host-facing contract) and
-`docs/host-authoring.md` (what to write in a ticket).
+Related documents: `chupa/docs/host-contract.md` (full config schema and host-facing contract) and
+`chupa/docs/host-authoring.md` (what to write in a ticket).
 
 ## 1. What chupa is
 
@@ -26,7 +26,7 @@ chupa develops itself: this repo is both the engine and its own first host.
 
 ## 2. Commands
 
-[Install chupa](host-contract.md#install) and run `uv run chupa <verb>`; from a checkout, run
+[Install chupa](../chupa/docs/host-contract.md#install) and run `uv run chupa <verb>`; from a checkout, run
 `uv run python -m chupa <verb>` (global flag `--config PATH`, default `config.yaml`
 at the checkout root). In this repo, use `./dev.py` (section 2.2).
 
@@ -51,6 +51,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `doctor` | no | Checks venv, git, config load, lock probe, journal readability, and core check. Exit 2 on any failure. |
 | `prompt <diagnose\|running\|review> <stem>` | no | Prints an operator prompt for an existing ticket without writing state; `diagnose` selects the running prompt for a live running ticket. |
 | `core` | no | Rewrites the managed `chupa:core` block in each routed agent's conduct file (section 12). |
+| `docs` | no | Prints the installed host guide paths and their purposes. |
 | `migrate-config` | no | Migrates a `schema_version: 0` config to the current schema. |
 | `new <stem> --kind feature\|bug\|chore` | no | Writes `tickets/<stem>/ticket.md` with section placeholders for the selected kind (default `feature`) and lints it. Bugs include `## Regression` and a missing-evidence finding; no evidence files are created. Refuses a bad, reserved, or existing stem, or unknown kind (exit 2); successful authorship exits 0. |
 | `order <stem> [--priority P0\|P1\|P2\|P3] [--runs-before [stem ...]]` | no | Validates and edits priority and/or runs-before ordering in the working tree; a bare `--runs-before` removes the section. Refuses running, settled, rejected, missing or invalid tickets. Intake commits the edit. |
@@ -84,6 +85,7 @@ A unit test file may share its name with an integration test file.
 | `test [args]` | pytest with those args |
 | `migrate-box` | Migrate old Suggestion Box resolutions |
 | `triage [ID ...]`, `dismiss ID ...` | One matching chupa call with all supplied IDs |
+| `docs` | `chupa docs` |
 | `suggest SUMMARY` | `chupa suggest <summary>` |
 | `core` | `chupa core` |
 | `covmap` | `chupa covmap` |
@@ -117,7 +119,7 @@ The Tickets view’s Engine… picker runs drain, serve, stop, kill, status, or 
 ### 3.1 Files and fields
 
 A ticket is `tickets/<stem>/ticket.md`. The stem matches `^[a-z0-9][a-z0-9-]{1,63}$`;
-`decisions` and `retro` are reserved. `chupa/tickets.py` owns the format; `docs/host-authoring.md`
+`decisions` and `retro` are reserved. `chupa/tickets.py` owns the format; `chupa/docs/host-authoring.md`
 says what goes in each section.
 
 Frontmatter fields that drive behavior:
@@ -293,7 +295,7 @@ A `kind: bug` ticket must prove the defect: at least one file under `tickets/<st
 a `## Regression` command that prints `{"regression_result": "pass"}` with exit 0 on the branch
 head, and `{"regression_result": "defect"}` with a non-zero exit on the merge base with the
 carried test or fixture files copied over it. Only files under `tests/`, `test/`, `fixtures/`, or
-`fixture/` can be carried. `docs/host-authoring.md` explains the protocol for authors. Intake
+`fixture/` can be carried. `chupa/docs/host-authoring.md` explains the protocol for authors. Intake
 refuses a bug ticket without a regular, non-symlink evidence file that is not gitignored and
 commits its evidence in the same commit as the ticket. Settled and rejected tickets are exempt
 from the intake evidence check. The Check gate still verifies the regression proof.
@@ -702,7 +704,7 @@ and notifications are Effects, so a crash never repeats one.
 ## 11. Config
 
 One `config.yaml`, validated strictly: unknown keys, explicit nulls, and bad values are refused
-with the fix. The full field inventory is in `docs/host-contract.md`. This repo’s own
+with the fix. The full field inventory is in `chupa/docs/host-contract.md`. This repo’s own
 `config.yaml` uses its Python host test setup.
 
 | Area | Controls |
@@ -720,7 +722,7 @@ with the fix. The full field inventory is in `docs/host-contract.md`. This repo�
 
 ## 12. Host projects
 
-See the [host run guide](host-running.md) for invocation and operation.
+See the [host run guide](../chupa/docs/host-running.md) for invocation and operation.
 
 The block carries only process rules that hold for every host; codebase rules belong in the project-owned remainder. The block has two parts: `Engine conduct` is for ticket agents, and `Chat session conduct` is for interactive chat sessions in a host checkout.
 
@@ -737,7 +739,7 @@ The block carries only process rules that hold for every host; codebase rules be
   and a matching `seconds` map of finite nonnegative floats. The reader accepts only schema 2 and refuses schema 1.
 - The `chupa.testguard` unit-run pytest plugin blocks process and network IO during test phases
   and enforces the `test-gate.toml` unit time budget (60 seconds by default).
-- A host provides `config.yaml`, its conduct files, and its tickets. `docs/host-contract.md` is
+- A host provides `config.yaml`, its conduct files, and its tickets. `chupa/docs/host-contract.md` is
   the full host-facing contract; Python hosts can use its `## Python host test setup`.
 
 ## 13. Eval report artifacts

@@ -20,6 +20,7 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | `doctor` | No | Inspect setup; its lock probe reports a held lock as a failure. |
 | `prompt` | Yes | Render an operator prompt for a ticket or named box IDs without writing state. |
 | `core` | Yes | Refresh managed conduct files. |
+| `docs` | Yes | Print the installed host guide paths and their purposes. |
 | `migrate-config` | Yes | Validate and migrate an older config. |
 | `pause` | Yes | Ask the running engine to pause admission. |
 | `resume` | Yes | Ask the running engine to release its current hold. |

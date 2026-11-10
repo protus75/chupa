@@ -15,7 +15,7 @@ uv add --dev chupa
 uv sync
 ```
 
-Run its verbs as `uv run chupa <verb>`. Your host also needs `config.yaml`; start with the [copyable configuration](https://github.com/protus75/chupa/blob/main/docs/host-contract.md).
+Run its verbs as `uv run chupa <verb>`. Your host also needs `config.yaml`; start with the [copyable configuration](https://github.com/protus75/chupa/blob/main/chupa/docs/host-contract.md).
 
 ## Set up a host
 
@@ -70,7 +70,7 @@ uv run chupa confirm  # confirm a draft or Reject item
 uv run chupa reject   # reject a draft or Reject item
 ```
 
-Stop `serve` before `drain`, `run`, or `review`: each takes the writer lock. See the [host run guide](https://github.com/protus75/chupa/blob/main/docs/host-running.md) for every verb.
+Stop `serve` before `drain`, `run`, or `review`: each takes the writer lock. See the [host run guide](https://github.com/protus75/chupa/blob/main/chupa/docs/host-running.md) for every verb.
 
 ## VS Code extension
 
@@ -78,9 +78,9 @@ The [chupa tickets extension](https://marketplace.visualstudio.com/items?itemNam
 
 ## Docs
 
-- [Host run guide](https://github.com/protus75/chupa/blob/main/docs/host-running.md): invocation and operation on a host.
-- [Host ticket authoring](https://github.com/protus75/chupa/blob/main/docs/host-authoring.md): what to write in a ticket.
-- [Host contract](https://github.com/protus75/chupa/blob/main/docs/host-contract.md): the config schema and host-facing contract.
+- [Host run guide](https://github.com/protus75/chupa/blob/main/chupa/docs/host-running.md): invocation and operation on a host.
+- [Host ticket authoring](https://github.com/protus75/chupa/blob/main/chupa/docs/host-authoring.md): what to write in a ticket.
+- [Host contract](https://github.com/protus75/chupa/blob/main/chupa/docs/host-contract.md): the config schema and host-facing contract.
 - [How chupa works](https://github.com/protus75/chupa/blob/main/docs/how-chupa-works.md): how chupa behaves today. Tickets keep it current.
 
 ## Developing chupa

@@ -210,3 +210,11 @@ def test_vscode_package_stops_without_built_for_line(vscode_package, monkeypatch
     assert str(error.value.code).startswith("dev:") and "Built for" in str(error.value.code)  # Explain the missing marker.
     run.assert_not_called()  # Do not package without a version marker.
     assert readme.read_text() == original  # Do not silently append a marker.
+
+
+def test_docs_forwards(monkeypatch):
+    monkeypatch.setattr(dev.sys, "argv", ["dev.py", "docs"])
+    run = Mock()
+    monkeypatch.setattr(dev, "run", run)
+    dev.main()
+    run.assert_called_once_with(["uv", "run", "python", "-m", "chupa", "docs"])

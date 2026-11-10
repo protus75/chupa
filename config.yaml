@@ -1,4 +1,4 @@
-# Instance config (host plane; schema in docs/host-contract.md). Operator-owned: edit between runs.
+# Instance config (host plane; schema in chupa/docs/host-contract.md). Operator-owned: edit between runs.
 # Both providers are kind: cli on ambient CLI login, so no `auth` and no key export. IMPLEMENT/AUTHOR inherit models_by_tier[tier]; REVIEW pins
 # claude's strongest model at every tier (diversity from codex IMPLEMENT is a preference, not a gate).
 schema_version: 1
