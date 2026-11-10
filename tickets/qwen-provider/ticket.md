@@ -68,6 +68,8 @@ Routing the provider in this repo's `config.yaml` is an operator edit and is not
       - print `<provider> <model>: ok`, or `<provider> <model>: <error>` followed by the error's paved road when it has one.
 
       It exits 0 when every probe answered and 1 otherwise. A name that is not a declared provider is refused with exit 2, naming the declared providers.
+  - `chupa/observe.py` `live_call`: `./dev.py watch` shows the model working on the running ticket, but it names only claude and codex calls, so a qwen call shows blank. pnpm's `qwen` shim execs `node <dir>/@qwen-code/qwen-code/cli-entry.js <args>`, so that is the process the watch sees. Add one branch, after the claude branch: a process whose first argument after `node` ends with `@qwen-code/qwen-code/cli-entry.js` returns `qwen <model>`, with the model read after `-m` (`?` when absent). Leave the claude and codex branches unchanged.
+  - `tests/unit/test_live_call.py` (new): `live_call` tests over hand-built process rows.
   - `dev.py`: a `probe` subcommand taking optional provider names, forwarding to `chupa probe [PROVIDER ...]`. Add its docstring line, `./dev.py probe [PROVIDER...]  send the probe prompt through each provider`.
   - `tests/unit/test_qwen_adapter.py` (new), built the way `tests/unit/test_codex_effort.py` builds its adapter, with a `provider` carrying `base_url`:
     - tests of `argv` and `call_env`;
@@ -122,7 +124,6 @@ Routing the provider in this repo's `config.yaml` is an operator edit and is not
 - Out:
   - `config.yaml`: routing is an operator edit after setup;
   - `chupa/watchdog.py`: its claude branch already reads qwen's events;
-  - `chupa/observe.py`'s live-call label for qwen;
   - `FAILURE_MARKERS` and failure classification;
   - any change to `ClaudeAdapter`'s or `CodexAdapter`'s argv or parse;
   - an HTTP client for Ollama;
@@ -133,6 +134,8 @@ Routing the provider in this repo's `config.yaml` is an operator edit and is not
 - chupa/providers.py
 - chupa/qwen-settings.json
 - chupa/__main__.py
+- chupa/observe.py
+- tests/unit/test_live_call.py
 - dev.py
 - tests/unit/test_qwen_adapter.py
 - tests/unit/test_probe_verb.py
@@ -162,8 +165,9 @@ Routing the provider in this repo's `config.yaml` is an operator edit and is not
    - no names probes every declared provider;
    - an unknown name exits 2;
    - `./dev.py probe qwen` forwards to `chupa probe qwen`.
-9. `grep -n "Two CLI adapters" docs/how-chupa-works.md` prints nothing, and `docs/how-chupa-works.md` and `chupa/docs/host-contract.md` each name `qwen` as a shipped adapter.
-10. `./dev.py test` exits 0.
+9. `./dev.py test tests/unit/test_live_call.py` exits 0. The test gives `live_call` a drain row and its child row `node /p/@qwen-code/qwen-code/cli-entry.js --auth-type openai -m qwen3-coder:30b -o stream-json`, and asserts it returns `qwen qwen3-coder:30b`, not `""`. It also asserts that a codex `exec` child and a claude `-p` child still return their existing labels.
+10. `grep -n "Two CLI adapters" docs/how-chupa-works.md` prints nothing, and `docs/how-chupa-works.md` and `chupa/docs/host-contract.md` each name `qwen` as a shipped adapter.
+11. `./dev.py test` exits 0.
 
 ## Verification
 ```
