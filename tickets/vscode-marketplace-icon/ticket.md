@@ -10,7 +10,6 @@ kind: chore
 
 ## Context
 - vscode-chupa/package.json
-- vscode-chupa/media/marketplace-icon.png
 - vscode-chupa/media/icon.svg
 
 ## Goal / Why
