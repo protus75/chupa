@@ -224,8 +224,8 @@ the Suggestion Box as a `suggestion`.
 1. Runs configured autofix commands on existing changed files outside `tickets/` matching each entry's `files` patterns and commits changes.
 2. Runs each `## Verification` command in the worktree (provider keys removed from the
    environment, timeout = the ticket's stuck budget, output spooled to `check/verify-NN.txt`).
-3. A failing command is rerun at the merge base. If it also fails there it is **base-red**: a
-   pre-existing failure, excluded from the verdict and filed once to the Suggestion Box.
+3. A failing command is rerun at the merge base. If it also fails there and names no path present in the branch but absent at the merge base, it is **base-red**: a
+   pre-existing failure, excluded from the verdict and filed once to the Suggestion Box. A command naming a branch-only path is never base-red.
 4. Runs the engine Check gates (section 5.1).
 5. Runs triggered host checks in config order, attributing failures also red at base to main.
 6. Writes and lifts `checks.json`.

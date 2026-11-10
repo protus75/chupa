@@ -860,6 +860,10 @@ def _inserted(diff: str) -> int:
     return sum(line.startswith("+") and not line.startswith("+++") for line in diff.splitlines())
 
 
+def _names_branch_only_path(argv: Sequence[str], in_branch: Callable[[str], bool], in_base: Callable[[str], bool]) -> bool:
+    return any(in_branch(path) and not in_base(path) for token in argv if not token.startswith("-") for path in [token.split("::", 1)[0]])
+
+
 async def gather_evidence(
     ctx: StageContext,
     ticket: Ticket,
@@ -906,7 +910,7 @@ async def gather_evidence(
                 except ExecutableNotFound as e:
                     rc, out, err = None, "", str(e)
                 ctx.driver.spool.write(stem, attempt, f"{stage}/verify-{n:02d}-base.txt", f"$ {' '.join(argv)}\n[exit {rc}]\n--- stdout\n{out}\n--- stderr\n{err}")
-                if rc != 0:
+                if rc != 0 and not _names_branch_only_path(argv, lambda p: (worktree / p).exists(), lambda p: (base_worktree / p).exists()):
                     results[n - 1] = results[n - 1].model_copy(update={"base_red": True})
                     summary = f"`{' '.join(argv)}` fails on the merge base {base[:8]} too; fix main, not this ticket"
                     if not any(

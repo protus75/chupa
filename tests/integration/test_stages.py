@@ -445,6 +445,18 @@ def test_base_red_command_is_recorded_and_filed_without_failing_check(repo, monk
     assert not (config.worktree_root / ".base" / STEM).exists()
 
 
+def test_red_command_naming_a_branch_added_file_is_not_base_red(repo, monkeypatch):
+    _report_ticket(monkeypatch, "grep -q ok chupa/added.py")
+    result, _, config = run(repo, [agent({"chupa/thing.py": "ok\n", "chupa/added.py": "no\n"})])
+
+    assert outcomes(result)["check"] == "gate_failed"
+    assert any(f.code == "verification" and "grep -q ok chupa/added.py" in f.message for f in result.last[1].findings)
+    invoice = Invoice.model_validate_json((repo / "tickets" / STEM / "checks.json").read_text())
+    assert invoice.verification[1].base_red is False and invoice.verification[1].rc == 1
+    assert invoice.verification[0].rc == 0
+    assert Box(config.state_dir / BOX_DIR, LocalFileSystem()).messages() == []
+
+
 def test_empty_diff_claimed_ok_fails_verification(repo):
     (repo / "chupa" / "thing.py").write_text("ok\n")
     git(repo, "commit", "-am", "green base")
