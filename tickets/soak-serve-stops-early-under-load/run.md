@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The original member journal and engine log are unavailable. Injecting a Git timeout produced a serve exit 1 with engine-log evidence: "worker_failure", "error": "injected git timeout"; this does not prove the recorded failures had that cause. The simpler candidate of attributing them to fake-clock advancement was rejected because the simulation produced a different failure signature.
+The full suite passed with 3,302 tests while 27 conflict-member runs completed without the reported failure. A forced timeout during scripted model work produced an llm_error and normal serve shutdown; a forced rebase timeout produced 'serve cleanup exited 1', a different path.
 
 ## Dead ends
 
-A slow subprocess combined with accelerated fake time exhausted a stage budget but did not reproduce the recorded early serve exit. An injected Git timeout reproduced exit 1, but the ticket prohibits raising the timeout or retrying and supplies no evidence that this caused the original failures.
+Injected model and rebase subprocess timeouts did not reproduce 'serve stopped early (1)'; no production changes or commits were made.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 60 minutes; investigation stopped before the budget because the original failure evidence is insufficient to identify a supported fix.
+The 60-minute expected budget was not exhausted; reproduction did not yield the evidence required to choose a fix.
 
