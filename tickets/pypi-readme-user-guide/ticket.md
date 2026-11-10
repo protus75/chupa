@@ -30,7 +30,7 @@ After this change, `README.md` is written first for a host-project user. It expl
 
 ## Scope in / Scope out
 - In: rewrite `README.md` with these sections, in this order:
-  1. `# chupa`, then one paragraph saying what chupa is: an engine that runs CLI coding agents through the ticket lifecycle against a git repo. Each ticket is a folder `tickets/<stem>/` whose markdown and JSON files (`ticket.md`, `run.md`, `review.md`, `diagnosis.json`, and others, per `docs/how-chupa-works.md` section 3.3) are how the stages hand work to each other. Reviewed work merges to local `main`. Include a link to the ticket lifecycle diagram at `https://github.com/protus75/chupa/blob/main/vscode-chupa/media/ticket-lifecycle.svg`. Directly below that paragraph, a line linking the project's GitHub repository, `https://github.com/protus75/chupa`, so a reader on PyPI can find the source and docs.
+  1. `# chupa`, then the line `**C**LI **H**arness for **U**nattended **P**ipeline **A**gents` (the name's expansion), then one paragraph saying what chupa is: an engine that runs CLI coding agents through the ticket lifecycle against a git repo. Each ticket is a folder `tickets/<stem>/` whose markdown and JSON files (`ticket.md`, `run.md`, `review.md`, `diagnosis.json`, and others, per `docs/how-chupa-works.md` section 3.3) are how the stages hand work to each other. Reviewed work merges to local `main`. Include a link to the ticket lifecycle diagram at `https://github.com/protus75/chupa/blob/main/vscode-chupa/media/ticket-lifecycle.svg`. Directly below that paragraph, a line linking the project's GitHub repository, `https://github.com/protus75/chupa`, so a reader on PyPI can find the source and docs.
   2. `## Install`: `uv add --dev chupa`, `uv sync`, then run verbs as `uv run chupa <verb>`. Note that a host needs `config.yaml` and link to the copyable configuration in `docs/host-contract.md`.
   3. `## Set up a host`: `uv run chupa doctor`, then `uv run chupa core` to write the managed conduct block into `CLAUDE.md` (Claude) or `AGENTS.md` (other CLIs), then commit those files. Say what the block gives a chat agent: the rules for authoring and editing tickets (`chupa new`, `chupa lint`, `chupa review`) and for supervising a drain. Re-run `core` after upgrading chupa, because `drain`, `serve`, and `run` refuse while the block is stale.
   4. `## The working loop`: numbered happy path. (a) Open Claude Code or Codex in the host checkout, often with auto permissions. (b) Work out a plan with it. (c) Ask it to turn the plan into tickets; it runs `chupa new`, fills each ticket, and repeats `chupa lint` and `chupa review` until each is clean. (d) Ask it to drain the queue (`uv run chupa drain`), or leave `uv run chupa serve` running, which picks up new tickets live. (e) Ask it to supervise: watch `chupa status` and `chupa watch`, diagnose rejected or blocked tickets from their `tickets/<stem>/` artifacts, fix small ticket problems, and stop (`chupa stop` or `chupa kill`) and restart the drain as needed. (f) Explain the Suggestion Box loop. It is an escape valve: the implementing agent reports second problems it finds, and the engine files them to the box (`chupa/stages.py`), so the ticket stays on its own goal instead of widening or stalling. Runs that exhaust their attempt caps, retros, and `chupa suggest` from a chat session also file there. Triage resolves each message as `declined`, `tombstone` (already covered), or authored into a ticket, and the authored ticket can start as a `draft` awaiting a person (`docs/how-chupa-works.md` sections 9.1 to 9.3). Do not say the Review stage files to the box; it does not. (g) The person keeps the judgment calls: ask the chat agent for a plain-English summary of each draft or held ticket, then run `chupa confirm` or `chupa reject` on each. State these as chupa's own history, measured on its repository on 2026-11-09 from `.chupa/state/box/` and the journal: 32 of 389 Suggestion Box messages (about 8%) were authored into tickets, all as drafts; of the 31 drafts decided, 24 were confirmed (about 77%) and 7 rejected. Include 2 to 4 short example prompts a user would type to the chat agent. State that one unattended drain ran about 30 tickets in about 4 hours, many of them triage-authored bug fixes and small features, and that the real limit is how fast a person can plan enough work to fill the queue, so planning sessions with the chat agent are where the person spends their time.
@@ -41,12 +41,14 @@ After this change, `README.md` is written first for a host-project user. It expl
 - In: every link in `README.md` is an absolute `https://` URL so it resolves on PyPI.
 - Out:
   - `pyproject.toml` (including its `readme` key and version);
-  - `docs/`, `vscode-chupa/`, `CLAUDE.md`, `AGENTS.md`, and `chupa/` code and specs;
+  - In `docs/how-chupa-works.md`, only the first sentence of section `## 1. What chupa is` changes: it begins `chupa (CLI Harness for Unattended Pipeline Agents) runs tickets`. The rest of `docs/` is out.
+  - `vscode-chupa/`, `CLAUDE.md`, `AGENTS.md`, and `chupa/` code and specs;
   - a second README file or a separate PyPI long description;
   - publishing to PyPI.
 
 ## Scope fence
 - README.md
+- docs/how-chupa-works.md
 
 ## Acceptance criteria
 1. `README.md` contains the headings `## Install`, `## Set up a host`, `## The working loop`, `## Commands`, `## VS Code extension`, `## Docs`, and `## Developing chupa`, in that order. Check with `grep -n '^## ' README.md`.
@@ -56,7 +58,8 @@ After this change, `README.md` is written first for a host-project user. It expl
 5. `## Set up a host` names `chupa core`, `CLAUDE.md`, and `AGENTS.md`. `## The working loop` names `drain`, `serve`, `suggest`, `draft`, `confirm`, `reject`, and `tickets/<stem>/`, states the figure of about 30 tickets in about 4 hours unattended, and states the 32-of-389 and 24-of-31 figures as chupa's own repository history.
 6. Before the `## Install` heading, `README.md` contains a link whose target is exactly `https://github.com/protus75/chupa`. Check with `grep -n 'https://github.com/protus75/chupa)' README.md`.
 7. `## VS Code extension` contains `https://marketplace.visualstudio.com/items?itemName=chunkydragon.vscode-chupa` and `chupa.command`.
-8. `./dev.py test` exits 0.
+8. `README.md` contains `CLI Harness for Unattended Pipeline Agents` (with the bold initials) above the first paragraph, and `docs/how-chupa-works.md` section 1 begins `chupa (CLI Harness for Unattended Pipeline Agents) runs tickets`. Check with `grep -n 'Unattended Pipeline' README.md docs/how-chupa-works.md`.
+9. `./dev.py test` exits 0.
 
 ## Verification
 ```
@@ -66,7 +69,7 @@ After this change, `README.md` is written first for a host-project user. It expl
 ## Definition of rejected
 Reject the branch if any of the following holds:
 - `./dev.py` commands appear outside `## Developing chupa`;
-- any file other than `README.md` changes;
+- any file other than `README.md` and `docs/how-chupa-works.md` changes, or `docs/how-chupa-works.md` changes outside the first sentence of section 1;
 - the README documents a verb, flag, or behavior that `chupa --help` or `docs/host-running.md` contradicts;
 - a relative link remains.
 
