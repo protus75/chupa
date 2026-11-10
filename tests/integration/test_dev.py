@@ -121,14 +121,6 @@ def test_box_verbs_forward_all_ids_once(monkeypatch, verb):
     call.assert_called_once_with(verb, "box-one", "box-two")  # One pass must receive both IDs.
 
 
-def test_migrate_box_forwards(monkeypatch):
-    monkeypatch.setattr(dev.sys, "argv", ["dev.py", "migrate-box"])
-    call = Mock()
-    monkeypatch.setattr(dev, "chupa", call)
-    dev.main()
-    call.assert_called_once_with("migrate-box")
-
-
 @pytest.fixture
 def vscode_package(tmp_path, monkeypatch):
     extension = tmp_path / "vscode-chupa"

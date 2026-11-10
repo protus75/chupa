@@ -349,32 +349,3 @@ def test_tombstone_visibility_uses_message_class(tmp_path, monkeypatch):
     assert [m.id for m in box.confirmed_tombstones()] == expected
     assert all("priority" not in m.model_dump() for m in box.messages())
     assert {p: p.read_bytes() for p in box.root.glob("*.json")} == before
-
-
-def test_migrate_box_preserves_other_messages(tmp_path, capsys):
-    from pydantic import ValidationError
-
-    from chupa.__main__ import main
-    from tests.integration.test_cli import ENV, Clock
-    from tests.integration.test_drain import make_root
-
-    root = make_root(tmp_path)
-    box = Box(root / ".chupa/state/box", LocalFileSystem())
-    ids = [box.enqueue(message_class="suggestion", origin=str(n), summary=f"message {n}")[0] for n in range(3)]
-    box.resolve(ids[0], Resolution(kind="declined", link=f"declined-{ids[0]}"))
-    box.resolve(ids[1], Resolution(kind="tombstone", link="covered"))
-    paths = [box.path(box.get(id)) for id in ids]
-    legacy = json.loads(paths[0].read_bytes())
-    legacy["resolution"] = {"kind": "decision", "link": f"decision-{ids[0]}"}
-    paths[0].write_text(json.dumps(legacy))
-    unchanged = [path.read_bytes() for path in paths[1:]]
-    with pytest.raises(ValidationError):
-        Resolution(kind="decision", link="old")
-    assert main(["migrate-box"], cwd=root, env=ENV, clock=Clock()) == 0
-    assert capsys.readouterr().out == f"{ids[0]}: decision -> declined\nmigrate-box: 1 migrated\n"
-    assert [path.read_bytes() for path in paths[1:]] == unchanged
-    messages = box.messages()
-    assert [m.id for m in messages] == ids
-    assert messages[0].resolution == Resolution(kind="declined", link=f"declined-{ids[0]}")
-    assert messages[1].resolution == Resolution(kind="tombstone", link="covered")
-    assert messages[2].resolution is None

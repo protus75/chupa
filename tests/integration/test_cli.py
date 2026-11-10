@@ -866,36 +866,6 @@ def test_suggest_refuses_blank(root, capsys):
     assert list((root / ".chupa/state/box/suggestions").glob("*.json")) == []
 
 
-def test_migrate_box_lock_and_repeat(root, capsys):
-    import json
-
-    from chupa.box import Box, Resolution
-    from chupa.seams import LocalFileSystem
-
-    box = Box(root / ".chupa/state/box", LocalFileSystem())
-    id, _ = box.enqueue(message_class="suggestion", origin="test", summary="old")
-    box.resolve(id, Resolution(kind="declined", link=f"declined-{id}"))
-    path = box.path(box.get(id))
-    data = json.loads(path.read_bytes())
-    data["resolution"] = {"kind": "decision", "link": f"decision-{id}"}
-    path.write_text(json.dumps(data))
-    before = path.read_bytes()
-    holder = Lockfile(root / ".chupa/state", instance_id="other", clock=Clock())
-    holder.acquire()
-    try:
-        assert main(["migrate-box"], cwd=root, env=ENV, clock=Clock()) == 2
-        assert path.read_bytes() == before
-    finally:
-        holder.release()
-    capsys.readouterr()
-    assert main(["migrate-box"], cwd=root, env=ENV, clock=Clock()) == 0
-    assert capsys.readouterr().out == f"{id}: decision -> declined\nmigrate-box: 1 migrated\n"
-    migrated = path.read_bytes()
-    assert main(["migrate-box"], cwd=root, env=ENV, clock=Clock()) == 0
-    assert capsys.readouterr().out == "migrate-box: 0 migrated\n"
-    assert path.read_bytes() == migrated
-
-
 def test_docs_reports_installed_guides(root, capsys):
     import chupa
 

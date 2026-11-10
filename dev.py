@@ -10,7 +10,6 @@
     ./dev.py core             refresh the managed conduct block
     ./dev.py covmap           build the coverage map
     ./dev.py triage [ID ...]  triage pending messages
-    ./dev.py migrate-box      migrate old box resolutions
     ./dev.py dismiss ID ...   dismiss messages
     ./dev.py docs             print installed host guide paths
     ./dev.py suggest SUMMARY  queue an idea for triage
@@ -65,7 +64,6 @@ def main() -> None:
     sub.add_parser("core", help="refresh the managed conduct block")
     sub.add_parser("covmap", help="build the coverage map")
     sub.add_parser("triage", help="triage pending messages").add_argument("ids", nargs="*")
-    sub.add_parser("migrate-box", help="migrate old box resolutions")
     sub.add_parser("dismiss", help="dismiss messages").add_argument("ids", nargs="+")
     sub.add_parser("docs", help="print installed host guide paths")
     sub.add_parser("suggest", help="queue an idea for triage").add_argument("summary")

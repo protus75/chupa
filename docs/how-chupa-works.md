@@ -62,7 +62,6 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `retro` | try | Runs a retro report now or queues one on the running engine (section 9.5). |
 | `suggest <summary>` | no | Queues an idea for Suggestion Box intake. |
 | `triage [id ...]` | yes | One sequential pass over named pending messages, or all pending messages (section 9.2). |
-| `migrate-box` | yes | Migrate old Suggestion Box resolutions under the writer lock. |
 | `dismiss <id> ...` | yes | Dismiss named messages without a model call. |
 | `prompt box <id> ...` | no | Print a prompt for discussing named box messages. |
 | `pause` / `resume` / `kill` / `stop` | try | With a running engine, publish a control request to it (section 7.3). With none: `kill` and `stop` refuse (exit 2); `pause`/`resume` print "nothing running". |
@@ -83,7 +82,6 @@ A unit test file may share its name with an integration test file.
 |---|---|
 | (none) | `uv run pytest -q` |
 | `test [args]` | pytest with those args |
-| `migrate-box` | Migrate old Suggestion Box resolutions |
 | `triage [ID ...]`, `dismiss ID ...` | One matching chupa call with all supplied IDs |
 | `docs` | `chupa docs` |
 | `suggest SUMMARY` | `chupa suggest <summary>` |
