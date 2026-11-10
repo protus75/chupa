@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "2f5d29094b38927081850cb3c9b3aca07f43ae7a",
+  "stem": "core-template-budget",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Redo the new test in tests/integration/test_hostfiles.py. Keep the size-limit AssertionError message lowercase so it contains `compress`. Example: \"Template too large: compress existing rules or move host-specific ones to the project's own rules outside the managed block\".",
+    "In the 8193-byte case, use `pytest.raises(AssertionError, match=\"compress\")`, not `[Cc]ompress`. The test must check the exact substring that acceptance criterion 2 names.",
+    "The ordering message must contain `first section`. Test it with a value under 8192 bytes that starts with `## Engine conduct` and use match=\"first section\". Review found this approach sound, so redo it the same way.",
+    "Build the 8192-byte and 8193-byte values so they start with `## Ticket authoring -- read before writing any ticket` and pad them to the exact length. The 8192-byte value must pass. Monkeypatch `hostfiles.CORE_TEMPLATE` and edit no other file.",
+    "Before finishing, run `./dev.py test tests/integration/test_hostfiles.py` and check that every assertion message matches its criterion's substring exactly, including case."
+  ],
+  "mechanical": null,
+  "spec_version": "1.4",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
