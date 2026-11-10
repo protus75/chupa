@@ -18,7 +18,9 @@ from chupa.lockfile import Lockfile
 from chupa.mergequeue import CONFLICT_FACTS, MergeQueue
 from chupa.reconcile import RECOVERY_ALERT
 from chupa.seams import SubprocessExec
+from chupa.serve import Serve
 from chupa.stages import read_review
+from chupa.tickets import parse_ticket, ticket_path
 from eval import daemon_soak as soak
 
 
@@ -73,6 +75,16 @@ async def test_daemon_soak_runs_production_serve(tmp_path, monkeypatch):
     from chupa.daemon import TicketWriter
 
     consume = TicketWriter.consume_result
+    publish = Serve.publish
+    held = []
+    offered_corrected = False
+
+    def publishing(owner, ticket, text):
+        if ticket.stem == "unresolved" and ticket.sections["Goal / Why"] == "Resolve against current main." and not offered_corrected:
+            held[:] = [(owner, ticket, text)]
+            owner.core.scheduler.update(ticket)
+            return
+        publish(owner, ticket, text)
 
     def building(*args, **kwargs):
         owner = build(*args, **kwargs)
@@ -80,14 +92,20 @@ async def test_daemon_soak_runs_production_serve(tmp_path, monkeypatch):
         return owner
 
     def offered(queue, ticket, *, attempt):
+        nonlocal offered_corrected
         owner = next(o for o in built if o.checkout.journal is queue.ctx.driver.journal)
         writer = owner.writers[ticket.stem]
         assert writer.admission.mode == "daemon" and writer.queue is owner.queue is queue
         assert owner.core.scheduler.dispatch == owner.core.admission.dispatch
-        assert owner.published[ticket.stem][0].sections == ticket.sections
+        repo = owner.checkout.repo
+        assert parse_ticket(ticket.stem, (repo / ticket_path(ticket.stem)).read_text(), repo).sections == ticket.sections
         assert owner.control.inbox.journal is queue.ctx.driver.journal
         offers.append((queue, ticket.stem, attempt))
         offer(queue, ticket, attempt=attempt)
+        if (ticket.stem, attempt) == ("unresolved", 1):
+            offered_corrected = True
+            for publication in held:
+                publish(*publication)
 
     async def processed(queue):
         # Only Serve.merge may drive the admission algorithm; dispatch never substitutes for it.
@@ -103,12 +121,14 @@ async def test_daemon_soak_runs_production_serve(tmp_path, monkeypatch):
         consumed.append((ticket.stem, attempt))
         await consume(writer, ticket, result, attempt=attempt)
 
+    monkeypatch.setattr(Serve, "publish", publishing)
     monkeypatch.setattr(cli, "build_serve", building)
     monkeypatch.setattr(MergeQueue, "offer", offered)
     monkeypatch.setattr(MergeQueue, "process", processed)
     monkeypatch.setattr(TicketWriter, "consume_result", consuming)
     report = await soak.produce(tmp_path / "production")
     assert all(e.green for e in report.entries)
+    assert held and offered_corrected
     assert len(built) == 4  # One interrupted worker lifetime, its restart, and two fault members.
     assert [(stem, attempt) for _, stem, attempt in offers] == [("worker", 1), ("mechanical", 0), ("unresolved", 0), ("unresolved", 1), ("semantic", 0)]
     assert consumed == [("worker", 1), ("mechanical", 0), ("unresolved", 0), ("unresolved", 1), ("semantic", 0)]
