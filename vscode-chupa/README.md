@@ -2,6 +2,10 @@
 
 A VS Code extension for the [chupa](https://pypi.org/project/chupa/) ticket system. View chupa tickets in the Activity Bar. The Tickets view shows the dependency graph and ticket states; Details shows the selected ticket or Suggestion Box message. Recent Steps shows engine activity, Suggestion Box lists messages, and Stats shows health figures.
 
+![chupa tickets views in VS Code](https://github.com/protus75/chupa/raw/HEAD/vscode-chupa/images/ChupaExt.png)
+
+![chupa ticket lifecycle](https://github.com/protus75/chupa/raw/HEAD/vscode-chupa/images/Lifecycle.png)
+
 Built for [chupa 0.1.3](https://pypi.org/project/chupa/0.1.3/).
 
 ## Prerequisites
