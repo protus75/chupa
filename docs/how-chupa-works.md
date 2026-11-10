@@ -194,6 +194,7 @@ log tails) when this is a retry. Context entries may select a Python top-level d
 assignment (`path.py::Name`), a class method (`path.py::Class.method`), or a Markdown heading
 (`path.md#Heading`), including its subheadings. Heading text may start with the selector followed
 by a space. Selectors must resolve uniquely, and a file cannot be listed both whole and by section.
+Ticket Context files are UTF-8 text; lint renders each entry exactly as Implement does.
 `config.context_files` remains whole-file. The model works in the worktree with write access and replies:
 
 - `ok`: it committed the change.

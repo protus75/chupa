@@ -584,6 +584,13 @@ def test_context_directory_is_refused(repo):
     assert any("Context" in finding.message and "file" in finding.message for finding in exc.value.findings)
 
 
+def test_context_whole_file_binary_is_refused(repo):
+    root, _, _ = repo
+    (root / "image.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    [finding] = refusal(root, VALID.replace("chupa/thing.py\n\n## Goal", "image.png\n\n## Goal"))
+    assert "Context" in finding.message and finding.paved_road  # binary is refused with a remedy
+
+
 def test_context_binary_selector_and_fenced_heading(repo):
     root, _, _ = repo
     (root / "image.png").write_bytes(b"\xff")

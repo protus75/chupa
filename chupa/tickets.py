@@ -297,6 +297,11 @@ def _criteria(text: str) -> list[str]:
     return items
 
 
+def render_context(repo: Path, entry: str) -> str:
+    """Read and render one ticket Context entry."""
+    return context_excerpt(entry, (repo / context_path(entry)).read_text())
+
+
 def parse_ticket(stem: str, text: str, repo: Path) -> Ticket:
     """Validate one ticket against the full ticket grammar; raise TicketInvalid with every finding.
 
@@ -381,10 +386,16 @@ def parse_ticket(stem: str, text: str, repo: Path) -> Ticket:
             else:
                 try:
                     context_excerpt(item, None)
-                    if source != item:
-                        context_excerpt(item, (repo / source).read_text())
+                    render_context(repo, item)
                 except (ValueError, UnicodeError) as exc:
-                    findings.append(_f(f"`## Context` entry {item!r}: {exc}", "select an existing definition or unique heading in a matching file, or list the whole file", path))
+                    findings.append(
+                        _f(
+                            f"`## Context` entry {item!r}: {exc}",
+                            "select an existing definition or unique heading in a matching file, or list the whole file; "
+                            "Context embeds UTF-8 text files only, so name a binary file by path in `## Goal / Why` or `## Scope in / Scope out`",
+                            path,
+                        )
+                    )
                 else:
                     context.append(item)
 

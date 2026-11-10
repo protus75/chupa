@@ -1,6 +1,6 @@
 import pytest
 
-from chupa.tickets import context_conflicts, context_excerpt
+from chupa.tickets import context_conflicts, context_excerpt, render_context
 
 
 def test_python_definitions_and_decorated_method():
@@ -33,3 +33,28 @@ def test_invalid_sections_raise(entry, text):
 def test_whole_and_sections_conflict():
     assert context_conflicts(["m.py", "m.py::B.run"]) == ["m.py"]  # mixed whole and section must be refused
     assert context_conflicts(["m.py::B.run", "m.py::B.stop"]) == []  # distinct sections are allowed
+
+
+def test_render_context_reads_selected_heading():
+    class Repo:
+        def __truediv__(self, path):
+            assert path == "d.md"  # selector is not part of the file path
+            return self
+
+        def read_text(self):
+            return "# One\nother\n## Two\nselected\n## Three\nlast\n"
+
+    assert render_context(Repo(), "d.md#Two") == "## Two\nselected\n"  # not the whole file
+
+
+def test_render_context_propagates_decode_error():
+    class Repo:
+        def __truediv__(self, path):
+            assert path == "image.png"  # the requested file is read
+            return self
+
+        def read_text(self):
+            raise UnicodeDecodeError("utf-8", b"\x89", 0, 1, "invalid start byte")
+
+    with pytest.raises(UnicodeDecodeError):  # decoding errors must reach lint
+        render_context(Repo(), "image.png")
