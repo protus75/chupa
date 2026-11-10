@@ -8,6 +8,10 @@ kind: chore
 ## Depends on
 - none
 
+## Runs before
+- eval-drop-soak-battery-reports
+- eval-move-soak-battery-host-loop
+
 ## Context
 - eval/daemon_soak.py
 - tests/integration/test_daemon_soak_runner.py
