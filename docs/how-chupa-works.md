@@ -201,6 +201,7 @@ by a space. Selectors must resolve uniquely, and a file cannot be listed both wh
   file outside the scope fence separately.
 
 Implement runs each Verification command whole and in sequence and reports that final result.
+Implement runs the host hard always-trigger checks once after its last edit.
 Implement also runs each host hard coverage gate once after its last edit when the diff touches a file that gate measures.
 Failures reproduced on the base commit are reported as second problems rather than `premise_failed`.
 Implement updates documentation statements the diff makes false inside the scope fence in the same commit.

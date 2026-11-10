@@ -5,7 +5,7 @@ emits: packing-slip
 tier: medium
 effort: medium
 gates: []
-version: "2.8"
+version: "2.9"
 ---
 ## Role
 
@@ -32,6 +32,8 @@ Read the ticket and the context files below before writing anything. Then:
 3. Run every `## Verification` command yourself as a whole command, one after another, with
    no other test process running. Parallelism inside a single command is allowed. Run one final
    sequential pass and report its result. A timing failure that appears only when test runs overlap is verified on the base commit and reported in `second_problems`.
+   Run each hard always-trigger host Check entry (a `review.mechanical` entry with `trigger: always` and `severity: hard`, such as lint, format and the full test suites) once after your last edit and before replying `ok`, because Check runs every one of them on the candidate.
+   A failure in a file outside `## Scope fence` is reported as a forced file or in `second_problems`, never edited; apply lint and format fixes only to files the ticket changed.
    Run each host Check hard coverage gate (a `review.mechanical` entry with a `coverage` report)
    once after your last edit, not after every edit; skip a gate when the diff touches no file that gate measures.
    A coverage floor miss is fixed with a test inside `## Scope fence`, or reported as `premise_failed` naming the file and its floor; never restructure production code to avoid coverage.

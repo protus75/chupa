@@ -22,7 +22,7 @@ from chupa.specs import (
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parents[2] / "chupa" / "specs"
-    for name, version in (("implement", "2.8"), ("requisition_review", "3.8"), ("diagnose", "1.4")):
+    for name, version in (("implement", "2.9"), ("requisition_review", "3.8"), ("diagnose", "1.4")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
@@ -68,7 +68,7 @@ def test_implement_spec_consumer_read():
     assert lint_spec(text) == []
     assert len(text.splitlines()) <= SPEC_MAX_LINES
     spec = load_spec(text)
-    assert spec.meta.version == "2.8"
+    assert spec.meta.version == "2.9"
     assert spec.meta.model_dump(exclude={"version"}) == {
         "llm_surface": "implement",
         "consumes": "ticket",
@@ -90,6 +90,13 @@ def test_implement_spec_consumer_read():
         "A stale statement in a file outside `## Scope fence` is reported in `second_problems`, not edited.",
     ):
         assert rule in task
+    # The old spec omitted always-trigger checks and allowed unrelated files to be fixed.
+    assert (
+        "Run each hard always-trigger host Check entry (a `review.mechanical` entry with `trigger: always` and `severity: hard`, "
+        "such as lint, format and the full test suites) once after your last edit and before replying `ok`, "
+        "because Check runs every one of them on the candidate."
+    ) in task
+    assert ("A failure in a file outside `## Scope fence` is reported as a forced file or in `second_problems`, never edited; apply lint and format fixes only to files the ticket changed.") in task
     # The old spec omitted coverage gates, their applicability, and the fenced floor-miss remedy.
     for rule in (
         "hard coverage gate",
