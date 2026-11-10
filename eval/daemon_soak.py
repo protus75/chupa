@@ -307,6 +307,13 @@ class _Member:
         self.models.append(model)
         return runner.bind(local, model)
 
+    def log_tail(self):
+        try:
+            lines = (self.root / ".chupa/state/engine.log").read_text().splitlines()
+        except FileNotFoundError:
+            return "; engine.log absent"
+        return "; engine.log tail:\n" + "\n".join(lines[-20:])
+
     async def until(self, predicate):
         deadline = time.monotonic() + 60
         n = 0
@@ -314,7 +321,7 @@ class _Member:
             if predicate():
                 return
             if self.task is not None and self.task.done():
-                raise SoakRefused(self.name, f"serve stopped early ({self.task.result()})")
+                raise SoakRefused(self.name, f"serve stopped early ({self.task.result()})" + self.log_tail())
             if n % 20 == 0:
                 self.time.advance(serve.SERVE_POLL_S)
             await _turn()
@@ -362,7 +369,7 @@ class _Member:
         if isinstance(result, BaseException) and not isinstance(result, asyncio.CancelledError):
             raise result
         if result not in (0, None) and not isinstance(result, asyncio.CancelledError):
-            raise SoakRefused(self.name, f"serve cleanup exited {result}")
+            raise SoakRefused(self.name, f"serve cleanup exited {result}" + self.log_tail())
 
     def terminals(self, stem):
         return [e for e in self.journal.read() if e.ticket == stem and e.type == EventType.STATE_TRANSITION and e.body.get("to") in TERMINAL_STATES]

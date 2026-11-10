@@ -22,6 +22,35 @@ from chupa.stages import read_review
 from eval import daemon_soak as soak
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["until", "stop"])
+@pytest.mark.parametrize("has_log", [True, False])
+async def test_soak_refusal_carries_engine_log_tail(tmp_path, operation, has_log):
+    member = soak._Member(tmp_path, "member")
+    log = tmp_path / ".chupa/state/engine.log"
+    if has_log:
+        log.parent.mkdir(parents=True)
+        log.write_text("discarded first line\n" + "".join(f"diagnostic {i}\n" for i in range(20)))
+    member.task = asyncio.get_running_loop().create_future()
+    member.task.set_result(7)
+    try:
+        with pytest.raises(soak.SoakRefused) as refused:
+            if operation == "until":
+                await member.until(lambda: False)
+            else:
+                await member.stop()
+        message = str(refused.value)
+        assert ("serve stopped early (7)" if operation == "until" else "serve cleanup exited 7") in message
+        if has_log:
+            assert "; engine.log tail:\ndiagnostic 0\n" in message
+            assert "diagnostic 19" in message
+            assert "discarded first line" not in message
+        else:
+            assert "; engine.log absent" in message
+    finally:
+        member.journal.close()
+
+
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
 async def evidence(tmp_path_factory):
     members = []
