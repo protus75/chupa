@@ -71,7 +71,6 @@ def test_artifacts_closed_sets_and_constants():
     assert set(get_args_deep(artifacts.Outcome)) == {"already_satisfied", "budget_exceeded", "gate_failed", "infra_error", "invalid_artifact", "ok", "premise_failed", "timeout"}
     assert artifacts.REVIEW_SNAG_CODES == frozenset({"acceptance", "leak", "logic", "scope"})
     assert set(get_args_deep(artifacts.ReviewVerdictName)) == {"approve", "rma", "snag"}
-    assert artifacts.SHAKEOUT_SPEC_VERSION == 1
 
 
 def test_audit_closed_sets_and_constants():
@@ -285,7 +284,6 @@ def test_stages_closed_sets_and_constants():
     assert {k: ident(x) for k, x in stages.EMITS_BY_VERDICT.items()} == {"approve": "ApprovedInvoice", "rma": "Rma", "snag": "SnagList"}
     assert {k: ident(x) for k, x in stages.KNOWN_ARTIFACTS.items()} == {
         "review-baseline-report.json": "ReviewBaselineReport",
-        "shakeout-report.json": "ShakeoutReport",
     }
     assert stages.OUTPUT_TAIL_CHARS == 2000
     assert stages.RUN_RECORD_SECTIONS == ("Outcome", "Surprises / judgment calls", "Dead ends", "Second problems filed", "Resolved engine/model", "Predicted vs actual")

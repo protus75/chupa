@@ -1,18 +1,53 @@
-"""Cumulative shakeout runner and sole report writer."""
+"""Cumulative shakeout runner."""
 
-import argparse
-import asyncio
 import importlib
-import tempfile
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from chupa.artifacts import SHAKEOUT_SPEC_VERSION, ShakeoutEntry, ShakeoutReport
+from pydantic import model_validator
+
+from chupa.artifacts import Artifact, NonBlank, _Strict
 from chupa.audit import audit
 from chupa.git import Git
-from chupa.seams import FileSystem, LocalFileSystem, SubprocessExec
+from chupa.seams import SubprocessExec
 from eval.shakeout.bench import Bench
+
+SHAKEOUT_SPEC_VERSION = 1
+
+
+class ShakeoutEntry(_Strict):
+    member: NonBlank
+    group: NonBlank
+    planted_fault: NonBlank
+    expected: NonBlank
+    observed: NonBlank
+    producing_run: NonBlank
+    auditor: list[NonBlank]
+    green: bool
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "ShakeoutEntry":
+        if not re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", self.member):
+            raise ValueError("member must be a snake-case id")
+        if not re.fullmatch(r"[a-z][a-z0-9_-]*/[0-9]+", self.producing_run):
+            raise ValueError("producing_run must be <bench stem>/<run seq>")
+        if self.green != (self.observed == self.expected and not self.auditor):
+            raise ValueError("green must match the observation and empty auditor")
+        return self
+
+
+class ShakeoutReport(Artifact):
+    entries: list[ShakeoutEntry]
+
+    @model_validator(mode="after")
+    def _unique_members(self) -> "ShakeoutReport":
+        ids = [entry.member for entry in self.entries]
+        if len(ids) != len(set(ids)):
+            raise ValueError("member ids must be unique")
+        return self
+
 
 GROUPS: tuple[str, ...] = ("stages", "driver", "runner", "drain", "recovery", "merge", "providers")
 
@@ -83,33 +118,3 @@ async def produce(group: str, prior: ShakeoutReport | None, root: Path) -> Shake
     git = Git(SubprocessExec(), env=os.environ, timeout=30.0)
     sha = await git.rev_parse(Path.cwd(), "HEAD")
     return ShakeoutReport(produced_by_spec_version=SHAKEOUT_SPEC_VERSION, produced_at_sha=sha, entries=entries)
-
-
-def write_report(path: Path, report: ShakeoutReport, fs: FileSystem | None = None) -> None:
-    (fs or LocalFileSystem()).write(path, (report.model_dump_json(indent=2) + "\n").encode())
-
-
-async def _main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--group", required=True)
-    parser.add_argument("--prior", type=Path)
-    parser.add_argument("--out", type=Path, required=True)
-    args = parser.parse_args(argv)
-    if args.group not in GROUPS:
-        return 2
-    prior = ShakeoutReport.model_validate_json(args.prior.read_bytes()) if args.prior else None
-    try:
-        with tempfile.TemporaryDirectory() as dirname:
-            report = await produce(args.group, prior, Path(dirname))
-    except ShakeoutRefused:
-        return 1
-    write_report(args.out, report)
-    return 0
-
-
-def main(argv: list[str] | None = None) -> int:
-    return asyncio.run(_main(argv))
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

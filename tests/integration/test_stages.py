@@ -9,7 +9,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from chupa.artifacts import SHAKEOUT_REPORT, ShakeoutEntry, ShakeoutReport
+from chupa import stages
+from chupa.artifacts import Artifact, NonBlank
 from chupa.box import BOX_DIR, Box
 from chupa.config import load_config
 from chupa.driver import Driver
@@ -32,6 +33,17 @@ from chupa.stages import (
     run_stages,
 )
 from chupa.tickets import TicketInvalid, validate_ticket
+
+SAMPLE_REPORT = "sample-report.json"
+
+
+class SampleReport(Artifact):
+    entries: list[NonBlank]
+
+
+@pytest.fixture(autouse=True)
+def register_sample_report(monkeypatch):
+    monkeypatch.setitem(stages.KNOWN_ARTIFACTS, SAMPLE_REPORT, SampleReport)
 
 
 def test_retro_driver_access_is_public_and_read_only(repo):
@@ -228,8 +240,7 @@ def outcomes(result) -> dict[str, str]:
 
 
 def _report_bytes() -> str:
-    entry = ShakeoutEntry(member="member_one", group="first", planted_fault="fault", expected="ok", observed="ok", producing_run="member_one/0", auditor=[], green=True)
-    return ShakeoutReport(produced_by_spec_version=1, produced_at_sha="abc", entries=[entry]).model_dump_json()
+    return SampleReport(produced_by_spec_version=1, produced_at_sha="abc", entries=["one"]).model_dump_json()
 
 
 def _report_ticket(monkeypatch, verification: str) -> None:
@@ -254,42 +265,42 @@ def test_verification_report_lifts_only_in_checks_commit(repo, monkeypatch):
     (repo / "source.json").write_text(_report_bytes())
     git(repo, "add", "source.json")
     git(repo, "commit", "-m", "source")
-    _report_ticket(monkeypatch, f"cp source.json tickets/{STEM}/{SHAKEOUT_REPORT}")
+    _report_ticket(monkeypatch, f"cp source.json tickets/{STEM}/{SAMPLE_REPORT}")
     result, _, _ = run(repo, [agent({"chupa/thing.py": "ok\n"}), verdict()])
     assert outcomes(result)["check"] == "ok"
-    assert (repo / "tickets" / STEM / SHAKEOUT_REPORT).is_file()
+    assert (repo / "tickets" / STEM / SAMPLE_REPORT).is_file()
     run_commit = git(repo, "log", "--format=%H", "--grep", f"chupa({STEM}): run-record").splitlines()[0]
-    assert SHAKEOUT_REPORT not in git(repo, "show", "--format=", "--name-only", run_commit)
+    assert SAMPLE_REPORT not in git(repo, "show", "--format=", "--name-only", run_commit)
     checks_commit = git(repo, "log", "--format=%H", "--grep", f"chupa({STEM}): checks").splitlines()[0]
-    assert SHAKEOUT_REPORT in git(repo, "show", "--format=", "--name-only", checks_commit)
+    assert SAMPLE_REPORT in git(repo, "show", "--format=", "--name-only", checks_commit)
 
 
 def test_invalid_report_fails_check_without_lifting_checks_or_report(repo, monkeypatch):
     (repo / "source.json").write_text('{"invalid":true}')
     git(repo, "add", "source.json")
     git(repo, "commit", "-m", "source")
-    _report_ticket(monkeypatch, f"cp source.json tickets/{STEM}/{SHAKEOUT_REPORT}")
+    _report_ticket(monkeypatch, f"cp source.json tickets/{STEM}/{SAMPLE_REPORT}")
     result, _, _ = run(repo, [agent({"chupa/thing.py": "ok\n"})])
     assert outcomes(result)["check"] == "gate_failed"
     assert [f.code for f in result.last[1].findings] == ["verification"]
     assert not (repo / "tickets" / STEM / "checks.json").exists()
-    assert not (repo / "tickets" / STEM / SHAKEOUT_REPORT).exists()
+    assert not (repo / "tickets" / STEM / SAMPLE_REPORT).exists()
     assert f"chupa({STEM}): checks" not in subjects(repo)
 
 
-@pytest.mark.parametrize("path", [SHAKEOUT_REPORT, f"x/{SHAKEOUT_REPORT}"])
+@pytest.mark.parametrize("path", [SAMPLE_REPORT, f"x/{SAMPLE_REPORT}"])
 @pytest.mark.parametrize("body", [_report_bytes(), '{"invalid":true}'])
 def test_implement_report_is_not_lifted_and_stale_report_is_purged(repo, path, body):
     result, _, config = run(repo, [_write_outbox_report(path, body), verdict()])
     assert outcomes(result)["check"] == "ok"
-    assert not list((repo / "tickets" / STEM).rglob(SHAKEOUT_REPORT))
-    assert not list((config.worktree_root / STEM / "tickets" / STEM).rglob(SHAKEOUT_REPORT))
-    assert SHAKEOUT_REPORT not in git(repo, "show", "--format=", "--name-only", "main~2")
+    assert not list((repo / "tickets" / STEM).rglob(SAMPLE_REPORT))
+    assert not list((config.worktree_root / STEM / "tickets" / STEM).rglob(SAMPLE_REPORT))
+    assert SAMPLE_REPORT not in git(repo, "show", "--format=", "--name-only", "main~2")
 
 
 @pytest.mark.parametrize("flag", ["--out", "--out="])
 def test_named_missing_report_fails_even_when_other_commands_pass(repo, monkeypatch, flag):
-    target = f"tickets/{STEM}/{SHAKEOUT_REPORT}"
+    target = f"tickets/{STEM}/{SAMPLE_REPORT}"
     command = f"true {flag} {target}" if flag == "--out" else f"true {flag}{target}"
     _report_ticket(monkeypatch, command)
     result, _, _ = run(repo, [agent({"chupa/thing.py": "ok\n"})])
@@ -635,7 +646,7 @@ async def report_context(repo, *, verification=None, source=None, script=None):
     ctx = context(repo, script if script is not None else [agent({}), verdict()])
     ctx.fs.write(repo / "chupa/thing.py", b"ok\n")
     ctx.fs.write(repo / "source.json", (source if source is not None else _report_bytes()).encode())
-    command = verification if verification is not None else f"cp source.json tickets/{STEM}/{SHAKEOUT_REPORT}"
+    command = verification if verification is not None else f"cp source.json tickets/{STEM}/{SAMPLE_REPORT}"
     raw = TICKET.format(bypass="").replace("grep -q ok chupa/thing.py\nenv", command)
     ctx.fs.write(repo / f"tickets/{STEM}/ticket.md", raw.encode())
     await ctx.git.add(repo, ["chupa/thing.py", "source.json", f"tickets/{STEM}/ticket.md"])
@@ -649,7 +660,7 @@ async def report_context(repo, *, verification=None, source=None, script=None):
 async def test_outbox_only_check_accepts_registered_report(repo, nested):
     from chupa.journal import EventType
 
-    name = f"nested/{SHAKEOUT_REPORT}" if nested else SHAKEOUT_REPORT
+    name = f"nested/{SAMPLE_REPORT}" if nested else SAMPLE_REPORT
     commands = (f"mkdir -p tickets/{STEM}/nested\n" if nested else "") + f"cp source.json tickets/{STEM}/{name}"
     ctx, ticket = await report_context(repo, verification=commands)
     run = await run_stages(ctx, ticket)
@@ -663,7 +674,7 @@ async def test_outbox_only_check_accepts_registered_report(repo, nested):
     assert checks.body["result"]["paths"] == [f"tickets/{STEM}/checks.json", rel]
     assert checks.body["result"]["kind"] == "checks"
     data = await ctx.git._run(repo, "show", f"{checks.body['result']['commit']}:{rel}")
-    assert ShakeoutReport.model_validate_json(data).model_dump_json() == _report_bytes()
+    assert SampleReport.model_validate_json(data).model_dump_json() == _report_bytes()
     assert all(rel not in e.body["result"].get("paths", []) for e in completions if e is not checks)
     assert not (ctx.worktree(STEM) / rel).exists()
 
@@ -674,16 +685,16 @@ async def test_outbox_only_check_requires_current_report(repo, case):
     commands = {
         "records": f"cp source.json tickets/{STEM}/review.md",
         "unknown": f"cp source.json tickets/{STEM}/unknown.json",
-        "foreign": f"mkdir -p tickets/foreign\ncp source.json tickets/foreign/{SHAKEOUT_REPORT}",
-        "malformed": f"cp source.json tickets/{STEM}/{SHAKEOUT_REPORT}",
-        "equal-copy": f"cp source.json tickets/{STEM}/{SHAKEOUT_REPORT}",
-        "dirty-tracked": f"cp source.json tickets/{STEM}/{SHAKEOUT_REPORT}",
-        "dirty-untracked": f"cp source.json tickets/{STEM}/{SHAKEOUT_REPORT}",
+        "foreign": f"mkdir -p tickets/foreign\ncp source.json tickets/foreign/{SAMPLE_REPORT}",
+        "malformed": f"cp source.json tickets/{STEM}/{SAMPLE_REPORT}",
+        "equal-copy": f"cp source.json tickets/{STEM}/{SAMPLE_REPORT}",
+        "dirty-tracked": f"cp source.json tickets/{STEM}/{SAMPLE_REPORT}",
+        "dirty-untracked": f"cp source.json tickets/{STEM}/{SAMPLE_REPORT}",
     }
 
     def act(req):
         if case == "implement":
-            (req.worktree / f"tickets/{STEM}/{SHAKEOUT_REPORT}").write_text(_report_bytes())
+            (req.worktree / f"tickets/{STEM}/{SAMPLE_REPORT}").write_text(_report_bytes())
         if case.startswith("dirty"):
             path = "chupa/thing.py" if case == "dirty-tracked" else "chupa/untracked.py"
             (req.worktree / path).write_text("uncommitted\n")
@@ -691,7 +702,7 @@ async def test_outbox_only_check_requires_current_report(repo, case):
 
     ctx, ticket = await report_context(repo, verification=commands.get(case, "true"), script=[act], source='{"invalid":true}' if case == "malformed" else None)
     if case in {"inherited", "equal-copy"}:
-        rel = f"tickets/{STEM}/{SHAKEOUT_REPORT}"
+        rel = f"tickets/{STEM}/{SAMPLE_REPORT}"
         ctx.fs.write(repo / rel, _report_bytes().encode())
         await ctx.git.add(repo, [rel])
         await ctx.git.commit(repo, "inherited report rejection fixture")
@@ -701,7 +712,7 @@ async def test_outbox_only_check_requires_current_report(repo, case):
     assert run.last[1].findings and all(f.paved_road for f in run.last[1].findings)
     assert len(ctx.driver.llm.requests) == 1
     if case in {"implement", "inherited"}:
-        assert not list((ctx.worktree(STEM) / f"tickets/{STEM}").rglob(SHAKEOUT_REPORT))
+        assert not list((ctx.worktree(STEM) / f"tickets/{STEM}").rglob(SAMPLE_REPORT))
 
 
 @pytest.mark.asyncio
@@ -710,11 +721,11 @@ async def test_outbox_only_check_failure_never_admits(repo, monkeypatch, failure
     from chupa.git import GitError
     from chupa.journal import EventType
 
-    commands = f"cp source.json tickets/{STEM}/{SHAKEOUT_REPORT}"
+    commands = f"cp source.json tickets/{STEM}/{SAMPLE_REPORT}"
     if failure == "red":
         commands += "\nfalse"
     elif failure == "missing":
-        commands = f"true --out=tickets/{STEM}/{SHAKEOUT_REPORT}"
+        commands = f"true --out=tickets/{STEM}/{SAMPLE_REPORT}"
     ctx, ticket = await report_context(repo, verification=commands, script=[agent({})], source='{"invalid":true}' if failure == "invalid" else None)
     if failure == "lift":
         commit = ctx.git.commit

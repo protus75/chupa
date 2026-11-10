@@ -1,4 +1,4 @@
-from chupa.artifacts import SHAKEOUT_REPORT
+from chupa.artifacts import REVIEW_BASELINE_REPORT
 from chupa.stages import LIFT_MAX_BYTES, _lift_decision
 
 
@@ -7,7 +7,7 @@ def test_lift_decision_selects_named_artifact_per_kind():
     assert _lift_decision("review", None, "run.md", False, 1) == "skip"
     assert _lift_decision("review", None, "notes.txt", False, 1) == "skip"
     assert _lift_decision("checks", None, "checks.json", False, 1) == "lift"
-    assert _lift_decision("checks", None, f"nested/{SHAKEOUT_REPORT}", False, 1) == "lift"
+    assert _lift_decision("checks", None, f"nested/{REVIEW_BASELINE_REPORT}", False, 1) == "lift"
     assert _lift_decision("unknown", None, "run.md", False, 1) == "skip"
 
 

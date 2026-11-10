@@ -3,14 +3,12 @@
 import asyncio
 import json
 import subprocess
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
 
-from chupa.artifacts import ShakeoutEntry, ShakeoutReport
 from chupa.journal import EventType
 from eval.shakeout import run as shakeout
 from eval.shakeout.bench import Bench
@@ -19,6 +17,7 @@ from eval.shakeout.driver import MEMBERS as DRIVER_MEMBERS
 from eval.shakeout.merge import MEMBERS as MERGE_MEMBERS
 from eval.shakeout.providers import MEMBERS as PROVIDER_MEMBERS
 from eval.shakeout.recovery import MEMBERS as RECOVERY_MEMBERS
+from eval.shakeout.run import ShakeoutEntry, ShakeoutReport
 from eval.shakeout.runner import MEMBERS as RUNNER_MEMBERS
 from eval.shakeout.stages import MEMBERS
 
@@ -138,12 +137,6 @@ The fixture is absent.
     assert result.merged == ["fixture"], result.render()
     assert bench.report is result
     assert (bench.repo / "src" / "thing.txt").read_text() == "ok\n"
-
-
-def test_unknown_group_command_exits_two(tmp_path):
-    result = subprocess.run([sys.executable, "-m", "eval.shakeout.run", "--group", "nope", "--out", str(tmp_path / "x.json")], check=False)
-    assert result.returncode == 2
-    assert not (tmp_path / "x.json").exists()
 
 
 def test_scope_escape_member_observes_check_failure_and_no_merge(tmp_path):

@@ -24,7 +24,6 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 from chupa.artifacts import (
     OUTCOMES,
     REVIEW_BASELINE_REPORT,
-    SHAKEOUT_REPORT,
     Artifact,
     Cost,
     Diagnosis,
@@ -35,7 +34,6 @@ from chupa.artifacts import (
     Outcome,
     ReviewBaselineReport,
     ReviewVerdict,
-    ShakeoutReport,
     StageResult,
 )
 from chupa.box import BOX_DIR
@@ -55,7 +53,6 @@ from chupa.tickets import validate_ticket as validate_ticket
 MAIN = "main"
 LIFT_MAX_BYTES = 256 * 1024
 KNOWN_ARTIFACTS: Mapping[str, type[BaseModel]] = {
-    SHAKEOUT_REPORT: ShakeoutReport,
     REVIEW_BASELINE_REPORT: ReviewBaselineReport,
 }
 # Diff budget: sized so every rendered review prompt fits the serving provider's bound.

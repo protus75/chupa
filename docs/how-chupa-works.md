@@ -742,4 +742,4 @@ The block carries only process rules that hold for every host; codebase rules be
 
 ## 13. Eval report artifacts
 
-- **Eval report artifacts:** shakeout.
+The review-baseline report (`review-baseline-report.json`, written by `eval/harness.py`) is the only registered report artifact.

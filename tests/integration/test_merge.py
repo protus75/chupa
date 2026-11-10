@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from chupa import runner
+from chupa import runner, stages
 from chupa.box import BOX_DIR, Box
 from chupa.config import load_config
 from chupa.driver import Driver
@@ -20,7 +20,13 @@ from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.stages import StageContext, run_stages
 from chupa.tickets import validate_ticket
 from tests.integration.test_cli import root
-from tests.integration.test_stages import ENV, SNAG, SPECS, STEM, _report_bytes, adopt_conduct, agent, author, git, report_context, verdict
+from tests.integration.test_stages import ENV, SAMPLE_REPORT, SNAG, SPECS, STEM, SampleReport, _report_bytes, adopt_conduct, agent, author, git, report_context, verdict
+
+
+@pytest.fixture(autouse=True)
+def register_sample_report(monkeypatch):
+    monkeypatch.setitem(stages.KNOWN_ARTIFACTS, SAMPLE_REPORT, SampleReport)
+
 
 GOAL = "`thing.py` holds the word ok."
 
@@ -400,7 +406,6 @@ def test_outbox_only_admission_records_null_commit_and_retires(root, monkeypatch
 
     from chupa import merge as owner
     from chupa.__main__ import main
-    from chupa.artifacts import SHAKEOUT_REPORT, ShakeoutReport
     from chupa.audit import audit_journal
     from chupa.checkpoint import _merged
     from chupa.effects import Effects
@@ -428,7 +433,7 @@ def test_outbox_only_admission_records_null_commit_and_retires(root, monkeypatch
         tree = await ctx.git.rev_parse(root, "main^{tree}")
         checks_key = f"ticket-plane/{ticket.stem}/{attempt}/checks"
         [lift] = [e for e in ctx.driver.journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key == checks_key]
-        ctx.fs.write(ctx.worktree(ticket.stem) / f"tickets/{ticket.stem}/{SHAKEOUT_REPORT}", _report_bytes().replace('"abc"', '"replayed"').encode())
+        ctx.fs.write(ctx.worktree(ticket.stem) / f"tickets/{ticket.stem}/{SAMPLE_REPORT}", _report_bytes().replace('"abc"', '"replayed"').encode())
         history = ctx.driver.journal.read()
         ctx.driver.effects = Effects(ctx.driver.journal)
         assert await lift_outbox(ctx, ticket.stem, "checks", attempt=attempt) == lift.body["result"]["commit"]
@@ -449,10 +454,10 @@ def test_outbox_only_admission_records_null_commit_and_retires(root, monkeypatch
         assert terminal.body == {"to": "merged", "commit": None, "reviewed_sha": admission.reviewed_sha}
         events = ctx.driver.journal.read()
         [checks] = [e for e in events if e.type == EventType.EFFECT_COMPLETION and e.key == f"ticket-plane/{ticket.stem}/{attempt}/checks"]
-        rel = f"tickets/{ticket.stem}/{SHAKEOUT_REPORT}"
+        rel = f"tickets/{ticket.stem}/{SAMPLE_REPORT}"
         assert rel in checks.body["result"]["paths"]
         blob = await ctx.git._run(root, "show", f"{checks.body['result']['commit']}:{rel}")
-        ShakeoutReport.model_validate_json(blob)
+        SampleReport.model_validate_json(blob)
         [completion] = [e for e in events if e.type == EventType.EFFECT_COMPLETION and e.key == f"merge/{ticket.stem}/{attempt}"]
         assert completion.body == {"result": {"commit": None}}
         assert audit_journal(ctx.driver.journal) == []
@@ -501,7 +506,7 @@ def test_outbox_only_admission_records_null_commit_and_retires(root, monkeypatch
 
         rig = await admission_graph(root, monkeypatch, {}, settled=moved)
         stem = "serve-producer"
-        script = f"from pathlib import Path; Path('tickets/{stem}/{SHAKEOUT_REPORT}').write_text({_report_bytes()!r})"
+        script = f"from pathlib import Path; Path('tickets/{stem}/{SAMPLE_REPORT}').write_text({_report_bytes()!r})"
         admission_ticket(root, stem, verification=f"python3 -c {shlex.quote(script)}")
         run = await start_admission(rig, monkeypatch)
         try:
@@ -529,7 +534,6 @@ def test_outbox_only_admission_records_null_commit_and_retires(root, monkeypatch
     "failure", ["absent", "wrong-run", "wrong-stem", "foreign-path", "unknown", "records-only", "missing-committed", "invalid-committed", "invalid-schema", "red", "invalid-regate", "missing-regate"]
 )
 async def test_outbox_only_merge_regate_requires_lift_custody(repo, monkeypatch, mode, failure):
-    from chupa.artifacts import SHAKEOUT_REPORT
 
     ctx, ticket = await report_context(repo)
     run = await run_stages(ctx, ticket)
@@ -549,7 +553,7 @@ async def test_outbox_only_merge_regate_requires_lift_custody(repo, monkeypatch,
                         event = dataclasses.replace(event, ticket="foreign")
                     else:
                         paths = (
-                            [f"tickets/foreign/{SHAKEOUT_REPORT}"]
+                            [f"tickets/foreign/{SAMPLE_REPORT}"]
                             if failure == "foreign-path"
                             else [f"tickets/{STEM}/{p}" for p in ("run.md", "checks.json", "review.md")]
                             if failure == "records-only"
@@ -564,7 +568,7 @@ async def test_outbox_only_merge_regate_requires_lift_custody(repo, monkeypatch,
     elif failure == "wrong-run":
         attempt += 1
     elif failure in {"missing-committed", "invalid-committed"}:
-        rel = f"tickets/{STEM}/{SHAKEOUT_REPORT}"
+        rel = f"tickets/{STEM}/{SAMPLE_REPORT}"
         if failure == "missing-committed":
             (repo / rel).unlink()
         else:
@@ -580,13 +584,13 @@ async def test_outbox_only_merge_regate_requires_lift_custody(repo, monkeypatch,
         await ctx.git.add(repo, ["source.json"])
         await ctx.git.commit(repo, "invalid Verification report fixture")
     elif failure == "invalid-schema":
-        from chupa.artifacts import ShakeoutEntry
+        from chupa.artifacts import Finding
         from chupa.stages import KNOWN_ARTIFACTS
 
-        monkeypatch.setitem(KNOWN_ARTIFACTS, SHAKEOUT_REPORT, ShakeoutEntry)
+        monkeypatch.setitem(KNOWN_ARTIFACTS, SAMPLE_REPORT, Finding)
         ticket = dataclasses.replace(ticket, verification=(("true",),))
     else:
-        ticket = dataclasses.replace(ticket, verification=(("true", f"--out=tickets/{STEM}/{SHAKEOUT_REPORT}"),))
+        ticket = dataclasses.replace(ticket, verification=(("true", f"--out=tickets/{STEM}/{SAMPLE_REPORT}"),))
     before = await ctx.git.rev_parse(repo, "main")
     if mode == "inline":
         result = await merge(ctx, ticket, attempt=attempt)
