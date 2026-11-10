@@ -10,67 +10,60 @@ kind: feature
 
 ## Context
 - chupa/lockfile.py
-- chupa/__main__.py::_review
-- chupa/__main__.py::_verdict
+- chupa/git.py
 - chupa/tickets.py::intake
 - chupa/merge.py::write_squash
-- chupa/observe.py::lock_holder
-- chupa/observe.py::snapshot
-- vscode-chupa/media/view.js
+- chupa/seams.py
 
 ## On-demand
-- chupa/runner.py
-- chupa/drain.py
-- chupa/serve.py
-- chupa/daemon.py
+- chupa/__main__.py
+- chupa/doctor.py
 - chupa/stages.py
+- chupa/daemon.py
+- chupa/runner.py
 - chupa/author.py
+- chupa/serve.py
 - chupa/retro.py
 - docs/how-chupa-works.md
-- chupa/docs/host-running.md
 - chupa/docs/host-contract.md
 - tests/integration/test_lockfile.py
-- tests/integration/test_review_command.py
-- tests/integration/test_control_cli.py
-- tests/integration/test_watch.py
+- tests/integration/test_git.py
+- tests/integration/test_tickets.py
 
 ## Goal / Why
-One lock, `.chupa/state/chupa.lock`, does two jobs: it keeps a second drain, serve or run from starting, and it keeps two processes from writing to `main` at once. A drain holds it for its whole run, often hours, but the danger it guards against in git lasts a second or two: a merge's squash commit landing while another process is between staging a ticket file and committing it. So every command that only needs to commit a ticket is refused for the whole drain. On 2026-11-10, `./dev.py review core-template-budget` was refused after the owner edited the ticket, and the operator had to wait about 8 minutes for the drain to commit the edit itself before the review could run. The tickets view greys Review whenever any engine runs, even for committed tickets that never needed the lock, and greys Confirm and Reject on edited tickets for the same reason.
+One lock, `.chupa/state/chupa.lock`, does two jobs: it keeps a second drain, serve or run from starting, and it keeps two processes from writing to `main` at once. A drain holds it for its whole run, often hours, but the git danger it guards against lasts seconds: a merge's squash commit landing while another process is between staging a ticket file and committing it. So any command that only needs to commit a ticket is refused for the whole drain. On 2026-11-10, `./dev.py review core-template-budget` was refused after the owner edited the ticket, and the operator had to wait for the drain to commit the edit before the review could run.
 
-After this change there are two locks. The engine lock (`chupa.lock`) is held only by `run`, `drain` and `serve`, and they still refuse each other. The new commit lock (`.chupa/state/commit.lock`) is held only around each sequence of git writes to the main checkout, by the engine and by `review`, `confirm` and `reject`. A command that finds the commit lock held waits for it, up to 60 seconds, then refuses, naming the holder and saying what to do. `review` and `confirm`/`reject` work while a drain runs, and the tickets view stops greying them. The view header shows both locks.
+This ticket adds a second lock sized to that danger: a commit lock held only while git writes. It lives inside `chupa/git.py`, the one module every chupa git call already goes through, so no caller holds it and a new commit site cannot forget it. It is the base that `commit-lock-commands` builds on to move `review`, `confirm` and `reject` off the engine lock.
 
 ## Scope in / Scope out
-- In: `chupa/lockfile.py`: the commit lock at `<state_dir>/commit.lock`, an advisory `flock` like the engine lock and recording the same identity fields.
-  - Acquire polls a non-blocking `flock` through the injected clock and sleep seams and gives up after `COMMIT_LOCK_WAIT_S = 60` seconds. On timeout it raises an error whose message names the holder from the lockfile identity. The paved road says to retry once that process finishes its commit, and never to delete the lockfile. The timeout error is its own exception type, not `LockHeld` or a subclass, so `_verdict`'s `except LockHeld` fallback never treats it as "engine running"; the CLI's top-level handler maps it to exit 2 like `LockHeld`.
-  - Release truncates the identity to empty before closing, so a reader sees an empty file once the lock is free, even while the releasing process lives on.
-  - Holds never nest. A hold covers only git write calls on the main checkout plus the journal append and `rev-parse` that record them. It never spans an LLM call, a test or gate run, a worktree operation, or a wait on the control inbox.
-- In: every git write sequence on the main checkout runs inside one commit-lock hold:
-  - `tickets.intake`: the per-stem `add`, `commit`, `rev-parse` and intake journal append. Its signature gains a required commit-lock argument (the commit lock built from `state_dir`, clock and sleep), with no default; every caller passes it: `chupa/drain.py`, `chupa/serve.py`, `chupa/runner.py`, `chupa/__main__.py`, `tests/integration/test_tickets.py`, `tests/integration/test_provider_cooldown_failover.py` and `tests/harness/reliability_battery.py`.
-  - `merge.write_squash`: `merge --squash` through the recorded commit.
-  - The records commit in `chupa/stages.py` (`chupa(<stem>): <kind>`), the rework and undo-rework commits in `chupa/daemon.py`, the confirmed and rejected commits in `chupa/runner.py`, both commits in `chupa/author.py`, the state commit in `chupa/serve.py`, and the retro commit in `chupa/retro.py`.
-  - The autofix commit in `chupa/stages.py` is made in a ticket worktree and stays outside the commit lock.
-- In: `chupa/__main__.py`:
-  - `_review` no longer takes the engine lock. When the ticket directory has pending changes, it runs intake under the commit lock and then reviews the committed blob as today.
-  - `_verdict`: when the engine lock is held and the stem has pending ticket changes, it first runs intake under the commit lock. If intake refuses that stem, it refuses with the intake findings and publishes no admission request. Otherwise it publishes the request as today.
-- In: `chupa/observe.py` `snapshot()`:
-  - A top-level string field `commitLock`: empty when `commit.lock` is missing, empty, or names a pid that is not alive. Otherwise `<verb> since <time> (pid <pid>)`, built exactly like the existing `lock` field: the same command-line verb rule, defaulting to `chupa`, and `clock(started_at)`. Factor the verb rule so both fields use it.
-  - Row menus:
-    - `chupaReview` is `on` for an open, valid row whether or not an engine runs. It is never `locked`.
-    - `chupaConfirm` and `chupaReject` are `on` for a draft or held row whether or not it is committed or an engine runs.
-    - `chupaRun` stays `locked` while an engine runs.
-    - The box rows' `chupaTriage` and `chupaDismiss` are unchanged.
-  - The existing `lock` and `engine` fields are unchanged.
-- In: `vscode-chupa/media/view.js`: the header shows two labelled padlocks, `engine` from `snap.lock` and `commit` from `snap.commitLock`, before the unchanged counts. Each shows `🔒` when its field is non-empty and `🔓` otherwise, with the field (or `unlocked`) as its hover title. JavaScript only draws the two fields.
-- In: documentation of the two locks:
-  - In `docs/how-chupa-works.md`: the verb table's lock column for `review`, `confirm` and `reject`; the `chupa.lock` row of the state-files table; and a new `commit.lock` row next to it.
-  - In `chupa/docs/host-running.md`: the "Stop serve before ..." sentence, which no longer lists `review`.
-  - In `chupa/docs/host-contract.md`: the lockfile paragraph gains one sentence saying that writes to main take `commit.lock` with a 60-second wait. The paragraph keeps the phrase `never delete the lockfile`, which `tests/integration/test_host_contract.py` pins.
-- Out: `triage`, `dismiss` and `migrate-box`, which write the Suggestion Box and keep the engine lock. No `commit` verb. `doctor`'s lock probe. The engine lock's refusal between `run`, `drain` and `serve`. The `engine` snapshot field and `chupa.engineRunning`. The `vscode-chupa/package.json` menu clauses.
-- Out: the operator's own git commits in the main checkout, which cannot take the lock. They stay outside it, as they are today.
+- In: `chupa/lockfile.py` adds a `CommitLock` at `<state_dir>/commit.lock`. It is an advisory `flock` that records the same identity fields as `Lockfile`.
+  - Acquire polls a non-blocking `flock` through injected clock and sleep seams. It gives up after `COMMIT_LOCK_WAIT_S = 60` seconds.
+  - On timeout it raises `CommitLockTimeout`. That is its own exception type, not `LockHeld` or a subclass. Its message names the holder from the lockfile identity. Its paved road says to retry once that process finishes its commit, and never to delete the lockfile.
+  - Release truncates the identity to empty before closing. A reader then sees an empty file once the lock is free, even while the releasing process lives on.
+  - Within one process, a second asyncio task that wants the lock waits, as another process would. A task that asks again for the lock it already holds gets a `RuntimeError` at once, not a 60-second wait.
+- In: `chupa/git.py`: `Git.__init__` takes a required `commit_lock` (a `CommitLock`) with no default. The methods that write the index or commit hold it for their whole run:
+  - `commit(dir, message, *, only=())` returns the new `HEAD` sha. When `only` is given, it stages those paths first. If those paths then match `HEAD`, it makes no commit and returns `None`.
+  - `merge_squash(dir, branch, message)` runs `merge --squash` and the commit, and returns the new sha.
+  - `add` and `restore` hold the lock for their one call.
+  - Read methods, `rebase`, and the branch and worktree methods do not take the lock.
+- In: every caller of those methods drops its own `add` before `commit`. It uses the returned sha instead of a separate `rev_parse(..., "HEAD")`. The callers are in `chupa/tickets.py`, `chupa/merge.py`, `chupa/stages.py`, `chupa/daemon.py`, `chupa/runner.py`, `chupa/author.py`, `chupa/serve.py` and `chupa/retro.py`.
+- In: `tickets.intake` journals `ticket_intake` only when `commit` returns a sha. If another process commits the same pending ticket first, intake skips it quietly instead of raising.
+- In: the composition roots build one `CommitLock` per process from the configured `state_dir`, clock and sleep, and pass it to `Git`. The roots are `chupa/__main__.py` and `chupa/doctor.py`; doctor may build its `Git` after the config load. The CLI's top-level error handler maps `CommitLockTimeout` to exit 2 with its message and road, as it does `LockHeld`.
+- In: update every test, harness or fake that builds a `Git`, or fakes `commit`, `merge_squash` or `add`, to the new constructor and return values. Use one shared test helper for the lock where that keeps each edit to one line.
+- In: documentation:
+  - `docs/how-chupa-works.md`: add a `commit.lock` row next to `chupa.lock` in the state-files table. The `chupa.lock` row says it is the engine lock, held by `run`, `drain`, `serve` and the verbs that still take it.
+  - `chupa/docs/host-contract.md`: add one sentence to the lockfile paragraph saying git writes take `commit.lock` with a 60-second wait. The paragraph keeps `never delete the lockfile`.
+- Out:
+  - Which verbs take `chupa.lock`. `review`, `confirm` and `reject` change in `commit-lock-commands`.
+  - The snapshot and the extension.
+  - `doctor`'s lock probe.
+  - The operator's own git commits, which cannot take the lock.
 
 ## Scope fence
 - chupa/lockfile.py
+- chupa/git.py
 - chupa/__main__.py
+- chupa/doctor.py
 - chupa/tickets.py
 - chupa/merge.py
 - chupa/stages.py
@@ -79,49 +72,68 @@ After this change there are two locks. The engine lock (`chupa.lock`) is held on
 - chupa/author.py
 - chupa/serve.py
 - chupa/retro.py
-- chupa/drain.py
-- chupa/observe.py
-- vscode-chupa/media/view.js
+- chupa/mergequeue.py
 - docs/how-chupa-works.md
-- chupa/docs/host-running.md
 - chupa/docs/host-contract.md
-- tests/integration/test_lockfile.py
-- tests/integration/test_review_command.py
-- tests/integration/test_control_cli.py
-- tests/integration/test_watch.py
-- tests/integration/test_merge.py
-- tests/integration/test_drain.py
-- tests/integration/test_tickets.py
-- tests/integration/test_provider_cooldown_failover.py
-- tests/harness/reliability_battery.py
 - tests/unit/test_commit_lock.py
+- tests/unit/test_hostfiles.py
+- tests/unit/test_retro_measurements.py
+- tests/harness/daemon_soak.py
+- tests/harness/host_loop.py
+- tests/harness/reliability_battery.py
+- tests/harness/shakeout/bench.py
+- tests/harness/shakeout/run.py
+- tests/regress_status_optional_locks.py
+- tests/integration/test_author.py
+- tests/integration/test_box.py
+- tests/integration/test_checkpoint.py
+- tests/integration/test_cli.py
+- tests/integration/test_covmap.py
+- tests/integration/test_daemon_composition.py
+- tests/integration/test_daemon_soak.py
+- tests/integration/test_daemon_soak_runner.py
+- tests/integration/test_doctor.py
+- tests/integration/test_drain.py
+- tests/integration/test_fixture_host.py
+- tests/integration/test_gates.py
+- tests/integration/test_git.py
+- tests/integration/test_heartbeat.py
+- tests/integration/test_hostfiles.py
+- tests/integration/test_inbox.py
+- tests/integration/test_lint_verb.py
+- tests/integration/test_lockfile.py
+- tests/integration/test_merge.py
+- tests/integration/test_mergequeue.py
+- tests/integration/test_reconcile.py
+- tests/integration/test_reject_queue.py
+- tests/integration/test_scheduler.py
+- tests/integration/test_stages.py
+- tests/integration/test_status.py
+- tests/integration/test_tickets.py
 
 ## Acceptance criteria
-1. New `tests/unit/test_commit_lock.py` covers the commit lock's poll, timeout and release lines with a fake clock and sleep, so the `unit` coverage floor for `chupa/lockfile.py` in `test-gate.toml` holds; `tests/integration/test_lockfile.py` keeps one real cross-descriptor contention test:
-   - While another descriptor holds `commit.lock`, acquire waits, and it succeeds once that descriptor releases before 60 seconds have passed. It does not refuse on first contention.
-   - When the holder never releases, acquire raises at 60 seconds with a message naming the holder's pid. It neither waits forever nor acquires.
+1. New `tests/unit/test_commit_lock.py` uses a fake clock and sleep. It keeps the `test-gate.toml` unit floors for `chupa/lockfile.py` and `chupa/git.py`, and covers these cases:
+   - While another descriptor holds `commit.lock`, acquire waits, then succeeds once that descriptor releases before 60 seconds. It does not refuse on first contention.
+   - When the holder never releases, acquire raises `CommitLockTimeout` at 60 seconds, naming the holder's pid. It neither waits forever nor acquires. `CommitLockTimeout` is not an instance of `LockHeld`.
    - After release, `commit.lock` is empty, not the stale identity.
-2. `tests/integration/test_review_command.py`: with `chupa.lock` held by a separate `Lockfile` and an edited ticket on disk, `review` approves, commits the edit (`main:` holds the new text), journals the verdict, and exits 0. It does not exit 2 with a lock refusal. With `commit.lock` held past the wait, `review` exits 2 naming `commit.lock`, and the ticket stays uncommitted.
-3. `tests/integration/test_control_cli.py`: with `chupa.lock` held and an edited valid draft on disk, `confirm --yes` commits the ticket and prints `confirm submitted:`. With an edited invalid draft, it exits 2 with the intake finding and publishes no admission request. With `commit.lock` held past the wait, `confirm --yes` on an edited draft exits 2 naming `commit.lock` and publishes no admission request, whether `chupa.lock` is free or held.
-4. `tests/integration/test_merge.py`: while another descriptor holds `commit.lock`, `write_squash` does not run `merge --squash` until the lock is released. A test proves it, for example by releasing the lock from the fake sleep, then asserting that no squash happened before the release.
-5. `tests/integration/test_watch.py`: with a live engine lock holder:
-   - An open valid row's `chupaReview` is `on`, not `locked`, and a dirty held row's `chupaConfirm` and `chupaReject` are `on`, not `off`. `chupaRun` stays `locked`, and pending box rows stay `locked` for triage and dismiss. Update the existing assertions that pinned `locked` and `off`.
-   - `commitLock` is `""` with no `commit.lock` and `""` with an empty `commit.lock`. For a live holder whose command line is `python -m chupa review stem`, it is `review since <clock(started_at)> (pid N)`.
-6. `./dev.py test tests/unit/test_commit_lock.py tests/integration/test_tickets.py tests/integration/test_provider_cooldown_failover.py tests/integration/test_reliability_battery.py tests/integration/test_lockfile.py tests/integration/test_review_command.py tests/integration/test_control_cli.py tests/integration/test_watch.py tests/integration/test_merge.py tests/integration/test_drain.py` exits 0.
-7. `docs/how-chupa-works.md` has a `commit.lock` row in its state-files table, and `chupa/docs/host-running.md`'s "Stop serve before" sentence no longer names `review`.
+   - A second task in the same process waits for the first task's release. The holding task asking again raises `RuntimeError` at once.
+   - With a fake exec, `Git.commit(..., only=paths)` runs `add` and `commit` inside one hold and returns the sha. It returns `None` and runs no `commit` when the staged paths match `HEAD`. `Git.merge_squash` runs both git steps inside one hold.
+2. `tests/integration/test_git.py`: with a real repository, a real `Git.commit` does not commit while another descriptor holds `commit.lock`, and it commits after release.
+3. `tests/integration/test_tickets.py`: another `Git` commits a pending ticket between intake's status read and its commit. Intake raises nothing and journals no second `ticket_intake` for that stem.
+4. `./dev.py test` exits 0.
+5. `docs/how-chupa-works.md` has a `commit.lock` row in its state-files table.
 
 ## Verification
 ```
-./dev.py test tests/unit/test_commit_lock.py tests/integration/test_tickets.py tests/integration/test_provider_cooldown_failover.py tests/integration/test_reliability_battery.py tests/integration/test_lockfile.py tests/integration/test_review_command.py tests/integration/test_control_cli.py tests/integration/test_watch.py tests/integration/test_merge.py tests/integration/test_drain.py
+./dev.py test
 ```
 
 ## Definition of rejected
-- A second `run`, `drain` or `serve` can start while one holds `chupa.lock`.
-- A commit-lock hold spans an LLM call, a test or gate run, or a worktree operation. Holds nest.
+- A caller outside `chupa/git.py` and the composition roots takes, releases or holds the commit lock.
 - The wait has no limit, or the limit is not 60 seconds.
+- `Git` keeps an optional or default `commit_lock`, or a second, unlocked write path.
 - Any code deletes or steals a lockfile.
-- `view.js` computes availability or parses the lock strings.
-- `triage`, `dismiss` or `migrate-box` move off the engine lock, or a new `commit` verb is added.
+- Which verbs take `chupa.lock` changes.
 
 ## Time budget
 - expected: 90m
