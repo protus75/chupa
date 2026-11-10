@@ -88,6 +88,8 @@ Every rule below is behavioral (no gate checks it yet): the prose is the only en
   Why: metadata for subsystems that do not exist is accretion; prose ordering is invisible to the scheduler; a `depends` used for ordering blocks the queue when the first ticket fails. (section 13)
 - **Verification uses `./dev.py test`.** A ticket's `## Verification` and acceptance criteria run tests as `./dev.py test [pytest args]`, never raw `uv run pytest`.
   Why: one command surface for people and tickets; nothing chose the raw form, it was copied ticket to ticket.
+- **Guides name verbs, not command lines.** A host guide, setup step, or ticket that has an operator exercise something chupa drives (a provider CLI, a check, a gate) names the `chupa` verb, or `./dev.py` subcommand in this repo, that runs it; never a hand-built copy of chupa's argv. A step no verb covers gets a new verb in the same change. Third-party install and server commands (`pnpm add`, `ollama pull`) stay as written.
+  Why: a copied argv drifts from what chupa runs and makes the operator type it; the first qwen setup guide draft had operators hand-type qwen's full provider command line (2026-11-10).
 - **Use the injectable seams.** Clock, process exec, filesystem, and notifications go through their seams; never called raw in engine code.
   Why: fake-driven tests and group-kill guarantees exist only at the seam. (section 15)
 - **Fenced by gates, not jailed.** v1 does not sandbox executed code; never rely on its goodwill. Never pass a provider key to a process that does not need it.
