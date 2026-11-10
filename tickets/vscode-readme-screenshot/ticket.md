@@ -10,8 +10,6 @@ kind: chore
 
 ## Context
 - vscode-chupa/README.md
-- vscode-chupa/images/ChupaExt.png
-- vscode-chupa/images/Lifecycle.png
 - vscode-chupa/package.json
 - vscode-chupa/media/ticket-lifecycle.svg
 
