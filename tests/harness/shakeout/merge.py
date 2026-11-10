@@ -5,9 +5,9 @@ import subprocess
 
 from chupa.git import RebaseRefused
 from chupa.journal import EventType
-from eval.shakeout.bench import Bench
-from eval.shakeout.run import Member, Observation
-from eval.shakeout.stages import _commit, _configure_diagnosis, _finding, _ticket
+from tests.harness.shakeout.bench import Bench
+from tests.harness.shakeout.run import Member, Observation
+from tests.harness.shakeout.stages import _commit, _configure_diagnosis, _finding, _ticket
 
 
 async def _conflicted_rebase(bench: Bench) -> Observation:

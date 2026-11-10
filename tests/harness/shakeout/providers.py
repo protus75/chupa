@@ -8,9 +8,9 @@ from chupa.config import Candidate, Limits, ModelsByTier, Provider, Route
 from chupa.journal import EventType
 from chupa.providers import ProviderLLM
 from chupa.seams import SubprocessExec
-from eval.shakeout.bench import Bench
-from eval.shakeout.run import Member, Observation
-from eval.shakeout.stages import _finding, _terminal, _ticket
+from tests.harness.shakeout.bench import Bench
+from tests.harness.shakeout.run import Member, Observation
+from tests.harness.shakeout.stages import _finding, _terminal, _ticket
 
 
 class _ScriptedProcess:

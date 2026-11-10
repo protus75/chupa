@@ -10,16 +10,16 @@ import pytest
 from pydantic import ValidationError
 
 from chupa.journal import EventType
-from eval.shakeout import run as shakeout
-from eval.shakeout.bench import Bench
-from eval.shakeout.drain import MEMBERS as DRAIN_MEMBERS
-from eval.shakeout.driver import MEMBERS as DRIVER_MEMBERS
-from eval.shakeout.merge import MEMBERS as MERGE_MEMBERS
-from eval.shakeout.providers import MEMBERS as PROVIDER_MEMBERS
-from eval.shakeout.recovery import MEMBERS as RECOVERY_MEMBERS
-from eval.shakeout.run import ShakeoutEntry, ShakeoutReport
-from eval.shakeout.runner import MEMBERS as RUNNER_MEMBERS
-from eval.shakeout.stages import MEMBERS
+from tests.harness.shakeout import run as shakeout
+from tests.harness.shakeout.bench import Bench
+from tests.harness.shakeout.drain import MEMBERS as DRAIN_MEMBERS
+from tests.harness.shakeout.driver import MEMBERS as DRIVER_MEMBERS
+from tests.harness.shakeout.merge import MEMBERS as MERGE_MEMBERS
+from tests.harness.shakeout.providers import MEMBERS as PROVIDER_MEMBERS
+from tests.harness.shakeout.recovery import MEMBERS as RECOVERY_MEMBERS
+from tests.harness.shakeout.run import ShakeoutEntry, ShakeoutReport
+from tests.harness.shakeout.runner import MEMBERS as RUNNER_MEMBERS
+from tests.harness.shakeout.stages import MEMBERS
 
 
 def entry(member: str, observed: str = "ok") -> ShakeoutEntry:
@@ -41,7 +41,7 @@ def test_produce_requires_complete_matching_prior_and_returns_cumulative(tmp_pat
 
     first = shakeout.Member("first_member", "first", "fault", "ok", first_run)
     second = shakeout.Member("second_member", "second", "fault", "ok", second_run)
-    modules = {"eval.shakeout.first": SimpleNamespace(MEMBERS=(first,)), "eval.shakeout.second": SimpleNamespace(MEMBERS=(second,))}
+    modules = {"tests.harness.shakeout.first": SimpleNamespace(MEMBERS=(first,)), "tests.harness.shakeout.second": SimpleNamespace(MEMBERS=(second,))}
     monkeypatch.setattr(shakeout, "GROUPS", ("first", "second"))
     monkeypatch.setattr(shakeout.importlib, "import_module", modules.__getitem__)
 

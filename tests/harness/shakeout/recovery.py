@@ -3,9 +3,9 @@
 import json
 
 from chupa.journal import EventType
-from eval.shakeout.bench import Bench
-from eval.shakeout.run import Member, Observation
-from eval.shakeout.stages import _commit, _ticket
+from tests.harness.shakeout.bench import Bench
+from tests.harness.shakeout.run import Member, Observation
+from tests.harness.shakeout.stages import _commit, _ticket
 
 
 class _EngineDeath(BaseException):

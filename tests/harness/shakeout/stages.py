@@ -11,8 +11,8 @@ from chupa.journal import EventType
 from chupa.llm import LLMRequest
 from chupa.seams import LocalFileSystem
 from chupa.stages import Invoice, read_review
-from eval.shakeout.bench import Bench
-from eval.shakeout.run import Member, Observation
+from tests.harness.shakeout.bench import Bench
+from tests.harness.shakeout.run import Member, Observation
 
 
 def _ticket(stem: str, fence: str, verification: str) -> str:

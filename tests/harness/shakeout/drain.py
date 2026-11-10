@@ -5,9 +5,9 @@ import json
 from chupa.caps import draws
 from chupa.journal import EventType
 from chupa.stages import read_review
-from eval.shakeout.bench import Bench
-from eval.shakeout.run import Member, Observation
-from eval.shakeout.stages import _commit, _configure_diagnosis, _ticket
+from tests.harness.shakeout.bench import Bench
+from tests.harness.shakeout.run import Member, Observation
+from tests.harness.shakeout.stages import _commit, _configure_diagnosis, _ticket
 
 
 async def _commit_tickets(bench: Bench, paths: list[str], message: str) -> None:

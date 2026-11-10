@@ -12,7 +12,7 @@ from chupa.artifacts import Artifact, NonBlank, _Strict
 from chupa.audit import audit
 from chupa.git import Git
 from chupa.seams import SubprocessExec
-from eval.shakeout.bench import Bench
+from tests.harness.shakeout.bench import Bench
 
 SHAKEOUT_SPEC_VERSION = 1
 
@@ -72,7 +72,7 @@ class ShakeoutRefused(Exception):
 
 
 def _members(group: str) -> tuple[Member, ...]:
-    return importlib.import_module(f"eval.shakeout.{group}").MEMBERS
+    return importlib.import_module(f"tests.harness.shakeout.{group}").MEMBERS
 
 
 async def run_member(member: Member, root: Path) -> ShakeoutEntry:

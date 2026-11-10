@@ -25,7 +25,7 @@ def test_dispatch_vocabulary_is_closed():
 
 def _engine_signal_names():
     root = Path(__file__).resolve().parents[2]
-    modules = {".".join(path.relative_to(root).with_suffix("").parts): ast.parse(path.read_text()) for directory in ("chupa", "eval") for path in (root / directory).rglob("*.py")}
+    modules = {".".join(path.relative_to(root).with_suffix("").parts): ast.parse(path.read_text()) for directory in ("chupa", "eval", "tests/harness") for path in (root / directory).rglob("*.py")}
     constants = {}
     for module, tree in modules.items():
         for node in tree.body:
