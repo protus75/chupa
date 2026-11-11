@@ -1,0 +1,23 @@
+$ grep -n "available(open_section and valid)\|def available\|return \"locked\"" chupa/observe.py
+604:    def available(possible: bool) -> str:
+605:        return "locked" if possible and alive else "on" if possible else "off"
+612:            "chupaReview": available(open_section and valid),
+
+$ sed -n 572,577p chupa/__main__.py   # review takes the writer lock only for pending changes
+    if await checkout.git.status_porcelain(checkout.repo, "--untracked-files=all", "--", f"tickets/{stem}/"):
+        lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
+        try:
+            lock.acquire()
+        except LockHeld as exc:
+            raise runner.Refusal(str(exc), f"wait for the running engine to commit the ticket through intake, or stop it, then retry `review {stem}`") from None
+
+$ sed -n 59p docs/how-chupa-works.md
+| `review <stem>` | intake only | Reviews an unchanged committed ticket without the checkout lock. Pending changes under the ticket directory require locked intake first; if the lock is held, wait for the running engine to commit the ticket through intake or stop it, then retry. Reviews the committed ticket against merged code and journals its verdict and ticket blob SHA. A ticket with an unmerged dependency gets a provisional review that is printed but not journaled, so the drain reviews it again before its first run. Refuses missing, intake-failed, settled, or rejected tickets without a model call. Prints findings and exits 0 on approve, 1 on snag or rma. |
+
+$ sed -n 322,327p tests/integration/test_watch.py   # pins Review "locked" for a committed ticket while the engine is alive
+    rows = {row["stem"]: row for row in snap["rows"]}
+    assert (rows["held"]["menu"]["chupaConfirm"], rows["held"]["menu"]["chupaRun"]) == ("on", "off")  # The lock does not block a committed verdict; unmet dependencies block Run.
+    assert (rows["held-ready"]["menu"]["chupaRun"], rows["ready"]["menu"]["chupaRun"], rows["ready"]["menu"]["chupaReview"]) == (
+        "locked",
+        "locked",
+        "locked",
