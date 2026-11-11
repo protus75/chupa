@@ -15,19 +15,20 @@ from chupa.reconcile import RECOVERY_ALERT, orphans, reconcile
 from chupa.seams import SubprocessExec
 from chupa.status import last_states
 from tests.integration.test_cli import ENV, Clock, Stages, cli, git_out, journal, root, ticket, write  # noqa: F401
+from tests.integration.test_git import commit_lock
 
 STATE = Path(".chupa") / "state"
 
 
-def git() -> Git:
-    return Git(SubprocessExec(), env=ENV, timeout=30.0)
+def git(root) -> Git:
+    return Git(SubprocessExec(), env=ENV, timeout=30.0, commit_lock=commit_lock(root / ".chupa/state"))
 
 
 def orphan_worktree(root: Path, stem: str) -> Path:
     """What an interrupted run leaves: its branch checked out in a worktree under the worktree root."""
     path = root / STATE / "worktrees" / stem
     path.parent.mkdir(parents=True, exist_ok=True)
-    asyncio.run(git().worktree_add(root, path, stem, "main"))
+    asyncio.run(git(root).worktree_add(root, path, stem, "main"))
     (path / "half-done.py").write_text("")  # uncommitted work the dead run never finished
     return path
 
@@ -36,7 +37,7 @@ def reap(root: Path) -> list[str]:
     async def harvest(stem: str, attempt: int) -> None:
         pass
 
-    return asyncio.run(reconcile(journal(root), git(), root, root / STATE / "worktrees", harvest))
+    return asyncio.run(reconcile(journal(root), git(root), root, root / STATE / "worktrees", harvest))
 
 
 def test_running_with_no_terminal_is_reaped_to_abandoned_on_the_next_run(root):
@@ -146,7 +147,7 @@ def test_recovery_alert_records_producing_run(root):
         assert sequence == run_seq(j.read(), stem) == sequences[stem]
         harvested.append((stem, sequence))
 
-    assert asyncio.run(reconcile(j, git(), root, root / STATE / "worktrees", harvest)) == sorted(sequences)
+    assert asyncio.run(reconcile(j, git(root), root, root / STATE / "worktrees", harvest)) == sorted(sequences)
     assert harvested == sorted(sequences.items())
     events = Journal(root / STATE, Clock()).read()
     assert events[: len(before)] == before
@@ -169,7 +170,7 @@ def test_recovery_alert_records_producing_run(root):
 
 @pytest.mark.parametrize("harvest_error", [False, True])
 def test_recovery_alert_precedes_worktree_removal(root, monkeypatch, harvest_error):
-    j, g = journal(root), git()
+    j, g = journal(root), git(root)
     for stem in ("existing", "missing"):
         j.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket=stem)
     path = orphan_worktree(root, "existing")
@@ -235,7 +236,7 @@ def test_recovery_alert_is_once_per_reaped_run(root):
         pytest.fail("missing worktree invoked harvest")
 
     def recover(handle):
-        return asyncio.run(reconcile(handle, git(), root, root / STATE / "worktrees", harvest))
+        return asyncio.run(reconcile(handle, git(root), root, root / STATE / "worktrees", harvest))
 
     j.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket="dead")
     assert recover(j) == ["dead"]
@@ -252,7 +253,7 @@ def test_recovery_alert_is_once_per_reaped_run(root):
 
 @pytest.mark.parametrize("failure", ["alert", "after-alert", "cleanup"])
 def test_recovery_alert_failures_preserve_terminal_history(root, monkeypatch, failure):
-    j, g = journal(root), git()
+    j, g = journal(root), git(root)
     j.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket="dead")
     path = orphan_worktree(root, "dead")
     error = OSError("scripted recovery failure")

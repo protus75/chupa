@@ -16,6 +16,7 @@ from chupa.gates import (
     merge_severity,
     run_gates,
 )
+from tests.integration.test_git import commit_lock
 from tests.integration.test_stages import repo
 
 
@@ -304,7 +305,7 @@ async def test_core_activation_committed_conduct():
 
     root = Path(__file__).resolve().parents[2]
     config = load_config(None, cwd=root)
-    git = Git(SubprocessExec(), env=os.environ, timeout=30)
+    git = Git(SubprocessExec(), env=os.environ, timeout=30, commit_lock=commit_lock(root / ".chupa/state"))
     gathered = await hostfiles.committed_core(root, config, git)
     assert set(gathered["core_files"]) == {"CLAUDE.md", "AGENTS.md"}
     assert all(data == (root / path).read_bytes() for path, data in gathered["core_files"].items())
@@ -329,7 +330,7 @@ async def test_host_loop_regression_uses_real_bug_gate(tmp_path, missing_base_te
 
     host = scaffold.copy_host(tmp_path / "host")
     env = {**environment(host), "GIT_AUTHOR_NAME": "Fixture", "GIT_AUTHOR_EMAIL": "fixture@invalid", "GIT_COMMITTER_NAME": "Fixture", "GIT_COMMITTER_EMAIL": "fixture@invalid"}
-    git = Git(SubprocessExec(), env=env, timeout=10)
+    git = Git(SubprocessExec(), env=env, timeout=10, commit_lock=commit_lock(host / ".chupa/state"))
     (host / "CHUPA_PLAN.md").write_text("# Disposable plan\n")
     (host / ".gitignore").write_text(".chupa/\n.fixture-runtime/\n__pycache__/\n")
     existing_test = (host / "regression_test.py").read_bytes()

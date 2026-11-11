@@ -8,6 +8,7 @@ from chupa.journal import EventType
 from chupa.lockfile import Lockfile, LockHeld
 from tests.integration.test_cli import ENV
 from tests.integration.test_drain import Clock, commit_ticket, confirmed, journal, make_root
+from tests.integration.test_git import commit_lock
 
 
 @pytest.fixture
@@ -68,7 +69,9 @@ def test_reject_refuses_a_live_run(stopped):
     from chupa.seams import LocalFileSystem, SubprocessExec
 
     config = load_config(None, cwd=stopped)
-    checkout = SimpleNamespace(config=config, git=Git(SubprocessExec(), env=ENV, timeout=30), repo=stopped, clock=Clock(), journal=journal(stopped), fs=LocalFileSystem())
+    checkout = SimpleNamespace(
+        config=config, git=Git(SubprocessExec(), env=ENV, timeout=30, commit_lock=commit_lock(stopped / ".chupa/state")), repo=stopped, clock=Clock(), journal=journal(stopped), fs=LocalFileSystem()
+    )
     lock = Lockfile(config.state_dir, instance_id="test", clock=checkout.clock)
     lock.acquire()
     try:

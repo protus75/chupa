@@ -19,7 +19,7 @@ from chupa.driver import Driver
 from chupa.git import Git
 from chupa.journal import EventType, Journal
 from chupa.llm import AgentEffort, AgentTier
-from chupa.lockfile import Lockfile
+from chupa.lockfile import CommitLock, Lockfile
 from chupa.providers import ProviderLLM, ProviderSession, resolve
 from chupa.runner import call_timeout
 from chupa.seams import Clock, LocalFileSystem, SubprocessExec
@@ -233,7 +233,7 @@ def _clock() -> datetime:
 async def _run(config: Config) -> Report:
     env = dict(os.environ)
     exec_ = SubprocessExec()
-    instance_id = await Git(exec_, env=env, timeout=30).describe(ROOT)
+    instance_id = await Git(exec_, env=env, timeout=30, commit_lock=CommitLock(config.state_dir, clock=_clock, sleep=asyncio.sleep)).describe(ROOT)
     lock = Lockfile(config.state_dir, instance_id=instance_id, clock=_clock)
     lock.acquire()
     session = None

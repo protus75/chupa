@@ -22,6 +22,7 @@ from chupa.box import (
 )
 from chupa.git import Git
 from chupa.seams import LocalFileSystem, SubprocessExec
+from tests.integration.test_git import commit_lock
 
 
 def test_signature_recipe():
@@ -187,7 +188,10 @@ def test_tombstone_rereports_reopen_at_threshold(tmp_path, monkeypatch):
     assert signal.key == f"tombstone-reopen/{id}/3" and signal.type == EventType.SIGNAL and signal.ticket is None
     assert observed == [signal.body] == [{"kind": "tombstone_auto_reopened", "box_id": id, "signature": message.signature, "reports": 3}]
     assert path.read_bytes() == committed_bytes
-    assert asyncio.run(Git(SubprocessExec(), env=os.environ, timeout=30)._run(root, "show", f"HEAD:{record_path(f'tombstone-{id}')}")).encode() == committed_bytes
+    assert (
+        asyncio.run(Git(SubprocessExec(), env=os.environ, timeout=30, commit_lock=commit_lock(root / ".chupa/state"))._run(root, "show", f"HEAD:{record_path(f'tombstone-{id}')}")).encode()
+        == committed_bytes
+    )
     restarted = storm_producer(root=box.root, fs=box.fs, journal=Journal(root / ".chupa/state", clock), clock=clock)
     before = restarted._rereport.journal.read()
     for _ in range(3):

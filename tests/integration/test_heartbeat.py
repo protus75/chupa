@@ -14,6 +14,7 @@ from chupa.journal import Journal
 from chupa.seams import LocalFileSystem, SubprocessExec
 from tests.integration.test_cli import ENV, Clock, Stages, root, ticket, write
 from tests.integration.test_daemon_composition import CoreRig, assert_core_wiring
+from tests.integration.test_git import commit_lock
 
 NAMES = ("workers", "merge_queue", "box_consumer", "watcher")
 AGE = timedelta(seconds=10)
@@ -87,7 +88,7 @@ def test_healthy_cycle_refreshes_heartbeat(root):
     assert journal.read() == before
 
     async def custody():
-        git = Git(SubprocessExec(), env=ENV, timeout=30)
+        git = Git(SubprocessExec(), env=ENV, timeout=30, commit_lock=commit_lock(root / ".chupa/state"))
         assert not any(path.startswith(".chupa/") for path in await git.ls_files(root))
         assert await git.status_porcelain(root) == ""
 

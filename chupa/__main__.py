@@ -28,7 +28,7 @@ from chupa.daemon import DaemonCore, PauseConsumer, StartupBoundary, daemon_core
 from chupa.git import Git, GitError
 from chupa.journal import EventType, Journal, JournalCorruption
 from chupa.llm import LLMRequest
-from chupa.lockfile import Lockfile, LockHeld
+from chupa.lockfile import CommitLock, CommitLockTimeout, Lockfile, LockHeld
 from chupa.notify import NOTIFY_TIMEOUT_S, NotificationReconciler
 from chupa.providers import ADAPTERS, PREFLIGHT_TIMEOUT_S, PROBE_PROMPT, ProviderLLM, ProviderSession, ProviderSetupError, child_env, routed_conduct_paths
 from chupa.redact import Redactor
@@ -332,7 +332,7 @@ def main(
         if args.verb == "doctor":
             from chupa import doctor
 
-            results = asyncio.run(doctor.check(repo=repo, config_path=args.config, env=env, exec_=SubprocessExec(), clock=clock, in_venv=sys.prefix != sys.base_prefix))
+            results = asyncio.run(doctor.check(repo=repo, config_path=args.config, env=env, exec_=SubprocessExec(), clock=clock, sleep=asyncio.sleep, in_venv=sys.prefix != sys.base_prefix))
             print(doctor.render(results), end="")
             return 0 if all(r.passed for r in results) else 2
         config = load_config(args.config, cwd=repo)
@@ -416,7 +416,12 @@ def main(
             config=config,
             env=env,
             exec_=exec_,
-            git=Git(exec_, env={**child_env(env, config), **({"GIT_OPTIONAL_LOCKS": "0"} if args.verb in {"lint", "watch", "snapshot"} else {})}, timeout=GIT_TIMEOUT_S),
+            git=Git(
+                exec_,
+                env={**child_env(env, config), **({"GIT_OPTIONAL_LOCKS": "0"} if args.verb in {"lint", "watch", "snapshot"} else {})},
+                timeout=GIT_TIMEOUT_S,
+                commit_lock=CommitLock(config.state_dir, clock=clock, sleep=asyncio.sleep),
+            ),
             journal=Journal(config.state_dir, clock),
             fs=LocalFileSystem(),
             clock=clock,
@@ -551,7 +556,7 @@ def main(
     except UnknownBoxId as e:
         print(f"chupa {args.verb}: {e} -- name ids that chupa status lists", file=sys.stderr)
         return runner.EXIT_REFUSED
-    except (ConfigError, runner.Refusal, LockHeld, IntakeRefused, JournalCorruption, ProviderSetupError, ExecutableNotFound, hostfiles.MarkerCorruption) as e:
+    except (ConfigError, runner.Refusal, LockHeld, CommitLockTimeout, IntakeRefused, JournalCorruption, ProviderSetupError, ExecutableNotFound, hostfiles.MarkerCorruption) as e:
         road = f" -- repair the selected config and retry {args.verb}" if args.verb in {"retro", "covmap"} and isinstance(e, ConfigError) else ""
         print(f"chupa {args.verb}: {e}{road}", file=sys.stderr)
         return runner.EXIT_REFUSED

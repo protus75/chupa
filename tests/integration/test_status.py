@@ -21,6 +21,7 @@ from chupa.specs import load_spec
 from chupa.status import project, reject_queue, render
 from tests.integration.test_cli import ENV
 from tests.integration.test_drain import Clock, make_root
+from tests.integration.test_git import commit_lock
 from tests.integration.test_retro import completed, merged, rig
 from tests.integration.test_retro_box import PROPOSAL
 from tests.integration.test_scorecard import invoice, review, rows
@@ -56,7 +57,7 @@ def test_status_surfaces_confirmed_class_tombstones(tmp_path, monkeypatch, capsy
 
     monkeypatch.setattr(LocalFileSystem, "write", forbidden)
     monkeypatch.setattr(Journal, "append", forbidden)
-    git = Git(SubprocessExec(), env=ENV, timeout=30)
+    git = Git(SubprocessExec(), env=ENV, timeout=30, commit_lock=commit_lock(root / ".chupa/state"))
     provenance = {"head": asyncio.run(git.rev_parse(root, "HEAD")), "spec_version": load_spec((runner.SPECS_DIR / "retro.md").read_text()).meta.version, "at": clock().isoformat()}
     status = project(journal.read(), box=box, provenance=provenance)
     assert status.tombstones == tuple((m.id, m.message_class, 0) for m in box.messages()[:2])

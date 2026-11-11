@@ -18,6 +18,7 @@ from chupa.git import Git
 from chupa.journal import TERMINAL_STATES, EventType, Journal
 from chupa.stages import Invoice, read_review
 from hosts.fixture import scaffold
+from tests.integration.test_git import commit_lock
 
 ROOT = Path(__file__).resolve().parents[2]
 ROAD = "repair the producing machinery and rerun the harness through Check"
@@ -93,7 +94,7 @@ class FixtureLoop:
             "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
             "GIT_CONFIG_NOSYSTEM": "1",
         }
-        self.git = Git(exec_, env=self.env, timeout=10)
+        self.git = Git(exec_, env=self.env, timeout=10, commit_lock=commit_lock(root / ".chupa/state"))
         self.journal = Journal(root / ".chupa/state", clock)
 
     async def initialize(self):

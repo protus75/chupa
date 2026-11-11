@@ -10,6 +10,7 @@ from chupa.journal import EventType
 from chupa.lockfile import Lockfile
 from chupa.seams import SubprocessExec
 from tests.integration.test_cli import ENV, Clock, journal, root, ticket, write
+from tests.integration.test_git import commit_lock
 
 
 def lint(root, *stems):
@@ -20,7 +21,7 @@ def lint(root, *stems):
 
 
 def git(root, *argv):
-    return asyncio.run(Git(SubprocessExec(), env=ENV, timeout=30)._run(root, *argv))
+    return asyncio.run(Git(SubprocessExec(), env=ENV, timeout=30, commit_lock=commit_lock(root / ".chupa/state"))._run(root, *argv))
 
 
 def snapshot(root):

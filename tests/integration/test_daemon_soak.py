@@ -15,6 +15,7 @@ from chupa.git import Git
 from chupa.seams import SubprocessExec
 from tests.harness.daemon_soak import DAEMON_SOAK_MEMBERS, DAEMON_SOAK_SPEC_VERSION, DaemonSoakEntry, DaemonSoakReport
 from tests.integration.test_cli import ENV, root
+from tests.integration.test_git import commit_lock
 
 MEMBERS = (
     "worker_killed_mid_run",
@@ -29,7 +30,7 @@ PAIRS = (
 
 
 async def report(root):
-    git = Git(SubprocessExec(), env=ENV, timeout=30.0)
+    git = Git(SubprocessExec(), env=ENV, timeout=30.0, commit_lock=commit_lock(root / ".chupa/state"))
     return DaemonSoakReport(
         produced_by_spec_version=DAEMON_SOAK_SPEC_VERSION,
         produced_at_sha=await git.rev_parse(root, "HEAD"),

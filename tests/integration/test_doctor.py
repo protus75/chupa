@@ -39,7 +39,7 @@ def fake_core_for_existing_tests(monkeypatch, request):
 
 def checks(root, *, venv=True, git_failure=False):
     executor = Exec(git_failure)
-    results = asyncio.run(doctor.check(repo=root, config_path=None, env=ENV, exec_=executor, clock=Clock(), in_venv=venv))
+    results = asyncio.run(doctor.check(repo=root, config_path=None, env=ENV, exec_=executor, clock=Clock(), sleep=asyncio.sleep, in_venv=venv))
     assert executor.calls == [["git", "-C", str(root), "--version"]]
     return results
 
@@ -73,14 +73,14 @@ def test_doctor_check_order(root, monkeypatch):
     monkeypatch.setattr(doctor, "inspect_lock", lock_check)
     monkeypatch.setattr(doctor.Journal, "read", journal_check)
     results = checks(root, venv=False)
-    assert order == ["git", "config", "lock", "journal"]
-    assert [r.name for r in results] == ["venv", "git", "config", "lock", "journal", "core"]
+    assert order == ["config", "git", "lock", "journal"]
+    assert [r.name for r in results] == ["venv", "config", "git", "lock", "journal", "core"]
     assert [r.passed for r in results] == [False, True, True, True, True, True]
     assert doctor.render(results) == (
         "doctor: failed\n"
         "FAIL venv: no active Python venv; run `uv run python -m chupa doctor`\n"
-        "PASS git: git version fixture\n"
         "PASS config: config schema is valid\n"
+        "PASS git: git version fixture\n"
         "PASS lock: no writer lock exists\n"
         "PASS journal: readable history (0 events)\n"
         "PASS core: routed conduct files are current\n"
@@ -111,10 +111,11 @@ def test_doctor_failures(root, capsys, monkeypatch, failure):
         assert output.err == "" and "Traceback" not in output.out
         lines = output.out.splitlines()
         assert len(lines) == 7 and lines[0] == "doctor: failed"
-        assert [line.split()[1].rstrip(":") for line in lines[1:]] == ["venv", "git", "config", "lock", "journal", "core"]
-        assert lines[["venv", "git", "config", "lock", "journal", "core"].index(failure) + 1].startswith("FAIL")
+        assert [line.split()[1].rstrip(":") for line in lines[1:]] == ["venv", "config", "git", "lock", "journal", "core"]
+        assert lines[["venv", "config", "git", "lock", "journal", "core"].index(failure) + 1].startswith("FAIL")
         if failure == "config":
-            assert all("FAIL" in line and "repair the selected config" in line for line in lines[3:])
+            assert lines[3] == "FAIL git: not checked: config did not load; fix the config and rerun doctor"
+            assert all("FAIL" in line and "repair the selected config" in line for line in lines[4:])
         elif failure == "lock":
             assert "wait for" in lines[4] and "never delete" in lines[4]
         elif failure == "journal":
@@ -173,7 +174,7 @@ def test_doctor_core_committed(root, drifted):
         path.write_bytes(path.read_bytes().replace(b"## Engine conduct", b"## Old conduct", 1))
         git_out(root, "add", "CLAUDE.md")
         git_out(root, "commit", "-m", "drift conduct")
-    results = asyncio.run(doctor.check(repo=root, config_path=None, env=ENV, exec_=SubprocessExec(), clock=Clock(), in_venv=True))
+    results = asyncio.run(doctor.check(repo=root, config_path=None, env=ENV, exec_=SubprocessExec(), clock=Clock(), sleep=asyncio.sleep, in_venv=True))
     core = results[-1]
     assert core.name == "core"
     assert core.passed is not drifted
@@ -188,6 +189,6 @@ def test_doctor_core_exception_is_reported(root, monkeypatch):
 
     monkeypatch.setattr(doctor, "stale_core", broken)
     results = checks(root)
-    assert [r.name for r in results] == ["venv", "git", "config", "lock", "journal", "core"]
+    assert [r.name for r in results] == ["venv", "config", "git", "lock", "journal", "core"]
     assert not results[-1].passed
     assert results[-1].detail == "git probe failed; install git or fix PATH, then rerun doctor"

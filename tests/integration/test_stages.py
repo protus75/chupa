@@ -32,6 +32,7 @@ from chupa.stages import (
     run_stages,
 )
 from chupa.tickets import TicketInvalid, validate_ticket
+from tests.integration.test_git import commit_lock
 
 SAMPLE_REPORT = "sample-report.json"
 
@@ -225,7 +226,9 @@ def run(repo: Path, script: list, bypass: str = ""):
 
     exec_ = SubprocessExec()
     driver = Driver.from_config(config, llm=llm, env=ENV, clock=clock, sleep=never)
-    ctx = StageContext(repo=repo, config=config, env=ENV, exec_=exec_, git=Git(exec_, env=ENV, timeout=30.0), fs=LocalFileSystem(), driver=driver, specs_dir=SPECS)
+    ctx = StageContext(
+        repo=repo, config=config, env=ENV, exec_=exec_, git=Git(exec_, env=ENV, timeout=30.0, commit_lock=commit_lock(repo / ".chupa/state")), fs=LocalFileSystem(), driver=driver, specs_dir=SPECS
+    )
     ticket = validate_ticket(STEM, (repo / "tickets" / STEM / "ticket.md").read_text(), repo)
     return asyncio.run(run_stages(ctx, ticket)), llm, config
 

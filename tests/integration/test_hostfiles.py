@@ -11,6 +11,7 @@ import pytest
 from chupa import hostfiles
 from chupa.seams import LocalFileSystem
 from tests.integration.test_cli import root
+from tests.integration.test_git import commit_lock
 from tests.integration.test_merge import repo
 from tests.integration.test_stages import agent, verdict
 
@@ -462,7 +463,7 @@ async def test_stale_core_reads_head(root, state):
         git_out(root, "add", "CLAUDE.md")
         git_out(root, "commit", "-m", "change conduct")
         path.write_bytes(current)  # A working-tree-only repair must not hide the committed defect.
-    messages = await hostfiles.stale_core(root, load_config(None, cwd=root), Git(SubprocessExec(), env=ENV, timeout=30.0))
+    messages = await hostfiles.stale_core(root, load_config(None, cwd=root), Git(SubprocessExec(), env=ENV, timeout=30.0, commit_lock=commit_lock(root / ".chupa/state")))
     if state == "current":
         assert messages == []
     else:

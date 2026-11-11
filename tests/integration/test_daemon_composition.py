@@ -27,6 +27,7 @@ from chupa.watcher import WATCHER_PARSE_FAILURE, Watcher
 from tests.integration.test_cli import root, write
 from tests.integration.test_daemon_admission import assert_idle
 from tests.integration.test_daemon_config import assert_detached, python_values
+from tests.integration.test_git import commit_lock
 from tests.integration.test_mergequeue import ctx as admission_context
 from tests.integration.test_mergequeue import ready
 from tests.integration.test_providers import CONFIG, ENV, claude_ok, codex_ok, jsonl
@@ -159,7 +160,7 @@ class CoreRig:
             initial,
             ENV,
             self.exec,
-            Git(self.exec, env=child_env(ENV, initial), timeout=30),
+            Git(self.exec, env=child_env(ENV, initial), timeout=30, commit_lock=commit_lock(root / ".chupa/state")),
             self.journal,
             self.fs,
             self.time,
@@ -1406,7 +1407,16 @@ class LiveDrain:
         from tests.integration.test_drain import Clock, journal
 
         process = SubprocessExec()
-        self.checkout = runner.Checkout(root, load_config(None, cwd=root), checkout_env, process, Git(process, env=checkout_env, timeout=30), journal(root), LocalFileSystem(), Clock())
+        self.checkout = runner.Checkout(
+            root,
+            load_config(None, cwd=root),
+            checkout_env,
+            process,
+            Git(process, env=checkout_env, timeout=30, commit_lock=commit_lock(root / ".chupa/state")),
+            journal(root),
+            LocalFileSystem(),
+            Clock(),
+        )
         self.trace, self.consumers, self.calls = [], [], []
         self.pause = pause
         self.held = asyncio.Queue()

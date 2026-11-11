@@ -148,3 +148,45 @@ def test_holder_none_when_identity_unreadable(tmp_path):
         assert exc.value.holder is None
     finally:
         os.close(fd)
+
+
+def test_commit_lock_waits_and_clears_identity(tmp_path):
+    import asyncio
+    import fcntl
+
+    from tests.integration.test_git import commit_lock
+
+    state = tmp_path / "state"
+    lock = commit_lock(state)
+    assert not state.exists()
+    state.mkdir()
+    path = state / "commit.lock"
+    fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o644)
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    async def run():
+        entered = asyncio.Event()
+        waiting = asyncio.Event()
+        release = asyncio.Event()
+
+        async def sleep(_):
+            waiting.set()
+            await release.wait()
+
+        lock._sleep = sleep
+
+        async def acquire():
+            async with lock:
+                entered.set()
+                assert json.loads(path.read_text())["pid"] == os.getpid()
+
+        task = asyncio.create_task(acquire())
+        await asyncio.wait_for(waiting.wait(), 2)
+        assert not entered.is_set()
+        os.close(fd)
+        release.set()
+        await asyncio.wait_for(task, 2)
+        assert entered.is_set()
+
+    asyncio.run(run())
+    assert path.read_bytes() == b""

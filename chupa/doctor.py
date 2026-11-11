@@ -7,7 +7,7 @@ from chupa.config import load_config
 from chupa.git import Git
 from chupa.hostfiles import stale_core
 from chupa.journal import Journal
-from chupa.lockfile import LockHeld, _read_holder
+from chupa.lockfile import CommitLock, LockHeld, _read_holder
 
 
 @dataclass(frozen=True)
@@ -32,25 +32,28 @@ def inspect_lock(state_dir):
     return "writer lock is available"
 
 
-async def check(*, repo, config_path, env, exec_, clock, in_venv):
+async def check(*, repo, config_path, env, exec_, clock, sleep, in_venv):
     results = []
 
     def row(name, passed, detail):
         results.append(Check(name, passed, " ".join(str(detail).split())))
 
     row("venv", in_venv, "active Python venv" if in_venv else "no active Python venv; run `uv run python -m chupa doctor`")
-    git = Git(exec_, env={"PATH": env.get("PATH", "")}, timeout=30.0)
-    try:
-        out = await git._run(repo, "--version")
-        row("git", True, out.strip())
-    except Exception as exc:
-        row("git", False, f"{exc}; install git or fix PATH")
     config = None
     try:
         config = load_config(config_path, cwd=repo)
         row("config", True, "config schema is valid")
     except Exception as exc:
         row("config", False, f"{exc}; repair the selected config and rerun doctor")
+    if config is None:
+        row("git", False, "not checked: config did not load; fix the config and rerun doctor")
+    else:
+        git = Git(exec_, env={"PATH": env.get("PATH", "")}, timeout=30.0, commit_lock=CommitLock(config.state_dir, clock=clock, sleep=sleep))
+        try:
+            out = await git._run(repo, "--version")
+            row("git", True, out.strip())
+        except Exception as exc:
+            row("git", False, f"{exc}; install git or fix PATH")
     for name in ("lock", "journal"):
         if config is None:
             row(name, False, "state directory unavailable; repair the selected config and rerun doctor")

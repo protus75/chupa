@@ -13,6 +13,7 @@ from chupa.journal import EventType, Journal
 from chupa.lockfile import Lockfile, LockHeld
 from chupa.runner import Refusal
 from chupa.seams import SubprocessExec
+from tests.integration.test_git import commit_lock
 from tests.integration.test_stages import adopt_conduct
 
 ENV = {
@@ -138,7 +139,7 @@ def root(tmp_path: Path) -> Path:
 
     (root / "AGENTS.md").write_bytes(render(b""))
     conduct.append("AGENTS.md")
-    g = Git(SubprocessExec(), env=ENV, timeout=30.0)
+    g = Git(SubprocessExec(), env=ENV, timeout=30.0, commit_lock=commit_lock(tmp_path / "seed-state"))
 
     async def seed():
         await g.init(root, branch="main")
@@ -652,7 +653,7 @@ def test_doctor_cli(root, capsys):
     assert cli(root, "doctor", stages=lambda c: pytest.fail("pipeline constructed")) == 0
     lines = capsys.readouterr().out.splitlines()
     assert lines[0] == "doctor: ok"
-    assert [line.split(":", 1)[0] for line in lines[1:]] == [f"PASS {n}" for n in ("venv", "git", "config", "lock", "journal", "core")]
+    assert [line.split(":", 1)[0] for line in lines[1:]] == [f"PASS {n}" for n in ("venv", "config", "git", "lock", "journal", "core")]
 
 
 def core_config(root, routes):
@@ -817,7 +818,7 @@ def test_core_and_gate_share_routed_paths(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "LocalFileSystem", lambda: fs)
     assert cli(tmp_path, "core") == 0
     assert cli(tmp_path, "core") == 0
-    g = Git(SubprocessExec(), env=ENV, timeout=30)
+    g = Git(SubprocessExec(), env=ENV, timeout=30, commit_lock=commit_lock(tmp_path / ".chupa/state"))
 
     async def check():
         await g.init(tmp_path, branch="main")

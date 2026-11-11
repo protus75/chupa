@@ -2,16 +2,30 @@ import asyncio
 import os
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
 from chupa.git import Git, GitError, NothingToCommit, RebaseRefused
+from chupa.lockfile import CommitLock
 from chupa.seams import ExecutableNotFound, GroupExec, ProcessExec, SubprocessExec
 from tests.waiting import group_exited, ready_before_returning_spawn, wait_until
 
 ENV = {"PATH": "/usr/bin"}
 REPO = Path("/repo")
+
+
+def commit_lock(state_dir):
+    return CommitLock(state_dir, clock=lambda: datetime.now(UTC), sleep=asyncio.sleep)
+
+
+class FakeLock:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        pass
 
 
 class FakeExec:
@@ -36,7 +50,7 @@ def run(coro):
 
 def git(*results: tuple[int, str, str]) -> tuple[Git, FakeExec]:
     exec_ = FakeExec(*results)
-    return Git(exec_, env=ENV, timeout=30.0), exec_
+    return Git(exec_, env=ENV, timeout=30.0, commit_lock=FakeLock()), exec_
 
 
 def test_fake_satisfies_seam_protocol():
@@ -127,7 +141,7 @@ def test_git_common_dir_resolves_main_and_linked_worktree(tmp_path):
         "GIT_COMMITTER_NAME": "t",
         "GIT_COMMITTER_EMAIL": "t@t",
     }
-    g = Git(SubprocessExec(), env=env, timeout=30.0)
+    g = Git(SubprocessExec(), env=env, timeout=30.0, commit_lock=commit_lock(tmp_path / ".chupa/state"))
 
     async def scenario():
         await g.init(main, branch="main")
@@ -145,7 +159,7 @@ def test_ls_files_lists_committed_files_not_untracked_files(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
     env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
-    g = Git(SubprocessExec(), env=env, timeout=30.0)
+    g = Git(SubprocessExec(), env=env, timeout=30.0, commit_lock=commit_lock(tmp_path / ".chupa/state"))
 
     async def scenario():
         await g.init(repo, branch="main")
@@ -333,7 +347,7 @@ def test_ticket_lifecycle_against_real_repo(tmp_path):
         "GIT_COMMITTER_NAME": "t",
         "GIT_COMMITTER_EMAIL": "t@t",
     }
-    g = Git(SubprocessExec(), env=env, timeout=30.0)
+    g = Git(SubprocessExec(), env=env, timeout=30.0, commit_lock=commit_lock(tmp_path / ".chupa/state"))
     repo = tmp_path / "repo"
     repo.mkdir()
     wt = tmp_path / "wt" / "t-1"
@@ -402,7 +416,7 @@ def test_rebase_stop_at_conflict_preserves_conflicted_state(tmp_path):
     repo, wt = tmp_path / "repo", tmp_path / "wt"
     repo.mkdir()
     env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
-    g = Git(SubprocessExec(), env=env, timeout=30)
+    g = Git(SubprocessExec(), env=env, timeout=30, commit_lock=commit_lock(tmp_path / ".chupa/state"))
 
     async def scenario():
         await g.init(repo, branch="main")
@@ -438,7 +452,7 @@ def test_conflicted_paths_argv_and_output():
 
 def test_rebase_continue_is_noninteractive():
     exec_ = FakeExec()
-    g = Git(exec_, env={**ENV, "GIT_EDITOR": "must-not-run"}, timeout=30.0)
+    g = Git(exec_, env={**ENV, "GIT_EDITOR": "must-not-run"}, timeout=30.0, commit_lock=FakeLock())
     run(g.rebase_continue(REPO))
     assert exec_.argvs == [["git", "-C", "/repo", "-c", "core.editor=true", "rebase", "--continue"]]
     assert exec_.calls[0][1:] == (REPO, {**ENV, "GIT_EDITOR": "true"}, 30.0)
@@ -454,7 +468,7 @@ def test_rebase_continue_is_noninteractive():
 
 def test_escape_first_parent_trailers(tmp_path):
     env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
-    g = Git(SubprocessExec(), env=env, timeout=30)
+    g = Git(SubprocessExec(), env=env, timeout=30, commit_lock=commit_lock(tmp_path / ".chupa/state"))
 
     async def scenario():
         await g.init(tmp_path, branch="main")
@@ -512,7 +526,7 @@ def test_escape_refusals(tmp_path):
         run(g.first_parent_squashes(REPO, a))
     # A known commit on a side branch is not a first-parent endpoint.
     env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
-    g = Git(SubprocessExec(), env=env, timeout=30)
+    g = Git(SubprocessExec(), env=env, timeout=30, commit_lock=commit_lock(tmp_path / ".chupa/state"))
 
     async def scenario():
         await g.init(tmp_path, branch="main")
@@ -534,7 +548,7 @@ def test_escape_refusals(tmp_path):
 
 def test_commit_restored_deletion_and_unchanged_path(tmp_path):
     env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
-    g = Git(SubprocessExec(), env=env, timeout=30.0)
+    g = Git(SubprocessExec(), env=env, timeout=30.0, commit_lock=commit_lock(tmp_path / ".chupa/state"))
 
     async def scenario():
         await g.init(tmp_path, branch="main")
@@ -552,3 +566,43 @@ def test_commit_restored_deletion_and_unchanged_path(tmp_path):
         assert await g.rev_parse(tmp_path, "HEAD") == sha
 
     run(scenario())
+
+
+def test_commit_waits_for_lock(tmp_path):
+    import fcntl
+    import subprocess
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    env = {**os.environ, "GIT_AUTHOR_NAME": "tester", "GIT_AUTHOR_EMAIL": "t@example.invalid", "GIT_COMMITTER_NAME": "tester", "GIT_COMMITTER_EMAIL": "t@example.invalid"}
+    subprocess.run(["git", "init", "-b", "main", str(repo)], check=True, capture_output=True)
+    (repo / "file").write_text("base")
+    subprocess.run(["git", "-C", str(repo), "add", "file"], check=True, env=env)
+    subprocess.run(["git", "-C", str(repo), "commit", "-m", "base"], check=True, env=env, capture_output=True)
+    before = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"], env=env, text=True).strip()
+    (repo / "file").write_text("changed")
+    state = tmp_path / "state"
+    state.mkdir()
+    fd = os.open(state / "commit.lock", os.O_CREAT | os.O_RDWR, 0o644)
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    g = Git(SubprocessExec(), env=env, timeout=30, commit_lock=commit_lock(state))
+
+    async def run():
+        waiting = asyncio.Event()
+        release = asyncio.Event()
+
+        async def sleep(_):
+            waiting.set()
+            await release.wait()
+
+        g._commit_lock._sleep = sleep
+        task = asyncio.create_task(g.commit(repo, "first", only=["file"]))
+        await asyncio.wait_for(waiting.wait(), 2)
+        assert not task.done()
+        assert await g.rev_parse(repo, "HEAD") == before
+        os.close(fd)
+        release.set()
+        sha = await asyncio.wait_for(task, 5)
+        assert sha == await g.rev_parse(repo, "HEAD") and sha != before
+
+    asyncio.run(run())

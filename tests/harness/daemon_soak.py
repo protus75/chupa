@@ -25,6 +25,7 @@ from chupa.providers import routed_conduct_paths
 from chupa.reconcile import RECOVERY_ALERT
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.stages import Invoice, read_review
+from tests.integration.test_git import commit_lock
 
 DAEMON_SOAK_SPEC_VERSION = 1
 DAEMON_SOAK_MEMBERS = (
@@ -206,7 +207,7 @@ class _Member:
             "GIT_AUTHOR_DATE": "2026-01-01T00:00:00Z",
             "GIT_COMMITTER_DATE": "2026-01-01T00:00:00Z",
         }
-        self.git = Git(self.exec, env=self.env, timeout=30)
+        self.git = Git(self.exec, env=self.env, timeout=30, commit_lock=commit_lock(root / ".chupa/state"))
         self.command = [sys.executable, "verify.py"]
         self.owner = self.task = None
         self.lifetimes = []
@@ -728,7 +729,7 @@ async def _member_lifetime(member: _Member) -> DaemonSoakEntry:
 
 
 async def produce(root: Path) -> DaemonSoakReport:
-    git = Git(SubprocessExec(), env=os.environ, timeout=30)
+    git = Git(SubprocessExec(), env=os.environ, timeout=30, commit_lock=commit_lock(root / ".chupa/state"))
     sha = await git.rev_parse(Path.cwd(), "HEAD")
     entries = [await _run_member(root, name) for name in DAEMON_SOAK_MEMBERS]
     return DaemonSoakReport(produced_by_spec_version=DAEMON_SOAK_SPEC_VERSION, produced_at_sha=sha, entries=entries)

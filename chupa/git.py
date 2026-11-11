@@ -4,6 +4,7 @@ import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from chupa.lockfile import CommitLock
 from chupa.seams import ProcessExec
 
 
@@ -32,7 +33,8 @@ def _ref(name: str) -> str:
 
 
 class Git:
-    def __init__(self, exec_: ProcessExec, *, env: Mapping[str, str], timeout: float | None) -> None:
+    def __init__(self, exec_: ProcessExec, *, env: Mapping[str, str], timeout: float | None, commit_lock: CommitLock) -> None:
+        self._commit_lock = commit_lock
         self._exec = exec_
         self._env = env
         self._timeout = timeout
@@ -78,9 +80,14 @@ class Git:
         return await self._run(dir, "diff", "--stat", f"{_ref(base)}...{_ref(stem)}")
 
     async def add(self, dir: Path, paths: Sequence[str]) -> None:
-        await self._run(dir, "add", "--", *paths)
+        async with self._commit_lock:
+            await self._run(dir, "add", "--", *paths)
 
     async def commit(self, dir: Path, message: str, *, only: Sequence[str] = ()) -> str:
+        async with self._commit_lock:
+            return await self._commit(dir, message, only=only)
+
+    async def _commit(self, dir: Path, message: str, *, only: Sequence[str] = ()) -> str:
         if only:
             await self._run(dir, "update-index", "--add", "--remove", "--", *only)
             argv, rc, out, err = await self._call(dir, "diff", "--cached", "--quiet", "HEAD", "--", *only)
@@ -119,7 +126,8 @@ class Git:
             raise RebaseRefused(argv, rc, out, err)
 
     async def restore(self, dir: Path, paths: Sequence[str], *, source: str) -> None:
-        await self._run(dir, "restore", "--source", _ref(source), "--staged", "--worktree", "--", *paths)
+        async with self._commit_lock:
+            await self._run(dir, "restore", "--source", _ref(source), "--staged", "--worktree", "--", *paths)
 
     async def rebase_stop_at_conflict(self, dir: Path, onto: str) -> None:
         """Leave genuine conflicts for the queue; other refusals abort before returning."""
@@ -142,8 +150,9 @@ class Git:
             raise RebaseRefused(argv, rc, out, err)
 
     async def merge_squash(self, dir: Path, branch: str, message: str) -> str:
-        await self._run(dir, "merge", "--squash", _ref(branch))
-        return await self.commit(dir, message)
+        async with self._commit_lock:
+            await self._run(dir, "merge", "--squash", _ref(branch))
+            return await self._commit(dir, message)
 
     async def push(self, dir: Path, remote: str, branch: str) -> None:
         await self._run(dir, "push", _ref(remote), _ref(branch))

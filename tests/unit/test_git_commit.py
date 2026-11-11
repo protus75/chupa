@@ -8,6 +8,14 @@ from chupa import tickets
 from chupa.git import Git, GitError, NothingToCommit
 
 
+class FakeLock:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        pass
+
+
 class FakeExec:
     def __init__(self, *results):
         self.results = list(results)
@@ -24,7 +32,7 @@ def run(coro):
 
 def test_commit_stages_paths_and_returns_head():
     process = FakeExec((0, "", ""), (1, "", ""), (0, "", ""), (0, "new-sha\n", ""))
-    git = Git(process, env={}, timeout=1)
+    git = Git(process, env={}, timeout=1, commit_lock=FakeLock())
     assert run(git.commit(Path("/repo"), "message", only=["a"])) == "new-sha"
     assert process.calls == [
         ["update-index", "--add", "--remove", "--", "a"],
@@ -37,14 +45,14 @@ def test_commit_stages_paths_and_returns_head():
 def test_commit_unchanged_raises_without_commit():
     process = FakeExec((0, "", ""), (0, "", ""))
     with pytest.raises(NothingToCommit) as error:
-        run(Git(process, env={}, timeout=1).commit(Path("/repo"), "message", only=["a"]))
+        run(Git(process, env={}, timeout=1, commit_lock=FakeLock()).commit(Path("/repo"), "message", only=["a"]))
     assert isinstance(error.value, GitError)
     assert process.calls == [["update-index", "--add", "--remove", "--", "a"], ["diff", "--cached", "--quiet", "HEAD", "--", "a"]]
 
 
 def test_commit_without_paths_and_squash():
     process = FakeExec((0, "", ""), (0, "first\n", ""), (0, "", ""), (0, "", ""), (0, "second\n", ""))
-    git = Git(process, env={}, timeout=1)
+    git = Git(process, env={}, timeout=1, commit_lock=FakeLock())
     assert run(git.commit(Path("/repo"), "first")) == "first"
     assert run(git.merge_squash(Path("/repo"), "b", "squashed")) == "second"
     assert process.calls == [["commit", "-m", "first"], ["rev-parse", "--verify", "HEAD"], ["merge", "--squash", "b"], ["commit", "-m", "squashed"], ["rev-parse", "--verify", "HEAD"]]

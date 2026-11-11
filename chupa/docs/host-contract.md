@@ -373,7 +373,7 @@ restarts itself when its `chupa/` tree changes.
 `<state_dir>/chupa.lock` uses advisory flock before writes and records instance_id,
 pid, host, state_dir and started_at for diagnostics only. Kernel release on
 process death governs correctness, never stale-pid adoption. On LockHeld wait
-for or stop the holder; never delete the lockfile. Child descriptors do not pin it.
+for or stop the holder; never delete the lockfile. Child descriptors do not pin it. Git writes take `<state_dir>/commit.lock` with a 60-second wait.
 State dir owns journal, box queue, quarantine ledgers, attempt spools, engine
 log and heartbeat. Decisions and tombstones are committed under
 `tickets/decisions/`, so dedup memory travels with the repo. Config is re-read at

@@ -13,6 +13,7 @@ from chupa.audit import audit
 from chupa.git import Git
 from chupa.seams import SubprocessExec
 from tests.harness.shakeout.bench import Bench
+from tests.integration.test_git import commit_lock
 
 SHAKEOUT_SPEC_VERSION = 1
 
@@ -115,6 +116,6 @@ async def produce(group: str, prior: ShakeoutReport | None, root: Path) -> Shake
     import os
 
     # Git provenance is read from the checkout running the report command, never supplied by a member.
-    git = Git(SubprocessExec(), env=os.environ, timeout=30.0)
+    git = Git(SubprocessExec(), env=os.environ, timeout=30.0, commit_lock=commit_lock(root / ".chupa/state"))
     sha = await git.rev_parse(Path.cwd(), "HEAD")
     return ShakeoutReport(produced_by_spec_version=SHAKEOUT_SPEC_VERSION, produced_at_sha=sha, entries=entries)

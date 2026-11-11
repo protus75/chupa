@@ -25,6 +25,7 @@ from chupa.providers import PROBE_PROMPT, routed_conduct_paths
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.tickets import intake, validate_ticket
 from tests.harness.daemon_soak import _Time, _turn
+from tests.integration.test_git import commit_lock
 
 RELIABILITY_BATTERY_SPEC_VERSION = 1
 RELIABILITY_BATTERY_MEMBERS = (
@@ -149,7 +150,7 @@ class _Member:
             GIT_COMMITTER_NAME="battery",
             GIT_COMMITTER_EMAIL="battery@example.invalid",
         )
-        self.git = Git(self.exec, env=self.env, timeout=30)
+        self.git = Git(self.exec, env=self.env, timeout=30, commit_lock=commit_lock(root / ".chupa/state"))
         self.failures = ["alien failure 17"] if name == RELIABILITY_BATTERY_MEMBERS[2] else ["usage limit reached"]
         if name == RELIABILITY_BATTERY_MEMBERS[1]:
             self.failures.append("quota exhausted")
@@ -476,6 +477,6 @@ async def _run_member(root, name):
 
 
 async def produce(root: Path) -> ReliabilityBatteryReport:
-    sha = await Git(SubprocessExec(), env=os.environ, timeout=30).rev_parse(Path.cwd(), "HEAD")
+    sha = await Git(SubprocessExec(), env=os.environ, timeout=30, commit_lock=commit_lock(root / ".chupa/state")).rev_parse(Path.cwd(), "HEAD")
     entries = [await _run_member(root, name) for name in RELIABILITY_BATTERY_MEMBERS]
     return ReliabilityBatteryReport(produced_by_spec_version=RELIABILITY_BATTERY_SPEC_VERSION, produced_at_sha=sha, entries=entries)

@@ -21,6 +21,7 @@ from chupa.storm import StormLedger, arrival_id
 from chupa.timers import Timers
 from tests.integration.test_cli import ENV, Clock, Stages, root, ticket, write
 from tests.integration.test_daemon_composition import CoreRig, assert_core_wiring
+from tests.integration.test_git import commit_lock
 from tests.integration.test_restart_timers import repository
 
 T0 = datetime(2026, 10, 7, tzinfo=UTC)
@@ -57,7 +58,7 @@ class Rig:
     def __init__(self, path):
         self.path, self.time, self.exec = path, Time(), Exec()
         self.fs = LocalFileSystem()
-        self.git = Git(self.exec, env={"PATH": "/usr/bin"}, timeout=30)
+        self.git = Git(self.exec, env={"PATH": "/usr/bin"}, timeout=30, commit_lock=commit_lock(path / ".chupa/state"))
         self.log = EngineLog(path / "engine.log", Redactor({"KEY": SECRET}), self.time)
         self.slot = asyncio.Lock()
         self.restart()
@@ -483,7 +484,7 @@ def test_checkpoint_boundary_is_dormant(root, monkeypatch, verb):
             journal=rig.journal,
             effects=effects,
             timers=timers,
-            git=Git(exec_, env={"PATH": "/usr/bin"}, timeout=30),
+            git=Git(exec_, env={"PATH": "/usr/bin"}, timeout=30, commit_lock=commit_lock(root / ".chupa/state")),
             box=box,
             clock=clock,
             log=EngineLog(root / "checkpoint.log", Redactor({}), clock),

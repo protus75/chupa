@@ -22,6 +22,7 @@ from chupa.stages import read_review
 from chupa.tickets import parse_ticket, ticket_path
 from tests.harness import daemon_soak as soak
 from tests.harness.daemon_soak import DAEMON_SOAK_MEMBERS
+from tests.integration.test_git import commit_lock
 
 
 @pytest.mark.asyncio
@@ -379,7 +380,7 @@ async def test_daemon_soak_cleans_up_owned_lifetimes(tmp_path, monkeypatch, case
 
 @pytest.mark.asyncio
 async def test_daemon_soak_is_rederivable(tmp_path):
-    git = Git(SubprocessExec(), env=os.environ, timeout=30)
+    git = Git(SubprocessExec(), env=os.environ, timeout=30, commit_lock=commit_lock(tmp_path / ".chupa/state"))
     before = await git.rev_parse(Path.cwd(), "HEAD")
     first = await soak.produce(tmp_path / "first")
     second = await soak.produce(tmp_path / "second")

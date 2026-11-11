@@ -14,6 +14,7 @@ from chupa.inbox import CAPS, ReportError, bounded, ingest, validate_report
 from chupa.journal import Journal
 from chupa.seams import LocalFileSystem
 from tests.integration.test_drain import Clock
+from tests.integration.test_git import commit_lock
 
 
 def raw_report(origin="player", **updates):
@@ -198,7 +199,7 @@ def test_report_replay_to_regression(tmp_path, monkeypatch):
     source = host / "inbox/regression.json"
     source.parent.mkdir()
     source.write_bytes((host / "reports/regression.json").read_bytes())
-    git = Git(SubprocessExec(), env=env, timeout=30)
+    git = Git(SubprocessExec(), env=env, timeout=30, commit_lock=commit_lock(host / ".chupa/state"))
 
     async def initialize():
         await git.init(host, branch="main")

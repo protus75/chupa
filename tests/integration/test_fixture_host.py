@@ -25,6 +25,7 @@ from chupa.specs import (
 from chupa.stages import ImplementReply
 from chupa.tickets import stamp, validate_ticket
 from chupa.triage import TriageReply
+from tests.integration.test_git import commit_lock
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "hosts/fixture"
@@ -144,6 +145,7 @@ def test_fixture_regression_exists_at_base(host):
             SubprocessExec(),
             env={**environment(host), "GIT_AUTHOR_NAME": "Fixture", "GIT_AUTHOR_EMAIL": "fixture@example.invalid", "GIT_COMMITTER_NAME": "Fixture", "GIT_COMMITTER_EMAIL": "fixture@example.invalid"},
             timeout=10,
+            commit_lock=commit_lock(host / ".chupa/state"),
         )
         await git.init(host, branch="main")
         await git.add(host, ["app.py", "settings.json", "regression_test.py"])

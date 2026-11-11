@@ -15,6 +15,7 @@ from chupa.stages import StagesRun
 from chupa.status import reject_queue
 from tests.integration.test_cli import ENV, git_out
 from tests.integration.test_drain import Clock, Script, commit_ticket, confirmed, drain, journal, make_root
+from tests.integration.test_git import commit_lock
 from tests.integration.test_stages import STEM
 from tests.integration.test_terminal import author, clock, diagnosis_reply, implement_reply, repo
 
@@ -175,7 +176,9 @@ def test_dead_dependencies_resolve_through_supersedes(tmp_path, leaf_state):
         assert main(["reject", "leaf"], cwd=root, env=ENV, clock=Clock(), terminal=(lambda: True, lambda _: "y")) == 0
     else:
         j.append(EventType.STATE_TRANSITION, {"to": "abandoned"}, ticket="leaf")
-        checkout = runner.Checkout(root, load_config(None, cwd=root), ENV, SubprocessExec(), Git(SubprocessExec(), env=ENV, timeout=30), j, LocalFileSystem(), Clock())
+        checkout = runner.Checkout(
+            root, load_config(None, cwd=root), ENV, SubprocessExec(), Git(SubprocessExec(), env=ENV, timeout=30, commit_lock=commit_lock(root / ".chupa/state")), j, LocalFileSystem(), Clock()
+        )
         asyncio.run(runner._dead_dependents("leaf", checkout))
     [signal] = [e for e in _events(root, "dependent") if e.body.get("signal") == "dead_dependency"]
     assert signal.body == {"signal": "dead_dependency", "dead": "original"}

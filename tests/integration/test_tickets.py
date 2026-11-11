@@ -17,6 +17,7 @@ from chupa.tickets import (
     template,
     validate_ticket,
 )
+from tests.integration.test_git import commit_lock
 
 ENV = {
     "PATH": "/usr/bin:/bin",
@@ -78,7 +79,7 @@ class Clock:
 
 @pytest.fixture
 def repo(tmp_path: Path):
-    g = Git(SubprocessExec(), env=ENV, timeout=30.0)
+    g = Git(SubprocessExec(), env=ENV, timeout=30.0, commit_lock=commit_lock(tmp_path / ".chupa/state"))
     root = tmp_path / "repo"
     (root / "chupa").mkdir(parents=True)
     (root / "specs").mkdir()
@@ -649,7 +650,7 @@ def test_new_names_installed_authoring_guide(repo, capsys):
 def test_intake_skips_ticket_committed_after_status(repo, monkeypatch):
     root, git, journal = repo
     write(root, "t-race", complete(VALID))
-    other = Git(SubprocessExec(), env=ENV, timeout=30.0)
+    other = Git(SubprocessExec(), env=ENV, timeout=30.0, commit_lock=commit_lock(root / ".chupa/state"))
     original = git.status_porcelain
 
     async def status_then_commit(path):

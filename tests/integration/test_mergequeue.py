@@ -23,6 +23,7 @@ from chupa.providers import child_env
 from chupa.seams import ExecutableNotFound, LocalFileSystem, SubprocessExec
 from chupa.stages import ApprovedInvoice, CommandResult, StageContext, render_review
 from chupa.tickets import validate_ticket
+from tests.integration.test_git import commit_lock
 from tests.integration.test_stages import CONFIG, ENV, SECRET, SPECS, STEM, TICKET, adopt_conduct
 
 run = asyncio.run
@@ -41,7 +42,7 @@ def ctx(tmp_path):
     config = load_config(None, cwd=repo)
     exec_ = SubprocessExec()
     driver = Driver.from_config(config, llm=FakeLLM([]), env=ENV, clock=lambda: datetime(2026, 10, 6, tzinfo=UTC), sleep=lambda _: asyncio.Event().wait())
-    context = StageContext(repo, config, ENV, exec_, Git(exec_, env=child_env(ENV, config), timeout=30), LocalFileSystem(), driver, SPECS)
+    context = StageContext(repo, config, ENV, exec_, Git(exec_, env=child_env(ENV, config), timeout=30, commit_lock=commit_lock(repo / ".chupa/state")), LocalFileSystem(), driver, SPECS)
 
     async def init():
         await context.git.init(repo, branch="main")

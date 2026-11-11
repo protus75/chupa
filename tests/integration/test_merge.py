@@ -20,6 +20,7 @@ from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.stages import StageContext, run_stages
 from chupa.tickets import validate_ticket
 from tests.integration.test_cli import root
+from tests.integration.test_git import commit_lock
 from tests.integration.test_stages import ENV, SAMPLE_REPORT, SNAG, SPECS, STEM, SampleReport, _report_bytes, adopt_conduct, agent, author, git, report_context, verdict
 
 
@@ -56,7 +57,9 @@ def context(repo: Path, script: list) -> StageContext:
 
     exec_ = SubprocessExec()
     driver = Driver.from_config(config, llm=FakeLLM(script), env=ENV, clock=clock, sleep=never)
-    return StageContext(repo=repo, config=config, env=ENV, exec_=exec_, git=Git(exec_, env=ENV, timeout=30.0), fs=LocalFileSystem(), driver=driver, specs_dir=SPECS)
+    return StageContext(
+        repo=repo, config=config, env=ENV, exec_=exec_, git=Git(exec_, env=ENV, timeout=30.0, commit_lock=commit_lock(repo / ".chupa/state")), fs=LocalFileSystem(), driver=driver, specs_dir=SPECS
+    )
 
 
 def reviewed(repo: Path, script: list, *, approve: bool = True, authored: bool = False):

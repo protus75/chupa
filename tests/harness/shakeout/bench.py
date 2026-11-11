@@ -19,6 +19,7 @@ from chupa.llm import LLM, FakeLLM, ScriptItem
 from chupa.providers import ProviderLLM, routed_conduct_paths
 from chupa.runner import Checkout, Dispatch, bind, pipeline
 from chupa.seams import LocalFileSystem, SubprocessExec
+from tests.integration.test_git import commit_lock
 
 _CONFIG = """schema_version: 1
 state_dir: .chupa/state
@@ -68,7 +69,7 @@ class Bench:
             "GIT_COMMITTER_NAME": "shakeout",
             "GIT_COMMITTER_EMAIL": "shakeout@example.invalid",
         }
-        self.git = Git(self.process, env=self.env, timeout=30.0)
+        self.git = Git(self.process, env=self.env, timeout=30.0, commit_lock=commit_lock(root / ".chupa/state"))
         self.journal = Journal(self.config.state_dir, self.clock)
         self.llm = llm if llm is not None else FakeLLM([])
         self.report: Report | None = None

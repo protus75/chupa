@@ -22,6 +22,7 @@ from chupa.lockfile import Lockfile, LockHeld
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.tickets import intake
 from tests.integration.test_cli import CONFIG, ENV, PLAN, git_out, ticket, with_retro_driver, write
+from tests.integration.test_git import commit_lock
 from tests.integration.test_merge import repo as admission_repo
 from tests.integration.test_stages import adopt_conduct
 from tests.integration.test_terminal import repo as rework_repo
@@ -120,7 +121,7 @@ def intake_at(root: Path, stem: str, at: datetime) -> None:
     write(root, stem, ticket())
     clock = Clock()
     clock.now = at
-    g = Git(SubprocessExec(), env=ENV, timeout=30.0)
+    g = Git(SubprocessExec(), env=ENV, timeout=30.0, commit_lock=commit_lock(root / ".chupa/state"))
     asyncio.run(intake(root, g, Journal(root / ".chupa" / "state", clock), LocalFileSystem()))
 
 
@@ -141,7 +142,7 @@ def test_already_satisfied_settles_without_diagnosis(rework_repo):
 
     repo = rework_repo
     (repo / "chupa/thing.py").write_text("ok base\n")
-    git = Git(SubprocessExec(), env=ENV, timeout=30)
+    git = Git(SubprocessExec(), env=ENV, timeout=30, commit_lock=commit_lock(repo / ".chupa/state"))
 
     async def green_base():
         await git.add(repo, ["chupa/thing.py"])
@@ -700,7 +701,16 @@ def test_rework_split_preserves_dispatch_terminal_invariant(rework_repo, monkeyp
     from chupa.drain import _Drain
     from chupa.tickets import validate_ticket
 
-    checkout = runner.Checkout(repo, load_config(None, cwd=repo), ENV, SubprocessExec(), Git(SubprocessExec(), env=ENV, timeout=30), Journal(repo / ".chupa/state", clock), LocalFileSystem(), clock)
+    checkout = runner.Checkout(
+        repo,
+        load_config(None, cwd=repo),
+        ENV,
+        SubprocessExec(),
+        Git(SubprocessExec(), env=ENV, timeout=30, commit_lock=commit_lock(repo / ".chupa/state")),
+        Journal(repo / ".chupa/state", clock),
+        LocalFileSystem(),
+        clock,
+    )
     candidate = validate_ticket("dependent", (repo / "tickets/dependent/ticket.md").read_text(), repo)
 
     async def mismatch(ticket):
@@ -817,7 +827,7 @@ def pause_checkout(root):
     from chupa.runner import Checkout
 
     process = SubprocessExec()
-    checkout = Checkout(root, load_config(None, cwd=root), ENV, process, Git(process, env=ENV, timeout=30), journal(root), LocalFileSystem(), Clock())
+    checkout = Checkout(root, load_config(None, cwd=root), ENV, process, Git(process, env=ENV, timeout=30, commit_lock=commit_lock(root / ".chupa/state")), journal(root), LocalFileSystem(), Clock())
     return replace(checkout, control=build_control(checkout))
 
 
