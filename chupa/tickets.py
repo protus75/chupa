@@ -762,4 +762,4 @@ def template(kind: Literal["feature", "bug", "chore"]) -> str:
     if kind == "bug":
         sections["Regression"] = "```\n<one argv command emitting the regression_result JSON protocol>\n```\n- carries: <test or fixture path prefix needed by the command>"
     body = "".join(f"\n## {name}\n{content}\n" for name, content in sections.items())
-    return f"---\nstate: confirmed\nsource: human\npriority: P2\nkind: {kind}\n---\n" + body
+    return f"---\nstate: draft\nsource: human\npriority: P2\nkind: {kind}\n---\n" + body

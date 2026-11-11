@@ -176,6 +176,7 @@ def test_new_templates_a_ticket_and_lints_it(root, capsys):
     path = root / "tickets" / "add-thing" / "ticket.md"
     text = path.read_text()
     assert "## Acceptance criteria" in text and "## Verification" in text
+    assert "state: draft" in text and "state: confirmed" not in text
     assert "kind: feature" in text and "## Regression" not in text
     assert "<measurable outcome naming a check in backticks>" in text
     out = capsys.readouterr().out

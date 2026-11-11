@@ -1,5 +1,6 @@
 import asyncio
 import re
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -524,6 +525,33 @@ def test_template_per_kind(tmp_path, kind):
     assert ticket.context == ("src/thing.py",)
     assert ticket.regression == (("uv", "run", "python", "tests/reproduce.py") if kind == "bug" else ())
     assert ticket.carries == (("tests/reproduce.py",) if kind == "bug" else ())
+
+
+def test_new_skeleton_is_draft_until_intake(repo):
+    from chupa import __main__ as cli
+
+    root, g, journal = repo
+    assert cli.main(["new", "aaa-wip"], cwd=root) == 0
+    path = root / "tickets/aaa-wip/ticket.md"
+    text = path.read_text()
+    assert "state: draft\n" in text.split("---", 2)[1]
+    samples = {
+        "none or bullets of existing ticket stems": "none",
+        "existing repo-relative read-first path": "chupa/thing.py",
+        "observable outcome and why it matters": "The command prints ok for operators.",
+        "what changes and what stays outside this ticket": "In: the command. Out: other commands.",
+        "repo-relative writable path prefix": "chupa/thing.py",
+        "measurable outcome naming a check in backticks": "`uv run pytest` exits 0.",
+        "argv command that exits 0": "uv run pytest",
+        "outcome that rejects the branch": "The command needs a new dependency.",
+        "estimated integer minutes": "10",
+        "larger deadline in integer minutes": "20",
+    }
+    path.write_text(re.sub(r"<([^<>]+)>", lambda match: samples[match[1]], text))
+    do_intake(root, g, journal)
+    committed = subprocess.run(["git", "show", "HEAD:tickets/aaa-wip/ticket.md"], cwd=root, env=ENV, capture_output=True, text=True, check=True).stdout
+    assert "state: confirmed\n" in committed.split("---", 2)[1]
+    assert "state: draft\n" not in committed.split("---", 2)[1]
 
 
 def test_new_bug_copies_evidence(repo, capsys):
