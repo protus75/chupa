@@ -32,6 +32,11 @@ STEP_NAMES = {
 
 PHASE_NAMES = {"preflight": "Preflight", "retro_check": "Retro check"}
 
+STEP_KINDS: dict[str, str] = {
+    **{f"{step}_{suffix}": step for step in (*STEP_NAMES, *PHASE_NAMES, "stage") for suffix in ("start", "ok", "failed")},
+    **{event: event for event in ("engine_start", "engine_stop", "engine_lost")},
+}
+
 
 @dataclass(frozen=True)
 class Context:
