@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "47588a1b78dc705a1b67297eb7743a619b578884",
+  "stem": "bug-evidence-before-dispatch",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Redo the parse_ticket evidence check in chupa/tickets.py, but keep the journal exemption in intake: a stem with states.get(stem) in {merged, already_satisfied, rejected} must still pass validate_ticket when it has no evidence and its frontmatter still says state: confirmed.",
+    "In intake (chupa/tickets.py ~L688-695), validate a journal-settled stem with a grammar-only parse that skips evidence_findings. All other reads still go through parse_ticket's evidence check. Call evidence_findings everywhere; never copy the finding text.",
+    "Do not add evidence_file(root) to tests/integration/test_tickets.py::test_settled_bug_is_not_rejudged_for_evidence. Its (confirmed, merged/already_satisfied/rejected) cases must pass without evidence. Fixtures get evidence only when evidence absence is not what the test checks.",
+    "Keep the exemption text in docs/how-chupa-works.md 5.2 and chupa/docs/host-authoring.md Bug tickets > Evidence true. A ticket is exempt when its frontmatter state or its journal state is settled or rejected. _Drain._scan already skips journal-settled stems before parse_ticket.",
+    "Redo the rest as the ticket says: tests/unit/test_parse_ticket_evidence.py (4 tests), tests/regress_bug_evidence_before_dispatch.py, the evidence fixture in test_fixture_host.py, the test_serve_dispatch.py rewrite, and the doc updates. Review raised no finding against them."
+  ],
+  "mechanical": null,
+  "spec_version": "1.5",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
