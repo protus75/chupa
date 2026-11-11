@@ -1,0 +1,15 @@
+Recurrence on the Recent Steps icon surface: each earlier fix added one kind, and no check covers the whole vocabulary.
+
+$ grep -n 'own icon kind\|loses the step.s icon\|Generic kinds\|Generic stage kind' tests/integration/test_watch.py
+90:    assert [r["kind"] for r in rows] == ["retro_failed", "retro_start", "rework_ok", "rework_start"]  # A generic stage kind loses the step's icon.
+122:    assert [r["kind"] for r in rows] == ["engine_start", "engine_lost", "review_failed", "engine_stop", "implement_ok", "implement_start", "engine_start"]  # Each event has its own icon kind.
+155:    ]  # Generic kinds, missing numbers, or a missing legacy label differ.
+439:    assert (rows["Check start"]["kind"], rows["Check start"]["path"]) == ("check_start", "tickets/alpha/checks.json")  # Generic stage kind or ticket path is wrong.
+485:    assert {row["kind"] for row in steps} == {"author_start", "author_ok", "author_failed"}  # Author has its own icon kind.
+
+$ grep -n 'prefix = surface\|kind = "phase_start"' chupa/observe.py
+308:            prefix = surface if surface in STEP_NAMES else "stage"
+318:            kind = "phase_start" if event == "phase_start" else "phase_failed" if outcome == "failed" else "phase_ok"
+
+$ grep -n 'icons\[step.kind\]' vscode-chupa/extension.js
+257:		const [icon, color] = icons[step.kind];
