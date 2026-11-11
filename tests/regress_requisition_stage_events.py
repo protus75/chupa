@@ -95,6 +95,6 @@ with tempfile.TemporaryDirectory() as directory:
     log = repo / ".state/engine.log"
     events = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
     stages = [e for e in events if e.get("surface") == "requisition_review" and e["event"] in ("stage_start", "stage_end")]
-    passed = [(e["event"], e["stem"], e["attempt"], e["run_seq"]) for e in stages] == [("stage_start", "one-thing", 2, 4), ("stage_end", "one-thing", 2, 4)] and stages[-1]["outcome"] == "ok"
+    passed = [(e["event"], e["stem"], e["attempt"], e["run_seq"]) for e in stages] == [("stage_start", "slot", 2, 4), ("stage_end", "slot", 2, 4)] and stages[-1]["outcome"] == "ok"
     print(json.dumps({"regression_result": "pass" if passed else "defect"}))
     raise SystemExit(0 if passed else 1)

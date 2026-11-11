@@ -702,7 +702,8 @@ def snapshot(ctx) -> dict:
         elif stem := step.get("stem"):
             name = {"implement": "run.md", "check": "checks.json", "review": "review.md", "diagnose": "diagnosis.json"}.get(surface, "ticket.md")
             path = Path("tickets") / stem / name
-            step["path"] = str(path if (ctx.root / path).is_file() else path.with_name("ticket.md"))
+            fallback = path.with_name("ticket.md")
+            step["path"] = str(path) if (ctx.root / path).is_file() else str(fallback) if (ctx.root / fallback).is_file() else None
         step["timeDisplay"] = clock(step["ts"])
         step["dateDisplay"] = local(step["ts"]).strftime("%x, %X")
     box_counts = {

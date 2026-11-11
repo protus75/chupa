@@ -439,6 +439,7 @@ def test_snapshot_step_files_and_mechanical_kinds(tmp_path, monkeypatch):
     assert (rows["Check start"]["kind"], rows["Check start"]["path"]) == ("check_start", "tickets/alpha/checks.json")  # Generic stage kind or ticket path is wrong.
     assert watch.current_step(events, "alpha") == ("Merge", events[-1]["ts"], None)  # A model surface would display model details.
     (directory / "run.md").unlink()
+    (directory / "ticket.md").write_text("ticket")
     rows = {row["text"]: row for row in watch.snapshot(ctx)["steps"]}
     assert rows["Implement start"]["path"] == "tickets/alpha/ticket.md"  # A missing run record must not be opened.
     assert watch.current_step([dict(events[1], event="stage_end", outcome="ok")], "alpha")[0] == "Review"  # Check advances to Review.
@@ -664,3 +665,15 @@ def test_requisition_review_steps(tmp_path):
     assert [(r["text"], r["kind"]) for r in rows] == [("Requisition end (gate_failed)", "requisition_review_failed"), ("Requisition start", "requisition_review_start")]
     assert watch.current_step(events[:1], "alpha") == ("Requisition", events[0]["ts"], "requisition_review")
     assert watch.current_step(events, "alpha") == ("Implement", events[1]["ts"], None)
+
+
+def test_snapshot_review_owner_without_ticket_has_no_path(tmp_path, monkeypatch):
+    ctx = watch.Context(tmp_path, tmp_path, tmp_path / "config.yaml", None, None, None)
+    monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: (set(), set()))
+    monkeypatch.setattr(watch, "committed_ticket_shas", lambda ctx: {})
+    monkeypatch.setattr(watch, "commits", lambda ctx: {})
+    event = {"event": "stage_start", "stem": "review-x", "surface": "requisition_review", "ts": "2026-01-01T00:00:00+00:00"}
+    (tmp_path / "engine.log").write_text(json.dumps(event) + "\n")
+    row = watch.snapshot(ctx)["steps"][0]
+    assert row["stem"] == "review-x"
+    assert row["path"] is None  # A nonexistent ticket must not be offered as a link.

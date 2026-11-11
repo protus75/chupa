@@ -146,8 +146,9 @@ async def review_ticket(
                     dependents.setdefault(test, set()).add(path)
         coverage_dependents = "\n".join(f"{test}: runs {', '.join(sorted(paths))}" for test, paths in sorted(dependents.items())) or "none"
 
-    event_context = dict(stem=stem, attempt=attempt, surface="requisition_review", run_seq=run_seq)
+    event_context = dict(stem=stem_slot, attempt=attempt, surface="requisition_review", run_seq=run_seq)
     outcome = "gate_failed"
+    owns_watch = False
     try:
         retry_findings = "none"
         for current_seq in range(call_seq, call_seq + driver.retry_cap + 1):
@@ -163,6 +164,8 @@ async def review_ticket(
             driver.spool.write(spool_stem, attempt, f"{name}/prompt.md", prompt)
             req = LLMRequest(surface="requisition_review", rendered=prompt, tier=tier, effort=spec.meta.effort, ticket=None, worktree=None)
             if driver._active is None:
+                if calls == 0:
+                    owns_watch = True
                 driver.begin_watch(
                     owner=stem_slot,
                     ticket=None,
@@ -174,7 +177,7 @@ async def review_ticket(
                     scope_fence=(),
                     attempt=attempt,
                 )
-            if calls == 0:
+            if calls == 0 and owns_watch:
                 driver.log.event("stage_start", **event_context)
             calls += 1
             try:
@@ -217,7 +220,7 @@ async def review_ticket(
         outcome = "infra_error"
         raise
     finally:
-        if calls:
+        if calls and owns_watch:
             driver.log.event("stage_end", **event_context, outcome=outcome, calls=calls)
 
 

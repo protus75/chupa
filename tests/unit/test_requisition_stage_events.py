@@ -18,9 +18,11 @@ class MemoryPath:
         return "spec"
 
 
+@pytest.mark.parametrize("active", [False, True])
 @pytest.mark.parametrize("case,outcome", [("approve", "ok"), ("snag", "gate_failed"), ("error", "infra_error"), ("timeout", "timeout"), ("provider", "infra_error")])
-def test_stage_events(monkeypatch, case, outcome):
+def test_stage_events(monkeypatch, case, outcome, active):
     events = []
+    watches = []
     monkeypatch.setattr(requisition, "review_target", lambda *args: SimpleNamespace(scope_fence=()))
     monkeypatch.setattr(requisition, "_base_render", lambda *args: "base")
     monkeypatch.setattr(requisition, "load_spec", lambda text: SimpleNamespace(meta=SimpleNamespace(version="1.0", effort="high")))
@@ -44,7 +46,8 @@ def test_stage_events(monkeypatch, case, outcome):
     driver = SimpleNamespace(
         retry_cap=0,
         spool=SimpleNamespace(write=lambda *args: None),
-        _active=True,
+        _active=True if active else None,
+        begin_watch=lambda **kw: watches.append(kw),
         race=race,
         effects=None,
         watched_llm=lambda: None,
@@ -74,5 +77,6 @@ def test_stage_events(monkeypatch, case, outcome):
             asyncio.run(run())
     else:
         asyncio.run(run())
-    context = dict(stem="actual", attempt=3, surface="requisition_review", run_seq=7)
-    assert events == [("stage_start", context), ("stage_end", {**context, "outcome": outcome, "calls": 1})]
+    context = dict(stem="slot", attempt=3, surface="requisition_review", run_seq=7)
+    assert events == ([] if active else [("stage_start", context), ("stage_end", {**context, "outcome": outcome, "calls": 1})])
+    assert [watch["owner"] for watch in watches] == ([] if active else ["slot"])
