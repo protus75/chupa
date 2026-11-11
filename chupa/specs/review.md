@@ -5,7 +5,7 @@ emits: {approve: approved-invoice, snag: snag-list, rma: rma}
 tier: high
 effort: high
 gates: [correctness_review]
-version: "1.4"
+version: "1.5"
 ---
 ## Role
 
@@ -97,6 +97,9 @@ Findings against your previous reply in this session (`none` on the first call):
 ## Output format
 
 Reply with ONLY one JSON object, no prose before or after:
+The first non-whitespace character of your reply is the opening brace of the object or of one json code fence.
+Commentary, including host chat-conduct conventions such as Still open: lists, belongs in summary or nowhere.
+Keep `summary` to one sentence and put every defect in `findings`.
 
 {"verdict": "approve" | "snag" | "rma",
  "summary": "<one sentence>",

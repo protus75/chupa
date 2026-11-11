@@ -189,7 +189,7 @@ def test_review_spec_read_only():
     assert lint_spec(text) == []
     assert len(text.splitlines()) <= SPEC_MAX_LINES
     spec = load_spec(text)
-    assert spec.meta.version == "1.4"
+    assert spec.meta.version == "1.5"
     assert spec.meta.model_dump(exclude={"version"}) == {
         "llm_surface": "review",
         "consumes": "invoice",
@@ -206,6 +206,13 @@ def test_review_spec_read_only():
     assert ("The ticket's `## Verification` commands and host mechanical checks (scope fence, diff budget) are run and decided at Check before Review.") in role
     assert "Do not attempt commands or qualify a verdict for not running them." in role
     body = " ".join(rendered.split())
+    # Missing any instruction permits the corresponding invalid or overly long reply.
+    for rule in (
+        "The first non-whitespace character of your reply is the opening brace of the object or of one json code fence.",
+        "Commentary, including host chat-conduct conventions such as Still open: lists, belongs in summary or nowhere.",
+        "Keep `summary` to one sentence and put every defect in `findings`.",
+    ):
+        assert rule in body
     assert "Report every defect in this one reply; never stop at the first." in body
     assert "When the same flaw appears in several places, list each place as its own finding." in body
     assert 'starts its `message` with "Still open: ".' in body
@@ -223,7 +230,7 @@ def test_review_spec_read_only():
 def test_review_spec_checks_docs():
     text = (Path(__file__).resolve().parents[2] / "chupa/specs/review.md").read_text()
     spec = load_spec(text)
-    assert spec.meta.version == "1.4"
+    assert spec.meta.version == "1.5"
     assert spec.inputs == ("ticket", "diff", "prior_review", "retry_findings")
     body = " ".join(spec.body.split())
     for rule in (
