@@ -17,7 +17,18 @@ from chupa.rework import settled_dependencies
 from chupa.status import SETTLED
 from chupa.tickets import Frontmatter, TicketInvalid, parse_ticket
 
-STEP_NAMES = {"implement": "Implement", "check": "Check", "merge": "Merge", "review": "Review", "diagnose": "Diagnose", "rework": "Rework", "retro": "Retro", "triage": "Triage", "author": "Author"}
+STEP_NAMES = {
+    "requisition_review": "Requisition",
+    "implement": "Implement",
+    "check": "Check",
+    "merge": "Merge",
+    "review": "Review",
+    "diagnose": "Diagnose",
+    "rework": "Rework",
+    "retro": "Retro",
+    "triage": "Triage",
+    "author": "Author",
+}
 
 
 @dataclass(frozen=True)
@@ -210,7 +221,7 @@ def current_step(log: list[dict], stem: str) -> tuple[str, str, str | None]:
     name = STEP_NAMES.get(last.get("surface"), last.get("surface", "?"))
     if last["event"] == "stage_start":
         return name, last["ts"], None if last.get("surface") in ("check", "merge") else last.get("surface")
-    after = {"implement": "Check", "check": "Review", "review": "Merge", "diagnose": "Retry or hold"}.get(last.get("surface"))
+    after = {"requisition_review": "Implement", "implement": "Check", "check": "Review", "review": "Merge", "diagnose": "Retry or hold"}.get(last.get("surface"))
     return (after or f"after {name}"), last["ts"], None
 
 

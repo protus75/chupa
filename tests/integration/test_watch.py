@@ -655,3 +655,11 @@ def test_snapshot_watch_uses_configured_state(tmp_path, capsys):
         {"base": str(Path.cwd().resolve()), "glob": "tickets/*/ticket.md"},
         {"base": str((tmp_path / "custom-state").resolve()), "glob": "{journal/*.jsonl,queue.json,engine.log,box/*.json}"},
     ]  # The state watcher must not use the repository base.
+
+
+def test_requisition_review_steps(tmp_path):
+    events = [dict(event=event, stem="alpha", surface="requisition_review", ts=f"2026-01-01T00:00:0{i}+00:00", outcome="gate_failed") for i, event in enumerate(("stage_start", "stage_end"))]
+    rows = watch.recent_steps(tmp_path, events, 10)
+    assert [(r["text"], r["kind"]) for r in rows] == [("Requisition end (gate_failed)", "requisition_review_failed"), ("Requisition start", "requisition_review_start")]
+    assert watch.current_step(events[:1], "alpha") == ("Requisition", events[0]["ts"], "requisition_review")
+    assert watch.current_step(events, "alpha") == ("Implement", events[1]["ts"], None)

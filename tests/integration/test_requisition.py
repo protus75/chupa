@@ -292,3 +292,25 @@ def test_context_section_renders_only_the_section(tmp_path):
     ticket = review_target(repo, "one-thing", text)
     context = implement_inputs(repo, text, ticket, ())["context"]
     assert context == "### m.py::B.run\n    @mark\n    def run(self):\n        return 7\n\n\n### d.md#Two\n## Two\ntwo\n### Two-a\nchild\n"  # excludes siblings and retains decorator and subheading
+
+
+def test_requisition_stage_events_in_engine_log(tmp_path):
+    repo, driver, _ = setup(tmp_path, [reply("approve")])
+    verdict = asyncio.run(
+        review_ticket(
+            driver, repo=repo, stem="one-thing", text=TICKET, specs_dir=SPECS, coverage_map=None, tier="high", stem_slot="different-slot", run_seq=7, attempt=3, call_seq=1, expected_budget="surface"
+        )
+    )
+    assert verdict.verdict == "approve"
+    events = [json.loads(line) for line in (tmp_path / ".state/engine.log").read_text().splitlines()]
+    stages = [e for e in events if e.get("surface") == "requisition_review" and e["event"] in ("stage_start", "stage_end")]
+    assert [(e["event"], e["stem"], e["attempt"], e["run_seq"]) for e in stages] == [("stage_start", "one-thing", 3, 7), ("stage_end", "one-thing", 3, 7)]
+    assert stages[1]["outcome"] == "ok"
+
+
+def test_missing_map_has_no_requisition_stage_events(tmp_path):
+    repo, driver, _ = setup(tmp_path, [])
+    assert run(driver, repo, coverage_map=tmp_path / "missing.json").mechanical == "invalid coverage map"
+    log = tmp_path / ".state/engine.log"
+    events = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+    assert not [e for e in events if e.get("surface") == "requisition_review"]
