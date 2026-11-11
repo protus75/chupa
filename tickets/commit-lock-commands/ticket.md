@@ -7,6 +7,7 @@ kind: feature
 
 ## Depends on
 - commit-lock
+- intake-holds-commit-lock
 
 ## Context
 - chupa/__main__.py::_review
@@ -16,6 +17,7 @@ kind: feature
 - vscode-chupa/media/view.js
 - chupa/lockfile.py
 - chupa/runner.py::verdict
+- chupa/tickets.py::intake
 
 ## On-demand
 - docs/how-chupa-works.md
@@ -37,8 +39,8 @@ After this change:
 
 ## Scope in / Scope out
 - In: `chupa/__main__.py`:
-  - `_review` never takes `chupa.lock`. When the ticket directory has pending changes, it runs intake, which waits on the commit lock inside `Git`, then reviews the committed blob as today.
-  - `_verdict`: when `runner.verdict` finds `chupa.lock` held and the stem's ticket directory has pending changes, it runs intake first. If intake refuses that stem, the command exits 2 with the intake findings and publishes no admission request. Otherwise it publishes the request as today. A `CommitLockTimeout` exits 2 through the top-level handler, and no request is published.
+  - `_review` never takes `chupa.lock` and no longer calls `runner.reap`. When the ticket directory has pending changes, it runs intake, which holds the commit lock across its status read, stray check and commits (from `intake-holds-commit-lock`), then reviews the committed blob as today.
+  - `_verdict`: when `runner.verdict` finds `chupa.lock` held and the stem's ticket directory has pending changes, it runs intake first. If intake refuses that stem, the command exits 2 with the intake findings and publishes no admission request. Otherwise it publishes the request as today. A `CommitLockTimeout` exits 2 through the top-level handler, and no request is published. Neither path reaps.
 - In: `chupa/observe.py` `snapshot()`:
   - New top-level string field `commitLock`. It is empty when `<state>/commit.lock` is missing, empty, or names a pid that is not alive. Otherwise it is `<verb> since <time> (pid <pid>)`, built exactly like the existing `lock` field. Factor the verb rule so both fields use it.
   - Row menus:
@@ -71,6 +73,7 @@ After this change:
 1. `tests/integration/test_review_command.py`:
    - With `chupa.lock` held by a separate `Lockfile` and an edited ticket on disk, `review` approves, commits the edit (`main:` holds the new text), journals the verdict, and exits 0. It does not exit 2 with a lock refusal.
    - With `commit.lock` held past the wait (fake clock and sleep), `review` exits 2 naming `commit.lock`, and the ticket stays uncommitted.
+   - With `chupa.lock` held and a journaled `running` stem, `review` of an edited ticket leaves that stem's last state `running`.
 2. `tests/integration/test_control_cli.py`:
    - With `chupa.lock` held and an edited valid draft, `confirm --yes` commits the ticket and prints `confirm submitted:`.
    - With an edited invalid draft, it exits 2 with the intake finding and publishes no admission request.
@@ -94,6 +97,7 @@ After this change:
 
 ## Definition of rejected
 - `review` takes `chupa.lock`.
+- `review`, `confirm` or `reject` reaps while another process holds `chupa.lock`.
 - `confirm` or `reject` publishes an admission request after intake refused the stem or the commit lock timed out.
 - `view.js` computes availability or parses the lock strings.
 - `triage`, `dismiss` or `migrate-box` move off the engine lock.
