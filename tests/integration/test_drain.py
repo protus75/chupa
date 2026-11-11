@@ -1701,3 +1701,17 @@ def test_drain_refuses_committed_core_drift_before_dispatch(root, capsys):
     lock = Lockfile(root / ".chupa/state", instance_id="contender", clock=Clock())
     lock.acquire()
     lock.release()
+
+
+def test_operator_keep_releases_unchanged_premise_park(root):
+    from chupa.status import reject_queue
+
+    commit_ticket(root, "work", confirmed())
+    blob = prior_failure(root, terminal="premise_failed", extra={"stage": "implement", "reason": "premise", "dispatch": "reject_queue", "routed": "reject_queue"})
+    assert "work" in reject_queue(journal(root).read())  # The failure reached the Reject queue.
+    script = Script()
+    assert drain(root, script) == 0 and script.calls == []  # An unchanged ticket stays parked without a keep.
+    assert main(["confirm", "work", "--yes"], cwd=root, env=ENV, clock=Clock()) == 0
+    assert "work" not in reject_queue(journal(root).read())  # Confirm recorded the verdict.
+    assert git_out(root, "rev-parse", "HEAD:tickets/work/ticket.md").strip() == blob  # No ticket edit caused release.
+    assert drain(root, script) == 0 and script.calls == ["work"]  # The next drain dispatches it.

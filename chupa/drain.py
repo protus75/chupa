@@ -73,6 +73,15 @@ def parked_blob(events: Iterable[Event], stem: str) -> str | None:
             body = e.body
             if body.get("to") == "running":
                 ran_sha = body.get("ticket_sha")
+        elif (
+            e.type == EventType.SIGNAL
+            and e.ticket == stem
+            and body.get("to") == PREMISE
+            and e.body.get("signal") == "reject_verdict"
+            and e.body.get("verdict") == "keep"
+            and e.body.get("actor") == "operator"
+        ):
+            body = {}
     if body.get("to") == PREMISE or (body.get("to") == "gate_failed" and "diff_budget" in body.get("reason", "").split(",")):
         return ran_sha
     return None
