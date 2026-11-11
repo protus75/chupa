@@ -256,7 +256,16 @@ async def _settle_pass(checkout, driver, box, spec, history, pass_no, ids):
                 )
                 line = await _record(checkout, driver, box, message.id, "declined", message.id, reply, message.summary)
             else:
-                invoked = any(event.type == EventType.SIGNAL and event.body.get("signal") == "author_invoked" and event.body.get("message") == message.id for event in checkout.journal.read())
+                journal = checkout.journal.read()
+                boundary = max(
+                    (
+                        i
+                        for i, event in enumerate(journal)
+                        if event.type == EventType.EFFECT_INTENT and (event.key or "").startswith(f"retro-recurrence/{message.id}/") and event.body.get("reopened") is True
+                    ),
+                    default=-1,
+                )
+                invoked = any(event.type == EventType.SIGNAL and event.body.get("signal") == "author_invoked" and event.body.get("message") == message.id for event in journal[boundary + 1 :])
                 outcome = await failure_declined(checkout, driver, box, message, "previous Author invocation did not settle") if invoked else await author(checkout, driver, box, message, pass_no)
                 line = f"{message.id}: " + (f"ticket -> {outcome.stem}" if outcome.stem else f"declined -> {outcome.declined}")
             lines.append((message.id, line))

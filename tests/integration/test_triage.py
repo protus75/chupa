@@ -680,3 +680,21 @@ def test_test_proposal_request(tmp_path, monkeypatch):
     prompt = next(r.rendered for r in llm.requests if r.surface == "triage")
     assert '"test_issue": "slow"' in prompt
     assert '"proposed_paths": ["tests/unit/test_x.py"]' in prompt
+
+
+def test_reopened_author_verdict_with_stale_author_invoked_calls_author(tmp_path, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from chupa import triage
+
+    root, box = root_with_box(tmp_path)
+    id = enqueue(box, "reopened author concern")
+    box.record_verdict(id, Verdict(verdict="author", produced_by_spec_version="1.0", rationale="new evidence"))
+    journal = Journal(root / ".chupa/state", Clock())
+    journal.append(EventType.SIGNAL, {"signal": "author_invoked", "message": id})
+    journal.append(EventType.EFFECT_INTENT, {"reopened": True}, key=f"retro-recurrence/{id}/new")
+    author = AsyncMock(return_value=type("Outcome", (), {"stem": "new-ticket", "declined": None})())
+    monkeypatch.setattr(triage, "author", author)
+    assert run(root, monkeypatch, FakeLLM([])) == 0
+    author.assert_awaited_once()
+    assert not (root / record_path(f"declined-{id}")).exists()
