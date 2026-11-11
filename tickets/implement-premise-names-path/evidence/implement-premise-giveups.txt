@@ -1,0 +1,40 @@
+# commit-lock: Implement (codex gpt-6.1-terra) replied premise_failed without a premise, twice
+--- tickets/commit-lock/attempts/6/harvest.json: wall_seconds and findings
+wall_seconds 118.4
+[
+ {
+  "code": "premise",
+  "path": null,
+  "line": null,
+  "message": "I could not complete the implementation and verification in this attempt; no contradiction or missing scope has been established.",
+  "paved_road": "Retry implementation against the existing ticket, including its full sequential verification and host checks.",
+  "kind": null,
+  "unit": null
+ }
+]
+--- tickets/commit-lock/attempts/8/harvest.json: wall_seconds and findings
+wall_seconds 31.9
+[
+ {
+  "code": "premise",
+  "path": null,
+  "line": null,
+  "message": "Implementation and verification remain incomplete; no ticket premise failure was established.",
+  "paved_road": "Retry the implementation and run the required sequential verification and host checks.",
+  "kind": null,
+  "unit": null
+ }
+]
+
+# journal: commit-lock implement terminals (routed straight to the Reject queue)
+{"v":1,"type":"state_transition","ts":"2026-11-11T07:11:26.342289+00:00","ticket":"commit-lock","key":null,"body":{"to":"premise_failed","stage":"implement","reason":"premise","dispatch":"reject_queue","routed":"reject_queue"}}
+{"v":1,"type":"state_transition","ts":"2026-11-11T08:30:28.228393+00:00","ticket":"commit-lock","key":null,"body":{"to":"premise_failed","stage":"implement","reason":"premise","dispatch":"reject_queue","routed":"reject_queue"}}
+
+# all implement premise_failed findings in tickets/*/attempts/*/harvest.json: how many name no path
+ no path: commit-lock - I could not complete the implementation and verification in this attempt; no contradiction or missin
+ no path: commit-lock - Implementation and verification remain incomplete; no ticket premise failure was established.
+ no path: core-drift-preflight - The required `./dev.py lint` verification exits nonzero on the untouched base because historical tic
+ no path: phase2-exit - Acceptance criteria 2 and 3 require authoring tickets/daemon-scheduler/ticket.md, tickets/seed-succe
+ no path: core-chat-ticket-first - The required ./dev.py lint verification exits 1 because existing tickets fail validation outside the
+ no path: review-unmerged-provisional - The required `./dev.py lint` exits 1 with 35/390 tickets valid; the same failure occurs with the bas
+total 608 without path 6
