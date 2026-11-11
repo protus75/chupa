@@ -438,7 +438,7 @@ Keep and kill normally require a person at an interactive terminal to answer `y`
   not release this hold. Stage boundaries, admission, and queued or confirmed merge admissions
   all check the dispatch identity. Rework updates between attempts are fresh ticket inputs.
 
-- **Premise park:** a requisition-stage `premise_failed` draws no cap, makes no Diagnose call, and is not routed to the Reject queue. Edit the committed ticket to release it; no `confirm` is needed. Other premise failures: with the default `premise_bounce: 1`, the first `premise_failed` spends
+- **Premise park:** a requisition-stage `premise_failed` draws no cap, makes no Diagnose call, and is not routed to the Reject queue. Edit the committed ticket to release it; no `confirm` is needed. The next review receives the last recorded review’s findings and the diff since, rules on those findings, and raises new findings only against changed text. Other premise failures: with the default `premise_bounce: 1`, the first `premise_failed` spends
   the cap and routes to the Reject queue via `premise_bounce cap spent`; only an operator
   `confirm` releases it. When a host sets `premise_bounce` above 1 and caps still have budget,
   the stem parks until its committed `ticket.md` changes. That re-offer draws no retry.

@@ -158,7 +158,7 @@ async def drive(ctx: StageContext, ticket: Ticket, *, admission=None, consume_ha
         )
         if not approved:
             from chupa.driver import ProviderDroughtResult
-            from chupa.requisition import review_ticket
+            from chupa.requisition import prior_review, review_ticket
 
             attempt = run_seq(history, ticket.stem)
             text = await ctx.git._run(ctx.repo, "show", f"HEAD:{ticket_path(ticket.stem)}")
@@ -176,6 +176,7 @@ async def drive(ctx: StageContext, ticket: Ticket, *, admission=None, consume_ha
                     attempt=attempt,
                     call_seq=1,
                     expected_budget=ticket.expected_minutes * 60,
+                    prior=await prior_review(ctx.git, ctx.repo, history, ticket.stem, text),
                 )
             except ProviderDrought as exc:
                 result = ProviderDroughtResult(outcome="infra_error", artifact=None, findings=[], cost=Cost(), provider_drought=exc.record)
@@ -187,7 +188,15 @@ async def drive(ctx: StageContext, ticket: Ticket, *, admission=None, consume_ha
             else:
                 ctx.driver.journal.append(
                     EventType.SIGNAL,
-                    {"signal": "requisition_verdict", "verdict": review.verdict, "ticket_sha": sha, "provider": review.provider, "model": review.model, "spec_version": review.spec_version},
+                    {
+                        "signal": "requisition_verdict",
+                        "verdict": review.verdict,
+                        "findings": [{"code": f.code, "message": f.message} for f in review.findings],
+                        "ticket_sha": sha,
+                        "provider": review.provider,
+                        "model": review.model,
+                        "spec_version": review.spec_version,
+                    },
                     ticket=ticket.stem,
                 )
                 if review.verdict != "approve" and not (review.verdict == "snag" and all(f.code == "render_feasibility" for f in review.findings)):

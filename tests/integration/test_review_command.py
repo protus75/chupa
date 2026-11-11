@@ -138,3 +138,19 @@ def test_review_changed_ticket_refuses_while_checkout_locked(tmp_path, monkeypat
         assert "wait for the running engine to commit the ticket through intake, or stop it, then retry `review candidate`" in capsys.readouterr().err
     finally:
         lock.release()
+
+
+def test_review_uses_previous_findings_after_edit(tmp_path, monkeypatch):
+    root = make_root(tmp_path)
+    commit_ticket(root, "candidate", confirmed())
+    finding = {"code": "fence", "message": "missing caller", "paved_road": "add caller"}
+    llm = FakeLLM([reply("snag", [finding]), reply("approve")])
+    assert run(root, monkeypatch, llm, "candidate") == 1
+    path = root / "tickets/candidate/ticket.md"
+    path.write_text(path.read_text().replace("## Goal / Why", "## Goal / Why\nChanged."))
+    git_out(root, "add", "tickets/candidate/ticket.md")
+    git_out(root, "commit", "-m", "edit ticket")
+    assert run(root, monkeypatch, llm, "candidate") == 0
+    blocks = [r.rendered.split("<<chupa-data:begin prior_review>>\n", 1)[1].split("\n<<chupa-data:end prior_review>>", 1)[0] for r in llm.requests]
+    assert blocks[0] == "none"
+    assert "missing caller" in blocks[1] and "+Changed." in blocks[1]

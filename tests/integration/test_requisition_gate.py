@@ -93,8 +93,12 @@ def test_edit_releases_and_reviews_the_new_content(tmp_path):
 
     assert main(["drain"], cwd=root, env=ENV, clock=checkout.clock, pipeline=lambda c: runner.bind(c, llm)) == 0
     assert [r.surface for r in llm.requests] == ["requisition_review", "requisition_review", "implement"]
-    verdicts = [e.body["ticket_sha"] for e in checkout.journal.read() if e.body.get("signal") == "requisition_verdict"]
-    assert len(verdicts) == 2 and verdicts[0] != sha and verdicts[1] == sha
+    blocks = [r.rendered.split("<<chupa-data:begin prior_review>>\n", 1)[1].split("\n<<chupa-data:end prior_review>>", 1)[0] for r in llm.requests[:2]]
+    assert blocks[0] == "none"
+    assert "missing required file" in blocks[1] and "+Edited content." in blocks[1] and blocks[1] != "none"
+    verdicts = [e.body for e in checkout.journal.read() if e.body.get("signal") == "requisition_verdict"]
+    assert len(verdicts) == 2 and verdicts[0]["ticket_sha"] != sha and verdicts[1]["ticket_sha"] == sha
+    assert verdicts[0]["findings"] == [{"code": "missing_file", "message": "missing required file"}]
 
 
 def test_serve_holds_a_parked_ticket(tmp_path):

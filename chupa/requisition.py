@@ -1,5 +1,6 @@
 """Read-only authored-ticket feasibility review."""
 
+import difflib
 import hashlib
 import json
 import re
@@ -11,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from chupa.artifacts import Artifact, Finding, NonBlank
 from chupa.driver import Driver, _StuckBudget, unwrap_fence
 from chupa.gates import GateReport
+from chupa.journal import EventType
 from chupa.llm import AgentTier, LLMRequest, LLMResult
 from chupa.llmeffect import llm_call
 from chupa.providers import ProviderCallError, ProviderDrought
@@ -67,6 +69,18 @@ def base_render_chars(repo: Path, ticket: Ticket, text: str, specs_dir: Path) ->
     except RenderOverBound as exc:
         # The renderer measured the complete prompt before refusing it.
         return int(re.search(r"rendered prompt is (\d+) characters", exc.finding.message).group(1))
+
+
+async def prior_review(git, repo, events, stem, text) -> str:
+    """Render the latest recorded findings and changes to the text they judged."""
+    event = next((e for e in reversed(events) if e.type == EventType.SIGNAL and e.ticket == stem and e.body.get("signal") == "requisition_verdict" and "findings" in e.body), None)
+    if event is None:
+        return "none"
+    body = event.body
+    judged = await git._run(repo, "show", body["ticket_sha"])
+    findings = "\n".join(f"- [{f['code']}] {' '.join(f['message'].splitlines())}" for f in body["findings"]) or "- none"
+    diff = "".join(difflib.unified_diff(judged.splitlines(keepends=True), text.splitlines(keepends=True))) or "(unchanged)"
+    return f"Verdict: {body['verdict']}\nFindings:\n{findings}\n\nDiff from the judged text:\n{diff}"
 
 
 async def review_ticket(

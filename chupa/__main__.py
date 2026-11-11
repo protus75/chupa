@@ -605,6 +605,7 @@ async def _review(checkout: runner.Checkout, stem: str) -> int:
             attempt=0,
             call_seq=1,
             expected_budget="surface",
+            prior=await requisition.prior_review(checkout.git, checkout.repo, history, stem, text),
         )
     finally:
         await session.close()
@@ -617,6 +618,7 @@ async def _review(checkout: runner.Checkout, stem: str) -> int:
             {
                 "signal": "requisition_verdict",
                 "verdict": verdict.verdict,
+                "findings": [{"code": f.code, "message": f.message} for f in verdict.findings],
                 "ticket_sha": verdict.ticket_sha,
                 "provider": verdict.provider,
                 "model": verdict.model,
