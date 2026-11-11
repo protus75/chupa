@@ -6,7 +6,7 @@ kind: bug
 ---
 
 ## Depends on
-- none
+- phase-step-icons
 
 ## Context
 - chupa/observe.py::STEP_NAMES
