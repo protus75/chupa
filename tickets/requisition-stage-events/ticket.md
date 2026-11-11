@@ -50,16 +50,24 @@ When this ticket is done, every requisition review writes one `stage_start` and 
 - tests/integration/test_requisition.py
 - tests/integration/test_watch.py
 - tests/regress_requisition_stage_events.py
+- tests/unit/test_requisition_stage_events.py
 
 ## Acceptance criteria
-1. `tests/integration/test_requisition.py`, through `review_ticket` with a `FakeLLM` and the driver's real engine log under the config's `state_dir`:
+1. New `tests/unit/test_requisition_stage_events.py` drives `review_ticket` with no disk, process or network access. It monkeypatches `chupa.requisition`'s `review_target`, `_base_render`, `load_spec`, `render` and `llm_call`, passes a `specs_dir` stand-in whose spec read returns text from memory, and uses a fake driver whose `log.event` records events. Its cases keep the `test-gate.toml` floor of 22 for `chupa/requisition.py` (unit coverage is 22.2% at base, so uncovered new lines fail the gate). In each case the recorded `requisition_review` events are exactly `stage_start` then `stage_end`:
+   - An `approve` reply ends with `outcome` `ok`.
+   - A `snag` reply with a finding ends with `gate_failed`, not `ok`.
+   - `llm_call` raising a non-provider exception (the provider-error snag) ends with `infra_error`, not `gate_failed`.
+   - The stuck-budget snag (`driver.race` raising `_StuckBudget`) ends with `timeout`.
+   - `llm_call` raising `ProviderCallError` logs `stage_end` with `infra_error`, and `review_ticket` still raises `ProviderCallError` rather than returning a verdict.
+2. `tests/integration/test_requisition.py`, through `review_ticket` with a `FakeLLM` and the driver's real engine log under the config's `state_dir`:
    - An `approve` reply leaves exactly two `engine.log` events with `surface` `requisition_review`, in order: `stage_start` then `stage_end` with `outcome` `ok`. Both carry the ticket `stem` (not `stem_slot`), the passed `attempt`, and `run_seq`. A run that logs none, logs only the start, or logs them reversed fails.
-   - A `snag` reply with a finding ends with `stage_end` `outcome` `gate_failed`, not `ok`.
    - A coverage-map snag (missing map) logs no `requisition_review` events.
-2. `tests/integration/test_watch.py`: `recent_steps` renders a `requisition_review` `stage_start` and `stage_end` as `Requisition start` and `Requisition end (gate_failed)`, with kinds `requisition_review_start` and `requisition_review_failed`, not `stage_*` and not the raw surface name.
-3. `vscode-chupa/extension.js`'s `icons` table has the keys `requisition_review_start`, `requisition_review_ok` and `requisition_review_failed`.
-4. The Regression command prints `{"regression_result": "pass"}` and exits 0 on the branch, and prints `defect` with a non-zero exit at the merge base.
-5. `./dev.py test` exits 0.
+3. `tests/integration/test_watch.py`:
+   - `recent_steps` renders a `requisition_review` `stage_start` and `stage_end` as `Requisition start` and `Requisition end (gate_failed)`, with kinds `requisition_review_start` and `requisition_review_failed`, not `stage_*` and not the raw surface name.
+   - `current_step` returns `Requisition` when the stem's last event is a `requisition_review` `stage_start`, and `Implement` (not `after Requisition`) when it is a `requisition_review` `stage_end`.
+4. `vscode-chupa/extension.js`'s `icons` table has the keys `requisition_review_start`, `requisition_review_ok` and `requisition_review_failed`.
+5. The Regression command prints `{"regression_result": "pass"}` and exits 0 on the branch, and prints `defect` with a non-zero exit at the merge base.
+6. `./dev.py test` exits 0.
 
 ## Regression
 ```
