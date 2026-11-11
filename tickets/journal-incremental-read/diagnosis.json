@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "2e421cecbcfa318cd25f6825a092bc422b224fa9",
+  "stem": "journal-incremental-read",
+  "attempt": 1,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "retry",
+  "lessons": [
+    "The ticket's criteria can all be met. In append(), check the active segment through the instance's own incremental read path, which parses only lines it has not cached, and raise before writing. A fresh Journal then still raises on line 139's 'bad' line.",
+    "For the roll-age check, take the first event from the cached segment or parse only its first line, as the scope says. Never call _parse_segment on the whole active segment in append(); that is the base cost the ticket removes.",
+    "Write the criterion 2 append test with an instance that has already read the active segment's n lines. Assert that append() then calls _parse_line at most once. At base this case parses n lines, so the test still fails there.",
+    "In the run record, state that a fresh instance's first append checks the whole active segment once. Each later append parses only unseen lines. This keeps tests/integration/test_journal_roll.py passing without edits (criterion 4).",
+    "Redo the whole scope from the merge base: the pure helper, the cache for rolled segments with a size check, the active-segment offset, read() returning a new list, the section 10 doc sentence, and the unit, integration and regression tests. Run ./dev.py test."
+  ],
+  "mechanical": null,
+  "spec_version": "1.4",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
