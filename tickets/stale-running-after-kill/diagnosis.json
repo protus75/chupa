@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "7bb1e8ae386fd6026d5b4b24e8170d76f10048cd",
+  "stem": "stale-running-after-kill",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Redo the whole change from the merge base. Review found the approach sound: one runner.reap reused by verdict, _review, dismiss, triage and _retro after lock.acquire, and status, _order and observe deciding interrupted only via reconcile.orphans plus lock_holder.",
+    "In tests/unit/test_stale_running.py, test_status_verb_passes_alive must not read disk. _status runs load_spec((runner.SPECS_DIR / \"retro.md\").read_text()), so monkeypatch runner.SPECS_DIR to a fake with read_text and chupa.specs.load_spec to return SimpleNamespace(meta=SimpleNamespace(version=\"v\")).",
+    "Give the fake checkout in the unit tests a fixed clock, for example clock=lambda: datetime(2026, 1, 1, tzinfo=UTC), and never datetime.now(). Unit tests must not read wall-clock time.",
+    "In docs/how-chupa-works.md, also update the `order` row in the section 2.1 verb table, which says it refuses running tickets. Say it refuses a running ticket while an engine is live and treats an interrupted run (no live engine) as open, matching the new section 6.7 text.",
+    "Criterion 8 names the test: put the held merge-regate assertion (alive=False, HELD receipt for the current attempt stays in in_flight) inside tests/unit/test_stale_running.py::test_project_interrupted, not in a separately named test."
+  ],
+  "mechanical": null,
+  "spec_version": "1.4",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
