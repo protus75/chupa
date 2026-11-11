@@ -47,7 +47,7 @@ When this ticket is done, both callers pass the stem's last recorded review, wit
 - In: `docs/how-chupa-works.md`, the "Premise park" bullet in section 6.7: after "Edit the committed ticket to release it", add one sentence. It says the next review receives the last recorded review's findings and the diff since, rules on them, and raises new findings only against changed text.
 - In: the carried reproducer `tests/regress_requisition_prior_review.py` (see Regression). It is self-contained and imports nothing from `tests/`.
   - It builds a temp git repository with a config and one committed ticket.
-  - It runs `chupa.__main__.main(["review", stem])` twice, with `chupa.__main__.ProviderLLM` patched to a `FakeLLM` that snags with a finding and then approves. It edits and commits the ticket in between.
+  - It runs `chupa.__main__.main(["review", stem])` twice, with `chupa.__main__.ProviderLLM` patched to a `FakeLLM` that snags with a finding and then approves. It edits and commits the ticket in between. Each `main` call runs inside `contextlib.redirect_stdout(io.StringIO())`, so the script's only stdout is the final `regression_result` JSON line.
   - It passes when the second rendered prompt's block between `<<chupa-data:begin prior_review>>` and `<<chupa-data:end prior_review>>` contains the first finding's message.
 - Out:
   - `chupa/specs/requisition_review.md`, which already says what to do with a prior review.
