@@ -32,9 +32,11 @@ When this ticket is done, every `premise` finding in an Implement reply must nam
 - In: `chupa/specs/implement.md`:
   - The Output format sentence "`premise_failed` carries at least one finding, every one coded `premise`." becomes "`premise_failed` carries at least one finding, every one coded `premise` and naming its `path`."
   - The `premise_failed` bullet gains one sentence: running out of time, or a change that is only large, is never `premise_failed`.
+  - In the Output format JSON template, the finding's `"path": "<file or null>"` becomes `"path": "<file outside the fence, file the criteria contradict, or tickets/<stem>/ticket.md>"`. `line` stays nullable.
   - `version` goes from "2.9" to "2.10".
 - In: `tests/unit/test_specs.py` pins `implement` at "2.10" in both places that pin "2.9".
 - In: every test fixture or harness that scripts an Implement `premise_failed` reply gives each `premise` finding a `path`, using the ticket path `tickets/<stem>/ticket.md` where no other file fits. The files are:
+  - `tests/integration/test_stages.py` (`test_premise_failed_stops_after_implement_with_its_run_record` gives its finding the path `tickets/<stem>/ticket.md`, so it still ends `premise_failed` after one call)
   - `tests/integration/test_requisition_gate.py`
   - `tests/integration/test_reject_queue.py`
   - `tests/integration/test_terminal.py`
