@@ -7,6 +7,7 @@ from chupa import runner
 from chupa.caps import draws
 from chupa.journal import EventType
 from chupa.llm import FakeLLM
+from chupa.requisition import FIRST_REVIEW
 from chupa.scheduler import Scheduler
 from chupa.status import reject_queue
 from chupa.tickets import validate_ticket
@@ -94,7 +95,7 @@ def test_edit_releases_and_reviews_the_new_content(tmp_path):
     assert main(["drain"], cwd=root, env=ENV, clock=checkout.clock, pipeline=lambda c: runner.bind(c, llm)) == 0
     assert [r.surface for r in llm.requests] == ["requisition_review", "requisition_review", "implement"]
     blocks = [r.rendered.split("<<chupa-data:begin prior_review>>\n", 1)[1].split("\n<<chupa-data:end prior_review>>", 1)[0] for r in llm.requests[:2]]
-    assert blocks[0] == "none"
+    assert blocks[0] == FIRST_REVIEW
     assert "missing required file" in blocks[1] and "+Edited content." in blocks[1] and blocks[1] != "none"
     verdicts = [e.body for e in checkout.journal.read() if e.body.get("signal") == "requisition_verdict"]
     assert len(verdicts) == 2 and verdicts[0]["ticket_sha"] != sha and verdicts[1]["ticket_sha"] == sha

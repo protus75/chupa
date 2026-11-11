@@ -12,7 +12,7 @@ from chupa import __main__ as cli
 from chupa import providers, runner, stages
 from chupa.driver import LlmStage
 from chupa.journal import EventType
-from chupa.requisition import review_ticket
+from chupa.requisition import FIRST_REVIEW, review_ticket
 from chupa.watchdog import EventConsumer
 from eval import diagnose, harness
 from tests.integration.serve_rig import finish, graph, terminals, until
@@ -136,6 +136,7 @@ async def test_every_production_driver_surface_is_watched(tmp_path, monkeypatch)
             attempt=0,
             call_seq=seq,
             expected_budget=ctx.driver.detector.expected_seconds,
+            prior=FIRST_REVIEW,
         )
         assert verdict.verdict == "approve" and ctx.driver.detector is d
         calls.append(d)
@@ -176,6 +177,7 @@ async def test_every_production_driver_surface_is_watched(tmp_path, monkeypatch)
             attempt=1,
             call_seq=seq,
             expected_budget=ticket.expected_minutes * 60,
+            prior=FIRST_REVIEW,
         )
         assert verdict.verdict == "approve" and ctx.driver.detector is parent
         assert seen[-1][0].surface == "requisition_review" and seen[-1][1] is parent
@@ -202,6 +204,7 @@ async def test_every_production_driver_surface_is_watched(tmp_path, monkeypatch)
             attempt=0,
             call_seq=seq,
             expected_budget=ticket.expected_minutes * 60,
+            prior=FIRST_REVIEW,
         )
         assert verdict.verdict == "approve"
         standalone.append(ctx.driver.detector)

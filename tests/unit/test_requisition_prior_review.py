@@ -1,7 +1,8 @@
 import asyncio
+import inspect
 
 from chupa.journal import Event, EventType
-from chupa.requisition import prior_review
+from chupa.requisition import FIRST_REVIEW, prior_review, review_ticket
 
 
 class FakeGit:
@@ -22,10 +23,14 @@ def verdict(stem, sha, findings, verdict="snag"):
     return event(stem, {"signal": "requisition_verdict", "ticket_sha": sha, "verdict": verdict, "findings": findings})
 
 
-def test_missing_or_legacy_verdict_returns_none():
+def test_prior_is_required():
+    assert inspect.signature(review_ticket).parameters["prior"].default is inspect.Parameter.empty
+
+
+def test_missing_or_legacy_verdict_returns_first_review():
     git = FakeGit()
     for events in ([], [verdict("other", "old-sha", [])], [event("one", {"signal": "requisition_verdict"})], [event("one", {"signal": "other", "findings": []})]):
-        assert asyncio.run(prior_review(git, "repo", events, "one", "current")) == "none"
+        assert asyncio.run(prior_review(git, "repo", events, "one", "current")) == FIRST_REVIEW
     assert git.calls == []
 
 

@@ -17,7 +17,7 @@ from chupa.git import GitError
 from chupa.inbox import CAPS, bounded, report_data
 from chupa.journal import EventType
 from chupa.policy import policy_row, start_state
-from chupa.requisition import RequisitionVerdict, review_ticket
+from chupa.requisition import FIRST_REVIEW, RequisitionVerdict, review_ticket
 from chupa.runner import SPECS_DIR, Checkout
 from chupa.specs import Spec, load_spec, render
 from chupa.stages import findings_text
@@ -271,6 +271,7 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
             attempt=message.seq,
             call_seq=start,
             expected_budget=AUTHOR_STUCK_S / 2,
+            prior=FIRST_REVIEW,
         )
         next_unused = start + reviewed.calls
         reviewed_text = text

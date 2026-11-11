@@ -10,7 +10,7 @@ from chupa.config import load_config
 from chupa.driver import Driver
 from chupa.gates import lint_gate
 from chupa.llm import FakeLLM
-from chupa.requisition import RequisitionGate, RequisitionReply, RequisitionVerdict, base_render_chars, review_target, review_ticket
+from chupa.requisition import FIRST_REVIEW, RequisitionGate, RequisitionReply, RequisitionVerdict, base_render_chars, review_target, review_ticket
 from chupa.specs import RENDER_BOUND_CHARS, REQ_RENDER_HEADROOM, lint_spec, load_spec, render
 from chupa.stages import StageContext, implement_inputs, implement_stage
 from chupa.tickets import TicketInvalid
@@ -83,7 +83,21 @@ engine_plane_safety_inventory: [context.txt]
 
 def run(driver: Driver, repo: Path, text: str = TICKET, stem: str = "one-thing", coverage_map: Path | None = None) -> RequisitionVerdict:
     return asyncio.run(
-        review_ticket(driver, repo=repo, stem=stem, text=text, specs_dir=SPECS, coverage_map=coverage_map, tier="high", stem_slot="s", run_seq=0, attempt=1, call_seq=1, expected_budget="surface")
+        review_ticket(
+            driver,
+            repo=repo,
+            stem=stem,
+            text=text,
+            specs_dir=SPECS,
+            coverage_map=coverage_map,
+            tier="high",
+            stem_slot="s",
+            run_seq=0,
+            attempt=1,
+            call_seq=1,
+            expected_budget="surface",
+            prior=FIRST_REVIEW,
+        )
     )
 
 
@@ -141,7 +155,21 @@ def test_snag_and_invalid_reply(tmp_path):
     assert run(driver, repo).findings[0].paved_road == "add it to the fence"
     # A new call identity avoids replaying the first completion.
     invalid = asyncio.run(
-        review_ticket(driver, repo=repo, stem="one-thing", text=TICKET, specs_dir=SPECS, coverage_map=None, tier="high", stem_slot="s", run_seq=0, attempt=1, call_seq=2, expected_budget="surface")
+        review_ticket(
+            driver,
+            repo=repo,
+            stem="one-thing",
+            text=TICKET,
+            specs_dir=SPECS,
+            coverage_map=None,
+            tier="high",
+            stem_slot="s",
+            run_seq=0,
+            attempt=1,
+            call_seq=2,
+            expected_budget="surface",
+            prior=FIRST_REVIEW,
+        )
     )
     assert invalid.verdict == "snag" and invalid.mechanical == "invalid reply"
     assert invalid.calls == 1 + driver.retry_cap
@@ -298,7 +326,19 @@ def test_requisition_stage_events_in_engine_log(tmp_path):
     repo, driver, _ = setup(tmp_path, [reply("approve")])
     verdict = asyncio.run(
         review_ticket(
-            driver, repo=repo, stem="one-thing", text=TICKET, specs_dir=SPECS, coverage_map=None, tier="high", stem_slot="different-slot", run_seq=7, attempt=3, call_seq=1, expected_budget="surface"
+            driver,
+            repo=repo,
+            stem="one-thing",
+            text=TICKET,
+            specs_dir=SPECS,
+            coverage_map=None,
+            tier="high",
+            stem_slot="different-slot",
+            run_seq=7,
+            attempt=3,
+            call_seq=1,
+            expected_budget="surface",
+            prior=FIRST_REVIEW,
         )
     )
     assert verdict.verdict == "approve"

@@ -5,7 +5,7 @@ emits: {approve: requisition-approval, snag: requisition-snag, rma: requisition-
 tier: high
 effort: high
 gates: [requisition_review]
-version: "3.8"
+version: "3.9"
 ---
 ## Role
 
@@ -65,7 +65,7 @@ Test files outside the fence that run fenced files:
 {{coverage_dependents}}
 <<chupa-data:end coverage_dependents>>
 
-Your prior review of this ticket and the diff from the text it judged (`none` on a first review):
+Your prior review of this ticket and the diff from the text it judged (`first review: no earlier review recorded` on a first review):
 
 <<chupa-data:begin prior_review>>
 {{prior_review}}

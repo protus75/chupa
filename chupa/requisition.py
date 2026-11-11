@@ -21,6 +21,7 @@ from chupa.stages import _in_fence, implement_inputs
 from chupa.tickets import Ticket, validate_ticket
 
 REQUISITION_STUCK_S = 600.0
+FIRST_REVIEW = "first review: no earlier review recorded"
 
 
 class RequisitionReply(BaseModel):
@@ -75,7 +76,7 @@ async def prior_review(git, repo, events, stem, text) -> str:
     """Render the latest recorded findings and changes to the text they judged."""
     event = next((e for e in reversed(events) if e.type == EventType.SIGNAL and e.ticket == stem and e.body.get("signal") == "requisition_verdict" and "findings" in e.body), None)
     if event is None:
-        return "none"
+        return FIRST_REVIEW
     body = event.body
     judged = await git._run(repo, "show", body["ticket_sha"])
     findings = "\n".join(f"- [{f['code']}] {' '.join(f['message'].splitlines())}" for f in body["findings"]) or "- none"
@@ -97,7 +98,7 @@ async def review_ticket(
     attempt: int,
     call_seq: int,
     expected_budget: float | Literal["surface", "eval"],
-    prior: str = "none",
+    prior: str,
 ) -> RequisitionVerdict:
     ticket = review_target(repo, stem, text)
     spec = load_spec((specs_dir / "requisition_review.md").read_text())

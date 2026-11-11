@@ -7,6 +7,7 @@ import pytest
 from chupa import requisition
 from chupa.driver import _StuckBudget
 from chupa.providers import ProviderCallError
+from chupa.requisition import FIRST_REVIEW
 
 
 class MemoryPath:
@@ -65,6 +66,7 @@ def test_stage_events(monkeypatch, case, outcome):
             attempt=3,
             call_seq=1,
             expected_budget="surface",
+            prior=FIRST_REVIEW,
         )
 
     if case == "provider":

@@ -7,6 +7,7 @@ from chupa.journal import EventType, Journal
 from chupa.llm import FakeLLM
 from chupa.lockfile import Lockfile
 from chupa.reconcile import orphans
+from chupa.requisition import FIRST_REVIEW
 from chupa.status import last_states
 from tests.integration.test_cli import ENV, git_out, ticket, write
 from tests.integration.test_drain import Clock, commit_ticket, confirmed, make_root
@@ -152,5 +153,5 @@ def test_review_uses_previous_findings_after_edit(tmp_path, monkeypatch):
     git_out(root, "commit", "-m", "edit ticket")
     assert run(root, monkeypatch, llm, "candidate") == 0
     blocks = [r.rendered.split("<<chupa-data:begin prior_review>>\n", 1)[1].split("\n<<chupa-data:end prior_review>>", 1)[0] for r in llm.requests]
-    assert blocks[0] == "none"
+    assert blocks[0] == FIRST_REVIEW
     assert "missing caller" in blocks[1] and "+Changed." in blocks[1]

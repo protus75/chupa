@@ -236,7 +236,7 @@ async def test_mid_run_drought_is_harvested_without_spine_draws(root, monkeypatc
 
     async def check(ctx, ticket, slip, *, attempt):
         if nested:
-            from chupa.requisition import review_ticket
+            from chupa.requisition import FIRST_REVIEW, review_ticket
             from tests.integration.test_requisition import TICKET
 
             await review_ticket(
@@ -252,6 +252,7 @@ async def test_mid_run_drought_is_harvested_without_spine_draws(root, monkeypatc
                 attempt=attempt,
                 call_seq=1,
                 expected_budget=600,
+                prior=FIRST_REVIEW,
             )
         return await stage(rig, ctx.driver, stem=ticket.stem, surface="review")
 

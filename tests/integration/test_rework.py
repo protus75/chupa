@@ -178,7 +178,7 @@ def test_split_order_requires_fresh_buildable_successors(ctx, monkeypatch, sourc
 
 def test_split_reviews_after_pre_run_review_use_new_keys(ctx):
     async def scenario():
-        from chupa.requisition import review_ticket
+        from chupa.requisition import FIRST_REVIEW, review_ticket
 
         ticket, text = await original(ctx)
         attempt = 3
@@ -197,6 +197,7 @@ def test_split_reviews_after_pre_run_review_use_new_keys(ctx):
             attempt=attempt,
             call_seq=1,
             expected_budget=ticket.expected_minutes * 60.0,
+            prior=FIRST_REVIEW,
         )
         assert prior.verdict == "approve"
         ctx.driver.journal.append(EventType.EFFECT_INTENT, {}, key="llm/original/3/requisition_review/3/10")

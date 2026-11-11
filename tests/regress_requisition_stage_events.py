@@ -9,7 +9,7 @@ from pathlib import Path
 from chupa.config import load_config
 from chupa.driver import Driver
 from chupa.llm import FakeLLM
-from chupa.requisition import review_ticket
+from chupa.requisition import FIRST_REVIEW, review_ticket
 
 TICKET = """---
 state: confirmed
@@ -89,6 +89,7 @@ with tempfile.TemporaryDirectory() as directory:
             attempt=2,
             call_seq=1,
             expected_budget="surface",
+            prior=FIRST_REVIEW,
         )
     )
     log = repo / ".state/engine.log"
