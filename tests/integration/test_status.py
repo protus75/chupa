@@ -188,7 +188,7 @@ def test_status_preserves_sections_and_is_write_free(tmp_path, monkeypatch, caps
         for n in range(3):
             box.record_rereport(reopened, occurrence_id=f"report/{n}")
         legacy = (
-            "merged:\n- done\n\nin flight:\n- active\n\nblocked:\n- held: gate_failed\n\n"
+            "merged:\n- done\n\nin flight:\n(none)\n\ninterrupted (the engine stopped mid-run; reject it, or start the engine to rerun it):\n- active\n\nblocked:\n- held: gate_failed\n\n"
             "intake:\n- new: source: human, state: confirmed, commit 123456789abc\n\nspend:\n$2.00\n\n"
             "Reject queue:\n- held: gate_failed at check -- confirm held after editing, or reject held\n\n"
             f"Confirmed-class tombstones:\n- {id}: failure_report, 0 re-reports\n\n"

@@ -464,7 +464,9 @@ def snapshot(ctx) -> dict:
         if e.get("type") == "state_transition" and e.get("ticket"):
             last[e["ticket"]] = {**e["body"], "ts": e["ts"]}
     tickets, invalid = load_tickets(ctx, {s for s, b in last.items() if b.get("to") in SETTLED | RETIRED})
-    history = [SimpleNamespace(type=e.get("type"), body=e.get("body", {}), ticket=e.get("ticket"), ts=e.get("ts")) for e in events]
+    history = [SimpleNamespace(type=e.get("type"), body=e.get("body", {}), ticket=e.get("ticket"), ts=e.get("ts"), key=e.get("key")) for e in events]
+    from chupa.reconcile import orphans
+
     authored = authored_at(history)
     # The drain's own test: a dependency is met when it, or every leaf of the split that superseded it, settled.
     settled = set(settled_dependencies(history))
@@ -477,6 +479,7 @@ def snapshot(ctx) -> dict:
 
     merged = sorted((s for s in last if to(s) in SETTLED), key=lambda s: last[s]["ts"], reverse=True)
     alive = lock_holder(state) is not None
+    interrupted = set(orphans(history)) if not alive else set()
     lock = ""
     if alive:
         try:
@@ -602,7 +605,7 @@ def snapshot(ctx) -> dict:
             "chupaLint": "on" if r["section"] != "merged" else "off",
             "chupaRun": available(r["runnable"]),
             "chupaConfirm": "on" if verdict else "off",
-            "chupaReject": "on" if verdict else "off",
+            "chupaReject": "on" if verdict or (to(r["stem"]) == "running" and r["stem"] in interrupted) else "off",
             "chupaAskDiagnose": "on" if r["section"] != "merged" else "off",
             "chupaAskReview": "on" if open_section else "off",
             "chupaPriority": "on" if open_section and valid else "off",

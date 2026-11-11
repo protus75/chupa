@@ -21,7 +21,7 @@ from uuid import uuid4
 import yaml
 
 import chupa
-from chupa import ask, control, drain, hostfiles, requisition, runner, seams, serve, triage
+from chupa import ask, control, drain, hostfiles, observe, reconcile, requisition, runner, seams, serve, triage
 from chupa.box import UnknownBoxId
 from chupa.config import ConfigError, ConfigSnapshot, load_config, migrate_config
 from chupa.daemon import DaemonCore, PauseConsumer, StartupBoundary, daemon_core
@@ -485,6 +485,7 @@ def main(
                 lock = Lockfile(config.state_dir, instance_id=await checkout.git.describe(repo), clock=clock)
                 lock.acquire()
                 try:
+                    await runner.reap(checkout)
                     return await triage.dismiss(checkout, args.ids)
                 finally:
                     lock.release()
@@ -496,16 +497,17 @@ def main(
             async def one_pass() -> list[tuple[str, str]]:
                 lock = Lockfile(config.state_dir, instance_id=await checkout.git.describe(repo), clock=clock)
                 lock.acquire()
-                session = build_control(checkout).providers
                 try:
-                    triage.validate_ids(checkout, args.ids)
-                    llm = await _preflighted_llm(checkout, session)
-                    return await triage.triage_pass(checkout, llm, frozenset(args.ids))
-                finally:
+                    await runner.reap(checkout)
+                    session = build_control(checkout).providers
                     try:
-                        await session.close()
+                        triage.validate_ids(checkout, args.ids)
+                        llm = await _preflighted_llm(checkout, session)
+                        return await triage.triage_pass(checkout, llm, frozenset(args.ids))
                     finally:
-                        lock.release()
+                        await session.close()
+                finally:
+                    lock.release()
 
             lines = asyncio.run(one_pass())
             print("\n".join(line for _, line in lines) if lines else "no pending suggestions")
@@ -569,6 +571,7 @@ async def _review(checkout: runner.Checkout, stem: str) -> int:
         except LockHeld as exc:
             raise runner.Refusal(str(exc), f"wait for the running engine to commit the ticket through intake, or stop it, then retry `review {stem}`") from None
         try:
+            await runner.reap(checkout)
             result = await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
             if refused := result.refused.get(stem):
                 raise runner.Refusal(f"{ticket_path(stem)} failed intake: " + "; ".join(f.message for f in refused), f"fix the ticket and retry `review {stem}`")
@@ -650,6 +653,7 @@ async def _retro(checkout, pipeline, *, config_path=None):
         print(f"retro submitted: {request.request_id}; the running engine runs it between tickets")
         return 0
     try:
+        await runner.reap(checkout)
         checkout = replace(checkout, control=build_control(checkout))
         checkout.control.load_config = lambda: load_config(config_path, cwd=checkout.repo)
         dispatch = pipeline(checkout)
@@ -776,7 +780,12 @@ async def _status(checkout: runner.Checkout):
     spec = load_spec((runner.SPECS_DIR / "retro.md").read_text())
     provenance = {"head": await checkout.git.rev_parse(checkout.repo, "HEAD"), "spec_version": spec.meta.version, "at": checkout.clock().isoformat()}
     return project(
-        events, window=window, provenance=provenance, box=Box(checkout.config.state_dir / BOX_DIR, checkout.fs, rereport=RereportJournal(checkout.journal)), policy=checkout.config.box_policy
+        events,
+        alive=observe.lock_holder(checkout.config.state_dir) is not None,
+        window=window,
+        provenance=provenance,
+        box=Box(checkout.config.state_dir / BOX_DIR, checkout.fs, rereport=RereportJournal(checkout.journal)),
+        policy=checkout.config.box_policy,
     )
 
 
@@ -867,8 +876,9 @@ def _order(checkout, stem, priority, runs_before):
     path = checkout.repo / ticket_path(stem)
     if not path.is_file():
         raise runner.Refusal(f"{ticket_path(stem)} does not exist", f"author it with chupa new {stem}")
-    state = last_states(checkout.journal.read()).get(stem)
-    if state == "running":
+    events = checkout.journal.read()
+    state = last_states(events).get(stem)
+    if state == "running" and (stem not in reconcile.orphans(events) or observe.lock_holder(checkout.config.state_dir) is not None):
         raise runner.Refusal(f"{stem} is running; editing a ticket during its run stops it with ticket_changed", "reorder it after the run ends")
     if state in SETTLED | {"rejected"}:
         raise runner.Refusal(f"{stem} is {state}", "author follow-up work as a new ticket")

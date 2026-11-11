@@ -253,7 +253,8 @@ def test_order_refuses_invalid_and_leaves_file(root, capsys):
 
 
 @pytest.mark.parametrize("state", ["running", "merged", "already_satisfied", "rejected"])
-def test_order_refuses_running_settled_and_rejected(root, capsys, state):
+def test_order_refuses_running_settled_and_rejected(root, capsys, state, monkeypatch):
+    monkeypatch.setattr("chupa.observe.lock_holder", lambda state: object())
     original = order_ticket()
     write(root, "first", original)
     journal(root).append(EventType.STATE_TRANSITION, {"to": state}, ticket="first")
@@ -309,7 +310,7 @@ def test_status_projects_the_journal(root, capsys):
     out = capsys.readouterr().out
     section = dict(block.split("\n", 1) for block in out.strip().split("\n\n"))
     assert "a" in section["merged:"] and "b" not in section["merged:"]
-    assert "b" in section["in flight:"]
+    assert "b" in section["interrupted (the engine stopped mid-run; reject it, or start the engine to rerun it):"]
     assert "c: gate_failed" in section["blocked:"]
     assert "d: source: human" in section["intake:"]
     assert "$0.75" in section["spend:"]

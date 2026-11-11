@@ -480,6 +480,11 @@ async def harvest_orphan(checkout: Checkout, stem: str, attempt: int) -> None:
     await harvest(ctx, stem, attempt=attempt, stage=None, terminal="abandoned", findings=[], results=())
 
 
+async def reap(checkout: Checkout) -> list[str]:
+    assert checkout.config.worktree_root is not None
+    return await reconcile(checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root, lambda orphan, attempt: harvest_orphan(checkout, orphan, attempt))
+
+
 async def run_ticket(stem: str, checkout: Checkout, dispatch: Dispatch) -> int:
     if findings := stem_findings(stem):
         raise Refusal(findings[0].message, findings[0].paved_road)
@@ -490,8 +495,7 @@ async def run_ticket(stem: str, checkout: Checkout, dispatch: Dispatch) -> int:
     outcome = "parked"
     try:
         log.event("engine_start", verb="run", pid=pid)
-        assert checkout.config.worktree_root is not None  # resolved at config load
-        await reconcile(checkout.journal, checkout.git, checkout.repo, checkout.config.worktree_root, lambda orphan, attempt: harvest_orphan(checkout, orphan, attempt))
+        await reap(checkout)
         if checkout.control is not None:
             checkout.control.providers.timers.reconstruct()
             checkout.control.providers.timers.fire_due()
@@ -533,6 +537,7 @@ async def verdict(stem: str, checkout: Checkout, *, kill: bool, extension: bool 
     lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
     lock.acquire()
     try:
+        await reap(checkout)
         return await verdict_locked(stem, checkout, kill=kill, extension=extension)
     finally:
         lock.release()

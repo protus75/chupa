@@ -55,7 +55,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `docs` | no | Prints the installed host guide paths and their purposes. |
 | `migrate-config` | no | Migrates a `schema_version: 0` config to the current schema. |
 | `new <stem> --kind feature\|bug\|chore` | no | Writes `tickets/<stem>/ticket.md` with section placeholders for the selected kind (default `feature`) and lints it. Bugs include `## Regression`, require `--evidence <file>...`, and copy those files into `tickets/<stem>/evidence/`. Refuses a bad, reserved, or existing stem, or unknown kind (exit 2); successful authorship exits 0. |
-| `order <stem> [--priority P0\|P1\|P2\|P3] [--runs-before [stem ...]]` | no | Validates and edits priority and/or runs-before ordering in the working tree; a bare `--runs-before` removes the section. Refuses running, settled, rejected, missing or invalid tickets. Intake commits the edit. |
+| `order <stem> [--priority P0\|P1\|P2\|P3] [--runs-before [stem ...]]` | no | Validates and edits priority and/or runs-before ordering in the working tree; a bare `--runs-before` removes the section. Refuses a running ticket while an engine is live, and settled, rejected, missing or invalid tickets. An interrupted run with no live engine is editable. Intake commits the edit. |
 | `review <stem>` | intake only | Reviews an unchanged committed ticket without the checkout lock. Pending changes under the ticket directory require locked intake first; if the lock is held, wait for the running engine to commit the ticket through intake or stop it, then retry. Reviews the committed ticket against merged code and journals its verdict and ticket blob SHA. A ticket with an unmerged dependency gets a provisional review that is printed but not journaled, so the drain reviews it again before its first run. Refuses missing, intake-failed, settled, or rejected tickets without a model call. Prints findings and exits 0 on approve, 1 on snag or rma. |
 | `run <stem>` | yes | Reconciles orphans, runs intake, then drives the one named ticket through every stage. Refuses a stem that failed intake, is missing, invalid, merged, not `confirmed`, or has unmerged dependencies. |
 | `drain [--detach]` | yes | Runs every eligible ticket to quiescence (section 7.1); `--detach` starts its own session and appends to `<state_dir>/drain.out`. |
@@ -444,10 +444,10 @@ Keep and kill normally require a person at an interactive terminal to answer `y`
   the stem parks until its committed `ticket.md` changes. That re-offer draws no retry.
 - **`budget_exceeded`:** not diagnosed, draws nothing. Ticket stages pass no spend budget, so in
   practice only eval runs reach it.
-- **Reconcile:** at the start of `run`, `drain`, and `serve`, any stem still marked `running`
+- **Reconcile:** whenever a verb other than pause, resume, kill or stop takes the writer lock, any stem still marked `running`
   (or with an unfinished effect) is reaped: harvested, journaled `abandoned`, worktree removed.
-  `abandoned` stems stay eligible. A `running` stem cannot be confirmed or rejected until it is
-  reaped.
+  `abandoned` stems stay eligible. With no engine running, `status` shows such a stem as interrupted, `reject`
+  reaps and rejects it, and `order` treats it as open.
 - **Flaky tests:** Check quarantines unedited fail-then-pass tests and releases them after a merged fix and a passing observation. Edited flakes and cap-blocked flakes fail Check.
 
 ## 7. Drain and serve
@@ -695,7 +695,7 @@ and notifications are Effects, so a crash never repeats one.
 
 `status` is a write-free projection of the journal:
 
-1. Stems by last state: merged, in flight, blocked (every other state, including
+1. Stems by last state: merged, in flight, interrupted (last `running` with no live engine), blocked (every other state, including
    `already_satisfied`).
    `already_satisfied` remains in this state listing as a settled no-op; it is never diagnosed
    or awaiting a verdict in the Reject queue.

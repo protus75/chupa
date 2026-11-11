@@ -23,6 +23,7 @@ class Status:
     blocked: tuple[tuple[str, str], ...]  # (stem, the non-merged terminal its last run ended in)
     intake: tuple[tuple[str, str, str, str], ...]  # (stem, source, state, commit) per intake commit
     spend_usd: float
+    interrupted: tuple[str, ...] = ()
     box: tuple[tuple[str, str, str, str], ...] = ()
     reject: tuple[tuple[str, Mapping], ...] = ()
     verdict_refusals: tuple[tuple[str, str], ...] = ()
@@ -57,9 +58,12 @@ def last_states(events: Iterable[Event]) -> dict[str, str]:
     return {e.ticket: e.body["to"] for e in events if e.type == EventType.STATE_TRANSITION and e.ticket is not None and "to" in e.body}
 
 
-def project(events: Iterable[Event], *, box=None, policy=None, window: Window | None = None, provenance: Mapping[str, str] | None = None) -> Status:
+def project(events: Iterable[Event], *, alive: bool = True, box=None, policy=None, window: Window | None = None, provenance: Mapping[str, str] | None = None) -> Status:
     events = list(events)
+    from chupa.reconcile import orphans
+
     last = last_states(events)
+    interrupted = set(orphans(events)) if not alive else set()
     intake = tuple((e.ticket, e.body["source"], e.body["state"], e.body["commit"]) for e in events if e.type == EventType.SIGNAL and e.body.get("signal") == INTAKE_SIGNAL and e.ticket is not None)
     spend = sum(e.body["cost"].get("usd", 0.0) for e in events if e.type == EventType.EFFECT_COMPLETION and isinstance(e.body.get("cost"), dict))
     messages = box.messages() if box is not None else []
@@ -76,7 +80,8 @@ def project(events: Iterable[Event], *, box=None, policy=None, window: Window | 
     return Status(
         box=tuple(row(m) for m in messages),
         merged=tuple(sorted(s for s, to in last.items() if to == "merged")),
-        in_flight=tuple(sorted(s for s, to in last.items() if to == "running")),
+        in_flight=tuple(sorted(s for s, to in last.items() if to == "running" and s not in interrupted)),
+        interrupted=tuple(sorted(s for s, to in last.items() if to == "running" and s in interrupted)),
         blocked=tuple(sorted((s, to) for s, to in last.items() if to not in ("merged", "running"))),
         intake=intake,
         spend_usd=spend,
@@ -122,6 +127,7 @@ def render(status: Status) -> str:
             (
                 block("merged", status.merged),
                 block("in flight", status.in_flight),
+                *((block("interrupted (the engine stopped mid-run; reject it, or start the engine to rerun it)", status.interrupted),) if status.interrupted else ()),
                 block("blocked", (f"{stem}: {to}" for stem, to in status.blocked)),
                 block("intake", (f"{stem}: source: {source}, state: {state}, commit {commit[:12]}" for stem, source, state, commit in status.intake)),
                 f"spend:\n${status.spend_usd:.2f}",
