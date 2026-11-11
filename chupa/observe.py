@@ -315,7 +315,8 @@ def recent_steps(state: Path, log: list[dict], limit: int) -> list[dict]:
             name = PHASE_NAMES[e["phase"]]
             outcome = e.get("outcome", "?")
             verb = "start" if event == "phase_start" else f"end ({outcome.replace('_', ' ')})"
-            kind = "phase_start" if event == "phase_start" else "phase_failed" if outcome == "failed" else "phase_ok"
+            suffix = "start" if event == "phase_start" else "failed" if outcome == "failed" else "ok"
+            kind = f"{e['phase']}_{suffix}"
             rows.append({"ts": e["ts"], "stem": None, "text": f"{name} {verb}", "kind": kind})
         elif event == "engine_start":
             rows.append({"ts": e["ts"], "stem": None, "text": f"{e['verb']} started (pid {e['pid']})", "kind": "engine_start"})

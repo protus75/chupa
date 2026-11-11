@@ -693,8 +693,8 @@ def test_recent_steps_phase_events(tmp_path):
     ]
     rows = watch.recent_steps(tmp_path, log, 10)
     assert [(r["text"], r["kind"], r["stem"]) for r in rows] == [
-        ("Retro check end (failed)", "phase_failed", None),
-        ("Retro check end (no report)", "phase_ok", None),
-        ("Preflight end (ok)", "phase_ok", None),
-        ("Preflight start", "phase_start", None),
+        ("Retro check end (failed)", "retro_check_failed", None),
+        ("Retro check end (no report)", "retro_check_ok", None),
+        ("Preflight end (ok)", "preflight_ok", None),
+        ("Preflight start", "preflight_start", None),
     ]
