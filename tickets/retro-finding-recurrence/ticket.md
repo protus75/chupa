@@ -34,9 +34,13 @@ When this ticket is done, the retro sees the existing findings and marks a propo
 - In: `chupa/retro.py`:
   - The retro render gains a `prior_findings` input: every `retro_finding` box message as `{id, fixed_failure, status, resolution_kind, resolution_link, fix_merged}`. `fix_merged` is true when the resolution is a `ticket` whose stem's last journal state is `merged`. It is computed in Python, never by the model.
   - `RetroProposal` gains an optional `recurs`: the id of an existing `retro_finding`. A reply whose `recurs` names an id not in `prior_findings` fails validation and goes back to the model as a retry finding, like any other schema error.
-  - `emit_proposals`: a proposal with `recurs` files no new message. It records one recurrence on the named message, keyed by an occurrence id from `arrival_id("retro-recurrence", report_key, proposal_id)`, so a re-emit after a crash, or on any later drain start, counts it once. If the named message is resolved as a `ticket` whose stem merged, the recurrence also reopens it: `status` `pending`, `resolution` and `verdict` cleared, and `reopen` true. Every other state (pending, tombstone, declined, or a fix not yet merged) only counts the recurrence. Tombstones keep their existing three-report reopen rule.
+  - `emit_proposals`: a proposal with `recurs` files no new message. It records one recurrence on the named message, keyed by an occurrence id from `arrival_id("retro-recurrence", report_key, proposal_id)`, so a re-emit after a crash, or on any later drain start, counts it once. By the named message's state:
+    - Tombstone: it goes through the existing re-report path (`Box.record_rereport`), so it counts in `reports` and keeps the existing third-report reopen rule.
+    - Every other state: it counts in a new `Message` field `recurrences` (int, default 0), never in `reports`, so the third-report reopen in `record_rereport` cannot fire on it.
+    - Resolved as a `ticket` whose stem merged: it also reopens the message: `status` `pending`, `resolution` and `verdict` cleared, and `reopen` true.
+    - Pending, declined, or a ticket not yet merged: count only, never reopen, however many recurrences arrive.
   - The re-emit skip from `retro-reemit-skip` also skips a `recurs` proposal whose occurrence is already recorded.
-- In: `chupa/box.py`: whatever minimal method or field the recurrence record and reopen need, through the existing write-ahead re-report receipts. No second receipt mechanism.
+- In: `chupa/box.py`: the `recurrences` field and a method that records a non-tombstone recurrence and the merged-fix reopen. It writes a journal receipt keyed `retro-recurrence/<message id>/<occurrence id>` with the same effect intent and completion pattern as `RereportJournal.record`, so a crash between the intent and the box write never double counts.
 - In: `chupa/specs/retro.md`: a `prior_findings` data block, and a Task rule to set `recurs` when a proposal fixes the same failure as an existing finding, judged by cause rather than wording. Its `version` goes from `1.3` to `1.4`, and `tests/integration/test_retro.py`'s pinned `"1.3"` follows.
 - In: `docs/how-chupa-works.md`: the retro paragraph (around "files each proposal as a `retro_finding`") and the tombstone-and-reopen list item describe recurrences and the fix-did-not-hold reopen.
 - Out:
@@ -56,13 +60,19 @@ When this ticket is done, the retro sees the existing findings and marks a propo
 ## Acceptance criteria
 1. `tests/unit/test_retro_recurrence.py`: the `prior_findings` render input lists every `retro_finding` box message with the six fields. `fix_merged` is true only for a `ticket` resolution whose stem's last journal state is `merged`, and false for a ticket still running, a tombstone and a pending message.
 2. `tests/unit/test_retro_recurrence.py`: a retro reply whose `recurs` names an id not in `prior_findings` is rejected with a retry finding, not filed.
-3. `tests/integration/test_retro_box.py`, with a `FakeLLM` retro reply carrying `recurs`:
+3. `tests/unit/test_retro_recurrence.py`, with no disk access (an in-memory journal, fake messages, and a monkeypatched `storm_producer` fake box, as in `retro-reemit-skip`'s unit criterion), calls `Retro.emit_proposals` with a completed event and a fake `git._run` receipt carrying a `recurs` proposal:
+   - `enqueue` is called zero times, and the named pending message's `recurrences` becomes 1, not 2 after a second identical call.
+   - A named message resolved as a merged ticket is reopened: `pending`, `reopen` true, no resolution.
+   - Three recurrences on a message resolved as a ticket still `running` leave it resolved, with `recurrences` 3 and `reports` unchanged.
+4. `tests/integration/test_retro_box.py`, with a `FakeLLM` retro reply carrying `recurs`:
    - For a pending finding: no new box message is created, and the named message's recurrence count rises by exactly 1.
    - For a finding resolved as a `ticket` whose stem is `merged`: the message becomes `pending` with `reopen` true and no resolution.
    - For a finding resolved as a `ticket` still `running`: the count rises, and the message stays resolved.
    - Running `emit_proposals` for the same report twice leaves the count and the box files as after the first run, not counted twice.
-4. `tests/integration/test_retro.py` passes with the spec version pin updated to `"1.4"`.
-5. `./dev.py test` exits 0.
+   - For a `declined` finding: `recurrences` rises, and the message stays resolved.
+   - For a tombstone: `reports` rises through the re-report path, and the third report reopens it as today.
+5. `tests/integration/test_retro.py` passes with the spec version pin updated to `"1.4"`.
+6. `./dev.py test` exits 0.
 
 ## Verification
 ```
