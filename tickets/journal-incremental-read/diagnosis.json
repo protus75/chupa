@@ -1,18 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "c1a5ecae62daee42b5b6288724df45a5aea2d0e3",
+  "produced_at_sha": "5fa6fe1d9110a24e6ada3a9b2b95290d9ad3ba16",
   "stem": "journal-incremental-read",
-  "attempt": 2,
+  "attempt": 3,
   "terminal": "gate_failed",
   "stage": "review",
-  "verdict": "retry",
+  "verdict": "reject",
   "lessons": [
-    "Redo the full ticket from the merge base. Review found the incremental read and the pure no-I/O helper sound: it parses complete lines from an offset, returns the new offset and line count, and leaves an unterminated tail unparsed. Rebuild them the same way.",
-    "append() must never go through read_segments() or touch rolled segments. Per the Scope in, it refreshes only the active segment through the instance's incremental read, parses only lines it has not cached, and takes the roll-age timestamp from that segment's first line.",
-    "Put the active-segment incremental update in one place that both read_segments() and append() call, taking one segment path. A fresh instance's first append() then parses the active segment once, and a corrupt rolled segment never blocks a write.",
-    "Add a test that a fresh Journal's first append() over a rolled segment plus an active segment makes no _parse_line calls for rolled-segment lines. This pins the Scope in rule that append parses only the active segment.",
-    "Criterion 2, same-instance case: keep the read() result after the k appends and assert it equals Journal(tmp_path, clock).read() by value and order, as the second-writer case does. Do not compare only body['n']."
+    "Criterion 2 contradicts Scope-in. Scope-in has append() parse every line the instance has not cached, and it bans in-process shortcuts. So after k same-instance appends, the earlier appends have already parsed k-1 of the new lines, and the next read() parses 1 line, not k.",
+    "Amend criterion 2's same-instance case to: the next read() parses only lines this instance has not yet parsed, and exactly 1 when all k appends came from this instance after its last read. Keep 'exactly k' for appends by a second Journal on the same directory.",
+    "After the amendment, redo the full work from the merge base. Add the pure offset helper, cache rolled segments with a size check, and track the active segment's offset and line count. append() should read only the first line for the roll-age check and validate unseen lines before writing.",
+    "Review found sound: append() reuses the instance's single incremental cache to validate unseen lines before writing. Do not add a second append-only validation cache. It would re-parse bytes, which contradicts section 10's 'each byte once' sentence and is the dual path CLAUDE.md bans."
   ],
   "mechanical": null,
   "spec_version": "1.4",
