@@ -390,7 +390,7 @@ which counts failed terminal `state_transition` events directly and journals no 
 | `poison` | 2 | read by nothing |
 
 Failed attempts are `gate_failed`, `premise_failed`, `infra_error`, and `timeout` terminals.
-An `infra_error` with reason `provider_drought`, `budget_exceeded`, an `abandoned` reap,
+A requisition-stage `premise_failed`, an `infra_error` with reason `provider_drought`, `budget_exceeded`, an `abandoned` reap,
 settled terminals, and `rejected` do not count. The failure reaching `caps.attempts` is itself
 routed with reason `attempts cap spent`, without another diagnosis or rework call, including
 merge-conflict handoffs. Terminal routing also counts a pending failure after a published Rework

@@ -25,6 +25,7 @@ def test_attempts_cap_counts_every_failed_terminal(tmp_path):
     config = Caps()
     for body in [
         {"to": "running"},
+        {"to": "premise_failed", "stage": "requisition"},
         {"to": "infra_error", "reason": "provider_drought"},
         {"to": "budget_exceeded"},
         {"to": "abandoned"},
