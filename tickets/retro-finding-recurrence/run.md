@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-The initial full test run exposed a missing journal callback on the new Box construction; it was fixed, and the final verification passed. The simpler approach of filing another finding was rejected because it would not preserve recurrence counts or reopen the existing finding.
+Final verification passed: 3,387 tests; the configured unit coverage, integration, lint, and format checks also passed. Pytest emitted nine fixture-loop deprecation warnings.
 
 ## Dead ends
 
-none
+A simple count without journal receipts was rejected because it could double-count after a crash.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-The ticket estimated 60 minutes; actual duration was not measured.
+Expected 60 minutes; actual time was not measured.
 
