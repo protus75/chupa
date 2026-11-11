@@ -1,18 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "3e9e0161cca841e222938404775c6d2471ca18c7",
+  "produced_at_sha": "7802c119e1cd6e08793c3abc7b22661c19103af3",
   "stem": "verb-lock-need-single-source",
-  "attempt": 0,
+  "attempt": 1,
   "terminal": "gate_failed",
   "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "Redo all the work from the merge base. Add `verb` to Lockfile's JSON identity and pass it at every call site, using `eval` for eval/harness.py and eval/diagnose.py. Add one drain/serve engine-verb constant in chupa/lockfile.py. Review found this production approach sound.",
-    "Redo the snapshot so `engine` and `lock` come from the recorded verb, with no `\"-m\", \"chupa\"` ps parse. Add one predicate for pending changes under `tickets/<stem>/`, shared by `_review` and `chupaReview`. Update the docs named in the ticket's Scope in.",
-    "In tests/unit/test_lock_holder.py, do not test a copy of `holder.get(\"verb\") in ENGINE_VERBS`. Review rejected that test because it never runs production code. Every case must call `_control` (stop), `_verdict` (confirm) and `_retro`, with a fake `Lockfile.acquire` that raises `LockHeld`.",
-    "Parametrize the LockHeld holder over drain, serve, triage, eval, a dict with no `verb` key, and None. For drain and serve, assert exactly one published request. For the rest, assert `runner.Refusal` names the holder and nothing is published. This covers criterion 6 bullet 1 through the real path.",
-    "Keep the integration tests for criteria 1-5 in test_lockfile.py, test_watch.py, test_control_cli.py and test_review_command.py or test_cli.py. Run `./dev.py test` until it exits 0, including the test-gate.toml coverage floors."
+    "Redo the full ticket from the merge base. Review found the approach sound: verb recorded in the Lockfile JSON, one engine-verb constant (drain, serve) in chupa/lockfile.py, a shared pending-change predicate for _review and chupaReview, and refusals in _control, _verdict and _retro.",
+    "tests/unit/test_lock_holder.py must be fake-backed. The confirm route through the real _verdict with journal.read returning [] and repo=Path(\"repo\") stats repo/tickets/candidate/ticket.md against the cwd, so the test reads disk.",
+    "Fix for the confirm route: pass a fake repo whose `/` returns an object with is_file() returning False, or have checkout.journal.read return history that puts the stem in reject_queue so _verdict takes the queued preview branch and never touches a path.",
+    "Every Lockfile(...) call site and every test that builds one must pass verb=. That covers eval/harness.py (twice), eval/diagnose.py, tests/integration/* and tests/harness/reliability_battery.py. Then run ./dev.py test and confirm it exits 0 with the coverage floors met."
   ],
   "mechanical": null,
   "spec_version": "1.5",
