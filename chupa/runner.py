@@ -120,7 +120,14 @@ def pipeline(checkout: Checkout) -> Dispatch:
 async def prepare_pipeline(checkout: Checkout) -> Dispatch:
     """Preflight this checkout's providers before constructing any stage consumers."""
     llm = ProviderLLM(checkout.config, exec_=checkout.exec_, fs=checkout.fs, env=checkout.env, cwd=checkout.repo, timeout=call_timeout(checkout.config), session=checkout.control.providers)
-    problems = await llm.preflight()
+    log = EngineLog(checkout.config.state_dir / "engine.log", Redactor.from_config(checkout.config, checkout.env), checkout.clock)
+    log.event("phase_start", phase="preflight")
+    try:
+        problems = await llm.preflight()
+    except BaseException:
+        log.event("phase_end", phase="preflight", outcome="failed")
+        raise
+    log.event("phase_end", phase="preflight", outcome="failed" if problems else "ok")
     for notice in llm.preflight_notices:
         print(f"chupa: provider preflight notice: {notice}", file=sys.stderr)
     if problems:

@@ -677,3 +677,24 @@ def test_snapshot_review_owner_without_ticket_has_no_path(tmp_path, monkeypatch)
     row = watch.snapshot(ctx)["steps"][0]
     assert row["stem"] == "review-x"
     assert row["path"] is None  # A nonexistent ticket must not be offered as a link.
+
+
+def test_recent_steps_phase_events(tmp_path):
+    log = [
+        {"ts": f"2026-01-01T00:00:0{i}+00:00", **event}
+        for i, event in enumerate(
+            [
+                {"event": "phase_start", "phase": "preflight"},
+                {"event": "phase_end", "phase": "preflight", "outcome": "ok"},
+                {"event": "phase_end", "phase": "retro_check", "outcome": "no_report"},
+                {"event": "phase_end", "phase": "retro_check", "outcome": "failed"},
+            ]
+        )
+    ]
+    rows = watch.recent_steps(tmp_path, log, 10)
+    assert [(r["text"], r["kind"], r["stem"]) for r in rows] == [
+        ("Retro check end (failed)", "phase_failed", None),
+        ("Retro check end (no report)", "phase_ok", None),
+        ("Preflight end (ok)", "phase_ok", None),
+        ("Preflight start", "phase_start", None),
+    ]

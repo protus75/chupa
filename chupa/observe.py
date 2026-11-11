@@ -30,6 +30,8 @@ STEP_NAMES = {
     "author": "Author",
 }
 
+PHASE_NAMES = {"preflight": "Preflight", "retro_check": "Retro check"}
+
 
 @dataclass(frozen=True)
 class Context:
@@ -309,6 +311,12 @@ def recent_steps(state: Path, log: list[dict], limit: int) -> list[dict]:
             if surface == "triage" and "run_seq" in e:
                 name = f"{name} #{e['run_seq']}"
             rows.append({"ts": e["ts"], "stem": e.get("stem"), "surface": surface, "attempt": e.get("attempt"), "run_seq": e.get("run_seq"), "text": f"{name} {verb}", "kind": f"{prefix}_{suffix}"})
+        elif event in ("phase_start", "phase_end"):
+            name = PHASE_NAMES[e["phase"]]
+            outcome = e.get("outcome", "?")
+            verb = "start" if event == "phase_start" else f"end ({outcome.replace('_', ' ')})"
+            kind = "phase_start" if event == "phase_start" else "phase_failed" if outcome == "failed" else "phase_ok"
+            rows.append({"ts": e["ts"], "stem": None, "text": f"{name} {verb}", "kind": kind})
         elif event == "engine_start":
             rows.append({"ts": e["ts"], "stem": None, "text": f"{e['verb']} started (pid {e['pid']})", "kind": "engine_start"})
         elif event == "engine_stop":

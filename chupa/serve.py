@@ -338,12 +338,20 @@ class Serve:
         return self.retro_due or request_id is not None and request_id != self.served_retro_id
 
     async def check_retro(self):
-        c = replace(self.checkout, config=snapshot_config(self.control.load_config()))
-        window = project_window(c.journal.read())
-        if suppressing_failure(window) is None:
-            evidence = await production_evidence(window, c)
-            if select_trigger(window, evidence, c.clock(), c.config.retro, forced=False) is not None:
-                self.retro_due = True
+        self.log.event("phase_start", phase="retro_check")
+        try:
+            c = replace(self.checkout, config=snapshot_config(self.control.load_config()))
+            window = project_window(c.journal.read())
+            due = False
+            if suppressing_failure(window) is None:
+                evidence = await production_evidence(window, c)
+                due = select_trigger(window, evidence, c.clock(), c.config.retro, forced=False) is not None
+                if due:
+                    self.retro_due = True
+        except BaseException:
+            self.log.event("phase_end", phase="retro_check", outcome="failed")
+            raise
+        self.log.event("phase_end", phase="retro_check", outcome="due" if due else "not_due")
 
     async def run_retro(self, request_id):
         async with self.mutations():

@@ -564,7 +564,14 @@ class _Drain:
                     self.upgrade = (stem, commit)
 
     async def _run_retro(self, *, forced):
-        await self._await_controlled(asyncio.create_task(self.retro(forced=forced)), self.retro.abort_current, self.c.sleep)
+        log = EngineLog(self.c.config.state_dir / "engine.log", Redactor.from_config(self.c.config, self.c.env), self.c.clock)
+        log.event("phase_start", phase="retro_check")
+        try:
+            report = await self._await_controlled(asyncio.create_task(self.retro(forced=forced)), self.retro.abort_current, self.c.sleep)
+        except BaseException:
+            log.event("phase_end", phase="retro_check", outcome="failed")
+            raise
+        log.event("phase_end", phase="retro_check", outcome="no_report" if report is None else "ran")
 
     async def _await_controlled(self, task, abort, sleep):
         from chupa.daemon import _protected_cleanup

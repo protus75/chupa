@@ -766,8 +766,8 @@ async def test_production_core_uses_real_snapshot_pipeline(tmp_path, monkeypatch
     monkeypatch.setattr(runner, "drive", before_host_work)
     assert await rig.core.scheduler.dispatch(ticket) == "original-terminal"
     assert called == [ticket] and len(snapshots) == len(contexts) == 1
-    assert trace[:4] == ["capture", "provider", "redactor", "preflight-start"]
-    assert trace[4:] == ["preflight-end", "bind", "driver", "redactor", "severity", "context", "queue"]
+    assert trace[:5] == ["capture", "provider", "redactor", "redactor", "preflight-start"]
+    assert trace[5:] == ["preflight-end", "bind", "driver", "redactor", "severity", "context", "queue"]
     assert set(reads) == {"env", "route"}
     model_calls = [call for call in rig.exec.calls if call[3] is not None]
     assert len(model_calls) == 6  # Five distinct probes, then one read-only driver call.
@@ -793,7 +793,7 @@ async def test_production_core_awaits_preflight_inside_admission(tmp_path, monke
     async def hook(argv):
         assert asyncio.current_task() is rig.core.admission.task
         if not started.is_set():
-            assert trace == ["capture", "provider", "redactor", "preflight-start"]
+            assert trace == ["capture", "provider", "redactor", "redactor", "preflight-start"]
             started.set()
             await release.wait()
 
