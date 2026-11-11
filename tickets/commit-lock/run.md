@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The caller audit found the listed Git constructor sites, but it did not establish a contradiction or missing scope.
+A private commit implementation keeps squash and commit under one hold; calling the public commit method from squash would reacquire the lock and fail.
 
 ## Dead ends
 
-Inspected constructor callers, doctor, documentation references, and coverage floors; did not reach implementation.
+none
 
 ## Second problems filed
 
@@ -18,9 +18,9 @@ none
 
 - provider: codex
 - model: gpt-6.1-terra
-- spec: implement 2.9
+- spec: implement 2.10
 
 ## Predicted vs actual
 
-The ticket estimates 90 minutes; elapsed time was not measured.
+The ticket estimated 90 minutes; elapsed time was not measured.
 
