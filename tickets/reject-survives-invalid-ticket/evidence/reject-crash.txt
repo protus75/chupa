@@ -1,0 +1,22 @@
+$ .venv/bin/chupa reject --extension requisition-review-patched-path-fence   (2026-11-11 14:58, run from the vscode-chupa extension)
+requisition-review-patched-path-fence: ticket state: draft
+Traceback (most recent call last):
+  File "/home/djp/source/chupa/chupa/__main__.py", line 863, in _verdict
+    return await runner.verdict(stem, checkout, kill=verb == "reject", extension=extension)
+  File "/home/djp/source/chupa/chupa/runner.py", line 548, in verdict
+    return await verdict_locked(stem, checkout, kill=kill, extension=extension)
+  File "/home/djp/source/chupa/chupa/runner.py", line 569, in verdict_locked
+    changed = await reject_ticket(stem, checkout)
+  File "/home/djp/source/chupa/chupa/runner.py", line 607, in reject_ticket
+    await _dead_dependents(stem, checkout)
+  File "/home/djp/source/chupa/chupa/runner.py", line 629, in _dead_dependents
+    ticket = parse_ticket(stem, path.read_text(), checkout.repo)
+  File "/home/djp/source/chupa/chupa/tickets.py", line 465, in parse_ticket
+    raise TicketInvalid(findings)
+chupa.tickets.TicketInvalid: `## Depends on` line '<none or bullets of existing ticket stems>' is not a `- ` bullet; `## Context` path '<existing repo-relative read-first path>' does not exist as a file; acceptance criterion '<measurable outcome naming a check in backticks>' names no check; `## Time budget` is not an expected/stuck minutes pair
+exit code: 1
+
+Observed state afterwards: commit 884888ad "chupa(requisition-review-patched-path-fence): rejected" exists and the
+journal holds the reject; only the dead-dependency sweep was skipped. At that moment another session had an unfilled
+`chupa new` skeleton (tickets/intake-holds-commit-lock/ticket.md, committed filled at 14:58:41 as af9cf321) on disk.
+The skeleton written by `chupa.tickets.template` carries `state: confirmed`, so `_dead_dependents` did not skip it.
