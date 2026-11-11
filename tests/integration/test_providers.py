@@ -840,7 +840,7 @@ def test_consumer_error_keeps_call_capture(tmp_path, name):
     assert (capture / "events.jsonl").read_bytes() == redactor.scrub(out).encode()
     assert (capture / "stderr.txt").read_bytes() == redactor.scrub(err).encode()
     assert (capture / "prompt.md").read_text() == "do the thing"
-    assert client._active is None and client._adapters[name]._pgid is None
+    assert client._active is None and client._adapters[name]._pgids == set()
 
 
 @pytest.mark.parametrize("name", ["claude", "codex"])
@@ -886,7 +886,7 @@ def test_inflight_events_are_scrubbed_and_capture_is_preserved(tmp_path, name):
         assert (capture / "prompt.md").read_text() == "prompt [REDACTED:CLAUDE_KEY]"
     assert "on_stdout_line" in process.calls[0][1]
     assert "on_stdout_line" not in process.calls[1][1]
-    assert client._active is None and client._adapters[name]._pgid is None
+    assert client._active is None and client._adapters[name]._pgids == set()
 
 
 @pytest.mark.parametrize("name", ["claude", "codex"])
@@ -918,7 +918,7 @@ def test_event_callback_unwind_kills_group(tmp_path, monkeypatch, name, unwind):
         def consume(event):
             assert event == {"type": "tool"}
             assert client._active is client._adapters[name]
-            assert client._active._pgid == process.pgids[-1]
+            assert client._active._pgids and process.pgids[-1] in client._active._pgids
             received.set()
             if unwind.startswith("callback_"):
                 raise error
@@ -943,7 +943,7 @@ def test_event_callback_unwind_kills_group(tmp_path, monkeypatch, name, unwind):
         if unwind in {"cancel", "callback_cancel"}:
             assert task.cancelled()
         assert set(asyncio.all_tasks()) == before
-        assert client._active is None and client._adapters[name]._pgid is None
+        assert client._active is None and client._adapters[name]._pgids == set()
         client.abort_current()
         with pytest.raises(ProcessLookupError):
             os.kill(process.pgids[-1], 0)  # The direct child was reaped.

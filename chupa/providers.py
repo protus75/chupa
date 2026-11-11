@@ -292,7 +292,7 @@ class CliAdapter:
         self._capture_dir = capture_dir
         self._timeout = timeout
         self._seq = 0
-        self._pgid: int | None = None
+        self._pgids: set[int] = set()
 
     def call_env(self) -> dict[str, str]:
         return child_env(self._env, self._config, self.provider)
@@ -326,6 +326,12 @@ class CliAdapter:
         prompt = call_dir / "prompt.md"
         # The prompt reaches the CLI only as a file on stdin: an argv element is capped by the OS limit.
         self._fs.write(prompt, self._redactor.scrub(req.rendered).encode())
+        pgids: set[int] = set()
+
+        def spawned(pgid: int) -> None:
+            pgids.add(pgid)
+            self._spawned(pgid)
+
         try:
             rc, out, err = await self._exec.run(
                 argv,
@@ -333,7 +339,7 @@ class CliAdapter:
                 env=self.call_env(),
                 timeout=self._timeout,
                 stdin_path=prompt,
-                on_spawn=self._spawned,
+                on_spawn=spawned,
                 **({"on_stdout_line": lambda line: self._forward(line, consumer)} if consumer is not None else {}),
             )
         except BaseException as exc:
@@ -342,7 +348,7 @@ class CliAdapter:
                 self._write_capture(call_dir, *capture)
             raise
         finally:
-            self._pgid = None
+            self._pgids.difference_update(pgids)
         out, err = self._write_capture(call_dir, out, err)
         tail = err[-2000:]
         if rc != 0:
@@ -382,7 +388,7 @@ class CliAdapter:
         return out, err
 
     def _spawned(self, pgid: int) -> None:
-        self._pgid = pgid
+        self._pgids.add(pgid)
 
     def _forward(self, line: str, consumer: "EventConsumer") -> None:
         for event in _events(line):
@@ -428,8 +434,8 @@ class CliAdapter:
         raise self.classify_failure(message, rc=rc, stderr_tail=stderr_tail)
 
     def abort(self) -> None:
-        if self._pgid is not None:
-            self._exec.kill_group(self._pgid)
+        for pgid in tuple(self._pgids):
+            self._exec.kill_group(pgid)
 
 
 def _events(out: str) -> list[dict]:
@@ -602,6 +608,7 @@ class ProviderLLM:
             if not latest.strip() or installed is None or installed.group(0) != latest.strip():
                 notices.append(f"{adapter.binary} {installed.group(0) if installed else '(unknown)'} is not the latest release {latest.strip() or '(unreadable)'} -- run: pnpm add -g {package}@latest")
         probed: set[tuple[str, str]] = set()
+        probes = []
         for route in self._config.routing:
             for cand in route.candidates:
                 if cand.provider in self.session.exclusions():
@@ -612,10 +619,20 @@ class ProviderLLM:
                     continue
                 probed.add((cand.provider, model))
                 req = LLMRequest(surface="preflight", rendered=PROBE_PROMPT, tier=route.tier, effort="low", ticket=None, worktree=None)
-                try:
-                    await adapter.invoke(req, model)
-                except Exception as e:
-                    problems.append(f"{cand.provider} model {model!r} failed its probe: {e} -- run: pnpm add -g {adapter.provider.package}@latest, or route a model this login serves in config.yaml")
+                probes.append((cand.provider, model, adapter, req))
+        tasks = [asyncio.create_task(adapter.invoke(req, model)) for _, model, adapter, req in probes]
+        try:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+        finally:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+        for (provider, model, adapter, _), result in zip(probes, results, strict=True):
+            if isinstance(result, Exception):
+                problems.append(f"{provider} model {model!r} failed its probe: {result} -- run: pnpm add -g {adapter.provider.package}@latest, or route a model this login serves in config.yaml")
+            elif isinstance(result, BaseException):
+                raise result
         if not problems:
             self.session.preflight_passed()
         return problems

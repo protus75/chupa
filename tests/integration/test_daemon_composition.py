@@ -791,7 +791,10 @@ async def test_production_core_awaits_preflight_inside_admission(tmp_path, monke
     called = []
 
     async def hook(argv):
-        assert asyncio.current_task() is rig.core.admission.task
+        if argv[0] == "pnpm" or argv[1:] == ["--version"]:
+            assert asyncio.current_task() is rig.core.admission.task
+        else:
+            assert not rig.core.admission.task.done() and rig.core.admission.active is not None
         if not started.is_set():
             assert trace == ["capture", "provider", "redactor", "redactor", "preflight-start"]
             started.set()

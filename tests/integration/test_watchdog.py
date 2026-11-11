@@ -553,7 +553,7 @@ async def test_watchdog_real_group_cleanup(tmp_path, name):
     writer = None
     try:
         reader, writer = await asyncio.wait_for(connected, 5)
-        assert client._active._pgid == process.pgids[-1]
+        assert client._active._pgids and process.pgids[-1] in client._active._pgids
         rig.time.advance(180)
         result = await asyncio.wait_for(task, 5)
         assert result.outcome == "timeout"
@@ -562,7 +562,7 @@ async def test_watchdog_real_group_cleanup(tmp_path, name):
         assert not marker.exists()
         with pytest.raises(ProcessLookupError):
             os.kill(process.pgids[-1], 0)
-        assert client._active is None and client._adapters[name]._pgid is None
+        assert client._active is None and client._adapters[name]._pgids == set()
     finally:
         if not task.done():
             task.cancel()
