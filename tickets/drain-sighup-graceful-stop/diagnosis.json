@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "ef8e358af682c00eaf253f7cba0c648473a0956b",
+  "stem": "drain-sighup-graceful-stop",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "retry",
+  "lessons": [
+    "Base overlay run exited 2 with error, not defect: at base the reproducer's dispatch returns 'already_satisfied' without journaling it, so drain raised ValueError 'stage seam ... journaled running'. Rewrite the self-release path so the base run finishes cleanly.",
+    "Build the base-path stage the way the drain kill tests in tests/integration/test_kill_cli_activation.py do (e.g. runner.bind(checkout, FakeLLM([agent({}, outcome='already_satisfied')]))). The seam must journal its own terminal, never return a bare string the journal never recorded.",
+    "In tests/regress_drain_signals.py, catch exceptions as error (exit 2) only around setup: imports and make_root/commit_ticket. Per the ticket, a failure while running the drain must not be reported as error.",
+    "Before committing, run the reproducer against the base commit with only tests/regress_drain_signals.py overlaid, in a base worktree. It must print {\"regression_result\": \"defect\"} and exit 1, and print pass at head.",
+    "Redo the production and test work the ticket lists: _engine_signals, drain(signals=...), _Drain._signal_kill via control.publish_request, test updates, and docs. Last attempt's verification and hard checks all passed, so only the base behavior of the reproducer needs a new design."
+  ],
+  "mechanical": null,
+  "spec_version": "1.4",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
