@@ -1,0 +1,42 @@
+$ .venv/bin/chupa drain --help
+usage: python -m chupa drain [-h] [--parked STEM] [--deadline DEADLINE]
+
+options:
+  -h, --help           show this help message and exit
+  --parked STEM        a stem the handing-off parent drain parked (set by the
+                       self-upgrade re-exec)
+  --deadline DEADLINE
+
+$ sed -n 35,42p vscode-chupa/extension.js   # play button: runs chupa.command + ["drain"] as a VS Code task, foreground, child of the task terminal
+function devCommand(...args) {
+	const root = chupaRoot();
+	if (!root) return;
+	const [binary, ...prefix] = command(root);
+	const argv = [...prefix, ...args];
+	const task = new vscode.Task({ type: 'chupa', args }, vscode.workspace.getWorkspaceFolder(vscode.Uri.file(root)), args.join(' '), 'chupa', new vscode.ProcessExecution(binary, argv, { cwd: root }));
+	vscode.tasks.executeTask(task);
+}
+
+$ sed -n 355,361p vscode-chupa/extension.js
+		vscode.commands.registerCommand('chupa.ticket.askReview', ctx => askClaude(ctx, 'review')),
+		vscode.commands.registerCommand('chupa.engine', async () => {
+			const choice = await vscode.window.showQuickPick(snapshot.snap?.engineVerbs ?? []);
+			if (choice) devCommand(choice.verb);
+		}),
+		vscode.commands.registerCommand('chupa.playDrain', () => devCommand('drain')),
+		vscode.commands.registerCommand('chupa.playServe', () => devCommand('serve')),
+
+$ sed -n 79,81p vscode-chupa/package.json   # default chupa.command
+					"default": [
+						".venv/bin/chupa"
+					],
+
+$ sed -n 113,120p dev.py   # the only detached launch; it lives in the repo-local wrapper, so the extension and host operators never get it
+    elif args.task == "drain":
+        match = re.search(r"^state_dir:\s*(\S+)", (ROOT / "config.yaml").read_text(), re.M)
+        state = ROOT / (match.group(1) if match else ".chupa/state")
+        state.mkdir(parents=True, exist_ok=True)
+        output = state / "drain.out"
+        with output.open("a") as stream:
+            child = subprocess.Popen(["uv", "run", "python", "-m", "chupa", "drain"], cwd=ROOT, start_new_session=True, stdin=subprocess.DEVNULL, stdout=stream, stderr=stream)
+        print(f"dev: drain pid {child.pid}, output {output}")
