@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The caller audit found a broad set of constructor, commit, merge, and test updates, but it did not establish that the ticket's scope is insufficient.
+The caller audit found the listed Git constructor sites, but it did not establish a contradiction or missing scope.
 
 ## Dead ends
 
-Inspected callers and host checks; did not reach an implementation or run verification.
+Inspected constructor callers, doctor, documentation references, and coverage floors; did not reach implementation.
 
 ## Second problems filed
 
