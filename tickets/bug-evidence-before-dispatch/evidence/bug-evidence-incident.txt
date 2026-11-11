@@ -1,0 +1,25 @@
+Incident 2026-11-11: a committed kind: bug ticket with no evidence/ directory was confirmed, admitted, and implemented; the gap surfaced only at Check.
+
+$ git log --format='%h %s' -- tickets/triage-author-invoked-stale-round-guard (before the supervising fix 8a93168b)
+6224dee2 chupa(triage-author-invoked-stale-round-guard): diagnosis
+40d592df chupa(triage-author-invoked-stale-round-guard): harvest
+e3a6a4d6 chupa(triage-author-invoked-stale-round-guard): checks
+6b58cbf8 chupa(triage-author-invoked-stale-round-guard): run-record
+86f176ee chupa(triage-author-invoked-stale-round-guard): confirmed
+2dd8b7e8 chupa(triage-author-invoked-stale-round-guard): ticket
+(no commit ever added tickets/triage-author-invoked-stale-round-guard/evidence/)
+
+Journal (.chupa/state/journal/000012-20261111.jsonl), Author stage committed it via the ticket-plane effect, not intake:
+{"v":1,"type":"effect_intent","ts":"2026-11-11T19:17:16.100408+00:00","ticket":null,"key":"ticket-plane/triage-author-invoked-stale-round-guard/author","body":{}}
+{"v":1,"type":"effect_completion","ts":"2026-11-11T19:17:16.136165+00:00","ticket":null,"key":"ticket-plane/triage-author-invoked-stale-round-guard/author","body":{"result":"2dd8b7e808fbf6619bdf80ccb5
+
+Engine log: implement ran to completion, then Check failed:
+{"ts": "2026-11-11T22:16:45.904619+00:00", "event": "stage_end", "stem": "triage-author-invoked-stale-round-guard", "attempt": 0, "surface": "implement", "outcome": "ok", "run_seq": 0, "calls": 1}
+{"ts": "2026-11-11T22:19:06.625093+00:00", "event": "stage_end", "stem": "triage-author-invoked-stale-round-guard", "attempt": 0, "surface": "check", "outcome": "gate_failed"}
+
+Check finding (attempt 0 diagnose prompt):
+"findings":[{"code":"bug_evidence","path":null,"line":null,"message":"durable evidence is missing under the ticket evidence/ directory","paved_road":"supply durable ticket evidence and carries matching only changed test/fixture files; provide a carried reproducer checking prerequisites and emitting the regression result protocol: pass at head, defect at the overlaid base","kind":null,"unit":null}]
+
+$ ./dev.py lint triage-author-invoked-stale-round-guard   (at 8a93168b~1)
+tickets/triage-author-invoked-stale-round-guard/evidence: a `kind: bug` ticket has no evidence file (...)
+lint: 0/1 tickets valid
