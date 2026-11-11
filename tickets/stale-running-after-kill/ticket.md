@@ -114,6 +114,7 @@ needs no confirm.
   `tests/unit/test_verdict_extension.py` (criterion 9), and `chupa/__main__.py` stays
   at or above its 13% floor; `tests/unit/test_stale_running.py` covers those lines with fakes
   (criterion 9).
+- In: new `tests/integration/test_stale_running.py` holding the criterion 1-6 integration tests and the integration part of criterion 8, and new `tests/unit/test_stale_running.py` holding the criterion 7-9 unit tests.
 - Out: `drain` and `serve` (they already reconcile on start); `_control`, so `kill` and `stop`
   still leave the run for reconcile; `reject_queue`; `vscode-chupa/`
   TypeScript; the logic of `reconcile.orphans` and `reconcile.reconcile`; `test-gate.toml`.
