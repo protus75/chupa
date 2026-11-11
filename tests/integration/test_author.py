@@ -409,6 +409,20 @@ def test_author_snag_reprompts_then_approve(tmp_path, monkeypatch):
     assert len(authors) == 2 and "- scope: missing test (do instead: add the test)" in authors[1].rendered
 
 
+def test_author_snag_revision_keeps_stem(tmp_path, monkeypatch):
+    root = make_root(tmp_path)
+    _routes(root)
+    box = _box(root)
+    message_id = _failure(box)
+    llm = FakeLLM([reply("author"), author_reply("first"), requisition_reply("snag", [SNAG]), author_reply("first"), requisition_reply("approve")])
+    assert _run(root, monkeypatch, llm) == 0
+    assert (root / "tickets/first/ticket.md").exists()
+    authors = [request for request in llm.requests if request.surface == "author"]
+    assert len(authors) == 2
+    assert all("already named in the journal" not in request.rendered for request in authors)
+    assert box.get(message_id).resolution == Resolution(kind="ticket", link="first")
+
+
 def test_author_rma_writes_decision_without_ticket(tmp_path, monkeypatch):
     root = make_root(tmp_path)
     _routes(root)

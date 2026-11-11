@@ -43,6 +43,7 @@ class AuthorGate:
         self.message_class = message_class
         self.message: Message | None = None
         self.copied: dict[str, list[str]] = {}
+        self.passed_stems: set[str] = set()
         self._remove = remove
 
     def cleanup(self) -> None:
@@ -61,7 +62,7 @@ class AuthorGate:
         path = ticket_path(artifact.stem)
         if (self.checkout.repo / "tickets" / artifact.stem).exists() and artifact.stem not in self.copied:
             findings.append(Finding(code=self.code, path=path, message=f"stem {artifact.stem!r} already exists", paved_road="choose a new, never-before-used ticket stem"))
-        if any(event.ticket == artifact.stem for event in self.checkout.journal.read()):
+        if artifact.stem not in self.passed_stems and any(event.ticket == artifact.stem for event in self.checkout.journal.read()):
             findings.append(Finding(code=self.code, path=path, message=f"stem {artifact.stem!r} is already named in the journal", paved_road="choose a new, never-before-used ticket stem"))
         try:
             message = self.message
@@ -96,6 +97,8 @@ class AuthorGate:
             findings.append(Finding(code=self.code, path=path, message=f"report custody refused: {exc}", paved_road="repair bounded Box custody before authoring a bug ticket"))
         if findings:
             self.cleanup()
+        else:
+            self.passed_stems.add(artifact.stem)
         return GateReport(code=self.code, verdict="fail" if findings else "pass", findings=findings)
 
 

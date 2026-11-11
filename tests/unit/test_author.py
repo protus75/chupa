@@ -78,3 +78,19 @@ async def test_recovery_ignores_completions_before_reopen(monkeypatch):
     monkeypatch.setattr(author, "validate_ticket", lambda *args: SimpleNamespace(frontmatter=SimpleNamespace(source="box:retro_finding")))
     result = await author.recover_retro_ticket(checkout, box, reopened)
     assert result.stem == "new-fix" and resolved[0].link == "new-fix"
+
+
+def test_gate_admits_own_passed_stem_only(monkeypatch):
+    from chupa import author
+
+    events = []
+    checkout = SimpleNamespace(repo=Path("/repo"), journal=SimpleNamespace(read=lambda: events))
+    monkeypatch.setattr(author, "validate_ticket", lambda stem, text, repo: None)
+    candidate = author.AuthorReply(stem="draft-stem", ticket="t")
+    gate = author.AuthorGate(checkout)
+    assert gate.check(candidate, checkout.repo).verdict == "pass"
+    events.append(SimpleNamespace(ticket="draft-stem", key="llm/author/1/requisition_review/7/1"))
+    assert gate.check(candidate, checkout.repo).verdict == "pass"
+    report = author.AuthorGate(checkout).check(candidate, checkout.repo)
+    assert report.verdict == "fail"
+    assert any("already named in the journal" in finding.message for finding in report.findings)
