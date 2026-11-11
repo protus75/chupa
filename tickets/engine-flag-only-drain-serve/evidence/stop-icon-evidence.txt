@@ -1,0 +1,22 @@
+Observed 2026-11-11 (operator): with no drain or serve running, the Tickets view title shows the Stop button while `chupa triage` (authoring a ticket) runs.
+
+$ grep -n "chupa.stopRunning" -A1 vscode-chupa/package.json | grep when
+419-					"when": "false"
+469-					"when": "view == chupa.tickets && chupa.engineRunning",
+
+$ grep -n "engineRunning" vscode-chupa/extension.js
+114:		if (snap) vscode.commands.executeCommand('setContext', 'chupa.engineRunning', snap.engine);
+
+$ grep -n "alive = lock_holder\|\"engine\": alive" chupa/observe.py
+489:    alive = lock_holder(state) is not None
+746:        "engine": alive,
+
+$ sed -n 501,504p chupa/__main__.py   # triage holds the writer lock
+
+            async def one_pass() -> list[tuple[str, str]]:
+                lock = Lockfile(config.state_dir, instance_id=await checkout.git.describe(repo), clock=clock)
+                lock.acquire()
+
+$ grep -n "\.publish()$" chupa/*.py   # only drain and serve publish a control identity that Stop can reach
+chupa/drain.py:236:        consumer.publish()
+chupa/serve.py:568:            self.control.publish()
