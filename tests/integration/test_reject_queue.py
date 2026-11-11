@@ -32,7 +32,7 @@ def _queued(root, stem, cap="retry"):
 def test_two_premise_terminals_draw_and_route_after_cap(repo, capsys):
     (repo / "config.yaml").write_text((repo / "config.yaml").read_text() + "\ncaps: {premise_bounce: 2}\n")
     author(repo)
-    finding = {"code": "premise", "message": "false premise", "paved_road": "edit ticket"}
+    finding = {"code": "premise", "path": f"tickets/{STEM}/ticket.md", "message": "false premise", "paved_road": "edit ticket"}
     for attempt in range(2):
         answers = [implement_reply("premise_failed", [finding])]
         if attempt == 0:

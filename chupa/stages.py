@@ -101,8 +101,12 @@ class ImplementReply(_Strict):
     @model_validator(mode="after")
     def _findings_match_outcome(self) -> "ImplementReply":
         if self.outcome == "premise_failed":
-            if not self.findings or any(f.code != "premise" for f in self.findings):
-                raise ValueError("premise_failed needs at least one finding, every code `premise`")
+            if not self.findings or any(f.code != "premise" or not f.path or not f.path.strip() for f in self.findings):
+                raise ValueError(
+                    "premise_failed needs at least one finding, every code `premise` and every one naming `path` "
+                    "(the file outside the fence, the file the criteria contradict, or the ticket); unfinished or large "
+                    "work is not a premise failure: implement the ticket and reply ok"
+                )
         elif self.findings:
             raise ValueError(f"{self.outcome} carries an empty findings list; reply premise_failed to stop")
         return self

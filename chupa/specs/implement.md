@@ -5,7 +5,7 @@ emits: packing-slip
 tier: medium
 effort: medium
 gates: []
-version: "2.9"
+version: "2.10"
 ---
 ## Role
 
@@ -75,7 +75,7 @@ Two first-class outcomes replace grinding out a bad implementation:
   proven by running the `## Verification` commands green on the untouched branch. Commit nothing.
 - `premise_failed` -- the ticket cannot be done as written: the bug does not reproduce, the
   criteria contradict existing behavior or each other, or meeting them forces an edit outside
-  `## Scope fence`. Before replying `premise_failed` for a scope reason, work the change through
+  `## Scope fence`. Running out of time, or a change that is only large, is never `premise_failed`. Before replying `premise_failed` for a scope reason, work the change through
   every file the acceptance criteria and `## Verification` commands force, and report each forced
   file outside `## Scope fence` as its own finding; never stop at the first. Stop, commit nothing
   further, and say exactly why.
@@ -114,12 +114,12 @@ When your work is committed, reply with ONLY one JSON object, no prose before or
  "second_problems": [{"summary": "<one problem, one sentence>"}],
  "dead_ends": "<what you tried and abandoned, and why, or none>",
  "predicted_vs_actual": "<the ticket's time budget against what the work took, or none>",
- "findings": [{"code": "premise", "path": "<file or null>", "line": <line or null>,
+ "findings": [{"code": "premise", "path": "<file outside the fence, file the criteria contradict, or tickets/<stem>/ticket.md>", "line": <line or null>,
                "message": "<why the ticket cannot be done as written>",
                "paved_road": "<the ticket change that would make it doable>"}]}
 
 `ok` and `already_satisfied` carry an empty `findings` list. `premise_failed` carries at least one
-finding, every one coded `premise`. A ticket that contradicts merged code or is malformed, or whose
+finding, every one coded `premise` and naming its `path`. A ticket that contradicts merged code or is malformed, or whose
 `## Scope fence` lacks a path the criteria force, is a `premise` finding naming that file.
 Use an empty `second_problems` list when there are none.
 

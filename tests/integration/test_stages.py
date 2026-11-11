@@ -329,7 +329,7 @@ def test_implement_check_review_all_ok_with_artifacts_and_provenance(repo):
     assert read_review((canonical / "review.md").read_text()) == review
     assert Invoice.model_validate_json((canonical / "checks.json").read_text()) == invoice
     run_md = (canonical / "run.md").read_text()
-    assert "## Outcome\n\nok\n" in run_md and "- provider: fake\n- model: fake\n- spec: implement 2.9" in run_md
+    assert "## Outcome\n\nok\n" in run_md and "- provider: fake\n- model: fake\n- spec: implement 2.10" in run_md
     assert git(repo, "diff", "--name-only", f"main...{STEM}").split() == ["chupa/thing.py"]
     outbox = config.worktree_root / STEM / "tickets" / STEM
     assert sorted(p.name for p in outbox.iterdir()) == ["ticket.md"]  # lifted and unlinked
@@ -397,7 +397,7 @@ def test_old_checks_json_without_verification_still_feeds_prior_findings(repo):
 
 
 def test_premise_failed_stops_after_implement_with_its_run_record(repo):
-    finding = {"code": "premise", "path": None, "line": None, "message": "contradicts X", "paved_road": "drop X"}
+    finding = {"code": "premise", "path": f"tickets/{STEM}/ticket.md", "line": None, "message": "contradicts X", "paved_road": "drop X"}
     act = lambda req: implement_reply("premise_failed", [finding])  # noqa: E731
     result, llm, _ = run(repo, [act])
 
@@ -405,6 +405,16 @@ def test_premise_failed_stops_after_implement_with_its_run_record(repo):
     assert [f.message for f in result.last[1].findings] == ["contradicts X"]
     assert "## Outcome\n\npremise_failed\n" in (repo / "tickets" / STEM / "run.md").read_text()
     assert len(llm.requests) == 1
+
+
+def test_pathless_premise_reprompts_implement(repo):
+    finding = {"code": "premise", "path": None, "message": "unfinished", "paved_road": "finish"}
+    result, llm, _ = run(repo, [implement_reply("premise_failed", [finding]), agent({"chupa/thing.py": "ok\n"}), verdict()])
+
+    requests = [request for request in llm.requests if request.surface == "implement"]
+    assert len(requests) == 2
+    assert "implement the ticket" in requests[1].rendered.split("<<chupa-data:begin retry_findings>>", 1)[1].split("<<chupa-data:end retry_findings>>", 1)[0]
+    assert outcomes(result)["implement"] == "ok"
 
 
 def test_check_fails_closed_on_an_out_of_fence_edit_and_never_reaches_review(repo):

@@ -198,7 +198,7 @@ async def admission_graph(root, monkeypatch, changes, *, endings=None, settled=N
                 failed = endings.get(stem) == "implement"
                 value = implement_reply(
                     "premise_failed" if failed else "already_satisfied" if endings.get(stem) == "noop" else "ok",
-                    [{"code": "premise", "message": "scripted premise refusal", "paved_road": "revise this ticket"}] if failed else [],
+                    [{"code": "premise", "path": f"tickets/{stem}/ticket.md", "message": "scripted premise refusal", "paved_road": "revise this ticket"}] if failed else [],
                 )
             elif req.surface == "review":
                 value = verdict("snag", [SNAG]) if endings.get(stem) == "review" else verdict()

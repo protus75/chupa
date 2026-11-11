@@ -16,7 +16,7 @@ def event(type_: str, *, ticket: str | None = "ticket", key: str | None = None, 
 def test_a_production_drain_with_a_merge_and_parked_red_journal_is_green(repo):
     author(repo)
     author(repo, "red")
-    premise = {"code": "premise", "message": "generated", "paved_road": "edit the generator"}
+    premise = {"code": "premise", "path": "tickets/red/ticket.md", "message": "generated", "paved_road": "edit the generator"}
     code, _ = drain(repo, [agent({"chupa/thing.py": "ok\n"}), verdict(), implement_reply("premise_failed", [premise]), diagnosis_reply()])
 
     assert code == 0

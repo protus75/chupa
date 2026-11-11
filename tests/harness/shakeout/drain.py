@@ -49,7 +49,7 @@ async def _premise_park_release(bench: Bench) -> Observation:
             }
         )
     )
-    finding = {"code": "premise", "message": "fixture premise is false", "paved_road": "correct the fixture premise"}
+    finding = {"code": "premise", "path": f"tickets/{stem}/ticket.md", "message": "fixture premise is false", "paved_road": "correct the fixture premise"}
     bench.script(
         [
             json.dumps({"outcome": "premise_failed", "summary": "premise", "surprises": "none", "dead_ends": "none", "predicted_vs_actual": "10m predicted, 1m actual", "findings": [finding]}),

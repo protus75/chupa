@@ -13,7 +13,7 @@ from chupa.stages import ImplementReply
 from tests.integration.test_stages import ENV, STEM, agent, verdict
 from tests.integration.test_terminal import author, clock, diagnosis_reply, repo  # noqa: F401 -- fixture
 
-FINDING = {"code": "premise", "message": "the premise is false", "paved_road": "correct the ticket"}
+FINDING = {"code": "premise", "path": f"tickets/{STEM}/ticket.md", "message": "the premise is false", "paved_road": "correct the ticket"}
 
 
 def reply(outcome: str, problems: list[str] | None) -> str:

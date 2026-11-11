@@ -106,7 +106,7 @@ def test_a_spent_retry_cap_is_a_non_ok_terminal(repo):
 
 def test_a_premise_failure_journals_its_terminal(repo):
     author(repo)
-    finding = {"code": "premise", "message": "thing.py is generated", "paved_road": "edit the generator"}
+    finding = {"code": "premise", "path": "chupa/thing.py", "message": "thing.py is generated", "paved_road": "edit the generator"}
     code, _ = run(repo, [implement_reply("premise_failed", [finding]), diagnosis_reply()])
 
     assert code == runner.EXIT_TICKET

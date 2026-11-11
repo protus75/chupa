@@ -39,13 +39,15 @@ async def dispatch(root, checkout, writer):
 
 
 def test_unreviewed_ticket_is_reviewed_once_then_runs(tmp_path):
-    root, checkout, llm, writer = setup(tmp_path, [reply("approve"), implement_reply("premise_failed", [{"code": "premise", "message": "cannot build", "paved_road": "repair"}])])
+    root, checkout, llm, writer = setup(
+        tmp_path, [reply("approve"), implement_reply("premise_failed", [{"code": "premise", "path": "tickets/gate/ticket.md", "message": "cannot build", "paved_road": "repair"}])]
+    )
     asyncio.run(dispatch(root, checkout, writer))
     assert [r.surface for r in llm.requests] == ["requisition_review", "implement"]
 
 
 def test_approved_content_runs_without_review(tmp_path):
-    root, checkout, llm, writer = setup(tmp_path, [implement_reply("premise_failed", [{"code": "premise", "message": "cannot build", "paved_road": "repair"}])])
+    root, checkout, llm, writer = setup(tmp_path, [implement_reply("premise_failed", [{"code": "premise", "path": "tickets/gate/ticket.md", "message": "cannot build", "paved_road": "repair"}])])
     approve(root, "gate", checkout.clock)
     asyncio.run(dispatch(root, checkout, writer))
     assert [r.surface for r in llm.requests] == ["implement"]
@@ -72,7 +74,9 @@ def test_snag_parks_before_implement(tmp_path):
 
 
 def test_render_feasibility_snag_proceeds_to_implement(tmp_path):
-    root, checkout, llm, writer = setup(tmp_path, [reply("snag", "render_feasibility"), implement_reply("premise_failed", [{"code": "premise", "message": "cannot build", "paved_road": "repair"}])])
+    root, checkout, llm, writer = setup(
+        tmp_path, [reply("snag", "render_feasibility"), implement_reply("premise_failed", [{"code": "premise", "path": "tickets/gate/ticket.md", "message": "cannot build", "paved_road": "repair"}])]
+    )
     asyncio.run(dispatch(root, checkout, writer))
     assert [r.surface for r in llm.requests] == ["requisition_review", "implement"]
 
@@ -81,7 +85,12 @@ def test_edit_releases_and_reviews_the_new_content(tmp_path):
     from chupa.drain import parked_blob
 
     root, checkout, llm, writer = setup(
-        tmp_path, [reply("snag", "missing_file"), reply("approve"), implement_reply("premise_failed", [{"code": "premise", "message": "cannot build", "paved_road": "repair"}])]
+        tmp_path,
+        [
+            reply("snag", "missing_file"),
+            reply("approve"),
+            implement_reply("premise_failed", [{"code": "premise", "path": "tickets/gate/ticket.md", "message": "cannot build", "paved_road": "repair"}]),
+        ],
     )
     assert asyncio.run(dispatch(root, checkout, writer)) == "premise_failed"
     path = root / "tickets/gate/ticket.md"
