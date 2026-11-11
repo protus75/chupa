@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The final verification passed: 117 ticket tests, 163 unit tests with the coverage gate, 3,180 integration tests, lint, and formatting. The reproducer passed on the branch and reported the defect on the base commit. The minimum change reused reconcile.orphans and the existing harvest path instead of adding a second orphan rule.
+The final verification passed: 116 focused tests, 162 unit tests with coverage, 3,180 integration tests, lint, and format. The regression reproducer passed on the branch and reported the defect on the base. Reusing reconcile.orphans and the existing harvest path avoids a second orphan-detection rule.
 
 ## Dead ends
 
