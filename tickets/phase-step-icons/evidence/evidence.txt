@@ -1,0 +1,17 @@
+Operator report 2026-11-11: Preflight and Retro check rows show the same icon in the extension Steps view.
+
+$ grep -n 'kind = "phase_start"' chupa/observe.py
+318:            kind = "phase_start" if event == "phase_start" else "phase_failed" if outcome == "failed" else "phase_ok"
+
+$ sed -n 695,700p tests/integration/test_watch.py
+    assert [(r["text"], r["kind"], r["stem"]) for r in rows] == [
+        ("Retro check end (failed)", "phase_failed", None),
+        ("Retro check end (no report)", "phase_ok", None),
+        ("Preflight end (ok)", "phase_ok", None),
+        ("Preflight start", "phase_start", None),
+    ]
+
+$ grep -o "phase_[a-z]*: \[[^]]*\]" vscode-chupa/extension.js
+phase_start: ['pulse']
+phase_ok: ['pulse', 'testing.iconPassed']
+phase_failed: ['pulse', 'testing.iconFailed']
