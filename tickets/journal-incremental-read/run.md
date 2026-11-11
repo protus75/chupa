@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The existing roll test seeds a valid first line followed by malformed complete lines, then requires a fresh Journal.append() to raise JournalCorruption before writing.
+A fresh instance validates the active segment on its first append; later appends parse only unseen complete lines. Rolled segments are revalidated when their size changes.
 
 ## Dead ends
 
-Validating the later lines during append would require parsing more than the one existing line allowed by acceptance criterion 2.
+A simpler full-segment parse on each append was rejected because it preserves the reported scaling cost.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Expected 45 minutes; completed within the budget.
 
