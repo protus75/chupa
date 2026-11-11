@@ -1877,6 +1877,7 @@ async def test_production_shares_one_admission_control_consumer(root, tmp_path, 
         assert checkout.journal.read() == []
         return writer
 
+    monkeypatch.setattr(cli, "_engine_signals", lambda cb: lambda: None)
     assert await asyncio.to_thread(cli.main, ["drain"], cwd=root, env=checkout_env, clock=Clock(), pipeline=pipeline) == 0
     assert len(consumers) == len(roots) == len(captured) == 1
     assert trace[:3] == ["build", "pipeline", "publish"] and "consume" in trace

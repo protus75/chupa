@@ -7,7 +7,7 @@ uv run chupa doctor
 uv run chupa serve
 ```
 
-Use the same prefix for the other verbs below. The host checkout remains the working directory; `--config PATH` before the verb selects a different config. `serve` is the normal mode: it runs until `kill`, `stop`, or Ctrl-C. `drain` is a finite run to quiescence. A running serve picks up config edits and new ticket files live. Drafts written by Author wait for `confirm`.
+Use the same prefix for the other verbs below. The host checkout remains the working directory; `--config PATH` before the verb selects a different config. `serve` is the normal mode: it runs until `kill`, `stop`, or Ctrl-C. `drain` is a finite run to quiescence. Closing its terminal, SIGTERM, or Ctrl-C ends it as `kill` does. Serve stops on SIGHUP as it does on Ctrl-C: an unjournaled stop that the next start reconciles. A running serve picks up config edits and new ticket files live. Drafts written by Author wait for `confirm`.
 
 | Verb | Works while serve runs? | What it does |
 |---|---|---|

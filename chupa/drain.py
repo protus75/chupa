@@ -20,8 +20,10 @@ from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
+from uuid import uuid4
 
-from chupa import caps
+from chupa import caps, control
+from chupa.control import ControlRequest
 from chupa.enginelog import EngineLog
 from chupa.journal import TERMINAL_STATES, Event, EventType, render_ts
 from chupa.lockfile import Lockfile
@@ -205,6 +207,7 @@ async def drain(
     argv: Iterable[str] = ("drain",),
     before_dispatch: Callable[[], Awaitable[None]] | None = None,
     stop_lifecycle: str | None = None,
+    signals: Callable[[Callable[[], None]], Callable[[], None]] | None = None,
 ) -> Report:
     """`reexec` is the handoff's own process seam: never the instance active work spawns through."""
     consumer = checkout.control
@@ -215,6 +218,7 @@ async def drain(
     pid = os.getpid()
     lock.acquire()
     outcome = "quiescent"
+    restore = None
     try:
         log.event("engine_start", verb="drain", pid=pid)
         if stop_lifecycle is not None:
@@ -263,6 +267,8 @@ async def drain(
             await dispatch.prepare()
         await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
         run = _Drain(checkout, dispatch, frozenset(parked), before_dispatch=checkpoint, deadline=deadline)
+        if signals is not None:
+            restore = signals(run._signal_kill)
         run.retro = getattr(dispatch, "_retro", None)
         report = await run.run()
         # A pending self-upgrade is still an offer boundary, never permission to
@@ -293,7 +299,11 @@ async def drain(
                 exc = sys.exception()
                 log.event("engine_stop", verb="drain", pid=pid, outcome=f"error: {type(exc).__name__}" if exc else outcome)
             finally:
-                lock.release()
+                try:
+                    if restore is not None:
+                        restore()
+                finally:
+                    lock.release()
     # The fixed HANDOFF order: journaled, journal closed, lock free -- the child is the only writer,
     # and the parent does nothing after the spawn but exit with its code.
     report.handoff, _, _ = await reexec.run(
@@ -314,6 +324,9 @@ async def drain(
 
 
 class _Drain:
+    def _signal_kill(self) -> None:
+        control.publish_request(self.c.config.state_dir, ControlRequest(uuid4().hex, self.c.control.inbox.lifecycle_id, "kill", None), self.c.fs)
+
     def __init__(self, checkout: Checkout, dispatch: Dispatch, carried: frozenset[str], *, before_dispatch: Callable[[], Awaitable[None]] | None = None, deadline: datetime | None = None) -> None:
         self.c = checkout
         self.dispatch = dispatch

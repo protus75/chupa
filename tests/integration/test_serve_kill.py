@@ -134,14 +134,14 @@ async def test_serve_kill_unwinds_executor_before_workers(root, monkeypatch):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("mode", ["SIGINT", "SIGTERM", "cancel"])
+@pytest.mark.parametrize("mode", ["SIGINT", "SIGTERM", "SIGHUP", "cancel"])
 async def test_serve_signal_stop_and_restart_recovery(root, monkeypatch, mode):
     delivered, removed = {}, []
     loop = asyncio.get_running_loop()
     monkeypatch.setattr(loop, "add_signal_handler", lambda sig, handler: delivered.__setitem__(sig, handler))
     monkeypatch.setattr(loop, "remove_signal_handler", lambda sig: removed.append(sig))
     failures = []
-    rig, llm, run = await active_graph(root, monkeypatch, signals=cli._serve_signals, failure=failures.append)
+    rig, llm, run = await active_graph(root, monkeypatch, signals=cli._engine_signals, failure=failures.append)
     if mode == "cancel":
         run.cancel()
     else:
@@ -151,7 +151,7 @@ async def test_serve_signal_stop_and_restart_recovery(root, monkeypatch, mode):
     llm.release.set()
     await finish(rig, run)
     assert failures == []
-    assert set(removed) == {signal.SIGINT, signal.SIGTERM}
+    assert set(removed) == {signal.SIGINT, signal.SIGTERM, signal.SIGHUP}
     assert not any(e.body.get("kind") in {"control_decision", "kill_applied"} for e in rig.journal.read())
     calls, _, _ = script(monkeypatch)
     old = rig.owner

@@ -106,7 +106,7 @@ def test_serve_cli_uses_production_composition(root, monkeypatch):
         return await original(self)
 
     monkeypatch.setattr(serve.Serve, "run", run)
-    monkeypatch.setattr(cli, "_serve_signals", lambda stop: (stop(), lambda: None)[1])
+    monkeypatch.setattr(cli, "_engine_signals", lambda stop: (stop(), lambda: None)[1])
     assert cli.main(["serve"], cwd=root, env=ENV) == 0
     assert len(built) == 1 and len(built[0].workers) == 4
     assert "chupa.serve" in import_closure(sources())

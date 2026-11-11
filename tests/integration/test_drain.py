@@ -1247,6 +1247,8 @@ def _exercise_retro_drain(tmp_path, monkeypatch, scenario):
 
     monkeypatch.setattr("chupa.driver.Driver.run", recorded)
 
+    monkeypatch.setattr("chupa.__main__._engine_signals", lambda cb: lambda: None)
+
     class Child:
         spawns = 0
 

@@ -86,6 +86,7 @@ def root(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def order(monkeypatch) -> list[str]:
+    monkeypatch.setattr("chupa.__main__._engine_signals", lambda cb: lambda: None)
     """The handoff's observable steps, in the order they happen across the whole chain."""
     steps: list[str] = []
     release, close, append = lockfile_mod.Lockfile.release, journal_mod.Journal.close, journal_mod.Journal.append

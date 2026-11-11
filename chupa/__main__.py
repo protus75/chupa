@@ -510,7 +510,7 @@ def main(
             print("\n".join(line for _, line in lines) if lines else "no pending suggestions")
             return 0
         if args.verb == "serve":
-            return asyncio.run(serve.serve(checkout, config_path=args.config, signals=_serve_signals, argv=invocation, reexec=reexec or SubprocessExec()))
+            return asyncio.run(serve.serve(checkout, config_path=args.config, signals=_engine_signals, argv=invocation, reexec=reexec or SubprocessExec()))
         if args.verb == "retro":
             return asyncio.run(_retro(checkout, pipeline, config_path=args.config))
         checkout = replace(checkout, control=build_control(checkout))
@@ -533,6 +533,7 @@ def main(
                 drain.drain(
                     checkout,
                     DrainDispatch(),
+                    signals=_engine_signals,
                     reexec=reexec or SubprocessExec(),
                     parked=args.parked,
                     deadline=args.deadline,
@@ -776,10 +777,10 @@ async def _status(checkout: runner.Checkout):
     )
 
 
-def _serve_signals(stop: Callable[[], None]) -> Callable[[], None]:
+def _engine_signals(stop: Callable[[], None]) -> Callable[[], None]:
     """Real signal delivery is composed here, alongside the other operating-system seams."""
     loop = asyncio.get_running_loop()
-    previous = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
+    previous = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
     for sig in previous:
         loop.add_signal_handler(sig, stop)
 
