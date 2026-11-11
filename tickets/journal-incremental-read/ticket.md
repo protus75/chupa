@@ -27,6 +27,7 @@ When this ticket is done, a `Journal` instance keeps its parsed events in memory
   - `read()` returns a new list on each call, so a caller that mutates its list cannot corrupt the cache. `read_segments()` keeps its contract.
   - `JournalCorruption` messages keep their file path and correct line numbers.
   - `append()`'s roll-age check reads only the first line of the active segment, not all of it.
+  - `append()` still raises `JournalCorruption` before writing when the active segment holds a malformed complete line, as `tests/integration/test_journal_roll.py` requires. It checks the segment through the instance's own incremental read: a fresh instance's first `append()` parses the active segment once, and each later `append()` parses only lines it has not cached. It never calls `_parse_segment` on the whole active segment per write.
   - The new read path calls a pure helper with no I/O: given a segment's bytes from an offset, it returns the parsed events of the complete lines, the new offset and the line count, leaving an unterminated tail unparsed. It is what the unit suite covers: the coverage gate measures only `tests/unit`, and `test-gate.toml` sets `chupa/journal.py` to 20.
 - In: `docs/how-chupa-works.md`, section 10: one sentence saying a `Journal` instance parses each byte of the journal once and re-reads only appended lines.
 - In: new `tests/unit/test_journal_incremental.py` (the pure helper only, no disk), new `tests/integration/test_journal_incremental.py` (every disk scenario), and the carried reproducer `tests/regress_journal_incremental_read.py`.
@@ -49,7 +50,7 @@ When this ticket is done, a `Journal` instance keeps its parsed events in memory
 2. `tests/integration/test_journal_incremental.py`, counting `chupa.journal._parse_line` calls through a monkeypatched wrapper:
    - A second `read()` with no appends in between parses 0 lines, not the whole journal again.
    - After `k` appends (by the same instance, or by a second `Journal` on the same directory), the next `read()` parses exactly `k` lines. Its result equals a fresh `Journal`'s `read()`, compared by value and order.
-   - An `append()` into an active segment of `n` lines parses at most 1 existing line, not `n`.
+   - An `append()` by an instance that has already read the active segment's `n` lines parses at most 1 existing line, not `n`. At base it parses `n`.
 3. `tests/integration/test_journal_incremental.py`, correctness:
    - An unterminated tail line is excluded. Once a later write completes it, the next `read()` includes it exactly once.
    - When the active segment rolls between two reads, the second `read()` returns every event once, in write order, with the old segment's remaining lines included.
