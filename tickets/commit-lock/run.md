@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The doctor fixture needed a separate lock directory to preserve its read-only state assertions; a private commit method avoids reacquiring the lock during squash merges.
+The final full suite passed with 3,363 tests; the unit coverage, integration, lint, and format gates also passed. A private commit path was necessary so squash merges hold one lock without reentering it.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+Expected 90 minutes; completed within that budget.
 
