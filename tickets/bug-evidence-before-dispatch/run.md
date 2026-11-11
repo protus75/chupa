@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-A ticket whose frontmatter remains confirmed but whose journal state is settled now requires filesystem evidence during intake; the affected fixture was given evidence. The regression passed on the branch and returned defect on the merge base. All verification commands and configured hard checks passed.
+The regression reports defect on the merge base and pass on the branch; all verification commands and hard host checks passed.
 
 ## Dead ends
 
-none
+A direct evidence check in intake would reject historical journal-settled tickets, so intake retains a grammar-only path for those tickets.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-The ticket estimated 45 minutes; elapsed time was not measured.
+Expected 45 minutes; completed within the budget.
 
