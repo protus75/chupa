@@ -337,8 +337,8 @@ def test_snapshot_menu_availability(tmp_path, monkeypatch):
     assert (rows["held-ready"]["menu"]["chupaRun"], rows["ready"]["menu"]["chupaRun"], rows["ready"]["menu"]["chupaReview"]) == (
         "locked",
         "locked",
-        "locked",
-    )  # A hold does not override runnable, and the lock applies to both actions.
+        "on",
+    )  # Run needs the lock, while committed review does not.
     assert (rows["invalid"]["menu"]["chupaReview"], rows["invalid"]["menu"]["chupaPriority"]) == ("off", "off")  # Invalid blocked rows cannot be reviewed or ordered.
     assert rows["done"]["menu"]["chupaLint"] == "off"  # Merged rows cannot be linted.
     box_rows = {row["id"]: row for row in snap["box"]}
@@ -348,11 +348,15 @@ def test_snapshot_menu_availability(tmp_path, monkeypatch):
     monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: ({"held"}, set()))
     dirty = {row["stem"]: row for row in watch.snapshot(ctx)["rows"]}
     assert (dirty["held"]["menu"]["chupaConfirm"], dirty["held"]["menu"]["chupaReject"]) == ("off", "off")  # The engine cannot admit dirty ticket content.
+    assert dirty["held"]["menu"]["chupaReview"] == "locked"  # Dirty review needs intake under the lock.
+    assert dirty["invalid"]["menu"]["chupaReview"] == "off"  # Invalid rows remain unavailable.
     monkeypatch.setattr(watch, "lock_holder", lambda state: None)
     snap = watch.snapshot(ctx)
     stopped = {row["stem"]: row for row in snap["rows"]}
     assert (stopped["held"]["menu"]["chupaConfirm"], stopped["held"]["menu"]["chupaReject"]) == ("on", "on")  # Without the engine dirty verdicts are allowed.
     assert (stopped["ready"]["menu"]["chupaRun"], stopped["ready"]["menu"]["chupaReview"]) == ("on", "on")  # Runnable and reviewable work is unlocked.
+    assert stopped["held"]["menu"]["chupaReview"] == "on"  # Dirty review can intake when the lock is free.
+    assert stopped["invalid"]["menu"]["chupaReview"] == "off"  # Stopping the engine does not validate a ticket.
     assert stopped["held-ready"]["menu"]["chupaRun"] == "on"  # A held runnable ticket remains runnable without the lock.
     assert next(row for row in snap["box"] if row["id"] == pending)["menu"] == {"chupaTriage": "on", "chupaDismiss": "on"}  # Pending actions unlock when the engine stops.
 

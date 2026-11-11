@@ -611,7 +611,7 @@ def snapshot(ctx) -> dict:
         valid = r["stem"] not in invalid
         verdict = (r["draft"] or r["held"]) and (r["committed"] or not alive)
         r["menu"] = {
-            "chupaReview": available(open_section and valid),
+            "chupaReview": "off" if not (open_section and valid) else "locked" if alive and not r["committed"] else "on",
             "chupaLint": "on" if r["section"] != "merged" else "off",
             "chupaRun": available(r["runnable"]),
             "chupaConfirm": "on" if verdict else "off",
