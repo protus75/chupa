@@ -554,3 +554,20 @@ def test_list_open_tickets_requires_disk_commit_and_not_merged(tmp_path):
     checkout = pause_checkout(root)
     checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="done")
     assert asyncio.run(list_open_tickets(checkout)) == "live: live goal"
+
+
+def test_merged_fix_recurrence_can_author_new_ticket(tmp_path, monkeypatch):
+    from chupa.box import RereportJournal
+    from tests.integration.test_retro_box import PROPOSAL
+
+    root = make_root(tmp_path)
+    _routes(root)
+    box = _box(root)
+    id, _ = box.enqueue(message_class="retro_finding", origin="retro", summary=PROPOSAL["fixed_failure"], retro_report_key="retro/1", **PROPOSAL)
+    assert _run(root, monkeypatch, FakeLLM([reply("author"), author_reply("first-fix"), requisition_reply("approve")])) == 0
+    checkout = pause_checkout(root)
+    checkout.journal.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="first-fix")
+    durable = Box(box.root, checkout.fs, rereport=RereportJournal(checkout.journal))
+    durable.record_recurrence(box.get(id), "again", reopen=True)
+    assert _run(root, monkeypatch, FakeLLM([reply("author"), author_reply("second-fix"), requisition_reply("approve")])) == 0
+    assert box.get(id).resolution == Resolution(kind="ticket", link="second-fix")

@@ -624,7 +624,7 @@ Problems found while working are filed, not fixed in the current diff. Classes: 
 
 - `author`: run the Author stage to write a ticket.
 - `tombstone`: the message is already covered by a merged or committed ticket. A third
-  re-report reopens it.
+  re-report reopens it. Retro recurrences use the same re-report rule.
 - `declined`: record a decision in `tickets/decisions/<id>.md`.
 
 `dismiss <id> ...` records operator decisions without a model call; unknown IDs refuse before any message is settled.
@@ -652,7 +652,7 @@ detection signals, and escape signals for automatically reopened tombstones.
 
 The retro reads the journal since the last report. By default `retro.test_timing` includes each Check gate’s per-invoice counts and duration plus each slow test’s maximum duration and invoice count. `retro.coverage` includes the latest repository percentage and each file’s latest and minimum percentages and invoice count. Set either switch to false to omit its summary. During a drain it runs between tickets, never
 between attempts of one ticket, when due at the `retro:` thresholds: by default 25 merges, 7 days, or 5 events of one spike kind. A requested retro runs at the drain’s next between-tickets point. Serve runs requested retros and automatic retros due after a ticket settles at its next idle point, then resumes admission. Each nested `retro.merges`, `retro.days`, and `retro.spikes` block has an `enabled` switch; their thresholds are `merges.every`, `days.every`, and `spikes.count`. The nonempty `spikes.kinds` allowlist selects which kinds can trigger; measurements still report every kind. The master `retro.enabled: false` disables automatic retros even if sub-triggers are enabled; run one on demand with `retro`. Config load refuses an enabled master with all three triggers disabled (enable a trigger or set `retro.enabled: false`) and duplicate spike kinds (list each kind once). It commits `tickets/retro/NNNNNN.md` (measurements,
-scorecard, proposals) and files each proposal as a `retro_finding`. Proposals identify either prompt-spec paths or repository paths for a test repair. Test repairs name one issue: `unit-io`, `slow`, `drift`, `flaky`, `coverage-hard`, `over-mocking`, `weak-assertion`, `shared-state`, `duplicate`, or `skip-rot`.
+scorecard, proposals) and files new proposals as `retro_finding` messages. It supplies prior findings to the model; a proposal matching an existing cause counts as a recurrence on that message. A recurrence after its ticket fix merged reopens the finding for a new fix. Proposals identify either prompt-spec paths or repository paths for a test repair. Test repairs name one issue: `unit-io`, `slow`, `drift`, `flaky`, `coverage-hard`, `over-mocking`, `weak-assertion`, `shared-state`, `duplicate`, or `skip-rot`.
 
 ### 9.6 Scorecard and baseline
 

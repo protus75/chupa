@@ -90,6 +90,7 @@ class Message(_Strict):
     proposed_spec_paths: list[Annotated[str, Field(pattern=r"^specs/[a-z0-9_-]+\.md$")]] = []
     test_issue: TestIssue | None = None
     proposed_paths: list[RepoPath] = []
+    recurrences: Annotated[int, Field(ge=0)] = 0
     reports: Annotated[int, Field(ge=0)] = 0
     reopen: bool = False
     report: ReportDescriptor | None = None
@@ -338,6 +339,26 @@ class Box:
             apply(message.reports + 1)
         else:
             self._rereport.record(message, occurrence_id or f"report/{message.reports + 1}", apply)
+
+    def record_recurrence(self, message: Message, occurrence_id: str, *, reopen: bool = False) -> None:
+        journal = self._rereport.journal
+        key = f"retro-recurrence/{message.id}/{occurrence_id}"
+        history = journal.read()
+        events = [event for event in history if event.key == key]
+        if any(event.type == EventType.EFFECT_COMPLETION for event in events):
+            return
+        intent = next((event for event in events if event.type == EventType.EFFECT_INTENT), None)
+        if intent is None:
+            reserved = [event.body["recurrences"] for event in history if event.type == EventType.EFFECT_INTENT and (event.key or "").startswith(f"retro-recurrence/{message.id}/")]
+            intent = journal.append(EventType.EFFECT_INTENT, {"recurrences": max([message.recurrences, *reserved]) + 1, "reopened": reopen}, key=key)
+        body = intent.body
+        if set(body) != {"recurrences", "reopened"} or type(body["recurrences"]) is not int or body["recurrences"] < 1 or type(body["reopened"]) is not bool:
+            raise BoxError("invalid recurrence receipt; restore its journal-backed occurrence evidence")
+        changes = {"recurrences": max(message.recurrences, body["recurrences"])}
+        if body["reopened"]:
+            changes.update(status="pending", resolution=None, verdict=None, reopen=True)
+        self._write(message.model_copy(update=changes))
+        journal.append(EventType.EFFECT_COMPLETION, {"result": dict(body)}, key=key)
 
     def confirmed_tombstones(self, policy=None) -> list[Message]:
         from chupa.config import BOX_POLICY_DEFAULTS

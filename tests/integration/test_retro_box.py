@@ -188,3 +188,37 @@ async def test_retro_replays_only_missing_proposals(tmp_path, monkeypatch):
     assert await hook(forced=False) is None
     assert calls == [messages[1].origin]
     assert {message.origin for message in box.messages()} == {message.origin for message in messages}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["pending", "merged", "running", "declined", "tombstone"])
+async def test_recurrence_preserves_message_and_reopens_only_when_due(tmp_path, kind):
+    root, box = root_with_box(tmp_path)
+    c = pause_checkout(root)
+    c = replace(c, config=load_config(None, cwd=root), control=build_control(c))
+    id, _ = box.enqueue(message_class="retro_finding", origin="earlier", summary=PROPOSAL["fixed_failure"], retro_report_key="retro/1", **PROPOSAL)
+    if kind != "pending":
+        resolution = Resolution(kind="ticket", link="fix") if kind in ("merged", "running") else Resolution(kind=kind, link="decision")
+        box.resolve(id, resolution)
+    if kind in ("merged", "running"):
+        c.journal.append(EventType.STATE_TRANSITION, {"to": kind}, ticket="fix")
+    if kind == "tombstone":
+        from chupa.box import RereportJournal
+
+        durable = Box(box.root, c.fs, rereport=RereportJournal(c.journal))
+        durable.record_rereport(id, occurrence_id="first")
+        durable.record_rereport(id, occurrence_id="second")
+    proposal = PROPOSAL | {"recurs": id}
+    hook = Retro(c, runner.bind(c, FakeLLM([json.dumps({"proposals": [proposal]})])))
+    c.journal.append(EventType.STATE_TRANSITION, {"to": "merged", "commit": None}, ticket="history")
+    await hook(forced=True)
+    result = box.get(id)
+    assert len(box.messages()) == 1
+    assert (result.reports, result.recurrences) == ((3, 0) if kind == "tombstone" else (0, 1))
+    if kind in ("merged", "tombstone"):
+        assert (result.status, result.reopen, result.resolution) == ("pending", True, None)
+    elif kind != "pending":
+        assert result.status == "resolved"
+    before = {p: p.read_bytes() for p in box.root.glob("*.json")}
+    await hook.emit_proposals("retro/1")
+    assert {p: p.read_bytes() for p in box.root.glob("*.json")} == before

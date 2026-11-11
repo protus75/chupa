@@ -9,11 +9,12 @@ from typing import Annotated, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from chupa.artifacts import NonBlank
+from chupa.artifacts import Finding, NonBlank
 from chupa.box import BOX_DIR, Box, RepoPath, RereportJournal, TestIssue, read_registry
 from chupa.config import Retro as RetroSettings
 from chupa.config import SpikeKind
 from chupa.driver import LlmStage
+from chupa.gates import GateReport
 from chupa.git import GitError
 from chupa.journal import Event, EventType
 from chupa.specs import RENDER_BOUND_CHARS, REQ_RENDER_HEADROOM, RenderOverBound, load_spec, render
@@ -29,6 +30,7 @@ class RetroConstructionError(ValueError):
 
 class RetroProposal(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+    recurs: NonBlank | None = None
     fixed_failure: NonBlank
     overcorrection_risk: NonBlank
     proposed_spec_paths: list[Annotated[str, Field(pattern=r"^specs/[a-z0-9_-]+\.md$")]] = []
@@ -45,6 +47,34 @@ class RetroProposal(BaseModel):
 class RetroArtifact(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
     proposals: list[RetroProposal]
+
+
+def prior_findings(messages, events):
+    from chupa.status import last_states
+
+    states = last_states(events)
+    return [
+        {
+            "id": m.id,
+            "fixed_failure": m.fixed_failure,
+            "status": m.status,
+            "resolution_kind": m.resolution.kind if m.resolution else None,
+            "resolution_link": m.resolution.link if m.resolution else None,
+            "fix_merged": bool(m.resolution and m.resolution.kind == "ticket" and states.get(m.resolution.link) == "merged"),
+        }
+        for m in messages
+        if m.message_class == "retro_finding"
+    ]
+
+
+async def validate_recurrences(artifact, findings):
+    ids = {row["id"] for row in findings}
+    errors = [
+        Finding(code="retro_recurs", path="recurs", message=f"unknown prior finding: {p.recurs}", paved_road="choose an id from prior_findings or omit recurs")
+        for p in artifact.proposals
+        if p.recurs is not None and p.recurs not in ids
+    ]
+    return GateReport(code="retro_recurs", verdict="fail" if errors else "pass", findings=errors)
 
 
 @dataclass(frozen=True)
@@ -286,14 +316,30 @@ class Retro:
             return
         artifact = RetroArtifact.model_validate({"proposals": json.loads(text.split("```json\n", 1)[1].split("\n```", 1)[0])["proposals"]})
         from chupa.daemon import storm_producer
+        from chupa.status import last_states
         from chupa.storm import arrival_id
 
         box = storm_producer(root=c.config.state_dir / BOX_DIR, fs=c.fs, journal=c.journal, clock=c.clock)
-        origins = {message.origin for message in box.messages()}
+        messages = box.messages()
+        origins = {message.origin for message in messages}
         for proposal in artifact.proposals:
             fields = proposal.model_dump(exclude_defaults=True)
             canonical = json.dumps(fields, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
             proposal_id = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+            if proposal.recurs is not None:
+                message = next(m for m in messages if m.id == proposal.recurs and m.message_class == "retro_finding")
+                occurrence = arrival_id("retro-recurrence", report_key, proposal_id)
+                history = c.journal.read()
+                if any(e.type == EventType.EFFECT_COMPLETION and e.key in (f"retro-recurrence/{message.id}/{occurrence}", f"box-rereport/{message.id}/{occurrence}") for e in history):
+                    continue
+                rereport_key = f"box-rereport/{message.id}/{occurrence}"
+                if (message.resolution and message.resolution.kind == "tombstone") or any(e.type == EventType.EFFECT_INTENT and e.key == rereport_key for e in history):
+                    box.record_rereport(message.id, occurrence_id=occurrence)
+                else:
+                    merged = bool(message.resolution and message.resolution.kind == "ticket" and last_states(history).get(message.resolution.link) == "merged")
+                    box.record_recurrence(message, occurrence, reopen=merged)
+                messages = box.messages()
+                continue
             origin = f"retro-proposal/{report_key}/{proposal_id}"
             if origin in origins:
                 continue
@@ -368,6 +414,10 @@ class Retro:
             spec = load_spec((SPECS_DIR / "retro.md").read_text())
             head = await c.git.rev_parse(c.repo, "HEAD")
             provenance = {"head": head, "spec_version": spec.meta.version, "at": c.clock().isoformat()}
+            from chupa.daemon import storm_producer
+
+            box = storm_producer(root=c.config.state_dir / BOX_DIR, fs=c.fs, journal=c.journal, clock=c.clock)
+            prior = prior_findings(box.messages(), c.journal.read())
             consumed = {"events": [asdict(e) for e in window.events], "measurements": evidence, "provenance": provenance}
             call_seq = 0
 
@@ -376,7 +426,7 @@ class Retro:
                 call_seq += 1
                 retries = json.dumps([f.model_dump() for f in findings])
                 try:
-                    prompt = render(spec, {"window": json.dumps(material, sort_keys=True), "retry_findings": retries})
+                    prompt = render(spec, {"window": json.dumps(material, sort_keys=True), "prior_findings": json.dumps(prior, sort_keys=True), "retry_findings": retries})
                     if len(prompt) <= RENDER_BOUND_CHARS * REQ_RENDER_HEADROOM:
                         return prompt
                 except RenderOverBound:
@@ -385,9 +435,12 @@ class Retro:
                 stem = f"retro/{window.sequence}"
                 driver.spool.write(stem, 1, name, "".join(json.dumps(event, sort_keys=True) + "\n" for event in material["events"]))
                 on_demand = {"events_path": str((driver.spool.root / stem / "1" / name).resolve()), "measurements": material["measurements"], "provenance": material["provenance"]}
-                return render(spec, {"window": json.dumps(on_demand, sort_keys=True), "retry_findings": retries})
+                return render(spec, {"window": json.dumps(on_demand, sort_keys=True), "prior_findings": json.dumps(prior, sort_keys=True), "retry_findings": retries})
 
-            stage = LlmStage(surface="retro", emits=RetroArtifact, gates=[], render=render_input)
+            async def review_recurrences(artifact, call_seq):
+                return await validate_recurrences(artifact, prior)
+
+            stage = LlmStage(surface="retro", emits=RetroArtifact, gates=[], render=render_input, review=review_recurrences)
             result = await driver.run(
                 stage,
                 consumed,

@@ -152,7 +152,15 @@ def record_retro_ticket(journal, message: Message, stem: str) -> None:
         return
     body = {"kind": "retro_ticket_authored", "box_id": message.id, "retro_report_key": message.retro_report_key, "ticket_stem": stem}
     key = f"retro-ticket/{stem}"
-    prior = [e for e in journal.read() if e.key == key or (e.body.get("kind") == "retro_ticket_authored" and (e.body.get("ticket_stem") == stem or e.body.get("box_id") == message.id))]
+    history = journal.read()
+    boundary = max(
+        (i for i, e in enumerate(history) if e.type == EventType.EFFECT_INTENT and (e.key or "").startswith(f"retro-recurrence/{message.id}/") and e.body.get("reopened") is True), default=-1
+    )
+    prior = [
+        e
+        for i, e in enumerate(history)
+        if e.key == key or (e.body.get("kind") == "retro_ticket_authored" and (e.body.get("ticket_stem") == stem or (e.body.get("box_id") == message.id and (not message.reopen or i > boundary))))
+    ]
     if prior:
         if len(prior) != 1 or prior[0].type != EventType.SIGNAL or prior[0].key != key or prior[0].ticket != stem or prior[0].body != body:
             raise BoxError("conflicting retro ticket provenance; restore the Author-produced bridge before resolving the Box")
@@ -165,8 +173,11 @@ async def recover_retro_ticket(checkout: Checkout, box: Box, message: Message) -
     if message.message_class != "retro_finding":
         return None
     history = checkout.journal.read()
+    boundary = max(
+        (i for i, e in enumerate(history) if e.type == EventType.EFFECT_INTENT and (e.key or "").startswith(f"retro-recurrence/{message.id}/") and e.body.get("reopened") is True), default=-1
+    )
     stems = set()
-    for event in history:
+    for event in history[boundary + 1 :]:
         parts = (event.key or "").split("/")
         if event.type != EventType.EFFECT_COMPLETION or len(parts) != 6 or parts[:2] != ["llm", "author"] or parts[3:5] != ["author", str(message.seq)]:
             continue
