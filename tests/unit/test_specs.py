@@ -22,7 +22,7 @@ from chupa.specs import (
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parents[2] / "chupa" / "specs"
-    for name, version in (("implement", "2.10"), ("requisition_review", "3.10"), ("diagnose", "1.4")):
+    for name, version in (("implement", "2.10"), ("requisition_review", "3.10"), ("diagnose", "1.5")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
@@ -63,6 +63,18 @@ def test_requisition_review_spec_snags_non_protocol_regression():
         "runner output on stdout (such as from `./dev.py test` or pytest) is a snag",
     ):
         assert phrase in task
+
+
+def test_diagnose_spec_lesson_length_guidance():
+    text = (Path(__file__).resolve().parents[2] / "chupa/specs/diagnose.md").read_text()
+    task = " ".join(load_spec(text).body.split("## Task\n", 1)[1].split("## Inputs\n", 1)[0].split())
+    # Output-only caps, unsplit lessons, or brevity without actionable names miss the guidance.
+    for rule in (
+        "Each lesson is at most 300 characters.",
+        "split it into separate lessons, one fact or file group each, keeping the total to 5 or fewer.",
+        "Keep the concrete file, fixture and caller names the next attempt needs; drop prose around them instead.",
+    ):
+        assert rule in task
 
 
 def test_diagnose_spec_states_attempt_starting_point():
