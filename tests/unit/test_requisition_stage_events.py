@@ -77,6 +77,6 @@ def test_stage_events(monkeypatch, case, outcome, active):
             asyncio.run(run())
     else:
         asyncio.run(run())
-    context = dict(stem="slot", attempt=3, surface="requisition_review", run_seq=7)
+    context = dict(stem="actual", attempt=3, surface="requisition_review", run_seq=7)
     assert events == ([] if active else [("stage_start", context), ("stage_end", {**context, "outcome": outcome, "calls": 1})])
     assert [watch["owner"] for watch in watches] == ([] if active else ["slot"])

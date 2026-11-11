@@ -146,7 +146,7 @@ async def review_ticket(
                     dependents.setdefault(test, set()).add(path)
         coverage_dependents = "\n".join(f"{test}: runs {', '.join(sorted(paths))}" for test, paths in sorted(dependents.items())) or "none"
 
-    event_context = dict(stem=stem_slot, attempt=attempt, surface="requisition_review", run_seq=run_seq)
+    event_context = dict(stem=stem, attempt=attempt, surface="requisition_review", run_seq=run_seq)
     outcome = "gate_failed"
     owns_watch = False
     try:

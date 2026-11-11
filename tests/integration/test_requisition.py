@@ -344,7 +344,7 @@ def test_requisition_stage_events_in_engine_log(tmp_path):
     assert verdict.verdict == "approve"
     events = [json.loads(line) for line in (tmp_path / ".state/engine.log").read_text().splitlines()]
     stages = [e for e in events if e.get("surface") == "requisition_review" and e["event"] in ("stage_start", "stage_end")]
-    assert [(e["event"], e["stem"], e["attempt"], e["run_seq"]) for e in stages] == [("stage_start", "different-slot", 3, 7), ("stage_end", "different-slot", 3, 7)]
+    assert [(e["event"], e["stem"], e["attempt"], e["run_seq"]) for e in stages] == [("stage_start", "one-thing", 3, 7), ("stage_end", "one-thing", 3, 7)]
     assert stages[1]["outcome"] == "ok"
 
 
