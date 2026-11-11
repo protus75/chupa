@@ -41,6 +41,9 @@ When this ticket is done, the retro sees the existing findings and marks a propo
     - Pending, declined, or a ticket not yet merged: count only, never reopen, however many recurrences arrive.
   - The re-emit skip from `retro-reemit-skip` also skips a `recurs` proposal whose occurrence is already recorded.
 - In: `chupa/box.py`: the `recurrences` field and a method that records a non-tombstone recurrence and the merged-fix reopen. It writes a journal receipt keyed `retro-recurrence/<message id>/<occurrence id>` with the same effect intent and completion pattern as `RereportJournal.record`, so a crash between the intent and the box write never double counts.
+- In: `chupa/author.py`, so a reopened finding can get a new fix ticket. Today triage's `recover_retro_ticket` would re-resolve it to the old merged stem with no model call, and `record_retro_ticket` would refuse a second stem for the same `box_id`:
+  - `recover_retro_ticket` ignores author completions and stems from before a merged-fix reopen. For example, it returns `None` when `message.reopen` is true and the found stem is the message's earlier resolved ticket.
+  - `record_retro_ticket` accepts a new stem for a reopened message.
 - In: `chupa/specs/retro.md`: a `prior_findings` data block, and a Task rule to set `recurs` when a proposal fixes the same failure as an existing finding, judged by cause rather than wording. Its `version` goes from `1.3` to `1.4`, and `tests/integration/test_retro.py`'s pinned `"1.3"` follows.
 - In: `docs/how-chupa-works.md`: the retro paragraph (around "files each proposal as a `retro_finding`") and the tombstone-and-reopen list item describe recurrences and the fix-did-not-hold reopen.
 - Out:
@@ -51,7 +54,9 @@ When this ticket is done, the retro sees the existing findings and marks a propo
 ## Scope fence
 - chupa/retro.py
 - chupa/box.py
+- chupa/author.py
 - chupa/specs/retro.md
+- tests/integration/test_author.py
 - docs/how-chupa-works.md
 - tests/integration/test_retro.py
 - tests/integration/test_retro_box.py
@@ -64,15 +69,20 @@ When this ticket is done, the retro sees the existing findings and marks a propo
    - `enqueue` is called zero times, and the named pending message's `recurrences` becomes 1, not 2 after a second identical call.
    - A named message resolved as a merged ticket is reopened: `pending`, `reopen` true, no resolution.
    - Three recurrences on a message resolved as a ticket still `running` leave it resolved, with `recurrences` 3 and `reports` unchanged.
-4. `tests/integration/test_retro_box.py`, with a `FakeLLM` retro reply carrying `recurs`:
+4. `tests/unit/test_retro_recurrence.py` calls the new `Box` method directly on a real `Box`, with a fake `FileSystem` that captures writes and a fake journal with `read` and `append`. The method takes the `Message` object, not an id, because `Box.get` and `Box.messages` read disk:
+   - The count rises once per occurrence id, and a repeat with the same occurrence id is a no-op.
+   - A message resolved as a merged ticket is written back `pending`, with `reopen` true and `resolution` and `verdict` cleared.
+   - With an `EFFECT_INTENT` keyed `retro-recurrence/<message id>/<occurrence id>` seeded with no completion, and the message either not yet counted or already counted, the recurrence ends at exactly the original count plus 1 in both cases, and exactly one `EFFECT_COMPLETION` is appended.
+5. `tests/integration/test_author.py`: triaging a reopened `retro_finding` whose earlier ticket merged neither re-resolves it to the old stem nor raises `BoxError`, and Author can file a new ticket for it.
+6. `tests/integration/test_retro_box.py`, with a `FakeLLM` retro reply carrying `recurs`:
    - For a pending finding: no new box message is created, and the named message's recurrence count rises by exactly 1.
    - For a finding resolved as a `ticket` whose stem is `merged`: the message becomes `pending` with `reopen` true and no resolution.
    - For a finding resolved as a `ticket` still `running`: the count rises, and the message stays resolved.
    - Running `emit_proposals` for the same report twice leaves the count and the box files as after the first run, not counted twice.
    - For a `declined` finding: `recurrences` rises, and the message stays resolved.
    - For a tombstone: `reports` rises through the re-report path, and the third report reopens it as today.
-5. `tests/integration/test_retro.py` passes with the spec version pin updated to `"1.4"`.
-6. `./dev.py test` exits 0.
+7. `tests/integration/test_retro.py` passes with the spec version pin updated to `"1.4"`.
+8. `./dev.py test` exits 0.
 
 ## Verification
 ```
