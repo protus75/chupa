@@ -31,6 +31,7 @@ When this ticket is done, stage events have one writer: a `Driver` context manag
 - In: `Driver._run`, `review_ticket`, Check in `chupa/stages.py` and merge in `chupa/runner.py` log stage events only through `Driver.stage`. Every event keeps exactly its current fields and values, so `chupa/observe.py` and the existing event assertions stay unchanged. `review_ticket` keeps calling the yielded `end(outcome, calls=calls)` from its `finally` on every exit, as today.
 - In: `docs/how-chupa-works.md`, section 10, the `engine.log` row says stages do not nest on one driver and a gate run inside a stage logs under that stage.
 - In: `tests/unit/test_requisition_stage_events.py` changes only its fake driver, which gains a working `stage` (for example `Driver.stage` bound to the fake, or an equivalent recorder). Its event assertions stay unchanged.
+- In: `tests/integration/test_provider_cooldown_failover.py::test_mid_run_drought_is_harvested_without_spine_draws` gets a fixture-only change. Its patched `stages.check` calls `driver.run` (and `review_ticket` when `nested=True`) inside Check's stage, which the nesting refusal rejects. Merged `stages.check` never does this. Move those drought-raising calls into a patched `stages.review` (or another stage outside Check), and keep every assertion.
 - In: new `tests/unit/test_stage_events_seam.py`.
 - Out:
   - Changing any event's fields or the surfaces that log them.
@@ -45,6 +46,7 @@ When this ticket is done, stage events have one writer: a `Driver` context manag
 - docs/how-chupa-works.md
 - tests/unit/test_stage_events_seam.py
 - tests/unit/test_requisition_stage_events.py
+- tests/integration/test_provider_cooldown_failover.py
 
 ## Acceptance criteria
 1. `tests/unit/test_stage_events_seam.py` parses every `chupa/*.py` file with `ast` and asserts that the only call passing the literal `"stage_start"` or `"stage_end"` as an event name is inside `chupa/driver.py`'s `Driver.stage`. It fails at base, where `chupa/requisition.py`, `chupa/stages.py` and `chupa/runner.py` hold such calls.
