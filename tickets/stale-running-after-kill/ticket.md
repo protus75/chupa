@@ -58,8 +58,9 @@ work. So with no engine running:
 When this ticket is done, every verb decides "running" from the journal AND engine liveness:
 a stem the journal holds at `running` while no live process holds the writer lock is an
 interrupted run, and each verb treats it as one. An interrupted run can be rejected, or rerun
-by starting the engine; `confirm` has nothing to confirm (a reaped stem is `abandoned` and
-eligible, not held), so it keeps its current refusal.
+by starting the engine. `confirm` on an interrupted stem reaps it to `abandoned` and then
+refuses with "is neither a draft nor in the Reject queue": a reaped stem is eligible and
+needs no confirm.
 
 ## Scope in / Scope out
 - In: `chupa/runner.py`: a new `async def reap(checkout: Checkout) -> list[str]` that runs
@@ -111,7 +112,7 @@ eligible, not held), so it keeps its current refusal.
   at or above its 13% floor; `tests/unit/test_stale_running.py` covers those lines with fakes
   (criterion 9).
 - Out: `drain` and `serve` (they already reconcile on start); `_control`, so `kill` and `stop`
-  still leave the run for reconcile; `confirm`'s refusal; `reject_queue`; `vscode-chupa/`
+  still leave the run for reconcile; `reject_queue`; `vscode-chupa/`
   TypeScript; the logic of `reconcile.orphans` and `reconcile.reconcile`; `test-gate.toml`.
 
 ## Scope fence
@@ -135,7 +136,11 @@ eligible, not held), so it keeps its current refusal.
 2. `tests/integration/test_stale_running.py::test_reject_refuses_a_live_run` asserts that while
    a test-held `Lockfile` holds the lock, `runner.verdict(stem, checkout, kill=True)` raises
    `LockHeld`, the stem's last transition is still `running`, and no `abandoned` transition
-   was journaled (no reap beside a live engine).
+   was journaled (no reap beside a live engine); and
+   `tests/integration/test_stale_running.py::test_confirm_reaps_then_refuses` asserts that
+   `main(["confirm", "--yes", stem])` on a stem last at `running` with no lock held exits 2
+   with "is neither a draft nor in the Reject queue", journals `abandoned`, and leaves the
+   ticket frontmatter unchanged.
 3. `tests/integration/test_stale_running.py::test_order_beside_dead_run` asserts
    `main(["order", stem, "--priority", "P0"])` exits 0 and rewrites the priority when no
    process holds the lock, and still refuses with "is running" when `observe.lock_holder` is
