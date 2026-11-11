@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "65220418a3bda82c5e4ab35b76c5bc19ee760919",
+  "produced_at_sha": "3d3d48e46c73e5d5d8685737bdd73928db99f8fd",
   "stem": "commit-lock",
-  "attempt": 9,
+  "attempt": 10,
   "terminal": "gate_failed",
-  "stage": "check",
-  "verdict": "split",
+  "stage": "review",
+  "verdict": "retry",
   "lessons": [
-    "Only the check gate's diff_budget failed, on file count: 42 files against a budget of 30, with 480 lines against 1500. The full suite passed with 3355 tests, so the approach was sound. Split the ticket so that each stem touches fewer than 30 files.",
-    "Stem A is a refactor that changes no behavior. Route every test and harness Git(...) construction in the scope fence through one shared helper in tests/integration/test_git.py. If stem A alone goes over 30 files, split it again by directory.",
-    "Stem B depends on stem A. It adds CommitLock to chupa/lockfile.py, makes Git's commit_lock required, wires it in __main__, doctor, eval/harness, eval/diagnose and hosts/fixture/bin/claude, updates the helper, unit fakes and docs, and adds the tests for criteria 1-5.",
-    "Git must not have an optional or default commit_lock (Definition of rejected). Do not stage the constructor change across stems. Funnel the construction sites through the helper first so the required parameter lands in one place.",
-    "Keep the design review found sound: a private commit path that lets merge_squash commit inside its one hold. If merge_squash calls the public commit, it asks again for the lock it already holds and gets a RuntimeError."
+    "Redo the full ticket from the merge base: add CommitLock and CommitLockTimeout in chupa/lockfile.py, take the lock inside Git.commit, merge_squash, add and restore in chupa/git.py, wire every composition root, and update the doctor row order. Review found this wiring sound.",
+    "Have the shared commit_lock helper in tests/integration/test_git.py take the directory the lock lives in, such as a test's tmp_path or the repo's .chupa/state, and pass it from every caller. Never hard-code /tmp or any other fixed system path. The helper must leave no directories behind after a run.",
+    "In tests/unit/test_commit_lock.py, make the fake lock count enters or tag each git call with a hold id. Assert that commit(only=paths) makes exactly one enter covering update-index, diff, commit and rev-parse, and that merge_squash makes one enter covering merge and its commit.",
+    "Harness callers (daemon_soak, reliability_battery, shakeout, host_loop) must root their CommitLock under a directory they already create and clean up, such as their fixture repo's .chupa/state. They must not use a fresh temp path.",
+    "Do not reuse an earlier candidate. Rebuild it, then run ./dev.py test and confirm exit 0 before you finish."
   ],
   "mechanical": null,
   "spec_version": "1.4",
