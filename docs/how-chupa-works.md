@@ -278,7 +278,7 @@ Every engine gate is hard by default.
 | `scope_fence` | A changed file is outside `## Scope fence` (the stem's own outbox is exempt, except `ticket.md`). |
 | `verification` | A Verification command fails and was green at the base; or `already_satisfied` came with a diff; or a required report is missing or invalid. |
 | `run_record` | `run.md` is missing, or lacks its six fixed sections in order, or has an unknown outcome. |
-| `diff_budget` | More than 30 changed files, or more than 1,500 inserted lines: split the ticket. |
+| `diff_budget` | More than 1,500 inserted lines: split the ticket. |
 | `core_drift` | A routed conduct file's managed `chupa:core` block does not match the current template (section 12). |
 | `bug_evidence` | For `kind: bug` only: see section 5.2. |
 

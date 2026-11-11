@@ -18,7 +18,6 @@ from chupa.git import Git
 from chupa.llm import FakeLLM, LLMRequest
 from chupa.seams import LocalFileSystem, SubprocessExec
 from chupa.stages import (
-    DIFF_BUDGET_FILES,
     ApprovedInvoice,
     DiffBudgetGate,
     Evidence,
@@ -540,12 +539,14 @@ def evidence(**kw) -> Evidence:
     return Evidence(**{**base, **kw})
 
 
-def test_diff_budget_caps_files_and_inserted_lines(tmp_path):
+def test_diff_budget_caps_inserted_lines(tmp_path):
     gate = DiffBudgetGate()
-    assert gate.check(evidence(), tmp_path).verdict == "pass"
-    over = evidence(changed_files=[f"chupa/{n}.py" for n in range(DIFF_BUDGET_FILES + 1)])
-    assert "split the ticket" in gate.check(over, tmp_path).findings[0].paved_road
-    assert gate.check(evidence(inserted_lines=1_501), tmp_path).verdict == "fail"
+    many_files = evidence(changed_files=[f"chupa/{n}.py" for n in range(31)], inserted_lines=10)
+    assert gate.check(many_files, tmp_path).verdict == "pass"
+    report = gate.check(evidence(inserted_lines=1_501), tmp_path)
+    assert report.verdict == "fail"
+    assert report.findings[0].message == "diff is 1501 inserted lines, over the budget of 1500 lines"
+    assert "split the ticket" in report.findings[0].paved_road
 
 
 def test_run_record_gate_requires_every_section_and_a_closed_outcome(tmp_path):

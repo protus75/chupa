@@ -56,7 +56,6 @@ KNOWN_ARTIFACTS: Mapping[str, type[BaseModel]] = {
     REVIEW_BASELINE_REPORT: ReviewBaselineReport,
 }
 # Diff budget: sized so every rendered review prompt fits the serving provider's bound.
-DIFF_BUDGET_FILES = 30
 DIFF_BUDGET_INSERTED = 1_500
 # The mechanical Check has no prompt spec; this versions its own contract in the provenance slot.
 CHECK_SPEC_VERSION = 1
@@ -1310,15 +1309,15 @@ class DiffBudgetGate:
     code = "diff_budget"
 
     def check(self, artifact: Evidence, workspace: Path) -> GateReport:
-        files, inserted = len(artifact.changed_files), artifact.inserted_lines
-        if files <= DIFF_BUDGET_FILES and inserted <= DIFF_BUDGET_INSERTED:
+        inserted = artifact.inserted_lines
+        if inserted <= DIFF_BUDGET_INSERTED:
             return _report(self.code, [])
         return _report(
             self.code,
             [
                 Finding(
                     code=self.code,
-                    message=f"diff is {files} files / {inserted} inserted lines, over the budget of {DIFF_BUDGET_FILES} files / {DIFF_BUDGET_INSERTED} lines",
+                    message=f"diff is {inserted} inserted lines, over the budget of {DIFF_BUDGET_INSERTED} lines",
                     paved_road="split the ticket into smaller stems, each under the diff budget",
                 )
             ],

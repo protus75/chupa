@@ -279,7 +279,6 @@ def test_stages_closed_sets_and_constants():
     assert tuple(ident(g) for g in stages.CHECK_GATES) == ("ScopeFenceGate", "VerificationGate", "RunRecordGate", "DiffBudgetGate", "CoreDriftGate", "BugEvidenceGate")
     assert stages.CHECK_SPEC_VERSION == 1
     assert stages.DIAGNOSIS_STUCK_S == 600.0
-    assert stages.DIFF_BUDGET_FILES == 30
     assert stages.DIFF_BUDGET_INSERTED == 1500
     assert {k: ident(x) for k, x in stages.EMITS_BY_VERDICT.items()} == {"approve": "ApprovedInvoice", "rma": "Rma", "snag": "SnagList"}
     assert {k: ident(x) for k, x in stages.KNOWN_ARTIFACTS.items()} == {
