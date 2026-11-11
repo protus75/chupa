@@ -141,7 +141,7 @@ eligible, not held), so it keeps its current refusal.
    process holds the lock, and still refuses with "is running" when `observe.lock_holder` is
    monkeypatched to report a live holder, so a live run stays protected.
 4. `tests/integration/test_stale_running.py::test_status_shows_interrupted` asserts
-   `main(["status"])` prints the stem under `interrupted:` and not under `in flight:` when no
+   `main(["status"])` prints the stem under the `interrupted (the engine stopped mid-run; reject it, or start the engine to rerun it):` block and not under `in flight:` when no
    process holds the lock, and under `in flight:` when `observe.lock_holder` is monkeypatched
    to report a live holder; `tests/integration/test_cli.py::test_status_projects_the_journal`
    and `tests/integration/test_status.py::test_status_preserves_sections_and_is_write_free`
@@ -175,7 +175,13 @@ eligible, not held), so it keeps its current refusal.
    `test_order_refuses_only_a_live_running_stem` drives `__main__._order` with
    `observe.lock_holder` returning a holder (refuses "is running") and None (proceeds);
    `test_status_verb_passes_alive` asserts the status verb passes
-   `alive=observe.lock_holder(...) is not None` to `project`.
+   `alive=observe.lock_holder(...) is not None` to `project`;
+   `test_locked_verbs_reap_after_acquire` drives `__main__._review` (a fake `status_porcelain`
+   returning a dirty entry, `intake` monkeypatched to raise a sentinel after the reap) and
+   `__main__._retro` with a `SimpleNamespace` checkout, and `main(["dismiss", id])` and
+   `main(["triage"])` with `load_config`, `Lockfile`, `triage.dismiss` / `triage.triage_pass`
+   monkeypatched, and asserts each records `runner.reap` exactly once, after the lock is
+   acquired.
 10. `python tests/regress_stale_running.py` prints `{"regression_result": "pass"}` and exits
    0 on the branch; at base it prints `{"regression_result": "defect"}` and exits 1.
 
