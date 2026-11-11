@@ -2,7 +2,7 @@
 	"name": "vscode-chupa",
 	"displayName": "chupa tickets",
 	"description": "VS Code extension for the chupa ticket system (https://pypi.org/project/chupa/): tickets as an SCM-style dependency graph: blocked, queued, running, merged.",
-	"version": "0.0.31",
+	"version": "0.0.32",
 	"publisher": "chunkydragon",
 	"icon": "media/marketplace-icon.png",
 	"extensionKind": [
