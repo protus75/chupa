@@ -1,0 +1,23 @@
+Observed 2026-11-11 in the fungo host checkout (/home/djp/source/fungo), chupa from its .venv.
+
+1. A drain ran s10-sim-single-side; `chupa kill` stopped it 3 minutes into Implement.
+   .chupa/state/engine.log:
+   {"ts": "2026-11-11T05:30:40.982626+00:00", "event": "stage_start", "stem": "s10-sim-single-side", "attempt": 0, "surface": "implement", "run_seq": 0, "stuck_budget": 10800.0}
+   {"ts": "2026-11-11T05:30:40.988811+00:00", "event": "llm_call", "stem": "s10-sim-single-side", "attempt": 0, "surface": "implement", "call_seq": 1}
+   {"ts": "2026-11-11T05:33:50.082575+00:00", "event": "engine_stop", "verb": "drain", "pid": 3033327, "outcome": "killed"}
+
+2. With no engine running (pgrep showed no fungo drain or serve), `chupa status` still listed it:
+   in flight:
+   - s10-sim-single-side
+
+3. `chupa reject --yes s10-sim-single-side` refused:
+   chupa reject: s10-sim-single-side is running -- wait for its terminal, then retry
+
+4. The VS Code extension offered no Reject for the ticket (owner report). Its row reads
+   "interrupted: the engine stopped mid-run; reruns when it restarts".
+
+5. The only way to reject it was to start an engine verb that reconciles first: the owner ran
+   `chupa run s10-sim-two-pass` (an already rejected stem, so _admit refused it after reconcile
+   reaped the orphan), then `chupa reject --yes s10-sim-single-side` succeeded
+   (fungo commits bacf3f3 "chupa(s10-sim-single-side): harvest", 8d2a97b "...: rejected").
+   Starting drain or serve instead would have rerun the interrupted ticket.
