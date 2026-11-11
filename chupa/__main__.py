@@ -21,7 +21,7 @@ from uuid import uuid4
 import yaml
 
 import chupa
-from chupa import ask, control, drain, hostfiles, requisition, runner, serve, triage
+from chupa import ask, control, drain, hostfiles, requisition, runner, seams, serve, triage
 from chupa.box import UnknownBoxId
 from chupa.config import ConfigError, ConfigSnapshot, load_config, migrate_config
 from chupa.daemon import DaemonCore, PauseConsumer, StartupBoundary, daemon_core
@@ -277,6 +277,7 @@ def _parser() -> argparse.ArgumentParser:
         verdict.add_argument("--yes", action="store_true")
         verdict.add_argument("--extension", action="store_true")
     dr = sub.add_parser("drain", help="run every eligible ticket to quiescence under the lock")
+    dr.add_argument("--detach", action="store_true", help="run in its own session and append to <state_dir>/drain.out")
     dr.add_argument("--parked", action="append", default=[], metavar="STEM", help="a stem the handing-off parent drain parked (set by the self-upgrade re-exec)")
     dr.add_argument("--deadline", type=datetime.fromisoformat, default=None)
     dr.add_argument("--stop-lifecycle", help=argparse.SUPPRESS)
@@ -292,6 +293,7 @@ def main(
     clock: Clock = _clock,
     pipeline: runner.Pipeline = runner.pipeline,
     reexec: ProcessExec | None = None,
+    spawn: Callable = seams.spawn_detached,
     terminal: tuple[Callable[[], bool], Callable[[str], str]] | None = None,
 ) -> int:
     invocation = list(argv) if argv is not None else sys.argv[1:]
@@ -333,6 +335,11 @@ def main(
             print(doctor.render(results), end="")
             return 0 if all(r.passed for r in results) else 2
         config = load_config(args.config, cwd=repo)
+        if args.verb == "drain" and args.detach:
+            output = config.state_dir / "drain.out"
+            pid = spawn([sys.executable, "-m", "chupa", *(["--config", str(args.config)] if args.config else []), "drain"], cwd=repo, env=env, output=output)
+            print(f"drain: pid {pid}, output {output}")
+            return 0
         if args.verb == "probe":
             declared = {p.name: p for p in config.providers}
             unknown = set(args.providers) - declared.keys()

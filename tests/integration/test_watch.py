@@ -266,8 +266,9 @@ def test_snapshot_display_fields(tmp_path, monkeypatch):
     assert len(snap["engineVerbs"]) == 6 and snap["engineVerbs"][0] == {
         "label": "Drain",
         "detail": "Run every eligible ticket to quiescence, then exit.",
-        "verb": "drain",
+        "argv": ["drain", "--detach"],
     }  # The menu must not be empty or reordered.
+    assert snap["drainCommand"] == ["drain", "--detach"]
     assert rows["live"]["priorityChoices"] == [{"label": p, "description": "current" if p == "P1" else ""} for p in ("P0", "P1", "P2", "P3")]  # Only the actual priority is current.
     assert {item["heading"] for item in rows["done"]["detail"]} == {None, "Commit"}  # Merged rows do not show open fields.
     assert {"heading": None, "text": f"settled 2 days ago ({watch.local(ts).strftime('%x, %X')})"} in rows["done"]["detail"]  # Settlement uses its own timestamp.

@@ -355,9 +355,9 @@ function activate(context) {
 		vscode.commands.registerCommand('chupa.ticket.askReview', ctx => askClaude(ctx, 'review')),
 		vscode.commands.registerCommand('chupa.engine', async () => {
 			const choice = await vscode.window.showQuickPick(snapshot.snap?.engineVerbs ?? []);
-			if (choice) devCommand(choice.verb);
+			if (choice) devCommand(...choice.argv);
 		}),
-		vscode.commands.registerCommand('chupa.playDrain', () => devCommand('drain')),
+		vscode.commands.registerCommand('chupa.playDrain', () => devCommand(...snapshot.snap.drainCommand)),
 		vscode.commands.registerCommand('chupa.playServe', () => devCommand('serve')),
 		vscode.commands.registerCommand('chupa.stopRunning', () => devCommand('stop')),
 		vscode.commands.registerCommand('chupa.openConfig', () => {

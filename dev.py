@@ -115,13 +115,7 @@ def main() -> None:
     elif args.task == "lint":
         chupa("lint", *args.stems)
     elif args.task == "drain":
-        match = re.search(r"^state_dir:\s*(\S+)", (ROOT / "config.yaml").read_text(), re.M)
-        state = ROOT / (match.group(1) if match else ".chupa/state")
-        state.mkdir(parents=True, exist_ok=True)
-        output = state / "drain.out"
-        with output.open("a") as stream:
-            child = subprocess.Popen(["uv", "run", "python", "-m", "chupa", "drain"], cwd=ROOT, start_new_session=True, stdin=subprocess.DEVNULL, stdout=stream, stderr=stream)
-        print(f"dev: drain pid {child.pid}, output {output}")
+        chupa("drain", "--detach")
     elif args.task == "watch":
         try:
             chupa("watch", *(["--once"] if args.once else []))

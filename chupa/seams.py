@@ -16,6 +16,13 @@ Clock = Callable[[], datetime]
 Sleep = Callable[[float], Awaitable[None]]
 
 
+def spawn_detached(argv: Sequence[str], *, cwd: Path, env: Mapping[str, str], output: Path) -> int:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("a") as stream:
+        child = subprocess.Popen(argv, cwd=cwd, env=env, start_new_session=True, stdin=subprocess.DEVNULL, stdout=stream, stderr=stream)
+    return child.pid
+
+
 @runtime_checkable
 class ProcessExec(Protocol):
     async def run(

@@ -58,7 +58,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `order <stem> [--priority P0\|P1\|P2\|P3] [--runs-before [stem ...]]` | no | Validates and edits priority and/or runs-before ordering in the working tree; a bare `--runs-before` removes the section. Refuses running, settled, rejected, missing or invalid tickets. Intake commits the edit. |
 | `review <stem>` | intake only | Reviews an unchanged committed ticket without the checkout lock. Pending changes under the ticket directory require locked intake first; if the lock is held, wait for the running engine to commit the ticket through intake or stop it, then retry. Reviews the committed ticket against merged code and journals its verdict and ticket blob SHA. A ticket with an unmerged dependency gets a provisional review that is printed but not journaled, so the drain reviews it again before its first run. Refuses missing, intake-failed, settled, or rejected tickets without a model call. Prints findings and exits 0 on approve, 1 on snag or rma. |
 | `run <stem>` | yes | Reconciles orphans, runs intake, then drives the one named ticket through every stage. Refuses a stem that failed intake, is missing, invalid, merged, not `confirmed`, or has unmerged dependencies. |
-| `drain` | yes | Runs every eligible ticket to quiescence (section 7.1). |
+| `drain [--detach]` | yes | Runs every eligible ticket to quiescence (section 7.1); `--detach` starts its own session and appends to `<state_dir>/drain.out`. |
 | `serve` | yes | Runs the continuous daemon until `kill`, `stop`, or a signal (section 7.2). |
 | `retro` | try | Runs a retro report now or queues one on the running engine (section 9.5). |
 | `suggest <summary>` | no | Queues an idea for Suggestion Box intake. |
@@ -96,7 +96,7 @@ A unit test file may share its name with an integration test file.
 | `review STEM...` | `chupa review` once per stem, stopping on the first non-zero exit |
 | `run STEM` | `chupa run <stem>`: one ticket through every stage, under the lock |
 | `status`, `serve`, `kill`, `stop` | the matching chupa verb |
-| `drain` | runs `chupa drain` detached and appends output to `<state_dir>/drain.out` |
+| `drain` | `chupa drain --detach` |
 | `confirm STEM... [--yes]`, `reject STEM... [--yes]` | `chupa confirm` or `chupa reject` once per stem; a person at a terminal answers `y` for each stem unless `--yes` is passed |
 | `watch [--once]` | `chupa watch` through `uv`: a read-only live view of the engine and queue |
 | `publish` | with `UV_PUBLISH_TOKEN` set, bumps the patch version, then builds and uploads; the operator commits `pyproject.toml` and `uv.lock` |
@@ -112,7 +112,7 @@ The Marketplace refuses a version it already holds.
 `vscode-chupa/` is an operator-only VS Code extension: an Activity Bar view of every ticket as an
 SCM-style graph (blocked, queued, running, merged) with a detail pane. A line between ticket rows means a dependency; merged rows show their history line. Running and queued rows show their priority. Its Activity Bar badge shows the queued and running ticket count while the engine is alive, or the blocked and queued count while it is stopped, and is hidden when the count is zero. The Tickets view's More Actions
 menu holds Ticket lifecycle, which opens `vscode-chupa/media/ticket-lifecycle.svg`, a hand-drawn diagram of ticket states.
-The Tickets view’s Engine… picker runs drain, serve, stop, kill, status, or retro. Its start/stop icon follows the snapshot engine flag; `chupa.playAction` selects drain or serve for starting. Open config.yaml, also in More Actions, opens the snapshot’s `configPath`. Recent Steps opens each step’s file; an Author row opens its Suggestion Box message, authored ticket, or decision record. The collapsed Stats view shows health figures for the window configured by `chupa.statsWindow` (default `7d`). The Suggestion Box view lists messages, supports multi-selection and manual triage or dismissal, and shows message details alongside tickets. `chupa snapshot` builds its data read-only from the configured host state and `order_tickets`, holding tickets awaiting an operator and those held by the drain's `parked_blob` rule; `chupa/graph.py` computes the graph layout for the extension to draw. The engine never runs the extension.
+The Tickets view’s play button and Engine… picker start drain detached. The picker also runs serve, stop, kill, status, or retro. Its start/stop icon follows the snapshot engine flag; `chupa.playAction` selects drain or serve for starting. Open config.yaml, also in More Actions, opens the snapshot’s `configPath`. Recent Steps opens each step’s file; an Author row opens its Suggestion Box message, authored ticket, or decision record. The collapsed Stats view shows health figures for the window configured by `chupa.statsWindow` (default `7d`). The Suggestion Box view lists messages, supports multi-selection and manual triage or dismissal, and shows message details alongside tickets. `chupa snapshot` builds its data read-only from the configured host state and `order_tickets`, holding tickets awaiting an operator and those held by the drain's `parked_blob` rule; `chupa/graph.py` computes the graph layout for the extension to draw. The engine never runs the extension.
 
 ## 3. Tickets
 

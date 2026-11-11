@@ -38,7 +38,7 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | `run` | No | Run one ticket through the pipeline. |
 | `confirm` | Yes | After interactive confirmation, publish a keep verdict to serve. |
 | `reject` | Yes | After interactive confirmation, publish a reject verdict to serve. |
-| `drain` | No | Run eligible tickets to quiescence. |
+| `drain` | No | Run eligible tickets to quiescence. `--detach` runs in its own session, surviving terminal or editor closing, and appends output to `<state_dir>/drain.out`. |
 | `serve` | No | Run the continuous daemon. |
 
 Stop serve before `review`, `triage`, `dismiss`, `run`, `drain`, or another `serve`: each takes the writer lock outright and refuses while it is held. `doctor` also needs the lock available to pass its probe. There is one writer per host; the kernel releases its lock when the holder exits. Never delete `chupa.lock`—wait for or stop the holder instead.
