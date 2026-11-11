@@ -46,7 +46,8 @@ what content its tickets carry, never the format. See the [host run guide](host-
   it to change, including existing tests whose assertions flip; a forced file outside the fence
   makes the ticket impossible. A ticket that changes documented behavior also fences that
   document and says in `Scope in / Scope out` which part to update, so docs and code land
-  together.
+  together. A ticket that bumps a prompt spec's `version` states it as the next minor above the version on main,
+  never a literal target such as `3.4 -> 3.5`, and fences a test pin for the bumped file.
 - `Acceptance criteria`: each criterion is a check someone can run or a path someone can read,
   never a judgment word. A criterion checked by a test names the wrong result the test rules out,
   for example, `parse('')` returns `[]`, not `None`. A test that also passes on the wrong result
