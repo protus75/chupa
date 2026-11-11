@@ -1,0 +1,8 @@
+# journal-incremental-read attempt 1, 2026-11-11: Diagnose ruled the ticket buildable (verdict retry),
+# routing journaled dispatch: retry, yet the drain held the stem until ticket.md changed and went quiescent.
+
+{"v":1,"type":"state_transition","ts":"2026-11-11T10:36:35.005456+00:00","ticket":"journal-incremental-read","key":null,"body":{"to":"premise_failed","stage":"requisition","reason":"[contradiction] Scope in says a Journal caches each rolled segment's parsed events the first time it reads that segment and never re-reads it. Criterion 3 requires tests/integration/test_journal_roll.py to pass without edits. That test's test_roll_preserves_records_and_read_laws (lines 117-130) calls j.read() with ROLL_BYTES=1, which caches seven rolled segments. It then appends b'{\"torn\":' to rolled segment path
+{"v":1,"type":"signal","ts":"2026-11-11T14:41:07.600552+00:00","ticket":"journal-incremental-read","key":null,"body":{"signal":"diagnosis","attempt":1,"verdict":"retry","lessons":["The ticket's criteria can all be met. In append(), check the active segment through the instance's own incremental read path, which parses only lines it has not cached, and raise before writing. A fresh Journal then still raises on line 139's 'bad' line.","For the roll-age check, take the first event from the cached segment or parse only its first line, as the scope says. Never call _parse_segment on the whole activ
+
+# drain.out park line from the drain that ended 16:05:41Z:
+- journal-incremental-read: premise_failed at implement; parked until its committed ticket.md changes -- answer the premise findings below by editing tickets/journal-incremental-read/ticket.md and committing it -- the content change releases it
