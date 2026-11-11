@@ -1,0 +1,51 @@
+# Author gate refuses its own reviewed draft stem
+
+## tickets/decisions/declined-box-000297-4be1eff8.md
+Evidence: - ticket_schema: stem 'requisition-review-enclosing-model-consumers' is already named in the journal (do instead: choose a new, never-before-used ticket stem)
+
+## tickets/decisions/declined-box-000391-c085d884.md
+Evidence: - ticket_schema: stem 'diagnose-premise-checks-evidence' is already named in the journal (do instead: choose a new, never-before-used ticket stem)
+
+## tickets/decisions/declined-box-000397-ea5ac8c5.md
+Evidence: - ticket_schema: stem 'requisition-review-previous-reply' is already named in the journal (do instead: choose a new, never-before-used ticket stem)
+
+## journal: the only events naming the refused stems are the same invocation's requisition review calls
+{"v":1,"type":"effect_intent","ts":"2026-11-09T06:04:28.087220+00:00","ticket":"requisition-review-enclosing-model-consumers","key":"llm/author/14/requisition_review/297/
+{"v":1,"type":"signal","ts":"2026-11-09T06:04:44.046086+00:00","ticket":"requisition-review-enclosing-model-consumers","key":null,"body":{"provider":"claude","call_key":"
+{"v":1,"type":"effect_completion","ts":"2026-11-09T06:04:44.062568+00:00","ticket":"requisition-review-enclosing-model-consumers","key":"llm/author/14/requisition_review/
+{"v":1,"type":"effect_intent","ts":"2026-11-11T18:24:56.776542+00:00","ticket":"diagnose-premise-checks-evidence","key":"llm/author/16/requisition_review/391/3","body":{}
+{"v":1,"type":"signal","ts":"2026-11-11T18:26:08.848395+00:00","ticket":"diagnose-premise-checks-evidence","key":null,"body":{"provider":"claude","call_key":"llm/author/1
+{"v":1,"type":"effect_completion","ts":"2026-11-11T18:26:08.858732+00:00","ticket":"diagnose-premise-checks-evidence","key":"llm/author/16/requisition_review/391/3","body
+{"v":1,"type":"effect_intent","ts":"2026-11-11T18:30:54.697567+00:00","ticket":"requisition-review-previous-reply","key":"llm/author/16/requisition_review/397/3","body":{
+{"v":1,"type":"signal","ts":"2026-11-11T18:31:39.047395+00:00","ticket":"requisition-review-previous-reply","key":null,"body":{"provider":"claude","call_key":"llm/author/
+{"v":1,"type":"effect_completion","ts":"2026-11-11T18:31:39.065825+00:00","ticket":"requisition-review-previous-reply","key":"llm/author/16/requisition_review/397/3","bod
+
+## engine.log, box 391 and 397 author stages
+{"ts": "2026-11-11T18:23:28.661648+00:00", "event": "artifact_invalid", "stem": "author", "attempt": 391, "surface": "author", "call_seq": 1, "errors": 1}
+{"ts": "2026-11-11T18:23:28.666016+00:00", "event": "llm_call", "stem": "author", "attempt": 391, "surface": "author", "call_seq": 2}
+{"ts": "2026-11-11T18:24:32.466016+00:00", "event": "gate_failed", "stem": "author", "attempt": 391, "surface": "author", "call_seq": 2, "codes": ["ticket_schema", "ticket_schema"]}
+{"ts": "2026-11-11T18:24:32.471374+00:00", "event": "llm_call", "stem": "author", "attempt": 391, "surface": "author", "call_seq": 3}
+{"ts": "2026-11-11T18:26:09.995269+00:00", "event": "gate_failed", "stem": "author", "attempt": 391, "surface": "author", "call_seq": 3, "codes": ["unit_test_disk_conflict", "stale_doc_unfenced"]}
+{"ts": "2026-11-11T18:26:10.000102+00:00", "event": "llm_call", "stem": "author", "attempt": 391, "surface": "author", "call_seq": 4}
+{"ts": "2026-11-11T18:26:10.770962+00:00", "event": "spiral_detected", "spend": 2.2012514000000003, "basis": 0.5614163, "region": "healthy"}
+{"ts": "2026-11-11T18:26:35.796932+00:00", "event": "gate_failed", "stem": "author", "attempt": 391, "surface": "author", "call_seq": 4, "codes": ["ticket_schema"]}
+{"ts": "2026-11-11T18:26:35.934167+00:00", "event": "stage_end", "stem": "author", "attempt": 391, "surface": "author", "outcome": "gate_failed", "run_seq": 16, "calls": 4}
+{"ts": "2026-11-11T18:29:46.015211+00:00", "event": "artifact_invalid", "stem": "author", "attempt": 397, "surface": "author", "call_seq": 1, "errors": 1}
+{"ts": "2026-11-11T18:29:46.019598+00:00", "event": "llm_call", "stem": "author", "attempt": 397, "surface": "author", "call_seq": 2}
+{"ts": "2026-11-11T18:30:34.521440+00:00", "event": "gate_failed", "stem": "author", "attempt": 397, "surface": "author", "call_seq": 2, "codes": ["ticket_schema"]}
+{"ts": "2026-11-11T18:30:34.526514+00:00", "event": "llm_call", "stem": "author", "attempt": 397, "surface": "author", "call_seq": 3}
+{"ts": "2026-11-11T18:31:39.831280+00:00", "event": "gate_failed", "stem": "author", "attempt": 397, "surface": "author", "call_seq": 3, "codes": ["unit_coverage_floor_unfenced"]}
+{"ts": "2026-11-11T18:31:39.849140+00:00", "event": "llm_call", "stem": "author", "attempt": 397, "surface": "author", "call_seq": 4}
+{"ts": "2026-11-11T18:31:40.828710+00:00", "event": "spiral_detected", "spend": 2.0187796000000002, "basis": 0.6203653000000001, "region": "healthy"}
+{"ts": "2026-11-11T18:32:02.203784+00:00", "event": "gate_failed", "stem": "author", "attempt": 397, "surface": "author", "call_seq": 4, "codes": ["ticket_schema"]}
+{"ts": "2026-11-11T18:32:02.334572+00:00", "event": "stage_end", "stem": "author", "attempt": 397, "surface": "author", "outcome": "gate_failed", "run_seq": 16, "calls": 4}
+
+## author call stems (spools/author/16/<seq>/author/call-0N/output.txt)
+391 call 1: "stem": "diagnose-premise-failed-checks-evidence"
+391 call 2: "stem": "diagnose-premise-failed-checks-evidence"
+391 call 3: "stem": "diagnose-premise-checks-evidence"
+391 call 4: "stem": "diagnose-premise-checks-evidence"
+397 call 1: "stem": "requisition-review-previous-reply"
+397 call 2: "stem": "requisition-review-previous-reply"
+397 call 3: "stem": "requisition-review-previous-reply"
+397 call 4: "stem": "requisition-review-previous-reply"
