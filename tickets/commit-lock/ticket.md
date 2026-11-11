@@ -44,7 +44,7 @@ This ticket adds a second lock sized to that danger: a commit lock held only whi
   - `hosts/fixture/bin/claude`, which builds its `CommitLock` under the fixture host's `.chupa/state`.
   - `chupa/doctor.py`: `check()` gains a required `sleep` parameter. Its `git` row moves after the config load and builds `Git` from the loaded `state_dir`, so the rows run in the order venv, config, git, lock, journal, core (was venv, git, config, ...). When the config fails to load, the `git` row fails with the detail `not checked: config did not load; fix the config and rerun doctor`. The hard-coded row orders in `tests/integration/test_doctor.py` change to match.
 - In: the CLI's top-level error handler maps `CommitLockTimeout` to exit 2 with its message and road, as it does `LockHeld`.
-- In: update every test or harness that builds a `Git` to the new constructor. Integration tests and harnesses build their `CommitLock` through one shared helper defined in `tests/integration/test_git.py`, which they import as they already import from `tests/integration/test_cli.py`. Unit tests use their own in-memory fakes and never import it.
+- In: update every test or harness that builds a `Git` to the new constructor. Integration tests and harnesses build their `CommitLock` through one shared helper defined in `tests/integration/test_git.py`, which they import as they already import from `tests/integration/test_cli.py`. Unit tests use their own in-memory fakes and never import it: the `Git` constructions in `tests/unit/test_git_commit.py` and `tests/unit/test_stale_running.py` pass an in-memory fake commit lock, and their call-order assertions stay the same.
 - In: documentation:
   - `docs/how-chupa-works.md`: add a `commit.lock` row next to `chupa.lock` in the state-files table. The `chupa.lock` row says it is the engine lock, held by `run`, `drain`, `serve` and the verbs that still take it.
   - `chupa/docs/host-contract.md`: add one sentence to the lockfile paragraph saying git writes take `commit.lock` with a 60-second wait. The paragraph keeps `never delete the lockfile`.
@@ -65,6 +65,8 @@ This ticket adds a second lock sized to that danger: a commit lock held only whi
 - eval/diagnose.py
 - hosts/fixture/bin/claude
 - tests/unit/test_commit_lock.py
+- tests/unit/test_git_commit.py
+- tests/unit/test_stale_running.py
 - tests/unit/test_hostfiles.py
 - tests/unit/test_retro_measurements.py
 - tests/harness/daemon_soak.py
@@ -98,6 +100,7 @@ This ticket adds a second lock sized to that danger: a commit lock held only whi
 - tests/integration/test_stages.py
 - tests/integration/test_status.py
 - tests/integration/test_tickets.py
+- tests/integration/test_stale_running.py
 
 ## Acceptance criteria
 1. New `tests/unit/test_commit_lock.py` uses a fake clock and sleep and never touches disk. It replaces `chupa.lockfile`'s `os` and `fcntl` names with an in-memory fake that can simulate another holder. It keeps the `test-gate.toml` unit floors for `chupa/lockfile.py` and `chupa/git.py`, and covers these cases:
