@@ -15,6 +15,7 @@ kind: bug
 - chupa/runner.py::verdict
 - chupa/runner.py::verdict_locked
 - chupa/status.py::reject_queue
+- chupa/mergequeue.py::regate_receipts
 - chupa/status.py::Status
 - chupa/status.py::project
 - chupa/status.py::render
@@ -56,8 +57,9 @@ work. So with no engine running:
 `evidence/stale-running.txt` shows this on a fungo ticket killed 3 minutes into Implement.
 
 When this ticket is done, every verb decides "running" from the journal AND engine liveness:
-a stem the journal holds at `running` while no live process holds the writer lock is an
-interrupted run, and each verb treats it as one. An interrupted run can be rejected, or rerun
+a stem that is in `reconcile.orphans(events)` (which leaves out a run held for a merge regate) while no live process holds the writer lock is an interrupted run,
+and each verb treats it as one. A run held for a merge regate is not interrupted: it stays
+in flight and keeps every current refusal. An interrupted run can be rejected, or rerun
 by starting the engine. `confirm` on an interrupted stem reaps it to `abandoned` and then
 refuses with "is neither a draft nor in the Reject queue": a reaped stem is eligible and
 needs no confirm.
@@ -71,17 +73,18 @@ needs no confirm.
   call `await runner.reap(...)` right after `lock.acquire()`: `_review` (which takes the lock
   only when the ticket has uncommitted changes; a clean committed ticket takes no lock and
   does not reap), the `dismiss` and `triage` closures in `main`, and `_retro`. `_control` (pause, resume, kill, stop) is
-  unchanged. `_order` takes no lock (it works beside a running serve); it refuses a `running`
-  stem only when `observe.lock_holder(checkout.config.state_dir)` is not None, and otherwise
-  proceeds as for any open stem.
+  unchanged. `_order` takes no lock (it works beside a running serve); it proceeds for a
+  `running` stem only when that stem is in `reconcile.orphans(events)` (which leaves out a run held for a merge regate) and
+  `observe.lock_holder(checkout.config.state_dir)` is None, and refuses "is running" otherwise.
 - In: `chupa/status.py`: `Status` gains `interrupted: tuple[str, ...] = ()`; `project` gains a
-  keyword `alive: bool = True`; with `alive` false, stems last at `running` go to
-  `interrupted` instead of `in_flight`. `render` prints them in a block titled `interrupted (the engine stopped mid-run; reject it, or start the engine to rerun it)`,
+  keyword `alive: bool = True`; with `alive` false, stems last at `running` that are in
+  `reconcile.orphans(events)` go to `interrupted` instead of `in_flight` (a run held for a
+  merge regate stays in `in_flight`). `render` prints them in a block titled `interrupted (the engine stopped mid-run; reject it, or start the engine to rerun it)`,
   placed right after `in flight:` and left out entirely when `interrupted` is empty (as the
   `Verdict refusals` block is), and does not list them under `in flight:`. The `status` verb in `__main__.py` passes
   `alive=observe.lock_holder(state_dir) is not None`. `reject_queue` is unchanged.
-- In: `chupa/observe.py`: with no live engine, a row whose stem is last at `running` has
-  `chupaReject` "on" (the extension reads this flag; no TypeScript change). `chupaConfirm` is
+- In: `chupa/observe.py`: with no live engine, a row whose stem is last at `running` and in
+  `reconcile.orphans(events)` has `chupaReject` "on" (the extension reads this flag; no TypeScript change). `chupaConfirm` is
   unchanged.
 - In: `tests/integration/test_cli.py`: `test_status_projects_the_journal` expects its stem `b`
   (journaled `running`, no lock held) in the interrupted block instead of `in flight:`; and
@@ -168,13 +171,20 @@ needs no confirm.
    worktree path exists.
 8. `tests/unit/test_stale_running.py::test_project_interrupted` asserts
    `status.project(events, alive=False)` puts a `running` stem in `interrupted` and not in
-   `in_flight`, and `alive=True` the reverse; and
+   `in_flight`, and `alive=True` the reverse; and with `alive=False` a `running` stem that has
+   a HELD merge-regate receipt for its current attempt (the journal shape
+   `mergequeue.regate_receipts` reads) stays in `in_flight`, not `interrupted`; and
+   `tests/integration/test_stale_running.py::test_menu_offers_reject_for_dead_run` also
+   asserts that such a held stem gets `chupaReject` "off" with no live engine; and
+   `test_order_refuses_only_a_live_running_stem` (criterion 9) also asserts `_order` still
+   refuses such a held stem with no live engine; and
    `tests/unit/test_stale_running.py::test_render_interrupted_block` asserts `status.render` of
    a `Status` with `interrupted=("x",)` prints `interrupted (the engine stopped mid-run; reject it, or start the engine to rerun it):\n- x` right after the
    `in flight:` block and `x` not under `in flight:`, and with `interrupted=()` prints no such
    block.
 9. `tests/unit/test_stale_running.py` with fakes (a `SimpleNamespace` checkout, a monkeypatched
-   `Lockfile`, recorders for `runner.reap` and `runner.verdict_locked`, as in
+   `Lockfile`, `chupa.__main__.Git` monkeypatched so `describe` returns a fixed id and starts no
+   process, recorders for `runner.reap` and `runner.verdict_locked`, as in
    `tests/unit/test_verdict_extension.py`): `test_verdict_reaps_before_verdict_locked` asserts
    `runner.verdict` calls reap after acquiring and before `verdict_locked`;
    `test_order_refuses_only_a_live_running_stem` drives `__main__._order` with
@@ -185,8 +195,9 @@ needs no confirm.
    returning a dirty entry, `intake` monkeypatched to raise a sentinel after the reap) and
    `__main__._retro` with a `SimpleNamespace` checkout, and `main(["dismiss", id])` and
    `main(["triage"])` with `load_config`, `Lockfile`, `triage.dismiss` / `triage.triage_pass`
-   monkeypatched, and asserts each records `runner.reap` exactly once, after the lock is
-   acquired.
+   monkeypatched; for every driven verb the `runner.reap` recorder records the call and then
+   raises a sentinel, so the verb stops right after the reap, and the test asserts the
+   sentinel, one recorded reap, and that it came after the fake acquire.
 10. `python tests/regress_stale_running.py` prints `{"regression_result": "pass"}` and exits
    0 on the branch; at base it prints `{"regression_result": "defect"}` and exits 1.
 
