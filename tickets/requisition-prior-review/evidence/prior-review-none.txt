@@ -1,0 +1,28 @@
+# commit-lock: every requisition review prompt rendered prior_review as none, 2026-11-10/11
+# for r in 1 2 4 5: sed -n '/chupa-data:begin prior_review/,/chupa-data:end prior_review/p' .chupa/state/spools/commit-lock/$r/$r/requisition_review/call-01/prompt.md
+--- run 1
+<<chupa-data:begin prior_review>>
+none
+<<chupa-data:end prior_review>>
+--- run 2
+<<chupa-data:begin prior_review>>
+none
+<<chupa-data:end prior_review>>
+--- run 4
+<<chupa-data:begin prior_review>>
+none
+<<chupa-data:end prior_review>>
+--- run 5
+<<chupa-data:begin prior_review>>
+none
+<<chupa-data:end prior_review>>
+
+# run 5 reply, first sentence (.chupa/state/spools/commit-lock/5/5/requisition_review/call-01/output.txt)
+{"verdict": "snag", "summary": "First review, so there are no prior findings to rule on. Cleared: the fence covers every
+
+# journal: requisition premise_failed transitions for commit-lock (finding codes only)
+2026-11-10T07:45:34.799713+00:00 premise_failed requisition ['coverage_floor', 'fence_gap', 'invariant_untested', 'stale_doc']
+2026-11-10T07:50:40.505969+00:00 premise_failed requisition ['contradiction', 'coverage', 'design', 'fence', 'stale', 'test-shape']
+2026-11-10T08:09:14.954361+00:00 premise_failed requisition ['contradiction', 'coverage_floor', 'fence_gap', 'untested_invariant']
+2026-11-11T00:56:14.149783+00:00 premise_failed requisition ['contradiction', 'fence_home', 'unit_suite_io', 'untested_invariant']
+2026-11-11T01:10:57.485145+00:00 premise_failed requisition ['contradictory_rejection_clause', 'unspecified_none_return']
