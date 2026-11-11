@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-The carried reproducer constructs the former signal-handler name dynamically so it can run on the base revision while satisfying the obsolete-name search criterion. The final verification commands and all hard checks passed.
+The carried reproducer reported defect on the base commit and pass on the changed branch; all verification commands and hard host checks passed.
 
 ## Dead ends
 
-None; the existing control inbox was simpler than adding a separate signal abort path.
+none
 
 ## Second problems filed
 
