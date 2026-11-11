@@ -106,6 +106,10 @@ def test_fixture_scenario_list_is_closed(host):
             assert len(row["responses"][surface]) == 1
             model.model_validate(row["responses"][surface][0])
         authored = row["responses"]["author"][0]
+        if row["kind"] == "regression":
+            evidence = host / "tickets" / authored["stem"] / "evidence" / "replay.json"
+            evidence.parent.mkdir(parents=True, exist_ok=True)
+            evidence.write_bytes((host / row["evidence"]["replay"]).read_bytes())
         ticket = validate_ticket(authored["stem"], stamp(stamp(authored["ticket"], "source", "box:bug_report"), "state", "draft"), host)
         assert ticket.scope_fence == (("settings.json", "fixtures/") if name == "regression" else ("settings.json",))
         assert set(row["edits"]) == ({"settings.json", "fixtures/report_regression.py", "fixtures/replay.json"} if name == "regression" else {"settings.json"})

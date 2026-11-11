@@ -44,10 +44,12 @@ async def bug_ready(ctx, *, wrapper=WRAPPER, carries=PRODUCER, custody=True, byp
     path = ctx.repo / f"tickets/{STEM}"
     ctx.fs.write(path / "ticket.md", text.encode())
     ctx.fs.write(path / "run.md", "".join(f"## {name}\n\n{'ok' if name == 'Outcome' else 'none'}\n\n" for name in stages.RUN_RECORD_SECTIONS).encode())
-    if custody:
-        ctx.fs.write(path / "evidence/defect.txt", b"observed defective add\n")
-    await commit(ctx, ctx.repo, [f"tickets/{STEM}"], "bug intake")
+    evidence = path / "evidence/defect.txt"
+    ctx.fs.write(evidence, b"observed defective add\n")
     ticket = dataclasses.replace(validate_ticket(STEM, text, ctx.repo), verification=(("true",),))
+    if not custody:
+        evidence.unlink()
+    await commit(ctx, ctx.repo, [f"tickets/{STEM}"], "bug intake")
     await ctx.git.worktree_add(ctx.repo, ctx.worktree(STEM), STEM, "main")
     ctx.fs.write(ctx.worktree(STEM) / "chupa/thing.py", b"ok fixed\n")
     ctx.fs.write(ctx.worktree(STEM) / PRODUCER, wrapper.encode())
@@ -423,7 +425,22 @@ def test_bug_gate_merge_rebase_regates(ctx, monkeypatch, mode):
 @pytest.mark.parametrize("bypass", [False, True])
 def test_bug_gate_merge_report_custody(ctx, monkeypatch, mode, bypass):
     async def scenario():
-        ticket = await bug_ready(ctx, custody=False, bypass=bypass)
+        ticket = await bug_ready(ctx, custody=True, bypass=bypass)
+        gather = stages.gather_evidence
+
+        async def without_custody(ctx, ticket, *args, **kwargs):
+            files = [root / f"tickets/{STEM}/evidence/defect.txt" for root in (ctx.repo, ctx.worktree(STEM))]
+            contents = [(file, file.read_bytes()) for file in files if file.is_file()]
+            for file, _ in contents:
+                file.unlink()
+            try:
+                return await gather(ctx, ticket, *args, **kwargs)
+            finally:
+                for file, data in contents:
+                    file.write_bytes(data)
+
+        monkeypatch.setattr(stages, "gather_evidence", without_custody)
+        monkeypatch.setattr(merge, "gather_evidence", without_custody)
         path = ctx.repo / f"tickets/{STEM}/checks.json"
         ctx.fs.write(path, b"CHECK REPORT MUST NOT BE READ OR REWRITTEN")
         await commit(ctx, ctx.repo, [f"tickets/{STEM}/checks.json"])

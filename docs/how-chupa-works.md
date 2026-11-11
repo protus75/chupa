@@ -140,8 +140,10 @@ Frontmatter fields that drive behavior:
 - It finds new or modified `tickets/<stem>/ticket.md` files in the working tree (`git status`).
 - A new hand-written stem must be `draft` or `confirmed` and must not claim a machine `source`;
   intake stamps it `source: human`, `state: confirmed`.
-- Intake refuses a bug ticket without a regular, non-symlink evidence file that is not gitignored
-  under `tickets/<stem>/evidence/`. Settled and rejected tickets are exempt from this check.
+- Every ticket read (intake, lint, confirm, drain, serve, run, and Author) refuses a bug without
+  regular, non-symlink evidence under `tickets/<stem>/evidence/`. Intake and lint also require
+  committable, non-gitignored evidence. Settled and rejected tickets are exempt, including at intake
+  when the journal records settlement.
 - Each ticket that lints clean is committed with its new or changed regular, non-symlink evidence
   files as `chupa(<stem>): ticket` and journaled as
   `ticket_intake`. A ticket that fails lint stays on disk uncommitted, and the refusal names the
@@ -296,10 +298,10 @@ A `kind: bug` ticket must prove the defect: at least one file under `tickets/<st
 a `## Regression` command that prints `{"regression_result": "pass"}` with exit 0 on the branch
 head, and `{"regression_result": "defect"}` with a non-zero exit on the merge base with the
 carried test or fixture files copied over it. Only files under `tests/`, `test/`, `fixtures/`, or
-`fixture/` can be carried. `chupa/docs/host-authoring.md` explains the protocol for authors. Intake
-refuses a bug ticket without a regular, non-symlink evidence file that is not gitignored and
-commits its evidence in the same commit as the ticket. Settled and rejected tickets are exempt
-from the intake evidence check. The Check gate still verifies the regression proof.
+`fixture/` can be carried. `chupa/docs/host-authoring.md` explains the protocol for authors. Every ticket read (intake, lint, confirm, drain, serve, run, and Author) refuses a bug without
+regular, non-symlink evidence. Intake and lint also require evidence that is not gitignored; intake
+commits it with the ticket. Settled and rejected tickets are exempt, including at intake when the
+journal records settlement. The Check gate still verifies the regression proof.
 
 ### 5.3 Severity and bypass
 

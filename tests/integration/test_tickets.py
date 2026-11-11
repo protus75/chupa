@@ -223,6 +223,7 @@ def test_bug_ticket_with_regression_validates(repo):
         "## Time budget", "## Regression\n```\nuv run pytest tests/test_thing.py\n```\n- carries: tests/\n\n## Time budget"
     )
     write(root, "t-one", text)
+    evidence_file(root, stem="t-one")
     ticket = validate_ticket("t-one", text, root)
     assert ticket.frontmatter.kind == "bug"
     assert ticket.regression == ("uv", "run", "pytest", "tests/test_thing.py")
@@ -233,6 +234,7 @@ def test_bug_ticket_with_regression_validates(repo):
 def test_bug_carries_test_prefix_validates(repo, prefix):
     root, _, _ = repo
     text = complete(bug_text().replace("- carries: tests/", f"- carries: {prefix}"))
+    evidence_file(root)
     assert validate_ticket("t-bug", text, root).carries == (prefix,)
 
 
@@ -423,6 +425,10 @@ def test_symlink_is_not_evidence(repo, directory_link):
 
     root, g, journal = repo
     write(root, "t-bug", bug_text())
+    temporary = evidence_file(root)
+    ticket = validate_ticket("t-bug", complete(bug_text()), root)
+    temporary.unlink()
+    temporary.parent.rmdir()
     target = root / "observed.txt"
     target.write_text("observed failure\n")
     directory = root / "tickets/t-bug/evidence"
@@ -431,7 +437,6 @@ def test_symlink_is_not_evidence(repo, directory_link):
     else:
         directory.mkdir()
         (directory / "failure.txt").symlink_to(target)
-    ticket = validate_ticket("t-bug", complete(bug_text()), root)
     assert len(evidence_findings(ticket, root)) == 1
     assert "t-bug" in do_intake(root, g, journal).refused
     assert journal.read() == []
@@ -520,6 +525,8 @@ def test_template_per_kind(tmp_path, kind):
     assert "<" not in filled
     (tmp_path / "src").mkdir()
     (tmp_path / "src/thing.py").write_text("")
+    if kind == "bug":
+        evidence_file(tmp_path, stem="t-template")
     ticket = validate_ticket("t-template", filled, tmp_path)
     assert ticket.frontmatter.kind == kind
     assert ticket.context == ("src/thing.py",)

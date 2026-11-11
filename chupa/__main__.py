@@ -935,8 +935,7 @@ def _new(repo: Path, stem: str, kind: str = "feature", evidence: Sequence[str] =
     print(f"read the ticket authoring guide before filling sections: {guide}")
     findings = []
     try:
-        ticket = validate_ticket(stem, text, repo)
-        findings = evidence_findings(ticket, repo)
+        validate_ticket(stem, text, repo)
     except TicketInvalid as e:
         findings = e.findings
         if kind == "bug":

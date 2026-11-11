@@ -43,9 +43,8 @@ async def test_refused_uncommitted_bug_does_not_stop_serve(root, monkeypatch):
     run = asyncio.create_task(rig.owner.run())
     try:
         await until(rig, rig.owner.ready.is_set)
-        # Ensure the parseable refused stem actually reaches dispatch, rather than being filtered.
-        await until(rig, lambda: "no-evidence" in rig.owner.core.watcher.cache)
-        await rig.owner.core.admission.dispatch(rig.owner.core.watcher.cache["no-evidence"])
+        await until(rig, lambda: any(e.ticket == "no-evidence" and e.body.get("signal") == "watcher_parse_failure" for e in rig.journal.read()))
+        assert "no-evidence" not in rig.owner.core.watcher.cache
         assert not run.done() and not rig.owner.stopping
         assert "no-evidence" not in rig.owner.writers
         assert calls == []

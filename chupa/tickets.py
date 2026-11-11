@@ -302,7 +302,7 @@ def render_context(repo: Path, entry: str) -> str:
     return context_excerpt(entry, (repo / context_path(entry)).read_text())
 
 
-def parse_ticket(stem: str, text: str, repo: Path) -> Ticket:
+def _parse_ticket(stem: str, text: str, repo: Path, *, evidence: bool) -> Ticket:
     """Validate one ticket against the full ticket grammar; raise TicketInvalid with every finding.
 
     `repo` resolves `Context` / `On-demand` existence and ordering stems.
@@ -463,7 +463,7 @@ def parse_ticket(stem: str, text: str, repo: Path) -> Ticket:
 
     if findings or fm is None:
         raise TicketInvalid(findings)
-    return Ticket(
+    ticket = Ticket(
         stem=stem,
         frontmatter=fm,
         sections=sections,
@@ -478,6 +478,13 @@ def parse_ticket(stem: str, text: str, repo: Path) -> Ticket:
         regression=regression,
         carries=carries,
     )
+    if evidence and (findings := evidence_findings(ticket, repo)):
+        raise TicketInvalid(findings)
+    return ticket
+
+
+def parse_ticket(stem: str, text: str, repo: Path) -> Ticket:
+    return _parse_ticket(stem, text, repo, evidence=True)
 
 
 def _regression(text: str, path: str) -> tuple[tuple[str, ...], tuple[str, ...], list[Finding]]:
@@ -530,9 +537,9 @@ def _graph(repo: Path, section: str = "Depends on") -> dict[str, list[str]]:
     return edges
 
 
-def validate_ticket(stem: str, text: str, repo: Path) -> Ticket:
+def validate_ticket(stem: str, text: str, repo: Path, *, _settled: bool = False) -> Ticket:
     """The full intake lint: grammar and acyclicity."""
-    ticket = parse_ticket(stem, text, repo)
+    ticket = _parse_ticket(stem, text, repo, evidence=False) if _settled else parse_ticket(stem, text, repo)
     edges = _graph(repo)
     edges[stem] = list(ticket.depends)
     if cycle := depends_cycle(stem, edges):
@@ -688,7 +695,7 @@ async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem) -> Inta
         try:
             if findings:
                 raise TicketInvalid(findings)
-            ticket = validate_ticket(stem, stamped, repo)
+            ticket = validate_ticket(stem, stamped, repo, _settled=True) if states.get(stem) in {"merged", "already_satisfied", "rejected"} else validate_ticket(stem, stamped, repo)
             fm = ticket.frontmatter
             if states.get(stem) not in {"merged", "already_satisfied", "rejected"}:
                 if findings := evidence_findings(ticket, repo, paths=evidence[stem]):

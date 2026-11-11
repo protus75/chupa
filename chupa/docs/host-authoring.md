@@ -71,10 +71,10 @@ A `kind: bug` ticket must prove the defect existed and is fixed. Three things ca
 `new` copies the supplied files into `tickets/<stem>/evidence/`. At least one file there must be
 committed with the ticket before it runs:
 the observed wrong output, a log excerpt, or the failing command's captured output. The file
-must be a regular, non-symlink file and must not be gitignored. Intake refuses a bug ticket
-without such a file, leaving it untouched and uncommitted; when admitted, its new or changed
-evidence files are committed with the ticket in the same commit. Settled and rejected tickets
-are exempt from this intake check. Supply real evidence, never a placeholder.
+must be a regular, non-symlink file. Every ticket read (intake, lint, confirm, drain, serve, run,
+and Author) refuses a bug without evidence. Intake and lint also require evidence that is not
+gitignored; intake commits new or changed evidence with the ticket. Settled and rejected tickets
+are exempt, including at intake when the journal records settlement. Supply real evidence, never a placeholder.
 
 ### The regression command
 
