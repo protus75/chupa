@@ -1,0 +1,23 @@
+Observed failure at base commit 6224dee2 (main, before any fix), 2026-11-11.
+
+Setup: `git archive 6224dee2` export, overlaid with the two test files from attempt 0's
+commit fbf1b483 (tests/integration/test_triage.py adds
+test_reopened_author_verdict_with_stale_author_invoked_calls_author;
+tests/regress_triage_author_invoked_boundary.py is the carried reproducer).
+The test journals one `author_invoked` signal for the message, then a reopened
+`retro-recurrence/<id>/second` effect intent, then runs triage on the message's
+recorded author verdict.
+
+$ uv run python tests/regress_triage_author_invoked_boundary.py
+[exit 1]
+--- stdout
+{"regression_result": "defect"}
+--- stderr (excerpt)
+        assert run(root, monkeypatch, FakeLLM([])) == 0
+>       author.assert_awaited_once()
+E           AssertionError: Expected mock to have been awaited once. Awaited 0 times.
+FAILED tests/integration/test_triage.py::test_reopened_author_verdict_with_stale_author_invoked_calls_author
+1 failed in 1.40s
+
+Meaning: `_settle_pass` found the pre-reopen `author_invoked` signal, so it called
+`failure_declined` and never called Author for the reopened message.
