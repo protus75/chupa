@@ -490,6 +490,7 @@ def snapshot(ctx) -> dict:
     alive = lock_holder(state) is not None
     interrupted = set(orphans(history)) if not alive else set()
     lock = ""
+    verb = ""
     if alive:
         try:
             holder = json.loads((state / "chupa.lock").read_text())
@@ -744,7 +745,7 @@ def snapshot(ctx) -> dict:
         "stateDir": str(state.resolve()),
         "configPath": str(ctx.config.resolve()),
         "at": now.isoformat(),
-        "engine": alive,
+        "engine": verb in ("drain", "serve"),
         "lock": lock,
         "rows": rows,
         "steps": steps,

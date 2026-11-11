@@ -204,7 +204,8 @@ def test_snapshot_lock_holder(tmp_path, monkeypatch):
     monkeypatch.setattr(watch, "commits", lambda ctx: {})
     monkeypatch.setattr(watch, "processes", lambda ctx: [(712, 1, "python -m chupa --config x.yaml review stem")])
     monkeypatch.setattr(watch.os, "kill", lambda pid, signal: None)
-    assert watch.snapshot(ctx)["lock"] == ""  # A missing lockfile is not a live holder.
+    snap = watch.snapshot(ctx)
+    assert snap["lock"] == "" and snap["engine"] is False  # A missing lockfile is not a live holder.
     started_at = "2026-11-06T07:19:00+00:00"
     (tmp_path / "chupa.lock").write_text(json.dumps({"pid": 712, "started_at": started_at}))
 
@@ -212,13 +213,25 @@ def test_snapshot_lock_holder(tmp_path, monkeypatch):
         raise ProcessLookupError
 
     monkeypatch.setattr(watch.os, "kill", dead)
-    assert watch.snapshot(ctx)["lock"] == ""  # A stale lockfile is not a live holder.
+    snap = watch.snapshot(ctx)
+    assert snap["lock"] == "" and snap["engine"] is False  # A stale lockfile is not a live holder.
     monkeypatch.setattr(watch.os, "kill", lambda pid, signal: None)
-    assert watch.snapshot(ctx)["lock"] == f"review since {watch.clock(started_at)} (pid 712)"
+    for args, verb, engine in [
+        ("python -m chupa triage", "triage", False),
+        ("python -m chupa drain --detach", "drain", True),
+        ("python -m chupa --config c.yaml serve", "serve", True),
+        ("python -m chupa --config x.yaml review stem", "review", False),
+    ]:
+        monkeypatch.setattr(watch, "processes", lambda ctx: [(712, 1, args)])
+        snap = watch.snapshot(ctx)
+        assert snap["lock"] == f"{verb} since {watch.clock(started_at)} (pid 712)"  # The tooltip identifies the actual holder.
+        assert snap["engine"] is engine  # Only drain and serve can receive Stop.
     monkeypatch.setattr(watch, "processes", lambda ctx: [(712, 1, "python -m chupa")])
-    assert watch.snapshot(ctx)["lock"] == f"chupa since {watch.clock(started_at)} (pid 712)"
+    snap = watch.snapshot(ctx)
+    assert snap["lock"] == f"chupa since {watch.clock(started_at)} (pid 712)" and snap["engine"] is False  # An unknown verb cannot be stopped.
     monkeypatch.setattr(watch, "processes", lambda ctx: [(713, 1, "python -m chupa drain")])
-    assert watch.snapshot(ctx)["lock"] == f"chupa since {watch.clock(started_at)} (pid 712)"
+    snap = watch.snapshot(ctx)
+    assert snap["lock"] == f"chupa since {watch.clock(started_at)} (pid 712)" and snap["engine"] is False  # An unknown verb cannot be stopped.
 
 
 def test_snapshot_display_fields(tmp_path, monkeypatch):
