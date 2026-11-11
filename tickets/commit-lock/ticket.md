@@ -38,6 +38,7 @@ This ticket adds a second lock sized to that danger: a commit lock held only whi
 
 ## Scope in / Scope out
 - In: `chupa/lockfile.py` adds a `CommitLock` at `<state_dir>/commit.lock`. It is an advisory `flock` whose identity records `pid`, `host`, `state_dir` and `started_at` (the acquire time) and no `instance_id`, so building it needs no `Git`.
+  - Construction does no I/O. Only acquire creates the state directory and `commit.lock`. `chupa/__main__.py` builds the lock for every verb, including read-only `snapshot`, `watch`, `status`, `lint` and `doctor` and idle `kill`, `pause` and `resume`; `tests/integration/test_watch.py`, `tests/integration/test_kill_cli_activation.py` and `tests/integration/test_control_cli.py` require those verbs to leave the state directory unchanged.
   - Acquire polls a non-blocking `flock` through injected clock and sleep seams. It gives up after `COMMIT_LOCK_WAIT_S = 60` seconds.
   - On timeout it raises `CommitLockTimeout`. That is its own exception type, not `LockHeld` or a subclass. Its message names the holder from the lockfile identity. Its paved road says to retry once that process finishes its commit, and never to delete the lockfile.
   - Release truncates the identity to empty before closing. A reader then sees an empty file once the lock is free, even while the releasing process lives on.
@@ -128,11 +129,12 @@ This ticket adds a second lock sized to that danger: a commit lock held only whi
 1. New `tests/unit/test_commit_lock.py` uses a fake clock and sleep and never touches disk. It replaces `chupa.lockfile`'s `os` and `fcntl` names with an in-memory fake that can simulate another holder, and stubs `tickets.intake`'s ticket read, validation and journal through `monkeypatch`. It keeps the `test-gate.toml` unit floors for `chupa/lockfile.py` and `chupa/git.py`, and covers these cases:
    - While the fake's other holder has `commit.lock`, acquire waits, then succeeds once that holder releases before 60 seconds. It does not refuse on first contention.
    - When the holder never releases, acquire raises `CommitLockTimeout` at 60 seconds, naming the holder's pid. It neither waits forever nor acquires. `CommitLockTimeout` is not an instance of `LockHeld`.
+   - Constructing a `CommitLock` makes no call on the fake `os` or `fcntl`.
    - A second task in the same process waits for the first task's release. The holding task asking again raises `RuntimeError` at once.
    - With a fake exec, `Git.commit(..., only=paths)` runs `update-index --add --remove` and `commit` inside one hold and returns the sha. It returns `None` and runs no `commit` when the staged paths match `HEAD`. `Git.merge_squash` runs both git steps inside one hold. `Git.add` and `Git.restore` each run their one git call inside a hold, not outside it.
    - With a fake `Git` whose `commit` returns `None`, `tickets.intake` journals no `ticket_intake` and raises nothing (this keeps the `chupa/tickets.py` floor).
    - The CLI's top-level handler turns a `CommitLockTimeout` raised by a verb into exit 2 with the message on stderr, not a traceback (this keeps the `chupa/__main__.py` floor).
-2. `tests/integration/test_lockfile.py`: with real files, a `CommitLock` acquire waits while another descriptor holds `commit.lock` and succeeds after it releases. After release `commit.lock` is empty, not the stale identity.
+2. `tests/integration/test_lockfile.py`: with real files, a `CommitLock` acquire waits while another descriptor holds `commit.lock` and succeeds after it releases. After release `commit.lock` is empty, not the stale identity. Before the first acquire, a constructed `CommitLock` has not created `commit.lock` or its state directory.
 3. `tests/integration/test_git.py`, with a real repository:
    - A real `Git.commit` does not commit while another descriptor holds `commit.lock`, and it commits after release.
    - A file committed after `base` and then removed from the index and worktree by `Git.restore(..., source=base)` is committed as a deletion by `Git.commit(..., only=[path])`. The call returns a sha and does not raise `pathspec did not match`.
