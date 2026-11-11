@@ -185,11 +185,15 @@ def test_new_templates_a_ticket_and_lints_it(root, capsys):
 
 
 def test_new_kind_flag(root, capsys):
-    assert cli(root, "new", "fix-thing", "--kind", "bug") == 0
+    assert cli(root, "new", "fix-thing", "--kind", "bug") == 2
+    assert not (root / "tickets/fix-thing").exists()
+    (root / "out.txt").write_bytes(b"failure\x00output")
+    assert cli(root, "new", "fix-thing", "--kind", "bug", "--evidence", "out.txt") == 0
+    assert (root / "tickets/fix-thing/evidence/out.txt").read_bytes() == b"failure\x00output"
     text = (root / "tickets/fix-thing/ticket.md").read_text()
     assert "kind: bug" in text and "## Regression" in text
     assert "regression_result" in text
-    assert "no evidence file" in capsys.readouterr().out
+    assert "no evidence file" not in capsys.readouterr().out
     with pytest.raises(SystemExit) as exc:
         cli(root, "new", "unknown-kind", "--kind", "unknown")
     assert exc.value.code == 2

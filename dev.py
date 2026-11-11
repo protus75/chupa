@@ -3,7 +3,7 @@
 
     ./dev.py                  the full suite
     ./dev.py test [args]      the suite, or the named tests (args go to pytest)
-    ./dev.py new STEM [--kind K]  author and lint a feature, bug, or chore ticket
+    ./dev.py new STEM [--kind K] [--evidence FILE...]  author and lint a feature, bug, or chore ticket
     ./dev.py order STEM [--priority P] [--runs-before [STEM ...]]  reorder a ticket
     ./dev.py review STEM...   review each ticket against merged code
     ./dev.py lint [STEM...]   validate tickets without running or writing anything
@@ -77,6 +77,7 @@ def main() -> None:
     new = sub.add_parser("new", help="author and lint a ticket")
     new.add_argument("stem")
     new.add_argument("--kind", choices=("feature", "bug", "chore"), default="feature")
+    new.add_argument("--evidence", nargs="+", metavar="PATH")
     order = sub.add_parser("order", help="edit a ticket's ordering")
     order.add_argument("stem")
     order.add_argument("--priority", choices=("P0", "P1", "P2", "P3"))
@@ -99,7 +100,7 @@ def main() -> None:
     if args.task is None:
         run(["uv", "run", "pytest", "-q"])
     elif args.task == "new":
-        chupa("new", args.stem, "--kind", args.kind)
+        chupa("new", args.stem, "--kind", args.kind, *(["--evidence", *args.evidence] if args.evidence else []))
     elif args.task == "order":
         chupa("order", args.stem, *(["--priority", args.priority] if args.priority is not None else []), *(["--runs-before", *args.runs_before] if args.runs_before is not None else []))
     elif args.task == "stats":

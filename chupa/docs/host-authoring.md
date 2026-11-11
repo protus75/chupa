@@ -8,9 +8,10 @@ what content its tickets carry, never the format. See the [host run guide](host-
 ## Workflow
 
 1. Start with `chupa new <stem> --kind feature|bug|chore`, choosing one kind (default `feature`).
-   In this repo, use `./dev.py new STEM [--kind K]`. It writes `tickets/<stem>/ticket.md` with
-   section placeholders and lints it. Every finding names the fix to apply. A bug includes
-   `## Regression` and reports missing evidence; the command creates no evidence files.
+   For a bug, first save the observed failure to a file and pass it with `--evidence <file>`.
+   In this repo, use `./dev.py new STEM [--kind K] [--evidence FILE...]`. It writes
+   `tickets/<stem>/ticket.md` with section placeholders and lints it. Every finding names the fix
+   to apply. A bug includes `## Regression` and copies the evidence files into the ticket.
 2. Fill each section with the content below, run `chupa lint <stem>`, and repeat until it is
    clean. In this repo, use `./dev.py lint [STEM...]`. Omit stems to check all tickets that are
    not settled or rejected in the journal (all tickets when there is no journal). In a linked
@@ -18,11 +19,10 @@ what content its tickets carry, never the format. See the [host run guide](host-
    intake's claims and evidence checks without taking the lock or writing anything; it prints
    findings with fixes and a valid/total summary. Exit 0 means all valid, 1 means findings, and
    2 means a named ticket is missing or the tickets directory is unreadable.
-3. For a bug, add the evidence file (see Bug tickets) beside the ticket.
-4. Run `chupa review <stem>` (in this repo, `./dev.py review STEM`), repair every finding,
+3. Run `chupa review <stem>` (in this repo, `./dev.py review STEM`), repair every finding,
    and repeat until it prints `approve`. Reviews with unmerged dependencies are provisional and not
    journaled; repair their findings, and the drain reviews again after the dependencies merge.
-5. A running `serve` picks up the new ticket; alternatively run `chupa drain`. Intake commits
+4. A running `serve` picks up the new ticket; alternatively run `chupa drain`. Intake commits
    the ticket and its evidence together before running it.
 
 ## What each section is for
@@ -67,7 +67,8 @@ A `kind: bug` ticket must prove the defect existed and is fixed. Three things ca
 
 ### Evidence
 
-At least one file under `tickets/<stem>/evidence/`, committed with the ticket before it runs:
+`new` copies the supplied files into `tickets/<stem>/evidence/`. At least one file there must be
+committed with the ticket before it runs:
 the observed wrong output, a log excerpt, or the failing command's captured output. The file
 must be a regular, non-symlink file and must not be gitignored. Intake refuses a bug ticket
 without such a file, leaving it untouched and uncommitted; when admitted, its new or changed

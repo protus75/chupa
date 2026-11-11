@@ -87,7 +87,7 @@ The [chupa tickets extension](https://marketplace.visualstudio.com/items?itemNam
 
 This section is for working on chupa itself. In this repo, use `./dev.py`:
 
-    ./dev.py new STEM [--kind feature|bug|chore]   # write a ticket skeleton
+    ./dev.py new STEM [--kind feature|bug|chore] [--evidence FILE...]   # write a ticket skeleton
     ./dev.py lint [STEM...]                         # check tickets
     ./dev.py review STEM...                       # review tickets against merged code
     ./dev.py drain                                  # run every eligible ticket to quiescence

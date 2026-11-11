@@ -54,7 +54,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `probe [PROVIDER...]` | no | Probe declared providers and models. |
 | `docs` | no | Prints the installed host guide paths and their purposes. |
 | `migrate-config` | no | Migrates a `schema_version: 0` config to the current schema. |
-| `new <stem> --kind feature\|bug\|chore` | no | Writes `tickets/<stem>/ticket.md` with section placeholders for the selected kind (default `feature`) and lints it. Bugs include `## Regression` and a missing-evidence finding; no evidence files are created. Refuses a bad, reserved, or existing stem, or unknown kind (exit 2); successful authorship exits 0. |
+| `new <stem> --kind feature\|bug\|chore` | no | Writes `tickets/<stem>/ticket.md` with section placeholders for the selected kind (default `feature`) and lints it. Bugs include `## Regression`, require `--evidence <file>...`, and copy those files into `tickets/<stem>/evidence/`. Refuses a bad, reserved, or existing stem, or unknown kind (exit 2); successful authorship exits 0. |
 | `order <stem> [--priority P0\|P1\|P2\|P3] [--runs-before [stem ...]]` | no | Validates and edits priority and/or runs-before ordering in the working tree; a bare `--runs-before` removes the section. Refuses running, settled, rejected, missing or invalid tickets. Intake commits the edit. |
 | `review <stem>` | intake only | Reviews an unchanged committed ticket without the checkout lock. Pending changes under the ticket directory require locked intake first; if the lock is held, wait for the running engine to commit the ticket through intake or stop it, then retry. Reviews the committed ticket against merged code and journals its verdict and ticket blob SHA. A ticket with an unmerged dependency gets a provisional review that is printed but not journaled, so the drain reviews it again before its first run. Refuses missing, intake-failed, settled, or rejected tickets without a model call. Prints findings and exits 0 on approve, 1 on snag or rma. |
 | `run <stem>` | yes | Reconciles orphans, runs intake, then drives the one named ticket through every stage. Refuses a stem that failed intake, is missing, invalid, merged, not `confirmed`, or has unmerged dependencies. |
@@ -90,7 +90,7 @@ A unit test file may share its name with an integration test file.
 | `core` | `chupa core` |
 | `covmap` | `chupa covmap` |
 | `stats [--window W] [--json]` | `chupa stats` with the supplied options; a read-only projection |
-| `new STEM [--kind K]` | `chupa new <stem> --kind feature\|bug\|chore` (default `feature`) |
+| `new STEM [--kind K] [--evidence FILE...]` | `chupa new <stem> --kind feature\|bug\|chore` (default `feature`); bugs require `--evidence` and copy the files into `tickets/<stem>/evidence/` |
 | `order STEM [--priority P] [--runs-before [STEM ...]]` | `chupa order` with the supplied ordering options |
 | `lint [STEM...]` | `chupa lint [stem ...]` (read-only; no writer lock) |
 | `review STEM...` | `chupa review` once per stem, stopping on the first non-zero exit |

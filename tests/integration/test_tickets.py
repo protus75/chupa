@@ -525,23 +525,43 @@ def test_template_per_kind(tmp_path, kind):
     assert ticket.carries == (("tests/reproduce.py",) if kind == "bug" else ())
 
 
-def test_new_bug_creates_no_evidence(repo, capsys):
+def test_new_bug_copies_evidence(repo, capsys):
     from chupa import __main__ as cli
 
     root, _, _ = repo
-    assert cli.main(["new", "t-bug", "--kind", "bug"], cwd=root) == 0
+    (root / "failure.txt").write_bytes(b"observed failure\x00")
+    assert cli.main(["new", "t-bug", "--kind", "bug", "--evidence", "failure.txt"], cwd=root) == 0
     assert (root / "tickets/t-bug/ticket.md").read_text() == template("bug")
-    assert sorted(p.relative_to(root).as_posix() for p in (root / "tickets/t-bug").rglob("*")) == ["tickets/t-bug/ticket.md"]
-    assert "add the observed failure" in capsys.readouterr().out
+    assert sorted(p.relative_to(root).as_posix() for p in (root / "tickets/t-bug").rglob("*") if p.is_file()) == ["tickets/t-bug/evidence/failure.txt", "tickets/t-bug/ticket.md"]
+    assert (root / "tickets/t-bug/evidence/failure.txt").read_bytes() == b"observed failure\x00"
+    assert "no evidence file" not in capsys.readouterr().out
 
 
 def test_new_prints_bug_evidence_finding(repo, monkeypatch, capsys):
     from chupa import __main__ as cli
 
     root, _, _ = repo
+    (root / "failure.txt").write_text("observed failure")
     monkeypatch.setattr(cli, "template", lambda kind: complete(bug_text()))
-    assert cli._new(root, "t-bug", "bug") == 0
-    assert "add the observed failure" in capsys.readouterr().out
+    assert cli._new(root, "t-bug", "bug", ("failure.txt",)) == 0
+    assert "no evidence file" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("case", ["missing", "directory", "symlink", "duplicate", "feature"])
+def test_new_refuses_invalid_evidence(repo, capsys, case):
+    from chupa import __main__ as cli
+
+    root, _, _ = repo
+    (root / "failure.txt").write_text("failure")
+    (root / "other").mkdir()
+    (root / "other/failure.txt").write_text("different failure")
+    (root / "link.txt").symlink_to(root / "failure.txt")
+    paths = {"missing": ["missing.txt"], "directory": ["other"], "symlink": ["link.txt"], "duplicate": ["failure.txt", "other/failure.txt"], "feature": ["failure.txt"]}[case]
+    kind = "feature" if case == "feature" else "bug"
+    assert cli.main(["new", "t-bug", "--kind", kind, "--evidence", *paths], cwd=root) == 2
+    assert not (root / "tickets/t-bug").exists()
+    error = capsys.readouterr().err
+    assert (paths[0] if case in {"missing", "directory", "symlink"} else "duplicate" if case == "duplicate" else "bug tickets") in error
 
 
 def test_runs_before_parsing_and_refusals(repo):

@@ -265,6 +265,7 @@ def _parser() -> argparse.ArgumentParser:
     new = sub.add_parser("new", help="template tickets/<stem>/ticket.md and lint it")
     new.add_argument("stem")
     new.add_argument("--kind", choices=("feature", "bug", "chore"), default="feature")
+    new.add_argument("--evidence", nargs="+", metavar="PATH")
     ordering = sub.add_parser("order", help="edit a ticket's priority or ordering")
     ordering.add_argument("stem")
     ordering.add_argument("--priority", choices=("P0", "P1", "P2", "P3"))
@@ -327,7 +328,7 @@ def main(
                 print(f"chupa covgate: {command[0]} not found -- install it or correct the command after --", file=sys.stderr)
                 return 2
         if args.verb == "new":
-            return _new(repo, args.stem, args.kind)
+            return _new(repo, args.stem, args.kind, args.evidence or ())
         if args.verb == "doctor":
             from chupa import doctor
 
@@ -890,8 +891,20 @@ def _order(checkout, stem, priority, runs_before):
     return 0
 
 
-def _new(repo: Path, stem: str, kind: str = "feature") -> int:
-    """Author the ticket file only: authorship is outside the lock fence; intake commits it on the next run."""
+def _new(repo: Path, stem: str, kind: str = "feature", evidence: Sequence[str] = ()) -> int:
+    """Author a ticket and its evidence outside the lock fence."""
+    if kind == "bug" and not evidence:
+        raise runner.Refusal(
+            "a bug ticket needs its evidence first", f"save the observed failure (output, log excerpt, or captured command output) to a file, then rerun new {stem} --kind bug --evidence <file>"
+        )
+    if kind != "bug" and evidence:
+        raise runner.Refusal("evidence is for bug tickets", "omit --evidence or choose --kind bug")
+    sources = [repo / path for path in evidence]
+    for source in sources:
+        if source.is_symlink() or not source.is_file():
+            raise runner.Refusal(f"invalid evidence file: {source}", "supply an existing regular file that is not a symlink")
+    if len({source.name for source in sources}) != len(sources):
+        raise runner.Refusal("evidence files have duplicate names", "supply files with distinct names")
     if findings := stem_findings(stem):
         raise runner.Refusal(findings[0].message, findings[0].paved_road)
     rel = ticket_path(stem)
@@ -899,7 +912,10 @@ def _new(repo: Path, stem: str, kind: str = "feature") -> int:
     if (repo / rel).exists():
         raise runner.Refusal(f"{rel} already exists", f"read {guide}, then edit it in place, or pick a new stem")
     text = template(kind)
-    LocalFileSystem().write(repo / rel, text.encode())
+    fs = LocalFileSystem()
+    fs.write(repo / rel, text.encode())
+    for source in sources:
+        fs.write(repo / "tickets" / stem / "evidence" / source.name, source.read_bytes())
     print(f"authored {rel}")
     print(f"read the ticket authoring guide before filling sections: {guide}")
     findings = []
