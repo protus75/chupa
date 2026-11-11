@@ -1,0 +1,10 @@
+{"ts": "2026-11-11T09:19:52.786535+00:00", "event": "stage_start", "stem": "git-factory", "attempt": 9, "surface": "requisition_review", "run_seq": 9}
+{"ts": "2026-11-11T09:20:34.359341+00:00", "event": "stage_end", "stem": "git-factory", "attempt": 9, "surface": "requisition_review", "run_seq": 9, "outcome": "gate_failed", "calls": 1}
+{"ts": "2026-11-11T09:20:34.404465+00:00", "event": "stage_start", "stem": "git-factory-harness", "attempt": 9, "surface": "requisition_review", "run_seq": 9}
+{"ts": "2026-11-11T09:21:28.139039+00:00", "event": "stage_end", "stem": "git-factory-harness", "attempt": 9, "surface": "requisition_review", "run_seq": 9, "outcome": "gate_failed", "calls": 1}
+{"ts": "2026-11-11T09:21:28.173037+00:00", "event": "stage_start", "stem": "commit-lock-core", "attempt": 9, "surface": "requisition_review", "run_seq": 9}
+{"ts": "2026-11-11T09:23:30.465995+00:00", "event": "stage_end", "stem": "commit-lock-core", "attempt": 9, "surface": "requisition_review", "run_seq": 9, "outcome": "ok", "calls": 1}
+{"ts": "2026-11-11T09:30:04.061546+00:00", "event": "stage_start", "stem": "git-maker", "attempt": 9, "surface": "requisition_review", "run_seq": 9}
+{"ts": "2026-11-11T09:30:38.099420+00:00", "event": "stage_end", "stem": "git-maker", "attempt": 9, "surface": "requisition_review", "run_seq": 9, "outcome": "gate_failed", "calls": 1}
+{"ts": "2026-11-11T09:30:38.154932+00:00", "event": "stage_start", "stem": "commit-lock-held-by-git", "attempt": 9, "surface": "requisition_review", "run_seq": 9}
+{"ts": "2026-11-11T09:31:34.823197+00:00", "event": "stage_end", "stem": "commit-lock-held-by-git", "attempt": 9, "surface": "requisition_review", "run_seq": 9, "outcome": "gate_failed", "calls": 1}
