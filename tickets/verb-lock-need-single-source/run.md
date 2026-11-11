@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-For an identity with no recorded verb, the snapshot displays the existing fallback name “chupa” and request routing refuses with “unknown holder.”
+Used an unknown-holder refusal when the recorded verb is missing; all required verification and host checks passed.
 
 ## Dead ends
 
@@ -12,7 +12,7 @@ none
 
 ## Second problems filed
 
-- box-000420-2118c8d8: README.md says Review always takes the writer lock, but unchanged committed tickets can be reviewed without it; the file is outside the scope fence.
+- box-000421-fb32f079: README.md incorrectly says review always requires stopping serve and is outside the scope fence.
 
 ## Resolved engine/model
 
