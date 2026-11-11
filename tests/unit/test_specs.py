@@ -22,10 +22,26 @@ from chupa.specs import (
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parents[2] / "chupa" / "specs"
-    for name, version in (("implement", "2.10"), ("requisition_review", "3.9"), ("diagnose", "1.4")):
+    for name, version in (("implement", "2.10"), ("requisition_review", "3.10"), ("diagnose", "1.4")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
+
+
+def test_requisition_review_spec_snags_missing_reproduction_exit():
+    text = (Path(__file__).resolve().parents[2] / "chupa/specs/requisition_review.md").read_text()
+    spec = load_spec(text)
+    rendered = render(spec, {name: f"fixture {name}" for name in spec.inputs})
+    task = " ".join(rendered.split("## Task\n", 1)[1].split("## Inputs\n", 1)[0].split())
+    # An absent or overbroad rule would miss intermittent failures or snag reliable ones.
+    for phrase in (
+        "intermittent, flaky, load-dependent, or did not reproduce",
+        "names neither a deterministic trigger",
+        "nor an exit for when the failure does not reproduce",
+        "`no-reproduction-exit`",
+        "A ticket whose evidence pins the cause or whose failure reproduces reliably is not a hit.",
+    ):
+        assert phrase in task
 
 
 def test_requisition_review_spec_snags_non_protocol_regression():

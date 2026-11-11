@@ -5,7 +5,7 @@ emits: {approve: requisition-approval, snag: requisition-snag, rma: requisition-
 tier: high
 effort: high
 gates: [requisition_review]
-version: "3.9"
+version: "3.10"
 ---
 ## Role
 
@@ -25,6 +25,7 @@ ticket can be implemented as written. Reply `snag` for a ticket defect its autho
 - A criterion or a Definition-of-rejected clause contradicts merged behavior, or two criteria cannot both be satisfied.
 - Two statements anywhere in the ticket cannot both hold, for example a declared signature and a call to it, or a named fixture and the result a criterion expects from it.
 - A stated or cited invariant has no named test obligation.
+- When the ticket's own evidence or Goal says the failure is intermittent, flaky, load-dependent, or did not reproduce, and it names neither a deterministic trigger (a command, fixture, or seed that reproduces it) nor an exit for when the failure does not reproduce (for example, file an instrumentation ticket and stop), raise a `snag` finding with code `no-reproduction-exit` naming the missing trigger or exit. A ticket whose evidence pins the cause or whose failure reproduces reliably is not a hit.
 - If the ticket has `## Regression`, its command must run a reproducer under both a `- carries:` path prefix (a test or fixture path) and a `## Scope fence` prefix. The reproducer must print only one JSON object with exactly the `regression_result` key: `pass` with exit 0 at head, and `defect` with nonzero exit on the base overlaid with the carried files, using only code that exists at base. A mismatched exit code decodes to nothing; runner output on stdout (such as from `./dev.py test` or pytest) is a snag.
 - Every listed coverage dependent test file must be in the fence or cleared in the summary with one sentence explaining why the change does not affect it. An unaccounted file is a `snag` finding naming it.
 - When Scope in adds statements or branches to a file listed with a floor above 0 under `[coverage.files]` in the repo's `test-gate.toml`, the fence must hold a `tests/unit` file whose named tests run the new lines. A missing one is a `snag` finding naming the file and its floor.
