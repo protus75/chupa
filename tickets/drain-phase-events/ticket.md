@@ -36,6 +36,7 @@ When this ticket is done, both phases write a start and an end event to `engine.
   - `retro_check` in drain: `ran` when `Retro.__call__` returns a report, `no_report` when it returns `None` (not due, suppressed, a caught retro failure, or a kill), and `failed` when it raises. `Retro.__call__` does not distinguish more cases, and `chupa/retro.py` stays outside this ticket.
   - `retro_check` in serve: `due` when `select_trigger` fires (serve only marks the retro due; `run_retro` runs it later), `not_due` otherwise, and `failed` when it raises.
   - An exception ends the phase with `failed` and still propagates.
+- In: `tests/integration/test_daemon_composition.py`: `test_production_core_uses_real_snapshot_pipeline` and `test_production_core_awaits_preflight_inside_admission` check the exact preparation trace (around lines 769-770 and 796). The `EngineLog` that `prepare_pipeline` now builds (with `Redactor.from_config`, as `chupa/runner.py` already does for `run_ticket`) adds a `redactor` entry, so only those trace assertions change to the new order.
 - In: `chupa/runner.py::prepare_pipeline` logs the `preflight` pair around `llm.preflight()`. That covers drain, run and serve, and a cached `prepare()` that skips preflight logs nothing.
 - In: `chupa/drain.py::_Drain._run_retro` and `chupa/serve.py::Serve.check_retro` log the `retro_check` pair. When the drain's retro runs a retro stage, its existing `stage_start` and `stage_end` sit inside the pair.
 - In: `chupa/observe.py::recent_steps` renders the events as engine rows with `stem` `None`. The text is `Preflight start`, `Preflight end (<outcome>)`, `Retro check start` or `Retro check end (<outcome with _ as a space>)`. The kinds are `phase_start`, `phase_failed` for outcome `failed`, and `phase_ok` for every other outcome. Names come from a Python table next to `STEP_NAMES`.
@@ -54,6 +55,7 @@ When this ticket is done, both phases write a start and an end event to `engine.
 - vscode-chupa/extension.js
 - docs/how-chupa-works.md
 - tests/integration/test_watch.py
+- tests/integration/test_daemon_composition.py
 - tests/unit/test_phase_events.py
 
 ## Acceptance criteria
