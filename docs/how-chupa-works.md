@@ -684,7 +684,7 @@ Everything lives under `state_dir` (this repo: `.chupa/state`).
 
 ### 10.2 The journal
 
-The journal is the record of truth: append-only JSON lines, fsynced per event. Event types:
+The journal is the record of truth: append-only JSON lines, fsynced per event. A Journal instance parses each byte once and re-reads only appended lines during normal append-only operation. Event types:
 `state_transition` (run states), `cap_consumed`, `signal` (a closed list of named signals),
 `effect_intent` / `effect_completion`, `timer_armed` / `timer_fired`.
 

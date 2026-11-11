@@ -148,6 +148,7 @@ class Journal:
         self._clock = clock
         self._fs = LocalFileSystem()
         self._closed = False
+        self._cache: dict[Path, tuple[list[Event], int, int, bool]] = {}
 
     def close(self) -> None:
         """End this handle's writes: the drain's self-upgrade handoff closes it before its child takes the lock."""
@@ -179,7 +180,7 @@ class Journal:
             now = datetime.fromisoformat(event.ts)
             segment = self._active_segment(now)
             _truncate_torn_tail(segment)
-            records = _parse_segment(segment, active=True)
+            records = self._read_active(segment)
             if segment.stat().st_size >= ROLL_BYTES or (records and now - datetime.fromisoformat(records[0].ts) >= ROLL_AGE):
                 segment = self._create_segment(int(segment.name[:6]) + 1, now)
             fd = os.open(segment, os.O_WRONLY | os.O_APPEND)
@@ -199,7 +200,30 @@ class Journal:
         """
         segments = self._segments()
         for i, path in enumerate(segments):
-            yield _parse_segment(path, active=i == len(segments) - 1)
+            if i == len(segments) - 1:
+                yield tuple(self._read_active(path))
+            else:
+                cached = self._cache.get(path)
+                size = path.stat().st_size
+                if cached is None or not cached[3] or cached[1] != size:
+                    events = list(_parse_segment(path, active=False))
+                    self._cache[path] = (events, size, len(events), True)
+                yield tuple(self._cache[path][0])
+
+    def _read_active(self, path: Path) -> list[Event]:
+        cached = self._cache.get(path)
+        size = path.stat().st_size
+        if cached is None or cached[3] or size < cached[1]:
+            events, offset, count = [], 0, 0
+        else:
+            events, offset, count, _ = cached
+        with path.open("rb") as f:
+            f.seek(offset)
+            data = f.read()
+        added, offset, count = _parse_complete_lines(path, data, offset, count)
+        events = events + added
+        self._cache[path] = (events, offset, count, False)
+        return events
 
     def read(self) -> list[Event]:
         return [event for segment in self.read_segments() for event in segment]
@@ -240,6 +264,14 @@ def _truncate_torn_tail(segment: Path) -> None:
         f.truncate(data.rfind(b"\n") + 1)
         f.flush()
         os.fsync(f.fileno())
+
+
+def _parse_complete_lines(path: Path, data: bytes, offset: int, count: int) -> tuple[list[Event], int, int]:
+    """Parse complete lines in data beginning at offset, leaving any tail unread."""
+    lines = data.split(b"\n")
+    lines.pop()
+    events = [_parse_line(path, count + n, raw) for n, raw in enumerate(lines, start=1)]
+    return events, offset + sum(len(line) + 1 for line in lines), count + len(lines)
 
 
 def _parse_segment(path: Path, *, active: bool) -> tuple[Event, ...]:
