@@ -1,0 +1,35 @@
+# Drain start 2026-11-11 10:13:31Z: engine_start -> first stage_start took 103s; engine.log empty in between.
+# Gaps engine_start -> first stage_start over the previous 21 drain starts: 82s-355s (typically 85-100s).
+#
+# Real timeline (file mtimes + journal):
+#   10:13:31 engine_start
+#   10:13:33-10:14:01 provider preflight probes (spools/providers/preflight/{codex-0001..0004,claude-0001..0002})
+#   10:14:02 ticket_intake signal
+#   10:14:02-10:15:14 no file under .chupa/state written
+#   10:15:14 state_transition running, requisition_review stage_start
+#
+# Read-only replay of Retro(forced=False) on a copy of .chupa/state:
+#   Retro(forced=False): 52.4s, journal.read calls: 372, result: None
+#   journal.read: 0.13s (23898 events); 40 completed retro reports; 55 proposals re-enqueued per call
+#
+# cProfile of a real `chupa drain` start on a copy of .chupa/state, stopped at first dispatch
+# (reconcile, intake and provider probes patched out; profiler slows ~2.3x):
+would dispatch commit-lock after 164.2s
+journal.read calls: 491
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+      491    0.199    0.000  157.044    0.320 chupa/journal.py:204(read)
+     5892    1.439    0.000  156.351    0.027 chupa/journal.py:245(_parse_segment)
+ 11744720   37.903    0.000  147.977    0.000 chupa/journal.py:255(_parse_line)
+      103    0.014    0.000  125.255    1.216 chupa/retro.py:342(__call__)
+      120    0.192    0.002  124.641    1.039 chupa/retro.py:275(emit_proposals)
+       55    0.020    0.000  111.710    2.031 chupa/box.py:196(enqueue)
+       55    0.274    0.005   92.149    1.675 chupa/storm.py:182(record)
+      120    0.665    0.006   79.464    0.662 chupa/storm.py:82(_evidence)
+      175    1.239    0.007   57.676    0.330 chupa/storm.py:45(_history)
+       59    0.293    0.005   39.372    0.667 chupa/storm.py:169(recover)
+       44    0.001    0.000   29.002    0.659 chupa/control.py:215(consume)
+       88    0.415    0.005   28.996    0.330 chupa/control.py:177(_fold)
+       42    0.001    0.000   26.569    0.633 chupa/drain.py:574(control)
+       55    0.250    0.005   18.481    0.336 chupa/box.py:323(record_rereport)
+        4    0.000    0.000    7.294    1.823 chupa/daemon.py:229(checkpoint)
+        6    0.027    0.004    3.693    0.615 chupa/storm.py:135(holds)
