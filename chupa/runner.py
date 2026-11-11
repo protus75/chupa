@@ -626,7 +626,10 @@ async def _dead_dependents(dead: str, checkout: Checkout) -> None:
         stem = path.parent.name
         if stem == dead or _ticket_state(path) != "confirmed" or last.get(stem) in SETTLED | {"rejected"}:
             continue
-        ticket = parse_ticket(stem, path.read_text(), checkout.repo)
+        try:
+            ticket = parse_ticket(stem, path.read_text(), checkout.repo)
+        except TicketInvalid:
+            continue
         for dependency in sorted(set(ticket.depends) & deaths):
             if not any(e.type == EventType.SIGNAL and e.ticket == stem and e.body.get("signal") == "dead_dependency" and e.body.get("dead") == dependency for e in history):
                 box.enqueue(

@@ -138,6 +138,21 @@ def test_reject_stamps_notifies_dependents_and_is_idempotent(tmp_path, capsys):
     assert main(["reject", "done"], cwd=root, env=ENV, clock=Clock(), terminal=(lambda: True, lambda _: "y")) == 2
 
 
+def test_reject_survives_invalid_confirmed_ticket(tmp_path):
+    root = make_root(tmp_path)
+    commit_ticket(root, "parent", confirmed())
+    commit_ticket(root, "child", confirmed(depends="- parent"))
+    _queued(root, "parent")
+    path = root / "tickets/aaa-wip/ticket.md"
+    path.parent.mkdir()
+    original = b"---\nstate: confirmed\n---\n\nUnfinished ticket.\n"
+    path.write_bytes(original)
+
+    assert main(["reject", "parent"], cwd=root, env=ENV, clock=Clock(), terminal=(lambda: True, lambda _: "y")) == 0
+    assert sum(e.body.get("signal") == "dead_dependency" for e in _events(root, "child")) == 1
+    assert path.read_bytes() == original
+
+
 def test_draft_confirm_commits_and_next_drain_dispatches(tmp_path):
     root = make_root(tmp_path)
     commit_ticket(root, "rough", confirmed().replace("state: confirmed", "state: draft", 1))
