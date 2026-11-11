@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-A fresh instance validates the active segment on its first append; later appends parse only unseen complete lines. Rolled segments are revalidated when their size changes.
+Same-instance appends validate previously unseen lines before writing, so after three consecutive appends the next read parses the one remaining unseen line; together the append validations and read parse all three exactly once. A fresh instance validates the active segment once before its first append. Reusing cached events was simpler than maintaining a second validation cache.
 
 ## Dead ends
 
-A simpler full-segment parse on each append was rejected because it preserves the reported scaling cost.
+none
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 45 minutes; completed within the budget.
+The ticket budget was 45 minutes expected and 90 minutes stuck; actual elapsed time was not measured.
 
