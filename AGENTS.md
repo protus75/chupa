@@ -72,6 +72,8 @@ Every rule below is behavioral (no gate checks it yet): the prose is the only en
   Why: two authorities diverge; crash recovery folds the journal. (D3)
 - **Generated files are render targets, never write targets.** Change the owning source and regenerate generated files. Tickets edit CLAUDE.md and AGENTS.md directly, as with any other documentation.
   Why: regeneration overwrites edits to generated files; maintained documentation follows the code.
+- **A rule has one of two homes.** A rule about working on chupa itself (this repo's code, tests, layout, `./dev.py` verbs) goes in `CLAUDE.md` and `AGENTS.md` outside the managed block. A rule every host should follow goes in `CORE_TEMPLATE` in `chupa/hostfiles.py` and reaches every host, this repo included, through `chupa core`; it is never written only into this repo's files. A change that adds, moves, or edits an agent rule states which home each rule belongs in.
+  Why: a host rule written only here never reaches other hosts, and a repo rule in the template is installed where it does not fit (2026-11-11).
 - **All git through `git.py`.** Argv lists, dir-pinned. Worktree cleanup via `worktree remove` + `prune`, never bare `rm -rf`. No `gh`, no PRs in the loop.
   Why: local main is the blessed line; GitHub is a non-blocking sidecar. (section 10)
 - **File second problems; never fold them in.** A second problem goes to the Suggestion Box, not the current diff. A pre-existing failure is verified on the base commit, then filed.
