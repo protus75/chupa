@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "8a303f33e1ddc36019377fb7b0eed5710d123019",
+  "stem": "stage-event-owner-stem",
+  "attempt": 1,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Scope fence is missing a forced file: tests/integration/test_provider_cooldown_failover.py::test_mid_run_drought_is_harvested_without_spine_draws. Its patched stages.check calls driver.run (and review_ticket when nested=True) inside run_stages' Check stage events.",
+    "Merged stages.check (chupa/stages.py:1396-1482) never calls driver.run or review_ticket, so only this fixture nests stages. The Driver.stage nesting refusal correctly rejects it. Do not weaken the refusal or leave Check out of Driver.stage.",
+    "Fix the ticket: add that test to the scope fence and Scope in. Allow only a fixture change: move the drought-raising calls (review_ticket for nested=True, stage(surface='review')) out of the patched check, for example into a patched stages.review, and keep every assertion.",
+    "On redo, restate the full work: add Driver.stage and route Driver._run, review_ticket, run_stages Check (stages.py:1589/1617) and merge (runner.py:216-218) through it, with the same fields. Also update the doc row, the fake driver and the new seam test. Then run ./dev.py test.",
+    "The base measurement is valid: an untouched base worktree passed all 3363 tests. The two failures are the parametrized variants of that one test, caused by the in-fence change as specified, not a base failure."
+  ],
+  "mechanical": null,
+  "spec_version": "1.4",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
