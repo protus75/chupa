@@ -1,0 +1,31 @@
+# 2026-11-11: operator confirmed commit-lock (premise_failed at implement, Reject queue); the drain still held it
+# operator terminal output
+*  Executing task: .venv/bin/chupa confirm --extension commit-lock
+commit-lock: Reject queue: premise_failed -- premise
+kept commit-lock
+
+# journal: last implement terminal, then the operator keep (same ticket_sha as the run)
+{"v":1,"type":"state_transition","ts":"2026-11-11T08:29:53.166193+00:00","ticket":"commit-lock","key":null,"body":{"to":"running","ticket_sha":"79978eebd68d09636647bf17c41a69e0806b94aa"}}
+{"v":1,"type":"state_transition","ts":"2026-11-11T08:30:28.228393+00:00","ticket":"commit-lock","key":null,"body":{"to":"premise_failed","stage":"implement","reason":"premise","dispatch":"reject_queue","routed":"reject_queue"}}
+{"v":1,"type":"signal","ts":"2026-11-11T08:55:54.033306+00:00","ticket":"commit-lock","key":null,"body":{"signal":"reject_verdict","verdict":"keep","actor":"operator","ticket_sha":"79978eebd68d09636647bf17c41a69e0806b94aa"}}
+
+# the next drain's report (.chupa/state/drain.out), run 2026-11-11T08:57, after the keep
+867:- commit-lock: premise_failed at implement; parked until its committed ticket.md changes -- answer the premise findings below by editing tickets/commit-lock/ticket.md and committing it -- the content change releases it
+
+# docs/how-chupa-works.md section 6.7 (the documented release)
+  the cap and routes to the Reject queue via `premise_bounce cap spent`; only an operator
+  `confirm` releases it. When a host sets `premise_bounce` above 1 and caps still have budget,
+
+# chupa/drain.py::parked_blob ignores reject_verdict events
+def parked_blob(events: Iterable[Event], stem: str) -> str | None:
+    """Return the content identity held by the last transition, if any."""
+    body: Mapping = {}
+    ran_sha: str | None = None
+    for e in events:
+        if e.type == EventType.STATE_TRANSITION and e.ticket == stem:
+            body = e.body
+            if body.get("to") == "running":
+                ran_sha = body.get("ticket_sha")
+    if body.get("to") == PREMISE or (body.get("to") == "gate_failed" and "diff_budget" in body.get("reason", "").split(",")):
+        return ran_sha
+    return None
