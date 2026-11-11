@@ -79,6 +79,7 @@ class Provider(_Strict):
     name: str
     kind: Literal["api", "cli"]
     auth: str | None = None
+    base_url: str | None = None
     package: str | None = None  # a `cli` provider's pnpm package: the preflight reads its latest release
     models_by_tier: ModelsByTier
     limits: Limits

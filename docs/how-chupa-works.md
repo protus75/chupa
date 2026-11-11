@@ -51,6 +51,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `doctor` | no | Checks venv, git, config load, lock probe, journal readability, and core check. Exit 2 on any failure. |
 | `prompt <diagnose\|running\|review> <stem>` | no | Prints an operator prompt for an existing ticket without writing state; `diagnose` selects the running prompt for a live running ticket. |
 | `core` | no | Rewrites the managed `chupa:core` block in each routed agent's conduct file (section 12). |
+| `probe [PROVIDER...]` | no | Probe declared providers and models. |
 | `docs` | no | Prints the installed host guide paths and their purposes. |
 | `migrate-config` | no | Migrates a `schema_version: 0` config to the current schema. |
 | `new <stem> --kind feature\|bug\|chore` | no | Writes `tickets/<stem>/ticket.md` with section placeholders for the selected kind (default `feature`) and lints it. Bugs include `## Regression` and a missing-evidence finding; no evidence files are created. Refuses a bad, reserved, or existing stem, or unknown kind (exit 2); successful authorship exits 0. |
@@ -84,6 +85,7 @@ A unit test file may share its name with an integration test file.
 | `test [args]` | pytest with those args |
 | `triage [ID ...]`, `dismiss ID ...` | One matching chupa call with all supplied IDs |
 | `docs` | `chupa docs` |
+| `probe [PROVIDER...]` | `chupa probe` with the supplied providers |
 | `suggest SUMMARY` | `chupa suggest <summary>` |
 | `core` | `chupa core` |
 | `covmap` | `chupa covmap` |
@@ -546,11 +548,13 @@ kill stops the engine at the next safe point. Stop admits no new ticket, lets wo
 
 ### 8.1 Providers
 
-Two CLI adapters ship: `claude` and `codex`. Only `kind: cli` providers are accepted.
+Three CLI adapters ship: `claude`, `codex`, and `qwen` (Qwen Code against a local Ollama model at the provider’s `base_url`). Only `kind: cli` providers are accepted.
 
 - Implement is the only surface with write access (`claude --permission-mode
-  bypassPermissions`, `codex --dangerously-bypass-approvals-and-sandbox`) and runs in the
+  bypassPermissions`, `codex --dangerously-bypass-approvals-and-sandbox`, `qwen --approval-mode yolo`) and runs in the
   ticket's worktree. Every other surface is read-only.
+`claude` and `qwen` read `CLAUDE.md`, and `codex` reads `AGENTS.md`. chupa points qwen at `CLAUDE.md` through its packaged `qwen-settings.json`.
+
 - Each provider maps tiers `low | medium | high | max` to models (`models_by_tier`).
 - A provider's `auth` env var is removed from every child process except that provider's own
   calls; git, checks, and notifications get no provider key.
@@ -726,7 +730,7 @@ See the [host run guide](../chupa/docs/host-running.md) for invocation and opera
 The block carries only process rules that hold for every host; codebase rules belong in the project-owned remainder. The block has four sections: `Ticket authoring` is for sessions writing tickets, `Diagnosis` is for sessions addressing failures, `Chat session conduct` is for interactive chat sessions, and `Engine conduct` is for ticket agents.
 
 - `chupa core` writes the managed block between `<!-- chupa:core begin -->` and
-  `<!-- chupa:core end -->` in `CLAUDE.md` (for `claude`) or `AGENTS.md` (other CLIs), for each
+  `<!-- chupa:core end -->` in `CLAUDE.md` (for `claude` and `qwen`) or `AGENTS.md` (other CLIs), for each
   routed provider. On first adoption the block goes above the existing content; after that only
   the block is replaced. Project text outside the block is the host's, but a paragraph that
   tells chupa how to run (for example "chupa must ...") is refused.

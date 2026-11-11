@@ -127,7 +127,9 @@ def candidates(config, tier, surface) -> tuple[Served, ...]:
 
 def routed_conduct_paths(config: Config | ConfigSnapshot, checkout: Path) -> tuple[Path, ...]:
     """Select each resolved CLI's conduct file once; unrouted declarations do not participate."""
-    return tuple(dict.fromkeys(checkout / ("CLAUDE.md" if served.provider.name == "claude" else "AGENTS.md") for route in config.routing for served in candidates(config, route.tier, route.surface)))
+    return tuple(
+        dict.fromkeys(checkout / ("CLAUDE.md" if served.provider.name in {"claude", "qwen"} else "AGENTS.md") for route in config.routing for served in candidates(config, route.tier, route.surface))
+    )
 
 
 class ProviderDrought(Exception):
@@ -255,6 +257,7 @@ class Parsed:
 class CliAdapter:
     """Shared base for one agent CLI. Subclasses supply `binary`, `reports_cost`, `argv`, `parse`."""
 
+    uses_base_url = False
     binary: str
     reports_cost: bool
     AUTH_MARKERS: tuple[str, ...]
@@ -273,6 +276,10 @@ class CliAdapter:
         capture_dir: Path,
         timeout: float,
     ) -> None:
+        if provider.base_url and not self.uses_base_url:
+            raise ProviderSetupError(f"provider {provider.name!r} does not use base_url; remove base_url from that provider in config.yaml")
+        if not provider.base_url and self.uses_base_url:
+            raise ProviderSetupError(f"provider {provider.name!r} needs base_url; set base_url in config.yaml")
         if not self.reports_cost and provider.limits.est_cost_per_call_usd is None:
             raise ProviderSetupError(f"provider {provider.name!r}: the {self.binary} stream reports no cost, so limits.est_cost_per_call_usd is required; declare a flat per-call estimate")
         self.provider = provider
@@ -286,6 +293,9 @@ class CliAdapter:
         self._timeout = timeout
         self._seq = 0
         self._pgid: int | None = None
+
+    def call_env(self) -> dict[str, str]:
+        return child_env(self._env, self._config, self.provider)
 
     def argv(self, model: str, effort: AgentEffort, writes: bool) -> list[str]:
         raise NotImplementedError
@@ -320,7 +330,7 @@ class CliAdapter:
             rc, out, err = await self._exec.run(
                 argv,
                 cwd=req.worktree if writes else self._cwd,
-                env=child_env(self._env, self._config, self.provider),
+                env=self.call_env(),
                 timeout=self._timeout,
                 stdin_path=prompt,
                 on_spawn=self._spawned,
@@ -495,7 +505,37 @@ class CodexAdapter(CliAdapter):
         return Parsed(text=text, input_tokens=input_tokens, output_tokens=output_tokens, usd=None)
 
 
-ADAPTERS: dict[str, type[CliAdapter]] = {"claude": ClaudeAdapter, "codex": CodexAdapter}
+class QwenAdapter(ClaudeAdapter):
+    binary = "qwen"
+    reports_cost = False
+    uses_base_url = True
+    AUTH_MARKERS = ()
+    LOGIN_ROAD = "follow chupa/docs/host-qwen.md, then run chupa drain"
+
+    def argv(self, model: str, effort: AgentEffort, writes: bool) -> list[str]:
+        return [
+            "qwen",
+            "--auth-type",
+            "openai",
+            "--openai-base-url",
+            self.provider.base_url,
+            "--openai-api-key",
+            "ollama",
+            "-m",
+            model,
+            "-o",
+            "stream-json",
+            "--approval-mode",
+            "yolo" if writes else "plan",
+            "--chat-recording",
+            "false",
+        ]
+
+    def call_env(self) -> dict[str, str]:
+        return {**super().call_env(), "QWEN_CODE_SYSTEM_SETTINGS_PATH": str((Path(__file__).parent / "qwen-settings.json").resolve())}
+
+
+ADAPTERS: dict[str, type[CliAdapter]] = {"claude": ClaudeAdapter, "codex": CodexAdapter, "qwen": QwenAdapter}
 
 
 PROBE_PROMPT = "Reply with the single word ok."

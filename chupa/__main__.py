@@ -27,9 +27,10 @@ from chupa.config import ConfigError, ConfigSnapshot, load_config, migrate_confi
 from chupa.daemon import DaemonCore, PauseConsumer, StartupBoundary, daemon_core
 from chupa.git import Git, GitError
 from chupa.journal import EventType, Journal, JournalCorruption
+from chupa.llm import LLMRequest
 from chupa.lockfile import Lockfile, LockHeld
 from chupa.notify import NOTIFY_TIMEOUT_S, NotificationReconciler
-from chupa.providers import ProviderLLM, ProviderSession, ProviderSetupError, child_env, routed_conduct_paths
+from chupa.providers import ADAPTERS, PREFLIGHT_TIMEOUT_S, PROBE_PROMPT, ProviderLLM, ProviderSession, ProviderSetupError, child_env, routed_conduct_paths
 from chupa.redact import Redactor
 from chupa.restart import Restart
 from chupa.seams import Clock, CommandNotifications, ExecutableNotFound, LocalFileSystem, ProcessExec, SubprocessExec
@@ -246,6 +247,7 @@ def _parser() -> argparse.ArgumentParser:
     prompt.add_argument("kind", choices=ask.KINDS)
     prompt.add_argument("stems", nargs="+")
     sub.add_parser("docs", help="print installed host guide paths")
+    sub.add_parser("probe", help="probe declared providers").add_argument("providers", nargs="*")
     sub.add_parser("migrate-config", help="validate and migrate schema_version: 0 to the current config schema")
     for verb in ("pause", "resume"):
         sub.add_parser(verb, help=f"submit {verb} to the running engine, or do nothing under the idle lock")
@@ -302,7 +304,7 @@ def main(
             if not (args.yes or args.extension) and not isatty():
                 raise runner.Refusal("verdict requires an interactive terminal", "a human runs this in a terminal: ./dev.py confirm|reject <stem>")
         if args.verb == "docs":
-            for name, purpose in (("authoring", "ticket authoring"), ("running", "host operation"), ("contract", "host contract")):
+            for name, purpose in (("authoring", "ticket authoring"), ("running", "host operation"), ("contract", "host contract"), ("qwen", "local qwen provider setup")):
                 print(f"{Path(chupa.__file__).parent / 'docs' / f'host-{name}.md'}  {purpose}")
             return 0
         if args.verb == "migrate-config":
@@ -331,6 +333,54 @@ def main(
             print(doctor.render(results), end="")
             return 0 if all(r.passed for r in results) else 2
         config = load_config(args.config, cwd=repo)
+        if args.verb == "probe":
+            declared = {p.name: p for p in config.providers}
+            unknown = set(args.providers) - declared.keys()
+            if unknown:
+                print(f"unknown providers: {', '.join(sorted(unknown))}; declared providers: {', '.join(declared)}", file=sys.stderr)
+                return 2
+
+            async def probe():
+                failed = False
+                exec_ = SubprocessExec()
+                redactor = Redactor.from_config(config, env)
+                for name in args.providers or declared:
+                    provider = declared[name]
+                    try:
+                        if name not in ADAPTERS:
+                            raise ProviderSetupError(f"provider {name!r} has no shipped cli adapter; name a provider one of {sorted(ADAPTERS)}")
+                        adapter = ADAPTERS[name](
+                            provider,
+                            config=config,
+                            exec_=exec_,
+                            fs=LocalFileSystem(),
+                            redactor=redactor,
+                            env=env,
+                            cwd=repo,
+                            capture_dir=config.state_dir / "spools" / "probe",
+                            timeout=PREFLIGHT_TIMEOUT_S,
+                        )
+                    except Exception as exc:
+                        print(f"{name}: {exc}")
+                        failed = True
+                        continue
+                    seen = set()
+                    for tier in ("low", "medium", "high", "max"):
+                        model = getattr(provider.models_by_tier, tier)
+                        if model in seen:
+                            continue
+                        seen.add(model)
+                        req = LLMRequest(surface="preflight", rendered=PROBE_PROMPT, tier=tier, effort="low", ticket=None, worktree=None)
+                        try:
+                            await adapter.invoke(req, model)
+                            print(f"{name} {model}: ok")
+                        except Exception as exc:
+                            road = getattr(exc, "paved_road", None)
+                            print(f"{name} {model}: {exc}" + (f" -- {road}" if road else ""))
+                            failed = True
+                return 1 if failed else 0
+
+            return asyncio.run(probe())
         if args.verb == "core":
             hostfiles.refresh(routed_conduct_paths(config, repo), LocalFileSystem())
             return 0

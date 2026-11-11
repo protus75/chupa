@@ -210,3 +210,11 @@ def test_docs_forwards(monkeypatch):
     monkeypatch.setattr(dev, "run", run)
     dev.main()
     run.assert_called_once_with(["uv", "run", "python", "-m", "chupa", "docs"])
+
+
+def test_probe_forwards(monkeypatch):
+    monkeypatch.setattr(dev.sys, "argv", ["dev.py", "probe", "qwen"])
+    run = Mock()
+    monkeypatch.setattr(dev, "run", run)
+    dev.main()
+    run.assert_called_once_with(["uv", "run", "python", "-m", "chupa", "probe", "qwen"])

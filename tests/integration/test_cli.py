@@ -871,9 +871,9 @@ def test_docs_reports_installed_guides(root, capsys):
 
     assert cli(root, "docs") == 0
     lines = capsys.readouterr().out.splitlines()
-    assert len(lines) == 3
+    assert len(lines) == 4
     package = Path(chupa.__file__).parent
-    for line, name in zip(lines, ("authoring", "running", "contract"), strict=True):
+    for line, name in zip(lines, ("authoring", "running", "contract", "qwen"), strict=True):
         path_text, purpose = line.split("  ")
         path = Path(path_text)
         assert path == package / "docs" / f"host-{name}.md"

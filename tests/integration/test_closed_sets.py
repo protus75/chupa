@@ -239,7 +239,7 @@ def test_policy_closed_sets_and_constants():
 
 
 def test_providers_closed_sets_and_constants():
-    assert {k: ident(x) for k, x in providers.ADAPTERS.items()} == {"claude": "ClaudeAdapter", "codex": "CodexAdapter"}
+    assert {k: ident(x) for k, x in providers.ADAPTERS.items()} == {"claude": "ClaudeAdapter", "codex": "CodexAdapter", "qwen": "QwenAdapter"}
     assert providers.FAILURE_MARKERS == (
         ("quota_exhausted", ("quota exhausted", "usage limit reached", "out of extra usage")),
         ("rate_limited", ("rate limit", "too many requests")),

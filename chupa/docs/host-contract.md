@@ -138,7 +138,7 @@ Config:
     ask_notes: unset
 Provider:
   required: [name, kind, models_by_tier, limits]
-  defaults: {auth: unset, package: unset}
+  defaults: {auth: unset, package: unset, base_url: unset}
 ModelsByTier:
   required: [low, medium, high, max]
   defaults: {}
@@ -216,10 +216,10 @@ box_row: [failure_report, retro_finding, override_report, suggestion, bug_report
 `schema_version` must be the integer 1, not a boolean or string. `kind: api`
 is currently refused: use `cli`; Implement requires a CLI even when API support
 eventually ships. Every CLI requires a nonempty `package` despite its unset model
-default. Shipped runtime adapters are `claude` and `codex`; the loader accepts
+default. Shipped runtime adapters are `claude`, `codex`, and `qwen` (see [qwen setup](host-qwen.md)); the loader accepts
 other names but provider setup refuses names without an adapter. `auth` names an
-environment variable, never a literal secret. Codex reports no cost and requires
-`est_cost_per_call_usd` at adapter setup; Claude can report actual cost. Estimates
+environment variable, never a literal secret. Codex and qwen report no cost and require
+`est_cost_per_call_usd` at adapter setup; Claude can report actual cost. `base_url` is required for qwen and refused for the other adapters. Estimates
 are nonnegative, count fields are integers at least 1, and retry must not exceed
 diagnosis. Providers, routing, route candidates, argv and strategy paths are
 nonempty lists where declared. Retro uses nested `merges`, `days`, and `spikes` blocks, each with an `enabled` switch; their thresholds are `every`, `every`, and `count`. `spikes.kinds` is a nonempty allowlist with each kind listed once. If all triggers are disabled, set `retro.enabled: false` or enable a trigger. The master switch disables automatic retros without blocking a forced retro. Notify requires a nonblank executable and
@@ -271,7 +271,7 @@ delimit the managed conduct block; the remainder is project-owned content.
 The block carries only process rules that hold for every host; codebase rules belong in the project-owned remainder.
 Engine process wins over host content. Do not hand-edit the core: `chupa core`
 inserts or refreshes it, then commit the routed files. Routed candidates select
-CLAUDE.md for provider name `claude`, AGENTS.md otherwise, deduplicated;
+CLAUDE.md for provider names `claude` and `qwen`, AGENTS.md otherwise, deduplicated;
 unrouted provider declarations do not select files.
 First adoption with zero marker-like text inserts the block before every
 original byte. Refresh preserves prefix and suffix bytes without decoding them.

@@ -163,6 +163,9 @@ def live_call(rows: list[tuple[int, int, str]], root: int) -> str:
         if name == "claude" and "-p" in argv:
             model = argv[argv.index("--model") + 1] if "--model" in argv else "?"
             return f"claude {model}"
+        if name == "node" and len(argv) > 1 and argv[1].endswith("@qwen-code/qwen-code/cli-entry.js"):
+            model = argv[argv.index("-m") + 1] if "-m" in argv and argv.index("-m") + 1 < len(argv) else "?"
+            return f"qwen {model}"
     return ""
 
 

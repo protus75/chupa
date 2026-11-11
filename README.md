@@ -19,7 +19,7 @@ Run its verbs as `uv run chupa <verb>`. Your host also needs `config.yaml`; star
 
 ## Set up a host
 
-Run `uv run chupa doctor`, then `uv run chupa core` to write the managed conduct block into `CLAUDE.md` for Claude or `AGENTS.md` for other CLIs. Commit the files. The block gives a chat agent rules for authoring and editing tickets with `chupa new`, `chupa lint`, and `chupa review`, and for supervising a drain. Re-run `core` after upgrading chupa: `drain`, `serve`, and `run` refuse to start while the block is stale.
+Run `uv run chupa doctor`, then `uv run chupa core` to write the managed conduct block into `CLAUDE.md` for Claude and Qwen Code or `AGENTS.md` for other CLIs. Commit the files. The block gives a chat agent rules for authoring and editing tickets with `chupa new`, `chupa lint`, and `chupa review`, and for supervising a drain. Re-run `core` after upgrading chupa: `drain`, `serve`, and `run` refuse to start while the block is stale.
 
 ## The working loop
 
