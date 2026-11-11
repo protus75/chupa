@@ -1,0 +1,21 @@
+Drain pid 407188, 2026-11-11 (UTC). commit-lock ran requisition_review for ~4.5 minutes,
+then went premise_failed, yet engine.log has no event for it after engine_start.
+Recent Steps and the in-flight current step read only engine.log stage events.
+
+== .chupa/state/engine.log, every line from engine_start onward (captured 2026-11-10 ~20:00 local) ==
+{"ts": "2026-11-11T00:50:17.165959+00:00", "event": "engine_start", "verb": "drain", "pid": 407188}
+{"ts": "2026-11-11T01:01:23.370321+00:00", "event": "engine_stop", "verb": "drain", "pid": 407188, "outcome": "quiescent"}
+
+== engine.log, all events with surface requisition_review, whole file history ==
+0
+
+== .chupa/state/journal/000012-20261111.jsonl, commit-lock events (reason and result text truncated to 160 chars) ==
+{"v": 1, "type": "state_transition", "ts": "2026-11-11T00:50:17.698475+00:00", "ticket": "commit-lock", "key": null, "body": {"to": "abandoned"}}
+{"v": 1, "type": "signal", "ts": "2026-11-11T00:50:17.717067+00:00", "ticket": "commit-lock", "key": null, "body": {"kind": "recovery_alert", "disposition": "alert", "outcome": "abandoned", "reason": "orphaned run...", "run_seq": 3}}
+{"v": 1, "type": "cap_consumed", "ts": "2026-11-11T00:51:46.174736+00:00", "ticket": "commit-lock", "key": null, "body": {"cap": "retry", "ticket_sha": "6a8386b1008d614e88cc7b12451c7c5811dfe86e"}}
+{"v": 1, "type": "state_transition", "ts": "2026-11-11T00:51:46.183158+00:00", "ticket": "commit-lock", "key": null, "body": {"to": "running", "ticket_sha": "6a8386b1008d614e88cc7b12451c7c5811dfe86e"}}
+{"v": 1, "type": "effect_intent", "ts": "2026-11-11T00:51:47.195001+00:00", "ticket": "commit-lock", "key": "llm/commit-lock/4/requisition_review/4/1", "body": {}}
+{"v": 1, "type": "signal", "ts": "2026-11-11T00:56:13.393102+00:00", "ticket": "commit-lock", "key": null, "body": {"provider": "claude", "call_key": "llm/commit-lock/4/requisition_review/4/1", "signal": "provider_call_outcome", "failure_class": null, "open_until": null}}
+{"v": 1, "type": "effect_completion", "ts": "2026-11-11T00:56:13.396721+00:00", "ticket": "commit-lock", "key": "llm/commit-lock/4/requisition_review/4/1", "body": {"result": "{'text': '{\"verdict\": \"snag\", \"summary\": \"Every Git construction, every production write site, every doctor.check caller and every test that monkeypatches Git o...", "cost": {"usd": 2.2637747999999998, "input_tokens": 3489969, "output_tokens": 26802, "provider": "claude", "model": "claude-opus-5-5"}}}
+{"v": 1, "type": "signal", "ts": "2026-11-11T00:56:14.146244+00:00", "ticket": "commit-lock", "key": null, "body": {"signal": "requisition_verdict", "verdict": "snag", "ticket_sha": "6a8386b1008d614e88cc7b12451c7c5811dfe86e", "provider": "claude", "model": "claude-opus-5-5", "spec_version": "3.8"}}
+{"v": 1, "type": "state_transition", "ts": "2026-11-11T00:56:14.149783+00:00", "ticket": "commit-lock", "key": null, "body": {"to": "premise_failed", "stage": "requisition", "reason": "[contradiction] Scope in says every caller drops its own add before commit. In chupa/daemon.py restore_publication, the add at line 372 comes before the undo co..."}}
