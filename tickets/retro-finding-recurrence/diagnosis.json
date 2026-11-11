@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "32a4bccd837c71f58b72263e641529ffef77b6f8",
+  "stem": "retro-finding-recurrence",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Redo the production work in retro.py, box.py, author.py, specs/retro.md and the docs; review found that approach sound. Before replying ok, map every acceptance criterion to a test in the exact file it names.",
+    "Criterion 2: in tests/unit/test_retro_recurrence.py, add a disk-free test showing that a reply whose recurs names an id not in prior_findings is rejected with a retry finding and files nothing. A test only in tests/integration/test_retro.py does not count.",
+    "Criterion 3: drive Retro.emit_proposals in the unit file for all three cases. A pending message called twice for one report gets recurrences 1 and zero enqueue calls. A merged-ticket message becomes pending, reopen true, no resolution. A running ticket stays resolved after 3.",
+    "Criterion 4: call the new Box method directly with no seeded intent, using occurrence ids a, a, b, and assert counts 1, 1, 2. Then make a fresh reopen call on a merged-ticket message and assert pending, reopen true, resolution and verdict None. Keep the seeded-intent crash cases too.",
+    "Criterion 7 tombstone bullet: in tests/integration/test_retro_box.py, send recurrences from three distinct retro reports, or seed reports=2. Assert that reports rises through record_rereport and that the third report reopens the tombstone as pending, reopen true, no resolution."
+  ],
+  "mechanical": null,
+  "spec_version": "1.4",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
