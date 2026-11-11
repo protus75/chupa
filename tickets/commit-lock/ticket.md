@@ -7,6 +7,7 @@ kind: feature
 
 ## Depends on
 - git-commit-returns-sha
+- diff-budget-lines-only
 
 ## Context
 - chupa/lockfile.py
