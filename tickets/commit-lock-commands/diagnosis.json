@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "c5782be860aece9acf82eb58c7006dbfd0ec7da4",
+  "stem": "commit-lock-commands",
+  "attempt": 1,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Fence tests/unit/test_stale_running.py (line 154) and tests/integration/test_stale_running.py (line 118): both assert Review takes chupa.lock and reaps, which the ticket's Definition of rejected forbids. Drop Review from their locked-verbs assertions.",
+    "Fence tests/unit/test_lock_holder.py: its fake git (line 14) has no status_porcelain, which the new _verdict pending-change check calls before publish_request. Give the fake a status_porcelain that reports pending status.",
+    "Ticket must say where commitLock's verb comes from: the CommitLock identity in chupa/lockfile.py records no verb, and nothing in chupa/ reads a process command line. Either add a verb to that identity and fence lockfile.py, or read /proc/<pid>/cmdline in observe.py.",
+    "Fence README.md: line 73 says Review requires the writer lock, which is stale once _review drops chupa.lock (filed as box-000422-6260dc47). Docs that a change makes stale belong in the fence.",
+    "Attempt 1 implemented the Scope in behavior and passed the 85 targeted tests. After the fence is fixed, redo that work from the merge base, then run the full unit and integration suites, not only ## Verification."
+  ],
+  "mechanical": null,
+  "spec_version": "1.5",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
