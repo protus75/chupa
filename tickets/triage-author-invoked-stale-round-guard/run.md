@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-The required verification commands and all hard host checks passed; the simpler whole-journal scan was rejected because it includes signals from earlier authoring rounds.
+All ticket verification commands and hard host checks passed; the full suite passed 3,420 tests.
 
 ## Dead ends
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 30 minutes; completed within that budget.
+Expected 30 minutes; completed in approximately 3 minutes.
 
