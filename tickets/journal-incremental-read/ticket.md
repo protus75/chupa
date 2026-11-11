@@ -35,6 +35,7 @@ When this ticket is done, a `Journal` instance keeps its parsed events in memory
   - A database (DuckDB, SQLite) or any new dependency.
   - Callers that fold the journal (storm, box, control, retro, drain). They benefit unchanged.
   - `chupa/observe.py`'s separate raw journal reader.
+  - Detecting a same-length in-place rewrite of a segment this handle already cached. Rolled segments are immutable by contract and the journal is never hand-edited, so only a size change is checked.
 
 ## Scope fence
 - chupa/journal.py
@@ -72,8 +73,8 @@ uv run python tests/regress_journal_incremental_read.py
 
 ## Definition of rejected
 - Any state other than the JSONL segments is persisted, or a new dependency is added.
-- `read()` can return an event that a fresh `Journal`'s `read()` of the same files would not, or omit one it would return.
-- A rolled segment's torn line or bad JSON stops raising `JournalCorruption`.
+- For segments changed only by appends, or by any change to a rolled segment's size, `read()` returns an event that a fresh `Journal`'s `read()` of the same files would not, or omits one it would return.
+- A torn line or bad JSON in a rolled segment whose size changed stops raising `JournalCorruption`.
 
 ## Time budget
 - expected: 45m
