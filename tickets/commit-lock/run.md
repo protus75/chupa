@@ -4,7 +4,7 @@ ok
 
 ## Surprises / judgment calls
 
-Reused the previous candidate after the diff budget changed; the full suite passed with 3,363 tests, and all configured hard checks passed.
+The doctor fixture needed a separate lock directory to preserve its read-only state assertions; a private commit method avoids reacquiring the lock during squash merges.
 
 ## Dead ends
 
