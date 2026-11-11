@@ -4,15 +4,15 @@ ok
 
 ## Surprises / judgment calls
 
-The snapshot preserves the existing unknown-holder label when the recorded verb is missing. Shared decisions prevent the previously duplicated rules from drifting.
+For an identity with no recorded verb, the snapshot displays the existing fallback name “chupa” and request routing refuses with “unknown holder.”
 
 ## Dead ends
 
-Retaining separate snapshot checks was rejected because they could drift from the verb behavior again.
+none
 
 ## Second problems filed
 
-- box-000419-4ee493b9: README.md says review always takes the writer lock, although committed tickets can be reviewed without it; the file is outside the scope fence.
+- box-000420-2118c8d8: README.md says Review always takes the writer lock, but unchanged committed tickets can be reviewed without it; the file is outside the scope fence.
 
 ## Resolved engine/model
 
@@ -22,5 +22,5 @@ Retaining separate snapshot checks was rejected because they could drift from th
 
 ## Predicted vs actual
 
-The ticket budget was 60 minutes expected and 150 minutes stuck; actual elapsed time was not measured.
+none
 
