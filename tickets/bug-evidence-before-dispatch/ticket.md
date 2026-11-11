@@ -30,6 +30,7 @@ kind: bug
 - tests/integration/test_cli.py
 - tests/integration/test_serve_dispatch.py
 - tests/integration/test_host_loop.py
+- tests/integration/test_fixture_host.py
 
 ## Goal / Why
 `chupa/docs/host-authoring.md` (Bug tickets > Evidence) says a `kind: bug` ticket needs at least one evidence file committed with it "before it runs". Only human intake (`intake` in `chupa/tickets.py`) and `lint` enforce that. The Author stage commits its drafts through its own ticket-plane effect, not intake. `AuthorGate.check` writes evidence only for a host report. The confirm verb (`verdict_locked` in `chupa/runner.py`), the drain scan (`_Drain._scan` via `parse_ticket`), the serve watcher, and `run` admission (`_admit`) all validate the ticket without the evidence check.
@@ -47,7 +48,9 @@ After this change, a `kind: bug` ticket that is not merged or rejected and has n
   - `test_feature_without_evidence_parses`: `kind: feature` with no evidence returns a `Ticket`.
   - `test_rejected_bug_without_evidence_parses`: `state: rejected` (or `merged`) bug with no evidence returns a `Ticket`.
 - In: `tests/regress_bug_evidence_before_dispatch.py` (new), a carried reproducer shaped like `tests/regress_drain_deadline.py`. It runs `pytest.main(["tests/unit/test_parse_ticket_evidence.py", "-k", "without_evidence_is_invalid", "-q", "-p", "no:cacheprovider"])` inside `contextlib.redirect_stdout(sys.stderr)`, then prints exactly one JSON object with only `regression_result` on stdout: `pass` and exit 0 when pytest exits 0, `defect` and exit 1 when pytest exits 1, `error` and exit 2 otherwise.
-- In: existing tests that build a `kind: bug` ticket fixture without an evidence file and then parse, scan, run or author it. Add a real evidence file to the fixture; never weaken an assertion. Candidates are the On-demand test files.
+- In: existing tests that build a `kind: bug` ticket fixture without an evidence file and then parse, scan, run or author it. Add a real evidence file to the fixture; never weaken an assertion. Candidates are the On-demand test files. Two are known:
+  - `tests/integration/test_fixture_host.py::test_fixture_scenario_list_is_closed` calls `validate_ticket` on the `regression` scenario's authored `kind: bug` ticket in a host with no `tickets/regression/evidence/`. Before that call, write a real evidence file under `host / "tickets" / authored["stem"] / "evidence/"` for a `kind: bug` scenario (copy the scenario's `row["evidence"]["replay"]` file). Keep every assertion.
+  - `tests/integration/test_serve_dispatch.py::test_refused_uncommitted_bug_does_not_stop_serve` is made obsolete: it waits for an evidence-less bug stem to enter `rig.owner.core.watcher.cache` and dispatches it, which `parse_ticket` now prevents. Rewrite it to assert that the `no-evidence` stem never enters `watcher.cache`, that serve keeps running (`not run.done() and not rig.owner.stopping`), that `calls == []`, and that no `running` transition is journaled. Do not add an evidence file to this fixture.
 - In: documentation. In `docs/how-chupa-works.md` sections 3.2 and 5.2 and in `chupa/docs/host-authoring.md` Bug tickets > Evidence, say that every ticket read (intake, lint, confirm, drain, serve, run, Author) refuses a bug ticket without evidence, not only intake. Keep the settled/rejected exemption.
 - Out: the drain's machine keep re-offering a Reject-queue stem whose finding no implement can clear; the diagnose lesson-length overflow; teaching the Author spec to pick `kind: feature` for non-report messages; changes to Check's `bug_evidence` gate.
 
@@ -66,6 +69,7 @@ After this change, a `kind: bug` ticket that is not merged or rejected and has n
 - tests/integration/test_cli.py
 - tests/integration/test_serve_dispatch.py
 - tests/integration/test_host_loop.py
+- tests/integration/test_fixture_host.py
 
 ## Acceptance criteria
 1. `uv run python tests/regress_bug_evidence_before_dispatch.py` prints `{"regression_result": "pass"}` alone on stdout and exits 0 on the branch head. On the merge base it prints `defect`, not `pass`, because `parse_ticket` accepts an evidence-less bug ticket there.
@@ -85,7 +89,7 @@ uv run python tests/regress_bug_evidence_before_dispatch.py
 Reject the branch if any of the following holds:
 - a second copy of the evidence finding text or check logic is added instead of calling `evidence_findings`;
 - a merged or rejected bug ticket without evidence becomes invalid;
-- an existing test assertion is weakened or deleted to make a bug fixture pass, instead of the fixture gaining an evidence file;
+- an existing test assertion is weakened or deleted to make a bug fixture pass, instead of the fixture gaining an evidence file (the named rewrite of `test_refused_uncommitted_bug_does_not_stop_serve` is the one exception);
 - the reproducer prints `pass` on the merge base, or prints anything but one JSON object on stdout.
 
 ## Time budget
