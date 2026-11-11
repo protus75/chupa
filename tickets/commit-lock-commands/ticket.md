@@ -50,7 +50,7 @@ After this change:
 - In: `vscode-chupa/media/view.js`: the header shows two labelled padlocks, `engine` from `snap.lock` and `commit` from `snap.commitLock`, before the unchanged counts. Each shows `🔒` when its field is non-empty and `🔓` otherwise, with the field, or `unlocked`, as its hover title. The JavaScript only draws the two fields.
 - In: documentation:
   - In `docs/how-chupa-works.md`: the verb table's lock column and text for `review`, `confirm` and `reject`.
-  - In `chupa/docs/host-running.md`: the "Stop serve before ..." sentence, which no longer names `review`.
+  - In `chupa/docs/host-running.md`: the "Stop serve before ..." sentence no longer names `review`. In the verb table's `review` row, the "Works while serve runs?" cell becomes `Yes`, and its description says a pending edit is committed through intake before the review.
 - Out:
   - `triage`, `dismiss` and `migrate-box` keep the engine lock.
   - No `commit` verb.
@@ -65,6 +65,7 @@ After this change:
 - tests/integration/test_review_command.py
 - tests/integration/test_control_cli.py
 - tests/integration/test_watch.py
+- tests/unit/test_verdict_extension.py
 
 ## Acceptance criteria
 1. `tests/integration/test_review_command.py`:
@@ -80,12 +81,15 @@ After this change:
    - `chupaRun` stays `locked`, and pending box rows stay `locked` for triage and dismiss. Update the existing assertions that pinned `locked` and `off`.
    - `commitLock` is `""` with no `commit.lock`, and `""` with an empty one.
    - For a live holder whose command line is `python -m chupa review stem`, `commitLock` is `review since <clock(started_at)> (pid N)`.
-4. `./dev.py test tests/integration/test_review_command.py tests/integration/test_control_cli.py tests/integration/test_watch.py` exits 0.
-5. In `chupa/docs/host-running.md`, the "Stop serve before" sentence no longer names `review`.
+4. `tests/unit/test_verdict_extension.py` keeps the `chupa/__main__.py` unit floor. With `runner.verdict` raising `LockHeld` and a fake git reporting pending changes for the stem:
+   - A refused intake raises `Refusal`, and `control.publish_request` is never called.
+   - A clean intake publishes exactly one request.
+5. `./dev.py test tests/unit/test_verdict_extension.py tests/integration/test_review_command.py tests/integration/test_control_cli.py tests/integration/test_watch.py` exits 0.
+6. In `chupa/docs/host-running.md`, the "Stop serve before" sentence no longer names `review`, and the verb table's `review` row says `Yes` under "Works while serve runs?".
 
 ## Verification
 ```
-./dev.py test tests/integration/test_review_command.py tests/integration/test_control_cli.py tests/integration/test_watch.py
+./dev.py test tests/unit/test_verdict_extension.py tests/integration/test_review_command.py tests/integration/test_control_cli.py tests/integration/test_watch.py
 ```
 
 ## Definition of rejected
