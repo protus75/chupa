@@ -42,7 +42,7 @@ When this ticket is done, the retro sees the existing findings and marks a propo
   - The re-emit skip from `retro-reemit-skip` also skips a `recurs` proposal whose occurrence is already recorded.
 - In: `chupa/box.py`: the `recurrences` field and a method that records a non-tombstone recurrence and the merged-fix reopen. It writes a journal receipt keyed `retro-recurrence/<message id>/<occurrence id>` with the same effect intent and completion pattern as `RereportJournal.record`, so a crash between the intent and the box write never double counts. The intent body records both the target count and the reopen decision (`{"recurrences": n, "reopened": true|false}`), and the completion copies `reopened` from the intent, never from the message's current state.
 - In: `chupa/author.py`, so a reopened finding can get a new fix ticket. Today triage's `recover_retro_ticket` would re-resolve it to the old merged stem with no model call, and `record_retro_ticket` would refuse a second stem for the same `box_id`:
-  - `recover_retro_ticket` ignores author completions and stems from before a merged-fix reopen, and still recovers an Author completion from after it. The ordering marker is the reopen's `retro-recurrence` completion receipt, whose body includes `reopened: true`. Author completions before that receipt are ignored, and one after it is recovered as today.
+  - `recover_retro_ticket` ignores author completions and stems from before a merged-fix reopen, and still recovers an Author completion from after it. The ordering marker is the reopen's `retro-recurrence/<message id>/<occurrence id>` effect intent whose body has `reopened: true`. It is appended before the box write and before any new Author completion. Author completions before that intent are ignored, and one after it is recovered as today.
   - `record_retro_ticket` accepts a new stem for a reopened message.
 - In: `chupa/specs/retro.md`: a `prior_findings` data block, and a Task rule to set `recurs` when a proposal fixes the same failure as an existing finding, judged by cause rather than wording. Its `version` goes from `1.3` to `1.4`, and `tests/integration/test_retro.py`'s pinned `"1.3"` follows.
 - In: `docs/how-chupa-works.md`: the retro paragraph (around "files each proposal as a `retro_finding`") and the tombstone-and-reopen list item describe recurrences and the fix-did-not-hold reopen.
@@ -50,6 +50,7 @@ When this ticket is done, the retro sees the existing findings and marks a propo
   - Embeddings, vector search, DuckDB, or any new dependency. The whole `prior_findings` list goes into the prompt; at 55 findings it is about 6k characters.
   - Matching suggestions or failure reports, which are other message classes.
   - Merging or rewriting the existing duplicate messages.
+  - Triage's crash window at `chupa/triage.py:259`: a reopened finding already carries an `author_invoked` signal from its first round, so a crash between `box.record_verdict` and Author's own `author_invoked` append makes the next pass decline it. Filed separately with `chupa suggest`.
 
 ## Scope fence
 - chupa/retro.py
@@ -58,6 +59,7 @@ When this ticket is done, the retro sees the existing findings and marks a propo
 - chupa/specs/retro.md
 - tests/integration/test_author.py
 - tests/unit/test_author.py
+- tests/unit/test_retro_proposal.py
 - docs/how-chupa-works.md
 - tests/integration/test_retro.py
 - tests/integration/test_retro_box.py
@@ -75,7 +77,7 @@ When this ticket is done, the retro sees the existing findings and marks a propo
    - A message resolved as a merged ticket is written back `pending`, with `reopen` true and `resolution` and `verdict` cleared.
    - With an `EFFECT_INTENT` keyed `retro-recurrence/<message id>/<occurrence id>` seeded with no completion, and the message either not yet counted or already counted, the recurrence ends at exactly the original count plus 1 in both cases, and exactly one `EFFECT_COMPLETION` is appended.
    - With an intent seeded with `reopened: true` against a message already written back `pending` with `reopen` true, exactly one `EFFECT_COMPLETION` is appended, and its body carries `reopened: true`, not `false`.
-5. `tests/unit/test_author.py`, with a fake journal and checkout (no disk): `record_retro_ticket` records a second stem for a reopened message and still raises `BoxError` for one that was not reopened. `recover_retro_ticket` returns `None` when the only Author completion comes before the `reopened: true` receipt, and resolves to the new stem when an Author completion comes after it, not `None`.
+5. `tests/unit/test_author.py`, with a fake journal and checkout (no disk): `record_retro_ticket` records a second stem for a reopened message and still raises `BoxError` for one that was not reopened. `recover_retro_ticket` returns `None` when the only Author completion comes before the `reopened: true` intent, including when only the intent exists (no completion yet) and the box is already written back. It resolves to the new stem when an Author completion comes after the intent, not `None`.
 6. `tests/integration/test_author.py`: triaging a reopened `retro_finding` whose earlier ticket merged neither re-resolves it to the old stem nor raises `BoxError`, and Author can file a new ticket for it.
 7. `tests/integration/test_retro_box.py`, with a `FakeLLM` retro reply carrying `recurs`:
    - For a pending finding: no new box message is created, and the named message's recurrence count rises by exactly 1.
@@ -85,7 +87,8 @@ When this ticket is done, the retro sees the existing findings and marks a propo
    - For a `declined` finding: `recurrences` rises, and the message stays resolved.
    - For a tombstone: `reports` rises through the re-report path, and the third report reopens it as today.
 8. `tests/integration/test_retro.py` passes with the spec version pin updated to `"1.4"`.
-9. `./dev.py test` exits 0.
+9. `tests/unit/test_retro_proposal.py::test_emit_proposals_skips_existing_origin` keeps passing; its fakes may gain the fields the new reads need (message `id`, `status`, `resolution`, and a journal with `read`), and its assertions stay unchanged.
+10. `./dev.py test` exits 0.
 
 ## Verification
 ```
