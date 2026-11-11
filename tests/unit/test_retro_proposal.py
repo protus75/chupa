@@ -51,3 +51,33 @@ def test_retro_proposal_exactly_one():
     for proposal in (TEST | {"proposed_spec_paths": ["specs/review.md"]}, {"fixed_failure": "x", "overcorrection_risk": "y"}, TEST | {"test_issue": "unknown"}):
         with pytest.raises(ValidationError):
             RetroProposal.model_validate(proposal)
+
+
+@pytest.mark.asyncio
+async def test_emit_proposals_skips_existing_origin(monkeypatch):
+    import hashlib
+    import json
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    from chupa import daemon
+    from chupa.journal import Event, EventType
+    from chupa.retro import Retro
+
+    other = SPEC | {"fixed_failure": "another failure"}
+    pid = hashlib.sha256(json.dumps(SPEC, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()[:16]
+    existing = f"retro-proposal/retro/1/{pid}"
+    calls = []
+    box = SimpleNamespace(messages=lambda: [SimpleNamespace(origin=existing)], enqueue=lambda **kwargs: calls.append(kwargs))
+    monkeypatch.setattr(daemon, "storm_producer", lambda **kwargs: box)
+
+    async def show(*args):
+        assert args[1:] == ("show", "abc:tickets/retro/000001.md")
+        return "# Retro receipt\n\n```json\n" + json.dumps({"proposals": [SPEC, other]}) + "\n```"
+
+    checkout = SimpleNamespace(repo=Path("/repo"), git=SimpleNamespace(_run=show), config=SimpleNamespace(state_dir=Path("/state")), fs=None, journal=None, clock=None)
+    event = Event(1, EventType.EFFECT_COMPLETION, "2026-01-01T00:00:00+00:00", None, "retro/1", {"result": {"commit": "abc"}})
+    await Retro(checkout, None).emit_proposals("retro/1", event)
+    assert len(calls) == 1
+    assert calls[0]["fixed_failure"] == "another failure"
+    assert calls[0]["origin"] != existing

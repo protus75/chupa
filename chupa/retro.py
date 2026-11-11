@@ -272,10 +272,11 @@ class Retro:
         await self.emit_proposals(f"retro/{window.sequence}")
         return result
 
-    async def emit_proposals(self, report_key):
+    async def emit_proposals(self, report_key, completed=None):
         """Only the completed effect's committed receipt can supply proposal evidence."""
         c = self.checkout
-        completed = next((e for e in c.journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key == report_key and _REPORT.fullmatch(e.key or "")), None)
+        if completed is None:
+            completed = next((e for e in c.journal.read() if e.type == EventType.EFFECT_COMPLETION and e.key == report_key and _REPORT.fullmatch(e.key or "")), None)
         if completed is None:
             return
         sequence = int(_REPORT.fullmatch(report_key)[1])
@@ -288,14 +289,18 @@ class Retro:
         from chupa.storm import arrival_id
 
         box = storm_producer(root=c.config.state_dir / BOX_DIR, fs=c.fs, journal=c.journal, clock=c.clock)
+        origins = {message.origin for message in box.messages()}
         for proposal in artifact.proposals:
             fields = proposal.model_dump(exclude_defaults=True)
             canonical = json.dumps(fields, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
             proposal_id = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
             origin = f"retro-proposal/{report_key}/{proposal_id}"
+            if origin in origins:
+                continue
             box.enqueue(
                 message_class="retro_finding", origin=origin, summary=proposal.fixed_failure, retro_report_key=report_key, **fields, occurrence_id=arrival_id("retro-proposal", report_key, proposal_id)
             )
+            origins.add(origin)
 
     def tombstones(self):
         c = self.checkout
@@ -343,7 +348,7 @@ class Retro:
         c = self.checkout
         for event in c.journal.read():
             if event.type == EventType.EFFECT_COMPLETION and _REPORT.fullmatch(event.key or ""):
-                await self.emit_proposals(event.key)
+                await self.emit_proposals(event.key, event)
         window = project_window(c.journal.read())
         # No selection means no failure capture or writer construction.
         evidence = await production_evidence(window, c)

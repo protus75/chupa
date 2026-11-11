@@ -158,3 +158,33 @@ async def test_spec_proposal_id_unchanged(tmp_path):
     await hook(forced=True)
     pid = hashlib.sha256(json.dumps(PROPOSAL, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()[:16]
     assert box.messages()[0].origin == f"retro-proposal/retro/1/{pid}"
+
+
+@pytest.mark.asyncio
+async def test_retro_replays_only_missing_proposals(tmp_path, monkeypatch):
+    root, box = root_with_box(tmp_path)
+    c = pause_checkout(root)
+    c = replace(c, config=load_config(None, cwd=root), control=build_control(c))
+    other = PROPOSAL | {"fixed_failure": "A distinct failure"}
+    hook = Retro(c, runner.bind(c, FakeLLM([json.dumps({"proposals": [PROPOSAL, other]})])))
+    c.journal.append(EventType.STATE_TRANSITION, {"to": "merged", "commit": None}, ticket="history")
+    await hook(forced=True)
+    messages = box.messages()
+    assert len(messages) == 2
+    calls = []
+    enqueue = Box.enqueue
+
+    def tracked(self, **kwargs):
+        calls.append(kwargs["origin"])
+        return enqueue(self, **kwargs)
+
+    monkeypatch.setattr(Box, "enqueue", tracked)
+    before = {p: p.read_bytes() for directory in (box.root, c.journal.dir) for p in directory.iterdir() if p.is_file()}
+    assert await hook(forced=False) is None
+    assert calls == []
+    assert {p: p.read_bytes() for directory in (box.root, c.journal.dir) for p in directory.iterdir() if p.is_file()} == before
+
+    box.path(messages[1]).unlink()
+    assert await hook(forced=False) is None
+    assert calls == [messages[1].origin]
+    assert {message.origin for message in box.messages()} == {message.origin for message in messages}
