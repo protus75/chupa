@@ -30,7 +30,7 @@ When this ticket is done, a retro check whose reports' proposals are all in the 
   - `Retro.__call__` reads the journal once for its report scan and hands each completed report's event to `emit_proposals` instead of `emit_proposals` re-reading the journal to find it. `commit_report`'s call keeps working.
   - `emit_proposals` reads the box's messages once and skips every proposal whose `origin` (`retro-proposal/<report_key>/<proposal_id>`) already exists there.
   - The per-report `git show` stays; all 40 took 0.06s together.
-- In: a test in `tests/integration/test_retro_box.py` and the carried reproducer `tests/regress_retro_reemit_skip.py`.
+- In: a unit test in `tests/unit/test_retro_proposal.py` (the coverage floor of 12 for `chupa/retro.py` in `test-gate.toml` is measured from the unit suite), a test in `tests/integration/test_retro_box.py`, and the carried reproducer `tests/regress_retro_reemit_skip.py`.
 - Out:
   - `Journal.read()` performance, which is ticket `journal-incremental-read`.
   - Box, storm and re-report dedupe semantics.
@@ -39,6 +39,7 @@ When this ticket is done, a retro check whose reports' proposals are all in the 
 ## Scope fence
 - chupa/retro.py
 - tests/integration/test_retro_box.py
+- tests/unit/test_retro_proposal.py
 - tests/regress_retro_reemit_skip.py
 
 ## Acceptance criteria
@@ -46,9 +47,10 @@ When this ticket is done, a retro check whose reports' proposals are all in the 
    - calls `Box.enqueue` zero times, not once per proposal;
    - leaves the box files and the journal byte-identical.
 2. `tests/integration/test_retro_box.py`: when one of a committed report's two proposals is missing from the box, the next call enqueues exactly that one, and the box then holds both.
-3. `tests/regress_retro_reemit_skip.py` builds its own temporary repository, config, journal and box, and imports nothing from `tests/`. It seeds three committed retro reports whose proposals are already in the box, counts `Journal.read` calls during one `Retro(...)(forced=False)` call, and prints `pass` only when the count is at most 3. At base the count grows with each report and proposal.
-4. The Regression command prints `{"regression_result": "pass"}` and exits 0 on the branch. At the merge base it prints `defect` and exits non-zero.
-5. `./dev.py test` exits 0.
+3. `tests/unit/test_retro_proposal.py` calls `Retro.emit_proposals` with a completed event, a fake `git._run` returning a receipt with two proposals, and a monkeypatched `storm_producer` whose fake box already lists one proposal's origin. Only the other proposal is enqueued, not both. It touches no disk or process.
+4. `tests/regress_retro_reemit_skip.py` builds its own temporary repository, config, journal and box, and imports nothing from `tests/`. It seeds three committed retro reports whose proposals are already in the box, counts `Journal.read` calls during one `Retro(...)(forced=False)` call, and prints `pass` only when the count is at most 3. At base the count grows with each report and proposal.
+5. The Regression command prints `{"regression_result": "pass"}` and exits 0 on the branch. At the merge base it prints `defect` and exits non-zero.
+6. `./dev.py test` exits 0.
 
 ## Regression
 ```
