@@ -671,7 +671,7 @@ Everything lives under `state_dir` (this repo: `.chupa/state`).
 | Path | Holds |
 |---|---|
 | `journal/NNNNNN-YYYYMMDD.jsonl` | The journal (section 10.2). |
-| `engine.log` | Diagnostics including `engine_start` and `engine_stop` for drain, serve and run, and stage start/end events for every stage, including Check and merge. Requisition reviews nested in author or rework have no stage events of their own; a standalone review logs them under the reviewed ticket's stem; redacted, rotated, and never authoritative. |
+| `engine.log` | Diagnostics including `engine_start` and `engine_stop` for drain, serve and run, and stage start/end events for every stage, including Check and merge. Stages do not nest on one driver; a gate run inside a stage logs under that stage. Requisition reviews nested in author or rework have no stage events of their own; a standalone review logs them under the reviewed ticket's stem; redacted, rotated, and never authoritative. |
 | `queue.json` | Derived pick order, timestamp, and `Runs before` hints for watch. |
 | `spools/` | Per-attempt prompts, outputs, and command output; `spools/providers/` holds raw CLI captures. |
 | `chupa.lock` | Engine lock held by `run`, `drain`, `serve` and the other verbs that still take it. Its JSON identity is informational; the kernel frees the lock when the holder dies. |

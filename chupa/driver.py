@@ -10,8 +10,10 @@ Every model call crosses the LLM effect (chupa/llmeffect.py); the driver never c
 import asyncio
 import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Literal
 
 from pydantic import BaseModel, ValidationError
@@ -146,10 +148,26 @@ class Driver:
         self.sleep = sleep
         self.severity = severity
         self.retry_cap = retry_cap
+        self._open_stage = None
         self._active: _Invocation | None = None
         self.detector = None
         self._watch_identity = None
         self._notify_config = None
+
+    @contextmanager
+    def stage(self, *, stem, attempt, surface, **start_fields):
+        if self._open_stage is not None:
+            raise ValueError(f"stage already open: stem={self._open_stage[0]}, surface={self._open_stage[1]}")
+        self._open_stage = (stem, surface)
+        try:
+            self.log.event("stage_start", stem=stem, attempt=attempt, surface=surface, **start_fields)
+
+            def end(outcome, **end_fields):
+                self.log.event("stage_end", stem=stem, attempt=attempt, surface=surface, outcome=outcome, **end_fields)
+
+            yield SimpleNamespace(end=end)
+        finally:
+            self._open_stage = None
 
     @classmethod
     def from_config(
@@ -274,119 +292,119 @@ class Driver:
         deadline = started.timestamp() + stuck_budget
         ctx = {"stem": stem, "attempt": attempt, "surface": stage.surface}
         tally = _Tally()
-        self.log.event("stage_start", **ctx, run_seq=seq, stuck_budget=stuck_budget)
+        with self.stage(**ctx, run_seq=seq, stuck_budget=stuck_budget) as event:
 
-        def done(outcome: Outcome, artifact: BaseModel | None = None) -> StageResult:
-            seconds = max(0, (self.clock() - started).total_seconds() - ((self.detector.cap_wait() if self.detector else 0) - prior_wait))
-            self.log.event("stage_end", **ctx, run_seq=seq, outcome=outcome, calls=tally.calls)
-            last = tally.last
-            detector = self.detector
-            meter = detector.call if detector is not None else None
-            provider, model = (last.provider, last.model) if last else (None, None)
-            if meter is not None and (last is None or outcome in {"infra_error", "timeout"}):
-                provider, model = meter.identity
-            cost = Cost(
-                tokens=tally.tokens,
-                seconds=seconds,
-                attempts=tally.calls,
-                usd=tally.usd,
-                provider=provider,
-                model=model,
-            )
-            return StageResult(outcome=outcome, artifact=artifact, findings=tally.findings, cost=cost)
-
-        async def failed(exc, call, name, *, pre_call=False):
-            self.spool.write(spool_stem, attempt, f"{name}/error.txt", f"{type(exc).__name__}: {exc}")
-            self.log.event("llm_error", **call, error=f"{type(exc).__name__}: {exc}")
-            if isinstance(exc, ProviderDrought):
-                tally.calls -= int(pre_call)
-                tally.findings = []
-                result = done("infra_error")
-                return ProviderDroughtResult(**vars(result), provider_drought=exc.record)
-            tally.findings = await self.provider_failure(exc, owner=stem, ticket=ticket, sequence=seq, surface=stage.surface, workspace=workspace)
-            return done("infra_error")
-
-        outcome: Outcome = "ok"
-        for call_seq in range(1, self.retry_cap + 2):  # the first call plus retry_cap re-prompts
-            remaining = None if budget_usd is None else max(0.0, budget_usd - tally.usd)
-            if remaining == 0:
-                return done("budget_exceeded")
-            call = {**ctx, "call_seq": call_seq}
-            name = f"{stage.surface}/call-{call_seq:02d}"
-            prompt = stage.render(consumed, tally.findings)
-            req = LLMRequest(
-                surface=stage.surface,
-                rendered=prompt,
-                tier=tier,
-                effort=effort,
-                ticket=ticket,
-                worktree=workspace if stage.surface in WRITING_SURFACES else None,
-                budget_usd=remaining,
-            )
-            # Before the call: a call that raises or hangs must leave exactly what was sent on disk.
-            self.spool.write(spool_stem, attempt, f"{name}/prompt.md", prompt)
-            self.log.event("llm_call", **call)
-            tally.calls += 1
-            try:
-                recorded = await self.race(
-                    lambda: llm_call(
-                        self.effects,
-                        self.watched_llm(),
-                        req,
-                        self.redactor,
-                        ticket=ticket,
-                        stem=stem,
-                        run_seq=seq,
-                        attempt=attempt,
-                        call_seq=call_seq,
-                    ),
-                    deadline - self.clock().timestamp() + (self.detector.cap_wait() if self.detector else 0),
+            def done(outcome: Outcome, artifact: BaseModel | None = None) -> StageResult:
+                seconds = max(0, (self.clock() - started).total_seconds() - ((self.detector.cap_wait() if self.detector else 0) - prior_wait))
+                event.end(outcome, run_seq=seq, calls=tally.calls)
+                last = tally.last
+                detector = self.detector
+                meter = detector.call if detector is not None else None
+                provider, model = (last.provider, last.model) if last else (None, None)
+                if meter is not None and (last is None or outcome in {"infra_error", "timeout"}):
+                    provider, model = meter.identity
+                cost = Cost(
+                    tokens=tally.tokens,
+                    seconds=seconds,
+                    attempts=tally.calls,
+                    usd=tally.usd,
+                    provider=provider,
+                    model=model,
                 )
-            except _StuckBudget:
-                self.log.event("stuck_budget_kill", **call)
-                tally.findings = []
-                return done("timeout")
-            except ProviderBudgetExceeded:
-                tally.calls -= 1
-                return done("budget_exceeded")
-            except Exception as e:
-                return await failed(e, call, name, pre_call=True)
-            result = LLMResult(**recorded)
-            tally.add(result)
-            self.spool.write(spool_stem, attempt, f"{name}/output.txt", result.text)
+                return StageResult(outcome=outcome, artifact=artifact, findings=tally.findings, cost=cost)
 
-            try:
-                artifact = stage.emits.model_validate_json(unwrap_fence(result.text))
-            except ValidationError as e:
-                outcome = "invalid_artifact"
-                tally.findings = [_invalid(stage, e)]
-                self.log.event("artifact_invalid", **call, errors=e.error_count())
-                continue
+            async def failed(exc, call, name, *, pre_call=False):
+                self.spool.write(spool_stem, attempt, f"{name}/error.txt", f"{type(exc).__name__}: {exc}")
+                self.log.event("llm_error", **call, error=f"{type(exc).__name__}: {exc}")
+                if isinstance(exc, ProviderDrought):
+                    tally.calls -= int(pre_call)
+                    tally.findings = []
+                    result = done("infra_error")
+                    return ProviderDroughtResult(**vars(result), provider_drought=exc.record)
+                tally.findings = await self.provider_failure(exc, owner=stem, ticket=ticket, sequence=seq, surface=stage.surface, workspace=workspace)
+                return done("infra_error")
 
-            gated = run_gates(stage.gates, artifact, workspace, severity=self.severity)
-            hard_findings = [f for report in gated.hard_failures for f in report.findings]
-            if stage.review is not None:
+            outcome: Outcome = "ok"
+            for call_seq in range(1, self.retry_cap + 2):  # the first call plus retry_cap re-prompts
+                remaining = None if budget_usd is None else max(0.0, budget_usd - tally.usd)
+                if remaining == 0:
+                    return done("budget_exceeded")
+                call = {**ctx, "call_seq": call_seq}
+                name = f"{stage.surface}/call-{call_seq:02d}"
+                prompt = stage.render(consumed, tally.findings)
+                req = LLMRequest(
+                    surface=stage.surface,
+                    rendered=prompt,
+                    tier=tier,
+                    effort=effort,
+                    ticket=ticket,
+                    worktree=workspace if stage.surface in WRITING_SURFACES else None,
+                    budget_usd=remaining,
+                )
+                # Before the call: a call that raises or hangs must leave exactly what was sent on disk.
+                self.spool.write(spool_stem, attempt, f"{name}/prompt.md", prompt)
+                self.log.event("llm_call", **call)
+                tally.calls += 1
                 try:
-                    review = await self.race(lambda: stage.review(artifact, call_seq), deadline - self.clock().timestamp() + (self.detector.cap_wait() if self.detector else 0))
+                    recorded = await self.race(
+                        lambda: llm_call(
+                            self.effects,
+                            self.watched_llm(),
+                            req,
+                            self.redactor,
+                            ticket=ticket,
+                            stem=stem,
+                            run_seq=seq,
+                            attempt=attempt,
+                            call_seq=call_seq,
+                        ),
+                        deadline - self.clock().timestamp() + (self.detector.cap_wait() if self.detector else 0),
+                    )
                 except _StuckBudget:
                     self.log.event("stuck_budget_kill", **call)
                     tally.findings = []
                     return done("timeout")
+                except ProviderBudgetExceeded:
+                    tally.calls -= 1
+                    return done("budget_exceeded")
                 except Exception as e:
-                    return await failed(e, call, name)
-                if review.verdict == "fail":
-                    hard_findings.extend(review.findings)
-            if hard_findings:
-                outcome = "gate_failed"
-                tally.findings = hard_findings
-                self.log.event("gate_failed", **call, codes=[f.code for f in hard_findings])
-                if any(f.code in stage.terminal_findings for f in hard_findings):
-                    return done(outcome)
-                continue
-            if gated.passed:
-                tally.findings = gated.findings  # soft only
-                return done("ok", artifact)
-        return done(outcome)
+                    return await failed(e, call, name, pre_call=True)
+                result = LLMResult(**recorded)
+                tally.add(result)
+                self.spool.write(spool_stem, attempt, f"{name}/output.txt", result.text)
+
+                try:
+                    artifact = stage.emits.model_validate_json(unwrap_fence(result.text))
+                except ValidationError as e:
+                    outcome = "invalid_artifact"
+                    tally.findings = [_invalid(stage, e)]
+                    self.log.event("artifact_invalid", **call, errors=e.error_count())
+                    continue
+
+                gated = run_gates(stage.gates, artifact, workspace, severity=self.severity)
+                hard_findings = [f for report in gated.hard_failures for f in report.findings]
+                if stage.review is not None:
+                    try:
+                        review = await self.race(lambda: stage.review(artifact, call_seq), deadline - self.clock().timestamp() + (self.detector.cap_wait() if self.detector else 0))
+                    except _StuckBudget:
+                        self.log.event("stuck_budget_kill", **call)
+                        tally.findings = []
+                        return done("timeout")
+                    except Exception as e:
+                        return await failed(e, call, name)
+                    if review.verdict == "fail":
+                        hard_findings.extend(review.findings)
+                if hard_findings:
+                    outcome = "gate_failed"
+                    tally.findings = hard_findings
+                    self.log.event("gate_failed", **call, codes=[f.code for f in hard_findings])
+                    if any(f.code in stage.terminal_findings for f in hard_findings):
+                        return done(outcome)
+                    continue
+                if gated.passed:
+                    tally.findings = gated.findings  # soft only
+                    return done("ok", artifact)
+            return done(outcome)
 
     async def provider_failure(self, exc, *, owner, ticket, sequence, surface, workspace):
         """The sole exception-to-Finding mapping, including standalone requisition review."""

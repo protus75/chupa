@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from chupa import requisition
-from chupa.driver import _StuckBudget
+from chupa.driver import Driver, _StuckBudget
 from chupa.providers import ProviderCallError
 from chupa.requisition import FIRST_REVIEW
 
@@ -54,6 +54,9 @@ def test_stage_events(monkeypatch, case, outcome, active):
         redactor=None,
         log=SimpleNamespace(event=lambda event, **kw: events.append((event, kw))),
     )
+
+    driver._open_stage = None
+    driver.stage = Driver.stage.__get__(driver)
 
     async def run():
         return await requisition.review_ticket(

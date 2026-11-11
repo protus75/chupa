@@ -235,6 +235,14 @@ async def test_mid_run_drought_is_harvested_without_spine_draws(root, monkeypatc
         )
 
     async def check(ctx, ticket, slip, *, attempt):
+        return StageResult(
+            outcome="ok",
+            artifact=stages.Invoice(produced_by_spec_version=1, produced_at_sha="fixture", stem=ticket.stem, passed=True, changed_files=[], inserted_lines=0, bypassed=[], reports=[]),
+            findings=[],
+            cost=Cost(),
+        )
+
+    async def review(ctx, ticket, invoice, *, attempt):
         if nested:
             from chupa.requisition import FIRST_REVIEW, review_ticket
             from tests.integration.test_requisition import TICKET
@@ -258,6 +266,7 @@ async def test_mid_run_drought_is_harvested_without_spine_draws(root, monkeypatc
 
     monkeypatch.setattr(stages, "implement", implement)
     monkeypatch.setattr(stages, "check", check)
+    monkeypatch.setattr(stages, "review", review)
     rig.transition(ticket.stem, "running")
     assert await writer(ticket) == "infra_error"
     [terminal] = terminals(rig, ticket.stem)

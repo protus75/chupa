@@ -4,6 +4,7 @@ import difflib
 import hashlib
 import json
 import re
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -149,79 +150,80 @@ async def review_ticket(
     event_context = dict(stem=stem, attempt=attempt, surface="requisition_review", run_seq=run_seq)
     outcome = "gate_failed"
     owns_watch = False
-    try:
-        retry_findings = "none"
-        for current_seq in range(call_seq, call_seq + driver.retry_cap + 1):
-            try:
-                prompt = render(
-                    spec, {"ticket": text, "context": "included in render", "render": base, "prior_review": prior, "retry_findings": retry_findings, "coverage_dependents": coverage_dependents}
-                )
-            except RenderOverBound as exc:
-                return snag(str(exc), "review render over bound", road="shrink or split the ticket at authoring")
+    with ExitStack() as stack:
+        try:
+            retry_findings = "none"
+            for current_seq in range(call_seq, call_seq + driver.retry_cap + 1):
+                try:
+                    prompt = render(
+                        spec, {"ticket": text, "context": "included in render", "render": base, "prior_review": prior, "retry_findings": retry_findings, "coverage_dependents": coverage_dependents}
+                    )
+                except RenderOverBound as exc:
+                    return snag(str(exc), "review render over bound", road="shrink or split the ticket at authoring")
 
-            name = f"requisition_review/call-{current_seq:02d}"
-            spool_stem = f"{stem_slot}/{run_seq}"
-            driver.spool.write(spool_stem, attempt, f"{name}/prompt.md", prompt)
-            req = LLMRequest(surface="requisition_review", rendered=prompt, tier=tier, effort=spec.meta.effort, ticket=None, worktree=None)
-            if driver._active is None:
-                if calls == 0:
-                    owns_watch = True
-                driver.begin_watch(
-                    owner=stem_slot,
-                    ticket=None,
-                    run_sequence=run_seq,
-                    surface="requisition_review",
-                    workspace=repo,
-                    expected_budget=expected_budget,
-                    stuck_budget=REQUISITION_STUCK_S,
-                    scope_fence=(),
-                    attempt=attempt,
-                )
-            if calls == 0 and owns_watch:
-                driver.log.event("stage_start", **event_context)
-            calls += 1
-            try:
-                recorded = await driver.race(
-                    lambda: llm_call(driver.effects, driver.watched_llm(), req, driver.redactor, ticket=stem, stem=stem_slot, run_seq=run_seq, attempt=attempt, call_seq=current_seq),
-                    REQUISITION_STUCK_S,
-                )
-            except _StuckBudget:
-                outcome = "timeout"
-                return snag("requisition review timed out", "timeout", road="retry the authoring review")
-            except ProviderDrought, ProviderCallError:
-                raise
-            except Exception as exc:
-                outcome = "infra_error"
-                message = f"requisition review provider failed: {type(exc).__name__}: {exc}"
-                driver.spool.write(spool_stem, attempt, f"{name}/error.txt", message)
-                return snag(message, "provider error", road="repair the provider and retry the authoring review")
-            result = LLMResult(**recorded)
-            driver.spool.write(spool_stem, attempt, f"{name}/output.txt", result.text)
-            try:
-                reply = RequisitionReply.model_validate_json(unwrap_fence(result.text))
-            except ValidationError as exc:
-                if calls <= driver.retry_cap:
-                    retry_findings = f"Reply must be only the JSON object. {exc}"
-                    continue
-                message = f"invalid requisition review reply: {exc.error_count()} schema error(s)"
-                return RequisitionVerdict(
-                    **common,
-                    calls=calls,
-                    verdict="snag",
-                    summary=message,
-                    findings=[Finding(code="requisition_review", message=message, paved_road="reply with a schema-valid requisition verdict", kind="authoring_error")],
-                    mechanical="invalid reply",
-                    provider=result.provider,
-                    model=result.model,
-                )
-            outcome = "ok" if reply.verdict == "approve" else "gate_failed"
-            return RequisitionVerdict(**common, calls=calls, verdict=reply.verdict, summary=reply.summary, findings=reply.findings, mechanical=None, provider=result.provider, model=result.model)
-    except BaseException:
-        outcome = "infra_error"
-        raise
-    finally:
-        if calls and owns_watch:
-            driver.log.event("stage_end", **event_context, outcome=outcome, calls=calls)
+                name = f"requisition_review/call-{current_seq:02d}"
+                spool_stem = f"{stem_slot}/{run_seq}"
+                driver.spool.write(spool_stem, attempt, f"{name}/prompt.md", prompt)
+                req = LLMRequest(surface="requisition_review", rendered=prompt, tier=tier, effort=spec.meta.effort, ticket=None, worktree=None)
+                if driver._active is None:
+                    if calls == 0:
+                        owns_watch = True
+                    driver.begin_watch(
+                        owner=stem_slot,
+                        ticket=None,
+                        run_sequence=run_seq,
+                        surface="requisition_review",
+                        workspace=repo,
+                        expected_budget=expected_budget,
+                        stuck_budget=REQUISITION_STUCK_S,
+                        scope_fence=(),
+                        attempt=attempt,
+                    )
+                if calls == 0 and owns_watch:
+                    event = stack.enter_context(driver.stage(**event_context))
+                calls += 1
+                try:
+                    recorded = await driver.race(
+                        lambda: llm_call(driver.effects, driver.watched_llm(), req, driver.redactor, ticket=stem, stem=stem_slot, run_seq=run_seq, attempt=attempt, call_seq=current_seq),
+                        REQUISITION_STUCK_S,
+                    )
+                except _StuckBudget:
+                    outcome = "timeout"
+                    return snag("requisition review timed out", "timeout", road="retry the authoring review")
+                except ProviderDrought, ProviderCallError:
+                    raise
+                except Exception as exc:
+                    outcome = "infra_error"
+                    message = f"requisition review provider failed: {type(exc).__name__}: {exc}"
+                    driver.spool.write(spool_stem, attempt, f"{name}/error.txt", message)
+                    return snag(message, "provider error", road="repair the provider and retry the authoring review")
+                result = LLMResult(**recorded)
+                driver.spool.write(spool_stem, attempt, f"{name}/output.txt", result.text)
+                try:
+                    reply = RequisitionReply.model_validate_json(unwrap_fence(result.text))
+                except ValidationError as exc:
+                    if calls <= driver.retry_cap:
+                        retry_findings = f"Reply must be only the JSON object. {exc}"
+                        continue
+                    message = f"invalid requisition review reply: {exc.error_count()} schema error(s)"
+                    return RequisitionVerdict(
+                        **common,
+                        calls=calls,
+                        verdict="snag",
+                        summary=message,
+                        findings=[Finding(code="requisition_review", message=message, paved_road="reply with a schema-valid requisition verdict", kind="authoring_error")],
+                        mechanical="invalid reply",
+                        provider=result.provider,
+                        model=result.model,
+                    )
+                outcome = "ok" if reply.verdict == "approve" else "gate_failed"
+                return RequisitionVerdict(**common, calls=calls, verdict=reply.verdict, summary=reply.summary, findings=reply.findings, mechanical=None, provider=result.provider, model=result.model)
+        except BaseException:
+            outcome = "infra_error"
+            raise
+        finally:
+            if calls and owns_watch:
+                event.end(outcome, run_seq=run_seq, calls=calls)
 
 
 class RequisitionGate:

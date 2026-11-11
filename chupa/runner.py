@@ -213,9 +213,9 @@ async def drive(ctx: StageContext, ticket: Ticket, *, admission=None, consume_ha
     if stage == "review" and result.outcome == "ok":
         from chupa.mergequeue import ConflictHandoff
 
-        ctx.driver.log.event("stage_start", stem=ticket.stem, attempt=run.attempt, surface="merge")
-        stage, result = "merge", await (admission(ticket, attempt=run.attempt) if admission is not None else merge(ctx, ticket, attempt=run.attempt))
-        ctx.driver.log.event("stage_end", stem=ticket.stem, attempt=run.attempt, surface="merge", outcome="conflict" if isinstance(result, ConflictHandoff) else result.outcome)
+        with ctx.driver.stage(stem=ticket.stem, attempt=run.attempt, surface="merge") as event:
+            stage, result = "merge", await (admission(ticket, attempt=run.attempt) if admission is not None else merge(ctx, ticket, attempt=run.attempt))
+            event.end("conflict" if isinstance(result, ConflictHandoff) else result.outcome)
         if isinstance(result, ConflictHandoff):
             assert consume_handoff is not None
             return await consume_handoff(ticket, result, attempt=run.attempt)
