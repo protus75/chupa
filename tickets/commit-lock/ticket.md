@@ -44,14 +44,14 @@ This ticket adds a second lock sized to that danger: a commit lock held only whi
   - Release truncates the identity to empty before closing. A reader then sees an empty file once the lock is free, even while the releasing process lives on.
   - Within one process, a second asyncio task that wants the lock waits, as another process would. A task that asks again for the lock it already holds gets a `RuntimeError` at once, not a 60-second wait.
 - In: `chupa/git.py`: `Git.__init__` takes a required `commit_lock` (a `CommitLock`) with no default. The methods that write the index or commit hold it for their whole run:
-  - `commit(dir, message, *, only=())` returns the new `HEAD` sha. When `only` is given, it stages those paths first with `git update-index --add --remove -- <paths>`, not `git add`. A path that is gone from both the index and the worktree then records its deletion; `git add` fails on it with `pathspec did not match any files`. If those paths then match `HEAD`, it makes no commit and returns `None`.
+  - `commit(dir, message, *, only=())` returns the new `HEAD` sha. When `only` is given, it stages those paths first with `git update-index --add --remove -- <paths>`, not `git add`. A path that is gone from both the index and the worktree then records its deletion; `git add` fails on it with `pathspec did not match any files`. If those paths then match `HEAD`, it makes no commit and raises `NothingToCommit`, a `GitError` subclass defined in `chupa/git.py`. Every caller except `tickets.intake` lets it propagate, so each fails as a no-change `commit --only` fails today.
   - `merge_squash(dir, branch, message)` runs `merge --squash` and the commit, and returns the new sha.
   - `add` and `restore` hold the lock for their one call.
   - Read methods, `rebase`, `rebase_continue`, and the branch and worktree methods do not take the lock. The merge queue's conflict resolution in `chupa/mergequeue.py` (a raw `checkout --ours` in a ticket worktree) also stays unlocked. It runs only in ticket worktrees and never on the main checkout.
 - In: every caller of those methods drops its own `add` before `commit`. It uses the returned sha instead of a separate `rev_parse(..., "HEAD")`. The callers are in `chupa/tickets.py`, `chupa/merge.py`, `chupa/stages.py`, `chupa/daemon.py`, `chupa/runner.py`, `chupa/author.py`, `chupa/serve.py` and `chupa/retro.py`.
   - One exception: in `chupa/daemon.py`, `apply_rework`'s `restore_publication` keeps its `add` of written successors. That add serves the `restore` that follows it, which can then remove untracked successor files; it does not stage for the undo commit. `publish` in the same function drops its `add`.
   - The undo commit in `restore_publication` passes `only=` paths that `restore` has already removed from the index and worktree. The `update-index` staging above is what lets that commit record their deletion.
-- In: `tickets.intake` journals `ticket_intake` only when `commit` returns a sha. If another process commits the same pending ticket first, intake skips it quietly instead of raising.
+- In: `tickets.intake` catches `NothingToCommit` and journals no `ticket_intake` for that stem. If another process commits the same pending ticket first, intake skips it quietly instead of raising.
 - In: the composition roots build one `CommitLock` per process from the configured `state_dir`, clock and sleep, and pass it to `Git`. The roots are:
   - `chupa/__main__.py`.
   - `eval/harness.py` (both `Git` constructions) and `eval/diagnose.py`.
@@ -131,8 +131,8 @@ This ticket adds a second lock sized to that danger: a commit lock held only whi
    - When the holder never releases, acquire raises `CommitLockTimeout` at 60 seconds, naming the holder's pid. It neither waits forever nor acquires. `CommitLockTimeout` is not an instance of `LockHeld`.
    - Constructing a `CommitLock` makes no call on the fake `os` or `fcntl`.
    - A second task in the same process waits for the first task's release. The holding task asking again raises `RuntimeError` at once.
-   - With a fake exec, `Git.commit(..., only=paths)` runs `update-index --add --remove` and `commit` inside one hold and returns the sha. It returns `None` and runs no `commit` when the staged paths match `HEAD`. `Git.merge_squash` runs both git steps inside one hold. `Git.add` and `Git.restore` each run their one git call inside a hold, not outside it.
-   - With a fake `Git` whose `commit` returns `None`, `tickets.intake` journals no `ticket_intake` and raises nothing (this keeps the `chupa/tickets.py` floor).
+   - With a fake exec, `Git.commit(..., only=paths)` runs `update-index --add --remove` and `commit` inside one hold and returns the sha. It raises `NothingToCommit` and runs no `commit` when the staged paths match `HEAD`. `Git.merge_squash` runs both git steps inside one hold. `Git.add` and `Git.restore` each run their one git call inside a hold, not outside it.
+   - With a fake `Git` whose `commit` raises `NothingToCommit`, `tickets.intake` journals no `ticket_intake` and raises nothing (this keeps the `chupa/tickets.py` floor).
    - The CLI's top-level handler turns a `CommitLockTimeout` raised by a verb into exit 2 with the message on stderr, not a traceback (this keeps the `chupa/__main__.py` floor).
 2. `tests/integration/test_lockfile.py`: with real files, a `CommitLock` acquire waits while another descriptor holds `commit.lock` and succeeds after it releases. After release `commit.lock` is empty, not the stale identity. Before the first acquire, a constructed `CommitLock` has not created `commit.lock` or its state directory.
 3. `tests/integration/test_git.py`, with a real repository:
@@ -149,7 +149,7 @@ This ticket adds a second lock sized to that danger: a commit lock held only whi
 ```
 
 ## Definition of rejected
-- A caller outside `chupa/git.py` and the composition roots takes, releases or holds the commit lock.
+- Code under `chupa/`, `eval/` or `hosts/` outside `chupa/git.py` and the composition roots takes, releases or holds the commit lock. Tests may acquire it directly.
 - The wait has no limit, or the limit is not 60 seconds.
 - `Git` keeps an optional or default `commit_lock`.
 - A write to the main checkout's index or a commit on it runs without holding the commit lock.
