@@ -81,7 +81,7 @@ Routing the provider in this repo's `config.yaml` is an operator edit and is not
     - tests of `routed_conduct_paths`.
   - `tests/integration/test_closed_sets.py`: the `ADAPTERS` assertion gains `"qwen": "QwenAdapter"`. Leave the rest unchanged.
   - `tests/unit/test_docs_verb.py` and `tests/integration/test_cli.py`: the `docs` assertions expect four guides, ending with `host-qwen.md`.
-  - `tests/unit/test_probe_verb.py` (new): tests of `chupa probe` with a fake process exec. Cover one provider passing, one failing (the output carries the paved road and the exit is 1), the default of every declared provider, and an unknown name (exit 2).
+  - `tests/unit/test_probe_verb.py` (new): tests of `chupa probe` with a fake process exec. Cover one provider passing, one failing (the output carries the paved road and the exit is 1), the default of every declared provider, an unknown name (exit 2), and a run with `cli.Lockfile` and `cli.Journal` monkeypatched to raise `AssertionError`, the way `tests/unit/test_docs_verb.py::test_docs_without_config_or_lock` does, which still exits 0.
   - `tests/integration/test_dev.py`: a test that `./dev.py probe qwen` forwards `["uv", "run", "python", "-m", "chupa", "probe", "qwen"]`.
   - `chupa/docs/host-running.md`: the verb table gains a `probe` row.
   - `chupa/docs/host-contract.md`:
@@ -170,6 +170,7 @@ Routing the provider in this repo's `config.yaml` is an operator edit and is not
    - a failing probe prints the error with its paved road and exits 1, not 0;
    - no names probes every declared provider;
    - an unknown name exits 2;
+   - with `cli.Lockfile` and `cli.Journal` patched to raise `AssertionError`, `chupa probe` with a fake exec still exits 0. Ruled out: probe acquires the writer lock or writes a journal event;
    - `./dev.py probe qwen` forwards to `chupa probe qwen`.
 9. `./dev.py test tests/unit/test_live_call.py` exits 0. The test gives `live_call` a drain row and its child row `node /p/@qwen-code/qwen-code/cli-entry.js --auth-type openai -m qwen3-coder:30b -o stream-json`, and asserts it returns `qwen qwen3-coder:30b`, not `""`. It also asserts that a codex `exec` child and a claude `-p` child still return their existing labels.
 10. `grep -n "Two CLI adapters" docs/how-chupa-works.md` prints nothing, and `docs/how-chupa-works.md` and `chupa/docs/host-contract.md` each name `qwen` as a shipped adapter.
