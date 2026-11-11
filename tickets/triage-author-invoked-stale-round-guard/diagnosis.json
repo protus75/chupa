@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "fbf1b48328b953bf9b256740207b5c6fbfe46e7f",
+  "stem": "triage-author-invoked-stale-round-guard",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "reject",
+  "lessons": [
+    "The fix and tests passed: 3420 tests ran and the agent reported every Verification command green. The only finding was bug_evidence. No file exists under tickets/triage-author-invoked-stale-round-guard/evidence/, and chupa/stages.py::_gather_bug fails Check when that directory is empty.",
+    "chupa/docs/host-authoring.md (Bug tickets > Evidence) says a kind: bug ticket needs a real evidence file committed with the ticket before it runs. The Scope fence excludes tickets/<stem>/evidence/, so no implement retry can supply it. The ticket must be fixed first.",
+    "Before rerunning, commit real evidence of the defect into tickets/triage-author-invoked-stale-round-guard/evidence/, such as captured output showing declined-<id> written for a reopened message whose only author_invoked precedes the reopened intent. Never add a placeholder.",
+    "On redo, the approach review found sound in chupa/triage.py::_settle_pass: read checkout.journal.read() once, find the max EFFECT_INTENT index with key retro-recurrence/{message.id}/ and reopened True (default -1), and count only later author_invoked signals for message.id.",
+    "On redo, also restate tests/unit/test_triage_author_boundary.py with its 3 named tests, the integration test in tests/integration/test_triage.py, and tests/regress_triage_author_invoked_boundary.py printing only {\"regression_result\": ...} on stdout, as in tests/regress_drain_deadline.py."
+  ],
+  "mechanical": null,
+  "spec_version": "1.5",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
