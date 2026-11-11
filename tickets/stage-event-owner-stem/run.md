@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The candidate full suite failed two variants of the same integration test; the untouched base passed all 3363 tests. The in-fence implementation remains uncommitted.
+The full verification passed 3,369 tests; the unit coverage, integration, lint, and format checks also passed.
 
 ## Dead ends
 
-The integration fixture starts a review stage inside Check, which the requested context manager correctly rejects.
+A focused test caught a missing run_seq field on requisition end events; it was restored before final verification.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 45 minutes; stopped early after identifying the scope conflict.
+Expected 45 minutes; completed within the budget.
 
