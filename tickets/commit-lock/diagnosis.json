@@ -1,15 +1,21 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "6c84f2918f2718d466c8652114913d0fec31f796",
+  "produced_at_sha": "65220418a3bda82c5e4ab35b76c5bc19ee760919",
   "stem": "commit-lock",
-  "attempt": 8,
-  "terminal": "premise_failed",
-  "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "premise_bounce cap spent",
+  "attempt": 9,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "split",
+  "lessons": [
+    "Only the check gate's diff_budget failed, on file count: 42 files against a budget of 30, with 480 lines against 1500. The full suite passed with 3355 tests, so the approach was sound. Split the ticket so that each stem touches fewer than 30 files.",
+    "Stem A is a refactor that changes no behavior. Route every test and harness Git(...) construction in the scope fence through one shared helper in tests/integration/test_git.py. If stem A alone goes over 30 files, split it again by directory.",
+    "Stem B depends on stem A. It adds CommitLock to chupa/lockfile.py, makes Git's commit_lock required, wires it in __main__, doctor, eval/harness, eval/diagnose and hosts/fixture/bin/claude, updates the helper, unit fakes and docs, and adds the tests for criteria 1-5.",
+    "Git must not have an optional or default commit_lock (Definition of rejected). Do not stage the constructor change across stems. Funnel the construction sites through the helper first so the required parameter lands in one place.",
+    "Keep the design review found sound: a private commit path that lets merge_squash commit inside its one hold. If merge_squash calls the public commit, it asks again for the lock it already holds and gets a RuntimeError."
+  ],
+  "mechanical": null,
   "spec_version": "1.4",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
