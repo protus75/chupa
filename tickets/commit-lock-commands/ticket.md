@@ -53,6 +53,10 @@ After this change:
 - In: documentation:
   - In `docs/how-chupa-works.md`: the verb table's lock column and text for `review`, `confirm` and `reject`.
   - In `chupa/docs/host-running.md`: the "Stop serve before ..." sentence no longer names `review`. In the verb table's `review` row, the "Works while serve runs?" cell becomes `Yes`, and its description says a pending edit is committed through intake before the review.
+  - In `README.md`: the "Stop `serve` before `drain`, `run`, or `review`" sentence no longer names `review`.
+- In: existing tests that pin the old lock behavior:
+  - `tests/unit/test_stale_running.py` and `tests/integration/test_stale_running.py`: remove Review from the locked-verbs assertions (Review no longer takes `chupa.lock` or reaps). Keep every other verb's assertion.
+  - `tests/unit/test_lock_holder.py`: its fake git gains `status_porcelain`, so the live-verdict tests pass through the new pending-change check. Keep its assertions.
 - Out:
   - `triage`, `dismiss` and `migrate-box` keep the engine lock.
   - No `commit` verb.
@@ -68,6 +72,10 @@ After this change:
 - tests/integration/test_control_cli.py
 - tests/integration/test_watch.py
 - tests/unit/test_verdict_extension.py
+- tests/unit/test_lock_holder.py
+- tests/unit/test_stale_running.py
+- tests/integration/test_stale_running.py
+- README.md
 
 ## Acceptance criteria
 1. `tests/integration/test_review_command.py`:
