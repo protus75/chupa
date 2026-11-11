@@ -514,9 +514,8 @@ async def lift_outbox(ctx: StageContext, stem: str, kind: str, *, attempt: int, 
             ctx.fs.write(ctx.repo / rel, src.read_bytes())
             src.unlink()
             rels.append(rel)
-        await ctx.git.add(ctx.repo, rels)
-        await ctx.git.commit(ctx.repo, f"chupa({stem}): {kind}", only=rels)
-        return {"kind": kind, "paths": rels, "commit": await ctx.git.rev_parse(ctx.repo, "HEAD")}
+        sha = await ctx.git.commit(ctx.repo, f"chupa({stem}): {kind}", only=rels)
+        return {"kind": kind, "paths": rels, "commit": sha}
 
     key = "/".join(("ticket-plane", stem, str(attempt), kind))
     return (await ctx.driver.effects.run(commit, key=key, ticket=stem))["commit"]
@@ -1387,7 +1386,6 @@ async def check_autofix(ctx, ticket, attempt):
             return reports, report.findings
     changed = [path for path in files if (worktree / path).read_bytes() != before[path]]
     if changed:
-        await ctx.git.add(worktree, changed)
         await ctx.git.commit(worktree, f"chupa({ticket.stem}): autofix", only=changed)
     return reports, []
 

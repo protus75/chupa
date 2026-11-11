@@ -644,3 +644,21 @@ def test_new_names_installed_authoring_guide(repo, capsys):
     with pytest.raises(Refusal) as error:
         cli._new(root, "new-guide")
     assert f"read {guide}, then edit it in place, or pick a new stem" in str(error.value)
+
+
+def test_intake_skips_ticket_committed_after_status(repo, monkeypatch):
+    root, git, journal = repo
+    write(root, "t-race", complete(VALID))
+    other = Git(SubprocessExec(), env=ENV, timeout=30.0)
+    original = git.status_porcelain
+
+    async def status_then_commit(path):
+        status = await original(path)
+        await other.commit(path, "concurrent ticket", only=["tickets/t-race/ticket.md"])
+        return status
+
+    monkeypatch.setattr(git, "status_porcelain", status_then_commit)
+    result = do_intake(root, git, journal)
+    assert result.committed == () and result.refused == {}
+    assert not [event for event in journal.read() if event.body.get("signal") == INTAKE_SIGNAL]
+    assert run(git._run(root, "log", "-1", "--format=%s")).strip() == "concurrent ticket"

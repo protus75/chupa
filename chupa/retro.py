@@ -265,9 +265,8 @@ class Retro:
             if recorded is not None:
                 return recorded
             driver.spool._fs.write(self.checkout.repo / path, driver.redactor.scrub(text).encode())
-            await self.checkout.git.add(self.checkout.repo, [path])
-            await self.checkout.git.commit(self.checkout.repo, f"chupa: retro {window.sequence:06d}", only=[path])
-            return {"commit": await self.checkout.git.rev_parse(self.checkout.repo, "HEAD")}
+            sha = await self.checkout.git.commit(self.checkout.repo, f"chupa: retro {window.sequence:06d}", only=[path])
+            return {"commit": sha}
 
         result = await driver.effects.run(commit, key=f"retro/{window.sequence}", ticket=None)
         await self.emit_proposals(f"retro/{window.sequence}")

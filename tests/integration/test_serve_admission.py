@@ -274,11 +274,11 @@ async def test_serve_admission_holds_and_cleanup(root, monkeypatch, case):
     if case == "tree-mismatch":
         squash = rig.checkout.git.merge_squash
 
-        async def corrupted(path, stem):
-            await squash(path, stem)
+        async def corrupted(path, stem, message):
             # A real staged-tree defect produces a real mismatching commit, not a fake hash or terminal.
             rig.fs.write(path / "chupa/engine-defect.py", b"unexpected staged content\n")
             await rig.checkout.git.add(path, ["chupa/engine-defect.py"])
+            return await squash(path, stem, message)
 
         monkeypatch.setattr(rig.checkout.git, "merge_squash", corrupted)
         admit = MergeQueue._admit

@@ -1306,19 +1306,7 @@ async def test_production_refuses_failed_rework_publication(admission_context, m
             write(path, data)
 
         monkeypatch.setattr(ctx.fs, "write", failed_write)
-    if failure == "add":
-        add = ctx.git.add
-        failed_once = False
-
-        async def failed_add(root, paths):
-            nonlocal failed_once
-            if root == ctx.repo and paths == [f"tickets/{s}/ticket.md" for s, _ in proposals] and not failed_once:
-                failed_once = True
-                raise RuntimeError("proposal add failed")
-            await add(root, paths)
-
-        monkeypatch.setattr(ctx.git, "add", failed_add)
-    if failure in {"commit", "partial", "incomplete", "all-commits"}:
+    if failure in {"add", "commit", "partial", "incomplete", "all-commits"}:
         commit = ctx.git.commit
 
         async def failed(root, message, **kwargs):
@@ -1328,7 +1316,7 @@ async def test_production_refuses_failed_rework_publication(admission_context, m
                     if failure == "incomplete" and action == "split":
                         return
                 raise RuntimeError("publication failed")
-            await commit(root, message, **kwargs)
+            return await commit(root, message, **kwargs)
 
         monkeypatch.setattr(ctx.git, "commit", failed)
     if failure == "spent":

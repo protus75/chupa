@@ -339,9 +339,7 @@ async def write_squash(ctx: StageContext, ticket: Ticket, reviewed: str, *, atte
             if not await lifted_report_paths(ctx, stem, attempt) or await dirty_code(ctx, stem):
                 raise ValueError("report admission requires current checks-lift custody and a clean code tree; rerun Check with a registered Verification report")
             return {"commit": None}
-        await ctx.git.merge_squash(ctx.repo, stem)
-        await ctx.git.commit(ctx.repo, squash_message(ticket, reviewed))
-        return {"commit": await ctx.git.rev_parse(ctx.repo, MAIN)}
+        return {"commit": await ctx.git.merge_squash(ctx.repo, stem, squash_message(ticket, reviewed))}
 
     commit = (await ctx.driver.effects.run(squash, key="/".join(("merge", stem, str(attempt))), ticket=stem))["commit"]
     if bridge is not None and commit is not None and (checked_tree is None or await ctx.git.rev_parse(ctx.repo, "main^{tree}") == checked_tree):

@@ -564,9 +564,7 @@ async def verdict_locked(stem: str, checkout: Checkout, *, kill: bool, extension
         return EXIT_MERGED
     if path.is_file() and _ticket_state(path) == "draft":
         checkout.fs.write(path, stamp(path.read_text(), "state", "confirmed").encode())
-        await checkout.git.add(checkout.repo, [rel])
-        await checkout.git.commit(checkout.repo, f"chupa({stem}): confirmed", only=[rel])
-        sha = await checkout.git.rev_parse(checkout.repo, "HEAD")
+        sha = await checkout.git.commit(checkout.repo, f"chupa({stem}): confirmed", only=[rel])
         checkout.journal.append(EventType.SIGNAL, {"signal": "draft_confirmed", "commit": sha}, ticket=stem)
         print(f"confirmed draft {stem}")
         return EXIT_MERGED
@@ -595,7 +593,6 @@ async def reject_ticket(stem: str, checkout: Checkout) -> bool:
     last = last_states(checkout.journal.read()).get(stem)
     if path.is_file() and _ticket_state(path) != "rejected":
         checkout.fs.write(path, stamp(path.read_text(), "state", "rejected").encode())
-        await checkout.git.add(checkout.repo, [rel])
         await checkout.git.commit(checkout.repo, f"chupa({stem}): rejected", only=[rel])
     if last != "rejected":
         checkout.journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "kill", "actor": "operator"}, ticket=stem)

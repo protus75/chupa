@@ -257,7 +257,7 @@ def test_report_failed_publication_cleans_candidate(tmp_path, monkeypatch, failu
     arrival(root)
     config = root / "config.yaml"
     config.write_text(config.read_text() + "report_inbox: inbox\n")
-    write, add, commit = LocalFileSystem.write, Git.add, Git.commit
+    write, commit = LocalFileSystem.write, Git.commit
 
     def writing(self, path, data):
         target = root / "tickets/failed/evidence/log.txt" if failure == "copy" else root / "tickets/failed/ticket.md"
@@ -265,18 +265,12 @@ def test_report_failed_publication_cleans_candidate(tmp_path, monkeypatch, failu
             raise OSError("publication refused")
         return write(self, path, data)
 
-    async def adding(self, repo, paths):
-        if failure == "add" and "tickets/failed/ticket.md" in paths:
-            raise OSError("add refused")
-        return await add(self, repo, paths)
-
     async def committing(self, repo, message, **kwargs):
-        if failure == "commit" and message == "chupa(failed): ticket":
+        if failure in {"add", "commit"} and message == "chupa(failed): ticket":
             raise OSError("commit refused")
         return await commit(self, repo, message, **kwargs)
 
     monkeypatch.setattr(LocalFileSystem, "write", writing)
-    monkeypatch.setattr(Git, "add", adding)
     monkeypatch.setattr(Git, "commit", committing)
     candidates = [bug_reply("failed")] * 7 if failure == "copy" else [bug_reply("failed"), requisition_reply("approve")]
     assert _run(root, monkeypatch, FakeLLM([reply("author"), *candidates])) == 0

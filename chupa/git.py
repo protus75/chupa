@@ -16,6 +16,10 @@ class GitError(Exception):
         self.err = err
 
 
+class NothingToCommit(GitError):
+    """The requested paths match HEAD."""
+
+
 class RebaseRefused(GitError):
     """The rebase failed and was aborted: the worktree sits on its own branch head. Re-run after main settles."""
 
@@ -76,9 +80,16 @@ class Git:
     async def add(self, dir: Path, paths: Sequence[str]) -> None:
         await self._run(dir, "add", "--", *paths)
 
-    async def commit(self, dir: Path, message: str, *, only: Sequence[str] = ()) -> None:
-        # `only` limits the commit to those paths, whatever else is staged.
+    async def commit(self, dir: Path, message: str, *, only: Sequence[str] = ()) -> str:
+        if only:
+            await self._run(dir, "update-index", "--add", "--remove", "--", *only)
+            argv, rc, out, err = await self._call(dir, "diff", "--cached", "--quiet", "HEAD", "--", *only)
+            if rc == 0:
+                raise NothingToCommit(argv, rc, out, err)
+            if rc != 1:
+                raise GitError(argv, rc, out, err)
         await self._run(dir, "commit", "-m", message, *(("--only", "--", *only) if only else ()))
+        return await self.rev_parse(dir, "HEAD")
 
     async def branch(self, dir: Path, name: str, start: str) -> None:
         await self._run(dir, "branch", _ref(name), _ref(start))
@@ -130,8 +141,9 @@ class Git:
             await self._call(dir, "rebase", "--abort")
             raise RebaseRefused(argv, rc, out, err)
 
-    async def merge_squash(self, dir: Path, branch: str) -> None:
+    async def merge_squash(self, dir: Path, branch: str, message: str) -> str:
         await self._run(dir, "merge", "--squash", _ref(branch))
+        return await self.commit(dir, message)
 
     async def push(self, dir: Path, remote: str, branch: str) -> None:
         await self._run(dir, "push", _ref(remote), _ref(branch))

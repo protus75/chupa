@@ -132,7 +132,6 @@ async def commit_record(checkout: Checkout, driver: Driver, record_id: str) -> N
     path = record_path(record_id)
 
     async def commit() -> None:
-        await checkout.git.add(checkout.repo, [str(path)])
         await checkout.git.commit(checkout.repo, f"chupa(decisions): {record_id}", only=[str(path)])
 
     await driver.effects.run(commit, key=f"ticket-plane/decisions/{record_id}", ticket=None)
@@ -311,9 +310,7 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
 
     async def commit() -> str:
         paths = [path, *author_gate.copied.get(reply.stem, [])]
-        await checkout.git.add(checkout.repo, paths)
-        await checkout.git.commit(checkout.repo, f"chupa({reply.stem}): ticket", only=paths)
-        return await checkout.git.rev_parse(checkout.repo, "HEAD")
+        return await checkout.git.commit(checkout.repo, f"chupa({reply.stem}): ticket", only=paths)
 
     try:
         checkout.fs.write(checkout.repo / path, text.encode())

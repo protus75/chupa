@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from chupa.git import Git, GitError, RebaseRefused
+from chupa.git import Git, GitError, NothingToCommit, RebaseRefused
 from chupa.seams import ExecutableNotFound, GroupExec, ProcessExec, SubprocessExec
 from tests.waiting import group_exited, ready_before_returning_spawn, wait_until
 
@@ -78,8 +78,6 @@ def test_status_porcelain_takes_no_optional_locks():
         (lambda g: g.diff(REPO, "main", "t-1"), ["diff", "main...t-1"]),
         (lambda g: g.diff_stat(REPO, "main", "t-1"), ["diff", "--stat", "main...t-1"]),
         (lambda g: g.add(REPO, ["a.py", "b c.py"]), ["add", "--", "a.py", "b c.py"]),
-        (lambda g: g.commit(REPO, "msg\n\nchupa-ticket: t"), ["commit", "-m", "msg\n\nchupa-ticket: t"]),
-        (lambda g: g.commit(REPO, "msg", only=["a.py"]), ["commit", "-m", "msg", "--only", "--", "a.py"]),
         (lambda g: g.branch(REPO, "t-1", "main"), ["branch", "t-1", "main"]),
         (lambda g: g.branch_delete(REPO, "t-1"), ["branch", "-D", "t-1"]),
         (
@@ -93,7 +91,6 @@ def test_status_porcelain_takes_no_optional_locks():
             lambda g: g.restore(REPO, ["tickets"], source="main"),
             ["restore", "--source", "main", "--staged", "--worktree", "--", "tickets"],
         ),
-        (lambda g: g.merge_squash(REPO, "t-1"), ["merge", "--squash", "t-1"]),
         (lambda g: g.push(REPO, "origin", "main"), ["push", "origin", "main"]),
         (lambda g: g.describe(REPO), ["describe", "--tags", "--always", "--dirty"]),
     ],
@@ -387,8 +384,8 @@ def test_ticket_lifecycle_against_real_repo(tmp_path):
         await g.restore(wt, ["tickets"], source="main")
         assert await g.status_porcelain(wt) == ""
         await g.rebase(wt, "main")
-        await g.merge_squash(repo, "t-1")
-        await g.commit(repo, "chupa(t-1): work\n\nchupa-ticket: t-1")
+        sha = await g.merge_squash(repo, "t-1", "chupa(t-1): work\n\nchupa-ticket: t-1")
+        assert sha == await g.rev_parse(repo, "HEAD")
         assert (repo / "b.txt").read_text() == "two\n"
         await g.worktree_remove(repo, wt)
         await g.branch_delete(repo, "t-1")
@@ -531,5 +528,27 @@ def test_escape_refusals(tmp_path):
         assert await g.first_parent_squashes(tmp_path, side) == []
         assert await g.first_parent_squashes(tmp_path, f"{base}..{side}") == []
         await g.worktree_remove(tmp_path, tmp_path / "side")
+
+    run(scenario())
+
+
+def test_commit_restored_deletion_and_unchanged_path(tmp_path):
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    g = Git(SubprocessExec(), env=env, timeout=30.0)
+
+    async def scenario():
+        await g.init(tmp_path, branch="main")
+        (tmp_path / "base").write_text("base")
+        await g.add(tmp_path, ["base"])
+        base = await g.commit(tmp_path, "base")
+        (tmp_path / "added").write_text("added")
+        added = await g.commit(tmp_path, "add", only=["added"])
+        await g.restore(tmp_path, ["added"], source=base)
+        sha = await g.commit(tmp_path, "delete", only=["added"])
+        assert sha != added and sha == await g.rev_parse(tmp_path, "HEAD")
+        assert "added" not in await g.ls_files(tmp_path)
+        with pytest.raises(NothingToCommit):
+            await g.commit(tmp_path, "unchanged", only=["base"])
+        assert await g.rev_parse(tmp_path, "HEAD") == sha
 
     run(scenario())

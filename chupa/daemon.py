@@ -383,12 +383,11 @@ async def apply_rework(ctx: StageContext, ticket: Ticket, findings: list[Finding
         async def publish() -> dict:
             for proposal, path in zip(order.tickets, paths, strict=True):
                 ctx.fs.write(ctx.repo / path, proposal.ticket.encode())
-            await ctx.git.add(ctx.repo, paths)
-            await ctx.git.commit(ctx.repo, f"chupa({ticket.stem}): rework", only=paths)
+            sha = await ctx.git.commit(ctx.repo, f"chupa({ticket.stem}): rework", only=paths)
             for proposal, path in zip(order.tickets, paths, strict=True):
                 if await ctx.git._run(ctx.repo, "show", f"HEAD:{path}") != proposal.ticket:
                     raise ValueError(f"committed {path} differs from the reviewed proposal")
-            return {"commit": await ctx.git.rev_parse(ctx.repo, "HEAD")}
+            return {"commit": sha}
 
         try:
             await ctx.driver.effects.run(publish, key=f"ticket-plane/{ticket.stem}/{attempt}/rework", ticket=ticket.stem)

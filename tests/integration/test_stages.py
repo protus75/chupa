@@ -733,7 +733,7 @@ async def test_outbox_only_check_failure_never_admits(repo, monkeypatch, failure
         async def failing(root, message, **kwargs):
             if message == f"chupa({STEM}): checks":
                 raise GitError(["git", "commit"], 1, "", "injected checks failure")
-            await commit(root, message, **kwargs)
+            return await commit(root, message, **kwargs)
 
         monkeypatch.setattr(ctx.git, "commit", failing)
     run = await run_stages(ctx, ticket)

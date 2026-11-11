@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, Validation
 
 from chupa.artifacts import Finding, NonBlank
 from chupa.gates import ENGINE_GATE_CODES
-from chupa.git import Git
+from chupa.git import Git, NothingToCommit
 from chupa.journal import EventType, Journal
 from chupa.seams import FileSystem
 
@@ -699,10 +699,11 @@ async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem) -> Inta
         if stamped != text:
             fs.write(repo / rel, stamped.encode())
         paths = [rel, *evidence[stem]]
-        await git.add(repo, paths)
-        # Pathspec-limited: a refused ticket left staged must never ride along in another stem's commit.
-        await git.commit(repo, f"chupa({stem}): ticket", only=paths)
-        sha = await git.rev_parse(repo, "HEAD")
+        # Pathspec-limited: a refused ticket must never ride along in another stem's commit.
+        try:
+            sha = await git.commit(repo, f"chupa({stem}): ticket", only=paths)
+        except NothingToCommit:
+            continue
         journal.append(EventType.SIGNAL, {"signal": INTAKE_SIGNAL, "source": fm.source, "state": fm.state, "new": pending[stem], "commit": sha}, ticket=stem)
         committed.append(stem)
     return IntakeResult(committed=tuple(committed), refused=refused)

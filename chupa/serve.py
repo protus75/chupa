@@ -393,7 +393,6 @@ class Serve:
                 committed = None
             state = "rejected" if verb == "reject" else "confirmed"
             if committed is not None and path.read_text() != committed and path.read_text() == stamp(committed, "state", state):
-                await c.git.add(c.repo, [str(ticket_path(stem))])
                 await c.git.commit(c.repo, f"chupa({stem}): {state}", only=[str(ticket_path(stem))])
         if verb == "confirm":
             applied = any(e.body.get("signal") in ("draft_confirmed", "reject_verdict") and (e.body.get("signal") != "reject_verdict" or e.body.get("verdict") == "keep") for e in signals)
