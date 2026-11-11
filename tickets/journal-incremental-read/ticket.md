@@ -49,7 +49,7 @@ When this ticket is done, a `Journal` instance keeps its parsed events in memory
 1. `tests/unit/test_journal_incremental.py`, with in-memory bytes only: the helper parses exactly the complete lines after the offset, returns the offset just past the last newline, leaves an unterminated tail for later, and numbers lines from the passed count. Bytes ending mid-line return the tail's start as the new offset, not the end of the bytes.
 2. `tests/integration/test_journal_incremental.py`, counting `chupa.journal._parse_line` calls through a monkeypatched wrapper:
    - A second `read()` with no appends in between parses 0 lines, not the whole journal again.
-   - After `k` appends (by the same instance, or by a second `Journal` on the same directory), the next `read()` parses exactly `k` lines. Its result equals a fresh `Journal`'s `read()`, compared by value and order.
+   - After `k` appends by a second `Journal` on the same directory, the next `read()` parses exactly `k` lines. After `k` appends by the same instance since its last read, the next `read()` parses only lines this instance has not yet parsed: exactly 1, because each `append()` already parsed the line before it. In both cases the result equals a fresh `Journal`'s `read()`, compared by value and order.
    - An `append()` by an instance that has already read the active segment's `n` lines parses at most 1 existing line, not `n`. At base it parses `n`.
 3. `tests/integration/test_journal_incremental.py`, correctness:
    - An unterminated tail line is excluded. Once a later write completes it, the next `read()` includes it exactly once.
