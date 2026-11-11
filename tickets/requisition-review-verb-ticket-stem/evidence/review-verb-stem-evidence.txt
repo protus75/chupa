@@ -1,0 +1,10 @@
+# Observed 2026-11-11 after 45e5c3af (requisition-events-owner-stem) merged.
+# `./dev.py review foo` calls review_ticket with stem_slot=f"review-{stem}" (chupa/__main__.py),
+# and review_ticket now logs stage events under stem_slot, so Recent Steps shows "review-foo"
+# instead of the ticket "foo".
+
+$ git grep -n "stem_slot=f\"review-" chupa/
+chupa/__main__.py:607:            stem_slot=f"review-{stem}",
+
+$ git grep -n "event_context = " chupa/requisition.py
+chupa/requisition.py:149:    event_context = dict(stem=stem_slot, attempt=attempt, surface="requisition_review", run_seq=run_seq)
