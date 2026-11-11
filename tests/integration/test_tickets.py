@@ -341,6 +341,35 @@ def test_staged_change_outside_ticket_files_refuses_intake(repo):
     assert journal.read() == []
 
 
+def test_intake_waits_for_commit_lock_before_reading_status(repo, tmp_path):
+    root, git, journal = repo
+    write(root, "t-one", VALID)
+    (root / "chupa/thing.py").write_text("x = 1\n")
+    run(git.add(root, ["chupa/thing.py"]))
+
+    async def scenario():
+        waiting = asyncio.Event()
+        release = asyncio.Event()
+
+        async def sleep(_):
+            waiting.set()
+            await release.wait()
+
+        git._commit_lock._sleep = sleep
+        async with commit_lock(tmp_path / ".chupa/state"):
+            task = asyncio.create_task(intake(root, git, journal, LocalFileSystem()))
+            await asyncio.wait_for(waiting.wait(), 2)
+            assert not task.done()
+            await git._run(root, "reset", "-q", "--", "chupa/thing.py")
+        release.set()
+        result = await asyncio.wait_for(task, 5)
+        assert result.committed == ("t-one",) and result.refused == {}
+        assert (await git._run(root, "log", "-1", "--format=%s", "main")).strip() == "chupa(t-one): ticket"
+        assert "state: confirmed" in await git._run(root, "show", "main:tickets/t-one/ticket.md")
+
+    run(scenario())
+
+
 def test_staged_refused_ticket_is_in_no_intake_commit(repo):
     root, g, journal = repo
     write(root, "a-bad", VALID.replace("priority: P2", "priority: urgent"))

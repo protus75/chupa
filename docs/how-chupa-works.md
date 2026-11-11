@@ -137,6 +137,7 @@ Frontmatter fields that drive behavior:
 
 `run`, `drain`, `serve`, `confirm`, and `reject` start with intake, under the writer lock:
 
+- It reads status, checks for stray staged paths, and commits under one `commit.lock` hold.
 - It finds new or modified `tickets/<stem>/ticket.md` files in the working tree (`git status`).
 - A new hand-written stem must be `draft` or `confirmed` and must not claim a machine `source`;
   intake stamps it `source: human`, `state: confirmed`.

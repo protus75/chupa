@@ -61,14 +61,31 @@ def test_commit_without_paths_and_squash():
 def test_intake_skips_concurrent_commit(monkeypatch):
     calls = []
 
+    class CountingLock:
+        def __init__(self):
+            self.entries = 0
+            self.held = False
+
+        async def __aenter__(self):
+            self.entries += 1
+            self.held = True
+
+        async def __aexit__(self, *args):
+            self.held = False
+
     class FakeGit:
+        def __init__(self):
+            self._commit_lock = CountingLock()
+
         async def status_porcelain(self, repo):
+            assert self._commit_lock.held
             return "?? tickets/one/ticket.md\n"
 
         async def _run(self, repo, *args):
             return ""
 
-        async def commit(self, repo, message, *, only):
+        async def _commit(self, repo, message, *, only):
+            assert self._commit_lock.held
             calls.append((message, only))
             raise NothingToCommit(["git"], 0, "", "")
 
@@ -83,6 +100,8 @@ def test_intake_skips_concurrent_commit(monkeypatch):
     monkeypatch.setattr(tickets, "_intake_claims", lambda *args: ("ticket", []))
     monkeypatch.setattr(tickets, "validate_ticket", lambda *args: SimpleNamespace(frontmatter=SimpleNamespace(source="human", state="confirmed")))
     monkeypatch.setattr(tickets, "evidence_findings", lambda *args, **kwargs: [])
-    result = run(tickets.intake(Path("/repo"), FakeGit(), Journal(), SimpleNamespace()))
+    git = FakeGit()
+    result = run(tickets.intake(Path("/repo"), git, Journal(), SimpleNamespace()))
+    assert git._commit_lock.entries == 1 and not git._commit_lock.held
     assert result.committed == () and result.refused == {}
     assert calls == [("chupa(one): ticket", ["tickets/one/ticket.md"])]

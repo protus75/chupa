@@ -665,55 +665,57 @@ def _intake_claims(stem: str, text: str, new: bool) -> tuple[str, list[Finding]]
 async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem) -> IntakeResult:
     """Validate pending hand-authored ticket files and ticket-plane-commit each clean one.
 
-    The caller holds the single-writer lock. A refused ticket stays on disk, uncommitted, untouched.
+    Intake holds the commit lock across status, the stray check and commits; its git work needs no engine lock.
+    A refused ticket stays on disk, uncommitted, untouched.
     """
-    entries = _porcelain(await git.status_porcelain(repo))
-    pending = _pending(repo, entries)
-    pending_paths = {ticket_path(s) for s in pending}
-    evidence = {}
-    for stem in pending:
-        directory = repo / TICKETS_DIR / stem / "evidence"
-        paths = await git._run(repo, "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", f"{TICKETS_DIR}/{stem}/evidence/")
-        evidence[stem] = sorted({p for p in paths.split("\0") if p and _regular_evidence(repo / p, directory)})
-    allowed = pending_paths | {p for paths in evidence.values() for p in paths}
-    if stray := sorted(p for st, p in entries if st[0] not in " ?" and (p not in allowed or "D" in st)):
-        raise IntakeRefused(
-            _f(
-                f"staged changes outside pending ticket files: {', '.join(stray)}",
-                "unstage them; a ticket-plane commit carries only `tickets/<stem>/ticket.md` and regular, non-symlink evidence files for that pending stem",
+    async with git._commit_lock:
+        entries = _porcelain(await git.status_porcelain(repo))
+        pending = _pending(repo, entries)
+        pending_paths = {ticket_path(s) for s in pending}
+        evidence = {}
+        for stem in pending:
+            directory = repo / TICKETS_DIR / stem / "evidence"
+            paths = await git._run(repo, "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", f"{TICKETS_DIR}/{stem}/evidence/")
+            evidence[stem] = sorted({p for p in paths.split("\0") if p and _regular_evidence(repo / p, directory)})
+        allowed = pending_paths | {p for paths in evidence.values() for p in paths}
+        if stray := sorted(p for st, p in entries if st[0] not in " ?" and (p not in allowed or "D" in st)):
+            raise IntakeRefused(
+                _f(
+                    f"staged changes outside pending ticket files: {', '.join(stray)}",
+                    "unstage them; a ticket-plane commit carries only `tickets/<stem>/ticket.md` and regular, non-symlink evidence files for that pending stem",
+                )
             )
-        )
-    from chupa.status import last_states
+        from chupa.status import last_states
 
-    states = last_states(journal.read())
-    committed: list[str] = []
-    refused: dict[str, list[Finding]] = {}
-    for stem in sorted(pending):
-        rel = ticket_path(stem)
-        text = (repo / rel).read_text()
-        stamped, findings = _intake_claims(stem, text, pending[stem])
-        try:
-            if findings:
-                raise TicketInvalid(findings)
-            ticket = validate_ticket(stem, stamped, repo, _settled=True) if states.get(stem) in {"merged", "already_satisfied", "rejected"} else validate_ticket(stem, stamped, repo)
-            fm = ticket.frontmatter
-            if states.get(stem) not in {"merged", "already_satisfied", "rejected"}:
-                if findings := evidence_findings(ticket, repo, paths=evidence[stem]):
+        states = last_states(journal.read())
+        committed: list[str] = []
+        refused: dict[str, list[Finding]] = {}
+        for stem in sorted(pending):
+            rel = ticket_path(stem)
+            text = (repo / rel).read_text()
+            stamped, findings = _intake_claims(stem, text, pending[stem])
+            try:
+                if findings:
                     raise TicketInvalid(findings)
-        except TicketInvalid as e:
-            refused[stem] = e.findings
-            continue
-        if stamped != text:
-            fs.write(repo / rel, stamped.encode())
-        paths = [rel, *evidence[stem]]
-        # Pathspec-limited: a refused ticket must never ride along in another stem's commit.
-        try:
-            sha = await git.commit(repo, f"chupa({stem}): ticket", only=paths)
-        except NothingToCommit:
-            continue
-        journal.append(EventType.SIGNAL, {"signal": INTAKE_SIGNAL, "source": fm.source, "state": fm.state, "new": pending[stem], "commit": sha}, ticket=stem)
-        committed.append(stem)
-    return IntakeResult(committed=tuple(committed), refused=refused)
+                ticket = validate_ticket(stem, stamped, repo, _settled=True) if states.get(stem) in {"merged", "already_satisfied", "rejected"} else validate_ticket(stem, stamped, repo)
+                fm = ticket.frontmatter
+                if states.get(stem) not in {"merged", "already_satisfied", "rejected"}:
+                    if findings := evidence_findings(ticket, repo, paths=evidence[stem]):
+                        raise TicketInvalid(findings)
+            except TicketInvalid as e:
+                refused[stem] = e.findings
+                continue
+            if stamped != text:
+                fs.write(repo / rel, stamped.encode())
+            paths = [rel, *evidence[stem]]
+            # Pathspec-limited: a refused ticket must never ride along in another stem's commit.
+            try:
+                sha = await git._commit(repo, f"chupa({stem}): ticket", only=paths)
+            except NothingToCommit:
+                continue
+            journal.append(EventType.SIGNAL, {"signal": INTAKE_SIGNAL, "source": fm.source, "state": fm.state, "new": pending[stem], "commit": sha}, ticket=stem)
+            committed.append(stem)
+        return IntakeResult(committed=tuple(committed), refused=refused)
 
 
 # --- new ----------------------------------------------------------------------------------------
