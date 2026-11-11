@@ -371,7 +371,7 @@ ONE instance writes a host repo line. Stable is a PyPI release pinned as a host 
 with checkpoint push disabled. Instances share only remotes. Upgrade or roll back by changing the pin, running `uv sync`, and restarting. A git-checkout engine running `serve`
 restarts itself when its `chupa/` tree changes.
 `<state_dir>/chupa.lock` uses advisory flock before writes and records instance_id,
-pid, host, state_dir and started_at for diagnostics only. Kernel release on
+pid, host, state_dir, started_at and verb. The verb determines whether the holder consumes control requests. Kernel release on
 process death governs correctness, never stale-pid adoption. On LockHeld wait
 for or stop the holder; never delete the lockfile. Child descriptors do not pin it. Git writes take `<state_dir>/commit.lock` with a 60-second wait.
 State dir owns journal, box queue, quarantine ledgers, attempt spools, engine

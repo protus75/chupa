@@ -339,7 +339,7 @@ class UpgradeChild:
         self.calls = []
 
     async def run(self, argv, *, cwd, env, timeout, stdin_path=None):
-        lock = Lockfile(self.rig.checkout.config.state_dir, instance_id="probe", clock=self.rig.time)
+        lock = Lockfile(self.rig.checkout.config.state_dir, verb="drain", instance_id="probe", clock=self.rig.time)
         lock.acquire()
         lock.release()
         self.calls.append((list(argv), cwd, env, timeout))

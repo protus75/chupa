@@ -44,7 +44,7 @@ def test_confirm_held_without_writer_lock(tmp_path, monkeypatch, capsys, dirless
             checkout = runner.Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git, ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
             consumer.inbox.known = lambda stem: (checkout.repo / f"tickets/{stem}/ticket.md").is_file()
             owner = entry.build_serve(checkout)
-            lock = Lockfile(ctx.config.state_dir, instance_id="live", clock=ctx.driver.clock)
+            lock = Lockfile(ctx.config.state_dir, verb="drain", instance_id="live", clock=ctx.driver.clock)
             lock.acquire()
             control.write_active(ctx.config.state_dir, consumer.projection, ctx.fs, hold_id=None)
             try:
@@ -72,7 +72,7 @@ def invoke(root, verb):
 
 
 def acquire(root):
-    lock = Lockfile(root / ".chupa/state", instance_id="diagnostic-not-lifecycle", clock=Clock())
+    lock = Lockfile(root / ".chupa/state", verb="drain", instance_id="diagnostic-not-lifecycle", clock=Clock())
     lock.acquire()
     return lock
 
@@ -105,7 +105,7 @@ def test_live_pause_resume_publish_without_journal_write(root, monkeypatch, caps
         assert capsys.readouterr().out == "resume submitted: resume-exact\n"
         assert requests(root) == [asdict(control.ControlRequest("pause-exact", "life-exact", "pause", None)), asdict(control.ControlRequest("resume-exact", "life-exact", "resume", "pause-exact"))]
         assert not (root / ".chupa/state/journal").exists()
-        contender = Lockfile(lock.state_dir, instance_id="contender", clock=Clock())
+        contender = Lockfile(lock.state_dir, verb="drain", instance_id="contender", clock=Clock())
         with pytest.raises(LockHeld):
             contender.acquire()
     finally:
@@ -210,8 +210,8 @@ def test_pause_resume_apply_directly_under_lock(root, monkeypatch, capsys, verb,
 
 def test_control_routing_lock_and_restart_races(root, monkeypatch, capsys):
     original = Lockfile.acquire
-    next_owner = Lockfile(root / ".chupa/state", instance_id="next-owner", clock=Clock())
-    replacement = Lockfile(root / ".chupa/state", instance_id="replacement", clock=Clock())
+    next_owner = Lockfile(root / ".chupa/state", verb="drain", instance_id="next-owner", clock=Clock())
+    replacement = Lockfile(root / ".chupa/state", verb="drain", instance_id="replacement", clock=Clock())
 
     # No preflight discovery check: an engine wins the CLI's actual lock acquisition.
     def race(self):
@@ -353,7 +353,7 @@ def test_live_verdict_recovery_and_refusal(tmp_path, monkeypatch, capsys, kind):
         owner = entry.build_serve(checkout)
         inbox = admission_control(ctx).inbox
         inbox.known = lambda name: (ctx.repo / f"tickets/{name}/ticket.md").is_file() or any(e.ticket == name for e in ctx.driver.journal.read())
-        lock = Lockfile(ctx.config.state_dir, instance_id="live", clock=ctx.driver.clock)
+        lock = Lockfile(ctx.config.state_dir, verb="drain", instance_id="live", clock=ctx.driver.clock)
         lock.acquire()
         control.write_active(ctx.config.state_dir, control.ControlProjection(inbox.lifecycle_id), ctx.fs, hold_id=None)
         verb = "confirm" if kind == "keep" else "reject"
@@ -499,7 +499,7 @@ def test_extension_repeat_keep(tmp_path, capsys, live):
         inbox = admission_control(ctx).inbox
         inbox.known = lambda name: name == stem
         owner = entry.build_serve(checkout)
-        lock = Lockfile(ctx.config.state_dir, instance_id="live", clock=ctx.driver.clock)
+        lock = Lockfile(ctx.config.state_dir, verb="drain", instance_id="live", clock=ctx.driver.clock)
         if live:
             lock.acquire()
             control.write_active(ctx.config.state_dir, control.ControlProjection(inbox.lifecycle_id), ctx.fs, hold_id=None)
@@ -537,3 +537,17 @@ def test_extension_repeat_keep(tmp_path, capsys, live):
                 lock.release()
 
     asyncio.run(exercise())
+
+
+def test_non_engine_holder_refuses_stop_and_confirm(root, capsys):
+    lock = Lockfile(root / ".chupa/state", verb="triage", instance_id="other", clock=Clock())
+    lock.acquire()
+    try:
+        discovery(root)
+        assert invoke(root, "stop") == 2
+        assert "triage" in capsys.readouterr().err
+        assert entry.main(["confirm", "candidate", "--yes"], cwd=root, env=ENV, clock=Clock()) == 2
+        assert "triage" in capsys.readouterr().err
+        assert requests(root) == []
+    finally:
+        lock.release()

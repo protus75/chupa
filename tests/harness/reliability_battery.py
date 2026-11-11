@@ -207,7 +207,7 @@ class _Member:
         self.core = self.owner.core
         self.checkout = self.owner.checkout
         self.session = self.core.control.providers
-        self.lock = Lockfile(checkout.config.state_dir, instance_id="battery", clock=self.time)
+        self.lock = Lockfile(checkout.config.state_dir, verb="drain", instance_id="battery", clock=self.time)
         self.lock.acquire()
         await self.core.startup()
 

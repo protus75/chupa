@@ -398,7 +398,12 @@ async def author_fixtures(
     root: Path = FIXTURES,
 ) -> None:
     exec_ = SubprocessExec()
-    lock = Lockfile(config.state_dir, instance_id=await Git(exec_, env=env, timeout=30, commit_lock=CommitLock(config.state_dir, clock=_clock, sleep=asyncio.sleep)).describe(ROOT), clock=_clock)
+    lock = Lockfile(
+        config.state_dir,
+        verb="eval",
+        instance_id=await Git(exec_, env=env, timeout=30, commit_lock=CommitLock(config.state_dir, clock=_clock, sleep=asyncio.sleep)).describe(ROOT),
+        clock=_clock,
+    )
     lock.acquire()
     journal = Journal(config.state_dir, _clock)
     timers = Timers(journal=journal, clock=_clock, sleep=asyncio.sleep)
@@ -483,7 +488,7 @@ async def _run(config: Config, env: Mapping[str, str], clock: Clock, *, out=None
         report = _go_report(ReviewBaselineReport.model_validate_json(go_report.read_bytes()), config=config, approve_author_graph=approve_author_graph, specs_dir=SPECS)
     exec_ = SubprocessExec()
     instance_id = await Git(exec_, env=env, timeout=30, commit_lock=CommitLock(config.state_dir, clock=clock, sleep=asyncio.sleep)).describe(ROOT)
-    lock = Lockfile(config.state_dir, instance_id=instance_id, clock=clock)
+    lock = Lockfile(config.state_dir, verb="eval", instance_id=instance_id, clock=clock)
     lock.acquire()  # the journal is a single-writer surface
     session = None
     try:

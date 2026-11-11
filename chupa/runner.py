@@ -495,7 +495,7 @@ async def reap(checkout: Checkout) -> list[str]:
 async def run_ticket(stem: str, checkout: Checkout, dispatch: Dispatch) -> int:
     if findings := stem_findings(stem):
         raise Refusal(findings[0].message, findings[0].paved_road)
-    lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
+    lock = Lockfile(checkout.config.state_dir, verb="run", instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
     log = EngineLog(checkout.config.state_dir / "engine.log", Redactor.from_config(checkout.config, checkout.env), checkout.clock)
     pid = os.getpid()
     lock.acquire()
@@ -537,11 +537,15 @@ async def run_ticket(stem: str, checkout: Checkout, dispatch: Dispatch) -> int:
                 lock.release()
 
 
+async def ticket_pending(git, repo, stem: str) -> bool:
+    return bool(await git.status_porcelain(repo, "--untracked-files=all", "--", f"tickets/{stem}/"))
+
+
 async def verdict(stem: str, checkout: Checkout, *, kill: bool, extension: bool = False) -> int:
     """Resolve a draft or Reject item while holding the same writer lock as run and drain."""
     if findings := stem_findings(stem):
         raise Refusal(findings[0].message, findings[0].paved_road)
-    lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
+    lock = Lockfile(checkout.config.state_dir, verb="reject" if kill else "confirm", instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
     lock.acquire()
     try:
         await reap(checkout)

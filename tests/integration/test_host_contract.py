@@ -332,8 +332,8 @@ def test_host_contract_report_custody_and_cutover(tmp_path):
     def clock():
         return datetime(2026, 1, 1, tzinfo=timezone.utc)
 
-    one = Lockfile(tmp_path, instance_id="one", clock=clock)
-    two = Lockfile(tmp_path, instance_id="two", clock=clock)
+    one = Lockfile(tmp_path, verb="drain", instance_id="one", clock=clock)
+    two = Lockfile(tmp_path, verb="drain", instance_id="two", clock=clock)
     one.acquire()
     try:
         with pytest.raises(LockHeld) as exc:

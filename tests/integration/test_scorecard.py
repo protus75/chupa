@@ -250,7 +250,7 @@ def test_scorecard_totals_and_rendering(tmp_path, monkeypatch):
     assert project_scorecard(empty).tokens["input"] == {"known": 0, "unknown_calls": 0}
     assert all(count == 0 for count in project_scorecard(empty).signal_counts.values())
     writer.stages.driver.llm = FakeLLM(['{"proposals": []}'])
-    lock = Lockfile(c.config.state_dir, instance_id="scorecard-test", clock=c.clock)
+    lock = Lockfile(c.config.state_dir, verb="drain", instance_id="scorecard-test", clock=c.clock)
     lock.acquire()
     try:
         result = asyncio.run(hook(forced=True))

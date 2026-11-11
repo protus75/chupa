@@ -2,7 +2,7 @@
 
 Correctness comes from `flock` alone: the kernel frees the lock when the holder
 dies, so there is no liveness protocol and no stale-pid reclaim. The recorded
-identity is diagnostics for the refusal message, never read for a decision.
+identity records the verb used to decide whether control requests have a consumer.
 """
 
 import asyncio
@@ -16,6 +16,8 @@ from typing import Any
 from chupa.journal import render_ts
 from chupa.seams import Clock, Sleep
 
+ENGINE_VERBS = frozenset({"drain", "serve"})
+
 
 class LockHeld(Exception):
     """Another process holds the checkout's writer lock."""
@@ -28,10 +30,11 @@ class LockHeld(Exception):
 
 
 class Lockfile:
-    def __init__(self, state_dir: Path, *, instance_id: str, clock: Clock) -> None:
+    def __init__(self, state_dir: Path, *, instance_id: str, verb: str, clock: Clock) -> None:
         self.state_dir = Path(state_dir)
         self.path = self.state_dir / "chupa.lock"
         self._instance_id = instance_id
+        self._verb = verb
         self._clock = clock
         self._fd: int | None = None
 
@@ -57,6 +60,7 @@ class Lockfile:
             raise
         identity = {
             "instance_id": self._instance_id,
+            "verb": self._verb,
             "pid": os.getpid(),
             "host": socket.gethostname(),
             "state_dir": str(self.state_dir),

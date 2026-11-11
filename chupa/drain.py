@@ -222,7 +222,7 @@ async def drain(
     consumer = checkout.control
     if consumer is None:
         raise Refusal("admission control consumer absent", "construct it with `build_control` at the composition root and supply it as `Checkout.control`")
-    lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
+    lock = Lockfile(checkout.config.state_dir, verb="drain", instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
     log = EngineLog(checkout.config.state_dir / "engine.log", Redactor.from_config(checkout.config, checkout.env), checkout.clock)
     pid = os.getpid()
     lock.acquire()

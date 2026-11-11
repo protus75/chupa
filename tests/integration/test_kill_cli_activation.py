@@ -113,7 +113,7 @@ def test_idle_kill_refuses_without_state(root, monkeypatch, capsys, stale):
 )
 def test_kill_discovery_and_lifecycle_races_fail_closed(root, monkeypatch, capsys, raw):
     original = Lockfile.acquire
-    owner = Lockfile(root / ".chupa/state", instance_id="racing-owner", clock=Clock())
+    owner = Lockfile(root / ".chupa/state", verb="drain", instance_id="racing-owner", clock=Clock())
 
     def race(lock):
         if not owner.held:

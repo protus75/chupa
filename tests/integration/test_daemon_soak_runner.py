@@ -370,7 +370,7 @@ async def test_daemon_soak_cleans_up_owned_lifetimes(tmp_path, monkeypatch, case
     assert member.task is None and not member.time.waits and member.journal._closed
     assert all(o.tasks.tasks == () and all(t.done() for t in o.workers) and not o.core.watcher._waits and o.core.admission.task is None for o in member.lifetimes)
     assert json.loads((member.checkout.config.state_dir / "control/active.json").read_text()) is None
-    lock = Lockfile(member.checkout.config.state_dir, instance_id="cleanup-proof", clock=member.time)
+    lock = Lockfile(member.checkout.config.state_dir, verb="drain", instance_id="cleanup-proof", clock=member.time)
     lock.acquire()
     lock.release()
     trees = await member.git._run(member.root, "worktree", "list", "--porcelain")

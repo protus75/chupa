@@ -258,7 +258,7 @@ def test_admission_mode_is_explicit(repo, monkeypatch):
     queue.paused, queue.hold_id = True, "daemon-hold"
     from chupa.lockfile import Lockfile
 
-    lock = Lockfile(ctx.config.state_dir, instance_id="inline-mode", clock=ctx.driver.clock)
+    lock = Lockfile(ctx.config.state_dir, verb="drain", instance_id="inline-mode", clock=ctx.driver.clock)
     lock.acquire()
     try:
         assert asyncio.run(boundary(ticket, attempt=attempt)).outcome == "ok"

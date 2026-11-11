@@ -78,7 +78,7 @@ class LiveStorm:
 
     async def sleep(self, delay):
         assert delay == 0.1
-        contender = Lockfile(self.c.config.state_dir, instance_id="contender", clock=self.clock)
+        contender = Lockfile(self.c.config.state_dir, verb="drain", instance_id="contender", clock=self.clock)
         with pytest.raises(LockHeld):
             contender.acquire()
         self.waiting.put_nowait(read_active(self.c.config.state_dir, Path.read_bytes))

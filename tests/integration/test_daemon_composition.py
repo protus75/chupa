@@ -1183,12 +1183,12 @@ async def test_production_consumes_conflict_handoff_after_unwind(admission_conte
     from chupa.lockfile import Lockfile, LockHeld
 
     checkout = runner.Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git, ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
-    lock = Lockfile(ctx.config.state_dir, instance_id="production", clock=ctx.driver.clock)
+    lock = Lockfile(ctx.config.state_dir, verb="drain", instance_id="production", clock=ctx.driver.clock)
     lock.acquire()
     try:
 
         async def consume(original):
-            contender = Lockfile(ctx.config.state_dir, instance_id="contender", clock=ctx.driver.clock)
+            contender = Lockfile(ctx.config.state_dir, verb="drain", instance_id="contender", clock=ctx.driver.clock)
             with pytest.raises(LockHeld):
                 contender.acquire()
             return await writer.consume_handoff(original, handoff, attempt=0)
@@ -1243,7 +1243,7 @@ async def test_production_applies_reviewed_rework_orders(admission_context, acti
         returned.append(result)
         return result
 
-    lock = Lockfile(ctx.config.state_dir, instance_id="production", clock=ctx.driver.clock)
+    lock = Lockfile(ctx.config.state_dir, verb="drain", instance_id="production", clock=ctx.driver.clock)
     lock.acquire()
     try:
         await _Drain(checkout, consume, frozenset())._run_one(ticket, False, await ctx.git.rev_parse(ctx.repo, f"HEAD:tickets/{ticket.stem}/ticket.md"))
@@ -1466,7 +1466,7 @@ class LiveDrain:
         class Files(LocalFileSystem):
             def write(self, path, data):
                 if path == rig.checkout.config.state_dir / "control/active.json":
-                    contender = Lockfile(rig.checkout.config.state_dir, instance_id="trace", clock=rig.checkout.clock)
+                    contender = Lockfile(rig.checkout.config.state_dir, verb="drain", instance_id="trace", clock=rig.checkout.clock)
                     with pytest.raises(LockHeld):
                         contender.acquire()
                     assert rig.trace[0] == "lock" and "unlock" not in rig.trace
@@ -1645,7 +1645,7 @@ async def test_control_lifecycle_cleanup_on_exit_and_handoff(root, monkeypatch, 
         async def run(self, argv, **kwargs):
             assert live.trace[-2:] == [("discovery", None), "unlock"]
             assert (c.config.state_dir / "control/active.json").read_bytes() == b"null\n"
-            lock = Lockfile(c.config.state_dir, instance_id="child", clock=c.clock)
+            lock = Lockfile(c.config.state_dir, verb="drain", instance_id="child", clock=c.clock)
             lock.acquire()
             lock.release()
             live.trace.append("child")
@@ -1686,7 +1686,7 @@ async def test_control_lifecycle_cleanup_on_exit_and_handoff(root, monkeypatch, 
     # Retired discovery refuses a publisher that has established contention.
     from tests.integration.test_control_cli import invoke
 
-    lock = Lockfile(c.config.state_dir, instance_id="unpublished-replacement", clock=c.clock)
+    lock = Lockfile(c.config.state_dir, verb="drain", instance_id="unpublished-replacement", clock=c.clock)
     lock.acquire()
     try:
         assert await asyncio.to_thread(invoke, root, "pause") == 2
@@ -1928,7 +1928,7 @@ async def test_composed_admission_holds_accept_identity_bound_resume(admission_c
         await wake.get()
 
     consumer.sleep = sleep
-    lock = Lockfile(consumer.state_dir, instance_id="engine", clock=checkout.clock)
+    lock = Lockfile(consumer.state_dir, verb="drain", instance_id="engine", clock=checkout.clock)
     lock.acquire()
     waiter = None
     try:

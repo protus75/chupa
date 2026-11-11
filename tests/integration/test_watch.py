@@ -183,7 +183,7 @@ def test_observe_verbs_take_no_lock_and_write_nothing(tmp_path, capsys):
     config = tmp_path / "host.yaml"
     config.write_text(Path("config.yaml").read_text().replace("state_dir: .chupa/state", "state_dir: custom-state"))
     state = tmp_path / "custom-state"
-    lock = Lockfile(state, instance_id="test", clock=lambda: datetime(2026, 1, 1, tzinfo=UTC))
+    lock = Lockfile(state, verb="drain", instance_id="test", clock=lambda: datetime(2026, 1, 1, tzinfo=UTC))
     lock.acquire()
     try:
         (state / "engine.log").write_text(json.dumps({"event": "engine_stop", "verb": "serve", "outcome": "stopped", "ts": "2026-01-01T00:00:00+00:00"}) + "\n")
@@ -222,10 +222,12 @@ def test_snapshot_lock_holder(tmp_path, monkeypatch):
         ("python -m chupa --config c.yaml serve", "serve", True),
         ("python -m chupa --config x.yaml review stem", "review", False),
     ]:
-        monkeypatch.setattr(watch, "processes", lambda ctx: [(712, 1, args)])
+        (tmp_path / "chupa.lock").write_text(json.dumps({"pid": 712, "started_at": started_at, "verb": verb}))
+        monkeypatch.setattr(watch, "processes", lambda ctx: [(712, 1, "python -m chupa drain")])
         snap = watch.snapshot(ctx)
         assert snap["lock"] == f"{verb} since {watch.clock(started_at)} (pid 712)"  # The tooltip identifies the actual holder.
         assert snap["engine"] is engine  # Only drain and serve can receive Stop.
+    (tmp_path / "chupa.lock").write_text(json.dumps({"pid": 712, "started_at": started_at}))
     monkeypatch.setattr(watch, "processes", lambda ctx: [(712, 1, "python -m chupa")])
     snap = watch.snapshot(ctx)
     assert snap["lock"] == f"chupa since {watch.clock(started_at)} (pid 712)" and snap["engine"] is False  # An unknown verb cannot be stopped.
@@ -330,6 +332,11 @@ def test_snapshot_menu_availability(tmp_path, monkeypatch):
     resolved, _ = box.enqueue(message_class="suggestion", origin="operator", summary="Resolved")
     box.resolve(resolved, Resolution(kind="ticket", link="done"))
 
+    async def pending_ticket(git, repo, stem):
+        return stem == "held" and dirty_pending[0]
+
+    dirty_pending = [False]
+    monkeypatch.setattr(watch.runner, "ticket_pending", pending_ticket)
     monkeypatch.setattr(watch, "lock_holder", lambda state: object())
     snap = watch.snapshot(ctx)
     rows = {row["stem"]: row for row in snap["rows"]}
@@ -345,6 +352,7 @@ def test_snapshot_menu_availability(tmp_path, monkeypatch):
     assert box_rows[pending]["menu"] == {"chupaTriage": "locked", "chupaDismiss": "locked"}  # Pending actions require the lock.
     assert box_rows[resolved]["menu"] == {"chupaTriage": "off", "chupaDismiss": "off"}  # Resolved actions are unavailable even when locked.
 
+    dirty_pending[0] = True
     monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: ({"held"}, set()))
     dirty = {row["stem"]: row for row in watch.snapshot(ctx)["rows"]}
     assert (dirty["held"]["menu"]["chupaConfirm"], dirty["held"]["menu"]["chupaReject"]) == ("off", "off")  # The engine cannot admit dirty ticket content.
@@ -404,6 +412,11 @@ def test_snapshot_badge(tmp_path, monkeypatch):
     ]
     monkeypatch.setattr(watch, "load_tickets", lambda ctx, skip: (tickets, {}))
     monkeypatch.setattr(watch, "journal", lambda *args, **kwargs: events)
+
+    async def clean(git, repo, stem):
+        return False
+
+    monkeypatch.setattr(watch.runner, "ticket_pending", clean)
     monkeypatch.setattr(watch, "running_stems", lambda *args: ["live"])
     monkeypatch.setattr(watch, "lock_holder", lambda state: datetime.fromisoformat("2025-12-31T00:00:00+00:00"))
     monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: (set(), set()))
@@ -715,3 +728,32 @@ def test_recent_steps_phase_events(tmp_path):
         ("Preflight end (ok)", "preflight_ok", None),
         ("Preflight start", "preflight_start", None),
     ]
+
+
+def test_snapshot_review_locks_for_changed_evidence(tmp_path):
+    from chupa.git import Git
+    from chupa.lockfile import Lockfile
+    from chupa.seams import SubprocessExec
+    from tests.integration.test_cli import ENV
+    from tests.integration.test_drain import Clock, commit_ticket, confirmed, make_root
+    from tests.integration.test_git import commit_lock
+
+    root = make_root(tmp_path)
+    commit_ticket(root, "candidate", confirmed())
+    evidence = root / "tickets/candidate/evidence/proof.txt"
+    evidence.parent.mkdir()
+    evidence.write_text("original")
+    subprocess.run(["git", "-C", str(root), "add", str(evidence)], env=ENV, check=True)
+    subprocess.run(["git", "-C", str(root), "commit", "-m", "evidence"], env=ENV, check=True, capture_output=True)
+    evidence.write_text("changed")
+    state = root / ".chupa/state"
+    git = Git(SubprocessExec(), env=ENV, timeout=30, commit_lock=commit_lock(state))
+    ctx = watch.Context(root, state, root / "config.yaml", SubprocessExec(), git, ENV)
+    lock = Lockfile(state, verb="drain", instance_id="test", clock=Clock())
+    lock.acquire()
+    try:
+        row = next(row for row in watch.snapshot(ctx)["rows"] if row["stem"] == "candidate")
+        assert row["committed"] is True
+        assert row["menu"]["chupaReview"] == "locked"
+    finally:
+        lock.release()

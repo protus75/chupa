@@ -123,7 +123,7 @@ async def test_serve_holds_lock_through_cleanup(root, monkeypatch):
         await release.wait()
 
     monkeypatch.setattr(owner, "abort", abort)
-    contender = Lockfile(rig.checkout.config.state_dir, instance_id="contender", clock=rig.time)
+    contender = Lockfile(rig.checkout.config.state_dir, verb="drain", instance_id="contender", clock=rig.time)
     run = asyncio.create_task(owner.run())
     await until(rig, owner.ready.is_set)
     with pytest.raises(LockHeld):

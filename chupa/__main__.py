@@ -28,7 +28,7 @@ from chupa.daemon import DaemonCore, PauseConsumer, StartupBoundary, daemon_core
 from chupa.git import Git, GitError
 from chupa.journal import EventType, Journal, JournalCorruption
 from chupa.llm import LLMRequest
-from chupa.lockfile import CommitLock, CommitLockTimeout, Lockfile, LockHeld
+from chupa.lockfile import ENGINE_VERBS, CommitLock, CommitLockTimeout, Lockfile, LockHeld
 from chupa.notify import NOTIFY_TIMEOUT_S, NotificationReconciler
 from chupa.providers import ADAPTERS, PREFLIGHT_TIMEOUT_S, PROBE_PROMPT, ProviderLLM, ProviderSession, ProviderSetupError, child_env, routed_conduct_paths
 from chupa.redact import Redactor
@@ -487,7 +487,7 @@ def main(
         if args.verb == "dismiss":
 
             async def dismiss_messages():
-                lock = Lockfile(config.state_dir, instance_id=await checkout.git.describe(repo), clock=clock)
+                lock = Lockfile(config.state_dir, verb="dismiss", instance_id=await checkout.git.describe(repo), clock=clock)
                 lock.acquire()
                 try:
                     await runner.reap(checkout)
@@ -500,7 +500,7 @@ def main(
         if args.verb == "triage":
 
             async def one_pass() -> list[tuple[str, str]]:
-                lock = Lockfile(config.state_dir, instance_id=await checkout.git.describe(repo), clock=clock)
+                lock = Lockfile(config.state_dir, verb="triage", instance_id=await checkout.git.describe(repo), clock=clock)
                 lock.acquire()
                 try:
                     await runner.reap(checkout)
@@ -569,8 +569,8 @@ async def _review(checkout: runner.Checkout, stem: str) -> int:
 
     if findings := stem_findings(stem):
         raise runner.Refusal(findings[0].message, findings[0].paved_road)
-    if await checkout.git.status_porcelain(checkout.repo, "--untracked-files=all", "--", f"tickets/{stem}/"):
-        lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
+    if await runner.ticket_pending(checkout.git, checkout.repo, stem):
+        lock = Lockfile(checkout.config.state_dir, verb="review", instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
         try:
             lock.acquire()
         except LockHeld as exc:
@@ -642,13 +642,20 @@ async def _review(checkout: runner.Checkout, stem: str) -> int:
     return 0 if verdict.verdict == "approve" else 1
 
 
+def _require_engine(exc: LockHeld) -> None:
+    verb = (exc.holder or {}).get("verb") or "unknown holder"
+    if verb not in ENGINE_VERBS:
+        raise runner.Refusal(f"writer lock held by {verb}", f"wait for {verb} to finish, then retry") from None
+
+
 async def _retro(checkout, pipeline, *, config_path=None):
     from chupa.retro import Retro, RetroConstructionError, measurements, project_window, suppressing_failure
 
-    lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
+    lock = Lockfile(checkout.config.state_dir, verb="retro", instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
     try:
         lock.acquire()
-    except LockHeld:
+    except LockHeld as exc:
+        _require_engine(exc)
         try:
             lifecycle, _ = control.read_active(checkout.config.state_dir, Path.read_bytes)
         except ValueError as exc:
@@ -810,10 +817,11 @@ def _engine_signals(stop: Callable[[], None]) -> Callable[[], None]:
 
 
 async def _control(checkout: runner.Checkout, verb: str) -> int:
-    lock = Lockfile(checkout.config.state_dir, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
+    lock = Lockfile(checkout.config.state_dir, verb=verb, instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
     try:
         lock.acquire()
-    except LockHeld:
+    except LockHeld as exc:
+        _require_engine(exc)
         try:
             lifecycle, hold = control.read_active(checkout.config.state_dir, Path.read_bytes)
         except ValueError as exc:
@@ -861,8 +869,8 @@ async def _verdict(checkout, stem, verb, read_input, yes, extension):
         return 1
     try:
         return await runner.verdict(stem, checkout, kill=verb == "reject", extension=extension)
-    except LockHeld:
-        pass
+    except LockHeld as exc:
+        _require_engine(exc)
     try:
         lifecycle, _ = control.read_active(checkout.config.state_dir, Path.read_bytes)
     except ValueError as exc:

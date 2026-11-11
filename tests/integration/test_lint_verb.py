@@ -153,7 +153,7 @@ def test_lint_named_stems_and_missing_stem(root, capsys):
 
 
 def hold_lock(root, connection):
-    lock = Lockfile(root / ".chupa/state", instance_id="other-process", clock=Clock())
+    lock = Lockfile(root / ".chupa/state", verb="drain", instance_id="other-process", clock=Clock())
     lock.acquire()
     try:
         connection.send("locked")

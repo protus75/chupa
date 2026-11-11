@@ -72,7 +72,7 @@ def test_reject_refuses_a_live_run(stopped):
     checkout = SimpleNamespace(
         config=config, git=Git(SubprocessExec(), env=ENV, timeout=30, commit_lock=commit_lock(stopped / ".chupa/state")), repo=stopped, clock=Clock(), journal=journal(stopped), fs=LocalFileSystem()
     )
-    lock = Lockfile(config.state_dir, instance_id="test", clock=checkout.clock)
+    lock = Lockfile(config.state_dir, verb="drain", instance_id="test", clock=checkout.clock)
     lock.acquire()
     try:
         with pytest.raises(LockHeld):
@@ -101,6 +101,11 @@ def test_menu_offers_reject_for_dead_run(tmp_path, monkeypatch):
     monkeypatch.setattr(observe, "lock_holder", lambda _: None)
     menu = observe.snapshot(ctx)["rows"][0]["menu"]
     assert (menu["chupaReject"], menu["chupaConfirm"]) == ("on", "off")
+
+    async def clean(git, repo, stem):
+        return False
+
+    monkeypatch.setattr(runner, "ticket_pending", clean)
     monkeypatch.setattr(observe, "lock_holder", lambda _: object())
     menu = observe.snapshot(ctx)["rows"][0]["menu"]
     assert (menu["chupaReject"], menu["chupaConfirm"]) == ("off", "off")
@@ -115,7 +120,7 @@ def test_every_locked_verb_reaps(stopped, monkeypatch):
 
     async def reap(checkout):
         with pytest.raises(LockHeld):
-            lock = Lockfile(checkout.config.state_dir, instance_id="probe", clock=checkout.clock)
+            lock = Lockfile(checkout.config.state_dir, verb="drain", instance_id="probe", clock=checkout.clock)
             lock.acquire()
         calls.append("reap")
         raise RuntimeError("stopped after reap")

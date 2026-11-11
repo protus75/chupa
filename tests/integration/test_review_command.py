@@ -37,7 +37,7 @@ def test_review_preflight_failure_refuses(tmp_path, monkeypatch, capsys):
     assert main(["review", "candidate"], cwd=root, env=ENV, clock=Clock()) == 2
     assert "chupa review: probe refused" in capsys.readouterr().err
     assert verdicts(root) == []
-    lock = Lockfile(root / ".chupa/state", instance_id="probe", clock=Clock())
+    lock = Lockfile(root / ".chupa/state", verb="drain", instance_id="probe", clock=Clock())
     lock.acquire()
     lock.release()
 
@@ -93,7 +93,7 @@ def test_review_releases_checkout_lock_during_call(tmp_path, monkeypatch):
     observed = []
 
     def probe(request):
-        lock = Lockfile(state_dir, instance_id="probe", clock=Clock())
+        lock = Lockfile(state_dir, verb="drain", instance_id="probe", clock=Clock())
         lock.acquire()
         try:
             events = journal.read()
@@ -111,7 +111,7 @@ def test_review_releases_checkout_lock_during_call(tmp_path, monkeypatch):
 def test_review_committed_ticket_while_checkout_locked(tmp_path, monkeypatch):
     root = make_root(tmp_path)
     commit_ticket(root, "candidate", confirmed())
-    lock = Lockfile(root / ".chupa/state", instance_id="engine", clock=Clock())
+    lock = Lockfile(root / ".chupa/state", verb="drain", instance_id="engine", clock=Clock())
     lock.acquire()
     try:
         llm = FakeLLM([reply("approve")])
@@ -129,7 +129,7 @@ def test_review_changed_ticket_refuses_while_checkout_locked(tmp_path, monkeypat
     commit_ticket(root, "candidate", confirmed())
     path = root / "tickets/candidate/ticket.md"
     path.write_text(path.read_text() + "\nPending edit\n")
-    lock = Lockfile(root / ".chupa/state", instance_id="engine", clock=Clock())
+    lock = Lockfile(root / ".chupa/state", verb="drain", instance_id="engine", clock=Clock())
     lock.acquire()
     try:
         llm = FakeLLM([])

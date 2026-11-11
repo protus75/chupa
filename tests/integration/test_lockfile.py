@@ -13,7 +13,7 @@ T0 = datetime(2026, 8, 4, 12, 0, 0, tzinfo=UTC)
 
 
 def make(state_dir, instance_id="v0.1.0"):
-    return Lockfile(state_dir, instance_id=instance_id, clock=lambda: T0)
+    return Lockfile(state_dir, verb="drain", instance_id=instance_id, clock=lambda: T0)
 
 
 def test_lockfile_lives_at_state_dir_chupa_lock(tmp_path):
@@ -25,10 +25,11 @@ def test_lockfile_lives_at_state_dir_chupa_lock(tmp_path):
 
 
 def test_acquire_records_holder_identity(tmp_path):
-    lock = make(tmp_path, instance_id="v0.1.0-3-gabc1234-dirty")
+    lock = Lockfile(tmp_path, verb="triage", instance_id="v0.1.0-3-gabc1234-dirty", clock=lambda: T0)
     lock.acquire()
     assert json.loads(lock.path.read_text()) == {
         "instance_id": "v0.1.0-3-gabc1234-dirty",
+        "verb": "triage",
         "pid": os.getpid(),
         "host": socket.gethostname(),
         "state_dir": str(tmp_path),
@@ -60,7 +61,7 @@ def test_contention_refused_across_processes(tmp_path):
         "from datetime import UTC, datetime\n"
         "from pathlib import Path\n"
         "from chupa.lockfile import LockHeld, Lockfile\n"
-        "l = Lockfile(Path(sys.argv[1]), instance_id='child', clock=lambda: datetime.now(UTC))\n"
+        "l = Lockfile(Path(sys.argv[1]), verb='drain', instance_id='child', clock=lambda: datetime.now(UTC))\n"
         "try:\n"
         "    l.acquire()\n"
         "except LockHeld:\n"
@@ -104,7 +105,7 @@ def test_crashed_holder_lock_is_free(tmp_path):
         "from datetime import UTC, datetime\n"
         "from pathlib import Path\n"
         "from chupa.lockfile import Lockfile\n"
-        "Lockfile(Path(sys.argv[1]), instance_id='dead', clock=lambda: datetime.now(UTC)).acquire()\n"
+        "Lockfile(Path(sys.argv[1]), verb='drain', instance_id='dead', clock=lambda: datetime.now(UTC)).acquire()\n"
         "os._exit(9)\n"
     )
     rc = subprocess.run([sys.executable, "-c", child, str(tmp_path)], cwd=os.getcwd()).returncode

@@ -111,7 +111,7 @@ class Stages:
 
         async def dispatch(t):
             self.calls.append(t.stem)
-            contender = Lockfile(checkout.config.state_dir, instance_id="contender", clock=Clock())
+            contender = Lockfile(checkout.config.state_dir, verb="drain", instance_id="contender", clock=Clock())
             try:
                 contender.acquire()
             except LockHeld:
@@ -393,7 +393,7 @@ def test_run_dispatches_the_locked_validated_stem_to_the_stage_seam(root):
     events = [(e.type, e.ticket, e.body.get("to")) for e in journal(root).read()]
     assert (EventType.STATE_TRANSITION, "add-thing", "running") in events
     assert events.index((EventType.STATE_TRANSITION, "add-thing", "running")) < events.index((EventType.STATE_TRANSITION, "add-thing", "merged"))
-    Lockfile(root / ".chupa" / "state", instance_id="after", clock=Clock()).acquire()  # released on exit
+    Lockfile(root / ".chupa" / "state", verb="drain", instance_id="after", clock=Clock()).acquire()  # released on exit
 
 
 def test_run_exits_1_on_a_non_ok_terminal(root):
@@ -404,7 +404,7 @@ def test_run_exits_1_on_a_non_ok_terminal(root):
 
 def test_run_refused_when_the_lockfile_is_already_held(root, capsys):
     write(root, "add-thing", ticket())
-    holder = Lockfile(root / ".chupa" / "state", instance_id="other", clock=Clock())
+    holder = Lockfile(root / ".chupa" / "state", verb="drain", instance_id="other", clock=Clock())
     holder.acquire()
     try:
         stages = Stages()
@@ -491,7 +491,7 @@ def test_project_declares_build_and_console_script():
 
 
 def released(root):
-    lock = Lockfile(root / ".chupa/state", instance_id="after", clock=Clock())
+    lock = Lockfile(root / ".chupa/state", verb="drain", instance_id="after", clock=Clock())
     lock.acquire()
     lock.release()
 
@@ -534,14 +534,14 @@ def test_retro_success(root, capsys, monkeypatch):
     from chupa.providers import ProviderLLM
 
     async def preflight(self):
-        contender = Lockfile(self._config.state_dir, instance_id="other", clock=Clock())
+        contender = Lockfile(self._config.state_dir, verb="drain", instance_id="other", clock=Clock())
         with pytest.raises(LockHeld):
             contender.acquire()
         seen.append(self.session)
         return []
 
     async def call(self, request, served, **kwargs):
-        contender = Lockfile(self._config.state_dir, instance_id="model", clock=Clock())
+        contender = Lockfile(self._config.state_dir, verb="drain", instance_id="model", clock=Clock())
         with pytest.raises(LockHeld):
             contender.acquire()
         return await llm.call(request)
@@ -618,7 +618,7 @@ def test_retro_no_commit(root, capsys, monkeypatch, suppressed, later_merge):
 def test_retro_refusals(root, capsys, failure):
     j = journal(root)
     j.append(EventType.STATE_TRANSITION, {"to": "merged"}, ticket="one")
-    holder = Lockfile(root / ".chupa/state", instance_id="other", clock=Clock())
+    holder = Lockfile(root / ".chupa/state", verb="drain", instance_id="other", clock=Clock())
     if failure == "lock":
         holder.acquire()
     elif failure == "config":
@@ -854,7 +854,7 @@ def test_core_and_gate_share_routed_paths(tmp_path, monkeypatch):
 def test_suggest_publishes_while_writer_lock_is_held(root, capsys):
     import json
 
-    holder = Lockfile(root / ".chupa/state", instance_id="other", clock=Clock())
+    holder = Lockfile(root / ".chupa/state", verb="drain", instance_id="other", clock=Clock())
     holder.acquire()
     try:
         assert cli(root, "suggest", "a distinct idea") == 0

@@ -234,7 +234,7 @@ async def _run(config: Config) -> Report:
     env = dict(os.environ)
     exec_ = SubprocessExec()
     instance_id = await Git(exec_, env=env, timeout=30, commit_lock=CommitLock(config.state_dir, clock=_clock, sleep=asyncio.sleep)).describe(ROOT)
-    lock = Lockfile(config.state_dir, instance_id=instance_id, clock=_clock)
+    lock = Lockfile(config.state_dir, verb="eval", instance_id=instance_id, clock=_clock)
     lock.acquire()
     session = None
     try:

@@ -59,7 +59,7 @@ class Script:
     def __call__(self, checkout):
         async def dispatch(t):
             self.calls.append(t.stem)
-            contender = Lockfile(checkout.config.state_dir, instance_id="contender", clock=checkout.clock)
+            contender = Lockfile(checkout.config.state_dir, verb="drain", instance_id="contender", clock=checkout.clock)
             try:
                 contender.acquire()
             except LockHeld:
@@ -402,7 +402,7 @@ def test_drain_mid_drain_intake_refusal_exits_2(root):
     script = Script(hooks={"aaa-first": stage_stray})
     assert drain(root, script) == 2  # ignoring intake refusal would continue
     assert script.calls == ["aaa-first"]  # the second ticket must not run
-    lock = Lockfile(root / ".chupa/state", instance_id="probe", clock=Clock())
+    lock = Lockfile(root / ".chupa/state", verb="drain", instance_id="probe", clock=Clock())
     lock.acquire()  # refusal must release the lock
     lock.release()
 
@@ -528,7 +528,7 @@ def test_drain_scan_skips_finished_tickets(root, capsys, monkeypatch):
 
 def test_lock_contention_stops_the_drain_with_exit_2(root):
     write(root, "add-thing", ticket())
-    holder = Lockfile(root / ".chupa" / "state", instance_id="other", clock=Clock())
+    holder = Lockfile(root / ".chupa" / "state", verb="drain", instance_id="other", clock=Clock())
     holder.acquire()
     try:
         script = Script()
@@ -676,7 +676,7 @@ def test_rework_split_preserves_dispatch_terminal_invariant(rework_repo, monkeyp
         async def dispatch(ticket):
             value = await writer(ticket)
             returns.append((ticket.stem, value))
-            contender = Lockfile(checkout.config.state_dir, instance_id="contender", clock=clock)
+            contender = Lockfile(checkout.config.state_dir, verb="drain", instance_id="contender", clock=clock)
             with pytest.raises(LockHeld):
                 contender.acquire()
             held.append(ticket.stem)
@@ -980,7 +980,7 @@ async def test_pause_checkpoint_failure_spends_no_retry(root, cancel):
         with pytest.raises(ValueError, match="checkpoint failed"):
             await task
     assert script.calls == [] and journal(root).read() == before and retry_draws(root, "work") == 0
-    lock = Lockfile(root / ".chupa/state", instance_id="after-cleanup", clock=Clock())
+    lock = Lockfile(root / ".chupa/state", verb="drain", instance_id="after-cleanup", clock=Clock())
     lock.acquire()
     lock.release()
     assert (await paused_drain(root, script, None)).merged == ["work"]
@@ -1189,7 +1189,7 @@ def _exercise_retro_drain(tmp_path, monkeypatch, scenario):
 
     async def hook(self, *, forced=False):
         invocations.append((forced, list(dispatches)))
-        contender = Lockfile(self.checkout.config.state_dir, instance_id="retro-contender", clock=clock)
+        contender = Lockfile(self.checkout.config.state_dir, verb="drain", instance_id="retro-contender", clock=clock)
         with pytest.raises(LockHeld):
             contender.acquire()
         return await original_hook(self, forced=forced)
@@ -1265,7 +1265,7 @@ def _exercise_retro_drain(tmp_path, monkeypatch, scenario):
         async def run(self, argv, **kwargs):
             self.spawns += 1
             assert journal(root).read()[-1].body.get("signal") == "drain_handoff"
-            contender = Lockfile(root / ".chupa/state", instance_id="child", clock=clock)
+            contender = Lockfile(root / ".chupa/state", verb="drain", instance_id="child", clock=clock)
             contender.acquire()
             contender.release()
             code = await asyncio.to_thread(main, argv[7:], cwd=root, env=ENV, clock=clock, pipeline=runner.pipeline, reexec=self)
@@ -1512,7 +1512,7 @@ async def test_stop_finishes_current_ticket_and_releases_lock(root):
     report = await task
     assert calls == ["aa"] and report.merged == ["aa"]
     assert report.stopped and report.exit_code == 0 and "stopped on request" in report.render()
-    lock = Lockfile(checkout.config.state_dir, instance_id="probe", clock=checkout.clock)
+    lock = Lockfile(checkout.config.state_dir, verb="drain", instance_id="probe", clock=checkout.clock)
     lock.acquire()
     lock.release()
 
@@ -1708,7 +1708,7 @@ def test_drain_refuses_committed_core_drift_before_dispatch(root, capsys):
     assert drain(root, script) == 2
     assert "CLAUDE.md: chupa core is drifted" in capsys.readouterr().err
     assert script.calls == []
-    lock = Lockfile(root / ".chupa/state", instance_id="contender", clock=Clock())
+    lock = Lockfile(root / ".chupa/state", verb="drain", instance_id="contender", clock=Clock())
     lock.acquire()
     lock.release()
 

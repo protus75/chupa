@@ -10,9 +10,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import get_args
 
+from chupa import runner
 from chupa.config import load_config
 from chupa.drain import RETIRED, authored_at, awaiting_operator, order_tickets, parked_blob
 from chupa.graph import layout
+from chupa.lockfile import ENGINE_VERBS
 from chupa.rework import settled_dependencies
 from chupa.status import SETTLED
 from chupa.tickets import Frontmatter, TicketInvalid, parse_ticket
@@ -503,18 +505,7 @@ def snapshot(ctx) -> dict:
         except OSError, ValueError, KeyError:
             pass
         else:
-            args = next((args.split() for row_pid, _, args in processes(ctx) if row_pid == pid), [])
-            verb = "chupa"
-            for i in range(len(args) - 1):
-                if args[i : i + 2] == ["-m", "chupa"]:
-                    tokens = iter(args[i + 2 :])
-                    for token in tokens:
-                        if token == "--config":
-                            next(tokens, None)
-                        elif not token.startswith("-"):
-                            verb = token
-                            break
-                    break
+            verb = holder.get("verb") or "chupa"
             lock = f"{verb} since {clock(started_at)} (pid {pid})"
     running = running_stems(state, last)
     open_ = {s: t for s, t in tickets.items() if to(s) not in SETTLED | RETIRED and s not in running and t.frontmatter.state not in ("rejected", "merged")}
@@ -616,7 +607,7 @@ def snapshot(ctx) -> dict:
         valid = r["stem"] not in invalid
         verdict = (r["draft"] or r["held"]) and (r["committed"] or not alive)
         r["menu"] = {
-            "chupaReview": "off" if not (open_section and valid) else "locked" if alive and not r["committed"] else "on",
+            "chupaReview": "off" if not (open_section and valid) else "locked" if alive and asyncio.run(runner.ticket_pending(ctx.git, ctx.root, r["stem"])) else "on",
             "chupaLint": "on" if r["section"] != "merged" else "off",
             "chupaRun": available(r["runnable"]),
             "chupaConfirm": "on" if verdict else "off",
@@ -750,7 +741,7 @@ def snapshot(ctx) -> dict:
         "stateDir": str(state.resolve()),
         "configPath": str(ctx.config.resolve()),
         "at": now.isoformat(),
-        "engine": verb in ("drain", "serve"),
+        "engine": verb in ENGINE_VERBS,
         "lock": lock,
         "rows": rows,
         "steps": steps,

@@ -137,7 +137,7 @@ async def orphan(rig, stem, *, intent=False, worktree=True):
 
 
 def held(rig):
-    lock = Lockfile(rig.checkout.config.state_dir, instance_id="restart-test", clock=rig.time)
+    lock = Lockfile(rig.checkout.config.state_dir, verb="drain", instance_id="restart-test", clock=rig.time)
     lock.acquire()
     return lock
 
@@ -666,7 +666,7 @@ async def test_production_restart_precedes_dispatch(root, monkeypatch):
 
         async def harvest(checkout, stem, attempt):
             assert rig.core.admission.active is None and rig.core.admission.task is None
-            contender = Lockfile(checkout.config.state_dir, instance_id="contender", clock=rig.time)
+            contender = Lockfile(checkout.config.state_dir, verb="drain", instance_id="contender", clock=rig.time)
             with pytest.raises(LockHeld):
                 contender.acquire()
             trace.append("reconcile")

@@ -92,7 +92,7 @@ def test_doctor_check_order(root, monkeypatch):
 def test_doctor_failures(root, capsys, monkeypatch, failure):
     import chupa.__main__ as module
 
-    holder = Lockfile(root / ".chupa/state", instance_id="other", clock=Clock())
+    holder = Lockfile(root / ".chupa/state", verb="drain", instance_id="other", clock=Clock())
     if failure == "config":
         (root / "config.yaml").write_text("schema_version: 1\n")
     elif failure == "lock":
@@ -138,7 +138,7 @@ def test_doctor_is_read_only(root, monkeypatch, capsys, history):
     monkeypatch.setattr(ProviderLLM, "__init__", forbidden)
     monkeypatch.setattr(runner, "prepare_pipeline", forbidden)
     monkeypatch.setattr(module, "build_control", forbidden)
-    holder = Lockfile(root / ".chupa/state", instance_id="original", clock=Clock())
+    holder = Lockfile(root / ".chupa/state", verb="drain", instance_id="original", clock=Clock())
     if history in {"held", "idle"}:
         holder.acquire()
         if history == "idle":

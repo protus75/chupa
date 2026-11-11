@@ -543,7 +543,7 @@ class Serve:
 
     async def run(self) -> int:
         c = self.checkout
-        lock = Lockfile(c.config.state_dir, instance_id=await c.git.describe(c.repo), clock=c.clock)
+        lock = Lockfile(c.config.state_dir, verb="serve", instance_id=await c.git.describe(c.repo), clock=c.clock)
         pid = os.getpid()
         lock.acquire()
 

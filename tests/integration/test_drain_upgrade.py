@@ -61,7 +61,7 @@ class Child:
 
     async def run(self, argv, *, cwd, env, timeout, stdin_path=None):
         self.order.append("spawn")
-        contender = Lockfile(self.root / ".chupa" / "state", instance_id="probe", clock=self.clock)
+        contender = Lockfile(self.root / ".chupa" / "state", verb="drain", instance_id="probe", clock=self.clock)
         try:
             contender.acquire()
         except LockHeld:

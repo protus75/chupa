@@ -115,7 +115,7 @@ def test_triage_preflight_failure_refuses(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr("chupa.providers.ProviderLLM.preflight", preflight)
     assert main(["triage"], cwd=root, env=ENV, clock=Clock()) == 2
     assert "chupa triage: probe refused" in capsys.readouterr().err
-    lock = Lockfile(root / ".chupa/state", instance_id="probe", clock=Clock())
+    lock = Lockfile(root / ".chupa/state", verb="drain", instance_id="probe", clock=Clock())
     lock.acquire()
     lock.release()
 
@@ -324,7 +324,7 @@ def test_report_author_failure_is_decision(tmp_path, monkeypatch):
 def test_lock_contention_exits_two_without_pass(tmp_path, monkeypatch):
     root, box = root_with_box(tmp_path)
     enqueue(box, "locked")
-    holder = Lockfile(root / ".chupa" / "state", instance_id="other", clock=Clock())
+    holder = Lockfile(root / ".chupa" / "state", verb="drain", instance_id="other", clock=Clock())
     holder.acquire()
     llm = FakeLLM([])
     try:

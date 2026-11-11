@@ -177,7 +177,7 @@ async def test_stop_finishes_merge_without_admitting_next_or_spawning(root, monk
         assert [e.body["to"] for e in terminals(rig, "aa")] == ["merged"]
         assert not any(e.ticket == "bb" and e.body.get("to") == "running" for e in rig.journal.read())
         assert not rig.owner.reexec.calls
-        lock = Lockfile(rig.checkout.config.state_dir, instance_id="probe", clock=rig.time)
+        lock = Lockfile(rig.checkout.config.state_dir, verb="drain", instance_id="probe", clock=rig.time)
         lock.acquire()
         lock.release()
     finally:
