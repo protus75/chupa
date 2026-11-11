@@ -1,0 +1,23 @@
+# commit-lock: five requisition-stage premise_failed terminals spent the attempts cap and routed it to the Reject queue
+# journal (.chupa/state/journal/*.jsonl), state transitions and reject_arrival for commit-lock
+2026-11-10T07:42:38.256001+00:00 state_transition {"to": "running"}
+2026-11-10T07:45:34.799713+00:00 state_transition {"to": "premise_failed", "stage": "requisition"}
+2026-11-10T07:46:08.714452+00:00 state_transition {"to": "running"}
+2026-11-10T07:50:40.505969+00:00 state_transition {"to": "premise_failed", "stage": "requisition"}
+2026-11-10T08:05:27.535560+00:00 state_transition {"to": "running"}
+2026-11-10T08:09:14.954361+00:00 state_transition {"to": "premise_failed", "stage": "requisition"}
+2026-11-10T08:09:45.882869+00:00 state_transition {"to": "running"}
+2026-11-11T00:50:17.698475+00:00 state_transition {"to": "abandoned"}
+2026-11-11T00:51:46.174736+00:00 cap_consumed {"cap": "retry", "ticket_sha": "6a8386b1008d614e88cc7b12451c7c5811dfe86e"}
+2026-11-11T00:51:46.183158+00:00 state_transition {"to": "running"}
+2026-11-11T00:56:14.149783+00:00 state_transition {"to": "premise_failed", "stage": "requisition"}
+2026-11-11T01:07:12.708357+00:00 state_transition {"to": "running"}
+2026-11-11T01:10:57.485145+00:00 state_transition {"to": "premise_failed", "stage": "requisition"}
+2026-11-11T01:43:52.683117+00:00 signal {"signal": "reject_arrival"}
+
+# ./dev.py status (Reject queue block)
+Reject queue:
+- commit-lock: premise_failed at requisition -- confirm commit-lock after editing, or reject commit-lock
+
+# docs/how-chupa-works.md section 6.7, the documented behavior
+441:- **Premise park:** a requisition-stage `premise_failed` draws no cap, makes no Diagnose call, and is not routed to the Reject queue. Edit the committed ticket to release it; no `confirm` is needed. Other premise failures: with the default `premise_bounce:
