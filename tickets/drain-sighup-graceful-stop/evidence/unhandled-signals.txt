@@ -1,0 +1,19 @@
+$ grep -n "SIGHUP\|SIGTERM\|add_signal_handler" chupa/*.py   # signal handlers exist only for serve; drain installs none
+chupa/__main__.py:725:    previous = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
+chupa/__main__.py:727:        loop.add_signal_handler(sig, stop)
+
+$ grep -n "signals=" chupa/__main__.py
+171:def build_serve(checkout: runner.Checkout, *, config_path=None, read=None, stems=None, prepare=runner.prepare_pipeline, signals=None, failure=None, argv=("serve",), reexec=None) -> serve.Serve:
+184:        signals=signals,
+456:            return asyncio.run(serve.serve(checkout, config_path=args.config, signals=_serve_signals, argv=invocation, reexec=reexec or SubprocessExec()))
+
+$ grep -n "start_new_session" chupa/seams.py   # agent/check children run in their own session, so a signal to the drain never reaches them
+120:                start_new_session=True,
+136:                    on_spawn(proc.pid)  # start_new_session: the child's pid IS its pgid
+
+# .chupa/state/engine.log: drain pid 3899774 starts, merges a ticket, then the log stops. No engine_stop, no stage events after 08:03:55Z; the next line is a fresh drain 17 hours later. The process that ended it is not recorded.
+{"ts": "2026-11-10T07:41:16.001011+00:00", "event": "engine_start", "verb": "drain", "pid": 3899774}
+{"ts": "2026-11-10T08:03:53.786926+00:00", "event": "stage_end", "stem": "guide-commands-not-argv", "attempt": 0, "surface": "review", "run_seq": 0, "outcome": "ok", "calls": 1}
+{"ts": "2026-11-10T08:03:54.072751+00:00", "event": "stage_start", "stem": "guide-commands-not-argv", "attempt": 0, "surface": "merge"}
+{"ts": "2026-11-10T08:03:55.105036+00:00", "event": "stage_end", "stem": "guide-commands-not-argv", "attempt": 0, "surface": "merge", "outcome": "ok"}
+{"ts": "2026-11-11T00:50:17.165959+00:00", "event": "engine_start", "verb": "drain", "pid": 407188}
