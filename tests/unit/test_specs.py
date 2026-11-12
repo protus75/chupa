@@ -22,10 +22,24 @@ from chupa.specs import (
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parents[2] / "chupa" / "specs"
-    for name, version in (("implement", "2.10"), ("requisition_review", "3.11"), ("diagnose", "1.5")):
+    for name, version in (("implement", "2.10"), ("requisition_review", "3.12"), ("diagnose", "1.5")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
+
+
+def test_requisition_review_spec_checks_changed_text_against_unchanged():
+    text = (Path(__file__).resolve().parents[2] / "chupa/specs/requisition_review.md").read_text()
+    spec = load_spec(text)
+    rendered = render(spec, {name: f"fixture {name}" for name in spec.inputs})
+    task = " ".join(rendered.split("## Task\n", 1)[1].split("## Inputs\n", 1)[0].split())
+    # A limit alone misses contradictions; a missing guard permits whole-ticket re-review.
+    for phrase in (
+        "check each changed statement against every unchanged criterion, Definition-of-rejected clause, and preservation test it interacts with",
+        "against the changed text",
+        "Unchanged text that no changed statement touches is not reviewed again.",
+    ):
+        assert phrase in task
 
 
 def test_requisition_review_spec_snags_missing_reproduction_exit():
