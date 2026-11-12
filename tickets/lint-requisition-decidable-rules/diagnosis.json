@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "1029dec1e49dadd6020143a1a0a17265ace95f4b",
+  "stem": "lint-requisition-decidable-rules",
+  "attempt": 1,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Fence gap: tests/unit/test_docs_verb.py::test_new_guide_paths_without_disk mocks cli.validate_ticket to return the string \"ticket\", so the new lint_findings call in __main__._new cannot run. Add the file to ## Scope fence and patch cli.lint_findings to return [], like evidence_findings at line 26.",
+    "Fence gap: tests/unit/test_git_commit.py::test_intake_skips_concurrent_commit mocks tickets.validate_ticket with a SimpleNamespace that has only frontmatter. Add the file to ## Scope fence and patch tickets.lint_findings to return [], like evidence_findings at line 102.",
+    "Do not make lint_findings tolerate incomplete ticket objects so these mocks pass. That is a defensive dual path, which CLAUDE.md section A bans. Fix the two tests inside the fence instead.",
+    "AC4: attempt 1 found that unsettled ticket watch-folds-whole-journal fences chupa/__main__.py, which has unit floor 13, with no tests/unit path. Name it in the run record as a real defect in that ticket. Do not edit that ticket from this one.",
+    "Redo all the work from the merge base: lint_findings in chupa/tickets.py; calls from intake, _lint, _new and review_target; the snag branch in review_ticket; the spec trim and version bump; the fixture, doc and test updates. Then run ./dev.py test until it exits 0."
+  ],
+  "mechanical": null,
+  "spec_version": "1.5",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
