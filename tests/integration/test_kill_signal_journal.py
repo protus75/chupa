@@ -53,6 +53,7 @@ class Rig:
             apply=apply or self.apply,
             files=lambda: reversed(list((self.state / "control/inbox").glob("*"))),
             read=Path.read_bytes,
+            known=lambda _: False,
         )
 
     def publish(self, id, verb="kill", hold=None, life=None):

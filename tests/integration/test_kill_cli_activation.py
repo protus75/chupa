@@ -142,6 +142,7 @@ def test_kill_discovery_and_lifecycle_races_fail_closed(root, monkeypatch, capsy
         consumer = daemon.PauseConsumer(
             journal=journal,
             lifecycle_id="replacement",
+            known=lambda _: False,
             state_dir=owner.state_dir,
             fs=LocalFileSystem(),
             sleep=lambda _: turn(),
@@ -555,7 +556,7 @@ async def test_kill_application_is_once_and_identity_bound(root, monkeypatch, po
                 journal.append(EventType.SIGNAL, body)
 
         def reconstruct(lifecycle=life):
-            return daemon.PauseConsumer(journal=journal, lifecycle_id=lifecycle, state_dir=state, fs=c.fs, sleep=c.sleep, files=lambda: (), read=Path.read_bytes)
+            return daemon.PauseConsumer(journal=journal, lifecycle_id=lifecycle, state_dir=state, fs=c.fs, sleep=c.sleep, files=lambda: (), read=Path.read_bytes, known=lambda _: False)
 
         recovered = reconstruct()
         recovered.inbox.recover()

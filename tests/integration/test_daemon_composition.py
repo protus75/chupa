@@ -2012,7 +2012,9 @@ async def test_composed_admission_holds_accept_identity_bound_resume(admission_c
         assert not queue.paused and consumer.projection.pause_id == "zz-pause"
         assert read_active(consumer.state_dir, Path.read_bytes) == (life, "zz-pause")
         # Reconstruction applies accepted records and refreshes the selected discovery without new decisions.
-        recovered = daemon.PauseConsumer(journal=checkout.journal, lifecycle_id=life, state_dir=consumer.state_dir, fs=consumer.fs, sleep=sleep, files=consumer.inbox.files, read=consumer.inbox.read)
+        recovered = daemon.PauseConsumer(
+            journal=checkout.journal, lifecycle_id=life, state_dir=consumer.state_dir, fs=consumer.fs, sleep=sleep, files=consumer.inbox.files, read=consumer.inbox.read, known=consumer.inbox.known
+        )
         recovered.hold(later)
         recovered.publish()
         assert read_active(consumer.state_dir, Path.read_bytes) == (life, later)

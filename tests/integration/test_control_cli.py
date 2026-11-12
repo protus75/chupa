@@ -40,9 +40,8 @@ def test_confirm_held_without_writer_lock(tmp_path, monkeypatch, capsys, dirless
             ctx.fs.write(path, stamp(path.read_text(), "state", "draft").encode())
             await commit(ctx, ctx.repo, [f"tickets/{ticket.stem}/ticket.md"])
             ctx.driver.journal.append(EventType.SIGNAL, {"signal": "ticket_intake", "state": "draft"}, ticket=ticket.stem)
-            consumer = admission_control(ctx)
+            consumer = admission_control(ctx, known=lambda stem: (ctx.repo / f"tickets/{stem}/ticket.md").is_file())
             checkout = runner.Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git, ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
-            consumer.inbox.known = lambda stem: (checkout.repo / f"tickets/{stem}/ticket.md").is_file()
             owner = entry.build_serve(checkout)
             lock = Lockfile(ctx.config.state_dir, verb="drain", instance_id="live", clock=ctx.driver.clock)
             lock.acquire()
@@ -351,8 +350,7 @@ def test_live_verdict_recovery_and_refusal(tmp_path, monkeypatch, capsys, kind):
         await commit(ctx, ctx.repo, ["tickets/child/ticket.md"])
         checkout = runner.Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git, ctx.driver.journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
         owner = entry.build_serve(checkout)
-        inbox = admission_control(ctx).inbox
-        inbox.known = lambda name: (ctx.repo / f"tickets/{name}/ticket.md").is_file() or any(e.ticket == name for e in ctx.driver.journal.read())
+        inbox = admission_control(ctx, known=lambda name: (ctx.repo / f"tickets/{name}/ticket.md").is_file() or any(e.ticket == name for e in ctx.driver.journal.read())).inbox
         lock = Lockfile(ctx.config.state_dir, verb="drain", instance_id="live", clock=ctx.driver.clock)
         lock.acquire()
         control.write_active(ctx.config.state_dir, control.ControlProjection(inbox.lifecycle_id), ctx.fs, hold_id=None)
@@ -415,8 +413,7 @@ def test_live_confirm_old_draft_and_unknown_stem(tmp_path):
         await runner.verdict(stem, checkout, kill=False)
         ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed", "routed": "reject_queue"}, ticket=stem)
         owner = entry.build_serve(checkout)
-        inbox = admission_control(ctx).inbox
-        inbox.known = lambda name: (ctx.repo / f"tickets/{name}/ticket.md").is_file() or any(e.ticket == name for e in ctx.driver.journal.read())
+        inbox = admission_control(ctx, known=lambda name: (ctx.repo / f"tickets/{name}/ticket.md").is_file() or any(e.ticket == name for e in ctx.driver.journal.read())).inbox
         for identity, name in (("first", stem), ("missing", "missing"), ("known", "known")):
             if name == "known":
                 ctx.driver.journal.append(EventType.STATE_TRANSITION, {"to": "gate_failed"}, ticket=name)
@@ -496,8 +493,7 @@ def test_extension_repeat_keep(tmp_path, capsys, live):
         stem = ticket.stem
         journal = ctx.driver.journal
         checkout = runner.Checkout(ctx.repo, ctx.config, ctx.env, ctx.exec_, ctx.git, journal, ctx.fs, ctx.driver.clock, ctx.driver.sleep)
-        inbox = admission_control(ctx).inbox
-        inbox.known = lambda name: name == stem
+        inbox = admission_control(ctx, known=lambda name: name == stem).inbox
         owner = entry.build_serve(checkout)
         lock = Lockfile(ctx.config.state_dir, verb="drain", instance_id="live", clock=ctx.driver.clock)
         if live:

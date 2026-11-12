@@ -143,7 +143,7 @@ def test_green_candidate_merges_without_baseline_or_confirm(ctx):
         ctx.fs.write(ctx.repo / "chupa/other.py", b"main changed\n")
         await commit(ctx, ctx.repo, ["chupa/other.py"])
         before = await ctx.git.rev_parse(ctx.repo, "main")
-        queue = MergeQueue(ctx, escalate=lambda _: pytest.fail("unexpected escalation"), control=admission_control(ctx))
+        queue = MergeQueue(ctx, escalate=lambda _: pytest.fail("unexpected escalation"), control=admission_control(ctx, known=lambda _: False))
         queue.offer(ticket, attempt=0)
         [result] = await queue.process()
         assert result.outcome == "ok" and result.artifact.commit != before
@@ -190,10 +190,11 @@ def scripted(ctx, monkeypatch, results):
     return calls
 
 
-def admission_control(ctx, lifecycle="admission-life"):
+def admission_control(ctx, lifecycle="admission-life", *, known):
     return PauseConsumer(
         journal=ctx.driver.journal,
         lifecycle_id=lifecycle,
+        known=known,
         state_dir=ctx.config.state_dir,
         fs=ctx.fs,
         sleep=ctx.driver.sleep,
@@ -646,7 +647,7 @@ def test_tree_mismatch_escalates_and_pauses(ctx, monkeypatch):
 
         monkeypatch.setattr(ctx.git, "rev_parse", mismatch)
         escalations = []
-        queue = MergeQueue(ctx, escalate=escalations.append, control=admission_control(ctx))
+        queue = MergeQueue(ctx, escalate=escalations.append, control=admission_control(ctx, known=lambda _: False))
         queue.offer(ticket, attempt=0)
         with pytest.raises(TreeMismatch):
             await queue.process()
@@ -670,7 +671,7 @@ def test_distinct_red_streak_pause_and_resume(ctx, monkeypatch):
         ctx.config.review.mechanical = [host("integration")]
         calls = scripted(ctx, monkeypatch, [(1, "", "red")] * 4 + [(0, "", "")] * 2)
         escalations = []
-        queue = MergeQueue(ctx, escalate=escalations.append, control=admission_control(ctx))
+        queue = MergeQueue(ctx, escalate=escalations.append, control=admission_control(ctx, known=lambda _: False))
         await admission(ctx, tickets[0], queue=queue)
         await approve(ctx, tickets[0])
         ctx.fs.write(ctx.repo / "chupa/other.py", b"main moved again\n")
@@ -964,7 +965,7 @@ def test_merge_queue_is_reachable_from_production():
 def test_inline_admission_does_not_use_merge_queue(ctx, monkeypatch):
     async def scenario():
         ticket = await ready(ctx)
-        queue = MergeQueue(ctx, escalate=lambda _: None, control=admission_control(ctx))
+        queue = MergeQueue(ctx, escalate=lambda _: None, control=admission_control(ctx, known=lambda _: False))
         queue._hold(ticket.stem, {"kind": TREE_MISMATCH, "checked_tree": "a", "main_tree": "b"})
 
         def forbidden(*args, **kwargs):
@@ -986,7 +987,7 @@ def test_resume_waits_for_active_admission(ctx, monkeypatch, cancel):
         await commit(ctx, ctx.repo, ["chupa/other.py"], "main moves")
         ctx.config.review.mechanical = [host("integration")]
         scripted(ctx, monkeypatch, [(1, "", "red")] * 3)
-        queue = MergeQueue(ctx, escalate=lambda _: None, control=admission_control(ctx))
+        queue = MergeQueue(ctx, escalate=lambda _: None, control=admission_control(ctx, known=lambda _: False))
         for ticket in tickets[:2]:
             await admission(ctx, ticket, queue=queue)
         entered, release = asyncio.Event(), asyncio.Event()
@@ -1023,7 +1024,7 @@ def test_resume_waits_for_active_admission(ctx, monkeypatch, cancel):
 
 @pytest.mark.parametrize("kind", [RED_STREAK, TREE_MISMATCH])
 def test_admission_hold_signal_precedes_projection(ctx, monkeypatch, kind):
-    consumer = admission_control(ctx)
+    consumer = admission_control(ctx, known=lambda _: False)
     chronology = []
     queue = MergeQueue(ctx, control=consumer, escalate=lambda event: chronology.append("escalate"))
     body = {"kind": RED_STREAK, "stems": ["one", "two", "three"], "limit": 3} if kind == RED_STREAK else {"kind": TREE_MISMATCH, "checked_tree": "checked", "main_tree": "main"}
@@ -1073,7 +1074,7 @@ def test_admission_resume_matches_lifecycle_and_hold(ctx, monkeypatch):
     monkeypatch.setattr(mergequeue, "uuid4", lambda: SimpleNamespace(hex=next(identities)))
 
     async def scenario():
-        consumer = admission_control(ctx)
+        consumer = admission_control(ctx, known=lambda _: False)
         queue = MergeQueue(ctx, control=consumer, escalate=lambda _: None)
         request(consumer, "01-premature", hold=future)
         request(consumer, "02-absent", hold="absent")
@@ -1124,7 +1125,7 @@ def test_admission_resume_matches_lifecycle_and_hold(ctx, monkeypatch):
 
 def test_admission_resume_decision_precedes_release(ctx, monkeypatch):
     async def scenario():
-        consumer = admission_control(ctx)
+        consumer = admission_control(ctx, known=lambda _: False)
         queue = MergeQueue(ctx, control=consumer, escalate=lambda _: None)
         queue.red_stems[:] = ["one", "two", "three"]
         queue._hold("three", {"kind": RED_STREAK, "stems": list(queue.red_stems), "limit": 3})
@@ -1161,7 +1162,7 @@ def test_admission_resume_decision_precedes_release(ctx, monkeypatch):
             consumer.inbox.consume()
         await queue.process()
         assert queue.paused
-        recovered = admission_control(ctx)
+        recovered = admission_control(ctx, known=lambda _: False)
         recovered.hold(identity)
         before = ctx.driver.journal.read()
         recovered.inbox.consume()

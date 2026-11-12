@@ -42,7 +42,13 @@ class Rig:
 
     def reconstruct(self):
         return daemon.control_inbox(
-            journal=self.journal, lifecycle_id=self.lifecycle, holds=lambda: self.holds, apply=self.apply, files=lambda: (self.state / "control/inbox").glob("*"), read=Path.read_bytes
+            journal=self.journal,
+            lifecycle_id=self.lifecycle,
+            holds=lambda: self.holds,
+            apply=self.apply,
+            files=lambda: (self.state / "control/inbox").glob("*"),
+            read=Path.read_bytes,
+            known=lambda _: False,
         )
 
     def publish(self, id, verb="pause", hold=None, lifecycle=None):

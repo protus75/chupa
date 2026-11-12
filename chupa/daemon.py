@@ -69,10 +69,17 @@ class HeartbeatCycle:
 
 
 def control_inbox(
-    *, journal: Journal, lifecycle_id: str, holds: Callable[[], Set[str]], apply: Callable[[ControlProjection], None], files: Callable[[], Iterable[Path]], read: Callable[[Path], bytes]
+    *,
+    journal: Journal,
+    lifecycle_id: str,
+    holds: Callable[[], Set[str]],
+    apply: Callable[[ControlProjection], None],
+    files: Callable[[], Iterable[Path]],
+    read: Callable[[Path], bytes],
+    known: Callable[[str], bool],
 ) -> ControlInbox:
     """Explicitly supplied by the lock holder, never a second writer."""
-    return ControlInbox(journal=journal, lifecycle_id=lifecycle_id, holds=holds, apply=apply, files=files, read=read)
+    return ControlInbox(journal=journal, lifecycle_id=lifecycle_id, holds=holds, apply=apply, files=files, read=read, known=known)
 
 
 async def executor_abort(abort_current: Callable[[], Awaitable[None]]) -> None:
@@ -173,6 +180,7 @@ class PauseConsumer:
         sleep: Sleep,
         files: Callable[[], Iterable[Path]],
         read: Callable[[Path], bytes],
+        known: Callable[[str], bool],
         recover: Callable[[], None] | None = None,
         storm_holds: Callable[[], dict[str, str]] | None = None,
     ) -> None:
@@ -184,7 +192,7 @@ class PauseConsumer:
         self._advertised: tuple[str, str | None] | None = None
         self._stop: asyncio.Task | None = None
         self.admission: str | None = None
-        self.inbox = control_inbox(journal=journal, lifecycle_id=lifecycle_id, holds=self._holds, apply=self._apply, files=files, read=read)
+        self.inbox = control_inbox(journal=journal, lifecycle_id=lifecycle_id, holds=self._holds, apply=self._apply, files=files, read=read, known=known)
 
     def storm_holds(self) -> dict[str, str]:
         return {} if self._storm_holds is None else self._storm_holds()

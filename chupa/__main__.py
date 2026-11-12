@@ -86,10 +86,10 @@ def build_control(checkout: runner.Checkout) -> PauseConsumer:
         sleep=checkout.sleep,
         files=lambda: (checkout.config.state_dir / "control/inbox").glob("*"),
         read=Path.read_bytes,
+        known=lambda stem: (checkout.repo / ticket_path(stem)).is_file() or any(e.ticket == stem for e in checkout.journal.read()),
         recover=box.recover,
         storm_holds=StormLedger(journal=checkout.journal, clock=checkout.clock).holds,
     )
-    consumer.inbox.known = lambda stem: (checkout.repo / ticket_path(stem)).is_file() or any(e.ticket == stem for e in checkout.journal.read())
     timers = Timers(journal=checkout.journal, clock=checkout.clock, sleep=checkout.sleep)
     consumer.providers = ProviderSession(checkout.config, journal=checkout.journal, clock=checkout.clock, sleep=checkout.sleep, timers=timers)
     consumer.load_config = lambda: load_config(None, cwd=checkout.repo)

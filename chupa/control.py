@@ -165,14 +165,22 @@ class ControlInbox:
     """
 
     def __init__(
-        self, *, journal: Journal, lifecycle_id: str, holds: Callable[[], Set[str]], apply: Callable[[ControlProjection], None], files: Callable[[], Iterable[Path]], read: Callable[[Path], bytes]
+        self,
+        *,
+        journal: Journal,
+        lifecycle_id: str,
+        holds: Callable[[], Set[str]],
+        apply: Callable[[ControlProjection], None],
+        files: Callable[[], Iterable[Path]],
+        read: Callable[[Path], bytes],
+        known: Callable[[str], bool],
     ) -> None:
         if not isinstance(lifecycle_id, str) or not lifecycle_id:
             raise ValueError("supply the owner's nonempty restart-unique lifecycle identity")
         self.journal, self.lifecycle_id = journal, lifecycle_id
         self.holds, self.apply, self.files, self.read = holds, apply, files, read
         self._applied: ControlProjection | None = None
-        self.known: Callable[[str], bool] = lambda _: False
+        self.known = known
 
     def _fold(self) -> tuple[set[str], ControlProjection, bool]:
         decided = set()
