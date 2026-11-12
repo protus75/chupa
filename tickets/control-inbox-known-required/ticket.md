@@ -6,7 +6,7 @@ kind: chore
 ---
 
 ## Depends on
-- none
+- drain-settles-admissions
 
 ## Context
 - chupa/control.py::ControlInbox
@@ -31,7 +31,7 @@ After this change no inbox can exist without a stem rule: `known` is a required 
 ## Scope in / Scope out
 - In: `chupa/control.py`: `ControlInbox.__init__` takes required keyword-only `known: Callable[[str], bool]`; remove the `lambda _: False` default.
 - In: `chupa/daemon.py`: `control_inbox` and `PauseConsumer.__init__` take required keyword-only `known` and pass it through.
-- In: `chupa/__main__.py` `build_control`: pass the stem rule as the `known` constructor argument instead of assigning `consumer.inbox.known` after construction. `chupa/serve.py`: no `inbox.known` assignment remains (if one is present at the base commit, remove it; `build_control` supplies the rule).
+- In: `chupa/__main__.py` `build_control`: the one `consumer.inbox.known = ...` assignment (added by `drain-settles-admissions`) becomes the `known=` constructor argument to `PauseConsumer`. `chupa/serve.py` has no `inbox.known` assignment after `drain-settles-admissions`; leave it so.
 - In: the integration tests that construct `ControlInbox`, `control_inbox` or `PauseConsumer` pass `known` explicitly, and the tests that assign `inbox.known` after construction pass it to the constructor instead: `tests/integration/test_control_cli.py`, `tests/integration/test_control.py`, `tests/integration/test_kill_signal_journal.py`, `tests/integration/test_kill_cli_activation.py`, `tests/integration/test_daemon_composition.py`, `tests/integration/test_mergequeue.py`.
 - In: `tests/unit/test_control_known.py` (new): the constructor tests in the acceptance criteria.
 - Out: the stem rule itself, admission settling in drain or serve, `tests/unit/test_verdict_extension.py` (it builds the inbox with `object.__new__` and never calls `__init__`), every other control verb.
