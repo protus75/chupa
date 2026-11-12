@@ -35,6 +35,7 @@ After this change a `confirm` or `reject` published while `drain` holds the lock
 - In: `chupa/serve.py`: remove the now-duplicate `self.control.inbox.known = ...` assignment. Move the body of `Serve.apply_verdict` that applies one request crash-safely (the baseline effect, the already-applied detection, the `runner.verdict_locked` call and its refusal capture) into one function in `chupa/runner.py` that both engines call. `Serve.apply_verdict` keeps only its serve-specific tail (refusal logging via its engine log and `scheduler.update` for a confirmed published stem) around that shared function. One implementation of applying an admission, no copy.
 - In: `chupa/drain.py`: call `consumer.inbox.settle_admissions(...)` with the shared apply function wherever the drain consumes its inbox: in the `_Drain._await_controlled` monitor loop while a ticket runs, and in the between-ticket control checkpoint. A refused verdict (for example a settled stem) is written to the engine log with event `verdict_refused`, as `serve` does.
 - In: `tests/integration/test_drain_admissions.py` (new): the drain tests named in the acceptance criteria, built on `pause_checkout` and `build_control` (the production composition), never on a hand-set `inbox.known`.
+- In: `tests/unit/test_verdict_extension.py`: unit tests with fakes for each new path (criterion 8). Its existing `Serve.apply_verdict` and `runner.verdict_locked` tests move with the refactor where their call target changes.
 - In: `tests/regress_drain_settles_admissions.py` (new): the carried reproducer. It runs the new test module with pytest (stdout redirected to stderr, as `tests/regress_bug_evidence_before_dispatch.py` does) and prints the `regression_result` object: `pass` and exit 0 when pytest exits 0, `defect` and exit 1 when pytest exits 1, `error` and exit 2 otherwise.
 - In: `docs/how-chupa-works.md`: section 7.3 says `confirm` and `reject` publish verdict requests to the running drain or serve, which applies them; drop "drain decides them stale". Keep the section 2.1 rows consistent with it.
 - Out: the `ControlInbox.known` default and the constructor signature (ticket `control-inbox-known-required`), the extension, `chupa/observe.py`, the CLI's `submitted` message, `pause`/`resume`/`kill`/`stop`/`retro` handling, `run` (which reads no control requests), and replaying requests already decided stale.
@@ -45,6 +46,7 @@ After this change a `confirm` or `reject` published while `drain` holds the lock
 - chupa/runner.py
 - chupa/drain.py
 - tests/integration/test_drain_admissions.py
+- tests/unit/test_verdict_extension.py
 - tests/regress_drain_settles_admissions.py
 - docs/how-chupa-works.md
 
@@ -56,11 +58,12 @@ After this change a `confirm` or `reject` published while `drain` holds the lock
 5. `grep -n "inbox.known" chupa/serve.py` prints nothing, and `grep -n "inbox.known" chupa/__main__.py` prints the one assignment in `build_control`.
 6. `uv run python tests/regress_drain_settles_admissions.py` prints `{"regression_result": "pass"}` and exits 0 on the branch.
 7. `docs/how-chupa-works.md` section 7.3 no longer contains `drain decides them stale`.
-8. `./dev.py test` exits 0, including the existing serve live-verdict tests in `tests/integration/test_control_cli.py` and `tests/integration/test_serve_dispatch.py`.
+8. `tests/unit/test_verdict_extension.py` has unit tests with fakes that check: the shared apply function in `chupa/runner.py` returns the refusal from a faked `verdict_locked` and does not call it again for a request already applied; the `build_control` stem rule is true for an existing `tickets/<stem>/ticket.md` and for a journaled stem, and false for neither; the drain's settle path writes a `verdict_refused` engine-log event when the apply function returns a refusal; and `Serve.apply_verdict` delegates to the shared function. `./dev.py test tests/unit/test_verdict_extension.py` checks each.
+9. `./dev.py test` exits 0, including the existing serve live-verdict tests in `tests/integration/test_control_cli.py` and `tests/integration/test_serve_dispatch.py`.
 
 ## Verification
 ```
-./dev.py test tests/integration/test_drain_admissions.py
+./dev.py test tests/integration/test_drain_admissions.py tests/unit/test_verdict_extension.py
 ./dev.py test
 ```
 
