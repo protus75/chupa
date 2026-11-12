@@ -33,6 +33,8 @@ An unexpected exception inside one ticket's dispatch stops the whole drain inste
 - In: `tests/integration/test_daemon_composition.py`. The `failure` case of `test_control_lifecycle_cleanup_on_exit_and_handoff` (around line 1663) drives the real drain with a dispatch raising `ValueError("stage failure")` and asserts `pytest.raises(ValueError, match="stage failure")`. Change it to assert that the drain returns normally, journals `infra_error` for `work`, and still ends its trace with `[("discovery", None), "unlock"]`. No other case in that file changes.
 - In: `tests/regress_drain_containment.py` (new), the carried reproducer shaped like `tests/regress_drain_deadline.py`. It runs `tests/integration/test_drain_containment.py` with `-k raises` through pytest, so it selects the three `test_dispatch_raises_*` tests. It prints `defect` when the drain lets the exception escape (pytest exit 1) and `pass` when it is contained, and `error` for any other pytest exit.
 - In: `docs/how-chupa-works.md`. Where the drain loop is described, add one sentence: a dispatch exception is journaled as an `infra_error` terminal, re-offered, and held in the Reject queue at the attempts cap. The `poison` row stays "read by nothing".
+- In: the `drain`-verb branch of the dispatch-time dormant probes in `tests/integration/test_daemon_admission.py::test_daemon_admission_is_dormant`, `tests/integration/test_daemon_config.py::test_config_snapshot_is_dormant`, `tests/integration/test_heartbeat.py::test_heartbeat_is_dormant`, `tests/integration/test_daemon_tasks.py::test_background_consumers_are_dormant`, `tests/integration/test_kill_failure_suppression.py::test_kill_failure_suppression_is_dormant`, `tests/integration/test_kill_worker_stop.py::test_kill_worker_stop_is_dormant`, and `tests/integration/test_kill_cli_activation.py::test_kill_activation_keeps_worker_boundaries_dormant`. Each wraps a `drain` whose dispatch raises the probe's `AssertionError` in `pytest.raises`. For the `drain` verb only, replace that `pytest.raises` with assertions that the drain returns 0, journals `infra_error` for the stem with an `error` naming `AssertionError` and the probe message, and leaves the call list empty. Every later `drain` in the same test uses a fresh stem, because the probed stem is attempts-spent. The `run`-verb cases and the construction-time probes (which raise before dispatch starts) are unchanged.
+- The other coverage dependents of `chupa/drain.py` are unaffected: none raises from a dispatch task under the `drain` verb and expects that error to escape. `tests/integration/test_daemon_pause.py` fails in the control monitor and `tests/integration/test_checkpoint.py` fails at pipeline construction, so both still propagate.
 - Out: wiring `caps.poison`, a new cap or a new terminal state, exception handling in `chupa/runner.py` or `chupa/serve.py`, handling for `_run_retro`, changes to the `ValueError` seam-contract checks, changes to control-monitor or kill-cleanup error handling, and `Exception` handling that hides `KeyboardInterrupt` or cancellation.
 
 ## Scope fence
@@ -42,13 +44,20 @@ An unexpected exception inside one ticket's dispatch stops the whole drain inste
 - tests/integration/test_daemon_composition.py
 - tests/regress_drain_containment.py
 - docs/how-chupa-works.md
+- tests/integration/test_daemon_admission.py
+- tests/integration/test_daemon_config.py
+- tests/integration/test_heartbeat.py
+- tests/integration/test_daemon_tasks.py
+- tests/integration/test_kill_failure_suppression.py
+- tests/integration/test_kill_worker_stop.py
+- tests/integration/test_kill_cli_activation.py
 
 ## Acceptance criteria
 1. `./dev.py test tests/integration/test_drain_containment.py` passes. `test_dispatch_raises_is_contained` asserts the drain exits 0, the failing stem's last transition is `infra_error` with an error text naming `IsADirectoryError`, and `bbb-ok` reaches `merged`. Without the fix the exception escapes `Drain.run` and the test fails.
 2. `test_dispatch_raises_after_terminal_keeps_one_terminal` in `tests/integration/test_drain_containment.py` asserts that a dispatch which journals `gate_failed` and then raises leaves exactly one terminal transition after the last `running`. A handler that always appends `infra_error` would leave two, and the test fails on that.
 3. `test_dispatch_raises_every_offer_reaches_reject_queue` in `tests/integration/test_drain_containment.py` asserts that a dispatch which raises on every offer reaches `caps.spent(...) == "attempts"`, appears in `reject_queue`, and is not dispatched again in that invocation. An unreleasable hold would fail this test.
 4. `./dev.py test tests/unit/test_drain_containment.py` passes. It runs both handler branches of `chupa/drain.py` (append `infra_error` when no terminal follows `running`; append nothing when one does) and the re-raise branch, so the `chupa/drain.py` floor in `test-gate.toml` holds from `tests/unit` alone. A handler that always appends fails the append-nothing test.
-5. `./dev.py test tests/integration/test_kill_cli_activation.py` passes unchanged, so `test_kill_cleanup_is_atomic_and_failures_propagate` still sees control-monitor and kill-path failures (`executor-refused`, `decision`, `executor`, `dispatch`, `application`) propagate out of the drain. A handler that contains them fails that test.
+5. `./dev.py test tests/integration/test_kill_cli_activation.py` passes. `test_kill_cleanup_is_atomic_and_failures_propagate` is unchanged and still sees control-monitor and kill-path failures (`executor-refused`, `decision`, `executor`, `dispatch`, `application`) propagate out of the drain; a handler that contains them fails that test. Only the `drain` branch of `test_kill_activation_keeps_worker_boundaries_dormant` changes.
 6. `./dev.py test tests/integration/test_daemon_composition.py` passes with the updated `failure` exit case, which expects a normal return, an `infra_error` for `work`, and the trace ending `unlock`.
 7. `uv run python tests/regress_drain_containment.py` prints `{"regression_result": "pass"}` and exits 0.
 8. `./dev.py test tests/integration/test_drain.py` passes unchanged, so the `ValueError` seam-contract tests still raise.
@@ -61,6 +70,12 @@ An unexpected exception inside one ticket's dispatch stops the whole drain inste
 ./dev.py test tests/integration/test_kill_cli_activation.py
 ./dev.py test tests/integration/test_daemon_composition.py
 ./dev.py test tests/integration/test_drain.py
+./dev.py test tests/integration/test_daemon_admission.py
+./dev.py test tests/integration/test_daemon_config.py
+./dev.py test tests/integration/test_heartbeat.py
+./dev.py test tests/integration/test_daemon_tasks.py
+./dev.py test tests/integration/test_kill_failure_suppression.py
+./dev.py test tests/integration/test_kill_worker_stop.py
 uv run python tests/regress_drain_containment.py
 ./dev.py test
 ```

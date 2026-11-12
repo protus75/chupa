@@ -1,0 +1,25 @@
+# .chupa/state/engine.log: one ticket's dispatch exception ended the whole drain (three times)
+{"ts": "2026-11-07T07:22:57.481677+00:00", "event": "engine_stop", "verb": "drain", "pid": 65534, "outcome": "error: IsADirectoryError"}
+{"ts": "2026-11-10T05:37:57.247888+00:00", "event": "engine_stop", "verb": "drain", "pid": 906282, "outcome": "error: UnicodeDecodeError"}
+{"ts": "2026-11-10T06:04:40.242326+00:00", "event": "engine_stop", "verb": "drain", "pid": 1164988, "outcome": "error: UnicodeDecodeError"}
+
+# copied from tickets/context-lint-renders/evidence/drain-unicode-crash.txt (drain pid 906282)
+# .chupa/state/drain.out (2026-11-10, drain pid 906282), traceback tail
+# Ticket Context listed vscode-chupa/images/ChupaExt.png (vscode-readme-screenshot) and
+# vscode-chupa/media/marketplace-icon.png (vscode-marketplace-icon); both passed ./dev.py lint.
+  File "/home/djp/source/chupa/chupa/requisition.py", line 59, in _base_render
+    inputs = implement_inputs(repo, text, ticket, ())
+  File "/home/djp/source/chupa/chupa/stages.py", line 531, in implement_inputs
+    context = "\n\n".join(f"### {p}\n{context_excerpt(p, (repo / context_path(p)).read_text()) if p in ticket.context else (repo / p).read_text()}" for p in paths) or "none"
+              ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/djp/source/chupa/chupa/stages.py", line 531, in <genexpr>
+    context = "\n\n".join(f"### {p}\n{context_excerpt(p, (repo / context_path(p)).read_text()) if p in ticket.context else (repo / p).read_text()}" for p in paths) or "none"
+                                                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/djp/.local/share/uv/python/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/pathlib/__init__.py", line 788, in read_text
+    return f.read()
+           ~~~~~~^^
+  File "<frozen codecs>", line 325, in decode
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte
+
+# .chupa/state/engine.log
+{"ts": "2026-11-10T05:37:57.247888+00:00", "event": "engine_stop", "verb": "drain", "pid": 906282, "outcome": "error: UnicodeDecodeError"}
