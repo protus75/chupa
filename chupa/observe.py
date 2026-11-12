@@ -10,7 +10,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import get_args
 
-from chupa import runner
 from chupa.config import load_config
 from chupa.drain import RETIRED, authored_at, awaiting_operator, order_tickets, parked_blob
 from chupa.graph import layout
@@ -95,13 +94,13 @@ def started(ctx, pid: int) -> datetime:
     return datetime.strptime(text, "%a %b %d %H:%M:%S %Y").astimezone()
 
 
-def lock_holder(state: Path) -> datetime | None:
+def lock_holder(state: Path, name: str = "chupa.lock") -> datetime | None:
     """When the live lock holder (drain, serve, run, review, ...) started; None when no live process holds the lock.
 
     A killed drain leaves its lockfile behind, so a pid that no longer exists holds nothing.
     """
     try:
-        lock = json.loads((state / "chupa.lock").read_text())
+        lock = json.loads((state / name).read_text())
     except OSError, ValueError:
         return None
     if not lock.get("pid") or not lock.get("started_at"):
@@ -113,6 +112,32 @@ def lock_holder(state: Path) -> datetime | None:
     except PermissionError:
         pass
     return datetime.fromisoformat(lock["started_at"])
+
+
+def lock_verb(holder: dict, name: str) -> str:
+    if holder.get("verb"):
+        return holder["verb"]
+    if name == "chupa.lock":
+        return "chupa"
+    try:
+        argv = Path(f"/proc/{holder['pid']}/cmdline").read_bytes().decode().split("\0")
+        index = argv.index("chupa") + 1
+        if argv[index : index + 1] == ["--config"]:
+            index += 2
+        return argv[index] or "chupa"
+    except OSError, ValueError, IndexError, KeyError, UnicodeError:
+        return "chupa"
+
+
+def lock_display(state: Path, name: str) -> tuple[str, str]:
+    if lock_holder(state, name) is None:
+        return "", ""
+    try:
+        holder = json.loads((state / name).read_text())
+        verb = lock_verb(holder, name)
+        return f"{verb} since {clock(holder['started_at'])} (pid {holder['pid']})", verb
+    except OSError, ValueError, KeyError:
+        return "", ""
 
 
 def running_stems(state: Path, last_state: dict[str, dict]) -> list[str]:
@@ -496,17 +521,8 @@ def snapshot(ctx) -> dict:
     merged = sorted((s for s in last if to(s) in SETTLED), key=lambda s: last[s]["ts"], reverse=True)
     alive = lock_holder(state) is not None
     interrupted = set(orphans(history)) if not alive else set()
-    lock = ""
-    verb = ""
-    if alive:
-        try:
-            holder = json.loads((state / "chupa.lock").read_text())
-            pid, started_at = holder["pid"], holder["started_at"]
-        except OSError, ValueError, KeyError:
-            pass
-        else:
-            verb = holder.get("verb") or "chupa"
-            lock = f"{verb} since {clock(started_at)} (pid {pid})"
+    lock, verb = lock_display(state, "chupa.lock")
+    commit_lock, _ = lock_display(state, "commit.lock")
     running = running_stems(state, last)
     open_ = {s: t for s, t in tickets.items() if to(s) not in SETTLED | RETIRED and s not in running and t.frontmatter.state not in ("rejected", "merged")}
     runnable = {s: t for s, t in open_.items() if t.frontmatter.state == "confirmed" and s not in held_stems}
@@ -570,7 +586,7 @@ def snapshot(ctx) -> dict:
             "held": stem in held_stems,
             # Only a committed draft awaits `chupa confirm`; intake confirms a new hand-written one itself.
             "draft": bool(t) and t.frontmatter.state == "draft" and stem not in new,
-            # A committed draft can be confirmed while another process holds the lock; an uncommitted one cannot.
+            # Pending ticket changes go through intake before a verdict is submitted.
             "committed": stem not in dirty,
             # What `chupa run` accepts: confirmed, every dependency settled (it also needs the lock).
             "runnable": bool(t) and t.frontmatter.state == "confirmed" and set(t.depends) <= settled,
@@ -605,9 +621,9 @@ def snapshot(ctx) -> dict:
     for r in rows:
         open_section = r["section"] in ("queued", "blocked")
         valid = r["stem"] not in invalid
-        verdict = (r["draft"] or r["held"]) and (r["committed"] or not alive)
+        verdict = r["draft"] or r["held"]
         r["menu"] = {
-            "chupaReview": "off" if not (open_section and valid) else "locked" if alive and asyncio.run(runner.ticket_pending(ctx.git, ctx.root, r["stem"])) else "on",
+            "chupaReview": "on" if open_section and valid else "off",
             "chupaLint": "on" if r["section"] != "merged" else "off",
             "chupaRun": available(r["runnable"]),
             "chupaConfirm": "on" if verdict else "off",
@@ -743,6 +759,7 @@ def snapshot(ctx) -> dict:
         "at": now.isoformat(),
         "engine": verb in ENGINE_VERBS,
         "lock": lock,
+        "commitLock": commit_lock,
         "rows": rows,
         "steps": steps,
         "blockedCount": len(blocked_stems) + len(invalid),

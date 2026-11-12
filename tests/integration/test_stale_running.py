@@ -43,10 +43,10 @@ def test_confirm_reaps_then_refuses(stopped, capsys):
 
 
 def test_order_beside_dead_run(stopped, monkeypatch, capsys):
-    monkeypatch.setattr(observe, "lock_holder", lambda _: object())
+    monkeypatch.setattr(observe, "lock_holder", lambda _, *args: object())
     assert invoke(stopped, "order", "stale", "--priority", "P0") == 2
     assert "is running" in capsys.readouterr().err
-    monkeypatch.setattr(observe, "lock_holder", lambda _: None)
+    monkeypatch.setattr(observe, "lock_holder", lambda _, *args: None)
     assert invoke(stopped, "order", "stale", "--priority", "P0") == 0
     assert "priority: P0" in (stopped / "tickets/stale/ticket.md").read_text()
 
@@ -56,7 +56,7 @@ def test_status_shows_interrupted(stopped, monkeypatch, capsys):
     sections = dict(block.split("\n", 1) for block in capsys.readouterr().out.strip().split("\n\n"))
     assert "- stale" in sections["interrupted (the engine stopped mid-run; reject it, or start the engine to rerun it):"]
     assert "stale" not in sections["in flight:"]
-    monkeypatch.setattr(observe, "lock_holder", lambda _: object())
+    monkeypatch.setattr(observe, "lock_holder", lambda _, *args: object())
     assert invoke(stopped, "status") == 0
     assert "in flight:\n- stale" in capsys.readouterr().out
 
@@ -98,7 +98,7 @@ def test_menu_offers_reject_for_dead_run(tmp_path, monkeypatch):
     monkeypatch.setattr(observe, "uncommitted_tickets", lambda *a: (set(), set()))
     monkeypatch.setattr(observe, "committed_ticket_shas", lambda *a: {"stale": "sha"})
     monkeypatch.setattr(observe, "commits", lambda *a: {})
-    monkeypatch.setattr(observe, "lock_holder", lambda _: None)
+    monkeypatch.setattr(observe, "lock_holder", lambda _, *args: None)
     menu = observe.snapshot(ctx)["rows"][0]["menu"]
     assert (menu["chupaReject"], menu["chupaConfirm"]) == ("on", "off")
 
@@ -106,10 +106,10 @@ def test_menu_offers_reject_for_dead_run(tmp_path, monkeypatch):
         return False
 
     monkeypatch.setattr(runner, "ticket_pending", clean)
-    monkeypatch.setattr(observe, "lock_holder", lambda _: object())
+    monkeypatch.setattr(observe, "lock_holder", lambda _, *args: object())
     menu = observe.snapshot(ctx)["rows"][0]["menu"]
     assert (menu["chupaReject"], menu["chupaConfirm"]) == ("off", "off")
-    monkeypatch.setattr(observe, "lock_holder", lambda _: None)
+    monkeypatch.setattr(observe, "lock_holder", lambda _, *args: None)
     events[:] = [dict(type=e.type, ticket=e.ticket, body=e.body, ts=e.ts, key=e.key) for e in held_events("stale")]
     menu = observe.snapshot(ctx)["rows"][0]["menu"]
     assert (menu["chupaReject"], menu["chupaConfirm"]) == ("off", "off")
@@ -128,7 +128,7 @@ def test_every_locked_verb_reaps(stopped, monkeypatch):
     monkeypatch.setattr(runner, "reap", reap)
     path = stopped / "tickets/stale/ticket.md"
     path.write_text(path.read_text() + "\n")
-    for args in (("review", "stale"), ("dismiss", "id"), ("triage",), ("retro",), ("reject", "--yes", "stale")):
+    for args in (("dismiss", "id"), ("triage",), ("retro",), ("reject", "--yes", "stale")):
         calls.clear()
         with pytest.raises(RuntimeError, match="stopped after reap"):
             invoke(stopped, *args)

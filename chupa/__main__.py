@@ -570,18 +570,9 @@ async def _review(checkout: runner.Checkout, stem: str) -> int:
     if findings := stem_findings(stem):
         raise runner.Refusal(findings[0].message, findings[0].paved_road)
     if await runner.ticket_pending(checkout.git, checkout.repo, stem):
-        lock = Lockfile(checkout.config.state_dir, verb="review", instance_id=await checkout.git.describe(checkout.repo), clock=checkout.clock)
-        try:
-            lock.acquire()
-        except LockHeld as exc:
-            raise runner.Refusal(str(exc), f"wait for the running engine to commit the ticket through intake, or stop it, then retry `review {stem}`") from None
-        try:
-            await runner.reap(checkout)
-            result = await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
-            if refused := result.refused.get(stem):
-                raise runner.Refusal(f"{ticket_path(stem)} failed intake: " + "; ".join(f.message for f in refused), f"fix the ticket and retry `review {stem}`")
-        finally:
-            lock.release()
+        result = await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
+        if refused := result.refused.get(stem):
+            raise runner.Refusal(f"{ticket_path(stem)} failed intake: " + "; ".join(f.message for f in refused), f"fix the ticket and retry `review {stem}`")
     path = checkout.repo / ticket_path(stem)
     if not path.is_file():
         raise runner.Refusal(f"{ticket_path(stem)} does not exist", f"author the ticket before `review {stem}`")
@@ -871,6 +862,12 @@ async def _verdict(checkout, stem, verb, read_input, yes, extension):
         return await runner.verdict(stem, checkout, kill=verb == "reject", extension=extension)
     except LockHeld as exc:
         _require_engine(exc)
+    if await runner.ticket_pending(checkout.git, checkout.repo, stem):
+        from chupa.tickets import intake
+
+        result = await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
+        if refused := result.refused.get(stem):
+            raise runner.Refusal(f"{ticket_path(stem)} failed intake: " + "; ".join(f.message for f in refused), "fix the ticket and retry the verdict")
     try:
         lifecycle, _ = control.read_active(checkout.config.state_dir, Path.read_bytes)
     except ValueError as exc:

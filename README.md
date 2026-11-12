@@ -70,7 +70,7 @@ uv run chupa confirm  # confirm a draft or Reject item
 uv run chupa reject   # reject a draft or Reject item
 ```
 
-Stop `serve` before `drain`, `run`, or `review`: each takes the writer lock. See the [host run guide](https://github.com/protus75/chupa/blob/main/chupa/docs/host-running.md) for every verb.
+Stop `serve` before `drain` or `run`: each takes the writer lock. See the [host run guide](https://github.com/protus75/chupa/blob/main/chupa/docs/host-running.md) for every verb.
 
 ## VS Code extension
 

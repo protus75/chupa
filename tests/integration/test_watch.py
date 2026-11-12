@@ -267,7 +267,7 @@ def test_snapshot_display_fields(tmp_path, monkeypatch):
     ]
     monkeypatch.setattr(watch, "journal", lambda *args, **kwargs: events)
     monkeypatch.setattr(watch, "running_stems", lambda *args: ["live"])
-    monkeypatch.setattr(watch, "lock_holder", lambda state: None)
+    monkeypatch.setattr(watch, "lock_holder", lambda state, *args: None)
     monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: (set(), set()))
     monkeypatch.setattr(watch, "committed_ticket_shas", lambda ctx: {})
     monkeypatch.setattr(watch, "commits", lambda ctx: {"abc": {"date": "2026-01-03T02:00:00+00:00", "subject": "change", "short": "abc", "author": "Ada"}})
@@ -332,12 +332,7 @@ def test_snapshot_menu_availability(tmp_path, monkeypatch):
     resolved, _ = box.enqueue(message_class="suggestion", origin="operator", summary="Resolved")
     box.resolve(resolved, Resolution(kind="ticket", link="done"))
 
-    async def pending_ticket(git, repo, stem):
-        return stem == "held" and dirty_pending[0]
-
-    dirty_pending = [False]
-    monkeypatch.setattr(watch.runner, "ticket_pending", pending_ticket)
-    monkeypatch.setattr(watch, "lock_holder", lambda state: object())
+    monkeypatch.setattr(watch, "lock_holder", lambda state, *args: object())
     snap = watch.snapshot(ctx)
     rows = {row["stem"]: row for row in snap["rows"]}
     assert (rows["held"]["menu"]["chupaConfirm"], rows["held"]["menu"]["chupaRun"]) == ("on", "off")  # The lock does not block a committed verdict; unmet dependencies block Run.
@@ -352,13 +347,12 @@ def test_snapshot_menu_availability(tmp_path, monkeypatch):
     assert box_rows[pending]["menu"] == {"chupaTriage": "locked", "chupaDismiss": "locked"}  # Pending actions require the lock.
     assert box_rows[resolved]["menu"] == {"chupaTriage": "off", "chupaDismiss": "off"}  # Resolved actions are unavailable even when locked.
 
-    dirty_pending[0] = True
     monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: ({"held"}, set()))
     dirty = {row["stem"]: row for row in watch.snapshot(ctx)["rows"]}
-    assert (dirty["held"]["menu"]["chupaConfirm"], dirty["held"]["menu"]["chupaReject"]) == ("off", "off")  # The engine cannot admit dirty ticket content.
-    assert dirty["held"]["menu"]["chupaReview"] == "locked"  # Dirty review needs intake under the lock.
+    assert (dirty["held"]["menu"]["chupaConfirm"], dirty["held"]["menu"]["chupaReject"]) == ("on", "on")  # Intake commits dirty ticket content before admission.
+    assert dirty["held"]["menu"]["chupaReview"] == "on"  # Dirty review runs intake without the engine lock.
     assert dirty["invalid"]["menu"]["chupaReview"] == "off"  # Invalid rows remain unavailable.
-    monkeypatch.setattr(watch, "lock_holder", lambda state: None)
+    monkeypatch.setattr(watch, "lock_holder", lambda state, *args: None)
     snap = watch.snapshot(ctx)
     stopped = {row["stem"]: row for row in snap["rows"]}
     assert (stopped["held"]["menu"]["chupaConfirm"], stopped["held"]["menu"]["chupaReject"]) == ("on", "on")  # Without the engine dirty verdicts are allowed.
@@ -413,23 +407,19 @@ def test_snapshot_badge(tmp_path, monkeypatch):
     monkeypatch.setattr(watch, "load_tickets", lambda ctx, skip: (tickets, {}))
     monkeypatch.setattr(watch, "journal", lambda *args, **kwargs: events)
 
-    async def clean(git, repo, stem):
-        return False
-
-    monkeypatch.setattr(watch.runner, "ticket_pending", clean)
     monkeypatch.setattr(watch, "running_stems", lambda *args: ["live"])
-    monkeypatch.setattr(watch, "lock_holder", lambda state: datetime.fromisoformat("2025-12-31T00:00:00+00:00"))
+    monkeypatch.setattr(watch, "lock_holder", lambda state, *args: datetime.fromisoformat("2025-12-31T00:00:00+00:00"))
     monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: (set(), set()))
     monkeypatch.setattr(watch, "committed_ticket_shas", lambda ctx: {})
     monkeypatch.setattr(watch, "commits", lambda ctx: {})
     snap = watch.snapshot(ctx)
     assert snap["counts"] == {"blocked": 1, "queued": 1, "running": 1, "merged": 1}  # All four categories must be represented.
     assert snap["badge"] == {"value": 2, "tooltip": "1 running, 1 queued"}  # Merged and blocked rows must not count.
-    monkeypatch.setattr(watch, "lock_holder", lambda state: None)
+    monkeypatch.setattr(watch, "lock_holder", lambda state, *args: None)
     assert watch.snapshot(ctx)["badge"] == {"value": 2, "tooltip": "engine stopped: 1 blocked, 1 queued"}  # Running and merged rows must not count.
     tickets.clear()
     assert watch.snapshot(ctx)["badge"] is None  # Running and merged rows alone must not produce a zero badge.
-    monkeypatch.setattr(watch, "lock_holder", lambda state: datetime.fromisoformat("2025-12-31T00:00:00+00:00"))
+    monkeypatch.setattr(watch, "lock_holder", lambda state, *args: datetime.fromisoformat("2025-12-31T00:00:00+00:00"))
     monkeypatch.setattr(watch, "running_stems", lambda *args: [])
     assert watch.snapshot(ctx)["badge"] is None  # An alive engine with no work must not show zero.
 
@@ -443,12 +433,12 @@ def test_diagnose_prompt_uses_live_running_state(tmp_path, monkeypatch, capsys):
     path.parent.mkdir(parents=True)
     path.write_text("ticket")
     monkeypatch.setattr(watch, "journal", lambda *args, **kwargs: [{"type": "state_transition", "ticket": "live", "body": {"to": "running"}, "ts": "2026-01-01T00:00:00+00:00"}])
-    monkeypatch.setattr(watch, "lock_holder", lambda state: watch.datetime.fromisoformat("2025-12-31T00:00:00+00:00"))
+    monkeypatch.setattr(watch, "lock_holder", lambda state, *args: watch.datetime.fromisoformat("2025-12-31T00:00:00+00:00"))
     assert main(["prompt", "diagnose", "live"], cwd=tmp_path) == 0  # The CLI accepts the ticket.
     running = capsys.readouterr().out
     assert main(["prompt", "running", "live"], cwd=tmp_path) == 0
     assert running == capsys.readouterr().out  # Diagnose selects the actual running template.
-    monkeypatch.setattr(watch, "lock_holder", lambda state: None)
+    monkeypatch.setattr(watch, "lock_holder", lambda state, *args: None)
     assert main(["prompt", "diagnose", "live"], cwd=tmp_path) == 0
     assert capsys.readouterr().out != running  # A stale journal entry keeps the diagnose template.
 
@@ -754,6 +744,26 @@ def test_snapshot_review_locks_for_changed_evidence(tmp_path):
     try:
         row = next(row for row in watch.snapshot(ctx)["rows"] if row["stem"] == "candidate")
         assert row["committed"] is True
-        assert row["menu"]["chupaReview"] == "locked"
+        assert row["menu"]["chupaReview"] == "on"
     finally:
         lock.release()
+
+
+def test_snapshot_commit_lock_display(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    ctx = watch.Context(tmp_path, tmp_path / "state", tmp_path / "config.yaml", None, None, None)
+    ctx.state.mkdir()
+    monkeypatch.setattr(watch, "load_tickets", lambda *args: ({}, {}))
+    monkeypatch.setattr(watch, "committed_ticket_shas", lambda *args: {})
+    monkeypatch.setattr(watch, "uncommitted_tickets", lambda *args: (set(), set()))
+    monkeypatch.setattr(watch, "commits", lambda *args: {})
+    assert watch.snapshot(ctx)["commitLock"] == ""
+    path = ctx.state / "commit.lock"
+    path.write_text("")
+    assert watch.snapshot(ctx)["commitLock"] == ""
+    started = "2026-01-01T00:00:00+00:00"
+    path.write_text(json.dumps({"pid": os.getpid(), "started_at": started}))
+    original = watch.Path.read_bytes
+    monkeypatch.setattr(watch.Path, "read_bytes", lambda self: b"python\0-m\0chupa\0review\0stem\0" if str(self) == f"/proc/{os.getpid()}/cmdline" else original(self))
+    assert watch.snapshot(ctx)["commitLock"] == f"review since {watch.clock(started)} (pid {os.getpid()})"

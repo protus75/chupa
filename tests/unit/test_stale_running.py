@@ -189,7 +189,7 @@ def test_locked_verbs_reap_after_acquire(monkeypatch):
     monkeypatch.setattr(entry, "Git", Git)
     monkeypatch.setattr(runner, "reap", reap)
     checkout = SimpleNamespace(config=SimpleNamespace(state_dir=Path("/state")), git=Git(), repo=Path("/repo"), clock=object(), control=None)
-    for call in (lambda: asyncio.run(entry._review(checkout, "sample")), lambda: asyncio.run(entry._retro(checkout, None))):
+    for call in (lambda: asyncio.run(entry._retro(checkout, None)),):
         calls.clear()
         with pytest.raises(Stop):
             call()

@@ -124,19 +124,18 @@ def test_review_committed_ticket_while_checkout_locked(tmp_path, monkeypatch):
         lock.release()
 
 
-def test_review_changed_ticket_refuses_while_checkout_locked(tmp_path, monkeypatch, capsys):
+def test_review_changed_ticket_while_checkout_locked(tmp_path, monkeypatch, capsys):
     root = make_root(tmp_path)
     commit_ticket(root, "candidate", confirmed())
     path = root / "tickets/candidate/ticket.md"
-    path.write_text(path.read_text() + "\nPending edit\n")
+    path.write_text(path.read_text().replace("## Goal / Why", "## Goal / Why\nPending edit"))
     lock = Lockfile(root / ".chupa/state", verb="drain", instance_id="engine", clock=Clock())
     lock.acquire()
     try:
-        llm = FakeLLM([])
-        assert run(root, monkeypatch, llm, "candidate") == 2
-        assert llm.requests == []
-        assert verdicts(root) == []
-        assert "wait for the running engine to commit the ticket through intake, or stop it, then retry `review candidate`" in capsys.readouterr().err
+        llm = FakeLLM([reply("approve")])
+        assert run(root, monkeypatch, llm, "candidate") == 0
+        assert "Pending edit" in git_out(root, "show", "main:tickets/candidate/ticket.md")
+        assert verdicts(root)[0].body["verdict"] == "approve"
     finally:
         lock.release()
 
@@ -155,3 +154,44 @@ def test_review_uses_previous_findings_after_edit(tmp_path, monkeypatch):
     blocks = [r.rendered.split("<<chupa-data:begin prior_review>>\n", 1)[1].split("\n<<chupa-data:end prior_review>>", 1)[0] for r in llm.requests]
     assert blocks[0] == FIRST_REVIEW
     assert "missing caller" in blocks[1] and "+Changed." in blocks[1]
+
+
+def test_review_does_not_reap_running_ticket(tmp_path, monkeypatch):
+    root = make_root(tmp_path)
+    commit_ticket(root, "candidate", confirmed())
+    path = root / "tickets/candidate/ticket.md"
+    path.write_text(path.read_text().replace("## Goal / Why", "## Goal / Why\nChanged."))
+    journal = Journal(root / ".chupa/state", Clock())
+    journal.append(EventType.STATE_TRANSITION, {"to": "running"}, ticket="other")
+    lock = Lockfile(root / ".chupa/state", verb="drain", instance_id="engine", clock=Clock())
+    lock.acquire()
+    try:
+        assert run(root, monkeypatch, FakeLLM([reply("approve")]), "candidate") == 0
+        assert last_states(journal.read())["other"] == "running"
+    finally:
+        lock.release()
+
+
+def test_review_commit_lock_timeout(tmp_path, monkeypatch, capsys):
+    import fcntl
+    from datetime import timedelta
+
+    from chupa import __main__ as entry
+    from chupa.lockfile import CommitLock
+
+    root = make_root(tmp_path)
+    commit_ticket(root, "candidate", confirmed())
+    path = root / "tickets/candidate/ticket.md"
+    path.write_text(path.read_text().replace("## Goal / Why", "## Goal / Why\nChanged."))
+    clock = Clock()
+
+    async def sleep(seconds):
+        clock.now += timedelta(seconds=seconds)
+
+    monkeypatch.setattr(entry, "CommitLock", lambda state, **kwargs: CommitLock(state, clock=clock, sleep=sleep))
+    (root / ".chupa/state").mkdir(parents=True, exist_ok=True)
+    with (root / ".chupa/state/commit.lock").open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        assert entry.main(["review", "candidate"], cwd=root, env=ENV, clock=clock) == 2
+    assert "commit.lock" in capsys.readouterr().err
+    assert "Changed." not in git_out(root, "show", "main:tickets/candidate/ticket.md")

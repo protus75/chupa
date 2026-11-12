@@ -45,7 +45,9 @@ function render(snap) {
 	const counts = snap.counts;
 	const lock = el('span', '', snap.lock ? '🔒' : '🔓');
 	lock.title = snap.lock || 'unlocked';
-	header.replaceChildren(lock, ` · ${counts.blocked ?? 0} blocked · ${counts.queued ?? 0} queued · ${counts.running ?? 0} running · ${counts.merged ?? 0} merged`);
+	const commitLock = el('span', '', snap.commitLock ? '🔒' : '🔓');
+	commitLock.title = snap.commitLock || 'unlocked';
+	header.replaceChildren('engine ', lock, ' · commit ', commitLock, ` · ${counts.blocked ?? 0} blocked · ${counts.queued ?? 0} queued · ${counts.running ?? 0} running · ${counts.merged ?? 0} merged`);
 	const rows = snap.rows.map(r => {
 		const row = el('div', `row ${r.section}`);
 		row.dataset.stem = r.stem;

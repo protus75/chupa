@@ -27,7 +27,7 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | `resume` | Yes | Ask the running engine to release its current hold. |
 | `kill` | Yes | Ask the running engine to stop at a safe point. |
 | `stop` | Yes | Finish active work and exit. |
-| `review` | Yes, if unchanged | Review a committed ticket; pending ticket changes require locked intake. |
+| `review` | Yes | Pending edits are committed through intake before reviewing the committed ticket. |
 | `suggest` | Yes | Queue an idea for Suggestion Box intake. |
 | `triage` | No | Make one pass over named pending box IDs, or all pending messages. |
 | `dismiss` | No | Dismiss named box IDs without a model call. |
@@ -41,4 +41,4 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | `drain` | No | Run eligible tickets to quiescence. `--detach` runs in its own session, surviving terminal or editor closing, and appends output to `<state_dir>/drain.out`. |
 | `serve` | No | Run the continuous daemon. |
 
-Stop serve before `triage`, `dismiss`, `run`, `drain`, or another `serve`: each takes the writer lock outright and refuses while it is held. Review needs the lock only for pending changes under the ticket directory. `doctor` also needs the lock available to pass its probe. There is one writer per host; the kernel releases its lock when the holder exits. Never delete `chupa.lock`—wait for or stop the holder instead.
+Stop serve before `triage`, `dismiss`, `run`, `drain`, or another `serve`: each takes the writer lock outright and refuses while it is held. `doctor` also needs the lock available to pass its probe. There is one writer per host; the kernel releases its lock when the holder exits. Never delete `chupa.lock`—wait for or stop the holder instead.

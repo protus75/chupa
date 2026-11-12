@@ -29,11 +29,21 @@ def test_held_lock_routes_only_to_engine(monkeypatch, holder, route):
     async def describe(repo):
         return "instance"
 
+    async def status_porcelain(*args):
+        return ""
+
     async def verdict(*args, **kwargs):
         raise LockHeld(Path("lock"), holder)
 
     published = []
-    checkout = SimpleNamespace(repo=FakePath(), config=SimpleNamespace(state_dir=Path("state")), git=SimpleNamespace(describe=describe), clock=None, fs=None, journal=SimpleNamespace(read=lambda: []))
+    checkout = SimpleNamespace(
+        repo=FakePath(),
+        config=SimpleNamespace(state_dir=Path("state")),
+        git=SimpleNamespace(describe=describe, status_porcelain=status_porcelain),
+        clock=None,
+        fs=None,
+        journal=SimpleNamespace(read=lambda: []),
+    )
     monkeypatch.setattr(entry, "Lockfile", FakeLock)
     monkeypatch.setattr(runner, "verdict", verdict)
     monkeypatch.setattr(entry.control, "read_active", lambda *args: ("lifecycle", None))

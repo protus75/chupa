@@ -56,7 +56,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `migrate-config` | no | Migrates a `schema_version: 0` config to the current schema. |
 | `new <stem> --kind feature\|bug\|chore` | no | Writes `tickets/<stem>/ticket.md` with section placeholders for the selected kind (default `feature`) and `state: draft`, and lints it; intake confirms it. Bugs include `## Regression`, require `--evidence <file>...`, and copy those files into `tickets/<stem>/evidence/`. Refuses a bad, reserved, or existing stem, or unknown kind (exit 2); successful authorship exits 0. |
 | `order <stem> [--priority P0\|P1\|P2\|P3] [--runs-before [stem ...]]` | no | Validates and edits priority and/or runs-before ordering in the working tree; a bare `--runs-before` removes the section. Refuses a running ticket while an engine is live, and settled, rejected, missing or invalid tickets. An interrupted run with no live engine is editable. Intake commits the edit. |
-| `review <stem>` | intake only | Reviews an unchanged committed ticket without the checkout lock. Pending changes under the ticket directory require locked intake first; if the lock is held, wait for the running engine to commit the ticket through intake or stop it, then retry. Reviews the committed ticket against merged code and journals its verdict and ticket blob SHA. A ticket with an unmerged dependency gets a provisional review that is printed but not journaled, so the drain reviews it again before its first run. Refuses missing, intake-failed, settled, or rejected tickets without a model call. Prints findings and exits 0 on approve, 1 on snag or rma. |
+| `review <stem>` | commit only | Pending changes under the ticket directory are committed through intake first. Reviews the committed ticket against merged code and journals its verdict and ticket blob SHA. A ticket with an unmerged dependency gets a provisional review that is printed but not journaled, so the drain reviews it again before its first run. Refuses missing, intake-failed, settled, or rejected tickets without a model call. Prints findings and exits 0 on approve, 1 on snag or rma. |
 | `run <stem>` | yes | Reconciles orphans, runs intake, then drives the one named ticket through every stage. Refuses a stem that failed intake, is missing, invalid, merged, not `confirmed`, or has unmerged dependencies. |
 | `drain [--detach]` | yes | Runs every eligible ticket to quiescence (section 7.1); `--detach` starts its own session and appends to `<state_dir>/drain.out`. |
 | `serve` | yes | Runs the continuous daemon until `kill`, `stop`, or a signal (section 7.2). |
@@ -66,8 +66,8 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `dismiss <id> ...` | yes | Dismiss named messages without a model call. |
 | `prompt box <id> ...` | no | Print a prompt for discussing named box messages. |
 | `pause` / `resume` / `kill` / `stop` | try | With a running engine, publish a control request to it (section 7.3). With a non-engine holder, refuses and asks the operator to wait. With none: `kill` and `stop` refuse (exit 2); `pause`/`resume` print "nothing running". |
-| `confirm <stem> [--yes|--extension]` | try | A person at a terminal answers `y` to keep (or uses `--yes` to skip the prompt): promotes a draft to confirmed, keeps a Reject-queue item (section 6.6). Same-content repeat keeps are refused for command-line confirms; the extension uses `--extension` to allow them. With drain or serve running, publishes the verdict to the engine; refuses while a non-engine holder has the lock. |
-| `reject <stem> [--yes]` | try | A person at a terminal answers `y` to kill (or uses `--yes` to skip the prompt): stamps the ticket `rejected` (section 6.6). Refuses settled stems. With drain or serve running, publishes the verdict to the engine; refuses while a non-engine holder has the lock. |
+| `confirm <stem> [--yes|--extension]` | try | A person at a terminal answers `y` to keep (or uses `--yes` to skip the prompt): promotes a draft to confirmed, keeps a Reject-queue item (section 6.6). Same-content repeat keeps are refused for command-line confirms; the extension uses `--extension` to allow them. With drain or serve running, commits pending edits through intake before publishing the verdict to the engine; refuses while a non-engine holder has the lock. |
+| `reject <stem> [--yes]` | try | A person at a terminal answers `y` to kill (or uses `--yes` to skip the prompt): stamps the ticket `rejected` (section 6.6). Refuses settled stems. With drain or serve running, commits pending edits through intake before publishing the verdict to the engine; refuses while a non-engine holder has the lock. |
 
 ### 2.2 `./dev.py`
 
@@ -135,7 +135,7 @@ Frontmatter fields that drive behavior:
 
 ### 3.2 Intake
 
-`run`, `drain`, `serve`, `confirm`, and `reject` start with intake, under the writer lock:
+`run`, `drain`, `serve`, `confirm`, and `reject` use intake; pending verdict edits are also admitted before handoff to a running engine:
 
 - It reads status, checks for stray staged paths, and commits under one `commit.lock` hold.
 - It finds new or modified `tickets/<stem>/ticket.md` files in the working tree (`git status`).

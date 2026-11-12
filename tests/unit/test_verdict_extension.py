@@ -93,3 +93,40 @@ def test_serve_forwards_actor(monkeypatch, actor):
     monkeypatch.setattr(runner, "verdict_locked", verdict)
     assert asyncio.run(owner.apply_verdict("sample", "confirm", "key", actor)) == {"refusal": None}
     verdict.assert_awaited_once_with("sample", checkout, kill=False, extension=actor == "extension")
+
+
+@pytest.mark.parametrize("refused", [True, False])
+def test_live_verdict_intakes_before_publication(monkeypatch, refused):
+    from pathlib import Path
+
+    from chupa import tickets
+    from chupa.lockfile import LockHeld
+
+    class MissingPath:
+        def __truediv__(self, other):
+            return self
+
+        def is_file(self):
+            return False
+
+    async def held(*args, **kwargs):
+        raise LockHeld(Path("chupa.lock"), {"verb": "drain"})
+
+    findings = {"sample": [SimpleNamespace(message="invalid edit")]} if refused else {}
+    intake = AsyncMock(return_value=SimpleNamespace(refused=findings))
+    published = []
+    checkout = SimpleNamespace(
+        repo=MissingPath(), git=SimpleNamespace(status_porcelain=AsyncMock(return_value=" M tickets/sample/ticket.md")), journal=Journal([]), fs=None, config=SimpleNamespace(state_dir=Path("state"))
+    )
+    monkeypatch.setattr(runner, "verdict", held)
+    monkeypatch.setattr(tickets, "intake", intake)
+    monkeypatch.setattr(control, "read_active", lambda *args: ("life", None))
+    monkeypatch.setattr(control, "publish_request", lambda *args: published.append(args[1]))
+    if refused:
+        with pytest.raises(runner.Refusal, match="invalid edit"):
+            asyncio.run(entry._verdict(checkout, "sample", "confirm", None, True, False))
+        assert published == []
+    else:
+        assert asyncio.run(entry._verdict(checkout, "sample", "confirm", None, True, False)) == 0
+        assert len(published) == 1 and published[0].stem == "sample"
+    intake.assert_awaited_once()

@@ -551,3 +551,41 @@ def test_non_engine_holder_refuses_stop_and_confirm(root, capsys):
         assert requests(root) == []
     finally:
         lock.release()
+
+
+@pytest.mark.parametrize("kind", ["valid", "invalid", "timeout"])
+def test_live_confirm_intakes_before_submission(root, monkeypatch, capsys, kind):
+    import fcntl
+    from datetime import timedelta
+
+    from chupa.lockfile import CommitLock
+    from tests.integration.test_cli import git_out
+    from tests.integration.test_drain import Clock as AdvancingClock
+    from tests.integration.test_drain import commit_ticket, confirmed
+
+    commit_ticket(root, "candidate", confirmed().replace("state: confirmed", "state: draft"))
+    path = root / "tickets/candidate/ticket.md"
+    path.write_text(path.read_text().replace("## Goal / Why", "## Goal / Why\nChanged.") if kind != "invalid" else path.read_text().replace("## Goal / Why", "## Invalid section"))
+    lock = acquire(root)
+    discovery(root)
+    clock = AdvancingClock()
+
+    async def sleep(seconds):
+        clock.now += timedelta(seconds=seconds)
+
+    monkeypatch.setattr(entry, "CommitLock", lambda state, **kwargs: CommitLock(state, clock=clock, sleep=sleep))
+    try:
+        with (root / ".chupa/state/commit.lock").open("w") as commit_lock:
+            if kind == "timeout":
+                fcntl.flock(commit_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            result = entry.main(["confirm", "candidate", "--yes"], cwd=root, env=ENV, clock=clock)
+        output = capsys.readouterr()
+        if kind == "valid":
+            assert result == 0 and "confirm submitted:" in output.out
+            assert "Changed." in git_out(root, "show", "main:tickets/candidate/ticket.md")
+            assert len(requests(root)) == 1
+        else:
+            assert result == 2 and ("commit.lock" if kind == "timeout" else "failed intake") in output.err
+            assert requests(root) == []
+    finally:
+        lock.release()
