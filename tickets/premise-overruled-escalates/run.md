@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Requisition-stage premise failures remain parked even if a historical terminal carries an escalation dispatch. The regression reproducer reports defect on the base commit and pass on this branch. The full suite and all host checks passed.
+The full suite passed with 3,462 tests; the regression printed pass on the branch and defect on the merge base. All hard host checks passed.
 
 ## Dead ends
 
-A direct retry was rejected because it would reuse the same capability and leave the premise parked; the existing escalation ladder provides the required bounded re-offer.
+The first targeted integration run exposed an incorrect temporary-directory setup in the new test; it was corrected.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-40m expected; actual time not measured.
+The ticket budget was 40 minutes; actual elapsed time was not measured.
 
