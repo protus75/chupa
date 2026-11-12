@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The full suite finished with 2 failures and 3456 passes. Unsettled-ticket lint also found that watch-folds-whole-journal fences chupa/__main__.py, which has a unit coverage floor of 13, without fencing a tests/unit path; it separately reported missing evidence for drain-contains-dispatch-exception. No changes were committed.
+The same full command passed on the base commit; the separate integration gate later passed on the candidate. The timeout's cause remains unresolved, so it cannot be classified as a verified base failure. The unit coverage gate passed, and ticket lint reported 4/4 valid.
 
 ## Dead ends
 
-The new checks require parsed Ticket fields, but the two failing tests replace validation with incomplete mock values; accommodating those mocks in production would add a defensive path unrelated to the ticket.
+The base-commit run did not reproduce the candidate failure.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 45 minutes; actual not measured.
+The ticket budget was 45 minutes expected and 90 minutes stuck; elapsed time was not measured.
 
