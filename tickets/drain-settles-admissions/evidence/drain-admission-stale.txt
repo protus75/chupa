@@ -1,0 +1,13 @@
+# chupa.lock while the operator used the extension's Confirm/Reject menu (2026-11-12)
+{"instance_id": "1029dec1-dirty", "verb": "drain", "pid": 4236, "host": "ProtusGaming", "state_dir": "/home/djp/source/chupa/.chupa/state", "started_at": "2026-11-12T12:12:08.804650+00:00"}
+
+# control_decision events journaled for those requests (.chupa/state/journal/000013-20261112.jsonl)
+{"v":1,"type":"signal","ts":"2026-11-12T12:28:23.195442+00:00","ticket":null,"key":null,"body":{"kind":"control_decision","request_id":"dc3032a11dbe49618175f9ce239c49dc","lifecycle_id":"572bff3ae7dd4feaacbdbd53a13c5395","verb":"confirm","hold_id":null,"decision":"stale","reason":"name a journaled stem or an existing ticket.md","stem":"requisition-review-changed-text-vs-unchanged","actor":"extension"}}
+{"v":1,"type":"signal","ts":"2026-11-12T12:29:11.551724+00:00","ticket":null,"key":null,"body":{"kind":"control_decision","request_id":"96c14fc9a7f3485c8a4379235000f21d","lifecycle_id":"572bff3ae7dd4feaacbdbd53a13c5395","verb":"reject","hold_id":null,"decision":"stale","reason":"name a journaled stem or an existing ticket.md","stem":"implement-spec-criteria-to-tests","actor":"extension"}}
+{"v":1,"type":"signal","ts":"2026-11-12T12:30:02.429631+00:00","ticket":null,"key":null,"body":{"kind":"control_decision","request_id":"e51261261cb14712863b8cc2c74cbbd1","lifecycle_id":"572bff3ae7dd4feaacbdbd53a13c5395","verb":"confirm","hold_id":null,"decision":"stale","reason":"name a journaled stem or an existing ticket.md","stem":"watch-folds-whole-journal","actor":"extension"}}
+{"v":1,"type":"signal","ts":"2026-11-12T12:31:27.538781+00:00","ticket":null,"key":null,"body":{"kind":"control_decision","request_id":"76c00e71d4cb4f99b4f54951c07c6bbf","lifecycle_id":"572bff3ae7dd4feaacbdbd53a13c5395","verb":"confirm","hold_id":null,"decision":"stale","reason":"name a journaled stem or an existing ticket.md","stem":"requisition-review-changed-text-vs-unchanged","actor":"extension"}}
+
+# ticket state after the requests
+tickets/watch-folds-whole-journal/ticket.md: state: draft
+tickets/requisition-review-changed-text-vs-unchanged/ticket.md: state: draft
+tickets/implement-spec-criteria-to-tests/ticket.md: state: draft
