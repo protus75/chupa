@@ -83,3 +83,36 @@ def test_stage_events(monkeypatch, case, outcome, active):
     context = dict(stem="actual", attempt=3, surface="requisition_review", run_seq=7)
     assert events == ([] if active else [("stage_start", context), ("stage_end", {**context, "outcome": outcome, "calls": 1})])
     assert [watch["owner"] for watch in watches] == ([] if active else ["slot"])
+
+
+def test_invalid_target_snags_without_llm_call(monkeypatch):
+    from unittest.mock import Mock
+
+    from chupa.artifacts import Finding
+    from chupa.tickets import TicketInvalid
+
+    finding = Finding(code="ticket_schema", message="carried file outside fence", paved_road="fence the carried file")
+    monkeypatch.setattr(requisition, "review_target", Mock(side_effect=TicketInvalid([finding])))
+    monkeypatch.setattr(requisition, "load_spec", lambda text: SimpleNamespace(meta=SimpleNamespace(version="3.11")))
+    call = Mock()
+    monkeypatch.setattr(requisition, "llm_call", call)
+    verdict = asyncio.run(
+        requisition.review_ticket(
+            SimpleNamespace(),
+            repo=MemoryPath(),
+            stem="actual",
+            text="ticket",
+            specs_dir=MemoryPath(),
+            coverage_map=None,
+            tier="high",
+            stem_slot="slot",
+            run_seq=7,
+            attempt=3,
+            call_seq=1,
+            expected_budget="surface",
+            prior=FIRST_REVIEW,
+        )
+    )
+    assert verdict.verdict == "snag" and verdict.findings == [finding]
+    assert verdict.calls == 0
+    call.assert_not_called()

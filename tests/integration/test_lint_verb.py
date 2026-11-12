@@ -83,7 +83,7 @@ def test_lint_keeps_committed_claims(root, capsys):
 
 
 def test_lint_flags_bug_without_evidence(root, capsys):
-    text = ticket().replace("kind: feature", "kind: bug")
+    text = ticket().replace("kind: feature", "kind: bug").replace("## Scope fence\n", "## Scope fence\n- tests/repro.py\n")
     text += "\n## Regression\n```\nuv run python tests/repro.py\n```\n- carries: tests/repro.py\n"
     write(root, "fix-thing", text)
     assert lint(root) == 1

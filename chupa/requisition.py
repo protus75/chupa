@@ -19,7 +19,7 @@ from chupa.llmeffect import llm_call
 from chupa.providers import ProviderCallError, ProviderDrought
 from chupa.specs import RENDER_BOUND_CHARS, REQ_RENDER_HEADROOM, RenderOverBound, load_spec, render
 from chupa.stages import _in_fence, implement_inputs
-from chupa.tickets import Ticket, validate_ticket
+from chupa.tickets import Ticket, TicketInvalid, lint_findings, validate_ticket
 
 REQUISITION_STUCK_S = 600.0
 FIRST_REVIEW = "first review: no earlier review recorded"
@@ -55,7 +55,10 @@ class RequisitionVerdict(Artifact):
 
 def review_target(repo: Path, stem: str, text: str) -> Ticket:
     """Use the complete ticket admission predicate, including reserved stems."""
-    return validate_ticket(stem, text, repo)
+    ticket = validate_ticket(stem, text, repo)
+    if findings := lint_findings(ticket, repo):
+        raise TicketInvalid(findings)
+    return ticket
 
 
 def _base_render(repo: Path, ticket: Ticket, text: str, specs_dir: Path) -> str:
@@ -101,10 +104,27 @@ async def review_ticket(
     expected_budget: float | Literal["surface", "eval"],
     prior: str,
 ) -> RequisitionVerdict:
-    ticket = review_target(repo, stem, text)
     spec = load_spec((specs_dir / "requisition_review.md").read_text())
     ticket_bytes = text.encode()
     sha = hashlib.sha1(f"blob {len(ticket_bytes)}\0".encode() + ticket_bytes).hexdigest()
+    try:
+        ticket = review_target(repo, stem, text)
+    except TicketInvalid as exc:
+        return RequisitionVerdict(
+            produced_by_spec_version=int(spec.meta.version.split(".")[0]),
+            produced_at_sha=sha,
+            stem=stem,
+            ticket_sha=sha,
+            render_chars=0,
+            spec_version=spec.meta.version,
+            verdict="snag",
+            summary="ticket lint failed",
+            findings=exc.findings,
+            mechanical="ticket lint",
+            provider=None,
+            model=None,
+            calls=0,
+        )
     try:
         base = _base_render(repo, ticket, text, specs_dir)
         chars = len(base)

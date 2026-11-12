@@ -100,6 +100,7 @@ def test_intake_skips_concurrent_commit(monkeypatch):
     monkeypatch.setattr(tickets, "_intake_claims", lambda *args: ("ticket", []))
     monkeypatch.setattr(tickets, "validate_ticket", lambda *args: SimpleNamespace(frontmatter=SimpleNamespace(source="human", state="confirmed")))
     monkeypatch.setattr(tickets, "evidence_findings", lambda *args, **kwargs: [])
+    monkeypatch.setattr(tickets, "lint_findings", lambda *args, **kwargs: [])
     git = FakeGit()
     result = run(tickets.intake(Path("/repo"), git, Journal(), SimpleNamespace()))
     assert git._commit_lock.entries == 1 and not git._commit_lock.held

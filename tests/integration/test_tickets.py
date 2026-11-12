@@ -219,14 +219,16 @@ def test_grammar_refusals(repo, old, new, needle):
 
 def test_bug_ticket_with_regression_validates(repo):
     root, _, _ = repo
-    text = VALID.replace("kind: feature", "kind: bug\nstate: draft\nsource: human").replace(
-        "## Time budget", "## Regression\n```\nuv run pytest tests/test_thing.py\n```\n- carries: tests/\n\n## Time budget"
+    text = (
+        VALID.replace("- tests/test_thing.py", "- tests/")
+        .replace("kind: feature", "kind: bug\nstate: draft\nsource: human")
+        .replace("## Time budget", "## Regression\n```\nuv run python tests/test_thing.py\n```\n- carries: tests/\n\n## Time budget")
     )
     write(root, "t-one", text)
     evidence_file(root, stem="t-one")
     ticket = validate_ticket("t-one", text, root)
     assert ticket.frontmatter.kind == "bug"
-    assert ticket.regression == ("uv", "run", "pytest", "tests/test_thing.py")
+    assert ticket.regression == ("uv", "run", "python", "tests/test_thing.py")
     assert ticket.carries == ("tests/",)
 
 
@@ -393,7 +395,11 @@ def test_nothing_pending_is_a_no_op(repo):
 
 
 def bug_text():
-    return VALID.replace("kind: feature", "kind: bug").replace("## Time budget", "## Regression\n```\nuv run pytest tests/test_thing.py\n```\n- carries: tests/\n\n## Time budget")
+    return (
+        VALID.replace("- tests/test_thing.py", "- tests/")
+        .replace("kind: feature", "kind: bug")
+        .replace("## Time budget", "## Regression\n```\nuv run python tests/test_thing.py\n```\n- carries: tests/\n\n## Time budget")
+    )
 
 
 def evidence_file(root, stem="t-bug", name="failure.txt"):

@@ -159,6 +159,12 @@ merge admission, both main's committed blob and its checkout bytes must still ma
 or uncommitted edit during the run stops it with `ticket_changed` and holds it for an operator.
 Engine artifacts such as `run.md` and `checks.json` do not affect this identity.
 
+Intake, `lint`, `new`, and requisition review also check that the Regression command names
+a carried path, every carried prefix is fenced, and a fenced file with a positive
+`test-gate.toml` file floor has a fenced path under `tests/unit/`. These authoring checks
+do not change scan or merge admission. Requisition returns a snag without a model call
+when ticket lint fails. A malformed coverage gate is a lint finding.
+
 ### 3.3 What the engine writes back
 
 Stages write into an outbox in the ticket's worktree (`tickets/<stem>/` inside it). The lift

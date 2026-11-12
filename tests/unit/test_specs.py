@@ -22,7 +22,7 @@ from chupa.specs import (
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parents[2] / "chupa" / "specs"
-    for name, version in (("implement", "2.10"), ("requisition_review", "3.10"), ("diagnose", "1.5")):
+    for name, version in (("implement", "2.10"), ("requisition_review", "3.11"), ("diagnose", "1.5")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
@@ -54,15 +54,14 @@ def test_requisition_review_spec_snags_non_protocol_regression():
     assert "asserts against the changed set or hardcodes the moved path" in task
     for phrase in (
         "If the ticket has `## Regression`",
-        "`- carries:` path prefix (a test or fixture path)",
-        "`## Scope fence` prefix",
         "only one JSON object with exactly the `regression_result` key",
         "`pass` with exit 0 at head",
         "`defect` with nonzero exit on the base overlaid with the carried files",
         "using only code that exists at base",
-        "runner output on stdout (such as from `./dev.py test` or pytest) is a snag",
     ):
         assert phrase in task
+    assert "the fence must hold a `tests/unit` file" not in task
+    assert "under both a `- carries:` path prefix" not in task
 
 
 def test_diagnose_spec_lesson_length_guidance():

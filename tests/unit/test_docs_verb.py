@@ -24,6 +24,7 @@ def test_new_guide_paths_without_disk(monkeypatch, capsys):
     monkeypatch.setattr(cli, "template", lambda kind: "skeleton")
     monkeypatch.setattr(cli, "validate_ticket", lambda stem, text, repo: "ticket")
     monkeypatch.setattr(cli, "evidence_findings", lambda ticket, repo: [])
+    monkeypatch.setattr(cli, "lint_findings", lambda ticket, repo: [])
     monkeypatch.setattr(Path, "exists", lambda self: False)
     guide = Path(chupa.__file__).parent / "docs" / "host-authoring.md"
     assert cli._new(Path("/host"), "new-ticket") == 0

@@ -45,6 +45,7 @@ from chupa.tickets import (
     _pending,
     _porcelain,
     evidence_findings,
+    lint_findings,
     missing_evidence_findings,
     order,
     split_frontmatter,
@@ -731,7 +732,7 @@ async def _lint(checkout: runner.Checkout, stems: Sequence[str]) -> int:
                 ticket = validate_ticket(stem, text, checkout.repo)
                 ceiling_finding = stuck_ceiling_finding(ticket.stuck_minutes, checkout.config.drain.max_ticket_minutes)
                 paths = await checkout.git._run(checkout.repo, "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", f"tickets/{stem}/evidence/")
-                findings = evidence_findings(ticket, checkout.repo, paths=paths.split("\0"))
+                findings = lint_findings(ticket, checkout.repo) + evidence_findings(ticket, checkout.repo, paths=paths.split("\0"))
             except TicketInvalid as exc:
                 findings = exc.findings
             for finding in findings:
@@ -941,7 +942,8 @@ def _new(repo: Path, stem: str, kind: str = "feature", evidence: Sequence[str] =
     print(f"read the ticket authoring guide before filling sections: {guide}")
     findings = []
     try:
-        validate_ticket(stem, text, repo)
+        ticket = validate_ticket(stem, text, repo)
+        findings = lint_findings(ticket, repo)
     except TicketInvalid as e:
         findings = e.findings
         if kind == "bug":

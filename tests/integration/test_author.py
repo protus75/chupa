@@ -111,6 +111,7 @@ def bug_reply(stem, *, prose=None):
     data = json.loads(author_reply(stem))
     data["ticket"] = data["ticket"].replace("kind: feature", "kind: bug")
     data["ticket"] = data["ticket"].replace("- chupa/thing.py\n\n## Goal", f"- chupa/thing.py\n- tickets/{stem}/evidence/replay.json\n\n## Goal")
+    data["ticket"] = data["ticket"].replace("## Scope fence\n", "## Scope fence\n- tests/report_regression.py\n")
     data["ticket"] += "\n## Regression\n```\npython tests/report_regression.py\n```\n- carries: tests/report_regression.py\n"
     if prose is not None:
         data["ticket"] = data["ticket"].replace("`chupa/thing.py` is repaired.", prose)

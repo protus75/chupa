@@ -116,7 +116,7 @@ def test_spec_loads_and_names_finding_keys():
     assert spec.inputs == ("ticket", "context", "render", "coverage_dependents", "prior_review", "retry_findings")
     assert all(key in source for key in ("`code`", "`message`", "`paved_road`"))
     assert "in the fence or cleared in the summary" in source
-    assert "the fence must hold a `tests/unit` file" in source
+    assert "named tests must run the new lines in each floored file" in source
     assert "An unaccounted file is a `snag` finding naming it" in source
     # A stale-path rule must exempt paths created by the ticket or written only as outputs.
     for phrase in (
@@ -193,10 +193,8 @@ def test_invalid_reply_is_reprompted_then_accepted(tmp_path):
 
 def test_invalid_ticket_and_reserved_stem_spend_no_call(tmp_path):
     repo, driver, llm = setup(tmp_path, [])
-    with pytest.raises(TicketInvalid):
-        run(driver, repo, TICKET.replace("priority: P2", "priority: PX"))
-    with pytest.raises(TicketInvalid):
-        run(driver, repo, stem="retro")
+    assert run(driver, repo, TICKET.replace("priority: P2", "priority: PX")).verdict == "snag"
+    assert run(driver, repo, stem="retro").verdict == "snag"
     assert llm.requests == []
 
 
@@ -354,3 +352,29 @@ def test_missing_map_has_no_requisition_stage_events(tmp_path):
     log = tmp_path / ".state/engine.log"
     events = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
     assert not [e for e in events if e.get("surface") == "requisition_review"]
+
+
+def test_committed_ticket_lint_snags_without_provider(tmp_path):
+    from chupa.git import Git
+    from chupa.seams import SubprocessExec
+    from tests.integration.test_git import commit_lock
+    from tests.integration.test_tickets import ENV
+
+    repo, driver, llm = setup(tmp_path, [])
+    path = repo / "tickets/one-thing/ticket.md"
+    path.parent.mkdir(parents=True)
+    path.write_text(TICKET)
+    (repo / "test-gate.toml").write_text('[coverage]\ndefault = 90\n[coverage.files]\n"thing.py" = 12\n')
+    git = Git(SubprocessExec(), env=ENV, timeout=30, commit_lock=commit_lock(repo / ".state"))
+
+    async def commit():
+        await git.init(repo, branch="main")
+        await git.add(repo, ["tickets/one-thing/ticket.md", "test-gate.toml", "context.txt"])
+        await git.commit(repo, "ticket")
+        return await git._run(repo, "show", "HEAD:tickets/one-thing/ticket.md")
+
+    verdict = run(driver, repo, asyncio.run(commit()))
+    assert verdict.verdict == "snag"
+    assert len(verdict.findings) == 1
+    assert "thing.py" in verdict.findings[0].message and "12" in verdict.findings[0].message
+    assert verdict.calls == 0 and llm.requests == []

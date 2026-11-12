@@ -48,6 +48,8 @@ what content its tickets carry, never the format. See the [host run guide](host-
   document and says in `Scope in / Scope out` which part to update, so docs and code land
   together. A ticket that bumps a prompt spec's `version` states it as the next minor above the version on main,
   never a literal target such as `3.4 -> 3.5`, and fences a test pin for the bumped file.
+  Lint requires every carried prefix to be fenced. When a fenced file has a positive
+  `[coverage.files]` floor in `test-gate.toml`, lint requires a fenced path under `tests/unit/`.
 - `Acceptance criteria`: each criterion is a check someone can run or a path someone can read,
   never a judgment word. A criterion checked by a test names the wrong result the test rules out,
   for example, `parse('')` returns `[]`, not `None`. A test that also passes on the wrong result
@@ -79,6 +81,7 @@ are exempt, including at intake when the journal records settlement. Supply real
 ### The regression command
 
 `## Regression` names one command, plus the test or fixture paths it carries. The command
+must name a path under a `carries:` prefix; lint checks this before review. It
 prints exactly one JSON object to stdout and nothing else; diagnostics go to stderr.
 
 - `{"regression_result": "pass"}` with exit 0: the defect is absent.

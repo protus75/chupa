@@ -16,6 +16,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError, field_validator
 
 from chupa.artifacts import Finding, NonBlank
+from chupa.covgate import GateInvalid, parse_gate
 from chupa.gates import ENGINE_GATE_CODES
 from chupa.git import Git, NothingToCommit
 from chupa.journal import EventType, Journal
@@ -558,6 +559,38 @@ def _regular_evidence(path: Path, directory: Path) -> bool:
     return path.is_file() and not any(p.is_symlink() for p in (path, *path.parents) if p.is_relative_to(directory))
 
 
+def lint_findings(ticket: Ticket, repo: Path) -> list[Finding]:
+    """Decidable authoring rules, separate from scan and merge admission."""
+    path = ticket_path(ticket.stem)
+    findings = []
+    if ticket.regression and not any(
+        not Path(arg).is_absolute() and ".." not in Path(arg).parts and any(str(Path(arg)) == prefix.rstrip("/") or str(Path(arg)).startswith(prefix.rstrip("/") + "/") for prefix in ticket.carries)
+        for arg in ticket.regression
+    ):
+        findings.append(
+            _f(
+                "`## Regression` command does not name a carried file",
+                "run a reproducer under a `carries:` prefix; a test runner such as `./dev.py test` or pytest does not speak the regression protocol",
+                path,
+            )
+        )
+    for prefix in ticket.carries:
+        if not any(prefix.rstrip("/") == fence.rstrip("/") or prefix.startswith(fence.rstrip("/") + "/") for fence in ticket.scope_fence):
+            findings.append(_f(f"`## Regression` carries prefix {prefix!r} is outside `## Scope fence`", "add the carried prefix to `## Scope fence`", path))
+    gate_path = repo / "test-gate.toml"
+    if gate_path.exists():
+        try:
+            gate = parse_gate(gate_path.read_text())
+        except GateInvalid as exc:
+            findings.append(_f(f"invalid test-gate.toml: {exc}", "repair test-gate.toml to match the coverage gate schema", "test-gate.toml"))
+        else:
+            if not any(prefix.startswith("tests/unit/") for prefix in ticket.scope_fence):
+                for file, floor in gate.files.items():
+                    if floor > 0 and any(file == prefix.rstrip("/") or file.startswith(prefix.rstrip("/") + "/") for prefix in ticket.scope_fence):
+                        findings.append(_f(f"fenced file {file!r} has unit coverage floor {floor}", "fence a test file under `tests/unit/` that runs the changed lines", path))
+    return findings
+
+
 def evidence_findings(ticket: Ticket, repo: Path, *, paths: Collection[str] | None = None) -> list[Finding]:
     """Check durable bug evidence; intake supplies only paths it can commit."""
     if ticket.frontmatter.kind != "bug" or ticket.frontmatter.state in {"merged", "rejected"}:
@@ -700,7 +733,7 @@ async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem) -> Inta
                 ticket = validate_ticket(stem, stamped, repo, _settled=True) if states.get(stem) in {"merged", "already_satisfied", "rejected"} else validate_ticket(stem, stamped, repo)
                 fm = ticket.frontmatter
                 if states.get(stem) not in {"merged", "already_satisfied", "rejected"}:
-                    if findings := evidence_findings(ticket, repo, paths=evidence[stem]):
+                    if findings := lint_findings(ticket, repo) + evidence_findings(ticket, repo, paths=evidence[stem]):
                         raise TicketInvalid(findings)
             except TicketInvalid as e:
                 refused[stem] = e.findings
