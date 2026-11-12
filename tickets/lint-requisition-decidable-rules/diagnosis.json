@@ -1,18 +1,17 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "1029dec1e49dadd6020143a1a0a17265ace95f4b",
+  "produced_at_sha": "a92ee6696140b1fce10a3c02b397ca0c2ba3cee5",
   "stem": "lint-requisition-decidable-rules",
-  "attempt": 1,
+  "attempt": 2,
   "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "reject",
+  "verdict": "retry",
   "lessons": [
-    "Fence gap: tests/unit/test_docs_verb.py::test_new_guide_paths_without_disk mocks cli.validate_ticket to return the string \"ticket\", so the new lint_findings call in __main__._new cannot run. Add the file to ## Scope fence and patch cli.lint_findings to return [], like evidence_findings at line 26.",
-    "Fence gap: tests/unit/test_git_commit.py::test_intake_skips_concurrent_commit mocks tickets.validate_ticket with a SimpleNamespace that has only frontmatter. Add the file to ## Scope fence and patch tickets.lint_findings to return [], like evidence_findings at line 102.",
-    "Do not make lint_findings tolerate incomplete ticket objects so these mocks pass. That is a defensive dual path, which CLAUDE.md section A bans. Fix the two tests inside the fence instead.",
-    "AC4: attempt 1 found that unsettled ticket watch-folds-whole-journal fences chupa/__main__.py, which has unit floor 13, with no tests/unit path. Name it in the run record as a real defect in that ticket. Do not edit that ticket from this one.",
-    "Redo all the work from the merge base: lint_findings in chupa/tickets.py; calls from intake, _lint, _new and review_target; the snag branch in review_ticket; the spec trim and version bump; the fixture, doc and test updates. Then run ./dev.py test until it exits 0."
+    "Redo the whole ticket from the merge base: lint_findings in chupa/tickets.py, review_target raising TicketInvalid, the review_ticket snag branch, the spec trim and version bump, the fixture fixes, the stubs and docs. Last attempt's unit coverage gate passed and ticket lint passed 4/4.",
+    "The only failure was test_kill_aborts_requested_retro timing out in tests/integration/test_serve_dispatch.py:195. It waits through tests/integration/serve_rig.py::until, which has a 60s wall-clock deadline. The candidate's later integration gate passed, so nothing shows the diff caused it.",
+    "If the timeout comes back, run tests/integration/test_serve_dispatch.py::test_kill_aborts_requested_retro alone on the candidate. If it passes alone, it is a load-dependent timing flake outside the fence: file it with chupa suggest and do not report premise_failed.",
+    "Report premise_failed only after showing the diff causes the failure. For example, check whether serve_rig.py::retro_scenario fixture tickets go through review_ticket or lint_findings and now get a snag. A timeout that does not reproduce is not a premise failure."
   ],
   "mechanical": null,
   "spec_version": "1.5",
