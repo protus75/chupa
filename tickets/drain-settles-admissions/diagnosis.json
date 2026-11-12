@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "996b14b8e462907c422728bbf13109be3bdd73e2",
+  "stem": "drain-settles-admissions",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "Redo the whole ticket from the merge base. Review found these parts sound: one stem rule set in build_control (ticket.md exists or the stem is journaled), Serve.apply_verdict delegating to one shared apply function in chupa/runner.py, and settling in the _Drain._await_controlled monitor loop.",
+    "Fix the review finding. control_checkpoint in chupa/drain.py awaits PauseConsumer.checkpoint() (chupa/daemon.py:229), which polls inbox.consume() in a loop until resume or kill. Settling only after asyncio.wait returns leaves an accepted confirm/reject unapplied for as long as the drain is paused.",
+    "In control_checkpoint, start a task that loops `while not pending.done(): await consumer.inbox.settle_admissions(apply); await consumer.sleep(0.1)`. Await and cancel it with `pending` and `watcher` in the existing finally block, and settle once more after the wait.",
+    "Add a paused-drain case to tests/integration/test_drain_admissions.py using pause_checkout and build_control: pause the drain, run `chupa confirm dd --extension`, and assert tickets/dd/ticket.md shows `state: confirmed` before resume. On the base code the decision must be stale.",
+    "Keep every other ticket item: the verdict_refused engine-log line on refusal, the unit tests with fakes from criterion 8, tests/regress_drain_settles_admissions.py, and the docs 7.3 edit. Then run both ## Verification commands and confirm each exits 0."
+  ],
+  "mechanical": null,
+  "spec_version": "1.5",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
