@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-The existing request-specific recovery logic was moved intact into the runner; the shared path and live drain behavior are covered by unit and integration tests.
+The paused checkpoint settles admissions through its existing sleep seam to preserve injected clock behavior. The targeted and full verification commands, configured mechanical checks, coverage gate, and regression reproducer all passed.
 
 ## Dead ends
 
-The initial unit fixture lacked provider configuration; replacing the provider with a fake resolved it.
+An initial separate polling task added sleeps and broke fake-clock tests; it was replaced with settlement in the existing checkpoint loop.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Ticket budget: 60 minutes expected, 120 minutes stuck; actual duration not recorded.
+The ticket budget was 60 minutes expected; actual time was not measured.
 
