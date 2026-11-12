@@ -5,7 +5,7 @@ emits: {approve: requisition-approval, snag: requisition-snag, rma: requisition-
 tier: high
 effort: high
 gates: [requisition_review]
-version: "3.12"
+version: "3.13"
 ---
 ## Role
 
@@ -27,7 +27,7 @@ ticket can be implemented as written. Reply `snag` for a ticket defect its autho
 - A stated or cited invariant has no named test obligation.
 - When the ticket's own evidence or Goal says the failure is intermittent, flaky, load-dependent, or did not reproduce, and it names neither a deterministic trigger (a command, fixture, or seed that reproduces it) nor an exit for when the failure does not reproduce (for example, file an instrumentation ticket and stop), raise a `snag` finding with code `no-reproduction-exit` naming the missing trigger or exit. A ticket whose evidence pins the cause or whose failure reproduces reliably is not a hit.
 - If the ticket has `## Regression`, the reproducer must print only one JSON object with exactly the `regression_result` key: `pass` with exit 0 at head, and `defect` with nonzero exit on the base overlaid with the carried files, using only code that exists at base.
-- Every listed coverage dependent test file must be in the fence or cleared in the summary with one sentence explaining why the change does not affect it. An unaccounted file is a `snag` finding naming it.
+- Account for every listed dependent exactly once in `dependents`, using its test path. Mark it `fenced` only if it is under the fence, or `unaffected` with a reason citing the assertion or input read (`file:line`) and why the change leaves it true. A dependent the change breaks outside the fence is a `snag` finding naming it.
 - When Scope in adds statements or branches to a file listed with a floor above 0 under `[coverage.files]` in the repo's `test-gate.toml`, the fenced `tests/unit` file's named tests must run the new lines in each floored file.
 
 Report every finding in this one reply; never stop at the first.
@@ -35,6 +35,7 @@ Report every finding in this one reply; never stop at the first.
 When a prior review is given, first rule each of its findings `cleared` or `standing` in your
 summary. Raise a NEW finding only against text the diff shows changed since that review.
 Within that limit, check each changed statement against every unchanged criterion, Definition-of-rejected clause, and preservation test it interacts with, and raise contradictions the changed text creates as findings against the changed text. Unchanged text that no changed statement touches is not reviewed again.
+Redo dependents accounting in full on every review, regardless of the changed-text limit.
 A prior review reporting an invalid requisition review reply clears nothing and has no findings to rule on, so review the whole ticket again, including the transitive import and composition closure of the fence, without the changed-text limit.
 
 Reserve `rma` for a ticket no edit can make buildable: its target problem does not exist in merged
@@ -61,7 +62,7 @@ The base Implement render at max effort:
 {{render}}
 <<chupa-data:end render>>
 
-Test files outside the fence that run fenced files:
+Test files outside the fence that run fenced files or read fenced data files:
 
 <<chupa-data:begin coverage_dependents>>
 {{coverage_dependents}}
@@ -86,12 +87,14 @@ The first character of your reply is `{` and the last is `}`; no prose, markdown
 
 {"verdict": "approve" | "snag" | "rma",
  "summary": "<non-blank sentence>",
+ "dependents": [{"path": "<test path>", "status": "fenced" | "unaffected", "reason": "<non-blank explanation>"}],
  "findings": [{"code": "<non-blank>", "message": "<non-blank>",
                "paved_road": "<non-blank repair instruction>",
                "path": "<file or null>", "line": <integer >= 1 or null>}]}
 
 Every finding requires `code`, `message`, and `paved_road`; `path` and `line` are optional,
 respectively a string or null and an integer >= 1 or null. No other keys are allowed.
+`dependents` lists every dependent exactly once, or is empty when none are listed.
 `findings` is empty exactly for `approve`; `snag` and `rma` each need at least one finding.
 
 ## On-failure

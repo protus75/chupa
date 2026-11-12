@@ -101,8 +101,8 @@ def run(driver: Driver, repo: Path, text: str = TICKET, stem: str = "one-thing",
     )
 
 
-def reply(verdict: str, findings: list | None = None) -> str:
-    return json.dumps({"verdict": verdict, "summary": "reviewed", "findings": findings or []})
+def reply(verdict: str, findings: list | None = None, dependents: list | None = None) -> str:
+    return json.dumps({"verdict": verdict, "summary": "reviewed", "findings": findings or [], "dependents": dependents or []})
 
 
 FINDING = {"code": "scope", "message": "missing file", "paved_road": "add it to the fence"}
@@ -115,9 +115,9 @@ def test_spec_loads_and_names_finding_keys():
     assert spec.meta.llm_surface == "requisition_review"
     assert spec.inputs == ("ticket", "context", "render", "coverage_dependents", "prior_review", "retry_findings")
     assert all(key in source for key in ("`code`", "`message`", "`paved_road`"))
-    assert "in the fence or cleared in the summary" in source
+    assert "Account for every listed dependent exactly once" in source
     assert "named tests must run the new lines in each floored file" in source
-    assert "An unaccounted file is a `snag` finding naming it" in source
+    assert "A dependent the change breaks outside the fence is a `snag` finding naming it" in source
     # A stale-path rule must exempt paths created by the ticket or written only as outputs.
     for phrase in (
         "does not exist at the review commit",
@@ -271,7 +271,7 @@ def test_base_render_matches_implement_and_gate(tmp_path):
 
 
 def test_coverage_dependents_in_prompt(tmp_path):
-    repo, driver, llm = setup(tmp_path, [reply("approve")])
+    repo, driver, llm = setup(tmp_path, [reply("approve", dependents=[{"path": "tests/outside.py", "status": "unaffected", "reason": "test:1 remains true"}])])
     map_path = repo / "map.json"
     map_path.write_text(
         json.dumps(
@@ -288,6 +288,17 @@ def test_coverage_dependents_in_prompt(tmp_path):
     prompt = llm.requests[0].rendered
     block = prompt.split("<<chupa-data:begin coverage_dependents>>")[1].split("<<chupa-data:end coverage_dependents>>")[0]
     assert block.strip() == "tests/outside.py: runs thing.py"
+
+
+def test_missing_coverage_dependent_is_retried(tmp_path):
+    first = {"path": "tests/a.py", "status": "unaffected", "reason": "tests/a.py:4 still holds"}
+    second = {"path": "tests/b.py", "status": "unaffected", "reason": "tests/b.py:8 still holds"}
+    repo, driver, llm = setup(tmp_path, [reply("approve", dependents=[first]), reply("approve", dependents=[first, second])])
+    map_path = repo / "map.json"
+    map_path.write_text(json.dumps({"files": {"thing.py": ["tests/a.py", "tests/b.py"]}}))
+    verdict = run(driver, repo, coverage_map=map_path)
+    assert verdict.verdict == "approve" and verdict.calls == 2
+    assert "missing dependent: tests/b.py" in llm.requests[1].rendered
 
 
 @pytest.mark.parametrize("contents", [None, "not json", '{"files": []}'])

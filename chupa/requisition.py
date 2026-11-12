@@ -25,12 +25,21 @@ REQUISITION_STUCK_S = 600.0
 FIRST_REVIEW = "first review: no earlier review recorded"
 
 
+class Dependent(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
+
+    path: NonBlank
+    status: Literal["fenced", "unaffected"]
+    reason: NonBlank
+
+
 class RequisitionReply(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid", frozen=True)
 
     verdict: Literal["approve", "snag", "rma"]
     summary: NonBlank
     findings: list[Finding]
+    dependents: list[Dependent] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _findings_match_verdict(self) -> "RequisitionReply":
@@ -51,6 +60,19 @@ class RequisitionVerdict(Artifact):
     spec_version: NonBlank
     provider: str | None
     model: str | None
+
+
+def test_sources(repo: Path) -> dict[str, str]:
+    return {path.relative_to(repo).as_posix(): path.read_text() for path in (repo / "tests").rglob("*.py")}
+
+
+def dependent_errors(reply: RequisitionReply, expected: set[str], fence: tuple[str, ...]) -> list[str]:
+    paths = [entry.path for entry in reply.dependents]
+    errors = [f"missing dependent: {path}" for path in sorted(expected - set(paths))]
+    errors += [f"extra dependent: {path}" for path in sorted(set(paths) - expected)]
+    errors += [f"duplicate dependent: {path}" for path in sorted(set(paths)) if paths.count(path) > 1]
+    errors += [f"wrongly fenced dependent: {entry.path}" for entry in reply.dependents if entry.status == "fenced" and not _in_fence(entry.path, fence)]
+    return errors
 
 
 def review_target(repo: Path, stem: str, text: str) -> Ticket:
@@ -151,6 +173,8 @@ async def review_ticket(
         return snag(f"base Implement render has {chars} characters, over authoring headroom", "render over headroom", "render_feasibility", "shrink or split the ticket at authoring")
     assert base is not None
 
+    dependents: dict[str, set[str]] = {}
+    reads: dict[str, set[str]] = {}
     coverage_dependents = "no coverage map configured"
     if coverage_map is not None:
         try:
@@ -160,12 +184,22 @@ async def review_ticket(
                 raise ValueError("invalid files mapping")
         except OSError, UnicodeError, ValueError, KeyError, TypeError:
             return snag("missing or invalid coverage map", "invalid coverage map", "coverage_map", "run ./dev.py covmap")
-        dependents: dict[str, set[str]] = {}
         for path in ticket.scope_fence:
             for test in files.get(path, []):
                 if not _in_fence(test, ticket.scope_fence):
                     dependents.setdefault(test, set()).add(path)
-        coverage_dependents = "\n".join(f"{test}: runs {', '.join(sorted(paths))}" for test, paths in sorted(dependents.items())) or "none"
+    data_paths = [path for path in ticket.scope_fence if not path.endswith(".py")]
+    if data_paths:
+        for test, source in test_sources(repo).items():
+            if not _in_fence(test, ticket.scope_fence):
+                for path in data_paths:
+                    if path in source:
+                        reads.setdefault(test, set()).add(path)
+    lines = [f"{test}: runs {', '.join(sorted(paths))}" for test, paths in sorted(dependents.items())]
+    lines += [f"{test}: reads {path}" for test, paths in sorted(reads.items()) for path in sorted(paths)]
+    if lines or coverage_map is not None:
+        coverage_dependents = "\n".join(lines) or "none"
+    expected_dependents = set(dependents) | set(reads)
 
     event_context = dict(stem=stem, attempt=attempt, surface="requisition_review", run_seq=run_seq)
     outcome = "gate_failed"
@@ -232,6 +266,21 @@ async def review_ticket(
                         verdict="snag",
                         summary=message,
                         findings=[Finding(code="requisition_review", message=message, paved_road="reply with a schema-valid requisition verdict", kind="authoring_error")],
+                        mechanical="invalid reply",
+                        provider=result.provider,
+                        model=result.model,
+                    )
+                errors = dependent_errors(reply, expected_dependents, ticket.scope_fence)
+                if errors:
+                    retry_findings = "; ".join(errors)
+                    if calls <= driver.retry_cap:
+                        continue
+                    return RequisitionVerdict(
+                        **common,
+                        calls=calls,
+                        verdict="snag",
+                        summary="invalid requisition review reply: " + retry_findings,
+                        findings=[Finding(code="requisition_review", message=retry_findings, paved_road="account for each listed dependent exactly once", kind="authoring_error")],
                         mechanical="invalid reply",
                         provider=result.provider,
                         model=result.model,
