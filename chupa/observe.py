@@ -239,14 +239,15 @@ def read_lines(path: Path, limit: int) -> list[dict]:
     return rows
 
 
-def journal(state: Path, limit: int = 20000) -> list[dict]:
-    segments = sorted((state / "journal").glob("*.jsonl"))
+def journal(state: Path) -> list[dict]:
     events: list[dict] = []
-    for segment in reversed(segments):
-        events = read_lines(segment, limit) + events
-        if len(events) >= limit:
-            break
-    return events[-limit:]
+    for segment in sorted((state / "journal").glob("*.jsonl")):
+        for line in segment.read_text(errors="replace").splitlines():
+            try:
+                events.append(json.loads(line))
+            except ValueError:
+                pass
+    return events
 
 
 def current_step(log: list[dict], stem: str) -> tuple[str, str, str | None]:
@@ -498,7 +499,7 @@ def commits(ctx) -> dict[str, dict]:
 def snapshot(ctx) -> dict:
     state = ctx.state
     now = datetime.now().astimezone()
-    events = journal(state, limit=10**7)
+    events = journal(state)
     log = read_lines(state / "engine.log", 4000) if (state / "engine.log").exists() else []
     last: dict[str, dict] = {}
     for e in events:

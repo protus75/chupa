@@ -35,6 +35,24 @@ def test_queue_projection_and_fallback(tmp_path, monkeypatch):
     ]
 
 
+def test_text_snapshot_folds_the_whole_journal(tmp_path, monkeypatch):
+    ctx = watch.Context(tmp_path, tmp_path / "state", tmp_path / "config.yaml", None, None, None)
+    for stem in ("merged-old", "still-ready"):
+        ticket = tmp_path / "tickets" / stem / "ticket.md"
+        ticket.parent.mkdir(parents=True)
+        ticket.write_text("---\nstate: confirmed\npriority: P1\n---\n## Depends on\nnone\n")
+    journal = ctx.state / "journal"
+    journal.mkdir(parents=True)
+    merged = {"type": "state_transition", "ticket": "merged-old", "body": {"to": "merged"}, "ts": "2026-01-01T00:00:00+00:00"}
+    (journal / "000001.jsonl").write_text(json.dumps(merged) + "\n")
+    (journal / "000002.jsonl").write_text((json.dumps({"type": "signal", "body": {}}) + "\n") * 20001)
+    monkeypatch.setattr(watch, "processes", lambda ctx: [])
+    monkeypatch.setattr(watch, "committed_ticket_shas", lambda ctx: {})
+    queue = watch.text_snapshot(ctx).split("Queue (", 1)[1]
+    assert "still-ready  ready, not run yet" in queue  # The queue must actually include pending tickets.
+    assert "merged-old" not in queue  # A truncated journal incorrectly queues the merged ticket.
+
+
 def test_drain_processes_only_this_repo(tmp_path, monkeypatch):
     # Another host's drain runs from this venv with its own --config; only this checkout's drains count.
     ctx = watch.Context(tmp_path, tmp_path / "state", tmp_path / "config.yaml", None, None, None)
