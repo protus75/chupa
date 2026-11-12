@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "61f48f825d0825304d910f1c5ca97923aada63ee",
+  "stem": "premise-overruled-escalates",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "check",
+  "verdict": "retry",
+  "lessons": [
+    "Redo the scoped work: runner.py routes implement premise_failed + Diagnose retry as escalate (next_rung, terminal rung, reject_queue at top); drain.py parked_blob holds nothing and record_reoffer draws retry with rung only for dispatch escalate.",
+    "Only tests/integration/test_serve_dispatch.py::test_kill_aborts_requested_retro failed (serve_rig.py:37 until() timed out). Its aa/bb tickets have no premise_failed, so first check whether the parked_blob change affects serve's scheduler re-offer path.",
+    "Before committing, run the plain `./dev.py test` and confirm it exits 0. The run record says the full suite passed, but the check gate shows 1 failed of 3466.",
+    "If test_kill_aborts_requested_retro still fails, run `./dev.py test tests/integration/test_serve_dispatch.py` once in a base-commit worktree. Only a failure there makes it a base failure to file with `chupa suggest`. Never rerun until it passes.",
+    "Keep the new tests the review found in scope: tests/unit/test_premise_overruled.py, the test_caps.py drain flows with premise_bounce: 2 (escalate rung and the top-rung reject_queue), and tests/regress_premise_overruled_escalates.py printing pass/defect."
+  ],
+  "mechanical": null,
+  "spec_version": "1.5",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
