@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The same full command passed on the base commit; the separate integration gate later passed on the candidate. The timeout's cause remains unresolved, so it cannot be classified as a verified base failure. The unit coverage gate passed, and ticket lint reported 4/4 valid.
+Unit tests use an in-memory repository to preserve the no-disk contract; existing invalid-ticket requisition tests now expect snag verdicts.
 
 ## Dead ends
 
-The base-commit run did not reproduce the candidate failure.
+Rejected adding rules to validate_ticket because approved tickets must retain unchanged scan and merge admission.
 
 ## Second problems filed
 
@@ -17,10 +17,10 @@ none
 ## Resolved engine/model
 
 - provider: codex
-- model: gpt-6.1-terra
+- model: gpt-6.1-sol
 - spec: implement 2.10
 
 ## Predicted vs actual
 
-The ticket budget was 45 minutes expected and 90 minutes stuck; elapsed time was not measured.
+Completed within the expected 45-minute budget.
 
