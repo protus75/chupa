@@ -457,6 +457,8 @@ Keep and kill normally require a person at an interactive terminal to answer `y`
 
 ### 7.1 `drain`
 
+A dispatch exception is journaled as an `infra_error` terminal, re-offered, and held in the Reject queue at the attempts cap.
+
 1. Takes the lock, reconciles, fires due timers, runs the provider preflight, runs intake once.
 2. Loops: reload config, honor pause/kill/stop, run intake between tickets, maybe run a retro, scan committed tickets (skipping stems settled or rejected in the journal), pick the
    next ticket, review its committed content if it lacks an approval, run it, merge it inline. Serve applies the same review before Implement and holds a premise-parked ticket until its committed content changes.

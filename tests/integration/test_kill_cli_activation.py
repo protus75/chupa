@@ -830,8 +830,14 @@ def test_kill_activation_keeps_worker_boundaries_dormant(root, tmp_path, monkeyp
             return dispatch
 
         args = [verb, stem] if verb == "run" else [verb]
-        with pytest.raises(AssertionError, match="worker boundary activated"):
-            entry.main(args, cwd=root, env=ENV, clock=Clock(), pipeline=wired)
+        if verb == "run":
+            with pytest.raises(AssertionError, match="worker boundary activated"):
+                entry.main(args, cwd=root, env=ENV, clock=Clock(), pipeline=wired)
+        else:
+            assert entry.main(args, cwd=root, env=ENV, clock=Clock(), pipeline=wired) == 0
+            bodies = [e.body for e in Journal(root / ".chupa/state", Clock()).read() if e.ticket == stem and e.type == EventType.STATE_TRANSITION]
+            assert bodies[-1]["to"] == "infra_error" and bodies[-1]["error"] == "AssertionError: worker boundary activated"
+            write(root, "fresh", confirmed().replace("uv run pytest", "true"))
 
         def callback(checkout):
             return runner.bind(checkout, FakeLLM([agent({}, outcome="already_satisfied")]))

@@ -251,8 +251,16 @@ def test_daemon_admission_is_dormant(root, monkeypatch, verb):
     calls = []
     write(root, "work", ticket())
     argv = ["run", "work"] if verb == "run" else ["drain"]
-    with pytest.raises(AssertionError, match="daemon dispatch wired"):
-        main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=wired)
+    if verb == "run":
+        with pytest.raises(AssertionError, match="daemon dispatch wired"):
+            main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=wired)
+    else:
+        from chupa.journal import Journal
+
+        assert main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=wired) == 0
+        bodies = [e.body for e in Journal(root / ".chupa/state", Clock()).read() if e.ticket == "work" and e.type == EventType.STATE_TRANSITION]
+        assert bodies[-1]["to"] == "infra_error" and bodies[-1]["error"] == "AssertionError: daemon dispatch wired into CLI"
+        write(root, "fresh", ticket())
     assert calls == []
 
     def construction_probe(self, dispatch):
@@ -260,7 +268,7 @@ def test_daemon_admission_is_dormant(root, monkeypatch, verb):
 
     monkeypatch.setattr(DaemonAdmission, "__init__", construction_probe)
     assert main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=pipeline) == 0
-    assert calls == ["work"]
+    assert calls == (["work"] if verb == "run" else ["fresh"])
 
     repo = Path(__file__).resolve().parents[2]
     sources = {".".join(path.relative_to(repo).with_suffix("").parts): path.read_text() for path in (repo / "chupa").rglob("*.py")}

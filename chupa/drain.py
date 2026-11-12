@@ -553,7 +553,16 @@ class _Drain:
         async def abort():
             await self.dispatch.abort_current()
 
-        terminal = await self._await_controlled(asyncio.create_task(self.dispatch(ticket)), abort, self.c.control.sleep if self.c.control is not None else self.c.sleep)
+        task = asyncio.create_task(self.dispatch(ticket))
+        try:
+            terminal = await self._await_controlled(task, abort, self.c.control.sleep if self.c.control is not None else self.c.sleep)
+        except Exception as exc:
+            if self._stopping() or not task.done() or task.cancelled() or task.exception() is not exc:
+                raise
+            body = next(e.body for e in reversed(self.c.journal.read()) if e.type == EventType.STATE_TRANSITION and e.ticket == stem)
+            if body.get("to") not in TERMINAL_STATES:
+                self.c.journal.append(EventType.STATE_TRANSITION, {"to": "infra_error", "stage": "dispatch", "reason": "dispatch_exception", "error": f"{type(exc).__name__}: {exc}"}, ticket=stem)
+            return
         if self._stopping():
             return
         if terminal not in TERMINAL_STATES:

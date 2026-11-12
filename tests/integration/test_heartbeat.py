@@ -245,8 +245,16 @@ def test_heartbeat_is_dormant(root, tmp_path, monkeypatch, verb):
 
         return dispatch
 
-    with pytest.raises(AssertionError, match="heartbeat cycle wired"):
-        cli.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=wired_cycle)
+    if verb == "run":
+        with pytest.raises(AssertionError, match="heartbeat cycle wired"):
+            cli.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=wired_cycle)
+    else:
+        from chupa.journal import EventType, Journal
+
+        assert cli.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=wired_cycle) == 0
+        bodies = [e.body for e in Journal(root / ".chupa/state", Clock()).read() if e.ticket == "work" and e.type == EventType.STATE_TRANSITION]
+        assert bodies[-1]["to"] == "infra_error" and bodies[-1]["error"] == "AssertionError: heartbeat cycle wired"
+        write(root, "fresh", ticket())
     monkeypatch.setattr(HeartbeatCycle, "__init__", construction_probe)
 
     def wired_construction(checkout):
@@ -283,9 +291,9 @@ def test_heartbeat_is_dormant(root, tmp_path, monkeypatch, verb):
     asyncio.run(graph())
     stages = Stages()
     assert cli.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=stages) == 0
-    assert stages.calls == ["work"] and stages.lock_held == [True]
+    assert stages.calls == (["work"] if verb == "run" else ["fresh"]) and stages.lock_held == [True]
     assert not (stages.checkout.config.state_dir / "heartbeat").exists()
-    assert not any("heartbeat" in str(event.body) for event in stages.checkout.journal.read())
+    assert not any("heartbeat" in str(event.body) for event in stages.checkout.journal.read() if verb == "run" or event.ticket != "work")
 
 
 @pytest.mark.asyncio

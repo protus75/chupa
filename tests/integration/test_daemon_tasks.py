@@ -312,7 +312,7 @@ async def test_merge_results_remain_consumer_owned(admission_context, monkeypatc
 
 
 @pytest.mark.parametrize("verb", ["run", "drain"])
-def test_background_consumers_are_dormant(root, monkeypatch, verb):
+def test_background_consumers_are_dormant(root, tmp_path, monkeypatch, verb):
     async def noop():
         pass
 
@@ -327,6 +327,9 @@ def test_background_consumers_are_dormant(root, monkeypatch, verb):
     monkeypatch.setattr(DaemonTasks, "run", run_probe)
     monkeypatch.setattr(triage, "triage_pass", triage_probe)
     write(root, "work", ticket())
+    if verb == "drain":
+        config = root / "config.yaml"
+        config.write_text(config.read_text() + "\nretro: {enabled: false}\n")
     argv = ["run", "work"] if verb == "run" else ["drain"]
 
     def deliberately_run(checkout):
@@ -341,9 +344,21 @@ def test_background_consumers_are_dormant(root, monkeypatch, verb):
 
         return dispatch
 
-    for pipeline, message in [(deliberately_run, "background run wired"), (deliberately_triage, "box consumption wired")]:
-        with pytest.raises(AssertionError, match=message):
-            cli.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=pipeline)
+    for index, (pipeline, message) in enumerate([(deliberately_run, "background run wired"), (deliberately_triage, "box consumption wired")]):
+        if verb == "run":
+            with pytest.raises(AssertionError, match=message):
+                cli.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=pipeline)
+        else:
+            from chupa.journal import Journal
+
+            stem = "work" if index == 0 else "probe-two"
+            if index:
+                write(root, stem, ticket())
+            assert cli.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=pipeline) == 0
+            bodies = [e.body for e in Journal(root / ".chupa/state", Clock()).read() if e.ticket == stem and e.type == EventType.STATE_TRANSITION]
+            assert bodies[-1]["to"] == "infra_error" and bodies[-1]["error"] == f"AssertionError: {message}"
+    if verb == "drain":
+        write(root, "fresh", ticket())
 
     def construction_probe(self, **kwargs):
         raise AssertionError("background construction wired")
@@ -358,7 +373,9 @@ def test_background_consumers_are_dormant(root, monkeypatch, verb):
 
     async def graph():
         before = asyncio.all_tasks()
-        rig = CoreRig(root)
+        graph_root = tmp_path / "graph"
+        graph_root.mkdir()
+        rig = CoreRig(graph_root)
         assert_core_wiring(rig)
         assert asyncio.all_tasks() == before and rig.journal.read() == []
         assert dormant.tasks == () and rig.exec.calls == []
@@ -366,7 +383,7 @@ def test_background_consumers_are_dormant(root, monkeypatch, verb):
     asyncio.run(graph())
     stages = Stages()
     assert cli.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=stages) == 0
-    assert stages.calls == ["work"] and stages.lock_held == [True]
+    assert stages.calls == (["work"] if verb == "run" else ["fresh"]) and stages.lock_held == [True]
     assert not any(e.body.get("signal") == "triage_pass" for e in stages.checkout.journal.read())
     assert any(e.type == EventType.STATE_TRANSITION and e.body.get("to") == "merged" for e in stages.checkout.journal.read())
 

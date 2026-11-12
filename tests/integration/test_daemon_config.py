@@ -402,11 +402,19 @@ def test_config_snapshot_is_dormant(root, monkeypatch, verb, operation):
 
     write(root, "work", ticket())
     argv = ["run", "work"] if verb == "run" else ["drain"]
-    with pytest.raises(AssertionError, match=f"{operation} wired"):
-        main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=wired)
+    if verb == "run" or operation == "snapshot_dispatch":
+        with pytest.raises(AssertionError, match=f"{operation} wired"):
+            main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=wired)
+    else:
+        from chupa.journal import Journal
+
+        assert main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=wired) == 0
+        bodies = [e.body for e in Journal(root / ".chupa/state", Clock()).read() if e.ticket == "work" and e.type == EventType.STATE_TRANSITION]
+        assert bodies[-1]["to"] == "infra_error" and bodies[-1]["error"] == f"AssertionError: {operation} wired into CLI"
+        write(root, "fresh", ticket())
     assert calls == []
     assert main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=pipeline) == 0
-    assert calls == ["work"]
+    assert calls == (["fresh"] if verb == "drain" and operation == "snapshot_config" else ["work"])
 
     repo = Path(__file__).resolve().parents[2]
     sources = {".".join(path.relative_to(repo).with_suffix("").parts): path.read_text() for path in (repo / "chupa").rglob("*.py")}

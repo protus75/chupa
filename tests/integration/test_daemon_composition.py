@@ -1661,8 +1661,9 @@ async def test_control_lifecycle_cleanup_on_exit_and_handoff(root, monkeypatch, 
         with pytest.raises(asyncio.CancelledError):
             await task
     elif exit == "failure":
-        with pytest.raises(ValueError, match="stage failure"):
-            await task
+        report = await task
+        assert report.exit_code == 0
+        assert any(e.ticket == "work" and e.body.get("to") == "infra_error" and e.body.get("error") == "ValueError: stage failure" for e in c.journal.read())
     elif exit == "cancel":
         await entered.wait()
         task.cancel()

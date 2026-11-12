@@ -340,8 +340,16 @@ def test_kill_failure_suppression_is_dormant(root, tmp_path, monkeypatch, verb):
 
         return dispatch
 
-    with pytest.raises(AssertionError, match="suppression wired"):
-        main.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=deliberate)
+    if verb == "run":
+        with pytest.raises(AssertionError, match="suppression wired"):
+            main.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=deliberate)
+    else:
+        from chupa.journal import Journal
+
+        assert main.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=deliberate) == 0
+        bodies = [e.body for e in Journal(root / ".chupa/state", Clock()).read() if e.ticket == "work" and e.type == EventType.STATE_TRANSITION]
+        assert bodies[-1]["to"] == "infra_error" and bodies[-1]["error"] == "AssertionError: suppression wired"
+        write(root, "fresh", ticket())
 
     def construction_probe(*args, **kwargs):
         raise AssertionError("suppression bound")
@@ -355,7 +363,7 @@ def test_kill_failure_suppression_is_dormant(root, tmp_path, monkeypatch, verb):
         main.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=bind)
     stages = Stages()
     assert main.main(argv, cwd=root, env=ENV, clock=Clock(), pipeline=stages) == 0
-    assert stages.calls == ["work"] and stages.lock_held == [True]
+    assert stages.calls == (["work"] if verb == "run" else ["fresh"]) and stages.lock_held == [True]
 
     async def production():
         baseline = asyncio.all_tasks()
