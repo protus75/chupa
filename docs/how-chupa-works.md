@@ -531,7 +531,7 @@ For each candidate, in pick order:
 
 ### 7.3 Control
 
-`confirm` and `reject` publish verdict requests to the running serve; drain decides them stale.
+`confirm` and `reject` publish verdict requests to the running drain or serve, which applies them.
 
 `pause`, `resume`, `kill`, `retro`, and `stop` write a request file to `state_dir/control/inbox/`, bound to the
 running engine's lifecycle id. The engine journals a `control_decision` (accepted, stale, or

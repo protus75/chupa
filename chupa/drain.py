@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
-from chupa import caps, control
+from chupa import caps, control, runner
 from chupa.control import ControlRequest
 from chupa.enginelog import EngineLog
 from chupa.journal import TERMINAL_STATES, Event, EventType, render_ts
@@ -252,15 +252,27 @@ async def drain(
                 if projection.stop_requested:
                     stopped.set()
 
+            sleep = consumer.sleep
+
+            async def settling_sleep(seconds):
+                await settle_admissions(checkout)
+                await sleep(seconds)
+
             consumer.inbox.apply = observe
+            consumer.sleep = settling_sleep
             pending = asyncio.create_task(consumer.checkpoint())
             watcher = asyncio.create_task(stopped.wait())
             try:
                 await asyncio.wait((pending, watcher), return_when=asyncio.FIRST_COMPLETED)
                 if pending.done():
                     pending.result()
+                else:
+                    pending.cancel()
+                    await asyncio.gather(pending, return_exceptions=True)
+                await settle_admissions(checkout)
             finally:
                 consumer.inbox.apply = apply
+                consumer.sleep = sleep
                 for task in (pending, watcher):
                     if not task.done():
                         task.cancel()
@@ -336,6 +348,17 @@ async def drain(
         timeout=None,
     )
     return report
+
+
+async def settle_admissions(checkout):
+    async def apply(stem, verb, key, actor):
+        result = await runner.apply_admission(stem, verb, key, actor, checkout)
+        if result["refusal"] is not None:
+            log = EngineLog(checkout.config.state_dir / "engine.log", Redactor.from_config(checkout.config, checkout.env), checkout.clock)
+            log.event("verdict_refused", stem=stem, verb=verb, reason=result["refusal"])
+        return result
+
+    await checkout.control.inbox.settle_admissions(apply)
 
 
 class _Drain:
@@ -597,6 +620,7 @@ class _Drain:
             while not task.done():
                 await sleep(0.1)
                 consumer.inbox.consume()
+                await settle_admissions(self.c)
                 if self._stopping():
                     await consumer.apply_kill(abort, task)
                     return

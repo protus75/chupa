@@ -24,7 +24,7 @@ from chupa.config import Config, ConfigSnapshot, snapshot_config
 from chupa.driver import Driver
 from chupa.effects import Effects
 from chupa.enginelog import EngineLog
-from chupa.git import Git
+from chupa.git import Git, GitError
 from chupa.journal import TERMINAL_STATES, Event, EventType, Journal, dispatch_of, run_seq
 from chupa.journal import Dispatch as JournalDispatch
 from chupa.llm import LLM
@@ -675,3 +675,51 @@ async def _admit(stem: str, checkout: Checkout) -> Ticket:
     if unmerged := [d for d in ticket.depends if d not in settled]:
         raise Refusal(f"{stem} depends on unmerged {', '.join(unmerged)}", " then ".join(f"`run {d}`" for d in unmerged) + f" first, then `run {stem}`")
     return ticket
+
+
+async def apply_admission(stem, verb, key, actor, c):
+    events = c.journal.read()
+    intents = [i for i, e in enumerate(events) if e.type == EventType.EFFECT_INTENT and e.key == key]
+    since = events[intents[0] + 1 :] if intents else []
+    # A request-specific baseline is journaled before any ticket mutation.
+    baseline_key = key + "/baseline"
+    baselines = [e.body["result"] for e in events if e.type == EventType.EFFECT_COMPLETION and e.key == baseline_key]
+
+    async def baseline():
+        return await c.git.rev_parse(c.repo, "HEAD")
+
+    base = baselines[0] if baselines else await Effects(c.journal).run(baseline, key=baseline_key, ticket=stem)
+    signals = [e for e in since if e.ticket == stem]
+    path = c.repo / ticket_path(stem)
+    if baselines and len(intents) > 1 and path.is_file() and await c.git.rev_parse(c.repo, "HEAD") == base:
+        try:
+            committed = await c.git._run(c.repo, "show", f"{base}:{ticket_path(stem)}")
+        except GitError:
+            committed = None
+        state = "rejected" if verb == "reject" else "confirmed"
+        if committed is not None and path.read_text() != committed and path.read_text() == stamp(committed, "state", state):
+            await c.git.commit(c.repo, f"chupa({stem}): {state}", only=[str(ticket_path(stem))])
+    if verb == "confirm":
+        applied = any(e.body.get("signal") in ("draft_confirmed", "reject_verdict") and (e.body.get("signal") != "reject_verdict" or e.body.get("verdict") == "keep") for e in signals)
+        if not applied:
+            log = await c.git._run(c.repo, "log", "--format=%H%x00%s", f"{base}..HEAD", "--", str(ticket_path(stem)))
+            commits = [line.split("\0", 1) for line in log.splitlines() if "\0" in line]
+            confirmed = next((sha for sha, message in commits if message == f"chupa({stem}): confirmed"), None)
+            if confirmed:
+                c.journal.append(EventType.SIGNAL, {"signal": "draft_confirmed", "commit": confirmed}, ticket=stem)
+                applied = True
+    else:
+        applied = any(e.type == EventType.STATE_TRANSITION and e.body.get("to") == "rejected" for e in signals)
+        killed = any(e.body.get("signal") == "reject_verdict" and e.body.get("verdict") == "kill" for e in signals)
+        if killed and not applied:
+            c.journal.append(EventType.STATE_TRANSITION, {"to": "rejected"}, ticket=stem)
+            applied = True
+        if applied:
+            await _dead_dependents(stem, c)
+    refusal = None
+    if not applied:
+        try:
+            await verdict_locked(stem, c, kill=verb == "reject", extension=actor == "extension")
+        except Refusal as exc:
+            refusal = str(exc)
+    return {"refusal": refusal}
