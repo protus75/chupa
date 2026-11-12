@@ -1,18 +1,18 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The targeted verification passed 85 tests. The full unit gate failed three tests and the full integration suite failed one test because they retain old lock assumptions; lint and format passed. Changes are uncommitted.
+The commit lock does not record a verb, so its display derives the verb from the holder's process command line and falls back to chupa; the existing engine-lock display remains unchanged. The simpler approach of adding a verb to the lock identity was outside the scope fence. The targeted verification, full unit and integration suites, coverage gate, lint, and format checks passed.
 
 ## Dead ends
 
-The simpler approach of leaving existing tests unchanged cannot pass the host checks because two tests explicitly require Review to acquire the engine lock and reap.
+none
 
 ## Second problems filed
 
-- box-000422-6260dc47: README.md:73 says Review requires the writer lock, which would be stale after this change.
+none
 
 ## Resolved engine/model
 
