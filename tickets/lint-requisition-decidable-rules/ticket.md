@@ -43,6 +43,7 @@ When this ticket is done, these three rules are lint findings. `chupa lint`, `ch
 - In: `tests/unit/test_specs.py` (the `requisition_review` version pin, and the Regression phrases it asserts) and `tests/integration/test_requisition.py::test_spec_loads_and_names_finding_keys` (the floor-bullet phrase) follow the spec text.
 - In: the bug-ticket fixtures in `tests/integration/test_tickets.py`, `tests/integration/test_lint_verb.py` and `tests/integration/test_author.py` fence their carried prefixes and run a carried file; each test keeps its original assertion.
 - In: `tests/unit/test_requisition_stage_events.py` gains the unit test for the new `review_ticket` branch.
+- In: `tests/unit/test_docs_verb.py::test_new_guide_paths_without_disk` and `tests/unit/test_git_commit.py::test_intake_skips_concurrent_commit` stub `lint_findings` to return `[]`, the same way each already stubs `evidence_findings`. Each test keeps its original assertions.
 - In: `chupa/docs/host-authoring.md` (Regression and Scope fence guidance) and `docs/how-chupa-works.md` section 3 (ticket lint) say lint now checks these three rules.
 - In: new `tests/unit/test_ticket_lint_rules.py`.
 - Out:
@@ -65,6 +66,8 @@ When this ticket is done, these three rules are lint findings. `chupa lint`, `ch
 - tests/integration/test_tickets.py
 - tests/integration/test_lint_verb.py
 - tests/integration/test_author.py
+- tests/unit/test_docs_verb.py
+- tests/unit/test_git_commit.py
 
 ## Acceptance criteria
 1. `tests/unit/test_ticket_lint_rules.py`, calling `lint_findings` on tickets parsed in a temporary repo with no process access:
@@ -88,6 +91,7 @@ When this ticket is done, these three rules are lint findings. `chupa lint`, `ch
 - A rule is enforced by a denylist of runner names instead of requiring a carried path.
 - A committed ticket that breaks a new rule crashes the drain or is dropped from the queue silently.
 - The requisition spec keeps prose that duplicates a rule lint now enforces.
+- `lint_findings` accepts a value that is not a parsed `Ticket`, so that a test's fake passes.
 
 ## Time budget
 - expected: 45m
