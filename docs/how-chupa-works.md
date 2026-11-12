@@ -386,7 +386,7 @@ which counts failed terminal `state_transition` events directly and journals no 
 |---|---|---|
 | `attempts` | 5 | total failed attempts per lineage |
 | `diagnosis` | 3 | each diagnosis call |
-| `retry` | 3 (never above `diagnosis`) | each drain or serve re-offer, except after `premise_failed`, a provider drought, or an `infra_error` or `timeout` that carries no escalation rung |
+| `retry` | 3 (never above `diagnosis`) | each drain or serve re-offer, except after a `premise_failed` without escalation, a provider drought, or an `infra_error` or `timeout` that carries no escalation rung |
 | `infra` | 3 | each `infra_error` or `timeout` (not droughts) |
 | `premise_bounce` | 1 | each `premise_failed` (not over-bound renders or `requisition` snags) |
 | `quarantine` | 5 | flake quarantine size |
@@ -401,7 +401,7 @@ update or escalation and leaves the published ticket text intact. A published sp
 its parent. The drain report shows the failed-attempt total, for example `attempts cap spent (5/5)`.
 
 A spent cap, or a `reject` / `abandon-human` verdict, routes the stem to the Reject queue.
-`escalate`, or the same failure reason three times running, moves the stem up one **rung**: the
+`escalate`, an Implement `premise_failed` whose Diagnose verdict is `retry`, or the same failure reason three times running, moves the stem up one **rung**: the
 next higher tier whose Implement model differs, else one effort level higher. At the top rung
 the stem goes to the Reject queue.
 
@@ -427,7 +427,7 @@ terminal carries a Reject routing marker. `reject` refuses settled stems.
 - **`reject <stem>` (kill)** stamps `state: rejected`, commits it, and files one Suggestion Box
   `failure_report` per confirmed ticket that depended on it ("re-wire, re-scope, or reject it").
   Those dependents stay blocked.
-- **Machine keep:** drain and serve use `awaiting_operator` and `reofferable` to hold queued stems with a spent cap or `ticket_changed` and re-offer others with budget. `record_reoffer` journals `keep actor: machine` for a queued stem, then draws `retry` unless the terminal is `premise_failed`, carries `provider_drought`, or is `infra_error` or `timeout` without an escalation rung. A machine keep never resets caps. The snapshot holds Reject-queue stems only when they await the operator (content parks remain separate).
+- **Machine keep:** drain and serve use `awaiting_operator` and `reofferable` to hold queued stems with a spent cap or `ticket_changed` and re-offer others with budget. `record_reoffer` journals `keep actor: machine` for a queued stem, then draws `retry` unless the terminal is `premise_failed` without escalation, carries `provider_drought`, or is `infra_error` or `timeout` without an escalation rung. A machine keep never resets caps. The snapshot holds Reject-queue stems only when they await the operator (content parks remain separate).
 - `confirm` on a `draft` ticket promotes it to `confirmed` instead.
 
 Keep and kill normally require a person at an interactive terminal to answer `y` at the prompt before the verdict proceeds. `--yes` and `--extension` skip the terminal check and prompt.
@@ -444,7 +444,7 @@ Keep and kill normally require a person at an interactive terminal to answer `y`
 - **Premise park:** a requisition-stage `premise_failed` draws no cap, makes no Diagnose call, and is not routed to the Reject queue. Edit the committed ticket to release it; no `confirm` is needed. The next review receives the last recorded review’s findings and the diff since, rules on those findings, and raises new findings only against changed text. Other premise failures: with the default `premise_bounce: 1`, the first `premise_failed` spends
   the cap and routes to the Reject queue via `premise_bounce cap spent`; only an operator
   `confirm` releases it. When a host sets `premise_bounce` above 1 and caps still have budget,
-  the stem parks until its committed `ticket.md` changes. That re-offer draws no retry.
+  an Implement premise overruled by Diagnose with `retry` escalates and is re-offered without an edit, drawing `retry` with the new rung and carrying the lessons. At the top rung it enters the Reject queue. Other premise failures park until their committed `ticket.md` changes; that re-offer draws no retry.
 - **`budget_exceeded`:** not diagnosed, draws nothing. Ticket stages pass no spend budget, so in
   practice only eval runs reach it.
 - **Reconcile:** whenever a verb other than pause, resume, kill or stop takes the writer lock, any stem still marked `running`

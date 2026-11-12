@@ -9,7 +9,7 @@ is visible to the very next pick. This is the eligibility sort's owner.
 
 In the engine's own source tree, an admission touching `chupa/**` (including `chupa/specs/**`) is a SELF-UPGRADE: before the next dispatch the drain hands off to
 a re-exec'd child running the upgraded checkout, carrying the invocation's parked set in
-argv. A `premise_failed` stem stays parked until its committed `ticket.md` changes.
+argv. A `premise_failed` stem stays parked until its committed `ticket.md` changes, unless escalated.
 """
 
 import asyncio
@@ -82,7 +82,9 @@ def parked_blob(events: Iterable[Event], stem: str) -> str | None:
             and e.body.get("actor") == "operator"
         ):
             body = {}
-    if body.get("to") == PREMISE or (body.get("to") == "gate_failed" and "diff_budget" in body.get("reason", "").split(",")):
+    if (body.get("to") == PREMISE and not (body.get("stage") != "requisition" and body.get("dispatch") == "escalate")) or (
+        body.get("to") == "gate_failed" and "diff_budget" in body.get("reason", "").split(",")
+    ):
         return ran_sha
     return None
 
@@ -103,7 +105,11 @@ def record_reoffer(journal, events: Iterable[Event], stem: str, sha: str) -> Non
     if stem in reject_queue(history):
         journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "machine"}, ticket=stem)
     body = next(e.body for e in reversed(history) if e.type == EventType.STATE_TRANSITION and e.ticket == stem and e.body.get("to") in TERMINAL_STATES)
-    if body.get("to") != PREMISE and "provider_drought" not in body and not (body.get("to") in {"infra_error", "timeout"} and "rung" not in body):
+    if (
+        (body.get("to") != PREMISE or (body.get("stage") != "requisition" and body.get("dispatch") == "escalate"))
+        and "provider_drought" not in body
+        and not (body.get("to") in {"infra_error", "timeout"} and "rung" not in body)
+    ):
         caps.consume(journal, stem, "retry", sha, rung=body.get("rung"))
 
 
@@ -540,7 +546,7 @@ class _Drain:
             await self.dispatch.prepare()
         if reoffer:
             record_reoffer(self.c.journal, self.c.journal.read(), stem, sha)
-        # The `ticket.md` the run answers: a `premise_failed` verdict parks the stem until this changes.
+        # The `ticket.md` the run answers, used to identify content parks.
         self.c.journal.append(EventType.STATE_TRANSITION, {"to": "running", "ticket_sha": sha}, ticket=stem)
         self.last_dispatched = stem
 

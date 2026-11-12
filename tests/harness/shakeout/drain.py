@@ -56,26 +56,17 @@ async def _premise_park_release(bench: Bench) -> Observation:
             json.dumps({"verdict": "retry", "lessons": ["Fix the fixture premise."]}),
         ]
     )
-    first = await bench.drain()
-    requests_after_first = len(bench.llm.requests)
-    second = await bench.drain()
-    assert len(bench.llm.requests) == requests_after_first
-    assert stem not in first.merged and stem not in second.merged
-    assert "parked until its committed ticket.md changes" in second.render()
-    assert f"editing tickets/{stem}/ticket.md" in second.render()
-
-    path = bench.repo / "tickets" / stem / "ticket.md"
-    path.write_text(path.read_text().replace("Exercise the stage fixture", "Correct the stage fixture"))
-    await _commit_tickets(bench, [f"tickets/{stem}/ticket.md"], "shakeout: correct premise fixture")
-    from tests.approval import approve
-
-    approve(bench.repo, stem, bench.clock)
     bench.script([lambda req: _commit(req, {"premise.txt": "ok\n"}), json.dumps({"verdict": "approve", "summary": "approved", "findings": []})])
-    released = await bench.drain()
+    report = await bench.drain()
 
-    assert stem in released.merged
-    assert [terminal["to"] for terminal in _terminals(bench, stem)] == ["premise_failed", "merged"]
-    return Observation("unchanged_premise_is_parked_then_content_change_releases", f"{stem}/1")
+    terminals = _terminals(bench, stem)
+    implements = [request for request in bench.llm.requests if request.surface == "implement"]
+    assert stem in report.merged
+    assert [terminal["to"] for terminal in terminals] == ["premise_failed", "merged"]
+    assert terminals[0]["rung"] == {"tier": "medium", "effort": "high"}
+    assert len(implements) == 2 and implements[1].effort == "high"
+    assert draws(bench.journal.read(), stem, "retry") == 1
+    return Observation("overruled_premise_reoffered_without_edit", f"{stem}/1")
 
 
 async def _red_then_green(bench: Bench) -> Observation:
@@ -111,6 +102,6 @@ async def _red_then_green(bench: Bench) -> Observation:
 
 MEMBERS = (
     Member("bad_schema", "drain", "committed ticket misses a required section", "invalid_committed_ticket_reported_without_dispatch", _bad_schema),
-    Member("premise_park_release", "drain", "premise_failed ticket is unchanged then corrected", "unchanged_premise_is_parked_then_content_change_releases", _premise_park_release),
+    Member("premise_park_release", "drain", "overruled premise re-offered unchanged", "overruled_premise_reoffered_without_edit", _premise_park_release),
     Member("red_then_green", "drain", "first Review rejects and second approves", "review_red_then_green_merges_with_one_retry", _red_then_green),
 )

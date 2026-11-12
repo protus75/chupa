@@ -41,19 +41,22 @@ async def _premise_false(bench: Bench) -> Observation:
         [
             json.dumps({"outcome": "premise_failed", "summary": "premise", "surprises": "none", "dead_ends": "none", "predicted_vs_actual": "10m predicted, 1m actual", "findings": [finding]}),
             _diagnosis("retry"),
+            lambda req: _commit(req, {"premise.txt": "ok\n"}),
+            json.dumps({"verdict": "approve", "summary": "approved", "findings": []}),
         ]
     )
     await bench.drain()
 
-    (terminal,) = _terminals(bench, stem)
+    terminal = _terminals(bench, stem)[0]
     bounces = [event for event in bench.journal.read() if event.type == EventType.CAP_CONSUMED and event.ticket == stem and event.body.get("cap") == "premise_bounce"]
     retries = [event for event in bench.journal.read() if event.type == EventType.CAP_CONSUMED and event.ticket == stem and event.body.get("cap") == "retry"]
     harvested = _finding(bench, stem, "premise")
     implements = [request for request in bench.llm.requests if request.surface == "implement"]
     assert terminal["to"] == "premise_failed" and terminal["stage"] == "implement"
-    assert len(bounces) == 1 and not retries and len(implements) == 1
+    assert terminal["dispatch"] == "escalate" and terminal["rung"] == {"tier": "medium", "effort": "high"}
+    assert len(bounces) == 1 and len(retries) == 1 and len(implements) == 2
     assert harvested.message == finding["message"]
-    return Observation("premise_harvested_without_reoffer", f"{stem}/0")
+    return Observation("overruled_premise_routed_escalate", f"{stem}/0")
 
 
 async def _timeout_dead_ends(bench: Bench) -> Observation:
@@ -122,7 +125,7 @@ async def _identical_terminals(bench: Bench) -> Observation:
 
 
 MEMBERS = (
-    Member("premise_false", "runner", "Implement replies premise_failed", "premise_harvested_without_reoffer", _premise_false),
+    Member("premise_false", "runner", "Implement replies premise_failed", "overruled_premise_routed_escalate", _premise_false),
     Member("timeout_dead_ends", "runner", "Implement hangs after a marked run record", "timeout_lesson_rendered_on_retry", _timeout_dead_ends),
     Member("identical_terminals", "runner", "Review repeats one finding code", "identical_reason_escalates_at_k", _identical_terminals),
 )

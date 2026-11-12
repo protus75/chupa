@@ -405,7 +405,11 @@ async def failure_terminal(
         # Reviewed updates have an explicit retry decision; the identical-wall rule belongs to diagnosis.
         if spent(ctx.config.caps, history, ticket.stem) or verdict in {"reject", "abandon-human"}:
             dispatch = "reject_queue"
-        elif verdict == "escalate" or (verdict is not None and identical and not rework_requested):
+        elif (
+            verdict == "escalate"
+            or (verdict == "retry" and outcome == "premise_failed" and stage == "implement" and not rework_requested)
+            or (verdict is not None and identical and not rework_requested)
+        ):
             rung = next_rung(ctx.config, tier, effort)
             if rung is None:
                 dispatch = "reject_queue"

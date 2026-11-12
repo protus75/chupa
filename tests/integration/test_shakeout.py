@@ -187,7 +187,7 @@ def test_stuck_budget_kill_member_observes_abort_harvest_and_followup_merge(tmp_
 
 def test_premise_false_member_observes_harvest_and_premise_park(tmp_path):
     result = asyncio.run(shakeout.run_member(RUNNER_MEMBERS[0], tmp_path))
-    assert result.green and result.observed == "premise_harvested_without_reoffer"
+    assert result.green and result.observed == "overruled_premise_routed_escalate"
 
 
 def test_timeout_dead_ends_member_observes_lesson_on_second_attempt(tmp_path):
@@ -207,7 +207,7 @@ def test_bad_schema_member_observes_invalid_committed_ticket_without_dispatch(tm
 
 def test_premise_park_release_member_observes_unchanged_park_then_content_release(tmp_path):
     result = asyncio.run(shakeout.run_member(DRAIN_MEMBERS[1], tmp_path))
-    assert result.green and result.observed == "unchanged_premise_is_parked_then_content_change_releases"
+    assert result.green and result.observed == "overruled_premise_reoffered_without_edit"
 
 
 def test_red_then_green_member_observes_one_retry_and_attempt_one_review_findings(tmp_path):

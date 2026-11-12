@@ -251,3 +251,45 @@ def test_spent_cap_parks_even_with_retry_remaining(tmp_path, capsys, cap):
     assert script.calls == []
     assert f"red: gate_failed at check; {cap} cap spent (2/2)" in capsys.readouterr().out
     assert draws(j.read(), "red", "retry") == 0
+
+
+@pytest.mark.parametrize("top", [False, True])
+def test_overruled_premise_drain_escalates_or_rejects(tmp_path, top):
+    import asyncio
+    import json
+
+    from tests.harness.shakeout.bench import Bench
+    from tests.harness.shakeout.stages import _commit, _configure_diagnosis, _ticket
+
+    async def exercise():
+        bench = Bench(tmp_path / "repo")
+        stem = "overruled"
+        ticket = _ticket(stem, "result.txt", "test -f result.txt")
+        if top:
+            ticket = ticket.replace("kind: feature", "kind: feature\nagent_effort: max")
+        bench.add_ticket(stem, ticket)
+        _configure_diagnosis(bench)
+        bench.configure(bench.config.model_copy(update={"caps": bench.config.caps.model_copy(update={"premise_bounce": 2})}))
+        finding = {"code": "premise", "path": f"tickets/{stem}/ticket.md", "message": "wrong premise", "paved_road": "correct premise"}
+        replies = [
+            json.dumps({"outcome": "premise_failed", "summary": "premise", "surprises": "none", "dead_ends": "none", "predicted_vs_actual": "1m", "findings": [finding]}),
+            diagnosis_reply("Use the existing fixture."),
+        ]
+        if not top:
+            replies += [lambda req: _commit(req, {"result.txt": "ok\n"}), json.dumps({"verdict": "approve", "summary": "approved", "findings": []})]
+        bench.script(replies)
+        report = await bench.drain()
+        events = bench.journal.read()
+        terminal = next(e.body for e in events if e.type == EventType.STATE_TRANSITION and e.ticket == stem and e.body.get("to") == "premise_failed")
+        requests = [r for r in bench.llm.requests if r.surface == "implement"]
+        assert draws(events, stem, "premise_bounce") == 1
+        if top:
+            assert terminal["dispatch"] == "reject_queue" and "rung" not in terminal
+            assert len(requests) == 1 and stem not in report.merged
+        else:
+            assert terminal["dispatch"] == "escalate" and terminal["rung"] == {"tier": "medium", "effort": "high"}
+            assert len(requests) == 2 and requests[0].effort == "medium" and requests[1].effort == "high"
+            assert "Use the existing fixture." in requests[1].rendered
+            assert stem in report.merged and draws(events, stem, "retry") == 1
+
+    asyncio.run(exercise())
