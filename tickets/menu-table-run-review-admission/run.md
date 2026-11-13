@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Order admission also consumes existing validation findings; the superseded uncommitted-ticket reader was removed.
+An exploratory suite run detected concurrent source edits; the final sequential run passed after files were frozen.
 
 ## Dead ends
 
-Rejected copying intake rules into snapshot; shared read-only planning preserves settled-ticket, evidence, and stray-stage behavior.
+Rejected copied menu predicates and per-row git/graph scans; shared admissions and cached snapshot inputs prevent recurrence.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Completed within the expected 90-minute budget.
+Completed within the 90-minute expected budget.
 
