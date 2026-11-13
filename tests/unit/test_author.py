@@ -107,7 +107,7 @@ async def test_author_renders_inputs_and_passes_prior_review(monkeypatch):
         pass
 
     async def ls_files(repo):
-        return ["tracked.py"]
+        return ["tracked.py", "chupa/specs/review.md"]
 
     async def open_tickets(checkout):
         return "none"
@@ -149,3 +149,34 @@ async def test_author_renders_inputs_and_passes_prior_review(monkeypatch):
     assert "unique unit finding" in priors[1] and "+second" in priors[1]
     assert inputs_seen[0]["guide"] == "guide text"
     assert "kind: bug" in inputs_seen[0]["skeletons"] and "kind: feature" in inputs_seen[0]["skeletons"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("paths", "tracked"),
+    [
+        (["specs/implement.md"], ["README.md"]),
+        (["specs/review.md", "specs/implement.md"], ["chupa/specs/review.md"]),
+    ],
+)
+async def test_author_declines_untracked_retro_specs(monkeypatch, paths, tracked):
+    from chupa import author as module
+    from tests.unit.test_retro_recurrence import message
+
+    async def ls_files(repo):
+        return tracked
+
+    sentinel = object()
+    evidence_seen = []
+
+    async def decline(checkout, driver, box, item, evidence):
+        evidence_seen.append(evidence)
+        return sentinel
+
+    monkeypatch.setattr(module, "failure_declined", decline)
+    checkout = SimpleNamespace(repo=Path("/repo"), git=SimpleNamespace(ls_files=ls_files))
+    item = message(proposed_spec_paths=paths, verdict={"verdict": "author", "produced_by_spec_version": "1.0", "rationale": "repair"})
+    assert await module.author(checkout, object(), object(), item, 1) is sentinel
+    assert "chupa/specs/implement.md" in evidence_seen[0]
+    assert item.retro_report_key in evidence_seen[0]
+    assert "chupa/specs/review.md" not in evidence_seen[0]

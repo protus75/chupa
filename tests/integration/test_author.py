@@ -96,6 +96,16 @@ def _run(root, monkeypatch, llm):
     return main(["triage"], cwd=root, env=ENV, clock=Clock())
 
 
+def _track_specs(root, paths):
+    for path in paths:
+        fixture = root / "chupa" / path
+        fixture.parent.mkdir(parents=True, exist_ok=True)
+        fixture.write_text("fixture spec\n")
+    names = [f"chupa/{path}" for path in paths]
+    git_out(root, "add", *names)
+    git_out(root, "commit", "-m", "track fixture specs", "--only", "--", *names)
+
+
 def _routes(root):
     config = root.joinpath("config.yaml")
     config.write_text(
@@ -359,6 +369,8 @@ def test_author_uses_baseline_resolution(tmp_path, monkeypatch, baseline, messag
 
     root = make_root(tmp_path)
     _routes(root)
+    if message_class == "retro_finding":
+        _track_specs(root, extra["proposed_spec_paths"])
     path = root / "config.yaml"
     path.write_text(path.read_text().replace("engine_plane_safety_inventory: []", "engine_plane_safety_inventory: [config.yaml]"))
     cfg = load_config(None, cwd=root)
@@ -504,6 +516,7 @@ def test_reopened_retro_ticket_starts_draft(tmp_path, monkeypatch):
 
     root = make_root(tmp_path)
     _routes(root)
+    _track_specs(root, PROPOSAL["proposed_spec_paths"])
     path = root / "config.yaml"
     path.write_text(path.read_text().replace("engine_plane_safety_inventory: []", "engine_plane_safety_inventory: [config.yaml]"))
     cfg = load_config(None, cwd=root)
@@ -534,6 +547,7 @@ def test_retro_author_bridge_and_resolution_recover_without_another_call(tmp_pat
 
     root = make_root(tmp_path)
     _routes(root)
+    _track_specs(root, PROPOSAL["proposed_spec_paths"])
     box = _box(root)
     id, _ = box.enqueue(message_class="retro_finding", origin="retro", summary=PROPOSAL["fixed_failure"], retro_report_key="retro/1", **PROPOSAL)
     llm = FakeLLM([reply("author"), author_reply("durable-repair"), requisition_reply("approve")])
@@ -609,6 +623,7 @@ def test_merged_fix_recurrence_can_author_new_ticket(tmp_path, monkeypatch):
 
     root = make_root(tmp_path)
     _routes(root)
+    _track_specs(root, PROPOSAL["proposed_spec_paths"])
     box = _box(root)
     id, _ = box.enqueue(message_class="retro_finding", origin="retro", summary=PROPOSAL["fixed_failure"], retro_report_key="retro/1", **PROPOSAL)
     assert _run(root, monkeypatch, FakeLLM([reply("author"), author_reply("first-fix"), requisition_reply("approve")])) == 0

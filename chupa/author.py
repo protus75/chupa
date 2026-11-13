@@ -211,8 +211,14 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
     except ValueError as exc:
         return await failure_declined(checkout, driver, box, message, str(exc))
     assert message.verdict is not None
+    tracked = await checkout.git.ls_files(checkout.repo)
+    if message.message_class == "retro_finding":
+        untracked = [f"chupa/{path}" for path in message.proposed_spec_paths if f"chupa/{path}" not in tracked]
+        if untracked:
+            evidence = f"Untracked spec paths: {', '.join(untracked)}; retro report: {message.retro_report_key}. The chupa install owns these specs; the owner should carry the proposal to chupa."
+            return await failure_declined(checkout, driver, box, message, evidence)
+    files = "\n".join(tracked)
     spec: Spec = load_spec((SPECS_DIR / "author.md").read_text())
-    files = "\n".join(await checkout.git.ls_files(checkout.repo))
     try:
         report = report_data(message.report, box.root) if message.report else None
     except (OSError, ValueError) as exc:

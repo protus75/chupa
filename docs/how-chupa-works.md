@@ -643,6 +643,8 @@ Problems found while working are filed, not fixed in the current diff. Classes: 
 
 ### 9.3 Author and starting state
 
+A `retro_finding` naming a spec path the repository does not track is declined before the Author call, with a decision record naming the untracked paths and retro report for the owner to carry to chupa.
+
 The Author prompt embeds the authoring guide and skeletons, and each re-prompt carries the last parsed ticket in `previous_reply`. Each later review receives the previous review and the diff from the text it judged. The Author stage writes `tickets/<stem>/ticket.md` with `source: box:<class>`, has
 `requisition_review` check it, and commits it. Its state is `draft` (needs `confirm`) if the
 message was reopened, the review baseline is not GO, `engine_plane_safety_inventory` is empty or
