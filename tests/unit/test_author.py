@@ -94,3 +94,58 @@ def test_gate_admits_own_passed_stem_only(monkeypatch):
     report = author.AuthorGate(checkout).check(candidate, checkout.repo)
     assert report.verdict == "fail"
     assert any("already named in the journal" in finding.message for finding in report.findings)
+
+
+@pytest.mark.asyncio
+async def test_author_renders_inputs_and_passes_prior_review(monkeypatch):
+    from chupa import author as module
+    from chupa.artifacts import Finding
+    from chupa.requisition import FIRST_REVIEW
+    from tests.unit.test_retro_recurrence import MemoryJournal, message
+
+    class Done(Exception):
+        pass
+
+    async def ls_files(repo):
+        return ["tracked.py"]
+
+    async def open_tickets(checkout):
+        return "none"
+
+    priors, inputs_seen = [], []
+    finding = Finding(code="gap", message="unique unit finding", paved_road="repair")
+
+    async def review(*args, **kwargs):
+        priors.append(kwargs["prior"])
+        return SimpleNamespace(verdict="snag" if len(priors) == 1 else "approve", findings=[finding] if len(priors) == 1 else [], calls=1)
+
+    async def run(stage, *args, **kwargs):
+        stage.render(None, [])
+        await stage.review(module.AuthorReply(stem="one", ticket="first"), 1)
+        await stage.review(module.AuthorReply(stem="one", ticket="second"), 2)
+        raise Done
+
+    monkeypatch.setattr(Path, "read_text", lambda self: "guide text" if self.name == "host-authoring.md" else "spec")
+    monkeypatch.setattr(module, "load_spec", lambda text: SimpleNamespace(meta=SimpleNamespace(effort="medium")))
+    monkeypatch.setattr(module, "render", lambda spec, inputs: inputs_seen.append(inputs) or "rendered")
+    monkeypatch.setattr(module, "list_open_tickets", open_tickets)
+    monkeypatch.setattr(module, "review_ticket", review)
+    monkeypatch.setattr(module.AuthorGate, "check", lambda *args: SimpleNamespace(verdict="pass"))
+    monkeypatch.setattr(module, "stamp", lambda text, *args: text)
+    monkeypatch.setattr(module, "validate_ticket", lambda *args: SimpleNamespace(scope_fence=(), frontmatter=SimpleNamespace(gate_bypass=False)))
+    monkeypatch.setattr(module, "resolve_baseline", lambda *args, **kwargs: SimpleNamespace(binds=False))
+    monkeypatch.setattr(module, "start_state", lambda *args, **kwargs: "draft")
+    journal = MemoryJournal()
+    checkout = SimpleNamespace(
+        repo=Path("/repo"),
+        git=SimpleNamespace(ls_files=ls_files),
+        journal=journal,
+        config=SimpleNamespace(state_dir=Path("/state"), review=SimpleNamespace(coverage_map=None), routing_default_tier="medium"),
+    )
+    box = SimpleNamespace(root=Path("/box"))
+    with pytest.raises(Done):
+        await module.author(checkout, SimpleNamespace(run=run), box, message().model_copy(update={"verdict": SimpleNamespace(rationale="observed")}), 1)
+    assert priors[0] == FIRST_REVIEW
+    assert "unique unit finding" in priors[1] and "+second" in priors[1]
+    assert inputs_seen[0]["guide"] == "guide text"
+    assert "kind: bug" in inputs_seen[0]["skeletons"] and "kind: feature" in inputs_seen[0]["skeletons"]

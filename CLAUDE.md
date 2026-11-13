@@ -56,6 +56,9 @@ Every rule below is behavioral (no gate checks it yet): the prose is the only en
 
 ## A. Engine conduct
 
+- **One authoring process.** Ticket content rules live only in `chupa/docs/host-authoring.md`, and ticket format only in `chupa/tickets.py`. Every authoring surface (a chat session, the Author stage, any future one) reads those, and a prompt spec embeds the guide and skeletons rather than restating them. A fix to authoring changes that one source.
+  Why: the 2026-11-13 box-000428 decline and 10 of 22 Author declines since 2026-11-11 exposed the drifting process.
+
 - **Pure Python.** No shell scripts, no `shell=True`, no string-assembled commands. External binaries only via argv-list wrapper modules; run only in the chupa venv. Exception: `vscode-chupa/` is an operator-only VS Code extension in JavaScript; the engine never imports or runs it.
   Why: shell glue is the orchestration failure this design bans. (D1)
 - **The extension is a thin wrapper; chupa owns the logic.** For any edit to `vscode-chupa/` or the code that feeds it (the snapshot builder, `chupa/graph.py`):

@@ -51,7 +51,8 @@ what content its tickets carry, never the format. See the [host run guide](host-
   over a registry the ticket extends.
 - `Scope fence`: every path the agent may write. Fence every file the acceptance criteria force
   it to change, including existing tests whose assertions flip; a forced file outside the fence
-  makes the ticket impossible. A ticket that changes documented behavior also fences that
+  makes the ticket impossible. Before replying, grep the repo for each changed name or value.
+  When Scope in adds, removes, renames, or moves a member of a set (CLI subcommand, file or directory path, spec name), grep `tests/` and `docs/` for files that list that set or hardcode the old path, and fence every hit that asserts against the changed set or hardcodes the moved path. A mere textual mention, a path built under `tmp_path`, or a historical form the ticket keeps valid is not a hit. A ticket that changes documented behavior also fences that
   document and says in `Scope in / Scope out` which part to update, so docs and code land
   together. A ticket that bumps a prompt spec's `version` states it as the next minor above the version on main,
   never a literal target such as `3.4 -> 3.5`, and fences a test pin for the bumped file.

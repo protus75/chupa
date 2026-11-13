@@ -12,7 +12,7 @@ from chupa.journal import EventType, Journal
 from chupa.llm import FakeLLM
 from chupa.seams import LocalFileSystem
 from chupa.specs import load_spec
-from chupa.tickets import validate_ticket
+from chupa.tickets import template, validate_ticket
 from tests.integration.test_cli import ENV, git_out
 from tests.integration.test_drain import Clock, commit_ticket, confirmed, make_root, pause_checkout
 from tests.integration.test_git import commit_lock
@@ -20,27 +20,55 @@ from tests.integration.test_triage import author_reply, reply
 
 
 def test_author_spec_requires_criteria_to_name_wrong_results():
-    spec = load_spec((Path(__file__).resolve().parents[2] / "chupa/specs/author.md").read_text())
-    assert spec.meta.version == "1.5"
-    assert "a criterion checked by a test names the wrong result the test rules out" in spec.body
-    assert "A test that also passes on the wrong result checks nothing." in spec.body
-    assert "the next minor above the version on main" in spec.body
-    assert "never a literal target" in spec.body
-    guide = (Path(__file__).resolve().parents[2] / "chupa/docs/host-authoring.md").read_text()
-    assert "the next minor above the version on main" in guide
+    root = Path(__file__).resolve().parents[2]
+    spec = load_spec((root / "chupa/specs/author.md").read_text())
+    guide = (root / "chupa/docs/host-authoring.md").read_text()
+    assert spec.meta.version == "1.6"
+    for rule in ("the next minor above the version on main", "criterion checked by a test names the wrong result", "adds, removes, renames, or moves a member of a set"):
+        assert rule not in spec.body
+        assert rule in guide
 
 
 def test_author_spec_states_ticket_rules():
-    spec = load_spec((Path(__file__).resolve().parents[2] / "chupa/specs/author.md").read_text())
-    body = spec.body
-    # The old spec omitted set membership; an unlimited grep would fence loose mentions.
-    assert "adds, removes, renames, or moves a member of a set" in body
-    assert "asserts against the changed set or hardcodes the moved path" in body
-    assert body.count("gate_bypass") == 1 and "Never write `state`, `source`, or `gate_bypass`" in body
-    assert "`priority` (P0-P3), `kind` (`feature`, `chore`, or `bug`), `agent_tier`, and `agent_effort`" in body
-    assert "`## Context` and `## On-demand` item is an existing repo-relative file path" in body
-    assert "`path.py::Class.method`" in body and "`path.md#Heading`" in body
-    assert "including tests, fixtures, and fake binaries that pin a changed name, value, argv, or version" in body
+    root = Path(__file__).resolve().parents[2]
+    guide = (root / "chupa/docs/host-authoring.md").read_text()
+    assert "asserts against the changed set or hardcodes the moved path" in guide
+    assert "A mere textual mention, a path built under `tmp_path`" in guide
+
+
+def block(prompt, name):
+    return prompt.split(f"<<chupa-data:begin {name}>>\n", 1)[1].split(f"\n<<chupa-data:end {name}>>", 1)[0]
+
+
+def test_author_prompt_contains_guide_and_skeletons(tmp_path, monkeypatch):
+    root = make_root(tmp_path)
+    _routes(root)
+    _failure(_box(root))
+    llm = FakeLLM([reply("author"), author_reply("guide-ticket"), requisition_reply("approve")])
+    assert _run(root, monkeypatch, llm) == 0
+    prompt = next(r.rendered for r in llm.requests if r.surface == "author")
+    guide = (Path(__file__).resolve().parents[2] / "chupa/docs/host-authoring.md").read_text()
+    assert block(prompt, "guide") + "\n" == guide
+    for kind in ("feature", "chore", "bug"):
+        assert f"{kind}:\n{template(kind)}" in block(prompt, "skeletons") + "\n"
+
+
+def test_author_review_receives_previous_review(tmp_path, monkeypatch):
+    from chupa.requisition import FIRST_REVIEW
+
+    root = make_root(tmp_path)
+    _routes(root)
+    _failure(_box(root))
+    first = json.loads(author_reply("first"))
+    second = json.loads(author_reply("first"))
+    second["ticket"] = second["ticket"].replace("`chupa/thing.py` is repaired.", "Unique changed candidate line.")
+    finding = {**SNAG, "message": "unique prior marker"}
+    llm = FakeLLM([reply("author"), json.dumps(first), requisition_reply("snag", [finding]), json.dumps(second), requisition_reply("approve")])
+    assert _run(root, monkeypatch, llm) == 0
+    prompts = [r.rendered for r in llm.requests if r.surface == "requisition_review"]
+    assert block(prompts[0], "prior_review") == FIRST_REVIEW
+    assert "unique prior marker" in block(prompts[1], "prior_review")
+    assert "+Unique changed candidate line." in block(prompts[1], "prior_review")
 
 
 def test_author_reprompt_carries_previous_reply(tmp_path, monkeypatch):

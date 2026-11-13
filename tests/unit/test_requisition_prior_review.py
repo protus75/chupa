@@ -2,7 +2,7 @@ import asyncio
 import inspect
 
 from chupa.journal import Event, EventType
-from chupa.requisition import FIRST_REVIEW, prior_review, review_ticket
+from chupa.requisition import FIRST_REVIEW, prior_review, render_prior_review, review_ticket
 
 
 class FakeGit:
@@ -51,3 +51,10 @@ def test_approval_with_no_findings_and_unchanged_text():
     assert "Verdict: approve" in result
     assert "- none" in result
     assert "(unchanged)" in result
+
+
+def test_shared_renderer_matches_recorded_review():
+    findings = [{"code": "gap", "message": "missing\ncase"}]
+    recorded = asyncio.run(prior_review(FakeGit(), "repo", [verdict("one", "old-sha", findings)], "one", "a\nnew\n"))
+    assert render_prior_review("snag", findings, "a\n", "a\nnew\n") == recorded
+    assert "- [gap] missing case" in recorded and "+new" in recorded

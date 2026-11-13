@@ -105,9 +105,14 @@ async def prior_review(git, repo, events, stem, text) -> str:
         return FIRST_REVIEW
     body = event.body
     judged = await git._run(repo, "show", body["ticket_sha"])
-    findings = "\n".join(f"- [{f['code']}] {' '.join(f['message'].splitlines())}" for f in body["findings"]) or "- none"
+    return render_prior_review(body["verdict"], body["findings"], judged, text)
+
+
+def render_prior_review(verdict, findings, judged, text) -> str:
+    """Render a review and the changes made since it judged the text."""
+    findings_text = "\n".join(f"- [{f['code']}] {' '.join(f['message'].splitlines())}" for f in findings) or "- none"
     diff = "".join(difflib.unified_diff(judged.splitlines(keepends=True), text.splitlines(keepends=True))) or "(unchanged)"
-    return f"Verdict: {body['verdict']}\nFindings:\n{findings}\n\nDiff from the judged text:\n{diff}"
+    return f"Verdict: {verdict}\nFindings:\n{findings_text}\n\nDiff from the judged text:\n{diff}"
 
 
 async def review_ticket(

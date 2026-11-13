@@ -17,12 +17,12 @@ from chupa.git import GitError
 from chupa.inbox import CAPS, bounded, report_data
 from chupa.journal import EventType
 from chupa.policy import policy_row, start_state
-from chupa.requisition import FIRST_REVIEW, RequisitionVerdict, review_ticket
+from chupa.requisition import FIRST_REVIEW, RequisitionVerdict, render_prior_review, review_ticket
 from chupa.runner import SPECS_DIR, Checkout
 from chupa.specs import Spec, load_spec, render
 from chupa.stages import findings_text
 from chupa.status import last_states
-from chupa.tickets import TicketInvalid, split_frontmatter, stamp, stem_findings, ticket_path, validate_ticket
+from chupa.tickets import TicketInvalid, split_frontmatter, stamp, stem_findings, template, ticket_path, validate_ticket
 
 AUTHOR_STUCK_S = 900.0
 NonBlank = Annotated[str, Field(min_length=1, pattern=r"\S")]
@@ -235,6 +235,8 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
 
     def render_author(_: object, findings: list) -> str:
         inputs = {
+            "guide": (Path(__file__).parent / "docs" / "host-authoring.md").read_text(),
+            "skeletons": "\n".join(f"{kind}:\n{template(kind)}" for kind in ("feature", "chore", "bug")),
             "request": request,
             "files": files,
             "open_tickets": open_tickets,
@@ -284,7 +286,7 @@ async def author(checkout: Checkout, driver: Driver, box: Box, message: Message,
             attempt=message.seq,
             call_seq=start,
             expected_budget=AUTHOR_STUCK_S / 2,
-            prior=FIRST_REVIEW,
+            prior=FIRST_REVIEW if reviewed is None else render_prior_review(reviewed.verdict, [f.model_dump() for f in reviewed.findings], reviewed_text, text),
         )
         next_unused = start + reviewed.calls
         reviewed_text = text
