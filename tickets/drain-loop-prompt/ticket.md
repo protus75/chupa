@@ -127,7 +127,10 @@ Final report, terse:
 1. `./dev.py test tests/unit/test_ask_drain_loop.py tests/integration/test_ask.py` exits 0. That run includes all four new tests, and each rules out the wrong result named in Scope in.
 2. `node --check vscode-chupa/extension.js` exits 0. In `vscode-chupa/extension.js`, `grep -c "anthropic.claude-code/open" vscode-chupa/extension.js` prints 1, not 2 or 3, so the URI lives only in `openClaude`.
 3. `vscode-chupa/package.json` declares `chupa.askDrainLoop`, titled `Ask Claude: drain loop`, under `view/title` with group `chupa@7` and `when` `view == chupa.tickets`. `python3 -c` with `json.load` over the file, as listed in `## Verification`, exits 0.
-4. `docs/how-chupa-works.md` section 2.1 and section 2.2, and `chupa/docs/host-running.md`, name `prompt drain-loop` and the Ask Claude: drain loop menu item, as stated in Scope in.
+4. Each doc says what Scope in sets for it:
+   - the `docs/how-chupa-works.md` section 2.1 table has a `prompt drain-loop` row;
+   - the section 2.2 More Actions sentence names Ask Claude: drain loop and `prompt drain-loop`;
+   - the `chupa/docs/host-running.md` `prompt` row reads exactly the Scope in text, which mentions the drain loop.
 5. `./dev.py test` exits 0.
 
 ## Verification
