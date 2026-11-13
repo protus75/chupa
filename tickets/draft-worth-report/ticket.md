@@ -15,6 +15,8 @@ kind: feature
 - chupa/__main__.py::_parser
 - chupa/__main__.py::main
 - chupa/observe.py::snapshot
+- chupa/observe.py::MENU
+- tests/integration/test_menu_verb_parity.py
 - vscode-chupa/extension.js
 - vscode-chupa/package.json
 - dev.py
@@ -52,7 +54,7 @@ In:
   - `prompt box` with no ids refuses (exit 2, paved road: name at least one box id).
   - The ticket kinds keep their exactly-one-stem refusal.
   - `prompt` still writes no state.
-- `chupa/observe.py`: each ticket row's `menu` gains `"chupaAskDrafts": "on" if r["draft"] else "off"`. Nothing else in the snapshot changes.
+- `chupa/observe.py`: add a `"chupaAskDrafts"` entry to `MENU`, following `chupaAskReview`: kind `"ticket"`, `extension_only=True`, inputs `("draft",)`, admission `admit` when `draft` is true and `noop` otherwise. Each ticket row's `menu` then carries `chupaAskDrafts` as `"on"` for a draft row and `"off"` otherwise. Nothing else in the snapshot changes.
 - `vscode-chupa/extension.js`: register `chupa.ticket.askDrafts`. It runs `prompt drafts` through `runData`, shows any error with `showErrorMessage`, and opens the Claude Code `/open` URI with stdout, exactly as `chupa.box.discuss` does. It passes no stems and selects nothing itself.
 - `vscode-chupa/package.json`:
   - a `chupa.ticket.askDrafts` command titled "Ask Claude: assess drafts", category `chupa`, enablement `chupaAskDrafts == 'on'`;
@@ -61,8 +63,10 @@ In:
 - `dev.py`: a `prompt` subcommand taking `kind` and `stems` (`nargs="*"`) that runs `chupa prompt <kind> <stems...>` once. Add it to the module docstring.
 - Tests:
   - `tests/integration/test_ask.py`: exclude `"drafts"` from the per-stem parametrize skip list, alongside `"box"`, and add the real-git drafts selection test.
-  - `tests/unit/test_ask_drafts.py`: the render tests, plus the `main` selection and refusal tests with `observe.snapshot` monkeypatched.
+  - `tests/integration/test_ask_drafts.py`: the render tests. They read the real template from disk, so they are integration tests.
+  - `tests/unit/test_ask_drafts.py`: the `main` selection and refusal tests, touching no disk: `chupa.observe.snapshot`, `chupa.__main__.load_config`, and `chupa.ask.render` are monkeypatched, and the `render` stub records the stems it receives.
   - `tests/integration/test_watch.py`: the menu test.
+  - `tests/integration/test_menu_verb_parity.py`: widen the extension-only set assertion to `{"chupaAskDiagnose", "chupaAskReview", "chupaAskDrafts"}`.
   - `tests/integration/test_dev.py`: the forwarding test.
 - Docs:
   - `docs/how-chupa-works.md` section 2.1: add a `prompt drafts` row to the verb table, next to the `prompt box` row.
@@ -88,21 +92,23 @@ Out:
 - tests/integration/test_ask.py
 - tests/integration/test_watch.py
 - tests/integration/test_dev.py
+- tests/integration/test_ask_drafts.py
+- tests/integration/test_menu_verb_parity.py
 - tests/unit/test_ask_drafts.py
 
 ## Acceptance criteria
-1. In `tests/unit/test_ask_drafts.py`, `ask.render("drafts", ["a-one", "b-two"], config, repo)`:
+1. In `tests/integration/test_ask_drafts.py`, `ask.render("drafts", ["a-one", "b-two"], config, repo)`:
    - contains `- a-one: tickets/a-one/ticket.md` before `- b-two: tickets/b-two/ticket.md`. This rules out dropping a stem, reordering, or using a fixed path.
    - contains the configured state directory followed by `/box/`, not the default `.chupa`.
    - contains `"Recommendation"`, `./dev.py confirm --yes`, `./dev.py reject --yes`, and `gold plating`. A prompt without the reject bar or the command steps fails.
    - when `config.ask_notes` is set, ends with the `host_notes` data block.
-   Checked by `./dev.py test tests/unit/test_ask_drafts.py`.
+   Checked by `./dev.py test tests/integration/test_ask_drafts.py`.
 2. In `tests/integration/test_ask.py`, a test sets up a real git repo in `tmp_path` with three tickets: a committed `state: draft`, a committed `state: confirmed`, and an untracked `state: draft`. `main(["prompt", "drafts"], cwd=tmp_path)` returns 0. The output names only the committed draft, not the confirmed or untracked ticket, and the state directory is not created. Checked by `./dev.py test tests/integration/test_ask.py`.
-3. In `tests/unit/test_ask_drafts.py`, tests call `main([...], cwd=tmp_path)` with a `config.yaml` in `tmp_path` and `chupa.observe.snapshot` monkeypatched to return rows. They use no git subprocess, which testguard blocks.
-   - With rows `draft-one` (draft), `not-draft` (not draft), `draft-two` (draft), in that order, `main(["prompt", "drafts"])` returns 0. Its output contains `- draft-one: tickets/draft-one/ticket.md` before `- draft-two: tickets/draft-two/ticket.md` and does not contain `not-draft`. A predicate other than the `draft` field, or a reordering, fails.
-   - Each of these returns 2 with the paved road on stderr and prints no prompt: `main(["prompt", "drafts", "some-stem"])`; `main(["prompt", "drafts"])` when no row is a draft; and `main(["prompt", "box"])` with no ids.
+3. In `tests/unit/test_ask_drafts.py`, tests call `main([...])` with `chupa.observe.snapshot` monkeypatched to return rows, `chupa.__main__.load_config` monkeypatched to return a config, and `chupa.ask.render` monkeypatched to a stub that records its kind and stems. They read and write no disk and use no git subprocess.
+   - With rows `draft-one` (draft), `not-draft` (not draft), `draft-two` (draft), in that order, `main(["prompt", "drafts"])` returns 0 and the stub received kind `"drafts"` and exactly `["draft-one", "draft-two"]`. A predicate other than the `draft` field, or a reordering, fails.
+   - Each of these returns 2 with the paved road on stderr, never calls the stub, and prints no prompt: `main(["prompt", "drafts", "some-stem"])`; `main(["prompt", "drafts"])` when no row is a draft; and `main(["prompt", "box"])` with no ids.
    Checked by `./dev.py test tests/unit/test_ask_drafts.py`.
-4. In `tests/integration/test_watch.py`, a snapshot with one draft row and one confirmed row gives `menu["chupaAskDrafts"] == "on"` for the draft and `"off"` for the confirmed row. A flag that is on for every row fails. Checked by `./dev.py test tests/integration/test_watch.py`.
+4. In `tests/integration/test_watch.py`, a snapshot with one draft row and one confirmed row gives `menu["chupaAskDrafts"] == "on"` for the draft and `"off"` for the confirmed row. A flag that is on for every row fails. `tests/integration/test_menu_verb_parity.py` asserts the extension-only `MENU` keys are exactly `{"chupaAskDiagnose", "chupaAskReview", "chupaAskDrafts"}`, so a hand-added row key outside `MENU` fails. Checked by `./dev.py test tests/integration/test_watch.py tests/integration/test_menu_verb_parity.py`.
 5. In `tests/integration/test_dev.py`, `./dev.py prompt drafts` runs exactly `["uv", "run", "python", "-m", "chupa", "prompt", "drafts"]` once. Checked by `./dev.py test tests/integration/test_dev.py`.
 6. `vscode-chupa/package.json` declares `chupa.ticket.askDrafts` with enablement `chupaAskDrafts == 'on'`, a `webview/context` entry in `4_claude@3`, and a `commandPalette` `when: "false"` entry. `vscode-chupa/extension.js` registers it and calls `runData` with argv `['prompt', 'drafts']` and no stem filtering. Checked by reading `vscode-chupa/package.json` and `vscode-chupa/extension.js`.
 7. The `docs/how-chupa-works.md` 2.1 and 2.2 tables and the `chupa/docs/host-running.md` `prompt` row describe `prompt drafts`. Checked by reading `docs/how-chupa-works.md` and `chupa/docs/host-running.md`.
