@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
-from chupa import caps, control, runner
+from chupa import caps, control, runner, triage
 from chupa.control import ControlRequest
 from chupa.enginelog import EngineLog
 from chupa.journal import TERMINAL_STATES, Event, EventType, render_ts
@@ -393,6 +393,7 @@ class _Drain:
             if self._stopping() or self.c.control.projection.stop_requested:
                 return self.report
             await intake(self.c.repo, self.c.git, self.c.journal, self.c.fs, stems=None)
+            triage.report_intake(self.c)
             # Keep a ticket's retry cycle together before checking retro triggers.
             if self.retro is not None and await self._between_tickets():
                 if hasattr(self.dispatch, "prepare"):

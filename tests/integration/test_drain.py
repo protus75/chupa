@@ -340,6 +340,20 @@ def test_a_ticket_committed_during_the_invocation_runs_in_the_same_invocation(ro
     assert script.calls == ["seeder", "seeded"]
 
 
+def test_drain_ingests_reports_without_triaging(root):
+    from tests.integration.test_inbox import arrival
+
+    config = root / "config.yaml"
+    config.write_text(config.read_text() + "report_inbox: inbox\n")
+    arrival(root)
+    (root / "inbox/b.json").write_text("{invalid json")
+    assert drain(root, Script()) == 0
+    messages = Box(root / ".chupa/state/box", LocalFileSystem()).messages()
+    assert [(m.message_class, m.status, m.summary) for m in messages] == [("bug_report", "pending", "Observed scoring defect")]
+    assert not any(e.type == EventType.SIGNAL and e.body.get("signal") == "triage_pass" for e in journal(root).read())
+    assert "report_intake_refused" in (root / ".chupa/state/engine.log").read_text()
+
+
 def test_drain_merges_without_scanning_the_box(root, monkeypatch):
     box = Box(root / ".chupa" / "state" / "box", LocalFileSystem())
     id, _ = box.enqueue(message_class="suggestion", origin="test", summary="pending observation")

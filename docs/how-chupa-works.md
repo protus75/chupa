@@ -651,9 +651,9 @@ decides per message class.
 
 ### 9.4 Host bug reports
 
-When `report_inbox` is set, serve and triage ingest host bug reports (`*.json`, closed schema, bounded
+When `report_inbox` is set, serve, drain, and triage ingest host bug reports (`*.json`, closed schema, bounded
 replay and log evidence) into the Suggestion Box as `bug_report` messages, keeping the evidence
-in custody for the authored bug ticket.
+in custody for the authored bug ticket. Drain ingests between tickets.
 
 ### 9.5 Retro
 
