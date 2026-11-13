@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-All three scripts pass on the untouched branch. They construct snapshot contexts without Git and do not provide the porcelain, intake, or validation inputs required by this ticket.
+The worktree was clean when inspected; no files were changed and no verification commands were run.
 
 ## Dead ends
 
-none
+Inspected the existing snapshot, admission-related code, and snapshot consumers; the implementation remains unfinished.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+The ticket estimates 90 minutes; implementation was not completed.
 
