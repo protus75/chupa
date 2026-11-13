@@ -13,6 +13,7 @@ def main():
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     try:
         import chupa.observe as watch
+        from tests.unit.test_menu_admission import fake_snapshot_inputs
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -23,6 +24,7 @@ def main():
                 patch.object(watch, "journal", return_value=[]),
                 patch.object(watch, "lock_holder", return_value=object()),
                 patch.object(watch, "running_stems", return_value=[]),
+                patch.object(watch, "ticket_menu_inputs", fake_snapshot_inputs),
                 patch.object(watch, "uncommitted_tickets", return_value=(set(), set())),
                 patch.object(watch, "committed_ticket_shas", return_value={"ready": "sha"}),
                 patch.object(watch, "commits", return_value={}),

@@ -85,8 +85,10 @@ def test_reject_refuses_a_live_run(stopped):
 def test_menu_offers_reject_for_dead_run(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
+    from tests.unit.test_menu_admission import fake_snapshot_inputs
     from tests.unit.test_stale_running import held_events
 
+    monkeypatch.setattr(observe, "ticket_menu_inputs", fake_snapshot_inputs)
     ctx = observe.Context(tmp_path, tmp_path / "state", tmp_path / "config.yaml", None, None, None)
     ticket = SimpleNamespace(stem="stale", frontmatter=SimpleNamespace(priority="P1", state="confirmed"), depends=(), runs_before=(), sections={})
     events = [{"type": "state_transition", "ticket": "stale", "body": {"to": "running"}, "ts": "2026-01-01T00:00:00+00:00"}]

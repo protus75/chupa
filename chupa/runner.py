@@ -35,7 +35,7 @@ from chupa.reconcile import reconcile
 from chupa.redact import Redactor
 from chupa.seams import Clock, FileSystem, GroupExec, Sleep
 from chupa.stages import DiagnosisMaterial, StageContext, StagesRun, diagnose, lift_outbox, run_stages, ticket_change_findings, write_diagnosis
-from chupa.status import SETTLED, last_states, verdict_refusal
+from chupa.status import SETTLED, last_states, run_admission, verdict_refusal
 from chupa.storm import arrival_id
 from chupa.tickets import Ticket, TicketInvalid, intake, parse_ticket, split_frontmatter, stamp, stem_findings, ticket_path, validate_ticket
 
@@ -655,25 +655,19 @@ async def _admit(stem: str, checkout: Checkout) -> Ticket:
     """Intake the named ticket, then validate it for dispatch; refuse anything not dispatchable."""
     repo = checkout.repo
     result = await intake(repo, checkout.git, checkout.journal, checkout.fs, stems={stem})
-    if refused := result.refused.get(stem):
-        raise Refusal(f"{ticket_path(stem)} failed intake: " + "; ".join(f"[{f.code}] {f.message} ({f.paved_road})" for f in refused), f"fix the ticket, then `run {stem}` again")
     path = repo / ticket_path(stem)
-    if not path.is_file():
-        raise Refusal(f"{ticket_path(stem)} does not exist", f"author it with `python -m chupa new {stem}`, fill it, then `run {stem}`")
-    try:
-        ticket = validate_ticket(stem, path.read_text(), repo)
-    except TicketInvalid as e:
-        raise Refusal(f"{ticket_path(stem)} is invalid: " + "; ".join(f"[{f.code}] {f.message} ({f.paved_road})" for f in e.findings), f"fix the ticket, then `run {stem}` again") from None
-    last = last_states(checkout.journal.read())
-    if last.get(stem) == "merged" or ticket.frontmatter.state == "merged":
-        raise Refusal(f"{stem} is already merged", "author follow-up work as a new stem with `new`")
-    if ticket.frontmatter.state != "confirmed":
-        raise Refusal(f"{stem} is `state: {ticket.frontmatter.state}`, not confirmed", f"set `state: confirmed` in {ticket_path(stem)} to dispatch it, or author a new stem")
-    from chupa.rework import settled_dependencies
-
-    settled = settled_dependencies(checkout.journal.read())
-    if unmerged := [d for d in ticket.depends if d not in settled]:
-        raise Refusal(f"{stem} depends on unmerged {', '.join(unmerged)}", " then ".join(f"`run {d}`" for d in unmerged) + f" first, then `run {stem}`")
+    exists = path.is_file()
+    ticket = None
+    # Intake refusal precedes disk validation, which precedes dispatch state checks.
+    if exists and not result.refused.get(stem):
+        try:
+            ticket = validate_ticket(stem, path.read_text(), repo)
+        except TicketInvalid as exc:
+            ticket = exc.findings
+    history = checkout.journal.read() if ticket is not None and not isinstance(ticket, list) else ()
+    admission = run_admission(stem, history, exists, ticket, result.refused.get(stem))
+    if admission.outcome == "refuse":
+        raise Refusal(admission.message, admission.paved_road)
     return ticket
 
 

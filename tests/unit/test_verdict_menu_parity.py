@@ -13,6 +13,9 @@ from chupa.reconcile import orphans
 
 @pytest.fixture
 def world(monkeypatch):
+    from tests.unit.test_menu_admission import fake_snapshot_inputs
+
+    monkeypatch.setattr(observe, "ticket_menu_inputs", fake_snapshot_inputs)
     events = []
     files = {}
     commits = []

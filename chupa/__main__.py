@@ -34,7 +34,7 @@ from chupa.providers import ADAPTERS, PREFLIGHT_TIMEOUT_S, PROBE_PROMPT, Provide
 from chupa.redact import Redactor
 from chupa.restart import Restart
 from chupa.seams import Clock, CommandNotifications, ExecutableNotFound, LocalFileSystem, ProcessExec, SubprocessExec
-from chupa.status import SETTLED, last_states, lint_admission, order_admission, project, reject_queue, render
+from chupa.status import last_states, lint_admission, order_admission, project, reject_queue, render, review_admission
 from chupa.storm import StormLedger
 from chupa.tickets import (
     IntakeRefused,
@@ -571,24 +571,27 @@ async def _review(checkout: runner.Checkout, stem: str) -> int:
     from chupa.effects import Effects
     from chupa.tickets import intake
 
-    if findings := stem_findings(stem):
-        raise runner.Refusal(findings[0].message, findings[0].paved_road)
-    if await runner.ticket_pending(checkout.git, checkout.repo, stem):
-        result = await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs, stems={stem})
-        if refused := result.refused.get(stem):
-            raise runner.Refusal(f"{ticket_path(stem)} failed intake: " + "; ".join(f.message for f in refused), f"fix the ticket and retry `review {stem}`")
+    # Preserve stem, intake, existence and settled refusal precedence before reading main.
+    admission = review_admission(stem, (), True, None)
+    if admission.outcome == "refuse":
+        raise runner.Refusal(admission.message, admission.paved_road)
+    pending = await runner.ticket_pending(checkout.git, checkout.repo, stem)
+    result = await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs, stems={stem}) if pending else None
     path = checkout.repo / ticket_path(stem)
-    if not path.is_file():
-        raise runner.Refusal(f"{ticket_path(stem)} does not exist", f"author the ticket before `review {stem}`")
-    history = checkout.journal.read()
+    intake_decision = result.refused.get(stem) if result else None
+    history = checkout.journal.read() if path.is_file() and not intake_decision else ()
     states = last_states(history)
-    if states.get(stem) in SETTLED | {"rejected"}:
-        raise runner.Refusal(f"{stem} is settled or rejected", "author follow-up work as a new ticket")
+    admission = review_admission(stem, history, path.is_file(), None, intake_decision, pending=pending)
+    if admission.outcome == "refuse":
+        raise runner.Refusal(admission.message, admission.paved_road)
     text = await checkout.git._run(checkout.repo, "show", f"main:{ticket_path(stem)}")
     try:
         ticket = validate_ticket(stem, text, checkout.repo)
     except TicketInvalid as exc:
-        raise runner.Refusal(f"{ticket_path(stem)} is invalid: " + "; ".join(f.message for f in exc.findings), f"fix the ticket and retry `review {stem}`") from None
+        ticket = exc.findings
+    admission = review_admission(stem, history, True, ticket, pending=pending)
+    if admission.outcome == "refuse":
+        raise runner.Refusal(admission.message, admission.paved_road)
     unmerged = [dep for dep in ticket.depends if states.get(dep) != "merged"]
     session = build_control(checkout).providers
     try:
@@ -907,8 +910,8 @@ def _order(checkout, stem, priority, runs_before):
         if priority is not None and ticket.frontmatter.priority != priority:
             raise runner.Refusal("priority line cannot be edited", "write priority as a plain `priority: P2` line, then retry order")
     except TicketInvalid as exc:
-        finding = exc.findings[0]
-        raise runner.Refusal(finding.message, finding.paved_road) from None
+        admission = order_admission(stem, events, exists, holder, exc.findings)
+        raise runner.Refusal(admission.message, admission.paved_road) from None
     checkout.fs.write(path, changed.encode())
     fields = ([f"priority: {priority}"] if priority is not None else []) + ([f"runs before: {', '.join(runs_before) or '(cleared)'}"] if runs_before is not None else [])
     print(f"ordered {stem}: {'; '.join(fields)}")

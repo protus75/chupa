@@ -4,19 +4,31 @@ import asyncio
 import json
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
-from typing import get_args
+from typing import Literal, get_args
 
 from chupa.config import load_config
 from chupa.drain import RETIRED, authored_at, awaiting_operator, order_tickets, parked_blob
 from chupa.graph import layout
 from chupa.lockfile import ENGINE_VERBS
 from chupa.rework import settled_dependencies
-from chupa.status import SETTLED, verdict_refusal
-from chupa.tickets import Frontmatter, TicketInvalid, parse_ticket
+from chupa.status import (
+    SETTLED,
+    Admission,
+    confirm_admission,
+    dismiss_admission,
+    lint_admission,
+    order_admission,
+    reject_admission,
+    review_admission,
+    run_admission,
+    triage_admission,
+)
+from chupa.tickets import Frontmatter, TicketInvalid, _graph, _intake_plan_stem, _porcelain, intake_pending, order, parse_ticket, ticket_path, validate_ticket
 
 STEP_NAMES = {
     "requisition_review": "Requisition",
@@ -496,6 +508,92 @@ def commits(ctx) -> dict[str, dict]:
     return rows
 
 
+@dataclass(frozen=True)
+class MenuEntry:
+    kind: Literal["ticket", "box"]
+    admission: Callable[..., Admission]
+    inputs: tuple[str, ...]
+    needs_lock: bool = False
+    extension_only: bool = False
+
+
+# Every emitted key lives here. Ask rules are extension-only; every other rule is a verb admission.
+MENU = {
+    "chupaReview": MenuEntry("ticket", review_admission, ("stem", "events", "file_exists", "ticket", "intake_decision", "stray", "pending")),
+    "chupaLint": MenuEntry("ticket", lint_admission, ("stem", "events", "file_exists")),
+    "chupaRun": MenuEntry("ticket", run_admission, ("stem", "events", "file_exists", "ticket", "intake_decision", "stray"), True),
+    "chupaConfirm": MenuEntry("ticket", confirm_admission, ("events", "stem", "draft", "interrupted")),
+    "chupaReject": MenuEntry("ticket", reject_admission, ("events", "stem", "draft", "interrupted")),
+    "chupaAskDiagnose": MenuEntry("ticket", lambda section: Admission("admit" if section != "merged" else "noop"), ("section",), extension_only=True),
+    "chupaAskReview": MenuEntry("ticket", lambda section: Admission("admit" if section in ("queued", "blocked") else "noop"), ("section",), extension_only=True),
+    "chupaPriority": MenuEntry("ticket", order_admission, ("stem", "events", "file_exists", "lock_holder", "ticket")),
+    "chupaRunsBefore": MenuEntry("ticket", order_admission, ("stem", "events", "file_exists", "lock_holder", "ticket")),
+    "chupaTriage": MenuEntry("box", triage_admission, ("id", "messages"), True),
+    "chupaDismiss": MenuEntry("box", dismiss_admission, ("id", "messages"), True),
+}
+
+
+def row_menu(kind, inputs, alive):
+    menu = {}
+    for key, entry in MENU.items():
+        if entry.kind != kind:
+            continue
+        values = inputs[key] if kind == "ticket" else inputs
+        admission = entry.admission(**{name: values[name] for name in entry.inputs})
+        menu[key] = "off" if admission.outcome != "admit" else "locked" if entry.needs_lock and alive else "on"
+    return menu
+
+
+def ticket_menu_inputs(ctx, history, stems, holder, interrupted):
+    """Read porcelain once and share graph reads across all row validations."""
+    entries = _porcelain(asyncio.run(ctx.git.status_porcelain(ctx.root, "--untracked-files=all")))
+    pending, evidence, stray = asyncio.run(intake_pending(ctx.root, ctx.git, entries))
+    states = {e.ticket: e.body["to"] for e in history if e.type == "state_transition" and "to" in e.body}
+    graphs = (_graph(ctx.root), _graph(ctx.root, "Runs before"))
+    result = {}
+
+    def validated(stem, text):
+        try:
+            return validate_ticket(stem, text, ctx.root, graphs=graphs)
+        except TicketInvalid as exc:
+            return exc.findings
+
+    for stem in stems:
+        path = ctx.root / ticket_path(stem)
+        exists = path.is_file()
+        text = path.read_text() if exists else ""
+        plan = _intake_plan_stem(ctx.root, stem, pending[stem], evidence[stem], states.get(stem), graphs=graphs) if stem in pending else None
+        decision = plan[2] if plan else None
+        claimed = plan[1] if plan else text
+        # Merged run and settled review/order outcomes do not depend on validation.
+        disk = validated(stem, claimed) if exists and states.get(stem) != "merged" else None
+        review_ticket = None
+        ticket_pending = any(p.startswith(f"tickets/{stem}/") for _, p in entries)
+        if exists and states.get(stem) not in SETTLED | {"rejected"} and not (ticket_pending and stray) and not isinstance(decision, list):
+            main_text = claimed if plan else git_output(ctx, "show", f"main:{ticket_path(stem)}")
+            review_ticket = disk if main_text == claimed else validated(stem, main_text)
+        common = dict(
+            stem=stem,
+            events=history,
+            file_exists=exists,
+            intake_decision=decision,
+            stray=stray,
+            pending=ticket_pending,
+            draft=False,
+            interrupted=interrupted,
+            section="",
+            lock_holder=holder,
+        )
+        order_ticket = validated(stem, text) if exists and text != claimed and states.get(stem) not in SETTLED | {"rejected"} else disk
+        runs_before_ticket = validated(stem, order(text, priority=None, runs_before=[])) if exists and states.get(stem) not in SETTLED | {"rejected"} else order_ticket
+        result[stem] = {
+            key: dict(common, ticket=review_ticket if key == "chupaReview" else order_ticket if key == "chupaPriority" else runs_before_ticket if key == "chupaRunsBefore" else disk)
+            for key, entry in MENU.items()
+            if entry.kind == "ticket"
+        }
+    return result, set(pending), {s for s, new in pending.items() if new}
+
+
 def snapshot(ctx) -> dict:
     state = ctx.state
     now = datetime.now().astimezone()
@@ -532,7 +630,8 @@ def snapshot(ctx) -> dict:
     blocked = simulate({s: t for s, t in open_.items() if s not in queued_stems}, settled | set(running) | queued_stems, authored, strict=False)
     blocked_stems = {t.stem for t in blocked}
 
-    dirty, new = uncommitted_tickets(ctx)
+    # The menu and displayed pending/new flags share intake's porcelain interpretation.
+    menu_inputs, dirty, new = ticket_menu_inputs(ctx, history, set(tickets) | set(invalid) | set(merged) | set(running), object() if alive else None, interrupted)
     verdicts: dict[str, dict[str, str]] = {}  # stem -> ticket_sha -> last verdict for that content
     for e in events:
         body = e.get("body", {})
@@ -589,8 +688,6 @@ def snapshot(ctx) -> dict:
             "draft": bool(t) and t.frontmatter.state == "draft" and stem not in new,
             # Pending ticket changes go through intake before a verdict is submitted.
             "committed": stem not in dirty,
-            # What `chupa run` accepts: confirmed, every dependency settled (it also needs the lock).
-            "runnable": bool(t) and t.frontmatter.state == "confirmed" and set(t.depends) <= settled,
             "review": review(stem) if section != "merged" else "",
         }
 
@@ -616,24 +713,12 @@ def snapshot(ctx) -> dict:
     unmerged = [r["stem"] for r in rows if r["section"] != "merged"]
     priorities = list(get_args(Frontmatter.model_fields["priority"].annotation))
 
-    def available(possible: bool) -> str:
-        return "locked" if possible and alive else "on" if possible else "off"
-
     for r in rows:
-        open_section = r["section"] in ("queued", "blocked")
-        valid = r["stem"] not in invalid
-        draft = bool(tickets.get(r["stem"])) and tickets[r["stem"]].frontmatter.state == "draft"
-        r["menu"] = {
-            "chupaReview": "on" if open_section and valid else "off",
-            "chupaLint": "on" if r["section"] != "merged" else "off",
-            "chupaRun": available(r["runnable"]),
-            "chupaConfirm": "on" if verdict_refusal(history, r["stem"], False, draft, interrupted) is None else "off",
-            "chupaReject": "on" if verdict_refusal(history, r["stem"], True, draft, interrupted) is None else "off",
-            "chupaAskDiagnose": "on" if r["section"] != "merged" else "off",
-            "chupaAskReview": "on" if open_section else "off",
-            "chupaPriority": "on" if open_section and valid else "off",
-            "chupaRunsBefore": "on" if open_section and valid else "off",
-        }
+        inputs = menu_inputs[r["stem"]]
+        for values in inputs.values():
+            values["section"] = r["section"]
+            values["draft"] = bool(tickets.get(r["stem"])) and tickets[r["stem"]].frontmatter.state == "draft"
+        r["menu"] = row_menu("ticket", inputs, alive)
         r["priorityChoices"] = [{"label": p, "description": "current" if p == r["priority"] else ""} for p in priorities]
         r["priorityTag"] = r["priority"] if r["section"] in ("running", "queued") else ""
         if r["section"] != "merged":
@@ -700,7 +785,7 @@ def snapshot(ctx) -> dict:
                 "seq": m.seq,
                 "messageClass": cls,
                 "state": m.status,
-                "menu": {"chupaTriage": available(m.status == "pending"), "chupaDismiss": available(m.status == "pending")},
+                "menu": row_menu("box", {"id": m.id, "messages": messages}, alive),
                 "status": f"{cls} · {label}",
                 "summary": summary,
                 "fields": fields,

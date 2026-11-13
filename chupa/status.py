@@ -67,7 +67,58 @@ class Admission:
     paved_road: str = ""
 
 
-def order_admission(stem, events, file_exists, lock_holder):
+def run_admission(stem, events, file_exists, ticket, intake_decision=None, stray=()):
+    """Dispatch admission; ticket is the full disk validation, including evidence."""
+    from chupa.rework import settled_dependencies
+    from chupa.tickets import ticket_path
+
+    if stray:
+        return intake_stray_admission(stray)
+    road = f"fix the ticket, then `run {stem}` again"
+    for label, decision in (("failed intake", intake_decision), ("is invalid", ticket)):
+        if isinstance(decision, list) and decision:
+            return Admission("refuse", f"{ticket_path(stem)} {label}: " + "; ".join(f"[{f.code}] {f.message} ({f.paved_road})" for f in decision), road)
+    if not file_exists:
+        return Admission("refuse", f"{ticket_path(stem)} does not exist", f"author it with `python -m chupa new {stem}`, fill it, then `run {stem}`")
+    events = tuple(events)
+    if last_states(events).get(stem) == "merged" or ticket.frontmatter.state == "merged":
+        return Admission("refuse", f"{stem} is already merged", "author follow-up work as a new stem with `new`")
+    if ticket.frontmatter.state != "confirmed":
+        return Admission("refuse", f"{stem} is `state: {ticket.frontmatter.state}`, not confirmed", f"set `state: confirmed` in {ticket_path(stem)} to dispatch it, or author a new stem")
+    if unmerged := [d for d in ticket.depends if d not in settled_dependencies(events)]:
+        return Admission("refuse", f"{stem} depends on unmerged {', '.join(unmerged)}", " then ".join(f"`run {d}`" for d in unmerged) + f" first, then `run {stem}`")
+    return Admission("admit")
+
+
+def intake_stray_admission(stray):
+    return Admission(
+        "refuse",
+        f"staged changes outside pending ticket files: {', '.join(stray)}",
+        "unstage them; a ticket-plane commit carries only `tickets/<stem>/ticket.md` and regular, non-symlink evidence files for that pending stem",
+    )
+
+
+def review_admission(stem, events, file_exists, ticket, intake_decision=None, stray=(), pending=False):
+    """Review admission; ticket is validated main text, or claimed pending text."""
+    from chupa.tickets import stem_findings, ticket_path
+
+    if findings := stem_findings(stem):
+        return Admission("refuse", findings[0].message, findings[0].paved_road)
+    if pending and stray:
+        return intake_stray_admission(stray)
+    road = f"fix the ticket and retry `review {stem}`"
+    if pending and isinstance(intake_decision, list) and intake_decision:
+        return Admission("refuse", f"{ticket_path(stem)} failed intake: " + "; ".join(f.message for f in intake_decision), road)
+    if not file_exists:
+        return Admission("refuse", f"{ticket_path(stem)} does not exist", f"author the ticket before `review {stem}`")
+    if last_states(events).get(stem) in SETTLED | {"rejected"}:
+        return Admission("refuse", f"{stem} is settled or rejected", "author follow-up work as a new ticket")
+    if isinstance(ticket, list) and ticket:
+        return Admission("refuse", f"{ticket_path(stem)} is invalid: " + "; ".join(f.message for f in ticket), road)
+    return Admission("admit")
+
+
+def order_admission(stem, events, file_exists, lock_holder, ticket=None):
     from chupa.reconcile import orphans
     from chupa.tickets import ticket_path
 
@@ -79,6 +130,8 @@ def order_admission(stem, events, file_exists, lock_holder):
         return Admission("refuse", f"{stem} is running; editing a ticket during its run stops it with ticket_changed", "reorder it after the run ends")
     if state in SETTLED | {"rejected"}:
         return Admission("refuse", f"{stem} is {state}", "author follow-up work as a new ticket")
+    if isinstance(ticket, list) and ticket:
+        return Admission("refuse", ticket[0].message, ticket[0].paved_road)
     return Admission("admit")
 
 
@@ -119,6 +172,16 @@ def verdict_refusal(events: Iterable[Event], stem: str, kill: bool, draft: bool,
     elif not draft and stem not in reject_queue(history):
         return f"{stem} is neither a draft nor in the Reject queue", "run `status` to list the Reject queue"
     return None
+
+
+def confirm_admission(events, stem, draft, interrupted):
+    refusal = verdict_refusal(events, stem, False, draft, interrupted)
+    return Admission("refuse", *refusal) if refusal else Admission("admit")
+
+
+def reject_admission(events, stem, draft, interrupted):
+    refusal = verdict_refusal(events, stem, True, draft, interrupted)
+    return Admission("refuse", *refusal) if refusal else Admission("admit")
 
 
 def project(events: Iterable[Event], *, alive: bool = True, box=None, policy=None, window: Window | None = None, provenance: Mapping[str, str] | None = None) -> Status:

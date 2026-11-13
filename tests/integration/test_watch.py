@@ -15,6 +15,14 @@ def config_fixture(tmp_path):
     (tmp_path / "config.yaml").write_text(VALID)
 
 
+@pytest.fixture(autouse=True)
+def snapshot_inputs(monkeypatch):
+    from tests.unit.test_menu_admission import fake_snapshot_inputs
+
+    real = watch.ticket_menu_inputs
+    monkeypatch.setattr(watch, "ticket_menu_inputs", lambda ctx, *args: fake_snapshot_inputs(ctx, *args) if ctx.git is None else real(ctx, *args))
+
+
 def test_queue_projection_and_fallback(tmp_path, monkeypatch):
     ctx = watch.Context(tmp_path, tmp_path / "state", tmp_path / "config.yaml", None, None, None)
     for stem, priority, dependency in [("old", "P1", "none"), ("new", "P2", "none"), ("blocked", "P0", "missing")]:

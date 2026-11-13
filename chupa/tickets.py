@@ -538,14 +538,14 @@ def _graph(repo: Path, section: str = "Depends on") -> dict[str, list[str]]:
     return edges
 
 
-def validate_ticket(stem: str, text: str, repo: Path, *, _settled: bool = False) -> Ticket:
+def validate_ticket(stem: str, text: str, repo: Path, *, _settled: bool = False, graphs=None) -> Ticket:
     """The full intake lint: grammar and acyclicity."""
     ticket = _parse_ticket(stem, text, repo, evidence=False) if _settled else parse_ticket(stem, text, repo)
-    edges = _graph(repo)
+    edges = dict(graphs[0]) if graphs is not None else _graph(repo)
     edges[stem] = list(ticket.depends)
     if cycle := depends_cycle(stem, edges):
         raise TicketInvalid([_f(f"`## Depends on` closes a cycle: {' -> '.join(cycle)}", "drop the edge that inverts the intended order", ticket_path(stem))])
-    edges = _graph(repo, "Runs before")
+    edges = dict(graphs[1]) if graphs is not None else _graph(repo, "Runs before")
     edges[stem] = list(ticket.runs_before)
     if cycle := depends_cycle(stem, edges):
         raise TicketInvalid([_f(f"`## Runs before` closes a cycle: {' -> '.join(cycle)}", "drop the edge that inverts the intended order", ticket_path(stem))])
@@ -701,7 +701,7 @@ def _intake_stray(repo: Path, entries: list[tuple[str, str]], evidence: Mapping[
     return sorted(p for st, p in entries if st[0] not in " ?" and (p not in allowed or "D" in st))
 
 
-def _intake_plan_stem(repo: Path, stem: str, new: bool, paths: Collection[str], state: str | None) -> tuple[str, str, Ticket | list[Finding]]:
+def _intake_plan_stem(repo: Path, stem: str, new: bool, paths: Collection[str], state: str | None, *, graphs=None) -> tuple[str, str, Ticket | list[Finding]]:
     """Read and validate one pending stem without writing or invoking git."""
     text = (repo / ticket_path(stem)).read_text()
     stamped, findings = _intake_claims(stem, text, new)
@@ -709,12 +709,24 @@ def _intake_plan_stem(repo: Path, stem: str, new: bool, paths: Collection[str], 
         if findings:
             raise TicketInvalid(findings)
         settled = state in {"merged", "already_satisfied", "rejected"}
-        ticket = validate_ticket(stem, stamped, repo, _settled=True) if settled else validate_ticket(stem, stamped, repo)
+        kwargs = {"graphs": graphs} if graphs is not None else {}
+        ticket = validate_ticket(stem, stamped, repo, _settled=True, **kwargs) if settled else validate_ticket(stem, stamped, repo, **kwargs)
         if not settled and (findings := lint_findings(ticket, repo) + evidence_findings(ticket, repo, paths=paths)):
             raise TicketInvalid(findings)
     except TicketInvalid as exc:
         return text, stamped, exc.findings
     return text, stamped, ticket
+
+
+async def intake_pending(repo, git, entries):
+    """Read the committable evidence and stray paths for one porcelain listing."""
+    pending = _pending(repo, entries)
+    evidence = {}
+    for stem in pending:
+        directory = repo / TICKETS_DIR / stem / "evidence"
+        paths = await git._run(repo, "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", f"{TICKETS_DIR}/{stem}/evidence/")
+        evidence[stem] = sorted({p for p in paths.split("\0") if p and _regular_evidence(repo / p, directory)})
+    return pending, evidence, _intake_stray(repo, entries, evidence)
 
 
 async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem, *, stems: Collection[str] | None) -> IntakeResult:
@@ -725,19 +737,12 @@ async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem, *, stem
     """
     async with git._commit_lock:
         entries = _porcelain(await git.status_porcelain(repo))
-        pending = _pending(repo, entries)
-        evidence = {}
-        for stem in pending:
-            directory = repo / TICKETS_DIR / stem / "evidence"
-            paths = await git._run(repo, "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", f"{TICKETS_DIR}/{stem}/evidence/")
-            evidence[stem] = sorted({p for p in paths.split("\0") if p and _regular_evidence(repo / p, directory)})
-        if stray := _intake_stray(repo, entries, evidence):
-            raise IntakeRefused(
-                _f(
-                    f"staged changes outside pending ticket files: {', '.join(stray)}",
-                    "unstage them; a ticket-plane commit carries only `tickets/<stem>/ticket.md` and regular, non-symlink evidence files for that pending stem",
-                )
-            )
+        pending, evidence, stray = await intake_pending(repo, git, entries)
+        if stray:
+            from chupa.status import intake_stray_admission
+
+            admission = intake_stray_admission(stray)
+            raise IntakeRefused(_f(admission.message, admission.paved_road))
         from chupa.status import last_states
 
         states = last_states(journal.read())

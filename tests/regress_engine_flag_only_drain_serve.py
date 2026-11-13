@@ -9,6 +9,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from chupa import observe
+from tests.unit.test_menu_admission import fake_snapshot_inputs
 
 with tempfile.TemporaryDirectory() as directory:
     root = Path(directory)
@@ -17,6 +18,7 @@ with tempfile.TemporaryDirectory() as directory:
     with (
         patch.object(observe.os, "kill"),
         patch.object(observe, "processes", return_value=[(712, 1, "python -m chupa triage")]),
+        patch.object(observe, "ticket_menu_inputs", fake_snapshot_inputs),
         patch.object(observe, "uncommitted_tickets", return_value=(set(), set())),
         patch.object(observe, "committed_ticket_shas", return_value={}),
         patch.object(observe, "commits", return_value={}),
