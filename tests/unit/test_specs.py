@@ -22,7 +22,7 @@ from chupa.specs import (
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parents[2] / "chupa" / "specs"
-    for name, version in (("implement", "2.11"), ("requisition_review", "3.13"), ("diagnose", "1.5")):
+    for name, version in (("implement", "2.12"), ("requisition_review", "3.13"), ("diagnose", "1.5")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
@@ -109,7 +109,7 @@ def test_implement_spec_consumer_read():
     assert lint_spec(text) == []
     assert len(text.splitlines()) <= SPEC_MAX_LINES
     spec = load_spec(text)
-    assert spec.meta.version == "2.11"
+    assert spec.meta.version == "2.12"
     assert spec.meta.model_dump(exclude={"version"}) == {
         "llm_surface": "implement",
         "consumes": "ticket",
@@ -192,6 +192,8 @@ def test_implement_spec_consumer_read():
     ) in task
     for rule in (
         "For each assertion, name the likely wrong implementation it rules out; the fixture must give a different value under that wrong version",
+        "For a filter, exclusion, ordering or tie-break assertion, the target row must pass every other filter and its derived columns must give the intended role.",
+        "Apply the wrong version once in the worktree, confirm the test fails, then restore the code before committing.",
         "Never assert a value that a default, a zero, or a shared fixture would produce anyway.",
         "On a retry, check every assertion this way, not only the one a finding names.",
     ):

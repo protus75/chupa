@@ -226,7 +226,10 @@ must have nondeterminism removed, without retries. Coverage thresholds and test 
 not be lowered unless an acceptance criterion requires it; an unmet gate requires `premise_failed`.
 
 The Implement prompt asks for each assertion to name the likely wrong implementation it rules out
-and use a fixture that gives a different value under that version. It forbids asserting values a
+and use a fixture that gives a different value under that version. For filter, exclusion, ordering
+or tie-break assertions, the target row must pass every other filter and its derived columns must
+give the intended role; Implement applies the wrong version once to confirm the test fails, then
+restores the code. It forbids asserting values a
 default, zero, or shared fixture would produce anyway, and asks retries to check every assertion
 this way, not only the one named by a finding.
 
