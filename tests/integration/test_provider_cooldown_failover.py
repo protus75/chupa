@@ -93,7 +93,7 @@ async def test_quota_failure_arms_cooldown_without_infra_draw(root, monkeypatch)
     from tests.approval import approve
 
     approve(root, "quota", rig.time)
-    await intake(root, rig.checkout.git, rig.journal, rig.fs)
+    await intake(root, rig.checkout.git, rig.journal, rig.fs, stems=None)
     writer = await prepared(rig)
     fail_process(rig, monkeypatch, "usage limit reached")
     lock = held(rig)
@@ -215,7 +215,7 @@ async def test_mid_run_drought_is_harvested_without_spine_draws(root, monkeypatc
     from tests.approval import approve
 
     approve(root, "midrun", rig.time)
-    await intake(root, rig.checkout.git, rig.journal, rig.fs)
+    await intake(root, rig.checkout.git, rig.journal, rig.fs, stems=None)
     writer = await prepared(rig)
     session = writer.ctx.driver.llm.session
     rig.exec.reply = '{"text":"earlier evidence"}'
@@ -660,7 +660,7 @@ async def test_executed_failures_preserve_classification_and_infra_accounting(ro
     from tests.approval import approve
 
     approve(root, "failure", rig.time)
-    await intake(root, rig.checkout.git, rig.journal, rig.fs)
+    await intake(root, rig.checkout.git, rig.journal, rig.fs, stems=None)
     writer = await prepared(rig)
     fail_process(rig, monkeypatch, message)
     rig.transition(ticket.stem, "running")

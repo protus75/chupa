@@ -221,7 +221,7 @@ class _Member:
             "## Time budget\n- expected: 1m\n- stuck: 20m\n"
         )
         self.fs.write(self.root / f"tickets/{stem}/ticket.md", raw.encode())
-        await intake(self.root, self.git, self.journal, self.fs)
+        await intake(self.root, self.git, self.journal, self.fs, stems=None)
         from tests.approval import approve
 
         approve(self.root, stem, self.time)

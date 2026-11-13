@@ -129,7 +129,7 @@ def test_live_verdict_intakes_before_publication(monkeypatch, refused):
     else:
         assert asyncio.run(entry._verdict(checkout, "sample", "confirm", None, True, False)) == 0
         assert len(published) == 1 and published[0].stem == "sample"
-    intake.assert_awaited_once()
+    intake.assert_awaited_once_with(checkout.repo, checkout.git, checkout.journal, checkout.fs, stems={"sample"})
 
 
 def test_shared_admission_refusal_and_replay(monkeypatch):

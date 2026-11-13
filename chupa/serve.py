@@ -280,7 +280,7 @@ class Serve:
             if self.stopping:
                 return {}
             c = self.checkout
-            await intake(c.repo, c.git, c.journal, c.fs)
+            await intake(c.repo, c.git, c.journal, c.fs, stems=None)
             return {stem: self.read(stem) for stem in self.stems()}
 
     async def watch(self) -> None:

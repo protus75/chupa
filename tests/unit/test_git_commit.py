@@ -102,7 +102,7 @@ def test_intake_skips_concurrent_commit(monkeypatch):
     monkeypatch.setattr(tickets, "evidence_findings", lambda *args, **kwargs: [])
     monkeypatch.setattr(tickets, "lint_findings", lambda *args, **kwargs: [])
     git = FakeGit()
-    result = run(tickets.intake(Path("/repo"), git, Journal(), SimpleNamespace()))
+    result = run(tickets.intake(Path("/repo"), git, Journal(), SimpleNamespace(), stems=None))
     assert git._commit_lock.entries == 1 and not git._commit_lock.held
     assert result.committed == () and result.refused == {}
     assert calls == [("chupa(one): ticket", ["tickets/one/ticket.md"])]
@@ -116,7 +116,7 @@ def test_intake_stem_scope(monkeypatch, stems, expected):
         _commit_lock = FakeLock()
 
         async def status_porcelain(self, repo):
-            return "?? tickets/one/ticket.md\nA  tickets/two/ticket.md\n"
+            return "?? tickets/one/ticket.md\n?? tickets/two/ticket.md\n"
 
         async def _run(self, repo, *args):
             return ""

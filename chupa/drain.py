@@ -292,7 +292,7 @@ async def drain(
         consumer.providers.timers.fire_due()
         if hasattr(dispatch, "prepare"):
             await dispatch.prepare()
-        await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
+        await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs, stems=None)
         run = _Drain(checkout, dispatch, frozenset(parked), before_dispatch=checkpoint, deadline=deadline)
         if signals is not None:
             restore = signals(run._signal_kill)
@@ -392,7 +392,7 @@ class _Drain:
                 await self.before_dispatch()
             if self._stopping() or self.c.control.projection.stop_requested:
                 return self.report
-            await intake(self.c.repo, self.c.git, self.c.journal, self.c.fs)
+            await intake(self.c.repo, self.c.git, self.c.journal, self.c.fs, stems=None)
             # Keep a ticket's retry cycle together before checking retro triggers.
             if self.retro is not None and await self._between_tickets():
                 if hasattr(self.dispatch, "prepare"):

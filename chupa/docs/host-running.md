@@ -35,9 +35,9 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | `covgate` | Yes | Run a unit command and check its coverage report. |
 | `new` | Yes | Create and lint a ticket skeleton. |
 | `order` | Yes | Validate and edit a ticket's priority or runs-before ordering. |
-| `run` | No | Run one ticket through the pipeline. |
-| `confirm` | Yes | After interactive confirmation, publish a keep verdict to serve. |
-| `reject` | Yes | After interactive confirmation, publish a reject verdict to serve. |
+| `run` | No | Intake the named ticket and run it through the pipeline; other pending tickets are left untouched. |
+| `confirm` | Yes | Intake the named ticket, then apply or publish a keep verdict after interactive confirmation; other pending tickets are left untouched. |
+| `reject` | Yes | Intake the named ticket, then apply or publish a reject verdict after interactive confirmation; other pending tickets are left untouched. |
 | `drain` | No | Run eligible tickets to quiescence. `--detach` runs in its own session, surviving terminal or editor closing, and appends output to `<state_dir>/drain.out`. |
 | `serve` | No | Run the continuous daemon. |
 

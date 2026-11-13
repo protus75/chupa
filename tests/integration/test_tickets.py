@@ -104,7 +104,7 @@ def write(root: Path, stem: str, text: str) -> Path:
 
 
 def do_intake(root, g, journal):
-    return run(intake(root, g, journal, LocalFileSystem()))
+    return run(intake(root, g, journal, LocalFileSystem(), stems=None))
 
 
 def complete(text: str) -> str:
@@ -359,7 +359,7 @@ def test_intake_waits_for_commit_lock_before_reading_status(repo, tmp_path):
 
         git._commit_lock._sleep = sleep
         async with commit_lock(tmp_path / ".chupa/state"):
-            task = asyncio.create_task(intake(root, git, journal, LocalFileSystem()))
+            task = asyncio.create_task(intake(root, git, journal, LocalFileSystem(), stems=None))
             await asyncio.wait_for(waiting.wait(), 2)
             assert not task.done()
             await git._run(root, "reset", "-q", "--", "chupa/thing.py")
@@ -733,3 +733,14 @@ def test_intake_skips_ticket_committed_after_status(repo, monkeypatch):
     assert result.committed == () and result.refused == {}
     assert not [event for event in journal.read() if event.body.get("signal") == INTAKE_SIGNAL]
     assert run(git._run(root, "log", "-1", "--format=%s")).strip() == "concurrent ticket"
+
+
+def test_intake_none_sweeps_both_pending_tickets(repo):
+    root, git, journal = repo
+    write(root, "alpha", VALID)
+    write(root, "beta", VALID)
+    result = run(intake(root, git, journal, LocalFileSystem(), stems=None))
+    assert result.committed == ("alpha", "beta")
+    assert not result.refused
+    subjects = run(git._run(root, "log", "--format=%s")).splitlines()
+    assert "chupa(alpha): ticket" in subjects and "chupa(beta): ticket" in subjects

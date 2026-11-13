@@ -867,7 +867,7 @@ async def _verdict(checkout, stem, verb, read_input, yes, extension):
     if await runner.ticket_pending(checkout.git, checkout.repo, stem):
         from chupa.tickets import intake
 
-        result = await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
+        result = await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs, stems={stem})
         if refused := result.refused.get(stem):
             raise runner.Refusal(f"{ticket_path(stem)} failed intake: " + "; ".join(f.message for f in refused), "fix the ticket and retry the verdict")
     try:

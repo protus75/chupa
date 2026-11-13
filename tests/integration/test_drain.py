@@ -122,7 +122,7 @@ def intake_at(root: Path, stem: str, at: datetime) -> None:
     clock = Clock()
     clock.now = at
     g = Git(SubprocessExec(), env=ENV, timeout=30.0, commit_lock=commit_lock(root / ".chupa/state"))
-    asyncio.run(intake(root, g, Journal(root / ".chupa" / "state", clock), LocalFileSystem()))
+    asyncio.run(intake(root, g, Journal(root / ".chupa" / "state", clock), LocalFileSystem(), stems=None))
 
 
 def retry_draws(root: Path, stem: str) -> int:

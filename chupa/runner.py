@@ -560,7 +560,7 @@ async def verdict(stem: str, checkout: Checkout, *, kill: bool, extension: bool 
 
 async def verdict_locked(stem: str, checkout: Checkout, *, kill: bool, extension: bool = False) -> int:
     """Apply verdict rules with the writer lock already held."""
-    intake_result = await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
+    intake_result = await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs, stems={stem})
     if refused := intake_result.refused.get(stem):
         raise Refusal(f"{ticket_path(stem)} failed intake: " + "; ".join(f.message for f in refused), "fix the ticket and retry the verdict")
     history = checkout.journal.read()
@@ -652,9 +652,9 @@ async def _dead_dependents(dead: str, checkout: Checkout) -> None:
 
 
 async def _admit(stem: str, checkout: Checkout) -> Ticket:
-    """Intake every pending ticket, then validate the one to dispatch; refuse anything not dispatchable."""
+    """Intake the named ticket, then validate it for dispatch; refuse anything not dispatchable."""
     repo = checkout.repo
-    result = await intake(repo, checkout.git, checkout.journal, checkout.fs)
+    result = await intake(repo, checkout.git, checkout.journal, checkout.fs, stems={stem})
     if refused := result.refused.get(stem):
         raise Refusal(f"{ticket_path(stem)} failed intake: " + "; ".join(f"[{f.code}] {f.message} ({f.paved_road})" for f in refused), f"fix the ticket, then `run {stem}` again")
     path = repo / ticket_path(stem)
