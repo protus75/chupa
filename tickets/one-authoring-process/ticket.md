@@ -57,6 +57,7 @@ When this ticket is done, the Author stage reads the same rules and skeletons a 
 - chupa/docs/host-authoring.md
 - chupa/requisition.py
 - tests/integration/test_author.py
+- tests/unit/test_author.py
 - tests/unit/test_requisition_prior_review.py
 - docs/how-chupa-works.md
 - CLAUDE.md
@@ -64,17 +65,18 @@ When this ticket is done, the Author stage reads the same rules and skeletons a 
 
 ## Acceptance criteria
 1. `tests/integration/test_author.py` has a test showing that the first Author prompt holds the full text of `chupa/docs/host-authoring.md`, byte for byte, inside its `guide` data block. It also holds `template("feature")`, `template("chore")` and `template("bug")` inside its `skeletons` data block. This rules out a prompt that carries a restated subset of the rules or no skeleton.
-2. `tests/integration/test_author.py` asserts that the `chupa/specs/author.md` body contains none of "the next minor above the version on main", "a criterion checked by a test names the wrong result" or "adds, removes, renames, or moves a member of a set", and that `chupa/docs/host-authoring.md` contains all three. This rules out a second copy of the rules in the Author spec, and rules out losing the set-membership rule in the move.
+2. `tests/integration/test_author.py` asserts that the `chupa/specs/author.md` body contains none of "the next minor above the version on main", "criterion checked by a test names the wrong result" or "adds, removes, renames, or moves a member of a set", and that `chupa/docs/host-authoring.md` contains all three. This rules out a second copy of the rules in the Author spec, and rules out losing the set-membership rule in the move.
 3. `tests/integration/test_author.py` has a test of an Author run in which the first candidate's review returns `snag` with a finding whose message is a unique marker, and the second candidate is approved. The first `requisition_review` prompt's `prior_review` block equals `FIRST_REVIEW`. The second one contains the marker and a `+` diff line from the changed candidate text. This rules out a constant `prior` on every Author review.
 4. `tests/unit/test_requisition_prior_review.py` asserts that the new pure rendering function gives the same string `prior_review` returns for the same verdict, findings, judged text and current text. Its existing tests pass unchanged. This rules out the Author stage and `chupa review` rendering the prior review in two different formats.
-5. The `version` in `chupa/specs/author.md` is the next minor above the version on main, and `tests/integration/test_author.py` pins it, which rules out a stale pin.
-6. `CLAUDE.md` and `AGENTS.md` each contain the sentence "Ticket content rules live only in `chupa/docs/host-authoring.md`, and ticket format only in `chupa/tickets.py`." outside the managed block.
-7. `docs/how-chupa-works.md` section 9.3 no longer says "The Author prompt states the ticket section rules", and says the Author prompt embeds the authoring guide and skeletons.
-8. `./dev.py test tests/integration/test_author.py tests/unit/test_requisition_prior_review.py tests/unit/test_requisition_stage_events.py tests/integration/test_baseline.py` exits 0.
+5. `tests/unit/test_author.py` has a unit test that runs the new `chupa/author.py` lines with fakes, for `chupa/author.py`'s unit coverage floor. It stubs `review_ticket` to record `prior` across two candidates in one Author run, and asserts the first is `FIRST_REVIEW` and the second carries the first review's finding message. It also renders the Author inputs and asserts the `guide` and `skeletons` blocks are present. This rules out new Author lines that only integration tests reach.
+6. The `version` in `chupa/specs/author.md` is the next minor above the version on main, and `tests/integration/test_author.py` pins it, which rules out a stale pin.
+7. `CLAUDE.md` and `AGENTS.md` each contain the sentence "Ticket content rules live only in `chupa/docs/host-authoring.md`, and ticket format only in `chupa/tickets.py`." outside the managed block.
+8. `docs/how-chupa-works.md` section 9.3 no longer says "The Author prompt states the ticket section rules", and says the Author prompt embeds the authoring guide and skeletons.
+9. `./dev.py test tests/integration/test_author.py tests/unit/test_author.py tests/unit/test_requisition_prior_review.py tests/unit/test_requisition_stage_events.py tests/integration/test_baseline.py` exits 0.
 
 ## Verification
 ```
-./dev.py test tests/integration/test_author.py tests/unit/test_requisition_prior_review.py tests/unit/test_requisition_stage_events.py tests/integration/test_baseline.py
+./dev.py test tests/integration/test_author.py tests/unit/test_author.py tests/unit/test_requisition_prior_review.py tests/unit/test_requisition_stage_events.py tests/integration/test_baseline.py
 ```
 
 ## Definition of rejected
