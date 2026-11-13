@@ -1,0 +1,5 @@
+fungo host, 2026-11-13, chupa 0.1.5
+Ticket authoring-forced-edits-and-rule-tests: state confirmed, section queued, status ready, never ran.
+Snapshot row: "menu": {"chupaConfirm": "off", "chupaReject": "off", ...}
+`chupa reject authoring-forced-edits-and-rule-tests` in a terminal accepts it (runner.verdict_locked: kill refuses only running and SETTLED).
+Same snapshot: s11-fit-priors (section blocked, held: premise_bounce cap spent) has chupaReject "on".
