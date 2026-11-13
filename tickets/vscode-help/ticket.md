@@ -93,11 +93,14 @@ Scope in:
     `{"label", "path", "line"}` for a packaged doc and `{"label", "url"}` otherwise.
   - The same module supplies a builder for the Help picker list (see `chupa.help` below).
   - A link whose heading or verb row does not resolve raises; it does not return a partial map.
+  - The builders take the doc reader as a parameter (`read: Callable[[Path], str]`). `snapshot`
+    passes `Path.read_text`, and unit tests pass in-memory text, so `tests/unit/test_help.py`
+    writes nothing to disk.
 - `chupa/observe.py::snapshot` adds these fields:
   - top-level `help`, the map above;
   - `helpPick`, an ordered QuickPick list, with one `{"kind": "separator", "label"}` per topic kind,
-    then `{"label", "description", "detail", "topic"}` items, plus one item that opens the extension
-    settings;
+    then `{"label", "description", "detail", "topic"}` items, plus one final settings item
+    `{"label", "detail", "command": "chupa.openSettings"}`, which carries `command` and no `topic`;
   - `headerHelp`, the topic keys for each Tickets header count and each lock indicator;
   - `boxHeaderHelp`, the topic key for each Suggestion Box header count.
 - Each status branch in `snapshot` names its `status.*` key next to the text it builds; `snapshot`
@@ -123,11 +126,14 @@ Scope in:
     in every chupa view's title overflow menu;
   - replaces each setting's `description` with a `markdownDescription` in the same three-part shape,
     ending with a link to its doc section as a `https://github.com/protus75/chupa/blob/main/...#slug`
-    URL;
+    URL. `chupa.command` links to `chupa/docs/host-contract.md` `## VS Code extension`.
+    `chupa.statsWindow`, `chupa.refreshSeconds`, `chupa.unavailableMenuItems`, and
+    `chupa.playAction` link to the `docs/how-chupa-works.md` section 2.2 heading;
   - adds `viewsWelcome` entries for `chupa.steps` and `chupa.stats` when they are empty: one sentence
     plus `[Open chupa help](command:chupa.help)`.
 - `vscode-chupa/extension.js` changes:
-  - registers `chupa.help`, which shows `snap.helpPick` and opens the chosen topic's link;
+  - registers `chupa.help`, which shows `snap.helpPick`. For the chosen item it runs `item.command` when
+    the item has one, and otherwise runs `chupa.openHelp(item.topic)`;
   - registers an internal `chupa.openHelp(topic)`, not contributed. It opens a `path` link in a text
     editor with the selection at `line` and a `url` link with `openExternal`;
   - shows Recent Steps tooltips as a trusted `MarkdownString` of `step.tooltip` plus a
@@ -155,7 +161,9 @@ Scope in:
   `Next`, the Help command, settings) and that the error-state link opens this README.
 - `docs/how-chupa-works.md` section 2.2's extension paragraph says that the extension's help comes
   from `chupa/help.py` through the snapshot, that each surface shows what it is plus `Before:` and
-  `After:` lines and a doc link, and that `chupa.help` lists every topic.
+  `After:` lines and a doc link, and that `chupa.help` lists every topic. It also gains one sentence
+  each for `chupa.refreshSeconds` and `chupa.unavailableMenuItems`, so every setting's link has a
+  documented target.
 - `chupa/docs/host-contract.md` `## VS Code extension` gains one sentence naming the Help command
   and hover help.
 - `CLAUDE.md` section A and `AGENTS.md` gain this rule, placed right after the "extension is a thin
@@ -170,8 +178,9 @@ Scope in:
   may gain only the `vscode` mock members the new extension code calls, such as `MarkdownString`. Their
   assertions do not change.
 - `tests/integration/test_watch.py` changes one expectation: the `engineVerbs[0]` `detail` equals
-  the `drain` row's cell from `chupa/docs/host-running.md`, not the old literal. It also gains the
-  snapshot help assertions in criterion 6.
+  the `drain` row's `What it does` cell from `chupa/docs/host-running.md` with backticks removed, not
+  the old literal. It also gains the
+  snapshot help assertions in criterion 8.
 
 Scope out:
 - The lifecycle panel and `media/ticket-lifecycle.svg` stay as they are, because the image is static.
@@ -238,27 +247,36 @@ Scope out:
 
    A new command, view, or setting without help fails.
 5. `tests/unit/test_help.py::test_verb_what_from_run_guide`: for every `verb.*` topic, `what` equals
-   that verb's `What it does` cell in `chupa/docs/host-running.md` with backticks removed. It is not
-   a separately typed string, so a test that rewrites the cell in a temporary copy of the doc sees
-   the topic change.
-6. `./dev.py test tests/integration/test_watch.py` passes with the existing snapshot fixture.
-   - `snap["engineVerbs"][0]["detail"]` equals the `drain` row cell, not
-     `"Run every eligible ticket to quiescence, then exit."`.
+   that verb's `What it does` cell in `chupa/docs/host-running.md` with backticks removed. The test
+   then passes the builder in-memory run-guide text with the `review` cell rewritten and asserts that
+   `verb.review`'s `what` changes to match. A separately typed string fails.
+6. `tests/unit/test_help.py::test_unresolved_link_raises`: the builder raises in two cases, when
+   given in-memory doc text with a linked heading renamed, and when given run-guide text missing a
+   verb row. Returning a map without the topic fails.
+7. `tests/unit/test_help.py::test_help_pick_list`: the Help picker builder returns one separator per
+   topic kind, each before that kind's items. Every non-separator item except the last carries a
+   `topic` that is a help key. The last item carries `"command": "chupa.openSettings"` and no `topic`.
+8. `./dev.py test tests/integration/test_watch.py` passes with the existing snapshot fixture.
+   - `snap["engineVerbs"][0]["detail"]` equals the `drain` row's `What it does` cell with
+     backticks removed, not `"Run every eligible ticket to quiescence, then exit."`.
    - Every row's `help.section` and `help.status` and every key in its `next` are keys of
      `snap["help"]`.
    - Every step's `help` is a key of `snap["help"]`, and its `tooltip` contains that topic's `text`.
-   - Every non-separator `helpPick` item's `topic` is a key of `snap["help"]`.
+   - Every non-separator `helpPick` item carries either a `topic` that is a key of `snap["help"]`,
+     or a `command`, which only the settings item carries.
 
    A row or step that names a key missing from the map fails.
-7. `tests/unit/test_help.py::test_stats_tree_tooltips`: `stats_tree` of `project_stats` on an empty
+9. `tests/unit/test_help.py::test_stats_tree_tooltips`: `stats_tree` of `project_stats` on an empty
    journal gives every top-level row a `tooltip` equal to its `stat.*` topic `text`. The existing
    `tests/integration/test_stats.py::test_stats_tree_generic_rows` still passes unchanged, so child
    rows have no `tooltip` key.
-8. `node --check` exits 0 for `vscode-chupa/extension.js`, `vscode-chupa/media/view.js`,
+10. `node --check` exits 0 for `vscode-chupa/extension.js`, `vscode-chupa/media/view.js`,
    `vscode-chupa/media/detail.js`, and `vscode-chupa/media/box.js`.
-9. `./dev.py test tests/integration/test_step_icons.py tests/integration/test_vscode_command_not_found.py tests/regress_vscode_task_identity.py` passes.
-   No icon for a step kind becomes `null`, and the not-found message text is unchanged.
-10. `CLAUDE.md` and `AGENTS.md` each contain the `**Extension help has one source.**` rule exactly
+11. `./dev.py test tests/integration/test_step_icons.py tests/integration/test_vscode_command_not_found.py`
+   passes, so no step kind's icon becomes `null` and the not-found message text is unchanged.
+   `uv run python tests/regress_vscode_task_identity.py` prints `{"regression_result": "pass"}` and
+   exits 0, so `activate()` still runs under the harness mock.
+12. `CLAUDE.md` and `AGENTS.md` each contain the `**Extension help has one source.**` rule exactly
     as quoted in Scope in, after the `<!-- chupa:core end -->` line in `CLAUDE.md`. This is checked by
     the `python -c` command in `## Verification`.
 11. Readers can check these docs:
@@ -276,7 +294,8 @@ node --check vscode-chupa/media/detail.js
 node --check vscode-chupa/media/box.js
 uv run python -c "import pathlib; c = pathlib.Path('CLAUDE.md').read_text(); a = pathlib.Path('AGENTS.md').read_text(); r = '**Extension help has one source.**'; assert c.index(r) > c.index('<!-- chupa:core end -->') and r in a"
 ./dev.py test tests/unit/test_help.py tests/integration/test_watch.py tests/integration/test_stats.py tests/unit/test_host_running.py
-./dev.py test tests/integration/test_step_icons.py tests/integration/test_vscode_command_not_found.py tests/regress_vscode_task_identity.py
+./dev.py test tests/integration/test_step_icons.py tests/integration/test_vscode_command_not_found.py
+uv run python tests/regress_vscode_task_identity.py
 ./dev.py test
 ```
 
@@ -286,7 +305,8 @@ Reject the branch if any of the following holds:
   help any other way than reading a key the snapshot or `stats --tree` row supplies;
 - `chupa/help.py` contains the GitHub repository URL as a literal, or copies a verb's `What it does`
   text instead of reading it from `chupa/docs/host-running.md`;
-- a help link falls back from a local path to a URL, or the reverse, for the same doc;
+- a link built by `chupa/help.py` falls back from a local path to a URL, or the reverse, for the
+  same doc;
 - `engineVerbs` still carries a hand-written `detail` string;
 - the new rule is placed inside the `chupa:core` managed block or in `chupa/hostfiles.py` `CORE_TEMPLATE`;
 - `chupa/docs/host-running.md`, `chupa/__main__.py`, or `project_stats` changes.
