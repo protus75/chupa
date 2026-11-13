@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "a23c654ad0d32368c7ff3a9fc1427403c3730a41",
+  "stem": "draft-worth-report",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Ticket must add tests/integration/test_menu_verb_parity.py to its scope fence: line 185 asserts the extension_only set of observe.MENU is exactly {\"chupaAskDiagnose\", \"chupaAskReview\"}, so adding chupaAskDrafts fails all 19 parametrized cases.",
+    "Redo the work by registering chupaAskDrafts in observe.MENU as a ticket-kind, extension_only entry, like chupaAskReview. Then widen the line-185 set in test_menu_verb_parity.py to include chupaAskDrafts. Line 184 then passes unchanged.",
+    "The ticket's observe.py scope line reads as if chupaAskDrafts is a hand-added row menu key. Restate it so the key comes from an observe.MENU entry, since test_menu_verb_parity.py line 184 checks row menus against MENU's ticket-kind keys.",
+    "The base-commit full suite was measured with plain ./dev.py test in a base worktree (3576 passed). The failure comes from the new key, not from the base, so don't treat it as a pre-existing failure."
+  ],
+  "mechanical": null,
+  "spec_version": "1.5",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
