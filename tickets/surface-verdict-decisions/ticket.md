@@ -4,7 +4,7 @@ kind: feature
 agent_tier: medium
 agent_effort: medium
 source: box:suggestion
-state: draft
+state: confirmed
 ---
 
 ## Depends on
