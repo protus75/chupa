@@ -1,0 +1,20 @@
+$ ./dev.py suggest "..." (x6, 2026-11-13)
+suggest: queued 27e3198b66db4a37b49f80139cfcc633.json (and 5 more)
+
+$ ls .chupa/state/box/suggestions/  (after a full ./dev.py drain was started)
+2510a611a7c0482e9fe0775cde1efdc9.json
+257fa95650364617a4e21d434ad33a64.json
+27e3198b66db4a37b49f80139cfcc633.json
+3adf4f78d8564a35b9c15a5ac1bd7f4e.json
+4779789bea6a48bba56f491a8d82e354.json
+926f93f07aac495084e7ec775c58bdc2.json
+b7422f415c604e319a7cd81a500f11da.json
+consumed
+d656a4141bcb46c9a5bbd660c65687b0.json
+
+$ ./dev.py status | grep "Suggestion Box"
+Suggestion Box (1 pending, 426 resolved):
+- box-000043-00e6ca15: suggestion: declined: - [driver] Soft gate failures come back as `StageResult.findings` on an `ok`; the Suggestion Box emission (invariant ...
+
+$ grep -c "<summary of filed suggestion>" .chupa/state/box/*.json
+0
