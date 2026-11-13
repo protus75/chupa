@@ -1,15 +1,21 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "e5a1a3935d6014420f3d399cda94eee43959756d",
+  "produced_at_sha": "af19484729964d15744bdb13ded71bc9d0c92279",
   "stem": "menu-mirrors-verb-admission",
-  "attempt": 2,
+  "attempt": 3,
   "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "premise_bounce cap spent",
+  "verdict": "split",
+  "lessons": [
+    "Attempt 3 changed no files and reported premise_failed while also saying it found no contradiction. The ticket bundles six verb admissions, the intake helper extraction, the observe.py table and 3 new test files plus 4 updated ones, which is too many boundaries for one attempt.",
+    "Split 1: extract intake's non-committing helper in chupa/tickets.py (stray paths, claimed text, findings, _settled handling). Make intake commit on its result. Prove it with tests/unit/test_menu_admission.py (criterion 5, helper part).",
+    "Split 2: add pure admission functions for order, triage, dismiss and lint, plus their call sites in __main__.py and triage.py. Keep the lint and order check ordering exactly as the ticket's Scope in states; triage and dismiss admission run after the lock and reap.",
+    "Split 3: add run and review admission, which use the helper's result, IntakeRefused stray paths and ticket_pending. Then build the closed menu table in chupa/observe.py and update the world fixture and 3 regress_* contexts. Criteria 1-4 and 6-8 go in the last part.",
+    "Do not report premise_failed unless a finding names a specific contradiction or a forced file outside the fence. An unfinished implementation is reported as incomplete, not premise_failed."
+  ],
+  "mechanical": null,
   "spec_version": "1.5",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
