@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "5c93608080fd41ca522da93b45988f55ef714ef2",
+  "stem": "vscode-help",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "The ticket conflicts with chupa/specs/review.md:37, which flags any unit test that reads or writes disk. Criterion 4 makes tests/unit/test_help.py::test_manifest_covered read vscode-chupa/package.json. Criteria 2 and 5 also check real chupa/docs files and the repo docs.",
+    "Re-scope: move the real-file checks (criterion 2 link resolution, criterion 4 manifest coverage, criterion 5 first half) into a new tests/integration/test_help.py. Add it to the Scope fence and to the ./dev.py test line in Verification.",
+    "Keep tests/unit/test_help.py on in-memory text only, through the builders' read: Callable[[Path], str] parameter. That covers topic shape, the rewritten review cell, unresolved-link raises and the pick list. Give the package.json parse its own input with no disk read.",
+    "Check criterion 9 (stats_tree of project_stats on an empty journal) and criterion 3 (project_stats keys) for disk or journal access. If building the empty journal touches disk, move those checks to integration too, or name the in-memory journal fake that the merged code provides.",
+    "The ticket's Repository URL comes from importlib.metadata, which reads installed metadata from disk. Do that lookup and assert the URL prefix only in the integration test. Unit tests should get the URL as an injected value."
+  ],
+  "mechanical": null,
+  "spec_version": "1.5",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
