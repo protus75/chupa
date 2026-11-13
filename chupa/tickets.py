@@ -695,6 +695,28 @@ def _intake_claims(stem: str, text: str, new: bool) -> tuple[str, list[Finding]]
     return stamp(stamp(text, "source", "human"), "state", "confirmed"), []
 
 
+def _intake_stray(repo: Path, entries: list[tuple[str, str]], evidence: Mapping[str, list[str]]) -> list[str]:
+    pending = _pending(repo, entries)
+    allowed = {ticket_path(s) for s in pending} | {p for paths in evidence.values() for p in paths}
+    return sorted(p for st, p in entries if st[0] not in " ?" and (p not in allowed or "D" in st))
+
+
+def _intake_plan_stem(repo: Path, stem: str, new: bool, paths: Collection[str], state: str | None) -> tuple[str, str, Ticket | list[Finding]]:
+    """Read and validate one pending stem without writing or invoking git."""
+    text = (repo / ticket_path(stem)).read_text()
+    stamped, findings = _intake_claims(stem, text, new)
+    try:
+        if findings:
+            raise TicketInvalid(findings)
+        settled = state in {"merged", "already_satisfied", "rejected"}
+        ticket = validate_ticket(stem, stamped, repo, _settled=True) if settled else validate_ticket(stem, stamped, repo)
+        if not settled and (findings := lint_findings(ticket, repo) + evidence_findings(ticket, repo, paths=paths)):
+            raise TicketInvalid(findings)
+    except TicketInvalid as exc:
+        return text, stamped, exc.findings
+    return text, stamped, ticket
+
+
 async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem, *, stems: Collection[str] | None) -> IntakeResult:
     """Validate pending hand-authored ticket files and ticket-plane-commit each clean one.
 
@@ -704,14 +726,12 @@ async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem, *, stem
     async with git._commit_lock:
         entries = _porcelain(await git.status_porcelain(repo))
         pending = _pending(repo, entries)
-        pending_paths = {ticket_path(s) for s in pending}
         evidence = {}
         for stem in pending:
             directory = repo / TICKETS_DIR / stem / "evidence"
             paths = await git._run(repo, "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", f"{TICKETS_DIR}/{stem}/evidence/")
             evidence[stem] = sorted({p for p in paths.split("\0") if p and _regular_evidence(repo / p, directory)})
-        allowed = pending_paths | {p for paths in evidence.values() for p in paths}
-        if stray := sorted(p for st, p in entries if st[0] not in " ?" and (p not in allowed or "D" in st)):
+        if stray := _intake_stray(repo, entries, evidence):
             raise IntakeRefused(
                 _f(
                     f"staged changes outside pending ticket files: {', '.join(stray)}",
@@ -727,19 +747,11 @@ async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem, *, stem
             if stems is not None and stem not in stems:
                 continue
             rel = ticket_path(stem)
-            text = (repo / rel).read_text()
-            stamped, findings = _intake_claims(stem, text, pending[stem])
-            try:
-                if findings:
-                    raise TicketInvalid(findings)
-                ticket = validate_ticket(stem, stamped, repo, _settled=True) if states.get(stem) in {"merged", "already_satisfied", "rejected"} else validate_ticket(stem, stamped, repo)
-                fm = ticket.frontmatter
-                if states.get(stem) not in {"merged", "already_satisfied", "rejected"}:
-                    if findings := lint_findings(ticket, repo) + evidence_findings(ticket, repo, paths=evidence[stem]):
-                        raise TicketInvalid(findings)
-            except TicketInvalid as e:
-                refused[stem] = e.findings
+            text, stamped, decision = _intake_plan_stem(repo, stem, pending[stem], evidence[stem], states.get(stem))
+            if isinstance(decision, list):
+                refused[stem] = decision
                 continue
+            fm = decision.frontmatter
             if stamped != text:
                 fs.write(repo / rel, stamped.encode())
             paths = [rel, *evidence[stem]]
