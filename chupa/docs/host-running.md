@@ -27,7 +27,7 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | `resume` | Yes | Ask the running engine to release its current hold. |
 | `kill` | Yes | Ask the running engine to stop at a safe point. |
 | `stop` | Yes | Finish active work and exit. |
-| `review` | Yes | Pending edits are committed through intake before reviewing the committed ticket. |
+| `review` | Yes | Only the named ticket's pending edits are committed through intake before reviewing the committed ticket. |
 | `suggest` | Yes | Queue an idea for Suggestion Box intake. |
 | `triage` | No | Make one pass over named pending box IDs, or all pending messages. |
 | `dismiss` | No | Dismiss named box IDs without a model call. |

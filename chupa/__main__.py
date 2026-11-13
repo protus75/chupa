@@ -572,7 +572,7 @@ async def _review(checkout: runner.Checkout, stem: str) -> int:
     if findings := stem_findings(stem):
         raise runner.Refusal(findings[0].message, findings[0].paved_road)
     if await runner.ticket_pending(checkout.git, checkout.repo, stem):
-        result = await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs)
+        result = await intake(checkout.repo, checkout.git, checkout.journal, checkout.fs, stems={stem})
         if refused := result.refused.get(stem):
             raise runner.Refusal(f"{ticket_path(stem)} failed intake: " + "; ".join(f.message for f in refused), f"fix the ticket and retry `review {stem}`")
     path = checkout.repo / ticket_path(stem)

@@ -695,7 +695,7 @@ def _intake_claims(stem: str, text: str, new: bool) -> tuple[str, list[Finding]]
     return stamp(stamp(text, "source", "human"), "state", "confirmed"), []
 
 
-async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem) -> IntakeResult:
+async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem, *, stems: Collection[str] | None = None) -> IntakeResult:
     """Validate pending hand-authored ticket files and ticket-plane-commit each clean one.
 
     Intake holds the commit lock across status, the stray check and commits; its git work needs no engine lock.
@@ -724,6 +724,8 @@ async def intake(repo: Path, git: Git, journal: Journal, fs: FileSystem) -> Inta
         committed: list[str] = []
         refused: dict[str, list[Finding]] = {}
         for stem in sorted(pending):
+            if stems is not None and stem not in stems:
+                continue
             rel = ticket_path(stem)
             text = (repo / rel).read_text()
             stamped, findings = _intake_claims(stem, text, pending[stem])

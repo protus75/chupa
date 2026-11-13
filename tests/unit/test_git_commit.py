@@ -106,3 +106,38 @@ def test_intake_skips_concurrent_commit(monkeypatch):
     assert git._commit_lock.entries == 1 and not git._commit_lock.held
     assert result.committed == () and result.refused == {}
     assert calls == [("chupa(one): ticket", ["tickets/one/ticket.md"])]
+
+
+@pytest.mark.parametrize("stems,expected", [({"one"}, ("one",)), (None, ("one", "two"))])
+def test_intake_stem_scope(monkeypatch, stems, expected):
+    calls = []
+
+    class FakeGit:
+        _commit_lock = FakeLock()
+
+        async def status_porcelain(self, repo):
+            return "?? tickets/one/ticket.md\nA  tickets/two/ticket.md\n"
+
+        async def _run(self, repo, *args):
+            return ""
+
+        async def _commit(self, repo, message, *, only):
+            calls.append((message, only))
+            return "sha"
+
+    class Journal:
+        def read(self):
+            return []
+
+        def append(self, *args, **kwargs):
+            pass
+
+    monkeypatch.setattr(Path, "read_text", lambda self: "ticket")
+    monkeypatch.setattr(tickets, "_intake_claims", lambda *args: ("ticket", []))
+    monkeypatch.setattr(tickets, "validate_ticket", lambda *args: SimpleNamespace(frontmatter=SimpleNamespace(source="human", state="confirmed")))
+    monkeypatch.setattr(tickets, "evidence_findings", lambda *args, **kwargs: [])
+    monkeypatch.setattr(tickets, "lint_findings", lambda *args, **kwargs: [])
+    result = run(tickets.intake(Path("/repo"), FakeGit(), Journal(), SimpleNamespace(), stems=stems))
+    assert calls == [(f"chupa({stem}): ticket", [f"tickets/{stem}/ticket.md"]) for stem in expected]
+    assert result.committed == expected
+    assert "two" not in result.refused
