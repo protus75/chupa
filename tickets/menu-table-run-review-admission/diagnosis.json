@@ -1,18 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "91632ed4d4e2b1436dc328f1ae2ab461cb23fdf8",
+  "produced_at_sha": "17621bdd7b1f3ac31a8484a588ecd0106fdaa26b",
   "stem": "menu-table-run-review-admission",
-  "attempt": 0,
-  "terminal": "premise_failed",
-  "stage": "implement",
+  "attempt": 1,
+  "terminal": "gate_failed",
+  "stage": "review",
   "verdict": "retry",
   "lessons": [
-    "Attempt 0 stopped after 72s with no diff and reported premise_failed, yet it found no contradiction. The ticket's premise holds, so implement it in full and do not exit early.",
-    "Add pure run and review admission functions to chupa/status.py beside verdict_refusal and the order/lint/triage/dismiss admissions. runner._admit and __main__._review call them and keep every refusal message and exit code unchanged.",
-    "Run admission checks the on-disk text with validate_ticket and no settled exemption. For a pending stem, that is the intake helper's stamped text. An already_satisfied stem that fails the evidence check therefore gets chupaRun off, as attempt 0 confirmed.",
-    "In observe.snapshot, build each row's menu only from one closed table: key -> row kind, admission fn, needs lock (run/triage/dismiss). Leave the chupaConfirm/chupaReject predicate and the Ask entries unchanged. Drop runnable if nothing reads it.",
-    "Write tests/unit/test_menu_admission.py and tests/integration/test_menu_verb_parity.py per criteria 1-7. Give the world fixture and the three regress_ files the new inputs. Run ./dev.py test until it exits 0 before you commit."
+    "Rebuild from the merge base: the closed menu table in chupa/observe.py, plus run and review admission in chupa/status.py that _admit and _review call. Review found that design sound. Keep _admit and _review behavior unchanged on each outcome.",
+    "In snapshot, read porcelain once with --untracked-files=all, or reuse the entries plan_intake reads. Derive each stem's pending flag with the tickets/<stem>/ prefix test. Never call runner.ticket_pending per stem: it starts one git subprocess per stem, about 527 stems.",
+    "validate_ticket calls _graph(repo) (chupa/tickets.py:544), which reads every tickets/*/ticket.md, so calling it per stem makes snapshot O(N^2). Build the graph once per snapshot and pass it in, for example with an edges parameter the verbs also use.",
+    "Do not run git show main: or validate_ticket per stem for the merged or settled stems that load_tickets skips, unless that row's admission result depends on them. Admission inputs must stay equal to what the verbs compute.",
+    "In tests/unit/test_menu_admission.py, assert with faked git that one snapshot makes one porcelain git status call whatever the stem count. This guards against per-stem subprocess regressions."
   ],
   "mechanical": null,
   "spec_version": "1.5",
