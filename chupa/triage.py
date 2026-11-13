@@ -366,17 +366,4 @@ def report_intake(checkout: Checkout) -> Box:
     log = EngineLog(checkout.config.state_dir / "engine.log", Redactor.from_config(checkout.config, checkout.env), checkout.clock)
     if checkout.config.report_inbox is not None:
         ingest(box, root=checkout.repo, inbox=checkout.config.report_inbox, diagnostic=lambda error: log.event("report_intake_refused", error=error))
-    drops = checkout.config.state_dir / BOX_DIR / "suggestions"
-    for path in sorted(drops.glob("*.json")):
-        try:
-            data = json.loads(path.read_bytes())
-            if not isinstance(data, dict) or set(data) != {"summary"} or not isinstance(data["summary"], str) or not data["summary"].strip():
-                raise ValueError("expected an object with one nonblank string summary")
-        except (OSError, ValueError, UnicodeError) as exc:
-            log.event("suggestion_intake_refused", error=f"{path.name}: {exc}; repair this arrival and retry triage")
-            continue
-        box.enqueue(message_class="suggestion", origin="session", summary=data["summary"], occurrence_id=path.stem)
-        consumed = drops / "consumed"
-        consumed.mkdir(parents=True, exist_ok=True)
-        checkout.fs.replace(path, consumed / path.name)
     return box

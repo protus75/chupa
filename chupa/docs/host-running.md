@@ -28,7 +28,7 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | `kill` | Yes | Ask the running engine to stop at a safe point. |
 | `stop` | Yes | Finish active work and exit. |
 | `review` | Yes | Only the named ticket's pending edits are committed through intake before reviewing the committed ticket. |
-| `suggest` | Yes | Queue an idea for Suggestion Box intake. |
+| `suggest` | Yes | File an idea into the Suggestion Box. |
 | `triage` | No | Make one pass over named pending box IDs, or all pending messages. |
 | `dismiss` | No | Dismiss named box IDs without a model call. |
 | `covmap` | Yes | Runs `review.coverage_map.argv` and writes `<state_dir>/coverage-map.json`; exits 0 on success or 2 on refusal. |

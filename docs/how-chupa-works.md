@@ -61,7 +61,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `drain [--detach]` | yes | Runs every eligible ticket to quiescence (section 7.1); `--detach` starts its own session and appends to `<state_dir>/drain.out`. |
 | `serve` | yes | Runs the continuous daemon until `kill`, `stop`, or a signal (section 7.2). |
 | `retro` | try | Runs a retro report now or queues one on the running engine (section 9.5); refuses while a non-engine holder has the lock. |
-| `suggest <summary>` | no | Queues an idea for Suggestion Box intake. |
+| `suggest <summary>` | no | Files an idea straight into the Suggestion Box. |
 | `triage [id ...]` | yes | One sequential pass over named pending messages, or all pending messages (section 9.2). |
 | `dismiss <id> ...` | yes | Dismiss named messages without a model call. |
 | `prompt box <id> ...` | no | Print a prompt for discussing named box messages. |
@@ -628,7 +628,7 @@ times; each call is spooled under `state_dir/spools/`.
 
 Problems found while working are filed, not fixed in the current diff. Classes: `suggestion`,
 `failure_report`, `override_report`, `retro_finding`, `bug_report`. Each message is a file in
-`state_dir/box/`. A repeat of the same signature is folded into the existing message. Sessions file `suggestion` messages with `suggest`; `triage` and serve's box intake ingest them from `state_dir/box/suggestions/`.
+`state_dir/box/`. A repeat of the same signature is folded into the existing message. Sessions file `suggestion` messages with `suggest` directly into the box.
 
 ### 9.2 Triage
 

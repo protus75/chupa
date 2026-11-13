@@ -41,6 +41,11 @@ class ScriptFS:
     def write(self, path, data):
         self.files[path] = data
 
+    def publish(self, path, data):
+        if path in self.files:
+            raise FileExistsError(path)
+        self.files[path] = data
+
     def replace(self, src, dst):
         self.files[dst] = self.files.pop(src)
 

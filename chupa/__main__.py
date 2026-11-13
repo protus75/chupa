@@ -435,9 +435,11 @@ def main(
         if args.verb == "suggest":
             if not args.summary.strip():
                 raise runner.Refusal("blank summary", "pass the idea as one quoted argument")
-            path = config.state_dir / "box" / "suggestions" / f"{uuid4().hex}.json"
-            checkout.fs.publish(path, json.dumps({"summary": args.summary}).encode())
-            print(f"suggest: queued {path.name}")
+            from chupa.box import Box, RereportJournal
+
+            box = Box(config.state_dir / "box", checkout.fs, rereport=RereportJournal(checkout.journal))
+            id, created = box.enqueue(message_class="suggestion", origin="session", summary=args.summary, occurrence_id=uuid4().hex)
+            print(f"suggest: filed {id}" if created else f"suggest: already in the box as {id}")
             return 0
         if args.verb == "covmap":
             from chupa.covmap import build

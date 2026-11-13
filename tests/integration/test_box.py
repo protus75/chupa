@@ -353,3 +353,23 @@ def test_tombstone_visibility_uses_message_class(tmp_path, monkeypatch):
     assert [m.id for m in box.confirmed_tombstones()] == expected
     assert all("priority" not in m.model_dump() for m in box.messages())
     assert {p: p.read_bytes() for p in box.root.glob("*.json")} == before
+
+
+def test_enqueue_claims_sequence_after_stale_read(tmp_path, monkeypatch):
+    first = Box(tmp_path / "box", LocalFileSystem())
+    second = Box(tmp_path / "box", LocalFileSystem())
+    read = first.messages
+    calls = 0
+
+    def stale_once():
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            second.enqueue(message_class="suggestion", origin="session", summary="second idea")
+            return []
+        return read()
+
+    monkeypatch.setattr(first, "messages", stale_once)
+    first.enqueue(message_class="suggestion", origin="session", summary="first idea")
+    messages = read()
+    assert [(m.summary, m.seq) for m in messages] == [("second idea", 1), ("first idea", 2)]

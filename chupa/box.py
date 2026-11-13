@@ -252,16 +252,23 @@ class Box:
             self._arrival(signature=digest, occurrence_id=occurrence_id, emitting_stage=message.stage, emitting_origin=message.origin)
             # An arrival may publish its trip report before this source message.
             existing = self.messages()
-        for prior in existing:
-            if prior.signature == digest:
-                if message.report is not None and occurrence_id in prior.report_arrivals:
+        seq = 0
+        while True:
+            for prior in existing:
+                if prior.signature == digest:
+                    if message.report is not None and occurrence_id in prior.report_arrivals:
+                        return prior.id, False
+                    self.record_rereport(prior.id, occurrence_id=occurrence_id)
+                    if message.report is not None:
+                        prior = self.get(prior.id)
+                        self._write(prior.model_copy(update={"report_arrivals": [*prior.report_arrivals, occurrence_id]}))
                     return prior.id, False
-                self.record_rereport(prior.id, occurrence_id=occurrence_id)
-                if message.report is not None:
-                    prior = self.get(prior.id)
-                    self._write(prior.model_copy(update={"report_arrivals": [*prior.report_arrivals, occurrence_id]}))
-                return prior.id, False
-        seq = max((prior.seq for prior in existing), default=0) + 1
+            seq = max(seq + 1, max((prior.seq for prior in existing), default=0) + 1)
+            try:
+                self.fs.publish(self.root.with_name(self.root.name + ".seq") / f"{seq:06d}", b"")
+                break
+            except FileExistsError:
+                existing = self.messages()
         id = f"box-{seq:06d}-{digest[:8]}"
         message = message.model_copy(update={"id": id, "seq": seq})
         self._write(message)

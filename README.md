@@ -52,7 +52,7 @@ uv run chupa new      # create and lint a ticket skeleton
 uv run chupa lint     # validate tickets without writing
 uv run chupa review   # review a committed ticket
 uv run chupa order    # edit ticket priority or ordering
-uv run chupa suggest  # queue an idea for Suggestion Box intake
+uv run chupa suggest  # file an idea into the Suggestion Box
 # Running
 uv run chupa drain    # run eligible tickets to quiescence
 uv run chupa serve    # run the continuous daemon

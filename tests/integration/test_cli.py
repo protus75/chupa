@@ -852,25 +852,41 @@ def test_core_and_gate_share_routed_paths(tmp_path, monkeypatch):
 
 
 def test_suggest_publishes_while_writer_lock_is_held(root, capsys):
-    import json
+    from chupa.box import Box
+    from chupa.seams import LocalFileSystem
 
     holder = Lockfile(root / ".chupa/state", verb="drain", instance_id="other", clock=Clock())
     holder.acquire()
     try:
         assert cli(root, "suggest", "a distinct idea") == 0
-        drops = list((root / ".chupa/state/box/suggestions").glob("*.json"))
-        assert len(drops) == 1
-        assert json.loads(drops[0].read_text()) == {"summary": "a distinct idea"}
-        assert capsys.readouterr().out == f"suggest: queued {drops[0].name}\n"
-        assert journal(root).read() == []
+        messages = Box(root / ".chupa/state/box", LocalFileSystem()).messages()
+        assert len(messages) == 1
+        message = messages[0]
+        assert (message.message_class, message.status, message.summary, message.origin) == ("suggestion", "pending", "a distinct idea", "session")
+        assert capsys.readouterr().out == f"suggest: filed {message.id}\n"
+        assert not (root / ".chupa/state/box/suggestions").exists()
     finally:
         holder.release()
+
+
+def test_suggest_duplicate(root, capsys):
+    from chupa.box import Box
+    from chupa.seams import LocalFileSystem
+
+    assert cli(root, "suggest", "a distinct idea") == 0
+    assert cli(root, "suggest", "a distinct idea") == 0
+    messages = Box(root / ".chupa/state/box", LocalFileSystem()).messages()
+    assert len(messages) == 1
+    assert capsys.readouterr().out.splitlines() == [f"suggest: filed {messages[0].id}", f"suggest: already in the box as {messages[0].id}"]
 
 
 def test_suggest_refuses_blank(root, capsys):
     assert cli(root, "suggest", "  ") == 2
     assert capsys.readouterr().err == "chupa suggest: blank summary -- pass the idea as one quoted argument\n"
-    assert list((root / ".chupa/state/box/suggestions").glob("*.json")) == []
+    from chupa.box import Box
+    from chupa.seams import LocalFileSystem
+
+    assert Box(root / ".chupa/state/box", LocalFileSystem()).messages() == []
 
 
 def test_docs_reports_installed_guides(root, capsys):
