@@ -49,6 +49,8 @@ Scope in:
 - `tests/integration/test_box.py`: add the on-disk race test. Two `Box` objects on the same `tmp_path` root enqueue different summaries. Inject the race at the read: wrap the first Box's `messages` so that its first call runs the second Box's `enqueue` to completion and then returns the stale empty list, and later calls read normally. At base both messages get seq 1 and the test fails. At head the first Box's claim of seq 1 raises `FileExistsError` and it takes seq 2. Both messages exist with distinct `seq` values. The current code gives both the same `seq` and fails it.
 - Create `tests/unit/test_suggest_box.py`, which lint requires because `chupa/__main__.py`, `chupa/box.py`, and `chupa/triage.py` have unit coverage floors. It touches no disk. Use an in-memory `FileSystem` fake whose `publish` raises `FileExistsError` for an existing path and whose `write` stores messages in a dict, and monkeypatch `Box.messages` to read that dict. It holds three tests. (a) A claim already exists for seq 1 with no message (a crashed write): `enqueue` returns a message with seq 2 and terminates. (b) A competing claim appears for the seq being tried: the message gets the next free seq. (c) The `suggest` branch run through `chupa.__main__.main` with fakes in the style of `tests/unit/test_docs_verb.py`, covering the `filed` and `already in the box` lines.
 - `tests/integration/test_triage.py`: delete `test_suggestion_drops_ingest_and_retry`, since the drop branch it covers is gone.
+- `tests/integration/test_storm_producer.py`: the state-directory listing asserted in `test_production_arrivals_and_dedup_hits_trip_once` (`{"box", "journal", "journal.lock"}`) also includes `"box.seq"`, since the claim directory is now part of the on-disk layout.
+- `tests/integration/test_daemon_composition.py`: give `ScriptFS` a `publish(path, data)` method that raises `FileExistsError` when the path is already in `self.files` and otherwise stores it, so `CoreRig` users that create box messages (`tests/integration/test_storm_notification_activation.py`, `tests/integration/test_provider_cooldown_failover.py`) keep working.
 - Create `tests/regress_suggest_lands_in_box.py`, the carried reproducer, in the style of `tests/regress_dev_test_args.py`. In a temporary repo set up as the `root` fixture in `tests/integration/test_cli.py` sets one up, it runs `suggest` through the CLI `main` under `contextlib.redirect_stdout(io.StringIO())`, as `tests/regress_dev_test_args.py` does, so only the JSON result reaches stdout. It prints `pass` (exit 0) when `Box(<state_dir>/box).messages()` holds a pending suggestion with that summary, and `defect` (non-zero exit) when it holds none. A setup failure prints `error`.
 - `docs/how-chupa-works.md`: the section 2.1 `suggest` row says it files the idea straight into the Suggestion Box. The section 9.1 sentence says sessions file `suggestion` messages with `suggest` directly into the box, and it drops the `state_dir/box/suggestions/` intake wording.
 - `chupa/docs/host-running.md`: the `suggest` row's description reads "File an idea into the Suggestion Box."
@@ -65,6 +67,8 @@ Scope out:
 - tests/integration/test_box.py
 - tests/unit/test_suggest_box.py
 - tests/integration/test_triage.py
+- tests/integration/test_storm_producer.py
+- tests/integration/test_daemon_composition.py
 - tests/regress_suggest_lands_in_box.py
 - docs/how-chupa-works.md
 - chupa/docs/host-running.md
@@ -80,7 +84,7 @@ Scope out:
 
 ## Verification
 ```
-./dev.py test tests/integration/test_cli.py tests/unit/test_suggest_box.py tests/integration/test_box.py tests/integration/test_triage.py tests/integration/test_storm_producer.py tests/integration/test_inbox.py tests/unit/test_host_running.py
+./dev.py test tests/integration/test_cli.py tests/unit/test_suggest_box.py tests/integration/test_box.py tests/integration/test_triage.py tests/integration/test_storm_producer.py tests/integration/test_inbox.py tests/unit/test_host_running.py tests/integration/test_daemon_composition.py tests/integration/test_storm_notification_activation.py tests/integration/test_provider_cooldown_failover.py
 ```
 
 ## Regression
@@ -94,7 +98,7 @@ uv run python tests/regress_suggest_lands_in_box.py
 - `suggest` still writes a file under `box/suggestions/`.
 - The box views list drop files or invent ids for them.
 - Two concurrent enqueues can still produce two messages with the same `seq`.
-- Anything other than `*.json` message files is written into the box root.
+- This change writes a seq claim file anywhere under the box root (claims belong in the sibling `<root>.seq` directory).
 - Any file outside the scope fence changes.
 
 ## Time budget
