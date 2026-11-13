@@ -1,0 +1,20 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "382dd53fde7788d466770bfd1983b39b18e38f72",
+  "stem": "drain-loop-prompt",
+  "attempt": 0,
+  "terminal": "premise_failed",
+  "stage": "implement",
+  "verdict": "reject",
+  "lessons": [
+    "Premise holds: chupa/ask.py render reads SPECS_DIR/ask/<kind>.md straight from disk with no seam. The four mandated tests check real template text and main([\"prompt\",\"drain-loop\"]), so they must read disk. chupa/specs/review.md flags any unit test that reads disk.",
+    "Re-scope the ticket: put the four tests in a new tests/integration/test_ask_drain_loop.py, or add them to tests/integration/test_ask.py. Fence that file and remove tests/unit/test_ask_drain_loop.py from Scope in, Scope fence and Verification.",
+    "On redo, the earlier implementation approach was found sound: drain-loop added to KINDS, stems nargs='*' with Refusals for box and drain-loop, and openClaude(root,args) extracted in extension.js. Restate all of it from the merge base; no earlier diff survives.",
+    "In the drain-loop prompt test, assert that config().state_dir does not exist after main(...). Use a tmp_path repo in the integration suite rather than Path('/repo'), so the test is real and runs under the integration disk rules."
+  ],
+  "mechanical": null,
+  "spec_version": "1.5",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
