@@ -4,11 +4,11 @@ ok
 
 ## Surprises / judgment calls
 
-Rejected requests can have a null verb, which is preserved; missing stems are projected as empty strings. The focused verification, unit coverage gate, integration suite, lint, and format checks passed.
+Missing verbs are normalized to empty strings in the shared projection. A simpler extension-only display was rejected because both surfaces need the same projection.
 
 ## Dead ends
 
-None; the existing status projection provided the simplest shared source for the snapshot.
+The initial unit fixtures lacked timestamps required by the scorecard projection; adding fixed timestamps resolved the failure.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-Expected 30 minutes; completed within the budget.
+Expected 30 minutes; completed in less than 30 minutes.
 
