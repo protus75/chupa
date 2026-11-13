@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-My initial concern about settled tickets was incorrect: run validates the ticket again without the settled exemption, including the evidence check.
+Order admission also consumes existing validation findings; the superseded uncommitted-ticket reader was removed.
 
 ## Dead ends
 
-I traced settled-ticket intake and run validation but did not identify a contradiction that blocks the ticket.
+Rejected copying intake rules into snapshot; shared read-only planning preserves settled-ticket, evidence, and stray-stage behavior.
 
 ## Second problems filed
 
@@ -17,10 +17,10 @@ none
 ## Resolved engine/model
 
 - provider: codex
-- model: gpt-6.1-terra
+- model: gpt-6.1-sol
 - spec: implement 2.10
 
 ## Predicted vs actual
 
-The ticket budgets 90 minutes expected and 180 minutes stuck; the implementation was not completed.
+Completed within the expected 90-minute budget.
 
