@@ -6,6 +6,7 @@ A projection, never an authority: no gate or dispatch decision reads its renderi
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType, SimpleNamespace
+from typing import Literal
 
 from chupa.journal import Event, EventType
 from chupa.retro import Window, project_window
@@ -56,6 +57,53 @@ def reject_queue(events: Iterable[Event]) -> dict[str, Mapping]:
 def last_states(events: Iterable[Event]) -> dict[str, str]:
     """Each stem's latest run-state transition target."""
     return {e.ticket: e.body["to"] for e in events if e.type == EventType.STATE_TRANSITION and e.ticket is not None and "to" in e.body}
+
+
+@dataclass(frozen=True)
+class Admission:
+    outcome: Literal["admit", "noop", "refuse"]
+    message: str = ""
+    paved_road: str = ""
+
+
+def order_admission(stem, events, file_exists, lock_holder):
+    from chupa.reconcile import orphans
+    from chupa.tickets import ticket_path
+
+    if not file_exists:
+        return Admission("refuse", f"{ticket_path(stem)} does not exist", f"author it with chupa new {stem}")
+    events = tuple(events)
+    state = last_states(events).get(stem)
+    if state == "running" and (stem not in orphans(events) or lock_holder is not None):
+        return Admission("refuse", f"{stem} is running; editing a ticket during its run stops it with ticket_changed", "reorder it after the run ends")
+    if state in SETTLED | {"rejected"}:
+        return Admission("refuse", f"{stem} is {state}", "author follow-up work as a new ticket")
+    return Admission("admit")
+
+
+def lint_admission(stem, events, file_exists):
+    if not file_exists:
+        return Admission("refuse", "no ticket file", "create tickets/<stem>/ticket.md with chupa new <stem>")
+    if last_states(events).get(stem) in SETTLED | {"rejected"}:
+        return Admission("noop")
+    return Admission("admit")
+
+
+def _box_admission(id, messages):
+    message = next((m for m in messages if m.id == id), None)
+    if message is None:
+        return Admission("refuse", f"unknown box id {id}")
+    if message.resolution is not None:
+        return Admission("noop", f"{id}: already resolved -> {message.resolution.link}")
+    return Admission("admit")
+
+
+def triage_admission(id, messages):
+    return _box_admission(id, messages)
+
+
+def dismiss_admission(id, messages):
+    return _box_admission(id, messages)
 
 
 def verdict_refusal(events: Iterable[Event], stem: str, kill: bool, draft: bool, interrupted: set[str]) -> tuple[str, str] | None:

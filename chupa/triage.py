@@ -9,7 +9,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from chupa.author import author, commit_record, committed, failure_declined, list_open_tickets, recover_retro_ticket
-from chupa.box import BOX_DIR, Box, DecisionRecord, RereportJournal, Resolution, Verdict, read_registry, record_path, render_record
+from chupa.box import BOX_DIR, Box, DecisionRecord, RereportJournal, Resolution, UnknownBoxId, Verdict, read_registry, record_path, render_record
 from chupa.driver import Driver, LlmStage
 from chupa.effects import Effects
 from chupa.git import GitError
@@ -20,7 +20,7 @@ from chupa.runner import SPECS_DIR, Checkout
 from chupa.seams import ExecutableNotFound
 from chupa.specs import load_spec, render
 from chupa.stages import findings_text
-from chupa.status import last_states
+from chupa.status import dismiss_admission, last_states, triage_admission
 
 TRIAGE_STUCK_S = 600.0
 ESCAPE_ATTRIBUTION = "escape-attribution"
@@ -76,7 +76,7 @@ async def _record(
 
 async def triage_pass(checkout: Checkout, llm: LLM, ids=frozenset()) -> list[tuple[str, str]]:
     """Journal one pass, then settle each pending message in sequence order."""
-    validate_ids(checkout, ids)
+    validate_ids(checkout, ids, triage_admission)
     history = checkout.journal.read()
     pass_no = sum(e.type == EventType.SIGNAL and e.body.get("signal") == "triage_pass" for e in history)
     checkout.journal.append(EventType.SIGNAL, {"signal": "triage_pass", "pass": pass_no})
@@ -96,23 +96,26 @@ async def triage_pass(checkout: Checkout, llm: LLM, ids=frozenset()) -> list[tup
     return lines
 
 
-def validate_ids(checkout: Checkout, ids):
+def validate_ids(checkout: Checkout, ids, admission=triage_admission):
     box = Box(checkout.config.state_dir / BOX_DIR, checkout.fs, rereport=RereportJournal(checkout.journal))
     for id in ids:
-        box.get(id)
+        result = admission(id, box.messages())
+        if result.outcome == "refuse":
+            raise UnknownBoxId(result.message)
     return box
 
 
 async def dismiss(checkout: Checkout, ids) -> list[str]:
-    box = validate_ids(checkout, ids)
+    box = validate_ids(checkout, ids, dismiss_admission)
     driver = Driver.from_config(checkout.config, llm=None, env=checkout.env, clock=checkout.clock, sleep=checkout.sleep, fs=checkout.fs)
     driver.journal = checkout.journal
     driver.effects = Effects(checkout.journal)
     lines = []
     for id in ids:
         message = box.get(id)
-        if message.resolution is not None:
-            lines.append(f"{id}: already resolved -> {message.resolution.link}")
+        admission = dismiss_admission(id, [message])
+        if admission.outcome == "noop":
+            lines.append(admission.message)
             continue
         reply = TriageReply(verdict="declined", link=None, summary="Dismissed by the operator.", rationale="The operator dismissed this message.", evidence=[], reopen_after_days=30)
         lines.append(await _record(checkout, driver, box, id, "declined", id, reply, message.summary))

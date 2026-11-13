@@ -34,7 +34,7 @@ from chupa.providers import ADAPTERS, PREFLIGHT_TIMEOUT_S, PROBE_PROMPT, Provide
 from chupa.redact import Redactor
 from chupa.restart import Restart
 from chupa.seams import Clock, CommandNotifications, ExecutableNotFound, LocalFileSystem, ProcessExec, SubprocessExec
-from chupa.status import SETTLED, last_states, project, reject_queue, render
+from chupa.status import SETTLED, last_states, lint_admission, order_admission, project, reject_queue, render
 from chupa.storm import StormLedger
 from chupa.tickets import (
     IntakeRefused,
@@ -711,19 +711,20 @@ async def _lint(checkout: runner.Checkout, stems: Sequence[str]) -> int:
         journal = checkout.journal
         if common_dir.parent != repo and state_dir.is_relative_to(repo):
             journal = Journal(common_dir.parent / state_dir.relative_to(repo), checkout.clock)
-        states = last_states(journal.read())
+        events = journal.read()
         pending = _pending(checkout.repo, _porcelain(await checkout.git.status_porcelain(checkout.repo)))
         for stem in selected:
             rel = ticket_path(stem)
             path = checkout.repo / rel
             # Check existence before the stem grammar, without following an escaped path.
             inside = Path(stem).name == stem and stem not in {".", ".."} and path.resolve().is_relative_to(root.resolve())
-            if not inside or not path.is_file():
-                print(f"{rel}: no ticket file (create tickets/<stem>/ticket.md with chupa new <stem>)")
+            admission = lint_admission(stem, events, inside and path.is_file())
+            if admission.outcome == "refuse":
+                print(f"{rel}: {admission.message} ({admission.paved_road})")
                 total += 1
                 exit_code = 2
                 continue
-            if states.get(stem) in SETTLED | {"rejected"}:
+            if admission.outcome == "noop":
                 continue
             total += 1
             text, findings = _intake_claims(stem, path.read_text(), pending.get(stem, False))
@@ -888,14 +889,13 @@ def _order(checkout, stem, priority, runs_before):
     if priority is None and runs_before is None:
         raise runner.Refusal("no ordering option supplied", "supply --priority or --runs-before")
     path = checkout.repo / ticket_path(stem)
-    if not path.is_file():
-        raise runner.Refusal(f"{ticket_path(stem)} does not exist", f"author it with chupa new {stem}")
-    events = checkout.journal.read()
+    exists = path.is_file()
+    events = checkout.journal.read() if exists else ()
     state = last_states(events).get(stem)
-    if state == "running" and (stem not in reconcile.orphans(events) or observe.lock_holder(checkout.config.state_dir) is not None):
-        raise runner.Refusal(f"{stem} is running; editing a ticket during its run stops it with ticket_changed", "reorder it after the run ends")
-    if state in SETTLED | {"rejected"}:
-        raise runner.Refusal(f"{stem} is {state}", "author follow-up work as a new ticket")
+    holder = observe.lock_holder(checkout.config.state_dir) if state == "running" and stem in reconcile.orphans(events) else None
+    admission = order_admission(stem, events, exists, holder)
+    if admission.outcome == "refuse":
+        raise runner.Refusal(admission.message, admission.paved_road)
     text = path.read_bytes().decode()
     try:
         try:
