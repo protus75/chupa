@@ -5,7 +5,7 @@ emits: packing-slip
 tier: medium
 effort: medium
 gates: []
-version: "2.10"
+version: "2.11"
 ---
 ## Role
 
@@ -46,6 +46,10 @@ Read the ticket and the context files below before writing anything. Then:
    For each failure also on the base list, commit, reply `ok`, and report it in `second_problems`
    and `surprises`. A failure that passes on the base commit and requires an edit outside
    `## Scope fence` remains a `premise_failed` finding.
+   When a failing test passes on the base commit and fixing it would require an edit outside `## Scope fence`, first rerun that test alone on the candidate; if it passes alone and the diff does not reach the test's scenario (no changed file is imported, called or exercised by that test), treat it as an intermittent failure: commit, reply `ok`, and report it in `second_problems` and `surprises`.
+   For this case only, this paragraph overrides step 2's requirement that a failure also fails on the base commit before you report it.
+   One isolated rerun is the only evidence; never rerun the full suite until it passes and count that as proof.
+   A failure that reproduces on the isolated rerun, or a test whose scenario the diff reaches, stays a `premise_failed` finding.
 4. Search `docs/` and `README.md` for statements of the behavior the diff changes. Update only
    statements the diff makes false and only files inside `## Scope fence`, in the same commit.
    A stale statement in a file outside `## Scope fence` is reported in `second_problems`, not edited.

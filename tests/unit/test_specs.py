@@ -22,7 +22,7 @@ from chupa.specs import (
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parents[2] / "chupa" / "specs"
-    for name, version in (("implement", "2.10"), ("requisition_review", "3.13"), ("diagnose", "1.5")):
+    for name, version in (("implement", "2.11"), ("requisition_review", "3.13"), ("diagnose", "1.5")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
@@ -109,7 +109,7 @@ def test_implement_spec_consumer_read():
     assert lint_spec(text) == []
     assert len(text.splitlines()) <= SPEC_MAX_LINES
     spec = load_spec(text)
-    assert spec.meta.version == "2.10"
+    assert spec.meta.version == "2.11"
     assert spec.meta.model_dump(exclude={"version"}) == {
         "llm_surface": "implement",
         "consumes": "ticket",
@@ -165,6 +165,18 @@ def test_implement_spec_consumer_read():
         "For each failure also on the base list, commit, reply `ok`, and report it in `second_problems` and `surprises`. "
         "A failure that passes on the base commit and requires an edit outside `## Scope fence` remains a `premise_failed` finding."
     ) in task
+    # Missing guards would excuse reached scenarios, accept suite retries, or conflict with step 2.
+    for rule in (
+        "Before reporting a failure you did not cause, verify that it also fails on the base commit.",
+        "When a failing test passes on the base commit and fixing it would require an edit outside `## Scope fence`, "
+        "first rerun that test alone on the candidate; if it passes alone and the diff does not reach the test's scenario "
+        "(no changed file is imported, called or exercised by that test), treat it as an intermittent failure: commit, reply `ok`, "
+        "and report it in `second_problems` and `surprises`.",
+        "For this case only, this paragraph overrides step 2's requirement that a failure also fails on the base commit before you report it.",
+        "One isolated rerun is the only evidence; never rerun the full suite until it passes and count that as proof.",
+        "A failure that reproduces on the isolated rerun, or a test whose scenario the diff reaches, stays a `premise_failed` finding.",
+    ):
+        assert rule in task
     assert (
         "Before replying `premise_failed` for a scope reason, work the change through every file the "
         "acceptance criteria and `## Verification` commands force, and report each forced file outside "
