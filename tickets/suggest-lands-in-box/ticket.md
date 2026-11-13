@@ -34,7 +34,7 @@ Expected: `suggest` writes the `suggestion` message straight into the box, with 
 
 Suspected cause: the `suggest-verb` design routed filing through a side folder because `Box._enqueue` picks `seq = max(existing) + 1` and then writes `<seq>-<sig8>.json`. Two processes enqueueing at once could pick the same `seq`, and their file names differ by signature, so neither write fails. Inspect and rule out `Box.messages()` filtering: it lists every `*.json` directly under the box root and filters nothing, so the drop is simply not there.
 
-Fix shape: make a new message's `seq` a claim that cannot be taken twice. Before writing, `_enqueue` publishes an empty claim file `<box root>/.seq/<seq:06d>` with `fs.publish`. `publish` never overwrites an existing name (`os.link`), so a second claimer gets `FileExistsError`. On that error, `_enqueue` re-reads the messages, re-checks the signature, and claims the next `seq`. No lock is added anywhere.
+Fix shape: make a new message's `seq` a claim that cannot be taken twice. Before writing, `_enqueue` publishes an empty claim file `<box root>.seq/<seq:06d>` (a sibling directory, for example `<state_dir>/box.seq/`, so the box root holds only messages) with `fs.publish`. `publish` never overwrites an existing name (`os.link`), so a second claimer gets `FileExistsError`. On that error, `_enqueue` re-reads the messages, re-checks the signature, and claims the next `seq`: after a failed claim of seq N, it tries `max(N + 1, max(re-read seq) + 1)`. A `seq` is never reused, so gaps are allowed, and a claim left behind by a crashed write never blocks later enqueues. No lock is added anywhere.
 
 Anti-patterns: do not add a lock or take the writer `Lockfile` in `suggest`. Do not make the box views list drop files: their ids would not be box ids, so `triage <id>` and `dismiss <id>` could not act on them.
 
@@ -42,11 +42,12 @@ Leftover drop files are not ingested after this change. The operator re-files th
 
 ## Scope in / Scope out
 Scope in:
-- `chupa/box.py`, `Box._enqueue`: claim each new message's `seq` by publishing `<root>/.seq/<seq:06d>` with `self.fs.publish` before `_write`. On `FileExistsError`, re-read `self.messages()`, re-run the signature check, and try the next `seq`. The signature-match branch is unchanged. `messages()` is unchanged; it globs `*.json` in the root only, so `.seq/` is invisible to it.
+- `chupa/box.py`, `Box._enqueue`: claim each new message's `seq` by publishing `self.root.with_name(self.root.name + ".seq") / f"{seq:06d}"` with `self.fs.publish` before `_write`. On `FileExistsError` for seq N, re-read `self.messages()`, re-run the signature check, and try `max(N + 1, max(re-read seq) + 1)`. The signature-match branch is unchanged. `messages()` and the box root's contents are unchanged.
 - `chupa/__main__.py`, the `suggest` branch: build `Box(config.state_dir / "box", checkout.fs, rereport=RereportJournal(checkout.journal))` and call `enqueue(message_class="suggestion", origin="session", summary=args.summary, occurrence_id=<uuid4 hex>)`. When `enqueue` creates the message, print `suggest: filed <box id>`. When it returns an existing message, print `suggest: already in the box as <box id>`. It takes no lock and writes no drop file. A blank summary is refused exactly as today.
 - `chupa/triage.py`, `report_intake`: delete the `suggestions/` drop branch. `report_inbox` ingestion is unchanged.
 - `tests/integration/test_cli.py`: replace `test_suggest_publishes_while_writer_lock_is_held`. While another process holds the writer lock, `suggest "a distinct idea"` exits 0, leaves exactly one pending `suggestion` message in `Box(<state_dir>/box)` with that summary and origin `session`, prints `suggest: filed <that id>`, and creates no `box/suggestions/` directory. Add a case where the same summary filed twice prints `suggest: already in the box as <id>` and leaves one message. Keep `test_suggest_refuses_blank`, changing its drop-folder assertion to "no box message".
-- Create `tests/unit/test_suggest_box.py`, which lint requires because `chupa/__main__.py`, `chupa/box.py`, and `chupa/triage.py` have unit coverage floors. It holds two tests. (a) The competing-claim test: two `Box` objects on the same `tmp_path` root enqueue different summaries, and the second claims the first's `seq` between the first's read of `max(seq)` and its claim (inject this through a `FileSystem` wrapper whose `publish` publishes the competing claim first). Both messages exist with distinct `seq` values. The current code gives both the same `seq` and fails it. (b) The `suggest` branch run through `chupa.__main__.main` with fakes in the style of `tests/unit/test_docs_verb.py`, covering the new `filed` and `already in the box` lines.
+- `tests/integration/test_box.py`: add the on-disk race test. Two `Box` objects on the same `tmp_path` root enqueue different summaries, and the second claims the first's `seq` between the first's read of `max(seq)` and its claim (inject this through a `FileSystem` wrapper around `LocalFileSystem` whose `publish` publishes the competing claim first). Both messages exist with distinct `seq` values. The current code gives both the same `seq` and fails it.
+- Create `tests/unit/test_suggest_box.py`, which lint requires because `chupa/__main__.py`, `chupa/box.py`, and `chupa/triage.py` have unit coverage floors. It touches no disk. Use an in-memory `FileSystem` fake whose `publish` raises `FileExistsError` for an existing path and whose `write` stores messages in a dict, and monkeypatch `Box.messages` to read that dict. It holds three tests. (a) A claim already exists for seq 1 with no message (a crashed write): `enqueue` returns a message with seq 2 and terminates. (b) A competing claim appears for the seq being tried: the message gets the next free seq. (c) The `suggest` branch run through `chupa.__main__.main` with fakes in the style of `tests/unit/test_docs_verb.py`, covering the `filed` and `already in the box` lines.
 - `tests/integration/test_triage.py`: delete `test_suggestion_drops_ingest_and_retry`, since the drop branch it covers is gone.
 - Create `tests/regress_suggest_lands_in_box.py`, the carried reproducer, in the style of `tests/regress_dev_test_args.py`. In a temporary repo set up as the `root` fixture in `tests/integration/test_cli.py` sets one up, it runs `suggest` through the CLI `main`. It prints `pass` (exit 0) when `Box(<state_dir>/box).messages()` holds a pending suggestion with that summary, and `defect` (non-zero exit) when it holds none. A setup failure prints `error`.
 - `docs/how-chupa-works.md`: the section 2.1 `suggest` row says it files the idea straight into the Suggestion Box. The section 9.1 sentence says sessions file `suggestion` messages with `suggest` directly into the box, and it drops the `state_dir/box/suggestions/` intake wording.
@@ -60,6 +61,7 @@ Scope out:
 - chupa/__main__.py
 - chupa/triage.py
 - tests/integration/test_cli.py
+- tests/integration/test_box.py
 - tests/unit/test_suggest_box.py
 - tests/integration/test_triage.py
 - tests/regress_suggest_lands_in_box.py
@@ -69,13 +71,14 @@ Scope out:
 ## Acceptance criteria
 1. `./dev.py test tests/integration/test_cli.py` passes a test in which, with another process holding the writer lock, `suggest "a distinct idea"` exits 0 and `Box(<state_dir>/box).messages()` holds exactly one pending `suggestion` with that summary and origin `session`, and no `box/suggestions/` directory exists. The current code writes a drop and leaves the box empty, so it fails.
 2. The same file passes a test in which filing the same summary twice prints `suggest: already in the box as <id>` the second time and leaves exactly one message. A `suggest` that creates a second message fails it.
-3. `./dev.py test tests/unit/test_suggest_box.py` passes the competing-claim test: two enqueues racing for one `seq` end with two messages whose `seq` values differ. The current `_enqueue`, which writes both at the same `seq`, fails it.
-4. `uv run python tests/regress_suggest_lands_in_box.py` prints `{"regression_result": "pass"}` on the branch and `{"regression_result": "defect"}` at the merge base.
-5. `chupa/__main__.py` and `chupa/box.py` gain no `Lockfile`, `flock`, or other lock use, checked by reading the diff.
+3. `./dev.py test tests/integration/test_box.py` passes the on-disk race test: two enqueues racing for one `seq` end with two messages whose `seq` values differ. The current `_enqueue`, which writes both at the same `seq`, fails it.
+4. `./dev.py test tests/unit/test_suggest_box.py` passes the leftover-claim test: with a claim for seq 1 and no message, `enqueue` returns seq 2. An implementation that retries `max(re-read seq) + 1` loops forever on seq 1 and fails it.
+5. `uv run python tests/regress_suggest_lands_in_box.py` prints `{"regression_result": "pass"}` on the branch and `{"regression_result": "defect"}` at the merge base.
+6. `chupa/__main__.py` and `chupa/box.py` gain no `Lockfile`, `flock`, or other lock use, checked by reading the diff.
 
 ## Verification
 ```
-./dev.py test tests/integration/test_cli.py tests/unit/test_suggest_box.py tests/integration/test_box.py tests/integration/test_triage.py tests/unit/test_host_running.py
+./dev.py test tests/integration/test_cli.py tests/unit/test_suggest_box.py tests/integration/test_box.py tests/integration/test_triage.py tests/integration/test_storm_producer.py tests/integration/test_inbox.py tests/unit/test_host_running.py
 ```
 
 ## Regression
@@ -89,6 +92,7 @@ uv run python tests/regress_suggest_lands_in_box.py
 - `suggest` still writes a file under `box/suggestions/`.
 - The box views list drop files or invent ids for them.
 - Two concurrent enqueues can still produce two messages with the same `seq`.
+- Anything other than `*.json` message files is written into the box root.
 - Any file outside the scope fence changes.
 
 ## Time budget
