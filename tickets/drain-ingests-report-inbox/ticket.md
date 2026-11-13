@@ -27,7 +27,7 @@ After this change, every engine lifecycle that holds the writer lock ingests `re
 ## Scope in / Scope out
 Scope in:
 - `chupa/drain.py`, `_Drain.run`: call `triage.report_intake(self.c)` each loop, directly after the ticket `intake(...)` call. A refused report is logged by `report_intake` as `report_intake_refused` and skipped, as it already is; the drain loop goes on.
-- `tests/integration/test_drain.py`: add a test where `report_inbox` is set and one valid host report is in the inbox when a drain starts. After the drain's first loop, the box holds one pending `bug_report` message for it, and the journal has no `triage_pass` signal. Build the report with `tests/integration/test_inbox.py::arrival`.
+- `tests/integration/test_drain.py`: add a test where `report_inbox` is set and one valid host report is in the inbox when a drain starts. After the drain's first loop, the box holds one pending `bug_report` message for it, and the journal has no `triage_pass` signal. Build the report with `tests/integration/test_inbox.py::arrival`. Also place a malformed report (a second inbox file holding invalid JSON) beside it. The drain returns normally, the valid report is still a pending `bug_report`, and `<state_dir>/engine.log` contains `report_intake_refused`.
 - Create `tests/unit/test_drain_report_intake.py`, which lint requires because `chupa/drain.py` has a unit coverage floor. With `triage.report_intake` monkeypatched to record its call and the other per-loop collaborators faked in the style of `tests/unit/test_drain_containment.py`, one `_Drain.run` loop calls `report_intake` once with the drain's checkout, after ticket `intake`. A loop that skips it fails.
 - `docs/how-chupa-works.md` section 9.4: change "serve and triage ingest host bug reports" to "serve, drain, and triage ingest host bug reports", adding that drain ingests between tickets.
 
@@ -43,9 +43,10 @@ Scope out:
 ## Acceptance criteria
 1. `./dev.py test tests/integration/test_drain.py` passes a test in which a valid host report in `report_inbox` at drain start is a pending `bug_report` box message after the first loop. The current drain, which never calls `report_intake`, leaves the box empty and fails it.
 2. The same test asserts the journal has no `triage_pass` signal after that loop. A drain that triages instead of only ingesting fails it.
-3. `./dev.py test tests/integration/test_triage.py` still passes, including the assertion that the `drain` function never references `triage`.
-4. `./dev.py test tests/unit/test_drain_report_intake.py` passes: one drain loop calls `report_intake` once, after ticket intake. A loop without the call fails it.
-5. `docs/how-chupa-works.md` section 9.4 contains "serve, drain, and triage ingest host bug reports".
+3. The same `tests/integration/test_drain.py` test has a malformed report beside the valid one: the drain returns normally, the valid report is still ingested, and `engine.log` contains `report_intake_refused`. A drain whose loop raises on a refused report fails it.
+4. `./dev.py test tests/integration/test_triage.py` still passes, including the assertion that the `drain` function never references `triage`.
+5. `./dev.py test tests/unit/test_drain_report_intake.py` passes: one drain loop calls `report_intake` once, after ticket intake. A loop without the call fails it.
+6. `docs/how-chupa-works.md` section 9.4 contains "serve, drain, and triage ingest host bug reports".
 
 ## Verification
 ```
