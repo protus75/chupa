@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The worktree was clean when inspected; no files were changed and no verification commands were run.
+Inspection did not establish a contradiction or missing scope, so this outcome does not reflect a proven premise failure.
 
 ## Dead ends
 
-Inspected the existing snapshot, admission-related code, and snapshot consumers; the implementation remains unfinished.
+Inspected the snapshot, intake rules, existing regression fixtures, and host checks; implementation and verification remain unfinished.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-The ticket estimates 90 minutes; implementation was not completed.
+The ticket estimates 90 minutes; the work was not completed.
 
