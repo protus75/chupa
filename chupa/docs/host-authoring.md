@@ -19,7 +19,10 @@ what content its tickets carry, never the format. See the [host run guide](host-
    intake's claims and evidence checks without taking the lock or writing anything; it prints
    findings with fixes and a valid/total summary. Exit 0 means all valid, 1 means findings, and
    2 means a named ticket is missing or the tickets directory is unreadable.
-3. Run `chupa review <stem>` (in this repo, `./dev.py review STEM`), repair every finding,
+3. Before review, check that no criterion contradicts merged behavior or an existing test outside
+   the fence, and that all criteria can hold together. Check that every invariant the ticket states
+   or cites has a criterion whose test fails when the invariant is dropped.
+   Run `chupa review <stem>` (in this repo, `./dev.py review STEM`), repair every finding,
    and repeat until it prints `approve`. Reviews with unmerged dependencies are provisional and not
    journaled; repair their findings, and the drain reviews again after the dependencies merge.
 4. A running `serve` picks up the new ticket; alternatively run `chupa drain`. Intake commits
@@ -28,7 +31,8 @@ what content its tickets carry, never the format. See the [host run guide](host-
 ## What each section is for
 
 - `Depends on`: tickets whose merged code this ticket needs. Use it only for that: a failed
-  dependency blocks every ticket behind it.
+  dependency blocks every ticket behind it. Merged code includes a test helper, fixture, fixture
+  data set, or check rule another ticket creates. A ticket that uses one depends on the ticket that creates it.
 - `Runs before`: stems this ticket runs ahead of when both are eligible. This soft order never
   blocks; use it, not `Depends on`, for any other ordering. Use `chupa order` to change it or priority.
 - `Context`: files the implementing agent reads before starting; they are embedded in its prompt.
@@ -41,7 +45,10 @@ what content its tickets carry, never the format. See the [host run guide](host-
 - `On-demand`: existing files the agent may need but that are too large to embed; it reads them
   from its worktree.
 - `Goal / Why`: what is true when the ticket is done that is not true now, and why it matters.
-- `Scope in / Scope out`: what the agent changes, and what it must leave alone.
+- `Scope in / Scope out`: what the agent changes, and what it must leave alone. When Scope in
+  limits changes in a fenced file with "only" or "nothing else changes", it names every edit the change forces there.
+  Include an import a new name needs and the expected set or skip list of every test that loops
+  over a registry the ticket extends.
 - `Scope fence`: every path the agent may write. Fence every file the acceptance criteria force
   it to change, including existing tests whose assertions flip; a forced file outside the fence
   makes the ticket impossible. A ticket that changes documented behavior also fences that
@@ -50,10 +57,14 @@ what content its tickets carry, never the format. See the [host run guide](host-
   never a literal target such as `3.4 -> 3.5`, and fences a test pin for the bumped file.
   Lint requires every carried prefix to be fenced. When a fenced file has a positive
   `[coverage.files]` floor in `test-gate.toml`, lint requires a fenced path under `tests/unit/`.
+  When a `Depends on` ticket is not merged yet, the author reads its fence and criteria. Fence
+  any test it creates that asserts behavior this ticket changes, and Scope in names the one expectation that may change.
 - `Acceptance criteria`: each criterion is a check someone can run or a path someone can read,
   never a judgment word. A criterion checked by a test names the wrong result the test rules out,
   for example, `parse('')` returns `[]`, not `None`. A test that also passes on the wrong result
-  checks nothing.
+  checks nothing. Before writing a criterion, check any case that must come from real code, such
+  as a loader, builder, or test helper, in that code. A case the code filters out or cannot build
+  is marked hand-built with its reason, and the Goal does not promise it.
 - `Verification`: the commands Check runs; every one must exit 0.
 - `Definition of rejected`: outcomes that mean the branch is thrown away even if it passes.
 - `Time budget`: `expected` is your estimate; `stuck` is the deadline that stops the run.
@@ -77,6 +88,7 @@ must be a regular, non-symlink file. Every ticket read (intake, lint, confirm, d
 and Author) refuses a bug without evidence. Intake and lint also require evidence that is not
 gitignored; intake commits new or changed evidence with the ticket. Settled and rejected tickets
 are exempt, including at intake when the journal records settlement. Supply real evidence, never a placeholder.
+Save the evidence before any change that destroys it, such as deleting a file, reloading data, or a manual fix.
 
 ### The regression command
 
