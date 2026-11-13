@@ -1,0 +1,9 @@
+---
+id: declined-box-000429-eada0751
+kind: declined
+link: box-000429-eada0751
+reopen_after_days: 30
+---
+Author could not produce a ticket.
+
+Evidence: - fence-gap-uncounted-rigs: The design counts in-flight work only in `graph` (it sets `rig.inflight` and patches `SubprocessExec.run`). Three groups of `until` callers build their rig with `repository` directly and never call `graph`: `tests/integration/test_daemon_composition.py:127-143` (`test_production_watchdog_shares_active_executor`), `tests/integration/test_provider_cooldown_failover.py:368-380`, and `tests/integration/test_provider_cooldown_failover.py:686-761` (`test_escalated_drought_uses_effective_route`, serve and drain entries). In each, serve or drain runs real `git`/`true` through `repository`'s `SubprocessExec` (`test_restart_timers.py:99-105`). For these rigs `getattr(rig, 'inflight', 0)` is always 0, so `until` counts turns during real subprocess work. That breaks the Definition-of-rejected clause 'until counts a turn while a real subprocess is in flight'. It also takes away the 60s real-time margin these callers had, so they can fail under load the same way the kill scenario did. The final criterion ('every other until caller ... still reaches its boundary') would then depend on load. (do instead: Install the counting wrapper in `repository` in `tests/integration/test_restart_timers.py`: patch `SubprocessExec.run` with `monkeypatch.setattr` and set `rig.inflight = 0` there. `graph` calls `repository`, so every graph-built rig keeps the counter and the repository-built rigs above get it too. Add `tests/integration/test_restart_timers.py` to `## Scope fence`, update Scope in, Design and criterion 3 to say the counter lives in `repository` (criterion 3 can build its rig with `repository` or `graph`), and list `test_daemon_composition.py` and `test_provider_cooldown_failover.py` among the `until` callers the full-suite criterion covers.)
