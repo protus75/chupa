@@ -37,6 +37,7 @@ Scope in:
 - Bump the spec `version` to the next minor above the version on main.
 - Update the version pin in `test_spec_lint_accepts_the_implement_and_requisition_specs` in `tests/unit/test_specs.py` to match.
 - Add the test `test_requisition_review_spec_raises_impossible_criteria_unchanged` in `tests/unit/test_specs.py`. It renders the spec, takes the Task text, and asserts the new sentence's key phrases are present.
+- Amend the Premise park sentence in section 6.7 of `docs/how-chupa-works.md` that says the next review "raises new findings only against changed text". It adds that a defect making a criterion or `## Verification` command impossible to satisfy against merged code is raised whether or not its text changed.
 
 Scope out:
 
@@ -47,12 +48,14 @@ Scope out:
 
 - chupa/specs/requisition_review.md
 - tests/unit/test_specs.py
+- docs/how-chupa-works.md
 
 ## Acceptance criteria
 
 1. `chupa/specs/requisition_review.md` Task text states that the changed-text limit never applies to a defect that makes a criterion or Verification command impossible to satisfy against merged code. It also states that such a defect is raised whether or not the text changed, and that the reviewer never approves while the summary records one. The test `test_requisition_review_spec_raises_impossible_criteria_unchanged` in `tests/unit/test_specs.py` asserts these phrases. It fails if the sentence is missing, and it fails if the sentence does not also say style and arguable wording are not hits, so an unbounded exception is ruled out.
 2. The existing sentences "Raise a NEW finding only against text the diff shows changed" and "Unchanged text that no changed statement touches is not reviewed again." stay in the Task text, so the exception is added without removing the limit. `test_requisition_review_spec_checks_changed_text_against_unchanged` in `tests/unit/test_specs.py` still passes.
 3. The spec `version` is the next minor above the version on main, and the pin in `test_spec_lint_accepts_the_implement_and_requisition_specs` matches it. That test passes, so a spec that lints but has a stale version pin is ruled out.
+4. The Premise park entry in section 6.7 of `docs/how-chupa-works.md` still says the next review raises new findings only against changed text, and also names the exception: a defect that makes a criterion or Verification command impossible to satisfy against merged code is raised whether or not its text changed.
 
 ## Verification
 
