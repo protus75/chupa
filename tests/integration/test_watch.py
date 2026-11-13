@@ -353,13 +353,14 @@ def test_snapshot_menu_availability(tmp_path, monkeypatch):
     monkeypatch.setattr(watch, "lock_holder", lambda state, *args: object())
     snap = watch.snapshot(ctx)
     rows = {row["stem"]: row for row in snap["rows"]}
-    assert (rows["held"]["menu"]["chupaConfirm"], rows["held"]["menu"]["chupaRun"]) == ("on", "off")  # The lock does not block a committed verdict; unmet dependencies block Run.
+    assert (rows["held"]["menu"]["chupaConfirm"], rows["held"]["menu"]["chupaRun"]) == ("off", "off")  # A content park alone cannot be confirmed; unmet dependencies block Run.
     assert (rows["held-ready"]["menu"]["chupaRun"], rows["ready"]["menu"]["chupaRun"], rows["ready"]["menu"]["chupaReview"]) == (
         "locked",
         "locked",
         "on",
     )  # Run needs the lock, while committed review does not.
     assert (rows["invalid"]["menu"]["chupaReview"], rows["invalid"]["menu"]["chupaPriority"]) == ("off", "off")  # Invalid blocked rows cannot be reviewed or ordered.
+    assert rows["ready"]["menu"]["chupaReject"] == "on"
     assert rows["done"]["menu"]["chupaLint"] == "off"  # Merged rows cannot be linted.
     box_rows = {row["id"]: row for row in snap["box"]}
     assert box_rows[pending]["menu"] == {"chupaTriage": "locked", "chupaDismiss": "locked"}  # Pending actions require the lock.
@@ -367,13 +368,13 @@ def test_snapshot_menu_availability(tmp_path, monkeypatch):
 
     monkeypatch.setattr(watch, "uncommitted_tickets", lambda ctx: ({"held"}, set()))
     dirty = {row["stem"]: row for row in watch.snapshot(ctx)["rows"]}
-    assert (dirty["held"]["menu"]["chupaConfirm"], dirty["held"]["menu"]["chupaReject"]) == ("on", "on")  # Intake commits dirty ticket content before admission.
+    assert (dirty["held"]["menu"]["chupaConfirm"], dirty["held"]["menu"]["chupaReject"]) == ("off", "on")  # Intake does not make a content park confirmable.
     assert dirty["held"]["menu"]["chupaReview"] == "on"  # Dirty review runs intake without the engine lock.
     assert dirty["invalid"]["menu"]["chupaReview"] == "off"  # Invalid rows remain unavailable.
     monkeypatch.setattr(watch, "lock_holder", lambda state, *args: None)
     snap = watch.snapshot(ctx)
     stopped = {row["stem"]: row for row in snap["rows"]}
-    assert (stopped["held"]["menu"]["chupaConfirm"], stopped["held"]["menu"]["chupaReject"]) == ("on", "on")  # Without the engine dirty verdicts are allowed.
+    assert (stopped["held"]["menu"]["chupaConfirm"], stopped["held"]["menu"]["chupaReject"]) == ("off", "on")  # A content park is rejectable but not confirmable.
     assert (stopped["ready"]["menu"]["chupaRun"], stopped["ready"]["menu"]["chupaReview"]) == ("on", "on")  # Runnable and reviewable work is unlocked.
     assert stopped["held"]["menu"]["chupaReview"] == "on"  # Dirty review can intake when the lock is free.
     assert stopped["invalid"]["menu"]["chupaReview"] == "off"  # Stopping the engine does not validate a ticket.

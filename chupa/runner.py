@@ -35,7 +35,7 @@ from chupa.reconcile import reconcile
 from chupa.redact import Redactor
 from chupa.seams import Clock, FileSystem, GroupExec, Sleep
 from chupa.stages import DiagnosisMaterial, StageContext, StagesRun, diagnose, lift_outbox, run_stages, ticket_change_findings, write_diagnosis
-from chupa.status import SETTLED, last_states, reject_queue
+from chupa.status import SETTLED, last_states, verdict_refusal
 from chupa.storm import arrival_id
 from chupa.tickets import Ticket, TicketInvalid, intake, parse_ticket, split_frontmatter, stamp, stem_findings, ticket_path, validate_ticket
 
@@ -568,16 +568,16 @@ async def verdict_locked(stem: str, checkout: Checkout, *, kill: bool, extension
     path = checkout.repo / rel
     if not path.is_file() and not any(e.ticket == stem for e in history):
         raise Refusal(f"unknown stem {stem}", "name a journaled stem or an existing ticket.md")
-    last = last_states(history).get(stem)
-    if last == "running":
-        raise Refusal(f"{stem} is running", "wait for its terminal, then retry")
+    draft = path.is_file() and _ticket_state(path) == "draft"
+    refusal = verdict_refusal(history, stem, kill, draft, set())
+    # Preserve the command-line repeat-keep refusal's precedence over queue admission.
+    if refusal and (kill or draft or refusal[0].endswith("is running")):
+        raise Refusal(*refusal)
     if kill:
-        if last in SETTLED:
-            raise Refusal(f"{stem} is settled", "leave settled work in place")
         changed = await reject_ticket(stem, checkout)
         print(f"rejected {stem}" if changed else f"already rejected {stem}")
         return EXIT_MERGED
-    if path.is_file() and _ticket_state(path) == "draft":
+    if draft:
         checkout.fs.write(path, stamp(path.read_text(), "state", "confirmed").encode())
         sha = await checkout.git.commit(checkout.repo, f"chupa({stem}): confirmed", only=[rel])
         checkout.journal.append(EventType.SIGNAL, {"signal": "draft_confirmed", "commit": sha}, ticket=stem)
@@ -594,8 +594,8 @@ async def verdict_locked(stem: str, checkout: Checkout, *, kill: bool, extension
     )
     if not extension and prior_keep is not None and prior_keep.body.get("ticket_sha") == ticket_sha:
         raise Refusal(f"{stem} was already kept at this ticket content", "edit the ticket before re-enqueueing")
-    if stem not in reject_queue(history):
-        raise Refusal(f"{stem} is neither a draft nor in the Reject queue", "run `status` to list the Reject queue")
+    if refusal:
+        raise Refusal(*refusal)
     checkout.journal.append(EventType.SIGNAL, {"signal": "reject_verdict", "verdict": "keep", "actor": "operator", "ticket_sha": ticket_sha}, ticket=stem)
     print(f"kept {stem}")
     return EXIT_MERGED

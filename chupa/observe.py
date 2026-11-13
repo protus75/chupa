@@ -15,7 +15,7 @@ from chupa.drain import RETIRED, authored_at, awaiting_operator, order_tickets, 
 from chupa.graph import layout
 from chupa.lockfile import ENGINE_VERBS
 from chupa.rework import settled_dependencies
-from chupa.status import SETTLED
+from chupa.status import SETTLED, verdict_refusal
 from chupa.tickets import Frontmatter, TicketInvalid, parse_ticket
 
 STEP_NAMES = {
@@ -622,13 +622,13 @@ def snapshot(ctx) -> dict:
     for r in rows:
         open_section = r["section"] in ("queued", "blocked")
         valid = r["stem"] not in invalid
-        verdict = r["draft"] or r["held"]
+        draft = bool(tickets.get(r["stem"])) and tickets[r["stem"]].frontmatter.state == "draft"
         r["menu"] = {
             "chupaReview": "on" if open_section and valid else "off",
             "chupaLint": "on" if r["section"] != "merged" else "off",
             "chupaRun": available(r["runnable"]),
-            "chupaConfirm": "on" if verdict else "off",
-            "chupaReject": "on" if verdict or (to(r["stem"]) == "running" and r["stem"] in interrupted) else "off",
+            "chupaConfirm": "on" if verdict_refusal(history, r["stem"], False, draft, interrupted) is None else "off",
+            "chupaReject": "on" if verdict_refusal(history, r["stem"], True, draft, interrupted) is None else "off",
             "chupaAskDiagnose": "on" if r["section"] != "merged" else "off",
             "chupaAskReview": "on" if open_section else "off",
             "chupaPriority": "on" if open_section and valid else "off",

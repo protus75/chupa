@@ -5,7 +5,7 @@ A projection, never an authority: no gate or dispatch decision reads its renderi
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-from types import MappingProxyType
+from types import MappingProxyType, SimpleNamespace
 
 from chupa.journal import Event, EventType
 from chupa.retro import Window, project_window
@@ -56,6 +56,20 @@ def reject_queue(events: Iterable[Event]) -> dict[str, Mapping]:
 def last_states(events: Iterable[Event]) -> dict[str, str]:
     """Each stem's latest run-state transition target."""
     return {e.ticket: e.body["to"] for e in events if e.type == EventType.STATE_TRANSITION and e.ticket is not None and "to" in e.body}
+
+
+def verdict_refusal(events: Iterable[Event], stem: str, kill: bool, draft: bool, interrupted: set[str]) -> tuple[str, str] | None:
+    """Apply verdict admission after the interrupted runs have been reaped."""
+    history = list(events) + [SimpleNamespace(type=EventType.STATE_TRANSITION, ticket=s, body={"to": "abandoned"}) for s in interrupted]
+    last = last_states(history).get(stem)
+    if last == "running":
+        return f"{stem} is running", "wait for its terminal, then retry"
+    if kill:
+        if last in SETTLED:
+            return f"{stem} is settled", "leave settled work in place"
+    elif not draft and stem not in reject_queue(history):
+        return f"{stem} is neither a draft nor in the Reject queue", "run `status` to list the Reject queue"
+    return None
 
 
 def project(events: Iterable[Event], *, alive: bool = True, box=None, policy=None, window: Window | None = None, provenance: Mapping[str, str] | None = None) -> Status:
