@@ -1,0 +1,21 @@
+Menu availability hand-copied from verb rules (chupa/observe.py snapshot):
+        open_section = r["section"] in ("queued", "blocked")
+        valid = r["stem"] not in invalid
+        verdict = r["draft"] or r["held"]
+        r["menu"] = {
+            "chupaReview": "on" if open_section and valid else "off",
+            "chupaLint": "on" if r["section"] != "merged" else "off",
+            "chupaRun": available(r["runnable"]),
+            "chupaConfirm": "on" if verdict else "off",
+            "chupaReject": "on" if verdict or (to(r["stem"]) == "running" and r["stem"] in interrupted) else "off",
+            "chupaAskDiagnose": "on" if r["section"] != "merged" else "off",
+            "chupaAskReview": "on" if open_section else "off",
+            "chupaPriority": "on" if open_section and valid else "off",
+            "chupaRunsBefore": "on" if open_section and valid else "off",
+        }
+
+chupa/observe.py base(): runnable comment
+592:            # What `chupa run` accepts: confirmed, every dependency settled (it also needs the lock).
+593-            "runnable": bool(t) and t.frontmatter.state == "confirmed" and set(t.depends) <= settled,
+
+Verb rules live separately in chupa/runner.py verdict_locked / _admit and chupa/__main__.py.
