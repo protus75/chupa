@@ -1,0 +1,22 @@
+Reproduced 2026-11-13 on main 60c96316 with a temp host repo (FakeLLM approve), two pending draft tickets.
+
+$ chupa review alpha  (alpha and beta both pending, both `state: draft`)
+exit: 0
+$ git log --oneline
+chupa(beta): ticket
+chupa(alpha): ticket
+initial
+
+$ git status --porcelain -- tickets/
+(clean)
+$ git show HEAD~0:tickets/beta/ticket.md | head -4 (if committed)
+---
+state: confirmed
+priority: P2
+kind: feature
+
+stdout: {"regression_result": "defect"} (exit 1)
+
+Call site: chupa/__main__.py:574-577 (_review) calls intake(repo, git, journal, fs) with no stem;
+chupa/tickets.py:698 intake() commits every pending tickets/*/ticket.md; _intake_claims stamps new stems state: confirmed.
+chupa/docs/host-running.md:30 and docs/how-chupa-works.md:59 promise only the reviewed ticket's pending edits are committed.
