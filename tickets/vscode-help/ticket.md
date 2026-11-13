@@ -279,12 +279,12 @@ Scope out:
 12. `CLAUDE.md` and `AGENTS.md` each contain the `**Extension help has one source.**` rule exactly
     as quoted in Scope in, after the `<!-- chupa:core end -->` line in `CLAUDE.md`. This is checked by
     the `python -c` command in `## Verification`.
-11. Readers can check these docs:
+13. Readers can check these docs:
     - `docs/how-chupa-works.md` section 2.2 names `chupa/help.py`, the `Before:`/`After:` shape, and
       `chupa.help`;
     - `chupa/docs/host-contract.md` `## VS Code extension` names the Help command;
     - `vscode-chupa/README.md` has a `## Help` section.
-12. `./dev.py test` exits 0.
+14. `./dev.py test` exits 0.
 
 ## Verification
 ```
