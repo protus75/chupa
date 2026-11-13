@@ -94,11 +94,13 @@ Final report, terse:
   - Add a `view/title` entry with `"when": "view == chupa.tickets"` and `"group": "chupa@7"`. This puts it in the Tickets view's More Actions menu.
   - Add a `commandPalette` entry with `"when": "false"`, like `chupa.bulkTriage`.
 - In: tests.
-  - A new `tests/unit/test_ask_drain_loop.py` with these tests:
+  - A new `tests/unit/test_ask_drain_loop.py`. It monkeypatches `chupa.__main__.load_config` and reads no file. Tests:
+    - `test_prompt_verb_drain_loop_refuses_stem`: `main(["prompt", "drain-loop", "x"])` returns 2 with "drain-loop takes no stem" on stderr. This rules out a drain-loop kind that silently ignores a stem.
+    - `test_prompt_verb_box_and_ticket_kinds_still_require_names`: `main(["prompt", "box"])` returns 2, not 0 with an empty list. `main(["prompt", "review"])` returns 2 with "exactly one stem" on stderr.
+  - A new `tests/integration/test_ask_drain_loop.py`, which renders the real template from disk. Tests:
     - `test_drain_loop_renders_state_dir_and_loop_prefix`: with `state_dir` `custom/state`, the output starts with `/loop ` and contains `custom/state/drain.out`. It never contains `.chupa/state`. This rules out a hard-coded state directory or a dropped `/loop` prefix.
     - `test_drain_loop_keeps_owner_verdict_limits`: the output contains ``Never run `confirm` or `reject` `` and `ticket_changed`. This rules out a template that lets the session issue verdicts.
-    - `test_prompt_verb_drain_loop_takes_no_stem`: `main(["prompt", "drain-loop"])` returns 0 and prints the prompt. `state_dir` does not exist afterwards. `main(["prompt", "drain-loop", "x"])` returns 2.
-    - `test_prompt_verb_box_and_ticket_kinds_still_require_names`: `main(["prompt", "box"])` returns 2, not 0 with an empty list. `main(["prompt", "review"])` returns 2 with "exactly one stem" on stderr.
+    - `test_prompt_verb_drain_loop_prints_without_state`: in a `tmp_path` repo, `main(["prompt", "drain-loop"])` returns 0 and prints output starting with `/loop `. `state_dir` does not exist afterwards.
   - In `tests/integration/test_ask.py`, the only change: the `test_each_kind_renders_stem_ticket_and_state_dir` parametrize also skips `"drain-loop"`, because that kind renders no stem.
 - In: docs.
   - `docs/how-chupa-works.md` section 2.1: the `prompt box <id> ...` table row gets a sibling row `prompt drain-loop`, "Print the supervising drain-loop prompt without writing state."
@@ -119,12 +121,13 @@ Final report, terse:
 - vscode-chupa/extension.js
 - vscode-chupa/package.json
 - tests/unit/test_ask_drain_loop.py
+- tests/integration/test_ask_drain_loop.py
 - tests/integration/test_ask.py
 - docs/how-chupa-works.md
 - chupa/docs/host-running.md
 
 ## Acceptance criteria
-1. `./dev.py test tests/unit/test_ask_drain_loop.py tests/integration/test_ask.py` exits 0. That run includes all four new tests, and each rules out the wrong result named in Scope in.
+1. `./dev.py test tests/unit/test_ask_drain_loop.py tests/integration/test_ask_drain_loop.py tests/integration/test_ask.py` exits 0. That run includes all five new tests, and each rules out the wrong result named in Scope in.
 2. `node --check vscode-chupa/extension.js` exits 0. In `vscode-chupa/extension.js`, `grep -c "anthropic.claude-code/open" vscode-chupa/extension.js` prints 1, not 2 or 3, so the URI lives only in `openClaude`.
 3. `vscode-chupa/package.json` declares `chupa.askDrainLoop`, titled `Ask Claude: drain loop`, under `view/title` with group `chupa@7` and `when` `view == chupa.tickets`. `python3 -c` with `json.load` over the file, as listed in `## Verification`, exits 0.
 4. Each doc says what Scope in sets for it:
@@ -135,7 +138,7 @@ Final report, terse:
 
 ## Verification
 ```
-./dev.py test tests/unit/test_ask_drain_loop.py tests/integration/test_ask.py
+./dev.py test tests/unit/test_ask_drain_loop.py tests/integration/test_ask_drain_loop.py tests/integration/test_ask.py
 node --check vscode-chupa/extension.js
 python3 -c "import json; p = json.load(open('vscode-chupa/package.json')); m = [e for e in p['contributes']['menus']['view/title'] if e['command'] == 'chupa.askDrainLoop']; assert m == [{'command': 'chupa.askDrainLoop', 'when': 'view == chupa.tickets', 'group': 'chupa@7'}], m"
 ./dev.py test
