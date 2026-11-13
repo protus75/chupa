@@ -1,0 +1,21 @@
+{
+  "artifact_schema_version": 1,
+  "produced_by_spec_version": 1,
+  "produced_at_sha": "745b21810734ef76c14e5ae321b58eb23b372217",
+  "stem": "surface-verdict-decisions",
+  "attempt": 0,
+  "terminal": "gate_failed",
+  "stage": "review",
+  "verdict": "retry",
+  "lessons": [
+    "In chupa/status.py's verdict_decisions projection, map a missing verb to \"\" (e.g. `e.body[\"verb\"] or \"\"`), as is already done for stem, and type the field str. Rejected control_decisions journal verb None (chupa/control.py:232, :141).",
+    "In vscode-chupa/media/view.js, draw `${d.verb}` exactly as given, with no `?? ''` or other substitution. The Python projection supplies \"\", so the extension only draws snapshot fields.",
+    "In tests/unit/test_status_verdict_decisions.py, assert the rejected row tuple (\"a-request\", \"\", \"\", \"rejected\", \"invalid request\"). Also assert that the render line contains no `None`.",
+    "Review found the rest of the approach sound, so redo it the same way: the Status.verdict_decisions tuple of stale/rejected rows in journal order, a Verdict decisions render block shown only when the tuple is non-empty, and snapshot verdictDecisions built from the same projection.",
+    "Keep the integration test in tests/integration/test_status.py that checks a stale decision in the render block and the five-key verdictDecisions snapshot entry. Leave verdict_refusals output and its tests unchanged."
+  ],
+  "mechanical": null,
+  "spec_version": "1.5",
+  "provider": "claude",
+  "model": "claude-opus-5-5"
+}
