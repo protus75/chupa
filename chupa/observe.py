@@ -754,6 +754,7 @@ def snapshot(ctx) -> dict:
         ],
         "counts": counts,
         "runningStem": running[0] if running else None,
+        "verdictDecisions": [dict(zip(("request_id", "verb", "stem", "decision", "reason"), row)) for row in project(history).verdict_decisions],
         "verdictCommands": {verb: [verb, "--extension"] for verb in ("confirm", "reject")},
         "stateDir": str(state.resolve()),
         "configPath": str(ctx.config.resolve()),

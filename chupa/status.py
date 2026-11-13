@@ -28,6 +28,7 @@ class Status:
     box: tuple[tuple[str, str, str, str], ...] = ()
     reject: tuple[tuple[str, Mapping], ...] = ()
     verdict_refusals: tuple[tuple[str, str], ...] = ()
+    verdict_decisions: tuple[tuple[str, str, str, str, str], ...] = ()
     tombstones: tuple[tuple[str, str, int], ...] = ()
     reopens: tuple[Mapping, ...] = ()
     scorecard: Scorecard = field(default_factory=lambda: project_scorecard(project_window(())))
@@ -157,6 +158,11 @@ def project(events: Iterable[Event], *, alive: bool = True, box=None, policy=Non
             and e.body["result"].get("refusal")
             and e.ticket is not None
         ),
+        verdict_decisions=tuple(
+            (e.body["request_id"], e.body["verb"] or "", e.body.get("stem") or "", e.body["decision"], e.body["reason"])
+            for e in events
+            if e.type == EventType.SIGNAL and e.body.get("kind") == "control_decision" and e.body.get("decision") in {"stale", "rejected"}
+        ),
         tombstones=tuple((m.id, m.message_class, m.reports) for m in box.confirmed_tombstones(policy)) if box is not None else (),
         reopens=tuple(e.body for e in events if e.type == EventType.SIGNAL and e.body.get("kind") == "tombstone_auto_reopened"),
         scorecard=project_scorecard(window if window is not None else project_window(events)),
@@ -201,6 +207,11 @@ def render(status: Status) -> str:
                 block("Confirmed-class tombstones", (f"{id}: {cls}, {reports} re-reports" for id, cls, reports in status.tombstones)),
                 block("Tombstone reopens", (f"{body['box_id']}: reopened at {body['reports']} re-reports" for body in status.reopens)),
                 *((block("Verdict refusals", (f"{stem}: {reason}" for stem, reason in status.verdict_refusals)),) if status.verdict_refusals else ()),
+                *(
+                    (block("Verdict decisions", (f"{request}: {verb} {stem}: {decision} -- {reason}" for request, verb, stem, decision, reason in status.verdict_decisions)),)
+                    if status.verdict_decisions
+                    else ()
+                ),
                 block("current-window scorecard", totals),
                 block("window provenance", (f"{key}: {value}" for key, value in sorted(status.provenance.items()))),
                 "\n".join(table),

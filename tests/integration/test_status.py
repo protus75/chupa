@@ -264,3 +264,25 @@ def test_corrupt_box_does_not_receive_unknown_id_advice(tmp_path, capsys):
     with pytest.raises(BoxError, match="invalid box file"):
         main(["status"], cwd=root, env=ENV, clock=Clock())
     assert "name ids that chupa status lists" not in capsys.readouterr().err
+
+
+def test_stale_verdict_is_visible_in_status_and_snapshot(tmp_path):
+    from chupa import observe
+
+    c, _, _, _ = rig(tmp_path)
+    body = {
+        "kind": "control_decision",
+        "request_id": "request-1",
+        "lifecycle_id": "life",
+        "verb": "confirm",
+        "hold_id": "hold",
+        "stem": "draft",
+        "actor": "human",
+        "decision": "stale",
+        "reason": "hold changed",
+    }
+    c.journal.append(EventType.SIGNAL, body)
+    output = render(project(c.journal.read()))
+    assert "Verdict decisions:\n- request-1: confirm draft: stale -- hold changed\n" in output
+    ctx = observe.Context(c.repo, c.config.state_dir, c.repo / "config.yaml", None, c.git, ENV)
+    assert observe.snapshot(ctx)["verdictDecisions"] == [{"request_id": "request-1", "verb": "confirm", "stem": "draft", "decision": "stale", "reason": "hold changed"}]

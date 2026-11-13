@@ -70,7 +70,7 @@ function render(snap) {
 		row.addEventListener('dblclick', () => vscode.postMessage({ type: 'open', path: r.path }));
 		return row;
 	});
-	list.replaceChildren(...rows);
+	list.replaceChildren(...snap.verdictDecisions.map(d => el('div', 'status', `${d.request_id}: ${d.verb} ${d.stem}: ${d.decision} -- ${d.reason}`)), ...rows);
 	if (pinned && !snap.rows.some(r => r.stem === pinned)) {
 		pinned = undefined;
 	}
