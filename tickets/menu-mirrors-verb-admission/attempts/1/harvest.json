@@ -1,0 +1,41 @@
+{
+  "attempt": 1,
+  "stage": "implement",
+  "terminal": "premise_failed",
+  "findings": [
+    {
+      "code": "premise",
+      "path": "tests/regress_snapshot_verdict_menu_parity.py",
+      "line": 13,
+      "message": "The carried regression supplies no Git interface or admission inputs, so the required snapshot admission checks cannot run in its fixture.",
+      "paved_road": "Add this regression script to the scope fence and update its snapshot fixture to provide the new inputs.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/regress_review_menu_committed_unlocked.py",
+      "line": 19,
+      "message": "The carried regression supplies neither a Git interface nor an existing validated ticket, although the new review admission must inspect both.",
+      "paved_road": "Add this regression script to the scope fence and update its snapshot fixture to provide the new inputs.",
+      "kind": null,
+      "unit": null
+    },
+    {
+      "code": "premise",
+      "path": "tests/regress_engine_flag_only_drain_serve.py",
+      "line": 16,
+      "message": "The carried regression supplies no Git interface, while snapshot must obtain porcelain entries for the shared intake decision.",
+      "paved_road": "Add this regression script to the scope fence and update its snapshot fixture to provide the new inputs.",
+      "kind": null,
+      "unit": null
+    }
+  ],
+  "reason": null,
+  "diff_stat": "",
+  "stage_log_tail": "{\"outcome\": \"incomplete\", \"summary\": \"I inspected the admission paths and host checks but did not implement or commit the ticket.\", \"surprises\": \"The existing snapshot tests use fabricated tickets and contexts without Git; the new snapshot inputs will require their fixtures to be updated.\", \"second_problems\": [], \"dead_ends\": \"none\", \"predicted_vs_actual\": \"The ticket estimates 90 minutes; the work was not completed.\", \"findings\": []}{\"outcome\":\"premise_failed\",\"summary\":\"The required snapshot inputs break three existing carried regression scripts outside the scope fence.\",\"surprises\":\"All three scripts pass on the untouched branch. They construct snapshot contexts without Git and do not provide the porcelain, intake, or validation inputs required by this ticket.\",\"second_problems\":[],\"dead_ends\":\"none\",\"predicted_vs_actual\":\"none\",\"findings\":[{\"code\":\"premise\",\"path\":\"tests/regress_snapshot_verdict_menu_parity.py\",\"line\":13,\"message\":\"The carried regression supplies no Git interface or admission inputs, so the required snapshot admission checks cannot run in its fixture.\",\"paved_road\":\"Add this regression script to the scope fence and update its snapshot fixture to provide the new inputs.\"},{\"code\":\"premise\",\"path\":\"tests/regress_review_menu_committed_unlocked.py\",\"line\":19,\"message\":\"The carried regression supplies neither a Git interface nor an existing validated ticket, although the new review admission must inspect both.\",\"paved_road\":\"Add this regression script to the scope fence and update its snapshot fixture to provide the new inputs.\"},{\"code\":\"premise\",\"path\":\"tests/regress_engine_flag_only_drain_serve.py\",\"line\":16,\"message\":\"The carried regression supplies no Git interface, while snapshot must obtain porcelain entries for the shared intake decision.\",\"paved_road\":\"Add this regression script to the scope fence and update its snapshot fixture to provide the new inputs.\"}]}",
+  "events_tail": "ntickets/engine-flag-only-drain-serve/ticket.md:50:4. `tests/regress_engine_flag_only_drain_serve.py` imports nothing from `tests/`, fakes a live triage lock holder, and prints `pass` only when `snapshot` returns `engine: false`. At base, where `engine` is `alive`, it prints `defect`.\\ntickets/engine-flag-only-drain-serve/ticket.md:71:uv run python tests/regress_engine_flag_only_drain_serve.py\\ntickets/engine-flag-only-drain-serve/ticket.md:73:- carries: tests/regress_engine_flag_only_drain_serve.py\\n\",\"exit_code\":0,\"status\":\"completed\"}}\n{\"type\":\"item.started\",\"item\":{\"id\":\"item_8\",\"type\":\"command_execution\",\"command\":\"/bin/bash -lc 'uv run python tests/regress_snapshot_verdict_menu_parity.py && uv run python tests/regress_review_menu_committed_unlocked.py && uv run python tests/regress_engine_flag_only_drain_serve.py'\",\"aggregated_output\":\"\",\"exit_code\":null,\"status\":\"in_progress\"}}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_8\",\"type\":\"command_execution\",\"command\":\"/bin/bash -lc 'uv run python tests/regress_snapshot_verdict_menu_parity.py && uv run python tests/regress_review_menu_committed_unlocked.py && uv run python tests/regress_engine_flag_only_drain_serve.py'\",\"aggregated_output\":\"warning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\\nUsing CPython 3.14.6\\nCreating virtual environment at: .venv\\n   Building chupa @ file:///home/djp/source/chupa/.chupa/state/worktrees/menu-mirrors-verb-admission\\n      Built chupa @ file:///home/djp/source/chupa/.chupa/state/worktrees/menu-mirrors-verb-admission\\nInstalled 19 packages in 7ms\\n{\\\"regression_result\\\": \\\"pass\\\"}\\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\\n{\\\"regression_result\\\": \\\"pass\\\"}\\nwarning: `VIRTUAL_ENV=/home/djp/source/chupa/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead\\n{\\\"regression_result\\\": \\\"pass\\\"}\\n\",\"exit_code\":0,\"status\":\"completed\"}}\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_9\",\"type\":\"agent_message\",\"text\":\"{\\\"outcome\\\":\\\"premise_failed\\\",\\\"summary\\\":\\\"The required snapshot inputs break three existing carried regression scripts outside the scope fence.\\\",\\\"surprises\\\":\\\"All three scripts pass on the untouched branch. They construct snapshot contexts without Git and do not provide the porcelain, intake, or validation inputs required by this ticket.\\\",\\\"second_problems\\\":[],\\\"dead_ends\\\":\\\"none\\\",\\\"predicted_vs_actual\\\":\\\"none\\\",\\\"findings\\\":[{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"tests/regress_snapshot_verdict_menu_parity.py\\\",\\\"line\\\":13,\\\"message\\\":\\\"The carried regression supplies no Git interface or admission inputs, so the required snapshot admission checks cannot run in its fixture.\\\",\\\"paved_road\\\":\\\"Add this regression script to the scope fence and update its snapshot fixture to provide the new inputs.\\\"},{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"tests/regress_review_menu_committed_unlocked.py\\\",\\\"line\\\":19,\\\"message\\\":\\\"The carried regression supplies neither a Git interface nor an existing validated ticket, although the new review admission must inspect both.\\\",\\\"paved_road\\\":\\\"Add this regression script to the scope fence and update its snapshot fixture to provide the new inputs.\\\"},{\\\"code\\\":\\\"premise\\\",\\\"path\\\":\\\"tests/regress_engine_flag_only_drain_serve.py\\\",\\\"line\\\":16,\\\"message\\\":\\\"The carried regression supplies no Git interface, while snapshot must obtain porcelain entries for the shared intake decision.\\\",\\\"paved_road\\\":\\\"Add this regression script to the scope fence and update its snapshot fixture to provide the new inputs.\\\"}]}\"}}\n{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":398737,\"cached_input_tokens\":355840,\"cache_write_input_tokens\":0,\"output_tokens\":1613,\"reasoning_output_tokens\":516}}\n",
+  "wall_seconds": 68.141117,
+  "usd": 2.0,
+  "run_record": "tickets/menu-mirrors-verb-admission/run.md"
+}
