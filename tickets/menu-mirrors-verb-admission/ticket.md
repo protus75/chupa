@@ -47,6 +47,7 @@ In:
 - The `dismiss` and `triage` admission runs after the verb acquires the lock and runs `reap`, where `validate_ids` runs today; `tests/unit/test_stale_running.py::test_locked_verbs_reap_after_acquire` pins that order.
 - A menu key is "on" exactly when its verb's admission function returns admit, "locked" when it admits but the verb needs the writer lock and an engine holds it, and "off" otherwise. A no-op is "off": the menu offers only actions the verb would perform. Today `run`, `triage`, and `dismiss` take the writer lock; `review`, `lint`, and `order` do not.
 - A closed table in `chupa/observe.py` maps every menu key the snapshot emits to its row kind (ticket or box), its verb's admission function, and whether that verb needs the writer lock, or to an extension-only entry for `chupaAskDiagnose` and `chupaAskReview`, which run no chupa verb (they open a Claude chat). An extension-only entry carries its own availability predicate, today's Ask rule moved into the table entry unchanged. `snapshot` builds each ticket row's and box row's `menu` only by iterating that table's entries of the row's kind and holds no availability rule outside it; drop the row `runnable` field if nothing else reads it.
+- `tests/unit/test_verdict_menu_parity.py`: its `world` fixture also fakes the new snapshot inputs (the porcelain/intake-helper result, the `main:` text and `validate_ticket` results, and `ticket_pending`), so `snapshot` runs without git; its Confirm/Reject assertions stay unchanged.
 - `docs/how-chupa-works.md` section 2, the `vscode-chupa/` paragraph: state that every verb-backed menu item is on exactly when its verb's admission function admits the row, through the table in `chupa/observe.py`, and that the Ask items are extension-only.
 
 Out:
@@ -65,6 +66,7 @@ Out:
 - tests/integration/test_watch.py
 - tests/integration/test_stale_running.py
 - tests/unit/test_stale_running.py
+- tests/unit/test_verdict_menu_parity.py
 - tests/unit/test_menu_admission.py
 - tests/integration/test_menu_verb_parity.py
 - tests/regress_menu_mirrors_verb_admission.py
