@@ -93,9 +93,12 @@ Scope in:
     `{"label", "path", "line"}` for a packaged doc and `{"label", "url"}` otherwise.
   - The same module supplies a builder for the Help picker list (see `chupa.help` below).
   - A link whose heading or verb row does not resolve raises; it does not return a partial map.
-  - The builders take the doc reader as a parameter (`read: Callable[[Path], str]`). `snapshot`
-    passes `Path.read_text`, and unit tests pass in-memory text, so `tests/unit/test_help.py`
-    writes nothing to disk.
+  - The builders take the doc reader (`read: Callable[[Path], str]`) and the Repository URL
+    (`repo_url: str`) as parameters. `snapshot` passes `Path.read_text` and the
+    `importlib.metadata` value. Unit tests pass a fake `read` serving, for each linked doc,
+    in-memory text that holds every heading and verb row the registry links to, plus a fixed URL,
+    so `tests/unit/test_help.py` reads no file and no package metadata. Checks against the real
+    docs, the real manifest, and installed metadata live in `tests/integration/test_help.py`.
 - `chupa/observe.py::snapshot` adds these fields:
   - top-level `help`, the map above;
   - `helpPick`, an ordered QuickPick list, with one `{"kind": "separator", "label"}` per topic kind,
@@ -171,7 +174,7 @@ Scope in:
   `CORE_TEMPLATE`, because it governs chupa's own extension and does not apply to hosts:
 
   ```
-  - **Extension help has one source.** Every extension surface a person sees (view, command, setting, header indicator, and each snapshot vocabulary value) shows help: one sentence saying what it is, then what comes before and after it, with a link to the doc section that owns the fact. Help comes from `chupa/help.py`, which reuses a code- or doc-owned string (a status reason, a `chupa/docs/host-running.md` verb row) where one exists and writes text only where none does; settings carry theirs in `package.json` `markdownDescription`. A change that adds an extension surface or vocabulary value, or changes behavior a help entry or its linked section describes, updates that entry in the same change. `tests/unit/test_help.py` fails on a missing entry or a dead link; keeping the text true is this rule's job.
+  - **Extension help has one source.** Every extension surface a person sees (view, command, setting, header indicator, and each snapshot vocabulary value) shows help: one sentence saying what it is, then what comes before and after it, with a link to the doc section that owns the fact. Help comes from `chupa/help.py`, which reuses a code- or doc-owned string (a status reason, a `chupa/docs/host-running.md` verb row) where one exists and writes text only where none does; settings carry theirs in `package.json` `markdownDescription`. A change that adds an extension surface or vocabulary value, or changes behavior a help entry or its linked section describes, updates that entry in the same change. `tests/unit/test_help.py` and `tests/integration/test_help.py` fail on a missing entry or a dead link; keeping the text true is this rule's job.
     Why: help copied into the extension drifts from the code and docs it describes; the snapshot already carried hand-copied verb descriptions (`engineVerbs`) that restated the run guide (2026-11-13).
   ```
 - `tests/vscode_step_icons.js`, `tests/vscode_task_identity.js`, and `tests/vscode_command_not_found.js`
@@ -209,6 +212,7 @@ Scope out:
 - CLAUDE.md
 - AGENTS.md
 - tests/unit/test_help.py
+- tests/integration/test_help.py
 - tests/integration/test_watch.py
 - tests/vscode_step_icons.js
 - tests/vscode_task_identity.js
@@ -220,7 +224,8 @@ Scope out:
    - Line 2 starts with `Before: ` and line 3 starts with `After: `, each followed by non-empty text.
 
    A topic missing `before` or `after`, or with an empty `what`, fails.
-2. `tests/unit/test_help.py::test_links_resolve`: every topic's link resolves.
+2. `tests/integration/test_help.py::test_links_resolve`: every topic's link, built with
+   `Path.read_text` and the installed metadata Repository URL, resolves.
    - A `path` link names a file under the installed `chupa/docs`, and its `line` holds the named
      heading or, for a verb, that verb's table row.
    - A `url` link starts with the package metadata Repository URL plus `/blob/main/`, names a repo
@@ -238,7 +243,7 @@ Scope out:
    - every `engineVerbs` argv verb.
 
    Adding a value to any of these vocabularies without a topic fails.
-4. `tests/unit/test_help.py::test_manifest_covered` reads `vscode-chupa/package.json`.
+4. `tests/integration/test_help.py::test_manifest_covered` reads `vscode-chupa/package.json`.
    - Every `contributes.commands[].command` is in the command map, and every mapped topic exists.
    - Every `contributes.views.chupa[].id` has a `view.*` topic.
    - Every `contributes.configuration.properties` entry has a `markdownDescription` containing
@@ -246,10 +251,11 @@ Scope out:
      criterion 2.
 
    A new command, view, or setting without help fails.
-5. `tests/unit/test_help.py::test_verb_what_from_run_guide`: for every `verb.*` topic, `what` equals
-   that verb's `What it does` cell in `chupa/docs/host-running.md` with backticks removed. The test
-   then passes the builder in-memory run-guide text with the `review` cell rewritten and asserts that
-   `verb.review`'s `what` changes to match. A separately typed string fails.
+5. `tests/integration/test_help.py::test_verb_what_from_run_guide`: for every `verb.*` topic, `what`
+   equals that verb's `What it does` cell in `chupa/docs/host-running.md` with backticks removed.
+   `tests/unit/test_help.py::test_verb_what_follows_run_guide` passes the builder in-memory run-guide
+   text with the `review` cell rewritten and asserts that `verb.review`'s `what` changes to match.
+   A separately typed string fails either test.
 6. `tests/unit/test_help.py::test_unresolved_link_raises`: the builder raises in two cases, when
    given in-memory doc text with a linked heading renamed, and when given run-guide text missing a
    verb row. Returning a map without the topic fails.
@@ -293,7 +299,7 @@ node --check vscode-chupa/media/view.js
 node --check vscode-chupa/media/detail.js
 node --check vscode-chupa/media/box.js
 uv run python -c "import pathlib; c = pathlib.Path('CLAUDE.md').read_text(); a = pathlib.Path('AGENTS.md').read_text(); r = '**Extension help has one source.**'; assert c.index(r) > c.index('<!-- chupa:core end -->') and r in a"
-./dev.py test tests/unit/test_help.py tests/integration/test_watch.py tests/integration/test_stats.py tests/unit/test_host_running.py
+./dev.py test tests/unit/test_help.py tests/integration/test_help.py tests/integration/test_watch.py tests/integration/test_stats.py tests/unit/test_host_running.py
 ./dev.py test tests/integration/test_step_icons.py tests/integration/test_vscode_command_not_found.py
 uv run python tests/regress_vscode_task_identity.py
 ./dev.py test
