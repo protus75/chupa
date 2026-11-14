@@ -1,17 +1,18 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "da02080ff8e2dee4bb0fe3eb7df697c1e2bea8a7",
+  "produced_at_sha": "781be8820b9ff85a22b0aead81dfe3a327adc295",
   "stem": "vscode-help",
-  "attempt": 2,
+  "attempt": 3,
   "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "reject",
+  "verdict": "split",
   "lessons": [
-    "Scope fence misses forced files: tests/unit/test_menu_admission.py:194 and tests/unit/test_verdict_menu_parity.py:42 patch Path.read_text with a ticket-only dict, so snapshot's required Path.read_text doc read raises KeyError and `./dev.py test` (criterion 14) fails.",
-    "Before rerunning, add tests/unit/test_menu_admission.py and tests/unit/test_verdict_menu_parity.py to the fence and Scope in. Allow only fixture changes that serve the packaged chupa/docs text (or the real read_text for paths under chupa/docs); their assertions stay the same.",
-    "Those fixtures also patch Path.is_file and Path.exists to ticket paths. If chupa/help.py checks a packaged doc exists before reading it, the fixture change must cover that check too.",
-    "Do not dodge the fakes by binding Path.read_text at import time or caching the help map at import. The Goal requires the run-guide verb text to be read at snapshot time, and either trick only hides a fixture that needs updating."
+    "Split piece 1 (Python): new chupa/help.py registry and builders taking read and repo_url; chupa/observe.py snapshot help, helpPick, headerHelp, boxHeaderHelp, status-key vocabulary, engineVerbs detail from verb what; chupa/stats.py stats_tree tooltip; criteria 1-3, 5-9.",
+    "Piece 1 tests: tests/unit/test_help.py, tests/integration/test_help.py, tests/integration/test_watch.py; monkeypatch the new observe.py help function in tests/unit/test_menu_admission.py and tests/unit/test_verdict_menu_parity.py so they still read no disk.",
+    "Piece 2 (needs piece 1): vscode-chupa/package.json chupa.help, markdownDescription, viewsWelcome; extension.js chupa.help and chupa.openHelp; media/view.js, box.js, detail.js, view.css; vscode mocks in tests/vscode_*.js; test_manifest_covered in tests/integration/test_help.py.",
+    "Docs piece: CLAUDE.md and AGENTS.md rule after <!-- chupa:core end -->; docs/how-chupa-works.md 2.2 help paragraph plus refreshSeconds and unavailableMenuItems sentences; chupa/docs/host-contract.md Help sentence; vscode-chupa/README.md ## Help.",
+    "Attempt 3 ran 63s, left no diff, and returned premise_failed while its own finding said no premise defect exists. Each piece must implement, run its Verification, and commit; report unfinished work as incomplete, never premise_failed."
   ],
   "mechanical": null,
   "spec_version": "1.5",
