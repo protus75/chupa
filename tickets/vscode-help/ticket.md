@@ -49,8 +49,8 @@ text or doc links. The one place with explanatory text, the Engine… picker, us
 hand-copied into `chupa/observe.py::snapshot`. They restate rows of the run guide's verb table and
 will drift from it.
 
-When this ticket is done, every surface the extension shows has help with the same shape. One
-sentence says what the thing is. A `Before:` line says what generally comes before it, and an
+When this ticket is done, every surface the extension shows has help with the same shape. A short
+description says what the thing is. A `Before:` line says what generally comes before it, and an
 `After:` line says what generally follows. A link opens the doc section that owns the fact. All
 help comes from one Python source, `chupa/help.py`, delivered through the snapshot and
 `stats --tree` output. Extension JavaScript only draws it, following the thin-wrapper rule. Tests fail when a
@@ -177,7 +177,7 @@ Scope in:
   `CORE_TEMPLATE`, because it governs chupa's own extension and does not apply to hosts:
 
   ```
-  - **Extension help has one source.** Every extension surface a person sees (view, command, setting, header indicator, and each snapshot vocabulary value) shows help: one sentence saying what it is, then what comes before and after it, with a link to the doc section that owns the fact. Help comes from `chupa/help.py`, which reuses a code- or doc-owned string (a status reason, a `chupa/docs/host-running.md` verb row) where one exists and writes text only where none does; settings carry theirs in `package.json` `markdownDescription`. A change that adds an extension surface or vocabulary value, or changes behavior a help entry or its linked section describes, updates that entry in the same change. `tests/unit/test_help.py` and `tests/integration/test_help.py` fail on a missing entry or a dead link; keeping the text true is this rule's job.
+  - **Extension help has one source.** Every extension surface a person sees (view, command, setting, header indicator, and each snapshot vocabulary value) shows help: a short description saying what it is, then what comes before and after it, with a link to the doc section that owns the fact. Help comes from `chupa/help.py`, which reuses a code- or doc-owned string (a status reason, a `chupa/docs/host-running.md` verb row) where one exists and writes text only where none does; settings carry theirs in `package.json` `markdownDescription`. A change that adds an extension surface or vocabulary value, or changes behavior a help entry or its linked section describes, updates that entry in the same change. `tests/unit/test_help.py` and `tests/integration/test_help.py` fail on a missing entry or a dead link; keeping the text true is this rule's job.
     Why: help copied into the extension drifts from the code and docs it describes; the snapshot already carried hand-copied verb descriptions (`engineVerbs`) that restated the run guide (2026-11-13).
   ```
 - `tests/vscode_step_icons.js`, `tests/vscode_task_identity.js`, and `tests/vscode_command_not_found.js`
@@ -196,8 +196,9 @@ Scope out:
 - `chupa/docs/host-running.md` content, `chupa/__main__.py`, and `chupa/stats.py::project_stats` stay
   as they are.
 - Shipping `docs/how-chupa-works.md` inside the package stays out of scope; it is linked on GitHub.
-- No help text is written in JavaScript. The only JavaScript string literals added are the link
-  labels "Learn more" and "Open setup help", plus the section heading `Next`.
+- No help text is written in JavaScript. The only user-visible JavaScript strings added are the
+  link labels "Learn more" and "Open setup help", plus the section heading `Next`. Command ids,
+  webview message types, and VS Code API arguments are not help text and may be added as needed.
 
 ## Scope fence
 - chupa/help.py
