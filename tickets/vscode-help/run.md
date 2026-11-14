@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The existing drain guide cell contains two sentences, while the required help rule says each topic shows one sentence.
+The prior attempt’s verb-text and JavaScript-literal conflicts have been clarified in the current ticket.
 
 ## Dead ends
 
-none
+Inspected the snapshot callers and their filesystem fakes; an injected documentation reader would still require the existing unit fixtures to supply it.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-none
+The ticket budgets 120 minutes; investigation stopped after identifying the scope conflict.
 
