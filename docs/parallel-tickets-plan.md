@@ -4,15 +4,19 @@ Let `serve` run more than one ticket at a time, behind an experimental config sw
 
 ## Status
 
-Draft plan. Nothing in it is in effect and no ticket is authored. Written 2026-11-13 at commit `0895b5d4`.
+Draft plan. Nothing in it is in effect and no ticket is authored. Written 2026-11-13 at commit `0895b5d4`; revised 2026-11-13 at commit `80b76d5d` for `docs/roadmap.md`.
+
+## Roadmap
+
+Release 0.4.0 (`docs/roadmap.md` rows 42-48), except ticket 1 (`contention-authoring-rules`), which lands in 0.2.0 because every later plan depends on its rules. Needs from the roadmap's 0.2.0 dedup tickets: `active-slot-single-owner` (six "is something running" trackers become one; ticket 6 then edits one owner) and `merge-admission-single-owner` (inline merge and queue admission become one path; ticket 7 adds its step once). What needs this plan: `doc-lens-automatable` (`docs/document-agent-plan.md`) uses `fences_overlap`; the training plan's `conflict` record kind waits on `merge-model-resolve`. Shared files: `chupa/specs/implement.md` is bumped by both ticket 8 and `graphics-render-check`, which runs first (roadmap decision 8); the host-command lock in section 4 also serializes the graphics render command and the merge queue's host checks (decision 10). The 0.3.0 journal window edits the same engine files as tickets 6 and 8, so this plan lands after it, or before it if the window slides (decision 7).
 
 ## Current state
 
 - **Dispatch runs one ticket at a time.** `chupa/scheduler.py` describes itself as a "single-flight dispatch projection": one `asyncio.Lock`, one `active` ticket. `DaemonAdmission` in `chupa/daemon.py` has the same single slot. `AdmissionBoundary.__call__` in `chupa/merge.py` relies on this: "Single-flight dispatch retains this run's snapshot", and it assigns `self.queue.ctx = ctx` for each offer. The idle and restart checks in `chupa/serve.py` (lines ~201, ~328) test `scheduler.active is None` and `admission.active is None`.
-- **The merge queue is live in `serve`, not in `drain`.** `serve` sends every admission through `MergeQueue` (`chupa/mergequeue.py`) in `mode="daemon"`. `run` and `drain` merge inline (`merge.merge`), and inline merge refuses any rebase conflict with no resolution step (how-chupa-works §4.5). `drain` is the extension's default play action, so in day-to-day use the queue and its conflict handling never run. The module docstring still says "Dormant serial admission", which is out of date. That is a one-line fix and belongs in a ticket.
+- **The merge queue is live in `serve`, not in `drain`.** `serve` sends every admission through `MergeQueue` (`chupa/mergequeue.py`) in `mode="daemon"`. `run` and `drain` merge inline (`merge.merge`), and inline merge refuses any rebase conflict with no resolution step (how-chupa-works §4.5). `drain` is the extension's default play action, so in day-to-day use the queue and its conflict handling never run. The module docstring still says "Dormant serial admission", which is out of date; `docs-truth-sweep` (roadmap row 4) fixes it along with `chupa/heartbeat.py`'s.
 - **Conflict handling today** (how-chupa-works §7.2.1, plan §9.5): first, mechanical resolution through `merge.strategies` (`union`, `regenerate`). Anything else aborts the rebase and returns a `ConflictHandoff`. `daemon.consume_handoff` passes it to full Rework (`apply_rework`), which rewrites the *ticket* and ends the attempt `gate_failed`. No step has a model resolve the conflict itself. This repo's `config.yaml` sets `merge: {}`, so no strategies are declared.
 - **Admission limits.** `scheduler.max_unmerged` (default 2) stops dispatch while that many finished tickets wait to merge. Provider slots (`limits.concurrency` in `chupa/thresh.py`) are set to 1 for both providers in `config.yaml`.
-- **Contention in the existing tickets.** Of 539 tickets, the paths fenced most often are: `docs/how-chupa-works.md` 172, `chupa/__main__.py` 90, `chupa/stages.py` 65, `chupa/drain.py` 56, `chupa/runner.py` 55, `tickets` 51, `chupa/daemon.py` and `chupa/observe.py` 40 each, `tests/unit/test_specs.py` 36, `tests/test_stages.py` 33. The largest test files are `tests/integration/test_daemon_composition.py` (2,168 lines), `test_drain.py` (1,741), `test_mergequeue.py` (1,228), and the shared rig `tests/integration/serve_rig.py`.
+- **Contention in the existing tickets.** Of 539 tickets, the paths fenced most often are: `docs/how-chupa-works.md` 172, `chupa/__main__.py` 90, `chupa/stages.py` 65, `chupa/drain.py` 56, `chupa/runner.py` 55, `tickets` 51, `chupa/daemon.py` and `chupa/observe.py` 40 each, `tests/unit/test_specs.py` 36, `tests/test_stages.py` 33 (the path those tickets fenced; the file is now `tests/integration/test_stages.py`). The largest test files are `tests/integration/test_daemon_composition.py` (2,168 lines), `test_drain.py` (1,741), `test_mergequeue.py` (1,228), and the shared rig `tests/integration/serve_rig.py`.
 - **Design record.** The plan defers a concurrent worker pool until there is "measured queue starvation" (D2, §18.2). D7 and §9.6 reject comparing two fences against each other ("estimate-vs-estimate") and say to act only on observed facts. This plan departs from both on purpose; see the next section.
 
 ## Departures from the design record
@@ -22,6 +26,7 @@ Draft plan. Nothing in it is in effect and no ticket is authored. Written 2026-1
 | D2: one in-flight run; a worker pool needs measured starvation first | Several runs at once, behind `scheduler.parallel.enabled` (off by default, marked experimental) | Off by default, so single-flight stays the shipped behavior. The owner chose to bring it back. |
 | §9.6: never decide by comparing one fence with another | Dispatch compares fences | A fence is an upper bound, not an estimate: the `scope_fence` gate refuses any diff outside it. Two tickets with disjoint fences cannot make conflicting text edits. The cost is running some tickets one after the other that could have run together, which is the trade the owner asked for. |
 | §9.5: anything mechanical resolution leaves goes to full Rework | Step 2: a model resolves small conflicts. Step 3: discard the later branch and run the ticket again. Conflict handoff to Rework is removed. | A conflict means the code needs merging, not that the ticket is wrong. Rewriting the ticket was the wrong response. |
+| §18.2: "conflict-only micro-rework" waits for "the first chronically re-resolved conflict shown by the journaled conflict facts"; `chupa/specs/rework.md:47` says "never conflict-only repair" | Step 2 is a conflict-only repair by a model | 13 `merge_conflict_facts` events exist in this repo's journal and nobody has read them. Ticket 7 starts by reading them (A0) and records whether any path is chronic; the owner's 2026-11-13 decision to run tickets in parallel is the incident, because parallel runs manufacture the conflicts §18.2 was waiting to observe. Ticket 8 removes the `rework.md:47` sentence with the conflict input it belongs to. |
 
 `CHUPA_PLAN.md` stays frozen. The tickets update `docs/how-chupa-works.md` §7.2, §7.2.1, and the config table.
 
@@ -45,7 +50,7 @@ scheduler:
 
 ### 2. Overlap check at dispatch
 
-New pure function, `chupa/drain.py::fences_overlap(a, b, shared) -> bool`. `drain.py` already owns the eligibility sort.
+New pure function, `chupa/tickets.py::fences_overlap(a, b, shared) -> bool`, beside `_in_fence`, which moves there from `chupa/stages.py:978` because the fence grammar is `tickets.py`'s (the roadmap's audit found `_in_fence` re-implemented at `watchdog.py:60` and `drain.py:484` with different semantics; the move gives it one home). The dispatch skip in `chupa/drain.py`, which owns the eligibility sort, calls it.
 
 - Fence entries are compared using the path rule in host-authoring "Path matching": an entry overlaps another when it is equal to it, or when one is a directory that contains the other.
 - Each stem's own outbox (`tickets/<stem>/`) is left out of the comparison. A fence entry of `tickets` or of `tickets/<other>` overlaps the whole ticket plane.
@@ -66,11 +71,12 @@ New pure function, `chupa/drain.py::fences_overlap(a, b, shared) -> bool`. `drai
 
 Code that assumes one run, and must handle a set of runs:
 
-- `Scheduler.active` (`chupa/scheduler.py`) becomes `running: dict[str, Ticket]`. `dispatch_next` returns once a slot is filled and does not wait for the run to finish. Each run is its own task.
+- After `active-slot-single-owner` (roadmap row 15) has made `DaemonAdmission` the one owner of the running set, that set becomes `running: dict[str, Ticket]`. `dispatch_next` returns once a slot is filled and does not wait for the run to finish. Each run is its own task. `dispatch_next` (`chupa/scheduler.py:50-76`) and `_Drain._select` (`chupa/drain.py:508-558`) compute the same eligibility today; this ticket gives them one `eligible()` in `drain.py`, and one `running` transition writer in `runner.run_ticket` instead of three (roadmap §2.1 rows 7 and 9).
 - `DaemonAdmission` (`chupa/daemon.py`) changes from one `_slot` lock to a set of tasks with `max_runs` slots. `waiting_for_merge` releases that run's slot only.
 - `AdmissionBoundary.__call__` (`chupa/merge.py`) stops overwriting `self.queue.ctx`. `MergeQueue.offer` already keeps a context for each stem (`self.contexts`), and `process()` uses it.
 - `serve.py` idle and restart checks (`scheduler.active is None`, `admission.active is None`) become "no runs in flight". Retro, stop, and self-upgrade already wait for idle, and that now means every slot is empty.
-- **Host command lock:** one engine-wide `asyncio.Semaphore(1)` around `stages.run_host_command`, shared by Check and both merge tiers. The suite already runs with `-n auto` on every core. Two suites at once would compete for cores and expose shared-state flakes. Model calls still run in parallel, and those are most of a run's wall time.
+- **Host command lock:** one engine-wide `asyncio.Semaphore(1)` around `stages.run_host_command`, shared by Check, both merge tiers, and the graphics plan's render command (roadmap decision 10; `host-check-selection-single-owner` makes `run_host_command` the one runner first). The suite already runs with `-n auto` on every core. Two suites at once would compete for cores and expose shared-state flakes. Model calls still run in parallel, and those are most of a run's wall time.
+- **Journal:** several runs append from one process. `journal.lock` already serializes every append (`docs/how-chupa-works.md` §10.1), and the journal query layer's per-process offset (`docs/journal-sql-refactor-plan.md`) reads their lines like any other writer's.
 - Unchanged: each run already has its own worktree (`<worktree_root>/<stem>`), journal effect keys already include the stem, and the watchdog already tracks each model call separately.
 - Self-upgrade on this repo: nearly every ticket changes `chupa/`, and a `chupa/` merge stops new admissions until every run finishes, then restarts. Parallel runs still save time here, because two runs overlap. The slots are just not refilled until the restart.
 
@@ -79,7 +85,7 @@ Code that assumes one run, and must handle a set of runs:
 The queue still admits one ticket at a time. The "second ticket" is the one being rebased onto a `main` that now contains the first. Steps, in order:
 
 1. **Mechanical** (unchanged): git merge plus the declared `merge.strategies`.
-2. **Model resolve (new).** Used only when the conflict is small. Every bound below is an engine constant, not a config option:
+2. **Model resolve (new).** Used only when the conflict is small. It is the conflict-only repair that `chupa/specs/rework.md:47` forbids today; that sentence goes with the conflict input in ticket 8. Every bound below is an engine constant, not a config option:
    - at most 3 conflicted files and 60 conflict-marker lines in total;
    - text files only; no modify/delete or rename conflicts;
    - no conflicted path in `engine_plane_safety_inventory`;
@@ -112,7 +118,7 @@ Generic rules, for every host (ticket content rules belong only in `chupa/docs/h
 
 Rules for this repo only (`CLAUDE.md` and `AGENTS.md`, outside the managed block):
 
-- No new tests go into these files: `tests/integration/test_daemon_composition.py`, `tests/integration/test_drain.py`, `tests/integration/test_mergequeue.py`, `tests/integration/test_stages.py`, `tests/integration/serve_rig.py`. New tests go in `tests/unit/test_<module>_<behavior>.py` or `tests/integration/test_<behavior>.py`.
+- No new tests go into these files: `tests/integration/test_daemon_composition.py`, `tests/integration/test_drain.py`, `tests/integration/test_mergequeue.py`, `tests/integration/test_stages.py`, `tests/integration/serve_rig.py`. New tests go in `tests/unit/test_<module>_<behavior>.py` or `tests/integration/test_<behavior>.py`. (Measured: those five files took 53 commits in the 13 days to 2026-11-13; 37 test modules double as fixture libraries with 257 cross-test imports and no `conftest.py` exists. The roadmap's `test-fakes-and-conftest` gives new tests a shared place to import from, so the rule costs nothing to follow.)
 
 ### 8. Measurement
 
@@ -135,18 +141,18 @@ Each ticket follows its own rule and puts its tests in a new file. Priorities ar
 | # | Stem | Kind | P | Depends on | Content |
 |---|---|---|---|---|---|
 | 1 | `contention-authoring-rules` | chore | P1 | | Section 7 rules in `host-authoring.md`, `CLAUDE.md`, and `AGENTS.md`. Docs only. Useful even with parallel off. |
-| 2 | `mergequeue-docstring` | chore | P3 | | Fix the out-of-date "Dormant" docstring in `chupa/mergequeue.py`. |
+| 2 | (roadmap prerequisites) | | | | `active-slot-single-owner` (roadmap row 15) and `merge-admission-single-owner` (row 16), both 0.2.0 chores owned by the roadmap. The docstring fix that was here is in `docs-truth-sweep` (row 4). |
 | 3 | `parallel-config` | feature | P2 | | The `scheduler.parallel` model, the doctor warning, and the config table in how-chupa-works. |
 | 4 | `fence-overlap` | feature | P2 | | `fences_overlap` and the run-alone rule, pure, with new `tests/unit/test_fence_overlap.py`. |
 | 5 | `chain-order` | feature | P2 | | `chain()`, the parallel order, slot filling, the starvation guard, pure, with new `tests/unit/test_chain_order.py`. |
-| 6 | `serve-parallel-dispatch` | feature | P2 | 3, 4, 5 | Section 4: run set, slots, `AdmissionBoundary` context, idle checks, host command lock. how-chupa-works §7.2. |
-| 7 | `merge-model-resolve` | feature | P2 | | Section 5 step 2: `specs/resolve.md`, the bounds, the re-review of the resolution delta, the `model` step value. Useful even when single-flight, because main can move under a serve run. |
+| 6 | `serve-parallel-dispatch` | feature | P2 | 3, 4, 5, `active-slot-single-owner` | Section 4: run set, slots, one `eligible()` filter, one `running` writer, `AdmissionBoundary` context, idle checks, host command lock. how-chupa-works §7.2. |
+| 7 | `merge-model-resolve` | feature | P2 | `merge-admission-single-owner` | A0 first: read the 13 `merge_conflict_facts` events and attach them as evidence. Then section 5 step 2: `specs/resolve.md`, the bounds, the re-review of the resolution delta, the `model` step value. Useful even when single-flight, because main can move under a serve run. |
 | 8 | `conflict-discard-rerun` | feature | P2 | 7 | Section 5 step 3 and section 6: delete the handoff to Rework, retire and re-offer, `prior-diff` lift, Implement prompt section, rerun cap. how-chupa-works §7.2.1. |
 | 9 | `status-hot-paths` | feature | P3 | | Section 8 hot paths table (snapshot field, pytest, extension draws it). |
 
-`Runs before`: 1 before 6 (the rules should be in effect before parallel runs start). 2 has no ordering. Tickets 4, 5, and 7 do not overlap and could run together once parallel works, which makes them a good first trial.
+`Runs before`: 1 before every feature ticket in every plan (the rules should be in effect before parallel runs start; roadmap row 13). `graphics-render-check` before 8 (both bump `chupa/specs/implement.md`; roadmap decision 8). Tickets 4, 5, and 7 do not overlap and could run together once parallel works, which makes them a good first trial.
 
-Fence notes for authoring: ticket 6 touches `chupa/scheduler.py`, `chupa/daemon.py`, `chupa/merge.py`, `chupa/serve.py`, `chupa/stages.py` (the lock around `run_host_command`), and the tests that check `scheduler.active` and `admission.active`. Before authoring, grep `tests/` for `.active` and fence every hit that asserts on it. Ticket 8 touches `chupa/mergequeue.py`, `chupa/daemon.py`, `chupa/rework.py`, `chupa/specs/rework.md` (drop the conflict input; bump its version to the next minor), `chupa/specs/implement.md`, `chupa/stages.py` (lift kind), `chupa/retro.py` (reads `CONFLICT_FACTS`), and every test that imports `ConflictHandoff`.
+Fence notes for authoring: ticket 6 touches `chupa/scheduler.py`, `chupa/daemon.py`, `chupa/merge.py`, `chupa/serve.py`, `chupa/drain.py` (the shared `eligible()`), `chupa/runner.py` (the one `running` writer), `chupa/stages.py` (the lock around `run_host_command`), and the tests that assert on the running set: at `80b76d5d`, 53 hits in 14 files for `scheduler.active` / `admission.active` / `.active is None` (`tests/integration/test_daemon_composition.py` 15, `test_scheduler.py` 6, `test_serve_admission.py` 5, `test_daemon_admission.py` 5, `test_serve_kill.py` 4, `test_mergequeue.py` 4, `tests/unit/test_commit_lock.py` 3, `test_rework.py` 3, `test_restart_timers.py` 3, one each in `test_serve_upgrade.py`, `test_merge.py`, `test_daemon_tasks.py`, `test_daemon_soak_runner.py`, `tests/harness/daemon_soak.py`) and 40 `_slot` hits in 21 files. `active-slot-single-owner` shrinks that list first; re-grep before authoring. Ticket 8 touches `chupa/mergequeue.py`, `chupa/daemon.py`, `chupa/rework.py`, `chupa/specs/rework.md` (drop the conflict input and line 47; bump its version to the next minor), `chupa/specs/implement.md` (next minor above whatever `graphics-render-check` left), `chupa/stages.py` (lift kind), `chupa/retro.py` (reads `CONFLICT_FACTS`), and every test that names `ConflictHandoff`, `consume_handoff`, or `handoff=`: 29 hits in 7 files at `80b76d5d` (`test_rework.py` 9, `test_daemon_composition.py` 9, `test_mergequeue.py` 3, `test_caps.py` 3, `test_daemon_tasks.py` 2, `tests/harness/daemon_soak.py` 2, `test_retro.py` 1).
 
 ## Risks
 
@@ -156,6 +162,8 @@ Fence notes for authoring: ticket 6 touches `chupa/scheduler.py`, `chupa/daemon.
 - **Shared state in host checks.** The host command lock removes it for checks. Implement agents in different worktrees can still collide on things outside the repo (ports, `~/.cache`). Those cases get filed when they are observed.
 
 ## Open decisions
+
+Defaults if the owner says nothing are recorded in `docs/roadmap.md` section 6.
 
 1. **Serve only, or drain too?** Recommend serve only. `drain` would need the queue and the conflict steps, which means a second admission path or moving `drain` onto the queue. `remove-merge-hold` already made `serve` usable for day-to-day work.
 2. **Chain order below P0, or below P1 too?** Recommend below P0 only. The CORE routing sends orchestration-cause fixes as P0 and product-cause fixes as P1. Only P0 has to jump the queue.

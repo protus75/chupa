@@ -6,7 +6,11 @@ Only critical bugs go upstream, never ideas, improvements, wording fixes, or fol
 
 ## Status
 
-Draft plan. Nothing in it is in effect and no ticket is authored. Written 2026-11-13 at commit `ed48cbc9`.
+Draft plan. Nothing in it is in effect and no ticket is authored. Written 2026-11-13 at commit `ed48cbc9`; revised 2026-11-13 at commit `80b76d5d` for `docs/roadmap.md`.
+
+## Roadmap
+
+Release 0.2.0 (`docs/roadmap.md` row 34). Needs nothing from other plans; waits on its hand test. Shared budget: CORE_TEMPLATE bytes (roadmap decision 5). The template is 7,840 of 8,192 bytes (`tests/integration/test_hostfiles.py:33`); this plan's sentence adds about 264. `conduct-files-parity` (roadmap row 5) runs before this ticket and frees 36 by dropping the stale guide list from the `chupa docs` rule; `graphics-kind` (0.4.0) adds 9 later. After all three about 115 bytes remain. `graphics-kind` also edits `hostfiles.py`, `CLAUDE.md`, `AGENTS.md`, and `README.md`; the release gap keeps the two apart, so no `Runs before` is needed.
 
 ## Not the Suggestion Box
 
@@ -86,7 +90,7 @@ Replace the tail of the Diagnosis rule that starts "A fix that belongs in chupa"
 
 Constraints:
 
-- It must stay within the 352-byte headroom. Keep the existing "Why:" sentence and keep `is never copied or patched into host files` verbatim, because `test_hostfiles.py` pins it. The rule points at the verb rather than repeating the class list, because `chupa issue --help` and its refusal carry the list.
+- It spends about 264 of the template's 352 spare bytes; the roadmap's byte ledger (decision 5) tracks the rest. Keep the existing "Why:" sentence and keep `is never copied or patched into host files` verbatim, because `test_hostfiles.py` pins it. The rule points at the verb rather than repeating the class list, because `chupa issue --help` and its refusal carry the list.
 - The user agrees before the verb runs. It only prints a link, and submission is still the person's click, but asking first keeps an agent from drafting issues on its own initiative.
 - Ticket agents and every other autonomous surface (triage, retro, Author, harvest) never draft or prepare upstream issues. They keep filing to their Suggestion Box as today.
 
@@ -115,10 +119,12 @@ Read before write. Before authoring, confirm with a real browser:
 
 ## Ticket breakdown
 
-| Order | Stem | Kind | Depends on | Notes |
-|---|---|---|---|---|
-| 0 | (hand test) | n/a | | Evidence for the ticket; not a ticket |
-| 1 | `upstream-issue-verb` | feature | none | Verb, rule, and docs in one change, so the rule never names an unbuilt verb |
+| # | Stem | Kind | P | Depends on | Content |
+|---|---|---|---|---|---|
+| 0 | (hand test) | evidence | | | The three facts under "Prerequisite: hand test", captured as the ticket's evidence; not a ticket. |
+| 1 | `upstream-issue-verb` | feature | P2 | | Verb, CORE_TEMPLATE sentence, and docs in one change, so the rule never names an unbuilt verb. Release 0.2.0. |
+
+`Runs before`: `conduct-files-parity` (roadmap row 5) before this ticket, so the template bytes it frees are available.
 
 One ticket rather than verb-then-rule: splitting them needs a `Depends on` purely for the rule's paved road, and the rule is a single sentence.
 
@@ -132,12 +138,14 @@ Fence notes:
 - `docs/how-chupa-works.md` §2.1, §12
 - `README.md`
 - `tests/unit/test_issue.py` (new)
-- `tests/integration/test_hostfiles.py` (only if a pinned phrase changes)
+- `tests/integration/test_hostfiles.py` (the 8,192-byte cap at line 33; the pinned phrase `is never copied or patched into host files` at line 60; fence it because the byte count the test reads changes)
 - `tests/integration/test_cli.py` (verb wiring)
 
 Before authoring, grep `tests/` for any closed set of verb names and fence each hit.
 
-## Deferred decisions
+## Open decisions
+
+Defaults if the owner says nothing are recorded in `docs/roadmap.md` section 6.
 
 1. **Class list.** The four critical classes above are a proposal. The owner confirms or edits them before authoring, because they become the verb's closed vocabulary and its tests.
 2. **`./dev.py issue`.** In this repo a chupa defect is just a chupa ticket, so the verb has no use here. Recommendation: no `dev.py` subcommand.

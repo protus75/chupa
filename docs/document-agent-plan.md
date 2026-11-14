@@ -4,7 +4,11 @@ A document agent for chupa that creates, reviews, and transforms documents. Each
 
 ## Status
 
-Draft plan. Nothing in it is in effect and no ticket is authored. Written 2026-11-13 at commit `0895b5d4`. Revised the same day to take in the owner's review prompts in `/home/djp/source/` (`CutReview.md`, `KillReview.md`, `BuildItReview.md`, `CompressionReview.md`, and `gizmo/review/OutcomeReview.md`).
+Draft plan. Nothing in it is in effect and no ticket is authored. Written 2026-11-13 at commit `0895b5d4`; revised 2026-11-13 at commit `80b76d5d` to take in the owner's review prompts in `/home/djp/source/` (`CutReview.md`, `KillReview.md`, `BuildItReview.md`, `CompressionReview.md`, and `gizmo/review/OutcomeReview.md`) and for `docs/roadmap.md`.
+
+## Roadmap
+
+Release 0.6.0, last (`docs/roadmap.md` rows 58-68). Needs from other plans: `evidence-envelope` (0.2.0), so an isolated call leaves a record with `repo: null` and `conduct_file: null` (roadmap decision 3); `fence-overlap` (0.4.0) for the Automatable lens's overlap estimate. Nothing depends on this plan. Shared budgets: one new config block, named `documents` (not `docs`: that is a verb and the `chupa/docs/` directory; roadmap decision 6); no CORE_TEMPLATE text. Its first real use is reviewing the other plans, which is why it is last: by then they have tickets and run history behind them.
 
 ## What it is for
 
@@ -22,6 +26,15 @@ Draft plan. Nothing in it is in effect and no ticket is authored. Written 2026-1
 - Specs always load from the engine. Host material enters a prompt only inside `<<chupa-data:...>>` blocks (`ask_notes` is the precedent). Config load refuses `review.surfaces` (host review prompts).
 - The owner's review prompts (`/home/djp/source/*.md`, identical copies in `gizmo/review/`) have been run by hand against seed plans across several sibling repos. Reports sit in `gizmo/review/` (for example, `REVIEW_reports/cut-agent-{A,B,C}.md` with `REVIEW_CutSynthesis.md`).
 - No document tooling exists in chupa: no Markdown-to-HTML renderer, no PDF path, no theme CSS.
+
+## Departures from the design record
+
+| Record says | This plan | Why |
+|---|---|---|
+| §18.1 refuses "metadata taxonomies" and "doc tags" | Facets (six closed dimensions) and `docset.yaml` manifests | The owner asked for the six dimensions on 2026-11-13. Each dimension is a closed allowlist of files, not a free tag space, and the manifest records provenance (which sections a derived document came from), not classification. The refusal's target was taxonomy for its own sake; this is the minimum that makes fold-back and staleness mechanical |
+| D7-style "never act on estimate-vs-estimate" | The Automatable lens compares dry-run ticket fences with `fences_overlap` | It reports an estimate as a finding for the owner, never acts on it |
+
+`CHUPA_PLAN.md` stays frozen. The tickets add a "Documents" section to `docs/how-chupa-works.md` and a config row.
 
 ## Target design
 
@@ -53,7 +66,7 @@ requires: []                       # e.g. theme facets: requires format in [html
 
 - **Model facets** (Type, Audience, Tone, Review) change the prompt. **Render facets** (Format, Theme) change only the mechanical output. The model always writes Markdown.
 - A facet that does not apply to an operation is refused with a paved road.
-- **Host extension:** `docs.facets_dir` points at host facet files with the same frontmatter. They enter the prompt as `<<chupa-data:facet>>` blocks inside the engine's surface frame. Whether host *lenses* are allowed is Open decision 2.
+- **Host extension:** `documents.facets_dir` points at host facet files with the same frontmatter. They enter the prompt as `<<chupa-data:facet>>` blocks inside the engine's surface frame. Whether host *lenses* are allowed is Open decision 2.
 
 ### 2. Doc sets: one canonical document and its derived versions
 
@@ -96,13 +109,16 @@ derived:
 |---|---|---|
 | `doc_draft` | `chupa/specs/doc/draft.md` | sources + Type, Audience, and Tone facets → canonical Markdown + open questions |
 | `doc_derive` | `chupa/specs/doc/derive.md` | canonical + target facets → derived Markdown + the sections it used |
-| `doc_review` | `chupa/specs/doc/review.md` | one generic frame. The lens facet supplies the role prompt (cut agent, synthesis, compressor, fidelity, ...) and the reply schema. |
+| `doc_review` | `chupa/specs/doc/lens.md` | one generic frame. The lens facet supplies the role prompt (cut agent, synthesis, compressor, fidelity, ...) and the reply schema. Named `lens.md`, not `review.md`, because `chupa/specs/review.md` exists (roadmap decision 6). |
+
+Every file under `chupa/specs/doc/` carries the spec frontmatter that `tests/unit/test_specs.py:24` checks on everything under `chupa/specs/`, and loads through `chupa/specs/__init__.py` like the eight driver specs; facets and themes are data files the specs embed, not specs, and live under `chupa/specs/doc/facets/` and `themes/` with the walker told to skip them.
 | `doc_fold` | `chupa/specs/doc/fold.md` | canonical + diverged derived document + its diff → proposed canonical patch, with changes in meaning separated from changes in style |
 
 **Isolation is a property of the call, not of the prompt.** Every lens prompt says the agent's only input is the document, with "no knowledge that other agents exist". Today's read-only surfaces can read the whole repository, so the doc surfaces get a new isolated mode:
 
 - The call runs with its working directory set to a fresh scratch directory under `state_dir/doc-scratch/<call>/`. That directory holds only the files the role is allowed to see: the document for a panelist; the document and the panel reports for a synthesis; the original and the draft for a fidelity auditor.
-- Claude gets `--tools Read Grep Glob LS` scoped to that directory, and Codex gets `--sandbox read-only` with that directory as its working directory. The adapter's existing `writes` flag stays false. A new `isolated` request field selects the scratch directory as the working directory.
+- Claude gets `--tools Read Grep Glob LS` scoped to that directory, and Codex gets `--sandbox read-only` with that directory as its working directory. The adapter's `writes` decision (`req.surface in WRITING_SURFACES`, `chupa/providers.py:321`; `WRITING_SURFACES = {"implement"}` at line 29) stays false because no `doc_*` surface is a writing surface. A new `isolated` field on `LLMRequest` (`chupa/llm.py:15`) selects the scratch directory as the working directory, a third source beside the worktree (writing calls) and the repo (`providers.py:338`).
+- No conduct file is loaded: the scratch directory has no `CLAUDE.md` or `AGENTS.md`, by design, since a panelist must see only the document. The evidence record says so (`isolated: true`, `conduct_file: null`, `repo: null`; `docs/evidence-trail-plan.md` §2), so a reader can tell these calls from every other call.
 - The prompt names no other agent, no prior run, and no review history. No earlier report from the doc set's `reviews/` directory is ever placed in a panelist's scratch directory. That prevents anchoring, as the owner's prompts require.
 - The scratch directory is removed after the call, and the evidence record (`docs/evidence-trail-plan.md`) keeps what the call saw.
 
@@ -241,14 +257,14 @@ OutcomeReview's **evidence overlay** stamps each document-review cluster CONFIRM
 ### 8. Render
 
 - Markdown to HTML in pure Python with a new dependency (`markdown-it-py`, with tables, footnotes, and heading anchors). The theme's CSS is embedded inline, so the output is a single file.
-- Themes are `chupa/specs/doc/themes/light.css` and `dark.css` (CSS custom-property tokens). Host themes come from `docs.facets_dir/theme/`.
-- PDF goes HTML to PDF through a host-declared argv (`docs.render.pdf`), run through the exec seam. When none is configured, `--format pdf` is refused with a paved road naming the key.
+- Themes are `chupa/specs/doc/themes/light.css` and `dark.css` (CSS custom-property tokens). Host themes come from `documents.facets_dir/theme/`.
+- PDF goes HTML to PDF through a host-declared argv (`documents.render.pdf`), run through the exec seam and the parallel plan's host-command lock when that exists. When none is configured, `--format pdf` is refused with a paved road naming the key.
 - Mermaid stays as code blocks in v1.
 
 ### 9. Config
 
 ```yaml
-docs:
+documents:
   facets_dir: null          # host facet extensions; injected as data
   review:
     panel: 3                # default panelists per lens (min 2)
@@ -257,14 +273,15 @@ docs:
     pdf: null               # argv list
 ```
 
-A new `Docs` model in `chupa/config.py` with a default, so existing configs load unchanged.
+A new `Documents` model in `chupa/config.py` with a default, so existing configs load unchanged. The block is `documents`, not `docs`, because `docs` is already a verb (`chupa/__main__.py:311`) and the `chupa/docs/` guide directory; `documents.review` sits beside the top-level `review` block and shares nothing with it.
 
 ## Where each piece lives
 
 | Piece | Home |
 |---|---|
 | Facet and lens files (engine-owned; lens prompt text from the owner's review files) | `chupa/specs/doc/facets/<dimension>/<value>.md` |
-| Surface specs | `chupa/specs/doc/{draft,derive,review,fold}.md` |
+| Surface specs | `chupa/specs/doc/{draft,derive,lens,fold}.md` |
+| Config | `chupa/config.py` (`Documents`) |
 | Interactive prompt | `chupa/specs/ask/doc-plan.md`, added to `KINDS` in `chupa/ask.py` |
 | Isolated scratch working directory for a call | `chupa/providers.py` (`isolated` request field), `chupa/llm.py` (`LLMRequest`) |
 | Facet registry, docset schema, section hashing, status | new `chupa/docs_agent/` package (`facets.py`, `docset.py`) |
@@ -283,13 +300,13 @@ Each ticket puts its tests in new files (`docs/parallel-tickets-plan.md` §7).
 |---|---|---|---|---|---|
 | 1 | `doc-facet-registry` | feature | P2 | | Facet format (with `aliases`, `params`, `stages`, `verdicts`), loader, validation, `chupa doc facets`. Type, Audience, Tone, Format, and Theme facet files. |
 | 2 | `docset-manifest` | feature | P2 | | `chupa.docset/1.0`, section hashing, `chupa doc status`. |
-| 3 | `isolated-readonly-call` | feature | P2 | | `isolated` request mode: scratch working directory with only the declared files, for Claude and Codex. Tests prove a panelist cannot read a repo file. |
+| 3 | `isolated-readonly-call` | feature | P2 | `evidence-envelope` | `isolated` request mode: scratch working directory with only the declared files, for Claude and Codex; the evidence record carries `isolated`, `conduct_file: null`, `repo: null`. Tests prove a panelist cannot read a repo file. |
 | 4 | `doc-review-runner` | feature | P2 | 1, 3 | Generic `doc_review` surface, stage runner, schema and verdict gates, accounting gate, report. |
 | 5 | `doc-lenses-from-owner-prompts` | feature | P2 | 4 | `scope`, `viability`, `buildability`, and `compression` lens facets from the owner's prompt files, with schemas. Engine-side byte-identity checks of protected regions for `compression`. |
-| 6 | `doc-lens-automatable` | feature | P2 | 4 | The Appendix prompt as a lens facet, the mechanical ticket-lint stage, the automation ratio, and `--deep`. |
+| 6 | `doc-lens-automatable` | feature | P2 | 4, `fence-overlap` | The Appendix prompt as a lens facet, the mechanical ticket-lint stage, the automation ratio, the fence-overlap estimate, and `--deep`. |
 | 7 | `doc-derive-fidelity` | feature | P2 | 2, 5 | `doc_derive`, fidelity gate by derive class, `fidelity` recorded in `docset.yaml`. |
 | 8 | `doc-fold-apply` | feature | P2 | 2, 7 | `doc_fold`, `doc apply <report>`, accept flow, refusals-list placement, `derive --stale`. |
-| 9 | `doc-render` | feature | P2 | 1 | Markdown to HTML with themes, PDF through the configured argv, `Docs` config. |
+| 9 | `doc-render` | feature | P2 | 1 | Markdown to HTML with themes, PDF through the configured argv, the `documents` config block. |
 | 10 | `doc-draft` | feature | P2 | 1, 2 | `doc_draft` (headless) and the `doc-plan` ask prompt (interactive). |
 | 11 | `doc-extension-menu` | feature | P3 | 8, 10 | Snapshot fields for doc sets and their states, and menu items. |
 
@@ -304,6 +321,8 @@ Tickets 1, 2, and 3 touch separate files and suit a first parallel trial.
 - **Host lenses are host instructions.** They cut against the current refusal of `review.surfaces` (Open decision 2).
 
 ## Open decisions
+
+Defaults if the owner says nothing are recorded in `docs/roadmap.md` section 6.
 
 1. **`diverse` panels by default?** Recommend off by default, so that convergence counts compare with the owner's earlier manual runs, and on for a deliberate cross-provider review.
 2. **Host-defined lenses and facets.** Recommend allowing them as data blocks inside the engine frame. The owner's lenses ship as engine facets either way.

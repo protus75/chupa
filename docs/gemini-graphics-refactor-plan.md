@@ -4,7 +4,11 @@ Add Google's Gemini CLI as a fourth provider beside `claude`, `codex`, and `qwen
 
 ## Status
 
-Draft plan. Nothing in it is in effect and no ticket is authored. Written 2026-11-13 at commit `c7f8d6c1`.
+Draft plan. Nothing in it is in effect and no ticket is authored. Written 2026-11-13 at commit `c7f8d6c1`; revised 2026-11-13 at commit `80b76d5d` for `docs/roadmap.md`.
+
+## Roadmap
+
+Part A (`gemini-provider`) is release 0.2.0 (`docs/roadmap.md` row 32); it needs nothing and waits on its hand test. Part B (`graphics-kind`, `graphics-render-check`, `visual-review-surface`) is release 0.4.0 (rows 49-51) and depends on `closed-sets-single-home` (row 19), which gives the kind set one home before this plan adds a member to it. What needs this plan: `evidence-normalize-gemini` (`docs/evidence-trail-plan.md` ticket 5) waits on `gemini-provider` and uses the A0 hand-test capture as its fixture. Shared files: `graphics-render-check` and the parallel plan's `conflict-discard-rerun` both bump `chupa/specs/implement.md`; this plan's ticket runs first (roadmap decision 8). The render command runs through `run_host_command`, under the parallel plan's host-command lock (decision 10). Shared budget: `graphics-kind` adds 9 bytes (`|graphics`) to CORE_TEMPLATE (decision 5).
 
 ## Part A: Gemini CLI provider
 
@@ -89,18 +93,21 @@ No argv or parse in this plan is final until that test runs.
 - `tests/unit/test_docs_verb.py`
 - `tests/integration/test_cli.py`
 - `tests/integration/test_closed_sets.py` (`ADAPTERS`)
-- the watchdog's unit test file
+- `tests/integration/test_watchdog.py` and `tests/integration/test_watchdog_activation.py` (the watchdog has no unit test file; the new branch's tests go in a new `tests/unit/test_watchdog_gemini.py`)
 
 ## Part B: `graphics` ticket kind
 
 ### Current state
 
 - `kind` is the closed set `feature | bug | chore` (`chupa/tickets.py:59`). It is repeated in:
-  - `chupa/__main__.py`: `--kind` choices and the kind check at line 771;
+  - `chupa/__main__.py`: `--kind` choices (line 269) and the kind check in `_new` (line 791 at `80b76d5d`);
+  - `dev.py:83` (`--kind` choices);
   - `chupa/stats.py:108`;
   - `chupa/author.py:245` (skeletons embedded in the Author prompt);
   - `tests/integration/test_closed_sets.py:342`;
   - the `CORE_TEMPLATE` rule text in `chupa/hostfiles.py` (`chupa new <stem> --kind feature|bug|chore`), and through `chupa core` the managed blocks in `CLAUDE.md` and `AGENTS.md`.
+
+  `closed-sets-single-home` (roadmap row 19, 0.2.0) collapses the code copies to `Frontmatter` in `tickets.py` with argparse and `dev.py` deriving their choices; B1 depends on it so that adding `graphics` is one edit plus the template.
 - `bug` is the precedent for a kind with its own machinery: an extra section (`## Regression`), a stdout protocol (`regression_result`), committed evidence files, and a Check rule that runs the command at head and at base.
 - `## Context` accepts only UTF-8 text, so mockups and reference images have no place in a ticket today.
 - Review is text-only: it sees `git diff main...<stem>`, where an image is `Binary files differ`. Nothing renders the output or looks at it.
@@ -150,7 +157,7 @@ Out (v1): AI-generated raster images. No routed CLI generates images headlessly 
 - Check runs the render command at the branch head. It prints exactly one JSON object, `{"render_result": "ok", "artifacts": [...]}`, and exits 0. Like `regression_result`, any other stdout, extra keys, or a disagreeing exit code is refused. `{"render_result": "error"}` means a missing prerequisite and never counts as success.
 - The engine checks that the listed artifacts are exactly the declared ones, each exists, is non-empty, and has content matching its extension (PNG header, SVG/XML root, HTML).
 - The artifacts are copied into the attempt directory (`tickets/<stem>/attempts/...`) so the visual reviewer and the operator can open them.
-- The host owns the renderer: a Playwright screenshot script, `mmdc` for Mermaid, `dot` for Graphviz. The engine runs only the command, which keeps it pure Python with no browser dependency.
+- The host owns the renderer: a Playwright screenshot script, `mmdc` for Mermaid, `dot` for Graphviz. The engine runs only the command, which keeps it pure Python with no browser dependency. The command goes through `stages.run_host_command`, so it is spooled like a Verification command and, once `docs/parallel-tickets-plan.md` ships, runs under the one host-command lock.
 - Markdown and flowchart checking needs no engine change. A host declares it in `config.yaml`, for example:
 
   ```yaml
@@ -169,7 +176,7 @@ Out (v1): AI-generated raster images. No routed CLI generates images headlessly 
 
 #### B4. Spec updates
 
-- `chupa/specs/implement.md`: a graphics block. Run the render command, open your own artifacts, and compare them with the references and the visual criteria before committing. Never commit artifacts.
+- `chupa/specs/implement.md`: a graphics block. Run the render command, open your own artifacts, and compare them with the references and the visual criteria before committing. Never commit artifacts. The parallel plan's `conflict-discard-rerun` also bumps this spec; B2 runs first, and that ticket takes the next minor above what B2 leaves.
 - `chupa/specs/requisition_review.md`: a graphics block. Each `visual:` criterion can be decided from the named artifact alone. Snag a criterion that needs taste or a reading of intent.
 - `chupa/specs/author.md`: no text change. It embeds the skeletons, which gain `graphics` through `author.py`.
 - Every bumped spec takes the next minor version above its version on main, and its test pin is fenced.
@@ -181,22 +188,24 @@ Out (v1): AI-generated raster images. No routed CLI generates images headlessly 
 | What a graphics ticket contains and how criteria are written | `chupa/docs/host-authoring.md` (the one authoring source) |
 | Ticket format (`## Render`, bullets, kind) | `chupa/tickets.py` |
 | How the implementer and reviewers behave | `chupa/specs/implement.md`, `review_visual.md`, `requisition_review.md` |
-| The `--kind` list in agent conduct | `CORE_TEMPLATE` in `chupa/hostfiles.py`, rendered by `chupa core` |
+| The `--kind` list in agent conduct | `CORE_TEMPLATE` in `chupa/hostfiles.py`, rendered by `chupa core` (+9 bytes against the roadmap's byte ledger) |
 | Repo-only rules | none needed; `CLAUDE.md` and `AGENTS.md` outside the managed block are unchanged |
 
 ## Ticket breakdown
 
 Future tickets. None are authored yet. Each is written with `chupa new`, then `chupa lint` until clean, then `chupa review` until approved.
 
-| Order | Stem | Kind | Depends on | Notes |
-|---|---|---|---|---|
-| A0 | (hand test) | n/a | | Produces evidence for A1; not a ticket |
-| A1 | `gemini-provider` | feature | none | Fence listed in Part A |
-| B1 | `graphics-kind` | feature | none | Grammar, template, `--reference`, lint, kind lists, `CORE_TEMPLATE`, authoring guide, requisition spec |
-| B2 | `graphics-render-check` | feature | `graphics-kind` | Render protocol and artifact checks at Check; implement spec block |
-| B3 | `visual-review-surface` | feature | `graphics-render-check` | `review_visual` spec, stage, and gate |
+| # | Stem | Kind | P | Depends on | Content |
+|---|---|---|---|---|---|
+| A0 | (hand test) | evidence | | | The six facts under "Prerequisite: hand test", captured as A1's evidence and as the Gemini normalizer's fixture; not a ticket. |
+| A1 | `gemini-provider` | feature | P2 | | Fence listed in Part A. Release 0.2.0. |
+| B1 | `graphics-kind` | feature | P2 | `closed-sets-single-home` (roadmap row 19) | Grammar, template, `--reference`, lint, the kind set's one home, `CORE_TEMPLATE` (+9 bytes), authoring guide, requisition spec. Release 0.4.0. |
+| B2 | `graphics-render-check` | feature | P2 | `graphics-kind` | Render protocol and artifact checks at Check; implement spec block. Release 0.4.0. |
+| B3 | `visual-review-surface` | feature | P2 | `graphics-render-check` | `review_visual` spec, stage, and gate. Release 0.4.0. |
 
-Part A and Part B are independent. Within B each ticket needs the previous one's merged code, so `Depends on` is correct there. A1 is useful to B3 only as an optional routing target.
+`Runs before`: B2 before `conflict-discard-rerun` (both bump `chupa/specs/implement.md`). `contention-authoring-rules` (roadmap row 13) before every ticket here.
+
+Part A and Part B are independent. Within B each ticket needs the previous one's merged code, so `Depends on` is correct there. A1 is useful to B3 only as an optional routing target, and to `evidence-normalize-gemini` as its prerequisite.
 
 Fence notes for B1:
 
@@ -216,7 +225,9 @@ Fence notes for B1:
 
 Grep `tests/` and `docs/` for `feature|bug|chore` and the kind tuple before authoring, and fence every hit that asserts the set.
 
-## Deferred decisions
+## Open decisions
+
+Defaults if the owner says nothing are recorded in `docs/roadmap.md` section 6.
 
 1. **Raster image generation.** Include AI-generated images, or only code-rendered output? Recommendation: code-rendered only for v1.
 2. **Routing by ticket kind.** A text-only implementer (qwen3-coder) cannot look at its renders. Options:
