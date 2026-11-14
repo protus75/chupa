@@ -4,11 +4,11 @@ premise_failed
 
 ## Surprises / judgment calls
 
-The prior attempt’s verb-text and JavaScript-literal conflicts have been clarified in the current ticket.
+I inspected the worktree and identified the existing snapshot, stats, documentation, and check surfaces, but did not complete the implementation or run verification.
 
 ## Dead ends
 
-Inspected the snapshot callers and their filesystem fakes; an injected documentation reader would still require the existing unit fixtures to supply it.
+None.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-The ticket budgets 120 minutes; investigation stopped after identifying the scope conflict.
+The ticket budget is 120 minutes expected and 180 minutes stuck; the work was not completed.
 
