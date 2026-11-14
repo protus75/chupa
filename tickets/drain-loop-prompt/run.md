@@ -1,14 +1,14 @@
 ## Outcome
 
-premise_failed
+ok
 
 ## Surprises / judgment calls
 
-The implementation is present but uncommitted; the focused test command passed with tests that read the template from disk, which violates the stated unit-test rules.
+All ticket verification commands and configured hard checks passed; the full suite passed 3,593 tests. A hard-coded state-path mutation caused the expected test failures.
 
 ## Dead ends
 
-Mocking the template read would let the unit tests run without disk access, but those tests would no longer detect a missing /loop prefix, hard-coded state directory, or omitted owner-verdict limits in the actual template.
+A duplicated Claude URI was rejected in favor of the required shared openClaude function.
 
 ## Second problems filed
 
@@ -22,5 +22,5 @@ none
 
 ## Predicted vs actual
 
-The ticket allowed 40 minutes expected; work stopped before completing verification.
+Ticket estimate: 40 minutes; actual time was not measured.
 
