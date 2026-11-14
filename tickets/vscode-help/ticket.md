@@ -95,8 +95,11 @@ Scope in:
   - A link whose heading or verb row does not resolve raises; it does not return a partial map.
   - The builders take the doc reader (`read: Callable[[Path], str]`) and the Repository URL
     (`repo_url: str`) as parameters. `snapshot` passes `Path.read_text` and the
-    `importlib.metadata` value. Unit tests pass a fake `read` serving, for each linked doc,
-    in-memory text that holds every heading and verb row the registry links to, plus a fixed URL,
+    `importlib.metadata` value. The builders call `read` only for packaged docs under
+    `Path(chupa.__file__).parent / "docs"`. A `url` link to a doc not shipped in the package is
+    built from the heading text written in `chupa/help.py` and its computed GitHub slug, without
+    reading that file. Unit tests pass a fake `read` serving, for each packaged doc the registry
+    links to, in-memory text that holds every heading and verb row it links to, plus a fixed URL,
     so `tests/unit/test_help.py` reads no file and no package metadata. Checks against the real
     docs, the real manifest, and installed metadata live in `tests/integration/test_help.py`.
 - `chupa/observe.py::snapshot` adds these fields:
