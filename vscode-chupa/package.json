@@ -253,6 +253,12 @@
 				"command": "chupa.openConfig",
 				"title": "Open config.yaml",
 				"icon": "$(file-code)"
+			},
+			{
+				"command": "chupa.ticket.askDrafts",
+				"title": "Ask Claude: assess drafts",
+				"category": "chupa",
+				"enablement": "chupaAskDrafts == 'on'"
 			}
 		],
 		"menus": {
@@ -331,6 +337,11 @@
 					"command": "chupa.box.discuss",
 					"when": "webviewId == 'chupa.box' && chupaIds",
 					"group": "box@14"
+				},
+				{
+					"command": "chupa.ticket.askDrafts",
+					"when": "webviewId == 'chupa.tickets' && (chupaAskDrafts == 'on' || chupaAskDrafts == 'locked' && config.chupa.unavailableMenuItems != 'hide')",
+					"group": "4_claude@3"
 				}
 			],
 			"commandPalette": [
@@ -420,6 +431,10 @@
 				},
 				{
 					"command": "chupa.openConfig",
+					"when": "false"
+				},
+				{
+					"command": "chupa.ticket.askDrafts",
 					"when": "false"
 				}
 			],

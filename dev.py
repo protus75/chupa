@@ -11,6 +11,7 @@
     ./dev.py covmap           build the coverage map
     ./dev.py triage [ID ...]  triage pending messages
     ./dev.py dismiss ID ...   dismiss messages
+    ./dev.py prompt KIND [STEM ...]  render an operator prompt
     ./dev.py docs             print installed host guide paths
     ./dev.py probe [PROVIDER...]  send the probe prompt through each provider
     ./dev.py suggest SUMMARY  queue an idea for triage
@@ -66,6 +67,9 @@ def main() -> None:
     sub.add_parser("covmap", help="build the coverage map")
     sub.add_parser("triage", help="triage pending messages").add_argument("ids", nargs="*")
     sub.add_parser("dismiss", help="dismiss messages").add_argument("ids", nargs="+")
+    prompt = sub.add_parser("prompt", help="render an operator prompt")
+    prompt.add_argument("kind")
+    prompt.add_argument("stems", nargs="*")
     sub.add_parser("docs", help="print installed host guide paths")
     sub.add_parser("probe", help="probe providers").add_argument("providers", nargs="*")
     sub.add_parser("suggest", help="queue an idea for triage").add_argument("summary")
@@ -107,6 +111,8 @@ def main() -> None:
         chupa("stats", "--window", args.window, *(["--json"] if args.json else []))
     elif args.task in {"triage", "dismiss"}:
         chupa(args.task, *args.ids)
+    elif args.task == "prompt":
+        chupa("prompt", args.kind, *args.stems)
     elif args.task == "probe":
         chupa("probe", *args.providers)
     elif args.task == "suggest":

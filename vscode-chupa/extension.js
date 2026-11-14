@@ -353,6 +353,14 @@ function activate(context) {
 		vscode.commands.registerCommand('chupa.ticket.reject', ctx => devCommand(...snapshot.snap.verdictCommands.reject, ctx.chupaStem)),
 		vscode.commands.registerCommand('chupa.ticket.askDiagnose', ctx => askClaude(ctx, 'diagnose')),
 		vscode.commands.registerCommand('chupa.ticket.askReview', ctx => askClaude(ctx, 'review')),
+		vscode.commands.registerCommand('chupa.ticket.askDrafts', () => {
+			const root = chupaRoot();
+			if (!root) return;
+			runData(root, ['prompt', 'drafts'], {}, (err, stdout, stderr) => {
+				if (err) vscode.window.showErrorMessage((stderr || err.message).trim());
+				else vscode.env.openExternal(vscode.Uri.parse(`${vscode.env.uriScheme}://anthropic.claude-code/open?prompt=${encodeURIComponent(stdout)}`));
+			});
+		}),
 		vscode.commands.registerCommand('chupa.engine', async () => {
 			const choice = await vscode.window.showQuickPick(snapshot.snap?.engineVerbs ?? []);
 			if (choice) devCommand(...choice.argv);

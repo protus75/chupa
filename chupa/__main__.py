@@ -247,7 +247,7 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("core", help="refresh managed conduct in every routed agent's root file")
     prompt = sub.add_parser("prompt", help="render an operator prompt for a ticket")
     prompt.add_argument("kind", choices=ask.KINDS)
-    prompt.add_argument("stems", nargs="+")
+    prompt.add_argument("stems", nargs="*")
     sub.add_parser("docs", help="print installed host guide paths")
     sub.add_parser("probe", help="probe declared providers").add_argument("providers", nargs="*")
     sub.add_parser("migrate-config", help="validate and migrate schema_version: 0 to the current config schema")
@@ -395,7 +395,22 @@ def main(
             hostfiles.refresh(routed_conduct_paths(config, repo), LocalFileSystem())
             return 0
         if args.verb == "prompt":
+            if args.kind == "drafts":
+                if args.stems:
+                    raise runner.Refusal("drafts prompt takes no stems", "run chupa prompt drafts with no stems")
+                from chupa import observe
+
+                exec_ = SubprocessExec()
+                git = Git(exec_, env={**child_env(env, config), "GIT_OPTIONAL_LOCKS": "0"}, timeout=GIT_TIMEOUT_S, commit_lock=CommitLock(config.state_dir, clock=clock, sleep=asyncio.sleep))
+                context = observe.Context(repo.resolve(), config.state_dir.resolve(), (args.config or repo / "config.yaml").resolve(), exec_, git, child_env(env, config))
+                stems = [row["stem"] for row in observe.snapshot(context)["rows"] if row["draft"]]
+                if not stems:
+                    raise runner.Refusal("no draft tickets await confirm or reject", "run triage, or author a ticket with chupa new")
+                print(ask.render("drafts", stems, config, repo), end="")
+                return 0
             if args.kind == "box":
+                if not args.stems:
+                    raise runner.Refusal("box prompt requires ids", "name at least one box id")
                 print(ask.render("box", args.stems, config, repo), end="")
                 return 0
             if len(args.stems) != 1:

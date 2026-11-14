@@ -14,7 +14,7 @@ def config(tmp_path):
     return load_config(None, cwd=tmp_path)
 
 
-@pytest.mark.parametrize("kind", [kind for kind in ask.KINDS if kind != "box"])
+@pytest.mark.parametrize("kind", [kind for kind in ask.KINDS if kind not in {"box", "drafts"}])
 def test_each_kind_renders_stem_ticket_and_state_dir(config, tmp_path, kind):
     text = ask.render(kind, "unique-stem", config, tmp_path)
     assert "`unique-stem`" in text  # A fixed or missing stem gives a different prompt.
@@ -73,3 +73,22 @@ def test_box_prompt_names_requested_files(config, tmp_path, capsys):
 def test_box_prompt_unknown_id_refuses(config, tmp_path, capsys):
     assert main(["prompt", "box", "missing-id"], cwd=tmp_path) == 2
     assert "unknown box id missing-id -- name ids that chupa status lists" in capsys.readouterr().err
+
+
+def test_drafts_prompt_selects_committed_drafts(tmp_path, capsys):
+    from tests.integration.test_cli import git_out
+    from tests.integration.test_drain import confirmed, make_root
+
+    root = make_root(tmp_path)
+    for stem, state in (("committed-draft", "draft"), ("confirmed-ticket", "confirmed"), ("untracked-draft", "draft")):
+        path = root / "tickets" / stem / "ticket.md"
+        path.parent.mkdir(parents=True)
+        path.write_text(confirmed().replace("state: confirmed", f"state: {state}"))
+        if stem != "untracked-draft":
+            git_out(root, "add", str(path.relative_to(root)))
+    git_out(root, "commit", "-m", "tickets")
+    assert main(["prompt", "drafts"], cwd=root) == 0  # Committed draft is actionable.
+    output = capsys.readouterr().out
+    assert "committed-draft" in output  # Dropping the committed draft is wrong.
+    assert "confirmed-ticket" not in output and "untracked-draft" not in output  # Neither other row is actionable.
+    assert not (root / ".chupa").exists()  # The read-only prompt must not write state.

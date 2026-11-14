@@ -525,6 +525,7 @@ MENU = {
     "chupaConfirm": MenuEntry("ticket", confirm_admission, ("events", "stem", "draft", "interrupted")),
     "chupaReject": MenuEntry("ticket", reject_admission, ("events", "stem", "draft", "interrupted")),
     "chupaAskDiagnose": MenuEntry("ticket", lambda section: Admission("admit" if section != "merged" else "noop"), ("section",), extension_only=True),
+    "chupaAskDrafts": MenuEntry("ticket", lambda row_draft: Admission("admit" if row_draft else "noop"), ("row_draft",), extension_only=True),
     "chupaAskReview": MenuEntry("ticket", lambda section: Admission("admit" if section in ("queued", "blocked") else "noop"), ("section",), extension_only=True),
     "chupaPriority": MenuEntry("ticket", order_admission, ("stem", "events", "file_exists", "lock_holder", "ticket")),
     "chupaRunsBefore": MenuEntry("ticket", order_admission, ("stem", "events", "file_exists", "lock_holder", "ticket")),
@@ -580,6 +581,7 @@ def ticket_menu_inputs(ctx, history, stems, holder, interrupted):
             stray=stray,
             pending=ticket_pending,
             draft=False,
+            row_draft=False,
             interrupted=interrupted,
             section="",
             lock_holder=holder,
@@ -717,6 +719,7 @@ def snapshot(ctx) -> dict:
         inputs = menu_inputs[r["stem"]]
         for values in inputs.values():
             values["section"] = r["section"]
+            values["row_draft"] = r["draft"]
             values["draft"] = bool(tickets.get(r["stem"])) and tickets[r["stem"]].frontmatter.state == "draft"
         r["menu"] = row_menu("ticket", inputs, alive)
         r["priorityChoices"] = [{"label": p, "description": "current" if p == r["priority"] else ""} for p in priorities]

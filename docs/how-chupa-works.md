@@ -65,6 +65,7 @@ prints `chupa <verb>: <message> -- <what to do instead>`.
 | `triage [id ...]` | yes | One sequential pass over named pending messages, or all pending messages (section 9.2). |
 | `dismiss <id> ...` | yes | Dismiss named messages without a model call. |
 | `prompt box <id> ...` | no | Print a prompt for discussing named box messages. |
+| `prompt drafts` | no | Print an assessment prompt for all committed drafts awaiting a verdict. |
 | `pause` / `resume` / `kill` / `stop` | try | With a running engine, publish a control request to it (section 7.3). With a non-engine holder, refuses and asks the operator to wait. With none: `kill` and `stop` refuse (exit 2); `pause`/`resume` print "nothing running". |
 | `confirm <stem> [--yes|--extension]` | try | A person at a terminal answers `y` to keep (or uses `--yes` to skip the prompt): promotes a draft to confirmed, keeps a Reject-queue item (section 6.6). Same-content repeat keeps are refused for command-line confirms; the extension uses `--extension` to allow them. Intakes only the named ticket’s pending changes; with drain or serve running, does so before publishing the verdict to the engine; refuses while a non-engine holder has the lock. |
 | `reject <stem> [--yes]` | try | A person at a terminal answers `y` to kill (or uses `--yes` to skip the prompt): stamps the ticket `rejected` (section 6.6). Refuses settled stems. Intakes only the named ticket’s pending changes; with drain or serve running, does so before publishing the verdict to the engine; refuses while a non-engine holder has the lock. |
@@ -84,6 +85,7 @@ A unit test file may share its name with an integration test file.
 | (none) | `uv run pytest -q` |
 | `test [args]` | pytest with those args |
 | `triage [ID ...]`, `dismiss ID ...` | One matching chupa call with all supplied IDs |
+| `prompt KIND [STEM ...]` | `chupa prompt` with the supplied kind and stems |
 | `docs` | `chupa docs` |
 | `probe [PROVIDER...]` | `chupa probe` with the supplied providers |
 | `suggest SUMMARY` | `chupa suggest <summary>` |

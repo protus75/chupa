@@ -182,7 +182,7 @@ def test_menu_matches_verbs(world, capsys, case, run, review, order, lint):
         snap = observe.snapshot(w.ctx)
         row = next(r for r in snap["rows"] if r["stem"] == "item")
         assert set(row["menu"]) == {k for k, spec in observe.MENU.items() if spec.kind == "ticket"}
-        assert {key for key, spec in observe.MENU.items() if spec.extension_only} == {"chupaAskDiagnose", "chupaAskReview"}
+        assert {key for key, spec in observe.MENU.items() if spec.extension_only} == {"chupaAskDiagnose", "chupaAskReview", "chupaAskDrafts"}
         inputs = verb_inputs(w, "item", row, live)
         for key, spec in observe.MENU.items():
             if not spec.extension_only:

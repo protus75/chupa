@@ -794,3 +794,30 @@ def test_snapshot_commit_lock_display(tmp_path, monkeypatch):
     original = watch.Path.read_bytes
     monkeypatch.setattr(watch.Path, "read_bytes", lambda self: b"python\0-m\0chupa\0review\0stem\0" if str(self) == f"/proc/{os.getpid()}/cmdline" else original(self))
     assert watch.snapshot(ctx)["commitLock"] == f"review since {watch.clock(started)} (pid {os.getpid()})"
+
+
+def test_draft_assessment_menu_tracks_snapshot_draft(tmp_path):
+    from chupa import observe
+    from chupa.git import Git
+    from chupa.seams import SubprocessExec
+    from tests.integration.test_cli import ENV, git_out
+    from tests.integration.test_drain import confirmed, make_root
+    from tests.integration.test_git import commit_lock
+
+    root = make_root(tmp_path)
+    for stem, state in (("committed-draft", "draft"), ("confirmed-ticket", "confirmed"), ("untracked-draft", "draft")):
+        path = root / "tickets" / stem / "ticket.md"
+        path.parent.mkdir(parents=True)
+        path.write_text(confirmed().replace("state: confirmed", f"state: {state}"))
+        if stem != "untracked-draft":
+            git_out(root, "add", str(path.relative_to(root)))
+    git_out(root, "commit", "-m", "tickets")
+    state = root / ".chupa/state"
+    git = Git(SubprocessExec(), env=ENV, timeout=30, commit_lock=commit_lock(state))
+    ctx = observe.Context(root, state, root / "config.yaml", SubprocessExec(), git, ENV)
+    rows = {row["stem"]: row for row in observe.snapshot(ctx)["rows"]}
+    assert {stem: rows[stem]["menu"]["chupaAskDrafts"] for stem in ("committed-draft", "untracked-draft", "confirmed-ticket")} == {
+        "committed-draft": "on",
+        "untracked-draft": "off",
+        "confirmed-ticket": "off",
+    }  # Raw frontmatter and always-on menus differ.

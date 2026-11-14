@@ -18,7 +18,7 @@ Use the same prefix for the other verbs below. The host checkout remains the wor
 | `lint` | Yes | Validate tickets without writing. |
 | `retro` | Yes | Run a retro report now, or queue one on the running engine (serve accepts it but does not yet run it). |
 | `doctor` | No | Inspect setup; its lock probe reports a held lock as a failure. |
-| `prompt` | Yes | Render an operator prompt for a ticket or named box IDs without writing state. |
+| `prompt` | Yes | Render an operator prompt for a ticket, named box IDs, or all committed drafts without writing state. |
 | `core` | Yes | Refresh managed conduct files. |
 | `probe` | Yes | Probe declared providers and models. |
 | `docs` | Yes | Print the installed host guide paths and their purposes. |
