@@ -28,6 +28,8 @@ kind: feature
 - chupa/docs/host-running.md
 - chupa/docs/host-contract.md#VS Code extension
 - tests/unit/test_host_running.py
+- tests/unit/test_menu_admission.py
+- tests/unit/test_verdict_menu_parity.py
 - tests/integration/test_stats.py::test_stats_tree_generic_rows
 - tests/integration/test_step_icons.py
 - tests/integration/test_vscode_command_not_found.py
@@ -102,6 +104,15 @@ Scope in:
     links to, in-memory text that holds every heading and verb row it links to, plus a fixed URL,
     so `tests/unit/test_help.py` reads no file and no package metadata. Checks against the real
     docs, the real manifest, and installed metadata live in `tests/integration/test_help.py`.
+- `snapshot` takes everything it needs from `chupa/help.py` (the `help` map, `helpPick`,
+  `headerHelp`, `boxHeaderHelp`, and the verb `what` text that `engineVerbs` shows) from one
+  module-level function in `chupa/observe.py`. That function is the only place that passes
+  `Path.read_text` and the `importlib.metadata` Repository URL to the builders; `snapshot` itself
+  reads no doc and no metadata. `tests/unit/test_menu_admission.py` (both fixtures that fake
+  `Path.read_text` with a dict of ticket paths) and `tests/unit/test_verdict_menu_parity.py` (the
+  `world` fixture) monkeypatch that function to return a fixed in-memory payload, the same way they
+  already fake `observe.journal` and `observe.load_tickets`. Their assertions do not change and they
+  still read no disk.
 - `chupa/observe.py::snapshot` adds these fields:
   - top-level `help`, the map above;
   - `helpPick`, an ordered QuickPick list, with one `{"kind": "separator", "label"}` per topic kind,
@@ -218,6 +229,8 @@ Scope out:
 - tests/unit/test_help.py
 - tests/integration/test_help.py
 - tests/integration/test_watch.py
+- tests/unit/test_menu_admission.py
+- tests/unit/test_verdict_menu_parity.py
 - tests/vscode_step_icons.js
 - tests/vscode_task_identity.js
 - tests/vscode_command_not_found.js
