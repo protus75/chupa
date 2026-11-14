@@ -61,16 +61,19 @@ async function orderTicket(ctx, snapshot, field) {
 	});
 }
 
-// A new Claude Code chat with the ticket in its prompt, through the /open URI its extension handles (read from its
-// code, not documented, so an update may break it).
+// The Claude Code /open URI is undocumented and may change.
+function openClaude(root, args) {
+	runData(root, args, {}, (err, stdout, stderr) => {
+		if (err) vscode.window.showErrorMessage((stderr || err.message).trim());
+		else vscode.env.openExternal(vscode.Uri.parse(`${vscode.env.uriScheme}://anthropic.claude-code/open?prompt=${encodeURIComponent(stdout)}`));
+	});
+}
+
 function askClaude(ctx, task) {
 	const root = chupaRoot();
 	const stem = ctx?.chupaStem;
 	if (!root || !stem) return;
-	runData(root, ['prompt', task, stem], {}, (err, stdout, stderr) => {
-		if (err) vscode.window.showErrorMessage((stderr || err.message).trim());
-		else vscode.env.openExternal(vscode.Uri.parse(`${vscode.env.uriScheme}://anthropic.claude-code/open?prompt=${encodeURIComponent(stdout)}`));
-	});
+	openClaude(root, ['prompt', task, stem]);
 }
 
 // One snapshot run feeds every view and the Activity Bar badge.
@@ -333,10 +336,7 @@ function activate(context) {
 		vscode.commands.registerCommand('chupa.box.discuss', ctx => {
 			const root = chupaRoot();
 			if (!root) return;
-			runData(root, ['prompt', 'box', ...ctx.chupaIds], {}, (err, stdout, stderr) => {
-				if (err) vscode.window.showErrorMessage((stderr || err.message).trim());
-				else vscode.env.openExternal(vscode.Uri.parse(`${vscode.env.uriScheme}://anthropic.claude-code/open?prompt=${encodeURIComponent(stdout)}`));
-			});
+			openClaude(root, ['prompt', 'box', ...ctx.chupaIds]);
 		}),
 		vscode.commands.registerCommand('chupa.bulkTriage', () => devCommand('triage')),
 		vscode.commands.registerCommand('chupa.refresh', () => { snapshot.refresh(); stats.refresh(); }),
@@ -356,10 +356,11 @@ function activate(context) {
 		vscode.commands.registerCommand('chupa.ticket.askDrafts', () => {
 			const root = chupaRoot();
 			if (!root) return;
-			runData(root, ['prompt', 'drafts'], {}, (err, stdout, stderr) => {
-				if (err) vscode.window.showErrorMessage((stderr || err.message).trim());
-				else vscode.env.openExternal(vscode.Uri.parse(`${vscode.env.uriScheme}://anthropic.claude-code/open?prompt=${encodeURIComponent(stdout)}`));
-			});
+			openClaude(root, ['prompt', 'drafts']);
+		}),
+		vscode.commands.registerCommand('chupa.askDrainLoop', () => {
+			const root = chupaRoot();
+			if (root) openClaude(root, ['prompt', 'drain-loop']);
 		}),
 		vscode.commands.registerCommand('chupa.engine', async () => {
 			const choice = await vscode.window.showQuickPick(snapshot.snap?.engineVerbs ?? []);

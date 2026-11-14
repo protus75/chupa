@@ -8,7 +8,7 @@ from chupa.config import Config
 from chupa.runner import SPECS_DIR
 from chupa.tickets import ticket_path
 
-KINDS = ("diagnose", "running", "review", "box", "drafts")
+KINDS = ("diagnose", "running", "review", "box", "drafts", "drain-loop")
 
 
 def render(kind: str, stem: str, config: Config, repo: Path) -> str:
@@ -26,6 +26,9 @@ def render(kind: str, stem: str, config: Config, repo: Path) -> str:
         paths = "\n".join(f"- {m.id}: {state_dir / 'box' / box.path(m).name}" for m in messages)
         template = Template((SPECS_DIR / "ask" / "box.md").read_text())
         result = template.substitute(messages=paths)
+    elif kind == "drain-loop":
+        template = Template((SPECS_DIR / "ask" / "drain-loop.md").read_text())
+        result = template.substitute(state_dir=str(state_dir))
     elif kind == "drafts":
         paths = "\n".join(f"- {item}: {ticket_path(item)}" for item in stem)
         template = Template((SPECS_DIR / "ask" / "drafts.md").read_text())

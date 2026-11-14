@@ -14,7 +14,7 @@ def config(tmp_path):
     return load_config(None, cwd=tmp_path)
 
 
-@pytest.mark.parametrize("kind", [kind for kind in ask.KINDS if kind not in {"box", "drafts"}])
+@pytest.mark.parametrize("kind", [kind for kind in ask.KINDS if kind not in {"box", "drafts", "drain-loop"}])
 def test_each_kind_renders_stem_ticket_and_state_dir(config, tmp_path, kind):
     text = ask.render(kind, "unique-stem", config, tmp_path)
     assert "`unique-stem`" in text  # A fixed or missing stem gives a different prompt.

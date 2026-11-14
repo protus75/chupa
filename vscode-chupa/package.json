@@ -123,6 +123,11 @@
 		},
 		"commands": [
 			{
+				"command": "chupa.askDrainLoop",
+				"title": "Ask Claude: drain loop",
+				"category": "chupa"
+			},
+			{
 				"command": "chupa.refresh",
 				"title": "Refresh",
 				"icon": "$(refresh)"
@@ -346,6 +351,10 @@
 			],
 			"commandPalette": [
 				{
+					"command": "chupa.askDrainLoop",
+					"when": "false"
+				},
+				{
 					"command": "chupa.ticket.open",
 					"when": "false"
 				},
@@ -439,6 +448,11 @@
 				}
 			],
 			"view/title": [
+				{
+					"command": "chupa.askDrainLoop",
+					"when": "view == chupa.tickets",
+					"group": "chupa@7"
+				},
 				{
 					"command": "chupa.refresh",
 					"when": "view == chupa.stats",

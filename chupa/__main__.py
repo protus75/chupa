@@ -245,7 +245,7 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("retro", help="run a retro now, or queue one on the running engine")
     sub.add_parser("doctor", help="inspect setup without changing state")
     sub.add_parser("core", help="refresh managed conduct in every routed agent's root file")
-    prompt = sub.add_parser("prompt", help="render an operator prompt for a ticket")
+    prompt = sub.add_parser("prompt", help="render an operator prompt")
     prompt.add_argument("kind", choices=ask.KINDS)
     prompt.add_argument("stems", nargs="*")
     sub.add_parser("docs", help="print installed host guide paths")
@@ -395,6 +395,11 @@ def main(
             hostfiles.refresh(routed_conduct_paths(config, repo), LocalFileSystem())
             return 0
         if args.verb == "prompt":
+            if args.kind == "drain-loop":
+                if args.stems:
+                    raise runner.Refusal("drain-loop takes no stem", "run chupa prompt drain-loop with no stems")
+                print(ask.render("drain-loop", "", config, repo), end="")
+                return 0
             if args.kind == "drafts":
                 if args.stems:
                     raise runner.Refusal("drafts prompt takes no stems", "run chupa prompt drafts with no stems")
