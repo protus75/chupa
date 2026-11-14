@@ -1,15 +1,20 @@
 {
   "artifact_schema_version": 1,
   "produced_by_spec_version": 1,
-  "produced_at_sha": "0874ef7e1add29911c19fe640064eb36582dc760",
+  "produced_at_sha": "da02080ff8e2dee4bb0fe3eb7df697c1e2bea8a7",
   "stem": "vscode-help",
-  "attempt": 1,
+  "attempt": 2,
   "terminal": "premise_failed",
   "stage": "implement",
-  "verdict": "abandon-human",
-  "lessons": [],
-  "mechanical": "premise_bounce cap spent",
+  "verdict": "reject",
+  "lessons": [
+    "Scope fence misses forced files: tests/unit/test_menu_admission.py:194 and tests/unit/test_verdict_menu_parity.py:42 patch Path.read_text with a ticket-only dict, so snapshot's required Path.read_text doc read raises KeyError and `./dev.py test` (criterion 14) fails.",
+    "Before rerunning, add tests/unit/test_menu_admission.py and tests/unit/test_verdict_menu_parity.py to the fence and Scope in. Allow only fixture changes that serve the packaged chupa/docs text (or the real read_text for paths under chupa/docs); their assertions stay the same.",
+    "Those fixtures also patch Path.is_file and Path.exists to ticket paths. If chupa/help.py checks a packaged doc exists before reading it, the fixture change must cover that check too.",
+    "Do not dodge the fakes by binding Path.read_text at import time or caching the help map at import. The Goal requires the run-guide verb text to be read at snapshot time, and either trick only hides a fixture that needs updating."
+  ],
+  "mechanical": null,
   "spec_version": "1.5",
-  "provider": null,
-  "model": null
+  "provider": "claude",
+  "model": "claude-opus-5-5"
 }
