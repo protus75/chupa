@@ -5,7 +5,7 @@ emits: {approve: requisition-approval, snag: requisition-snag, rma: requisition-
 tier: high
 effort: high
 gates: [requisition_review]
-version: "3.13"
+version: "3.14"
 ---
 ## Role
 
@@ -34,6 +34,7 @@ Report every finding in this one reply; never stop at the first.
 
 When a prior review is given, first rule each of its findings `cleared` or `standing` in your
 summary. Raise a NEW finding only against text the diff shows changed since that review.
+The changed-text limit never applies to a defect that makes a criterion or `## Verification` command impossible to satisfy against merged code: raise it as a finding whether or not the text changed, never approve while the summary records such a defect, and do not treat style or arguable wording as hits.
 Within that limit, check each changed statement against every unchanged criterion, Definition-of-rejected clause, and preservation test it interacts with, and raise contradictions the changed text creates as findings against the changed text. Unchanged text that no changed statement touches is not reviewed again.
 Redo dependents accounting in full on every review, regardless of the changed-text limit.
 A prior review reporting an invalid requisition review reply clears nothing and has no findings to rule on, so review the whole ticket again, including the transitive import and composition closure of the fence, without the changed-text limit.

@@ -22,7 +22,7 @@ from chupa.specs import (
 
 def test_spec_lint_accepts_the_implement_and_requisition_specs():
     specs = Path(__file__).resolve().parents[2] / "chupa" / "specs"
-    for name, version in (("implement", "2.12"), ("requisition_review", "3.13"), ("diagnose", "1.5")):
+    for name, version in (("implement", "2.12"), ("requisition_review", "3.14"), ("diagnose", "1.5")):
         text = (specs / f"{name}.md").read_text()
         assert lint_spec(text) == []
         assert load_spec(text).meta.version == version
@@ -38,6 +38,21 @@ def test_requisition_review_spec_checks_changed_text_against_unchanged():
         "check each changed statement against every unchanged criterion, Definition-of-rejected clause, and preservation test it interacts with",
         "against the changed text",
         "Unchanged text that no changed statement touches is not reviewed again.",
+    ):
+        assert phrase in task
+
+
+def test_requisition_review_spec_raises_impossible_criteria_unchanged():
+    text = (Path(__file__).resolve().parents[2] / "chupa/specs/requisition_review.md").read_text()
+    spec = load_spec(text)
+    rendered = render(spec, {name: f"fixture {name}" for name in spec.inputs})
+    task = " ".join(rendered.split("## Task\n", 1)[1].split("## Inputs\n", 1)[0].split())
+    # Missing any clause permits approval of an impossible ticket or reopens arguable text.
+    for phrase in (
+        "The changed-text limit never applies to a defect that makes a criterion or `## Verification` command impossible to satisfy against merged code",
+        "raise it as a finding whether or not the text changed",
+        "never approve while the summary records such a defect",
+        "do not treat style or arguable wording as hits",
     ):
         assert phrase in task
 
